@@ -40,7 +40,7 @@ win32 {
     LIBS        += -l$${FRAMEWORK_LIB_NAME}
 }
 
-RESOURCES +=
+RESOURCES += icons.qrc
 
 FORMS += \
     mainwindow.ui

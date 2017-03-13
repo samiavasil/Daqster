@@ -115,8 +115,12 @@ void MainWindow::on_actionHideMainMenu_triggered(bool checked)
 
 void MainWindow::on_actionSave_triggered()
 {
-    QPluginLoader p( tr("C:\\Projects\\GitHub\\Daqster\\bin\\plugins\\DaqsterTemlatePlugind.dll"), this );
+    QPluginLoader p( tr("./plugins/DaqsterTemlatePlugin.so"), this );
     QObject* Inst = p.instance();
+
+  //  delete Inst;
+  //  Inst = NULL;
+ //   if( p.unload() ) Inst = NULL;
     if( Inst ){
         Daqster::QPluginBaseInterface* ObjInterface = dynamic_cast<Daqster::QPluginBaseInterface*>(Inst);
         if( ObjInterface ){
