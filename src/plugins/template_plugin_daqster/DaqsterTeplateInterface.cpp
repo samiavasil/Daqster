@@ -1,8 +1,13 @@
 #include "DaqsterTeplateInterface.h"
 #include "base/debug.h"
+#include<QLabel>
+#include<QLayout>
 
 TemplatePluginObject::TemplatePluginObject(QObject *Parent):QBasePluginObject ( Parent  ){
     m_Win = new QMainWindow();
+    QLabel* label = new QLabel( );
+    label->setText("PluginTemplate Demo");
+    m_Win->setCentralWidget(label);
     m_Win->show();
     m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
     connect( m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)) );
