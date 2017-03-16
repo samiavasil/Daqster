@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QPluginBaseInterface.cpp - Copyright vvasilev
+                        Daqster/QPluginObjectsInterface.cpp - Copyright vvasilev
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -18,9 +18,11 @@ General Public Licence for more details.
 Initial version of this file was created on нд март 12 2017 at 20:54:50
 **************************************************************************/
 
-#include "QPluginBaseInterface.h"
+#include "QPluginObjectsInterface.h"
 #include "QBasePluginObject.h"
+#include "base/debug.h"
 #include <QPluginLoader>
+
 
 namespace Daqster {
 
@@ -28,11 +30,11 @@ namespace Daqster {
  * Empty Constructor
  * @param  parent
  */
-QPluginBaseInterface::QPluginBaseInterface (  QObject* Parent ):QObject(Parent) {
+QPluginObjectsInterface::QPluginObjectsInterface (  QObject* Parent ):QObject(Parent) {
 
 }
 
-QPluginBaseInterface::~QPluginBaseInterface () {
+QPluginObjectsInterface::~QPluginObjectsInterface () {
 
 }
 
@@ -41,7 +43,7 @@ QPluginBaseInterface::~QPluginBaseInterface () {
  * string and try to detect type from name.
  * @return Daqster::PluginType_t
  */
-Daqster::PluginType_t QPluginBaseInterface::getType ()
+Daqster::PluginType_t QPluginObjectsInterface::GetType ()
 {
     return m_PluginType;
 }
@@ -51,7 +53,7 @@ Daqster::PluginType_t QPluginBaseInterface::getType ()
  * Return plugin embeded icon.
  * @return const QIcon
  */
-const QIcon QPluginBaseInterface::getIcon ()
+const QIcon& QPluginObjectsInterface::GetIcon ()
 {
     return m_Icon;
 }
@@ -59,9 +61,9 @@ const QIcon QPluginBaseInterface::getIcon ()
 
 /**
  * Return plugin name
- * @return const QString
+ * @return const QString&
  */
-const QString QPluginBaseInterface::getName ()
+const QString& QPluginObjectsInterface::GetName ()
 {
     return  m_Name;
 }
@@ -69,9 +71,9 @@ const QString QPluginBaseInterface::getName ()
 
 /**
  * Get plugin type name
- * @return const QString
+ * @return const QString&
  */
-const QString QPluginBaseInterface::getTypeName ()
+const QString& QPluginObjectsInterface::GetTypeName ()
 {
     return m_PluginTypeName;
 }
@@ -79,8 +81,9 @@ const QString QPluginBaseInterface::getTypeName ()
 
 /**
  * Get plugin version
+ * @return const QString&
  */
-QString QPluginBaseInterface::getVersion ()
+const QString& QPluginObjectsInterface::GetVersion ()
 {
     return m_Version;
 }
@@ -88,9 +91,9 @@ QString QPluginBaseInterface::getVersion ()
 
 /**
  * Get plugin description
- * @return const QString
+ * @return const QString&
  */
-const QString QPluginBaseInterface::getDescription ()
+const QString& QPluginObjectsInterface::GetDescription ()
 {
     return m_Description;
 }
@@ -98,9 +101,9 @@ const QString QPluginBaseInterface::getDescription ()
 
 /**
  * Get plugin detail description.
- * @return const QString
+ * @return const QString&
  */
-const QString QPluginBaseInterface::getDetailDescription ()
+const QString& QPluginObjectsInterface::GetDetailDescription ()
 {
     return m_DetailDescription;
 }
@@ -108,9 +111,9 @@ const QString QPluginBaseInterface::getDetailDescription ()
 
 /**
  * Get plugin license
- * @return const QString
+ * @return const QString&
  */
-const QString QPluginBaseInterface::getLicense ()
+const QString& QPluginObjectsInterface::GetLicense ()
 {
     return m_License;
 }
@@ -118,9 +121,9 @@ const QString QPluginBaseInterface::getLicense ()
 
 /**
  * Return plugin author
- * @return const QString
+ * @return const QString&
  */
-const QString QPluginBaseInterface::getAuthor ()
+const QString& QPluginObjectsInterface::GetAuthor ()
 {
     return m_Author;
 }
@@ -129,12 +132,12 @@ const QString QPluginBaseInterface::getAuthor ()
 /**
  * Set new plugin loader.
  * When the plugin is loaded on first time we create QPluginLoader and its method
- * instance() returns QPluginBaseInterface*  plugInterface. On this point
+ * instance() returns QPluginObjectInterface*  plugInterface. On this point 
  * plugInterface->setPluginLoader() function is called to set pointer to
  * QPluginLoader.
  * @param  Loader New plugin loader
  */
-void QPluginBaseInterface::setPluginLoader(QSharedPointer<QPluginLoader>& Loader )
+void QPluginObjectsInterface::SetPluginLoader (QSharedPointer<QPluginLoader> & Loader)
 {
     m_PluginLoader = Loader;
 }
@@ -142,11 +145,11 @@ void QPluginBaseInterface::setPluginLoader(QSharedPointer<QPluginLoader>& Loader
 /**
  * Create  new plugin object.
  * @return Daqster::QBasePluginObject*
- * @param  Pointer to parent QObject
+ * @param  Parrent Pointer to parent QObject
  */
-QBasePluginObject *QPluginBaseInterface::createPlugin(QObject *Parrent)
+Daqster::QBasePluginObject* QPluginObjectsInterface::CreatePlugin (QObject* Parrent)
 {
-    QBasePluginObject * obj = createPluginInternal( Parrent );
+    QBasePluginObject * obj = CreatePluginInternal( Parrent );
     if( NULL != obj ){
         m_PluginInstList.append( obj );
         connect( obj, SIGNAL(destroyed(QObject*)), this, SLOT(pluginInstanceDestroyed(QObject*)) );
@@ -154,12 +157,12 @@ QBasePluginObject *QPluginBaseInterface::createPlugin(QObject *Parrent)
     return obj;
 }
 
-void QPluginBaseInterface::pluginInstanceDestroyed( QObject *obj )
+void QPluginObjectsInterface::pluginInstanceDestroyed( QObject *obj )
 {
     QBasePluginObject* Plugin = (QBasePluginObject*)(obj);//TODO:?
     if( NULL != Plugin ){
-        qDebug() << "Remove Plugins num " << m_PluginInstList.removeAll( Plugin );
-        qDebug() << "Not destroyed Plugins count " << m_PluginInstList.count();
+        DEBUG << "Remove Plugins num " << m_PluginInstList.removeAll( Plugin );
+        DEBUG << "Not destroyed Plugins count " << m_PluginInstList.count();
     }
 }
 

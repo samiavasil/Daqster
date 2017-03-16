@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QPluginBaseInterface.h - Copyright vvasilev
+                        Daqster/QPluginObjectsInterface.h - Copyright vvasilev
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -19,13 +19,12 @@ Initial version of this file was created on нд март 12 2017 at 20:54:50
 **************************************************************************/
 
 
-#ifndef QPLUGINBASESINTERFACE_H
-#define QPLUGINBASESINTERFACE_H
+#ifndef QPLUGINOBJECTSINTERFACE_H
+#define QPLUGINOBJECTSINTERFACE_H
 #include <QObject>
 #include <QIcon>
 #include <QString>
 #include<QSharedPointer>
-#include<QDebug>
 #include "base/global.h"
 namespace Daqster {
 
@@ -38,11 +37,11 @@ class QPluginLoader;
 class QBasePluginObject;
 
 /**
-  * class QPluginBaseInterface
+  * class QPluginObjectsInterface
   * 
   */
 
-class FRAME_WORKSHARED_EXPORT QPluginBaseInterface : public QObject
+class FRAME_WORKSHARED_EXPORT QPluginObjectsInterface : public QObject
 {
     Q_OBJECT
 public:
@@ -51,100 +50,103 @@ public:
    * Empty Constructor
    * @param  parent
    */
-   QPluginBaseInterface (QObject* Parent = NULL );
+   QPluginObjectsInterface (QObject* Parent = NULL );
 
   /**
    * Empty Destructor
    */
-  virtual ~QPluginBaseInterface ();
+  virtual ~QPluginObjectsInterface ();
 
   /**
    * Return plugin basic type. If this isn't set to some type you can check typeName
    * string and try to detect type from name.
    * @return Daqster::PluginType_t
    */
-  Daqster::PluginType_t getType ();
+  Daqster::PluginType_t GetType ();
+
 
   /**
    * Return plugin embeded icon.
-   * @return const QIcon
+   * @return const &QIcon
    */
-  const QIcon getIcon ();
+  const QIcon& GetIcon ();
 
 
   /**
    * Return plugin name
-   * @return const QString
+   * @return const QString&
    */
-  const QString getName ();
+  const QString& GetName ();
 
 
   /**
    * Get plugin type name
-   * @return const QString
+   * @return const QString&
    */
-  const QString getTypeName ();
+  const QString& GetTypeName ();
 
 
   /**
    * Get plugin version
+   * @return const QString&
    */
-  QString getVersion();
+  const QString& GetVersion ();
 
 
   /**
    * Get plugin description
-   * @return const QString
+   * @return const QString&
    */
-  const QString getDescription ();
+  const QString& GetDescription ();
 
 
   /**
    * Get plugin detail description.
-   * @return const QString
+   * @return const QString&
    */
-  const QString getDetailDescription ();
+  const QString& GetDetailDescription ();
 
 
   /**
    * Get plugin license
-   * @return const QString
+   * @return const QString&
    */
-  const QString getLicense ();
+  const QString& GetLicense ();
 
 
   /**
    * Return plugin author
-   * @return const QString
+   * @return const QString&
    */
-  const QString getAuthor ();
+  const QString& GetAuthor ();
 
 
   /**
    * Set new plugin loader.
    * When the plugin is loaded on first time we create QPluginLoader and its method
-   * instance() returns QPluginBaseInterface*  plugInterface. On this point
+   * instance() returns QPluginObjectInterface*  plugInterface. On this point 
    * plugInterface->setPluginLoader() function is called to set pointer to
    * QPluginLoader.
    * @param  Loader New plugin loader
    */
-  void setPluginLoader(QSharedPointer<QPluginLoader> &Loader );
+  void SetPluginLoader (QSharedPointer<QPluginLoader> & Loader);
 
 
   /**
    * Create  new plugin object.
    * @return Daqster::QBasePluginObject*
-   * @param  Pointer to parent QObject
-   */
-  virtual Daqster::QBasePluginObject* createPlugin (QObject* Parrent = NULL);
-
- protected:
-  /**
-   * Abstract function wich create  new plugin object.
-   * @return Daqster::QBasePluginObject*
    * @param  Parrent Pointer to parent QObject
    */
-  virtual Daqster::QBasePluginObject* createPluginInternal(QObject* Parrent = NULL) = 0;
+  Daqster::QBasePluginObject* CreatePlugin (QObject* Parrent = NULL);
+
+protected:
+  /**
+   * Create  new plugin object. Abstract function should be impleented on inherited
+   * calsses
+   * @return QBasePluginObject *
+   * @param  Parrent Parent object
+   */
+  virtual Daqster::QBasePluginObject* CreatePluginInternal(QObject* Parrent = NULL) = 0;
 
 protected slots:
   void pluginInstanceDestroyed( QObject* obj );
@@ -196,7 +198,7 @@ protected:
 //
 // 1. append the string behind the variable daqster_PluginInterface_CurrentVersion (e.g. CREATE_PLUGIN_INTERFACE_VERSION_STR(0,0,0)) to the array daqster_PluginInterface_OldVersions
 // 2. change the version number in the string daqster_PluginInterface_CurrentVersion (e.g. CREATE_PLUGIN_INTERFACE_VERSION_STR(0,0,1))
-// TODO: DELL ME 3. if the QPluginBaseInterface version number is incremented, the ito.AbstractItomDesignerPlugin number in AbstractItomDesignerPlugin.h must be incremented as well.
+// TODO: DELL ME 3. if the QPluginObjectsInterface version number is incremented, the ito.AbstractItomDesignerPlugin number in AbstractItomDesignerPlugin.h must be incremented as well.
 //
 //
 // This helps, that deprecated or "future" plugins, which fit not to the current implementation of the interface will not be loaded
@@ -208,5 +210,5 @@ static const char* daqster_PluginObjectInterface_OldVersions[] = {
 };
 static const char* daqster_PluginInterface_CurrentVersion = DAQSTER_PLUGIN_INTERFACE_VERSION; //results in "Daqster.PlugIn.BaseInterface/x.x.x";
 // must be out of namespace
-Q_DECLARE_INTERFACE(Daqster::QPluginBaseInterface , daqster_PluginInterface_CurrentVersion )
+Q_DECLARE_INTERFACE(Daqster::QPluginObjectsInterface , daqster_PluginInterface_CurrentVersion )
 #endif // QPLUGINBASESINTERFACE_H
