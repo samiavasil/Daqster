@@ -30,19 +30,20 @@ void TemplatePluginObject::MainWinDestroyed( QObject* obj )
 DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObjectsInterface(parent)
 {
     DEBUG << "QwtPlotWorkInterface object create";
-    m_Icon.addFile( QString::fromUtf8(":/template.png") );
-    m_Name            = "PluginTemplate";
-    m_PluginType      = SOME_TYPE;
-    m_PluginTypeName  = "SOME_TYPE";
-    m_Version         = "0.0.1";
-    m_Description     = "MyPluginTemplate";
+    QIcon icon( QString::fromUtf8(":/template.png") );
+    m_PluginDescryptor.SetIcon( icon );
+    m_PluginDescryptor.SetName( "PluginTemplate" );
+    m_PluginDescryptor.SetPluginType( SOME_TYPE );
+    m_PluginDescryptor.SetPluginTypeName("SOME_TYPE");
+    m_PluginDescryptor.SetVersion( "0.0.1" );
+    m_PluginDescryptor.SetDescription( "MyPluginTemplate" );
     char docstr[] = \
     "This is a basic Daqster plugin template and can be used for implementing a new type daqster plugin \n\
     \n\
     Here you can add detailed description of the plugin...";
-    m_DetailDescription = QObject::tr( docstr );
-    m_License = QObject::tr("The plugin's license have to be.....");;
-    m_Author = "Plugin Author";
+    m_PluginDescryptor.SetDetailDescription( QObject::tr( docstr ) );
+    m_PluginDescryptor.SetLicense( QObject::tr("The plugin's license have to be.....") );
+    m_PluginDescryptor.SetAuthor( "Plugin Author" );
 }
 
 DaqsterTeplateInterface::~DaqsterTeplateInterface(  )
