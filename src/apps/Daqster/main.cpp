@@ -1,6 +1,6 @@
 #include <QApplication>
 #include "mainwindow.h"
-#include<QDebug>
+#include "base/debug.h"
 
 class msg{
 public:
@@ -43,6 +43,6 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
     MainWindow w;
     w.show();
-    qDebug() << "Show window";
+    DEBUG << "Show window";
     return a.exec();
 }

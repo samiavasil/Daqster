@@ -3,7 +3,7 @@
 
 #include <QObject>
 #include "plugin_global.h"
-#include "base/QPluginBaseInterface.h"
+#include "base/QPluginObjectsInterface.h"
 #include "base/QBasePluginObject.h"
 #include <QMainWindow>
 
@@ -21,18 +21,18 @@ private:
     QMainWindow* m_Win;
 };
 
-class PLUGIN_EXPORT DaqsterTeplateInterface:  public QPluginBaseInterface
+class PLUGIN_EXPORT DaqsterTeplateInterface:  public QPluginObjectsInterface
 {
     Q_OBJECT
 #if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
     Q_PLUGIN_METADATA(IID "Daqster.PlugIn.BaseInterface" FILE "DaqsterTeplateInterface.json")
 #endif
-    Q_INTERFACES(Daqster::QPluginBaseInterface)
+    Q_INTERFACES(Daqster::QPluginObjectsInterface)
 public:
     DaqsterTeplateInterface( QObject* parent = 0);
     ~DaqsterTeplateInterface(  );
 protected:
-    virtual Daqster::QBasePluginObject* createPluginInternal(QObject* Parrent = NULL);
+    virtual Daqster::QBasePluginObject* CreatePluginInternal(QObject* Parrent = NULL);
 };
 
 #endif // DATAPLOTINTERFACE_H

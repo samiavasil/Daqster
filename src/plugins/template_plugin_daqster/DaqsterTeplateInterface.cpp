@@ -15,7 +15,7 @@ TemplatePluginObject::TemplatePluginObject(QObject *Parent):QBasePluginObject ( 
 
 TemplatePluginObject::~TemplatePluginObject()
 {
-    qDebug() << "TemplatePluginObject destroyed";
+    DEBUG_V << "TemplatePluginObject destroyed";
 }
 
 void TemplatePluginObject::MainWinDestroyed( QObject* obj )
@@ -23,11 +23,11 @@ void TemplatePluginObject::MainWinDestroyed( QObject* obj )
     m_Win = NULL;
     deleteLater();
     if( NULL == obj )
-        qDebug() << "Strange::!!!";
+        DEBUG << "Strange::!!!";
 
 }
 
-DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginBaseInterface(parent)
+DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObjectsInterface(parent)
 {
     DEBUG << "QwtPlotWorkInterface object create";
     m_Icon.addFile( QString::fromUtf8(":/template.png") );
@@ -47,10 +47,10 @@ DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginBaseIn
 
 DaqsterTeplateInterface::~DaqsterTeplateInterface(  )
 {
-    DEBUG << "QwtPlotWorkInterface object delete";
+    DEBUG << "DaqsterTeplateInterface object delete";
 }
 
-Daqster::QBasePluginObject *DaqsterTeplateInterface::createPluginInternal(QObject *Parrent)
+Daqster::QBasePluginObject *DaqsterTeplateInterface::CreatePluginInternal(QObject *Parrent)
 {
     return new TemplatePluginObject(Parrent);
 }

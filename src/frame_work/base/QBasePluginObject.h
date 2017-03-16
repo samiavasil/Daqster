@@ -25,7 +25,7 @@ Initial version of this file was created on нд март 12 2017 at 20:54:50
 
 namespace Daqster {
 
-class QPluginBaseInterface;
+class QPluginObjectsInterface;
 /**
   * class QBasePluginObject
   * 
@@ -83,7 +83,7 @@ private:
   //  
 
   // Pointer to plugin interface object
-  const Daqster::QPluginBaseInterface* m_InterfaceObject;
+  const Daqster::QPluginObjectsInterface* m_InterfaceObject;
 public:
 
 private:
