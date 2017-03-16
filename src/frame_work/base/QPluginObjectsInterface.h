@@ -15,23 +15,20 @@ WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
-Initial version of this file was created on нд март 12 2017 at 20:54:50
+Initial version of this file was created on 12.03.2017 at 20:54:50
 **************************************************************************/
 
 
 #ifndef QPLUGINOBJECTSINTERFACE_H
 #define QPLUGINOBJECTSINTERFACE_H
+#include "base/global.h"
 #include <QObject>
 #include <QIcon>
 #include <QString>
 #include<QSharedPointer>
-#include "base/global.h"
-namespace Daqster {
+#include "PluginDescription.h"
 
-typedef enum{
-    SOME_TYPE           = 0x1,
-    DETECT_BY_TYPE_NAME = 0x80000000
-} PluginType_t;
+namespace Daqster {
 
 class QPluginLoader;
 class QBasePluginObject;
@@ -152,24 +149,7 @@ protected slots:
   void pluginInstanceDestroyed( QObject* obj );
 
 protected:
-  // Plugin Embeded Icon
-  QIcon m_Icon;
-  // Plugin name
-  QString m_Name;
-  // Plugin type
-  Daqster::PluginType_t m_PluginType;
-  // Plugin Type Name
-  QString m_PluginTypeName;
-  // Plugin Version
-  QString m_Version;
-  // Plugin Description
-  QString m_Description;
-  // Plugin detailed description 
-  QString m_DetailDescription;
-  // Plugin License
-  QString m_License;
-  // Plugin Author
-  QString m_Author;
+  Daqster::PluginDescription m_PluginDescryptor;
   // Plugin loader
   QSharedPointer<QPluginLoader> m_PluginLoader;
   // List  with currently instantiated plugins

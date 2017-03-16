@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<XMI verified="false" xmi.version="1.2" timestamp="2017-03-16T12:19:55" xmlns:UML="http://schema.omg.org/spec/UML/1.3">
+<XMI verified="false" xmi.version="1.2" timestamp="2017-03-16T12:33:31" xmlns:UML="http://schema.omg.org/spec/UML/1.3">
  <XMI.header>
   <XMI.documentation>
    <XMI.exporter>umbrello uml modeller http://umbrello.kde.org</XMI.exporter>
@@ -192,39 +192,39 @@
           <UML:Attribute visibility="protected" isSpecification="false" xmi.id="fhzzkPEOWBu6" type="PJgCZLyQMkNc" comment="Plugin type" name="m_PluginType"/>
           <UML:Attribute visibility="protected" isSpecification="false" xmi.id="jA0of3Is07ps" type="zUeshU219oGo" comment="Plugin Type Name" name="m_PluginTypeName"/>
           <UML:Attribute visibility="protected" isSpecification="false" xmi.id="7oHEOlTXTT7U" type="zUeshU219oGo" comment="Plugin Version" name="m_Version"/>
-          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="G5IbUXWVrQYV" comment="Return plugin author" name="getAuthor">
+          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="G5IbUXWVrQYV" comment="Return plugin author" name="GetAuthor">
            <UML:BehavioralFeature.parameter>
             <UML:Parameter kind="return" xmi.id="" type="a5xTL73Qgs19"/>
            </UML:BehavioralFeature.parameter>
           </UML:Operation>
-          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="sjGpcKU2CHgY" comment="Get plugin description" name="getDescription">
+          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="sjGpcKU2CHgY" comment="Get plugin description" name="GetDescription">
            <UML:BehavioralFeature.parameter>
             <UML:Parameter kind="return" xmi.id="" type="a5xTL73Qgs19"/>
            </UML:BehavioralFeature.parameter>
           </UML:Operation>
-          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="EJztnBSzpx1r" comment="Get plugin detail description." name="getDetailDescription">
+          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="EJztnBSzpx1r" comment="Get plugin detail description." name="GetDetailDescription">
            <UML:BehavioralFeature.parameter>
             <UML:Parameter kind="return" xmi.id="" type="a5xTL73Qgs19"/>
            </UML:BehavioralFeature.parameter>
           </UML:Operation>
-          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="tQrR7ro7LYE4" comment="Return plugin embeded icon." name="getIcon"/>
-          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="sxzo45g93ahK" comment="Get plugin license" name="getLicense">
+          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="tQrR7ro7LYE4" comment="Return plugin embeded icon." name="GetIcon"/>
+          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="sxzo45g93ahK" comment="Get plugin license" name="GetLicense">
            <UML:BehavioralFeature.parameter>
             <UML:Parameter kind="return" xmi.id="" type="a5xTL73Qgs19"/>
            </UML:BehavioralFeature.parameter>
           </UML:Operation>
-          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="uruzYMW3ZzMr" comment="Return plugin name" name="getName">
+          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="uruzYMW3ZzMr" comment="Return plugin name" name="GetName">
            <UML:BehavioralFeature.parameter>
             <UML:Parameter kind="return" xmi.id="" type="a5xTL73Qgs19"/>
            </UML:BehavioralFeature.parameter>
           </UML:Operation>
-          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="TCnoonZMhcBr" comment="Return plugin basic type. If this isn't set to some type you can check typeName string and try to detect type from name." name="getType"/>
-          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="X20Bfh7hnahD" comment="Get plugin type name " name="getTypeName">
+          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="TCnoonZMhcBr" comment="Return plugin basic type. If this isn't set to some type you can check typeName string and try to detect type from name." name="GetType"/>
+          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="X20Bfh7hnahD" comment="Get plugin type name " name="GetTypeName">
            <UML:BehavioralFeature.parameter>
             <UML:Parameter kind="return" xmi.id="" type="a5xTL73Qgs19"/>
            </UML:BehavioralFeature.parameter>
           </UML:Operation>
-          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="8xpku6k5sa7h" comment="Get plugin version" name="getVersion">
+          <UML:Operation visibility="public" isSpecification="false" isQuery="false" isAbstract="false" isLeaf="false" isRoot="false" xmi.id="8xpku6k5sa7h" comment="Get plugin version" name="GetVersion">
            <UML:BehavioralFeature.parameter>
             <UML:Parameter kind="return" xmi.id="" type="a5xTL73Qgs19"/>
            </UML:BehavioralFeature.parameter>
@@ -314,7 +314,7 @@
          <classwidget linecolor="#ff0000" usesdiagramfillcolor="0" linewidth="0" showoperations="1" textcolor="#000000" usesdiagramusefillcolor="0" showpubliconly="0" showpackage="1" x="-53422.8" showattsigs="601" showstereotype="1" y="-29419.2" showattributes="1" font="Sans Serif,9,-1,0,50,0,0,0,0,0" localid="bJzqba6KELEU" width="94" isinstance="0" usefillcolor="1" fillcolor="#ffff00" xmi.id="MXxoyRddf3Oa" showscope="1" height="29" showopsigs="601"/>
          <classwidget linecolor="#ff0000" usesdiagramfillcolor="0" linewidth="0" showoperations="1" textcolor="#000000" usesdiagramusefillcolor="0" showpubliconly="0" showpackage="1" x="-53189.3" showattsigs="601" showstereotype="1" y="-29657.3" showattributes="1" font="Sans Serif,9,-1,0,50,0,0,0,0,0" localid="hvAQgMDFY7KB" width="662" isinstance="0" usefillcolor="1" fillcolor="#ffff00" xmi.id="F9Au06Mmtr7W" showscope="1" height="120" showopsigs="601"/>
          <classwidget linecolor="#ff0000" usesdiagramfillcolor="0" linewidth="0" showoperations="1" textcolor="#000000" usesdiagramusefillcolor="0" showpubliconly="0" showpackage="1" x="-53016.1" showattsigs="601" showstereotype="1" y="-29988.4" showattributes="1" font="Sans Serif,9,-1,0,50,0,0,0,0,0" localid="T7iMwPSi5VkT" width="250" isinstance="0" usefillcolor="1" fillcolor="#ffff00" xmi.id="Yp4uBjtWKXtQ" showscope="1" height="37" showopsigs="601"/>
-         <classwidget linecolor="#ff0000" usesdiagramfillcolor="0" linewidth="0" showoperations="1" textcolor="#000000" usesdiagramusefillcolor="0" showpubliconly="1" showpackage="1" x="-53716.9" showattsigs="601" showstereotype="1" y="-29468.8" showattributes="1" font="Sans Serif,9,-1,0,50,0,0,0,0,0" localid="0HaWl2Th7pmq" width="231" isinstance="0" usefillcolor="1" fillcolor="#ffff00" xmi.id="gA6pGkds8RRF" showscope="1" height="157" showopsigs="601"/>
+         <classwidget linecolor="#ff0000" usesdiagramfillcolor="0" linewidth="0" showoperations="1" textcolor="#000000" usesdiagramusefillcolor="0" showpubliconly="1" showpackage="1" x="-53716.9" showattsigs="601" showstereotype="1" y="-29468.8" showattributes="1" font="Sans Serif,9,-1,0,50,0,0,0,0,0" localid="0HaWl2Th7pmq" width="233" isinstance="0" usefillcolor="1" fillcolor="#ffff00" xmi.id="gA6pGkds8RRF" showscope="1" height="157" showopsigs="601"/>
          <classwidget linecolor="#ff0000" usesdiagramfillcolor="0" linewidth="0" showoperations="1" textcolor="#000000" usesdiagramusefillcolor="0" showpubliconly="0" showpackage="1" x="-52788.6" showattsigs="601" showstereotype="1" y="-29869" showattributes="1" font="Sans Serif,9,-1,0,50,0,0,0,0,0" localid="mNkqanJ3awIK" width="307" isinstance="0" usefillcolor="1" fillcolor="#ffff00" xmi.id="rleacykblCOY" showscope="1" height="60" showopsigs="601"/>
          <classwidget linecolor="#ff0000" usesdiagramfillcolor="0" linewidth="0" showoperations="1" textcolor="#000000" usesdiagramusefillcolor="0" showpubliconly="0" showpackage="1" x="-52791.3" showattsigs="601" showstereotype="1" y="-29725.4" showattributes="1" font="Sans Serif,9,-1,0,50,0,0,0,0,0" localid="3HyFUIGMOAZo" width="379" isinstance="0" usefillcolor="1" fillcolor="#ffff00" xmi.id="eRlTNLQfnya4" showscope="1" height="37" showopsigs="601"/>
         </widgets>

@@ -15,7 +15,7 @@ WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
-Initial version of this file was created on нд март 12 2017 at 20:54:50
+Initial version of this file was created on 12.03.2017 at 20:54:50
 **************************************************************************/
 
 #include "QPluginObjectsInterface.h"
@@ -45,7 +45,7 @@ QPluginObjectsInterface::~QPluginObjectsInterface () {
  */
 Daqster::PluginType_t QPluginObjectsInterface::GetType ()
 {
-    return m_PluginType;
+    return m_PluginDescryptor.m_PluginType;
 }
 
 
@@ -55,7 +55,7 @@ Daqster::PluginType_t QPluginObjectsInterface::GetType ()
  */
 const QIcon& QPluginObjectsInterface::GetIcon ()
 {
-    return m_Icon;
+    return m_PluginDescryptor.m_Icon;
 }
 
 
@@ -65,7 +65,7 @@ const QIcon& QPluginObjectsInterface::GetIcon ()
  */
 const QString& QPluginObjectsInterface::GetName ()
 {
-    return  m_Name;
+    return  m_PluginDescryptor.m_Name;
 }
 
 
@@ -75,7 +75,7 @@ const QString& QPluginObjectsInterface::GetName ()
  */
 const QString& QPluginObjectsInterface::GetTypeName ()
 {
-    return m_PluginTypeName;
+    return m_PluginDescryptor.m_PluginTypeName;
 }
 
 
@@ -85,7 +85,7 @@ const QString& QPluginObjectsInterface::GetTypeName ()
  */
 const QString& QPluginObjectsInterface::GetVersion ()
 {
-    return m_Version;
+    return m_PluginDescryptor.m_Version;
 }
 
 
@@ -95,7 +95,7 @@ const QString& QPluginObjectsInterface::GetVersion ()
  */
 const QString& QPluginObjectsInterface::GetDescription ()
 {
-    return m_Description;
+    return m_PluginDescryptor.m_Description;
 }
 
 
@@ -105,7 +105,7 @@ const QString& QPluginObjectsInterface::GetDescription ()
  */
 const QString& QPluginObjectsInterface::GetDetailDescription ()
 {
-    return m_DetailDescription;
+    return m_PluginDescryptor.m_DetailDescription;
 }
 
 
@@ -115,7 +115,7 @@ const QString& QPluginObjectsInterface::GetDetailDescription ()
  */
 const QString& QPluginObjectsInterface::GetLicense ()
 {
-    return m_License;
+    return m_PluginDescryptor.m_License;
 }
 
 
@@ -125,7 +125,7 @@ const QString& QPluginObjectsInterface::GetLicense ()
  */
 const QString& QPluginObjectsInterface::GetAuthor ()
 {
-    return m_Author;
+    return m_PluginDescryptor.m_Author;
 }
 
 

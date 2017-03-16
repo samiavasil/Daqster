@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QBasePluginObject.h.h - Copyright vvasilev
+                        Daqster/PluginFilter.h.h - Copyright 
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -15,25 +15,25 @@ WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
-Initial version of this file was created on 12.03.2017 at 20:54:50
+Initial version of this file was created on 16.03.2017 at 11:40:20
 **************************************************************************/
 
-#ifndef QBASEPLUGINOBJECT_H
-#define QBASEPLUGINOBJECT_H
-#include <QObject>
+
+#ifndef PLUGINFILTER_H
+#define PLUGINFILTER_H
 #include "base/global.h"
 
 namespace Daqster {
 
-class FRAME_WORKSHARED_EXPORT QPluginObjectsInterface;
+class FRAME_WORKSHARED_EXPORT PluginDescription;
+
 /**
-  * class QBasePluginObject
-  * 
+  * class PluginFilter
+  * Class is used for plugin filtration by some properties.
   */
 
-class FRAME_WORKSHARED_EXPORT QBasePluginObject : public QObject
+class PluginFilter
 {
-    Q_OBJECT
 public:
 
   // Constructors/Destructors
@@ -43,27 +43,24 @@ public:
   /**
    * Empty Constructor
    */
-  QBasePluginObject (  QObject* Parent = NULL );
+  PluginFilter ();
 
   /**
    * Empty Destructor
    */
-  virtual ~QBasePluginObject ();
+  virtual ~PluginFilter ();
 
-  // Static Public attributes
-  //  
 
-  // Public attributes
-  //  
 
+  /**
+   * This function test is the plugin described with input parameter is filtered or
+   * not.
+   * @return bool
+   * @param  _Description Plugin description
+   */
+  bool IsFiltered (const  Daqster::PluginDescription& Description);
 
 protected:
-
-  // Static Protected attributes
-  //  
-
-  // Protected attributes
-  //  
 
 public:
 
@@ -76,23 +73,17 @@ protected:
 
 private:
 
-  // Static Private attributes
-  //  
-
-  // Private attributes
-  //  
-
-  // Pointer to plugin interface object
-  const Daqster::QPluginObjectsInterface* m_InterfaceObject;
 public:
 
 private:
 
 public:
+
+private:
 
 
 
 };
 } // end of package namespace
 
-#endif // QBASEPLUGINOBJECT_H
+#endif // PLUGINFILTER_H

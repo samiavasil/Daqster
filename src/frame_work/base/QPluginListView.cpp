@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QBasePluginObject.cpp.cpp - Copyright vvasilev
+                        Daqster/QPluginListView.cpp.cpp - Copyright 
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -15,21 +15,33 @@ WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
-Initial version of this file was created on 12.03.2017 at 20:54:50
+Initial version of this file was created on 16.03.2017 at 11:40:20
 **************************************************************************/
 
-#include "QBasePluginObject.h"
+#include "QPluginListView.h"
 
 namespace Daqster {
 // Constructors/Destructors
 //  
 
-QBasePluginObject::QBasePluginObject (QObject *Parent):QObject( Parent ) {
-    m_InterfaceObject = NULL;
+/**
+ * Constructor
+ * @param  Filter Plugin filtrato parameter
+ */
+QPluginListView::QPluginListView (const Daqster::PluginFilter& Filter)
+{
 }
 
-QBasePluginObject::~QBasePluginObject () {
+QPluginListView::~QPluginListView () {
 
+}
+
+/**
+ * Set view plugin flter.
+ * @param  Filter
+ */
+void QPluginListView::SetPluginFilter (const Daqster::QPluginFilter& Filter)
+{
 }
 
 }

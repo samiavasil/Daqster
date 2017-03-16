@@ -34,14 +34,24 @@ greaterThan(QT_MAJOR_VERSION, 4) {
 
 SOURCES += \
     base/QBasePluginObject.cpp \
-    base/QPluginObjectsInterface.cpp
+    base/QPluginObjectsInterface.cpp \
+    base/PluginDescription.cpp \
+    base/QPluginListView.cpp \
+    base/QPluginManager.cpp \
+    base/QPluginManagerGui.cpp \
+    base/PluginFilter.cpp
 
 HEADERS += \
     base/build_cfg.h \
     base/debug.h \
     base/global.h \
     base/QBasePluginObject.h \
-    base/QPluginObjectsInterface.h
+    base/QPluginObjectsInterface.h \
+    base/PluginDescription.h \
+    base/QPluginListView.h \
+    base/QPluginManager.h \
+    base/QPluginManagerGui.h \
+    base/PluginFilter.h
 
 symbian {
     MMP_RULES += EXPORTUNFROZEN

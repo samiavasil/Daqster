@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QBasePluginObject.h.h - Copyright vvasilev
+                        Daqster/QPluginManagerGui.h.h - Copyright 
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -15,25 +15,20 @@ WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
-Initial version of this file was created on 12.03.2017 at 20:54:50
+Initial version of this file was created on 16.03.2017 at 11:40:20
 **************************************************************************/
 
-#ifndef QBASEPLUGINOBJECT_H
-#define QBASEPLUGINOBJECT_H
-#include <QObject>
+
+#ifndef QPLUGINMANAGERGUI_H
+#define QPLUGINMANAGERGUI_H
 #include "base/global.h"
+#include "QObject.h"
 
 namespace Daqster {
+class QPluginListView;
 
-class FRAME_WORKSHARED_EXPORT QPluginObjectsInterface;
-/**
-  * class QBasePluginObject
-  * 
-  */
-
-class FRAME_WORKSHARED_EXPORT QBasePluginObject : public QObject
+class FRAME_WORKSHARED_EXPORT QPluginManagerGui : public QObject
 {
-    Q_OBJECT
 public:
 
   // Constructors/Destructors
@@ -43,56 +38,22 @@ public:
   /**
    * Empty Constructor
    */
-  QBasePluginObject (  QObject* Parent = NULL );
+  QPluginManagerGui ();
 
   /**
    * Empty Destructor
    */
-  virtual ~QBasePluginObject ();
-
-  // Static Public attributes
-  //  
-
-  // Public attributes
-  //  
+  virtual ~QPluginManagerGui ();
 
 
 protected:
-
-  // Static Protected attributes
-  //  
 
   // Protected attributes
-  //  
 
-public:
-
-protected:
-
-public:
-
-protected:
-
-
-private:
-
-  // Static Private attributes
-  //  
-
-  // Private attributes
-  //  
-
-  // Pointer to plugin interface object
-  const Daqster::QPluginObjectsInterface* m_InterfaceObject;
-public:
-
-private:
-
-public:
-
-
+  // Plugn list view
+  Daqster::QPluginListView*  m_PluginList;
 
 };
 } // end of package namespace
 
-#endif // QBASEPLUGINOBJECT_H
+#endif // QPLUGINMANAGERGUI_H

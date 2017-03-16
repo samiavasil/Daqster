@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QBasePluginObject.cpp.cpp - Copyright vvasilev
+                        Daqster/PluginFilter.cpp.cpp - Copyright 
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -15,21 +15,30 @@ WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
-Initial version of this file was created on 12.03.2017 at 20:54:50
+Initial version of this file was created on 16.03.2017 at 11:40:20
 **************************************************************************/
 
-#include "QBasePluginObject.h"
+#include "PluginFilter.h"
 
 namespace Daqster {
 // Constructors/Destructors
 //  
 
-QBasePluginObject::QBasePluginObject (QObject *Parent):QObject( Parent ) {
-    m_InterfaceObject = NULL;
+PluginFilter::PluginFilter () {
 }
 
-QBasePluginObject::~QBasePluginObject () {
+PluginFilter::~PluginFilter () { }
 
+
+/**
+ * This function test is the plugin described with input parameter is filtered or
+ * not.
+ * @return bool
+ * @param  _Description Plugin description
+ */
+bool PluginFilter::IsFiltered (const  Daqster::PluginDescription& Description)
+{
+    return true;
 }
 
 }
