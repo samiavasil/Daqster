@@ -22,8 +22,9 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #ifndef QPLUGINMANAGER_H
 #define QPLUGINMANAGER_H
 #include "base/global.h"
-#include "QObject.h"
+#include <QObject>
 #include "PluginFilter.h"
+#include <QList>
 #include <QMap>
 #include <QString>
 
@@ -103,7 +104,8 @@ protected:
 protected:
 
   // Map contains path to plugin and pointer to plugin base interface object QPluginObjectsInterface.
-  QMap<QString,Daqster::QPluginObjectsInterface*> Plugin_map;
+  QMap<QString,Daqster::QPluginObjectsInterface*> m_PluginMap;
+  QList<QString> m_DirList;
 
 };
 } // end of package namespace

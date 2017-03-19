@@ -27,10 +27,10 @@ Initial version of this file was created on 12.03.2017 at 20:54:50
 #include <QString>
 #include<QSharedPointer>
 #include "PluginDescription.h"
+class QPluginLoader;
 
 namespace Daqster {
 
-class QPluginLoader;
 class QBasePluginObject;
 
 /**

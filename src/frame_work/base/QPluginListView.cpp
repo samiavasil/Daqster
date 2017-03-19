@@ -19,6 +19,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 **************************************************************************/
 
 #include "QPluginListView.h"
+#include "ui_pluginlistview.h"
 
 namespace Daqster {
 // Constructors/Destructors
@@ -28,12 +29,15 @@ namespace Daqster {
  * Constructor
  * @param  Filter Plugin filtrato parameter
  */
-QPluginListView::QPluginListView (const Daqster::PluginFilter& Filter)
+QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter& Filter ):QWidget(Parent)
 {
+    m_PluginFilter = Filter;
+    ui = new Ui::PluginListView();
+    ui->setupUi( this );
 }
 
 QPluginListView::~QPluginListView () {
-
+    delete ui;
 }
 
 /**

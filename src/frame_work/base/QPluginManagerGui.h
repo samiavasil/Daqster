@@ -22,12 +22,17 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #ifndef QPLUGINMANAGERGUI_H
 #define QPLUGINMANAGERGUI_H
 #include "base/global.h"
-#include "QObject.h"
+#include <QDialog>
+
+namespace Ui {
+   class PluginManagerGui;
+}
+
 
 namespace Daqster {
 class QPluginListView;
 
-class FRAME_WORKSHARED_EXPORT QPluginManagerGui : public QObject
+class FRAME_WORKSHARED_EXPORT QPluginManagerGui : public QDialog
 {
 public:
 
@@ -38,7 +43,7 @@ public:
   /**
    * Empty Constructor
    */
-  QPluginManagerGui ();
+  QPluginManagerGui (QWidget *Parent = NULL );
 
   /**
    * Empty Destructor
@@ -52,7 +57,8 @@ protected:
 
   // Plugn list view
   Daqster::QPluginListView*  m_PluginList;
-
+private:
+  Ui::PluginManagerGui* ui;
 };
 } // end of package namespace
 

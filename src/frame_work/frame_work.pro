@@ -72,4 +72,8 @@ unix:!symbian {
     INSTALLS += target
 }
 
-FORMS +=
+FORMS += \
+    base/pluginlistview.ui \
+    base/pluginmanagergui.ui
+
+RESOURCES +=
