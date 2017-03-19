@@ -17,18 +17,24 @@ General Public Licence for more details.
 
 Initial version of this file was created on 16.03.2017 at 11:40:20
 **************************************************************************/
-
+#include "base/debug.h"
 #include "QPluginManager.h"
+#include "QPluginManagerGui.h"
 #include "QPluginListView.h"
 #include "PluginFilter.h"
 #include "QPluginObjectsInterface.h"
+
+#include <QDir>
+#include <QApplication>
+#include <QSharedPointer>
+#include <QPluginLoader>
 
 namespace Daqster {
 // Constructors/Destructors
 //  
 
 QPluginManager::QPluginManager () {
-
+    m_DirList.append( qApp->applicationDirPath()+QString("/plugins") );
 }
 
 QPluginManager::~QPluginManager () { }
@@ -62,6 +68,34 @@ Daqster::QPluginListView*  QPluginManager::CreatePluginListView (QWidget* Parren
  */
 void QPluginManager::SearchForPlugins ()
 {
+    QDir pluginsDir;
+    foreach ( QString path, m_DirList ) {
+        if( pluginsDir.cd( path ) )
+        {
+            foreach (QString fileName, pluginsDir.entryList(QDir::Files)) {
+                fileName = pluginsDir.absoluteFilePath( fileName );
+                if(  false == m_PluginMap.contains( fileName ) ){
+                    QSharedPointer<QPluginLoader> pluginLoader( new QPluginLoader(fileName));
+                    QObject* Inst = pluginLoader->instance();
+                    if( NULL != Inst ){
+                        Daqster::QPluginObjectsInterface* ObjInterface = dynamic_cast<Daqster::QPluginObjectsInterface*>(Inst);
+                        if( NULL != ObjInterface ){
+                            ObjInterface->SetPluginLoader( pluginLoader );
+                            m_PluginMap[fileName] = ObjInterface;
+                            Daqster::QBasePluginObject* Object = ObjInterface->CreatePlugin();
+                            if( NULL != Object ){
+                                DEBUG << "Plugin with name " << ObjInterface->GetName() << "created successfully";
+                            }
+                        }
+                        else if( NULL != Inst ){
+                            Inst->deleteLater();
+                        }
+                    }
+                }
+            }
+        }
+
+    }
 }
 
 
@@ -71,6 +105,9 @@ void QPluginManager::SearchForPlugins ()
  */
 void QPluginManager::AddPluginsDirectory (const QString& Directory)
 {
+    if( !m_DirList.contains(Directory) ){
+        m_DirList.append( Directory );
+    }
 }
 
 
@@ -80,6 +117,8 @@ void QPluginManager::AddPluginsDirectory (const QString& Directory)
  */
 void QPluginManager::ShowPluginManagerGui ()
 {
+    QPluginManagerGui Dialog;
+    Dialog.exec();
 }
 }
 

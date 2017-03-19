@@ -22,8 +22,13 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #ifndef QPLUGINLISTVIEW_H
 #define QPLUGINLISTVIEW_H
 #include "base/global.h"
-#include "QObject.h"
+#include <QWidget>
 #include "PluginFilter.h"
+
+namespace Ui {
+    class PluginListView;
+}
+
 
 namespace Daqster {
 
@@ -36,7 +41,7 @@ class FRAME_WORKSHARED_EXPORT QPluginFilter;
   * tbd ).
   */
 
-class QPluginListView : public QObject
+class QPluginListView : public QWidget
 {
 public:
 
@@ -46,7 +51,7 @@ public:
   * Constructor
   * @param  Filter Plugin filtrato parameter
   */
-  QPluginListView (const Daqster::PluginFilter& Filter);
+  QPluginListView ( QWidget* Parent = NULL ,const Daqster::PluginFilter& Filter = Daqster::PluginFilter() );
 
   /**
    * Empty Destructor
@@ -62,6 +67,8 @@ public:
 protected:
   // Plugin filter
   Daqster::PluginFilter m_PluginFilter;
+private:
+  Ui::PluginListView* ui;
 };
 } // end of package namespace
 
