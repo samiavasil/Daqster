@@ -25,7 +25,7 @@ Initial version of this file was created on 12.03.2017 at 20:54:50
 
 namespace Daqster {
 
-class FRAME_WORKSHARED_EXPORT QPluginObjectsInterface;
+class QPluginObjectsInterface;
 /**
   * class QBasePluginObject
   * 
