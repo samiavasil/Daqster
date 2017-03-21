@@ -24,13 +24,166 @@ namespace Daqster {
 // Constructors/Destructors
 //  
 
-PluginDescription::PluginDescription () {
+PluginDescription::PluginDescription(const QString &               Location,
+                                      const bool                   Enabled,
+                                      const QString &              Name,
+                                      const Daqster::PluginType_t  PluginType,
+                                      const QString &              PluginTypeName,
+                                      const QString &              Author,
+                                      const QString &              Description,
+                                      const QString &              DetailDescription,
+                                      const QString &              License,
+                                      const QString &              Version,
+                                      const QIcon   &              Icon
+                                    )
+{
+   m_Location          = Location;
+   m_Enabled           = Enabled;
+   m_Name              = Name;
+   m_PluginType        = PluginType;
+   m_Author            = Author;
+   m_Description       = Description;
+   m_DetailDescription = DetailDescription;
+   m_License           = License;
+   m_PluginTypeName    = PluginTypeName;
+   m_Version           = Version;
+   m_Icon              = Icon;
+}
 
+/**
+* @brief Copy constructor
+* @param b
+*/
+PluginDescription::PluginDescription(const PluginDescription& b)
+{
+    *this = b;
 }
 
 PluginDescription::~PluginDescription () {
 
 }
+
+bool  PluginDescription::IsEmpty()
+{
+    return ( *this == PluginDescription() );
+}
+
+/**
+ * @brief PluginDescription::Compare - Return bitmask with difference betwen two PluginDescription objects
+ * @param Object for compare
+ * @return Bitmask with PlugDiff values ( see PlugDiff type)
+ */
+unsigned int  PluginDescription::Compare( const PluginDescription &b ) const{
+    unsigned int diff = NOTHING_OPT;
+    if( m_Location.compare(  b.m_Location ) ){
+        diff |= LOCATION_OPT;
+    }
+    if( m_Enabled !=  b.m_Enabled ){
+        diff |= ENABLE_OPT;
+    }
+    if( m_Name.compare(  b.m_Name ) ){
+        diff |= NAME_OPT;
+    }
+    if(  m_PluginType != b.m_PluginType ){
+        diff |= TYPE_OPT;
+    }
+    if( m_Author.compare(  b.m_Author ) ){
+        diff |= AUTHOR_OPT;
+    }
+    if( m_Description.compare(  b.m_Description ) ){
+        diff |= DESCRIPTION_OPT;
+    }
+    if( m_DetailDescription.compare(  b.m_DetailDescription ) ){
+        diff |= DETAIL_DESCRIPTION_OPT;
+    }
+    if( m_License.compare(  b.m_License ) ){
+        diff |= LICENSE_OPT;
+    }
+    if( m_PluginTypeName.compare(  b.m_PluginTypeName ) ){
+        diff |= PLUG_TYPE_NAME_OPT;
+    }
+    if( m_Version.compare(  b.m_Version ) ){
+        diff |= VERSION_OPT;
+    }
+    if( m_Icon.name().compare( b.m_Icon.name() ) ){
+        diff |= ICON_OPT;
+    }
+    return diff;
+}
+
+/**
+ * @brief Compare objects valid fields
+ * @param Object for compare
+ * @return true  - if object have the same valid valid fields. Doesn't check  invalid fields.
+ *         false - otherwise
+ */
+bool  PluginDescription::CompareByValidFields( const PluginDescription &b ) const{
+    bool ret = true;
+    if(  !m_Location.isEmpty() && m_Location.compare(  b.m_Name ) ){
+       ret = false;
+    }else if( m_Enabled != b.m_Enabled ){
+        ret = false;
+    }else if( !m_Name.isEmpty() && m_Name.compare(  b.m_Name ) ){
+        ret = false;
+    } else if(  m_PluginType != UNDEFINED_TYPE && m_PluginType != b.m_PluginType ){
+        ret = false;
+    }else if( !m_Author.isEmpty() && m_Author.compare(  b.m_Author ) ){
+        ret = false;
+    }else if( !m_Description.isEmpty() && m_Description.compare(  b.m_Description ) ){
+        ret = false;
+    }else if( !m_DetailDescription.isEmpty() && m_DetailDescription.compare(  b.m_DetailDescription ) ){
+        ret = false;
+    }else if( !m_License.isEmpty() && m_License.compare(  b.m_License ) ){
+        ret = false;
+    }else if( !m_PluginTypeName.isEmpty() && m_PluginTypeName.compare(  b.m_PluginTypeName ) ){
+        ret = false;
+    }else if( !m_Version.isEmpty() && m_Version.compare(  b.m_Version ) ){
+        ret = false;
+    }else if( m_Icon.isNull() && m_Icon.name().compare( b.m_Icon.name() ) ){
+        ret = false;
+    }
+    return ret;
+}
+
+/**
+ * @brief Overloading Equal operator
+ * @param PluginDescription object
+ * @return PluginDescription
+ */
+PluginDescription & PluginDescription::operator=(const PluginDescription &b){
+    m_Location          = b.m_Location         ;
+    m_Enabled           = b.m_Enabled          ;
+    m_Name              = b.m_Name             ;
+    m_PluginType        = b.m_PluginType       ;
+    m_Author            = b.m_Author           ;
+    m_Description       = b.m_Description      ;
+    m_DetailDescription = b.m_DetailDescription;
+    m_License           = b.m_License          ;
+    m_PluginTypeName    = b.m_PluginTypeName   ;
+    m_Version           = b.m_Version          ;
+    m_Icon              = b.m_Icon             ;
+    return *this;
+}
+
+/**
+ * @brief Overoading operator ==
+ * @param PluginDescription object
+ * @return true if objects are equal
+ */
+bool  PluginDescription::operator==(const PluginDescription &b) const{
+    return(
+                ( m_PluginType == b.m_PluginType )&&
+                (!(
+                     m_Name.compare(  b.m_Name )||
+                     m_Location.compare(  b.m_Location )||
+                     m_Author.compare(  b.m_Author )||
+                     m_Version.compare(  b.m_Version )||
+                     m_PluginTypeName.compare(  b.m_PluginTypeName )||
+                     m_Description.compare(  b.m_Description )
+                     ))
+                );
+}
+
 
 /**
  * Return plugin author
@@ -41,6 +194,10 @@ const QString& PluginDescription::GetAuthor ()
     return m_Author;
 }
 
+/**
+ * @brief Set Author Name
+ * @param Author
+ */
 void PluginDescription::SetAuthor(const QString &Author){
     m_Author = Author;
 }
@@ -121,6 +278,24 @@ const QString& PluginDescription::GetVersion ()
 }
 
 /**
+ * @brief Get plugin directory Location
+ * @return
+ */
+const QString &PluginDescription::GetLocation()
+{
+    return m_Location;
+}
+
+/**
+ * @brief Return is plugin enabled
+ * @return true/false
+ */
+bool PluginDescription::IsEnabled()
+{
+    return m_Enabled;
+}
+
+/**
  * @brief PluginDescription::SetDescription
  * @param Description
  */
@@ -190,6 +365,24 @@ void PluginDescription::SetPluginTypeName(const QString &PluginTypeName)
 void PluginDescription::SetVersion(const QString &Version)
 {
     m_Version = Version;
+}
+
+/**
+ * @brief Enable plugin
+ * @param En - true/false
+ */
+void PluginDescription::Enable( bool En )
+{
+    m_Enabled = En;
+}
+
+/**
+ * @brief Set plugin directory Location
+ * @param Location
+ */
+void PluginDescription::SetLocation(const QString &Location)
+{
+    m_Location = Location;
 }
 
 
