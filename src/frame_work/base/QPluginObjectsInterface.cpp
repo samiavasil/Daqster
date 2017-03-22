@@ -38,6 +38,16 @@ QPluginObjectsInterface::~QPluginObjectsInterface () {
 
 }
 
+const QString &QPluginObjectsInterface::GetLocation()
+{
+    return m_PluginDescryptor.GetLocation();
+}
+
+void QPluginObjectsInterface::SetLocation( const QString & Location )
+{
+   m_PluginDescryptor.SetLocation(Location);
+}
+
 /**
  * Return plugin basic type. If this isn't set to some type you can check typeName
  * string and try to detect type from name.

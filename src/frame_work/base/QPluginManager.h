@@ -47,7 +47,7 @@ public:
   /**
    * Empty Constructor
    */
-  QPluginManager ();
+  QPluginManager ( const QString& ConfigFile = QString("daqster.ini") );
 
   /**
    * Empty Destructor
@@ -94,18 +94,16 @@ public:
   void ShowPluginManagerGui ();
 
 protected:
-
-  // Protected attributes
-  //  
-
-  // List with founded plugins
-  QList<Daqster::PluginDescription> PluginsList;
+  bool FileHash( const QString &Filename, QString& Hash );
 
 protected:
-
+  // List with founded plugins
+  QList<Daqster::PluginDescription> PluginsList;
   // Map contains path to plugin and pointer to plugin base interface object QPluginObjectsInterface.
   QMap<QString,Daqster::QPluginObjectsInterface*> m_PluginMap;
   QList<QString> m_DirList;
+  QString m_ConfigFile;
+
 
 };
 } // end of package namespace
