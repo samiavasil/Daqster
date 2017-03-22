@@ -117,6 +117,7 @@ void MainWindow::on_actionHideMainMenu_triggered(bool checked)
 
 void MainWindow::on_actionSave_triggered()
 {
+
     static Daqster::QPluginManager* pm;
     if( NULL == pm )
     {
@@ -124,6 +125,7 @@ void MainWindow::on_actionSave_triggered()
     }
     pm->SearchForPlugins();
     pm->ShowPluginManagerGui();
+
 //    QPluginLoader p( tr("./plugins/DaqsterTemlatePlugin.so"), this );
 //    QObject* Inst = p.instance();
 

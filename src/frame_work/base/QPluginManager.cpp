@@ -23,17 +23,22 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include "QPluginListView.h"
 #include "PluginFilter.h"
 #include "QPluginObjectsInterface.h"
-
 #include <QDir>
 #include <QApplication>
 #include <QSharedPointer>
 #include <QPluginLoader>
+#include <QSettings>
+#include<QCryptographicHash>
+#include<QFile>
+#include<QMessageBox>
 
 namespace Daqster {
 // Constructors/Destructors
 //  
 
-QPluginManager::QPluginManager () {
+QPluginManager::QPluginManager (const QString &ConfigFile ) {
+    m_ConfigFile = ConfigFile;
+
     m_DirList.append( qApp->applicationDirPath()+QString("/plugins") );
 }
 
@@ -69,10 +74,16 @@ Daqster::QPluginListView*  QPluginManager::CreatePluginListView (QWidget* Parren
 void QPluginManager::SearchForPlugins ()
 {
     QDir pluginsDir;
+    QSettings settings( m_ConfigFile, QSettings::IniFormat );
+    settings.setIniCodec("UTF-8");
+    settings.beginGroup("Plugins");
     foreach ( QString path, m_DirList ) {
         if( pluginsDir.cd( path ) )
         {
+        //    settings.beginGroup(path);
+            QString Hash;
             foreach (QString fileName, pluginsDir.entryList(QDir::Files)) {
+
                 fileName = pluginsDir.absoluteFilePath( fileName );
                 if(  false == m_PluginMap.contains( fileName ) ){
                     QSharedPointer<QPluginLoader> pluginLoader( new QPluginLoader(fileName));
@@ -80,7 +91,22 @@ void QPluginManager::SearchForPlugins ()
                     if( NULL != Inst ){
                         Daqster::QPluginObjectsInterface* ObjInterface = dynamic_cast<Daqster::QPluginObjectsInterface*>(Inst);
                         if( NULL != ObjInterface ){
+                            FileHash( fileName,  Hash  );
                             ObjInterface->SetPluginLoader( pluginLoader );
+                            ObjInterface->SetLocation(fileName);
+                            DEBUG << "<"+Hash+">";
+
+                            settings.beginGroup( Hash );
+                            settings.setValue("Location", ObjInterface->GetLocation());
+                            settings.setValue("Name", ObjInterface->GetName());
+                            settings.setValue("TypeName", ObjInterface->GetTypeName());
+                            settings.setValue("Author", ObjInterface->GetAuthor());
+                            settings.setValue("Description", ObjInterface->GetDescription());
+                            settings.setValue("DetailDescription", ObjInterface->GetDetailDescription());
+                            settings.setValue("License", ObjInterface->GetLicense());
+                            settings.setValue("Type", ObjInterface->GetType());
+                            settings.setValue("DetailDescription", ObjInterface->GetDetailDescription());
+                            settings.endGroup();
                             m_PluginMap[fileName] = ObjInterface;
                             Daqster::QBasePluginObject* Object = ObjInterface->CreatePlugin();
                             if( NULL != Object ){
@@ -93,9 +119,10 @@ void QPluginManager::SearchForPlugins ()
                     }
                 }
             }
+        //    settings.endGroup();
         }
-
     }
+    settings.endGroup();
 }
 
 
@@ -119,6 +146,31 @@ void QPluginManager::ShowPluginManagerGui ()
 {
     QPluginManagerGui Dialog;
     Dialog.exec();
+}
+
+
+bool QPluginManager::FileHash( const QString& Filename, QString& Hash  )
+{
+    bool ret = false;
+    QCryptographicHash hashMaster( QCryptographicHash::Md4 );
+    QFile file(Filename);
+    if( file.open(QIODevice::ReadOnly|QIODevice::Text ) )
+    {
+        if( hashMaster.addData( &file ) )/*File content for hash*/
+        {   QByteArray textTemp(Filename.toUtf8()  ,1000);
+            hashMaster.addData( textTemp );/*Add file name for final hash*/
+            {
+              Hash = QString(hashMaster.result().toHex().data());
+              ret = true;
+            }
+        }
+
+    }
+    else
+    {
+        Hash = QString();
+    }
+    return ret;
 }
 }
 

@@ -132,128 +132,128 @@ public:
    * @brief Set Author Name
    * @param Author
    */
-  inline void SetAuthor(const QString &Author);
+  void SetAuthor(const QString &Author);
 
   /**
    * @brief Get plugin description
    * @return const QString&
    */
-  inline const QString& GetDescription ();
+  const QString& GetDescription ();
 
   /**
    * @brief Get plugin detail description.
    * @return const QString&
    */
-  inline const QString& GetDetailDescription ();
+  const QString& GetDetailDescription ();
 
   /**
    * @brief Return plugin embeded icon.
    * @return const QIcon&
    */
-  inline const QIcon& GetIcon ();
+  const QIcon& GetIcon ();
 
   /**
    * @brief Get plugin license
    * @return const QString&
    */
-  inline const QString& GetLicense ();
+  const QString& GetLicense ();
 
   /**
    * @brief Return plugin name
    * @return const QString&
    */
-  inline const QString& GetName ();
+  const QString& GetName ();
 
   /**
    * @brief Return plugin basic type. If this isn't set to some type you can check typeName
    * string and try to detect type from name.
    * @return const Daqster::PluginType_t&
    */
-  inline const Daqster::PluginType_t& GetType ();
+  const Daqster::PluginType_t& GetType ();
 
   /**
    * @brief Get plugin type name
    * @return const QString&
    */
-  inline const QString& GetTypeName ();
+  const QString& GetTypeName ();
 
   /**
    * @brief Get plugin version
    * @return const QString&
    */
-  inline const QString& GetVersion ();
+  const QString& GetVersion ();
 
   /**
    * @brief Get plugin directory Location
    * @return
    */
-  inline const QString& GetLocation( );
+  const QString& GetLocation( );
 
   /**
    * @brief Return is plugin enabled
    * @return true/false
    */
-  inline bool  IsEnabled();
+  bool  IsEnabled();
 
   /**
    * @brief SetDescription
    * @param Description
    */
-  inline void SetDescription(const QString &Description);
+  void SetDescription(const QString &Description);
 
   /**
    * @brief SetDetailDescription
    * @param DetailDescription
    */
-  inline void SetDetailDescription(const QString &DetailDescription);
+  void SetDetailDescription(const QString &DetailDescription);
 
   /**
    * @brief SetIcon
    * @param Icon
    */
-  inline void SetIcon(const QIcon &Icon);
+  void SetIcon(const QIcon &Icon);
 
   /**
    * @brief SetLicense
    * @param License
    */
-  inline void SetLicense(const QString &License);
+  void SetLicense(const QString &License);
 
   /**
    * @brief SetName
    * @param Name
    */
-  inline void SetName(const QString &Name);
+  void SetName(const QString &Name);
 
   /**
    * @brief SetPluginType
    * @param PluginType
    */
-  inline void SetPluginType(const Daqster::PluginType_t &PluginType);
+  void SetPluginType(const Daqster::PluginType_t &PluginType);
 
   /**
    * @brief SetPluginTypeName
    * @param PluginTypeName
    */
-  inline void SetPluginTypeName(const QString &PluginTypeName);
+  void SetPluginTypeName(const QString &PluginTypeName);
 
   /**
    * @brief SetVersion
    * @param Version
    */
-  inline void SetVersion(const QString &Version);
+  void SetVersion(const QString &Version);
 
   /**
    * @brief Enable plugin
    * @param En - true/false
    */
-  inline void Enable( bool En );
+  void Enable( bool En );
 
   /**
    * @brief Set plugin directory Location
    * @param Location
    */
-  inline void SetLocation( const QString& Location );
+  void SetLocation( const QString& Location );
 
 
 protected:

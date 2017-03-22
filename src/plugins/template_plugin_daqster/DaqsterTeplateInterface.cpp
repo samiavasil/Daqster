@@ -29,7 +29,7 @@ void TemplatePluginObject::MainWinDestroyed( QObject* obj )
 
 DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObjectsInterface(parent)
 {
-    DEBUG << "QwtPlotWorkInterface object create";
+    DEBUG << "DaqsterTeplateInterface object create";
     QIcon icon( QString::fromUtf8(":/template.png") );
     m_PluginDescryptor.SetIcon( icon );
     m_PluginDescryptor.SetName( "PluginTemplate" );

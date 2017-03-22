@@ -54,6 +54,8 @@ public:
    */
   virtual ~QPluginObjectsInterface ();
 
+   const QString&  GetLocation();
+
   /**
    * Return plugin basic type. If this isn't set to some type you can check typeName
    * string and try to detect type from name.
@@ -135,6 +137,8 @@ public:
    * @param  Parrent Pointer to parent QObject
    */
   Daqster::QBasePluginObject* CreatePlugin (QObject* Parrent = NULL);
+
+  void SetLocation(const QString &Location);
 
 protected:
   /**
