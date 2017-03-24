@@ -28,14 +28,18 @@ Initial version of this file was created on 12.03.2017 at 20:54:50
 #include<QSharedPointer>
 #include "PluginDescription.h"
 class QPluginLoader;
-
+class QSettings;
 namespace Daqster {
 
 class QBasePluginObject;
 
 /**
   * class QPluginObjectsInterface
-  * 
+  * @brief This is a base plugin interface class.
+  * All plugins should inherite this plugin interface in oreder to create plugin  objects.
+  * QPluginLoader class instantiate objects from this class. Object from this class contains
+  * pointer associasion to coresponding QPluginLoader object wich load it.
+  * QPluginObjectsInterface objects can save it member parametters in persistent QSettings store.
   */
 
 class FRAME_WORKSHARED_EXPORT QPluginObjectsInterface : public QObject
@@ -54,6 +58,10 @@ public:
    */
   virtual ~QPluginObjectsInterface ();
 
+   /**
+    * @brief Get plugin Location
+    * @return plugin location
+    */
    const QString&  GetLocation();
 
   /**
@@ -119,6 +127,11 @@ public:
    */
   const QString& GetAuthor ();
 
+  /**
+   * @brief Return Plugin file hash
+   * @return
+   */
+  const QString& GetHash() const;
 
   /**
    * Set new plugin loader.
@@ -138,7 +151,28 @@ public:
    */
   Daqster::QBasePluginObject* CreatePlugin (QObject* Parrent = NULL);
 
+  /**
+   * @brief Set plugin location. This function should be called just from PluginManager
+   * when succesfully load pugin from some configured directory.
+   * @param Plugin dirctory Location
+   */
   void SetLocation(const QString &Location);
+
+  /**
+   * @brief Store Plugin Parameters to persistent settings store.
+   * The main idea is when some plugin is loaded one time information for plugin is saved
+   * on store and in feature this plugin information is used without loading of plugin.
+   * Plugin will be loaded just if it is explicitly used esle just the persistent information is used.
+   * @param Store
+   * @return
+   */
+  bool StorePluginParamsToPersistency( QSettings& Store );
+
+  /**
+   * @brief Set File Hash. Used by plugin manager.
+   * @return
+   */
+  void SetHash(const QString &Hash);
 
 protected:
   /**

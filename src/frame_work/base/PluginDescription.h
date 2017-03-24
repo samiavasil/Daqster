@@ -26,6 +26,7 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 #include <QString>
 #include <QIcon>
 
+class QSettings;
 namespace Daqster {
 
 typedef enum{
@@ -113,7 +114,7 @@ public:
     * @param PluginDescription object
     * @return true if objects are equal
     */
-   bool operator ==(const PluginDescription &b) const;
+   bool operator ==(const PluginDescription &b);
 
    /**
     * @brief Overloading Equal operator
@@ -126,7 +127,7 @@ public:
    * @brief Return plugin author
    * @return const QString&
    */
-  const QString& GetAuthor ();
+  const QString& GetAuthor () const;
 
   /**
    * @brief Set Author Name
@@ -138,62 +139,68 @@ public:
    * @brief Get plugin description
    * @return const QString&
    */
-  const QString& GetDescription ();
+  const QString& GetDescription () const;
 
   /**
    * @brief Get plugin detail description.
    * @return const QString&
    */
-  const QString& GetDetailDescription ();
+  const QString& GetDetailDescription () const;
 
   /**
    * @brief Return plugin embeded icon.
    * @return const QIcon&
    */
-  const QIcon& GetIcon ();
+  const QIcon& GetIcon () const;
 
   /**
    * @brief Get plugin license
    * @return const QString&
    */
-  const QString& GetLicense ();
+  const QString& GetLicense () const;
 
   /**
    * @brief Return plugin name
    * @return const QString&
    */
-  const QString& GetName ();
+  const QString& GetName () const;
 
   /**
    * @brief Return plugin basic type. If this isn't set to some type you can check typeName
    * string and try to detect type from name.
    * @return const Daqster::PluginType_t&
    */
-  const Daqster::PluginType_t& GetType ();
+  const Daqster::PluginType_t& GetType () const;
 
   /**
    * @brief Get plugin type name
    * @return const QString&
    */
-  const QString& GetTypeName ();
+  const QString& GetTypeName () const;
 
   /**
    * @brief Get plugin version
    * @return const QString&
    */
-  const QString& GetVersion ();
+  const QString& GetVersion () const;
 
   /**
    * @brief Get plugin directory Location
    * @return
    */
-  const QString& GetLocation( );
+  const QString& GetLocation( ) const;
+
+  /**
+   * @brief Return Plugin file hash
+   * @return
+   */
+  const QString& GetHash() const;
 
   /**
    * @brief Return is plugin enabled
    * @return true/false
    */
-  bool  IsEnabled();
+  bool  IsEnabled() const;
 
   /**
    * @brief SetDescription
@@ -255,6 +262,20 @@ public:
    */
   void SetLocation( const QString& Location );
 
+  /**
+   * @brief Set File Hash. Used by plugin manager.
+   * @return
+   */
+  void SetHash(const QString &Hash);
+
+  /**
+   * @brief Store Plugin Parammeters to Qsetting store
+   * @param Store
+   * @return
+   */
+  bool StorePluginParamsToPersistency( QSettings &Store );
+
+
 
 protected:
   //properties
@@ -280,12 +301,11 @@ protected:
   QString m_Version;
   // Is plugin enabled for usage
   bool m_Enabled;
-  /*TODO: TBD on the feature.
-   * Cryptographic Hash of plugin file,
+  /* Cryptographic Hash of plugin file,
    * wich can be used to verify where the file isn't
    * changed on the fly.
-   * QString m_Hash; - Returned from QCryptographicHash
-   */
+   * */
+  QString m_Hash;
 
 };
 } // end of package namespace

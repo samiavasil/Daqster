@@ -38,14 +38,33 @@ QPluginObjectsInterface::~QPluginObjectsInterface () {
 
 }
 
+/**
+ * @brief Get plugin Location
+ * @return plugin location
+ */
 const QString &QPluginObjectsInterface::GetLocation()
 {
     return m_PluginDescryptor.GetLocation();
 }
 
+/**
+ * @brief Set plugin location. This function should be called just from PluginManager
+ * when succesfully load pugin from some configured directory.
+ * @param Plugin dirctory Location
+ */
 void QPluginObjectsInterface::SetLocation( const QString & Location )
 {
-   m_PluginDescryptor.SetLocation(Location);
+    m_PluginDescryptor.SetLocation(Location);
+}
+
+bool QPluginObjectsInterface::StorePluginParamsToPersistency( QSettings &Store )
+{
+    return m_PluginDescryptor.StorePluginParamsToPersistency( Store );
+}
+
+void QPluginObjectsInterface::SetHash(const QString &Hash)
+{
+    m_PluginDescryptor.SetHash(Hash);
 }
 
 /**
@@ -136,6 +155,11 @@ const QString& QPluginObjectsInterface::GetLicense ()
 const QString& QPluginObjectsInterface::GetAuthor ()
 {
     return m_PluginDescryptor.m_Author;
+}
+
+const QString &QPluginObjectsInterface::GetHash() const
+{
+    return m_PluginDescryptor.GetHash();
 }
 
 
