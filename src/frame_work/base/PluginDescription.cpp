@@ -19,6 +19,7 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 **************************************************************************/
 
 #include "PluginDescription.h"
+#include<QSettings>
 
 namespace Daqster {
 // Constructors/Destructors
@@ -170,7 +171,7 @@ PluginDescription & PluginDescription::operator=(const PluginDescription &b){
  * @param PluginDescription object
  * @return true if objects are equal
  */
-bool  PluginDescription::operator==(const PluginDescription &b) const{
+bool  PluginDescription::operator==(const PluginDescription &b){
     return(
                 ( m_PluginType == b.m_PluginType )&&
                 (!(
@@ -189,24 +190,16 @@ bool  PluginDescription::operator==(const PluginDescription &b) const{
  * Return plugin author
  * @return const QString&
  */
-const QString& PluginDescription::GetAuthor ()
+const QString& PluginDescription::GetAuthor () const
 {
     return m_Author;
-}
-
-/**
- * @brief Set Author Name
- * @param Author
- */
-void PluginDescription::SetAuthor(const QString &Author){
-    m_Author = Author;
 }
 
 /**
  * Get plugin description
  * @return const QString&
  */
-const QString& PluginDescription::GetDescription ()
+const QString& PluginDescription::GetDescription () const
 {
     return m_Description;
 }
@@ -215,7 +208,7 @@ const QString& PluginDescription::GetDescription ()
  * Get plugin detail description.
  * @return const QString&
  */
-const QString& PluginDescription::GetDetailDescription ()
+const QString& PluginDescription::GetDetailDescription () const
 {
     return m_DetailDescription;
 }
@@ -224,7 +217,7 @@ const QString& PluginDescription::GetDetailDescription ()
  * Return plugin embeded icon.
  * @return const QIcon&
  */
-const QIcon& PluginDescription::GetIcon ()
+const QIcon& PluginDescription::GetIcon () const
 {
     return m_Icon;
 }
@@ -233,7 +226,7 @@ const QIcon& PluginDescription::GetIcon ()
  * Get plugin license
  * @return const QString&
  */
-const QString& PluginDescription::GetLicense ()
+const QString& PluginDescription::GetLicense () const
 {
     return m_License;
 }
@@ -242,7 +235,7 @@ const QString& PluginDescription::GetLicense ()
  * Return plugin name
  * @return const QString&
  */
-const QString& PluginDescription::GetName ()
+const QString& PluginDescription::GetName () const
 {
     return m_Name;
 }
@@ -252,7 +245,7 @@ const QString& PluginDescription::GetName ()
  * string and try to detect type from name.
  * @return const Daqster::PluginType_t&
  */
-const Daqster::PluginType_t& PluginDescription::GetType ()
+const Daqster::PluginType_t& PluginDescription::GetType () const
 {
     return m_PluginType;
 }
@@ -262,7 +255,7 @@ const Daqster::PluginType_t& PluginDescription::GetType ()
  * @return const QString&
  */
 
-const QString& PluginDescription::GetTypeName ()
+const QString& PluginDescription::GetTypeName ()const
 {
     return m_PluginTypeName;
 }
@@ -272,7 +265,7 @@ const QString& PluginDescription::GetTypeName ()
  * Get plugin version
  * @return const QString&
  */
-const QString& PluginDescription::GetVersion ()
+const QString& PluginDescription::GetVersion () const
 {
     return m_Version;
 }
@@ -281,18 +274,35 @@ const QString& PluginDescription::GetVersion ()
  * @brief Get plugin directory Location
  * @return
  */
-const QString &PluginDescription::GetLocation()
+const QString &PluginDescription::GetLocation() const
 {
     return m_Location;
+}
+
+/**
+ * @brief Return Plugin file hash
+ * @return
+ */
+const QString& PluginDescription::GetHash() const
+{
+    return m_Hash;
 }
 
 /**
  * @brief Return is plugin enabled
  * @return true/false
  */
-bool PluginDescription::IsEnabled()
+bool PluginDescription::IsEnabled() const
 {
     return m_Enabled;
+}
+
+/**
+ * @brief Set Author Name
+ * @param Author
+ */
+void PluginDescription::SetAuthor(const QString &Author) {
+    m_Author = Author;
 }
 
 /**
@@ -383,6 +393,37 @@ void PluginDescription::Enable( bool En )
 void PluginDescription::SetLocation(const QString &Location)
 {
     m_Location = Location;
+}
+
+/**
+ * @brief Store Plugin Parammeters to Qsetting store
+ * @param Store
+ * @return
+ */
+bool PluginDescription::StorePluginParamsToPersistency( QSettings &Store )
+{
+    Store.beginGroup( m_Hash );
+    Store.setValue("Author", m_Author );
+    Store.setValue("Description", m_Description);
+    Store.setValue("DetailDescription", m_DetailDescription);
+    Store.setValue("License", m_License);
+    Store.setValue("Location", m_Location);
+    Store.setValue("Name", m_Name);
+    Store.setValue("Type", m_PluginType);
+    Store.setValue("TypeName", m_PluginTypeName);
+    Store.setValue("Version", m_Version);
+    Store.setValue("Enabled", m_Enabled);
+    Store.endGroup();
+    return true;
+}
+
+/**
+ * @brief Set File Hash. Used by plugin manager.
+ * @return
+ */
+void PluginDescription::SetHash(const QString &Hash)
+{
+    m_Hash = Hash;
 }
 
 

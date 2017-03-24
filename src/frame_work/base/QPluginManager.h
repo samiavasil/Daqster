@@ -36,6 +36,20 @@ class PluginFilter;
 class QPluginListView;
 class QPluginObjectsInterface;
 
+/**
+ * @brief The QPluginManager class  is used to manage all availlable plugins.
+ * It search for availlable/new plugins and add plugin factories for every one plugin.
+ * For optimization this plugin create Qsetting based persistency store for plugins information.
+ * On start it check configurable directories for plugins and compare with  persystency
+ * information for new available plugins. If have a new plugin (some wich isn't stored in persistency)
+ * it automatically load plugin interface object and read plugin information and update persistency.
+ * QPluginManager create plugins factories only for these plugins wich are enabled.
+ * By default new plugins are enabled(?) and to change to disable state you can be use PluginManagerGUI
+ * wich can be called by member function of PluginManager - ShowPluginManagerGUI.
+ * In order to have a good plugin files traceability plugin manager create Hash of every one plugin
+ * file and when check for availability it compare and and file Hash's. Plugin files are different if
+ * their Hash's are different.
+ */
 class FRAME_WORKSHARED_EXPORT QPluginManager : public QObject
 {
 public:
@@ -94,6 +108,14 @@ public:
   void ShowPluginManagerGui ();
 
 protected:
+
+  /**
+   * @brief FileHash calculate Hash of some file
+   * @param Filename
+   * @param Hash result
+   * @return true on success
+   *         false otherwise
+   */
   bool FileHash( const QString &Filename, QString& Hash );
 
 protected:

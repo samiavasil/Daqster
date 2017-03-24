@@ -38,8 +38,8 @@ namespace Daqster {
 
 QPluginManager::QPluginManager (const QString &ConfigFile ) {
     m_ConfigFile = ConfigFile;
-
     m_DirList.append( qApp->applicationDirPath()+QString("/plugins") );
+    LoadPluginsInfoFromPersistency();
 }
 
 QPluginManager::~QPluginManager () { }
@@ -53,7 +53,6 @@ QPluginManager::~QPluginManager () { }
 void QPluginManager::GetPluginList (Daqster::PluginFilter Filter)
 {
 }
-
 
 /**
  * This function create PlunListView widget. This function internaly (on PluginView
@@ -89,24 +88,16 @@ void QPluginManager::SearchForPlugins ()
                     QSharedPointer<QPluginLoader> pluginLoader( new QPluginLoader(fileName));
                     QObject* Inst = pluginLoader->instance();
                     if( NULL != Inst ){
+
                         Daqster::QPluginObjectsInterface* ObjInterface = dynamic_cast<Daqster::QPluginObjectsInterface*>(Inst);
                         if( NULL != ObjInterface ){
                             FileHash( fileName,  Hash  );
-                            ObjInterface->SetPluginLoader( pluginLoader );
-                            ObjInterface->SetLocation(fileName);
                             DEBUG << "<"+Hash+">";
+                            ObjInterface->SetPluginLoader( pluginLoader );
+                            ObjInterface->SetLocation( fileName );
+                            ObjInterface->SetHash( Hash );
+                            ObjInterface->StorePluginParamsToPersistency( settings );
 
-                            settings.beginGroup( Hash );
-                            settings.setValue("Location", ObjInterface->GetLocation());
-                            settings.setValue("Name", ObjInterface->GetName());
-                            settings.setValue("TypeName", ObjInterface->GetTypeName());
-                            settings.setValue("Author", ObjInterface->GetAuthor());
-                            settings.setValue("Description", ObjInterface->GetDescription());
-                            settings.setValue("DetailDescription", ObjInterface->GetDetailDescription());
-                            settings.setValue("License", ObjInterface->GetLicense());
-                            settings.setValue("Type", ObjInterface->GetType());
-                            settings.setValue("DetailDescription", ObjInterface->GetDetailDescription());
-                            settings.endGroup();
                             m_PluginMap[fileName] = ObjInterface;
                             Daqster::QBasePluginObject* Object = ObjInterface->CreatePlugin();
                             if( NULL != Object ){
@@ -149,22 +140,25 @@ void QPluginManager::ShowPluginManagerGui ()
 }
 
 
+/**
+ * @brief FileHash calculate Hash of some file
+ * @param Filename
+ * @param Hash result
+ * @return true on success
+ *         false otherwise
+ */
 bool QPluginManager::FileHash( const QString& Filename, QString& Hash  )
 {
     bool ret = false;
-    QCryptographicHash hashMaster( QCryptographicHash::Md4 );
+    QCryptographicHash hashMaster( QCryptographicHash::Md5 );
     QFile file(Filename);
     if( file.open(QIODevice::ReadOnly|QIODevice::Text ) )
     {
         if( hashMaster.addData( &file ) )/*File content for hash*/
-        {   QByteArray textTemp(Filename.toUtf8()  ,1000);
-            hashMaster.addData( textTemp );/*Add file name for final hash*/
-            {
-              Hash = QString(hashMaster.result().toHex().data());
-              ret = true;
-            }
+        {
+            Hash = QString(hashMaster.result().toHex().data());
+            ret = true;
         }
-
     }
     else
     {
@@ -172,5 +166,15 @@ bool QPluginManager::FileHash( const QString& Filename, QString& Hash  )
     }
     return ret;
 }
+
+/**
+ * @brief QPluginManager::LoadPluginsInfoFromPersistency Load plugins information from persistency
+ */
+void QPluginManager::LoadPluginsInfoFromPersistency()
+{
+
 }
+
+
+}//End of Daqster namespace
 
