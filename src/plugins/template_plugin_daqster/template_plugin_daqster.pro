@@ -51,6 +51,9 @@ win32 {
         TARGET = $${TARGET}d
         LIBS        += -l$${FRAMEWORK_LIB_NAME}d
     }
+    else{
+        LIBS        += -l$${FRAMEWORK_LIB_NAME}
+    }
 }else{
     LIBS        += -l$${FRAMEWORK_LIB_NAME}
 }
