@@ -21,7 +21,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 
 #ifndef QPLUGINLISTVIEW_H
 #define QPLUGINLISTVIEW_H
-#include "base/global.h"
+#include "global.h"
 #include <QWidget>
 #include "PluginFilter.h"
 

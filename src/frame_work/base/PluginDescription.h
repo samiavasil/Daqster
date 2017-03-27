@@ -275,7 +275,12 @@ public:
    */
   bool StorePluginParamsToPersistency( QSettings &Store );
 
-
+  /**
+   * @brief Get Plugin Parammeters from Qsetting store
+   * @param Store
+   * @return
+   */
+  bool GetPluginParamsFromPersistency(QSettings &Store);
 
 protected:
   //properties

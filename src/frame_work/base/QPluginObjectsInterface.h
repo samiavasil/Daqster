@@ -21,7 +21,7 @@ Initial version of this file was created on 12.03.2017 at 20:54:50
 
 #ifndef QPLUGINOBJECTSINTERFACE_H
 #define QPLUGINOBJECTSINTERFACE_H
-#include "base/global.h"
+#include "global.h"
 #include <QObject>
 #include <QIcon>
 #include <QString>
@@ -133,6 +133,11 @@ public:
    */
   const QString& GetHash() const;
 
+  /**
+   * @brief Return Plugin Descriptor
+   * @return
+   */
+  const Daqster::PluginDescription& GetPluginDescriptor() const;
   /**
    * Set new plugin loader.
    * When the plugin is loaded on first time we create QPluginLoader and its method

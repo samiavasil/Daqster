@@ -21,7 +21,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 
 #ifndef QPLUGINMANAGERGUI_H
 #define QPLUGINMANAGERGUI_H
-#include "base/global.h"
+#include "global.h"
 #include <QDialog>
 
 namespace Ui {

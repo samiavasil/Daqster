@@ -6,27 +6,201 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>300</height>
+    <width>526</width>
+    <height>415</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <widget class="QLabel" name="label">
-   <property name="geometry">
-    <rect>
-     <x>120</x>
-     <y>100</y>
-     <width>151</width>
-     <height>18</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>PluginListView</string>
-   </property>
-  </widget>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
+    <layout class="QVBoxLayout" name="verticalLayout_2">
+     <item>
+      <layout class="QVBoxLayout" name="verticalLayout">
+       <item>
+        <widget class="QLineEdit" name="lineEdit"/>
+       </item>
+       <item>
+        <widget class="QTreeWidget" name="treeWidget">
+         <column>
+          <property name="text">
+           <string>sdfsfd</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>New Column</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>New Column</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>New Column</string>
+          </property>
+         </column>
+         <item>
+          <property name="text">
+           <string>New Item</string>
+          </property>
+          <item>
+           <property name="text">
+            <string>New Subitem</string>
+           </property>
+           <property name="icon">
+            <iconset resource="../resources.qrc">
+             <normaloff>:/Icons/icons/down.png</normaloff>:/Icons/icons/down.png</iconset>
+           </property>
+           <property name="text">
+            <string>fgfdg</string>
+           </property>
+           <property name="text">
+            <string>dfgdfgdf</string>
+           </property>
+           <property name="text">
+            <string>dfgdgdfgd</string>
+           </property>
+          </item>
+         </item>
+         <item>
+          <property name="text">
+           <string>New Item</string>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+          <item>
+           <property name="text">
+            <string>New Subitem</string>
+           </property>
+           <property name="text">
+            <string>gdfgfdg</string>
+           </property>
+           <property name="text">
+            <string>fgdgdfgd</string>
+           </property>
+           <property name="text">
+            <string>gdfgdfgdf</string>
+           </property>
+          </item>
+         </item>
+         <item>
+          <property name="text">
+           <string>New Item</string>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+          <item>
+           <property name="text">
+            <string>New Subitem</string>
+           </property>
+           <property name="text">
+            <string>dfgdfgd</string>
+           </property>
+           <property name="text">
+            <string>dfgfd</string>
+           </property>
+           <property name="text">
+            <string>gdfgd</string>
+           </property>
+          </item>
+         </item>
+         <item>
+          <property name="text">
+           <string>New Item</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>New Item</string>
+          </property>
+          <item>
+           <property name="text">
+            <string>New Subitem</string>
+           </property>
+           <property name="text">
+            <string>gdfgfd</string>
+           </property>
+           <property name="text">
+            <string>gdfg</string>
+           </property>
+           <property name="text">
+            <string>dfgdgfd</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>New Subitem</string>
+           </property>
+           <property name="text">
+            <string>dfg</string>
+           </property>
+           <property name="text">
+            <string>ghfdh</string>
+           </property>
+           <property name="text">
+            <string>dgfgdfgdf</string>
+           </property>
+          </item>
+         </item>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout">
+       <item>
+        <widget class="QPushButton" name="pushButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>Details</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButton_2">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>Close</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </item>
+  </layout>
  </widget>
- <resources/>
+ <resources>
+  <include location="../resources.qrc"/>
+ </resources>
  <connections/>
 </ui>

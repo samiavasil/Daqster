@@ -413,8 +413,37 @@ bool PluginDescription::StorePluginParamsToPersistency( QSettings &Store )
     Store.setValue("TypeName", m_PluginTypeName);
     Store.setValue("Version", m_Version);
     Store.setValue("Enabled", m_Enabled);
+    Store.setValue("Hash", m_Hash);
     Store.endGroup();
     return true;
+}
+
+/**
+ * @brief Get Plugin Parammeters from Qsetting store
+ * @param Store
+ * @return
+ */
+bool PluginDescription::GetPluginParamsFromPersistency( QSettings &Store )
+{
+    bool ret = false;
+    Store.beginGroup( m_Hash );
+    SetAuthor(Store.value("Author", "" ).toString());
+    SetDescription(Store.value("Description", "").toString());
+    SetDetailDescription(Store.value("DetailDescription", "").toString());
+    SetLicense(Store.value("License", "").toString());
+    SetLocation(Store.value("Location", "").toString());
+    SetName(Store.value("Name", "").toString());
+    SetPluginType((PluginType_t)Store.value("Type", UNDEFINED_TYPE).toUInt());
+    SetPluginTypeName(Store.value("TypeName", "").toString());
+    SetVersion(Store.value("Version", "").toString());
+    Enable(Store.value("Enabled", false).toBool());
+    SetHash(Store.value("Hash", "").toString());
+    Store.endGroup();
+    if( 1 )/*TODO: TBD Check for somehting*/
+    {
+        ret = true;
+    }
+    return ret;
 }
 
 /**
