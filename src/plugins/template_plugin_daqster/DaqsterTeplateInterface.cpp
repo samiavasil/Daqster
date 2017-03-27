@@ -2,6 +2,7 @@
 #include "base/debug.h"
 #include<QLabel>
 #include<QLayout>
+#include "base/QPluginManager.h"
 
 TemplatePluginObject::TemplatePluginObject(QObject *Parent):QBasePluginObject ( Parent  ){
     m_Win = new QMainWindow();
@@ -11,6 +12,11 @@ TemplatePluginObject::TemplatePluginObject(QObject *Parent):QBasePluginObject ( 
     m_Win->show();
     m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
     connect( m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)) );
+
+    Daqster::QPluginManager& pm = Daqster::GetApplicationPluginManager();
+    pm.SearchForPlugins();
+    pm.ShowPluginManagerGui();
+
 }
 
 TemplatePluginObject::~TemplatePluginObject()

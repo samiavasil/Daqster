@@ -17,18 +17,15 @@ General Public Licence for more details.
 
 Initial version of this file was created on 16.03.2017 at 11:40:20
 **************************************************************************/
-
-
 #ifndef QPLUGINMANAGER_H
 #define QPLUGINMANAGER_H
-#include "base/global.h"
-#include <QObject>
+#include "global.h"
 #include "PluginFilter.h"
+#include <QObject>
 #include <QList>
 #include <QMap>
 #include <QString>
-
-
+#include<QMutex>
 
 namespace Daqster {
 
@@ -49,6 +46,8 @@ class QPluginObjectsInterface;
  * In order to have a good plugin files traceability plugin manager create Hash of every one plugin
  * file and when check for availability it compare and and file Hash's. Plugin files are different if
  * their Hash's are different.
+ * Note: Please don't use instance of this class directly on your code. Instead get global instance to
+ * to object from this class with function GetApplicationPluginManager.
  */
 class FRAME_WORKSHARED_EXPORT QPluginManager : public QObject
 {
@@ -75,7 +74,7 @@ public:
    * described in input filter parameter.
    * @param  Filter Plugin filtration object
    */
-  void GetPluginList (Daqster::PluginFilter Filter);
+  QList<PluginDescription> GetPluginList ( const PluginFilter &Filter );
 
 
   /**
@@ -118,16 +117,31 @@ protected:
    */
   bool FileHash( const QString &Filename, QString& Hash );
 
+  /**
+   * @brief QPluginManager::LoadPluginsInfoFromPersistency Load plugins information from persistency
+   */
+  void LoadPluginsInfoFromPersistency();
+
 protected:
-  // List with founded plugins
-  QList<Daqster::PluginDescription> PluginsList;
-  // Map contains path to plugin and pointer to plugin base interface object QPluginObjectsInterface.
-  QMap<QString,Daqster::QPluginObjectsInterface*> m_PluginMap;
+  QMutex m_Mutex;
+  // Plugins Directory list
   QList<QString> m_DirList;
+  // Map with founded plugins: Map file Hash with PluginDescription   bb
+  QMap<QString, Daqster::PluginDescription> m_PluginsHashDescMap;
+  // Map Hash to plugin base interface object QPluginObjectsInterface.
+  QMap<QString,Daqster::QPluginObjectsInterface*> m_PluginMap;
   QString m_ConfigFile;
 
-
 };
+
+/**
+ * @brief Use GetApplicationPluginManager function to get singleton pointer to Plugin Manager.
+ * If you use this function every where you wi
+ * @return  Pointer to QPluginManager.
+ */
+
+QPluginManager& FRAME_WORKSHARED_EXPORT GetApplicationPluginManager();
+
 } // end of package namespace
 
 #endif // QPLUGINMANAGER_H

@@ -20,6 +20,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 
 #include "QPluginListView.h"
 #include "ui_pluginlistview.h"
+#include "QPluginManager.h"
 
 namespace Daqster {
 // Constructors/Destructors
@@ -34,6 +35,21 @@ QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter&
     m_PluginFilter = Filter;
     ui = new Ui::PluginListView();
     ui->setupUi( this );
+    QTreeWidget *treeWidget = ui->treeWidget;
+    treeWidget->setColumnCount(5);
+    QList<QTreeWidgetItem *> items;
+    for (int i = 0; i < 10; ++i)
+    {
+        QTreeWidgetItem* it = new QTreeWidgetItem((QTreeWidget*)0);
+        for(int j =0;j<5;j++){
+            it->setData( j,Qt::DisplayRole, QString("Col %1").arg(j)  );
+        }
+        items.append(it);
+    }
+
+
+
+    treeWidget->insertTopLevelItems(0, items);
 }
 
 QPluginListView::~QPluginListView () {

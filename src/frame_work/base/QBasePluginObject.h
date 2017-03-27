@@ -21,7 +21,7 @@ Initial version of this file was created on 12.03.2017 at 20:54:50
 #ifndef QBASEPLUGINOBJECT_H
 #define QBASEPLUGINOBJECT_H
 #include <QObject>
-#include "base/global.h"
+#include "global.h"
 
 namespace Daqster {
 

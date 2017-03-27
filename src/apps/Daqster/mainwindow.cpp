@@ -118,13 +118,13 @@ void MainWindow::on_actionHideMainMenu_triggered(bool checked)
 void MainWindow::on_actionSave_triggered()
 {
 
-    static Daqster::QPluginManager* pm;
-    if( NULL == pm )
-    {
-        pm = new Daqster::QPluginManager();
-    }
-    pm->SearchForPlugins();
-    pm->ShowPluginManagerGui();
+    Daqster::QPluginManager& pm = Daqster::GetApplicationPluginManager();
+ //   qDebug() << "Plugin Manager: " << pm;
+    pm.SearchForPlugins();
+    pm.ShowPluginManagerGui();
+
+
+
 
 //    QPluginLoader p( tr("./plugins/DaqsterTemlatePlugin.so"), this );
 //    QObject* Inst = p.instance();

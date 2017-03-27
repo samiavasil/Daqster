@@ -20,7 +20,7 @@ Initial version of this file was created on 12.03.2017 at 20:54:50
 
 #include "QPluginObjectsInterface.h"
 #include "QBasePluginObject.h"
-#include "base/debug.h"
+#include "debug.h"
 #include <QPluginLoader>
 
 
@@ -160,6 +160,11 @@ const QString& QPluginObjectsInterface::GetAuthor ()
 const QString &QPluginObjectsInterface::GetHash() const
 {
     return m_PluginDescryptor.GetHash();
+}
+
+const PluginDescription &QPluginObjectsInterface::GetPluginDescriptor() const
+{
+    return m_PluginDescryptor;
 }
 
 
