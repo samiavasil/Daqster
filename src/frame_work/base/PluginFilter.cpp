@@ -36,9 +36,9 @@ PluginFilter::~PluginFilter () { }
  * @return bool
  * @param  _Description Plugin description
  */
-bool PluginFilter::IsFiltered (const  Daqster::PluginDescription& Description)
+bool PluginFilter::IsFiltered (const  Daqster::PluginDescription& Description) const
 {
-    return true;
+    return false;
 }
 
 }

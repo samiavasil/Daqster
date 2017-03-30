@@ -25,10 +25,12 @@ DEFINES     += BUILD_AVAILABLE_PLUGIN
 TARGET   = DaqsterTemlatePlugin
 
 SOURCES += \
-    DaqsterTeplateInterface.cpp
+    DaqsterTeplateInterface.cpp \
+    TemplatePluginObject.cpp
 
 HEADERS += \
-    DaqsterTeplateInterface.h
+    DaqsterTeplateInterface.h \
+    TemplatePluginObject.h
 
 FORMS +=
 

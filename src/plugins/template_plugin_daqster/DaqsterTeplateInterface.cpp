@@ -1,37 +1,8 @@
 #include "DaqsterTeplateInterface.h"
 #include "base/debug.h"
-#include<QLabel>
-#include<QLayout>
-#include "base/QPluginManager.h"
+#include "TemplatePluginObject.h"
 
-TemplatePluginObject::TemplatePluginObject(QObject *Parent):QBasePluginObject ( Parent  ){
-    m_Win = new QMainWindow();
-    QLabel* label = new QLabel( );
-    label->setText("PluginTemplate Demo");
-    m_Win->setCentralWidget(label);
-    m_Win->show();
-    m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
-    connect( m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)) );
 
-    Daqster::QPluginManager& pm = Daqster::GetApplicationPluginManager();
-    pm.SearchForPlugins();
-    pm.ShowPluginManagerGui();
-
-}
-
-TemplatePluginObject::~TemplatePluginObject()
-{
-    DEBUG_V << "TemplatePluginObject destroyed";
-}
-
-void TemplatePluginObject::MainWinDestroyed( QObject* obj )
-{
-    m_Win = NULL;
-    deleteLater();
-    if( NULL == obj )
-        DEBUG << "Strange::!!!";
-
-}
 
 DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObjectsInterface(parent)
 {
@@ -59,7 +30,11 @@ DaqsterTeplateInterface::~DaqsterTeplateInterface(  )
 
 Daqster::QBasePluginObject *DaqsterTeplateInterface::CreatePluginInternal(QObject *Parrent)
 {
-    return new TemplatePluginObject(Parrent);
+    TemplatePluginObject* Obj = new TemplatePluginObject(Parrent);
+    if( NULL != Obj ){
+        Obj->SetName( m_PluginDescryptor.GetLocation() );
+    }
+    return Obj;
 }
 
 #if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
