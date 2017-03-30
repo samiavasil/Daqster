@@ -58,7 +58,7 @@ public:
    * @return bool
    * @param  _Description Plugin description
    */
-  bool IsFiltered (const  Daqster::PluginDescription& Description);
+  bool IsFiltered (const  Daqster::PluginDescription& Description) const;
 
 protected:
 

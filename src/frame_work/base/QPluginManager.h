@@ -21,6 +21,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #define QPLUGINMANAGER_H
 #include "global.h"
 #include "PluginFilter.h"
+#include "PluginDescription.h"
 #include <QObject>
 #include <QList>
 #include <QMap>
@@ -29,10 +30,10 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 
 namespace Daqster {
 
-class PluginFilter;
+
 class QPluginListView;
 class QPluginObjectsInterface;
-
+class QBasePluginObject;
 /**
  * @brief The QPluginManager class  is used to manage all availlable plugins.
  * It search for availlable/new plugins and add plugin factories for every one plugin.
@@ -49,6 +50,7 @@ class QPluginObjectsInterface;
  * Note: Please don't use instance of this class directly on your code. Instead get global instance to
  * to object from this class with function GetApplicationPluginManager.
  */
+#include<assert.h>
 class FRAME_WORKSHARED_EXPORT QPluginManager : public QObject
 {
 public:
@@ -56,25 +58,14 @@ public:
   // Constructors/Destructors
   //  
 
-
-  /**
-   * Empty Constructor
-   */
-  QPluginManager ( const QString& ConfigFile = QString("daqster.ini") );
-
-  /**
-   * Empty Destructor
-   */
-  virtual ~QPluginManager ();
-
-
+   static QPluginManager* instance();
 
   /**
    * Return list with founded plugins. Return list can be filtered by criteria
    * described in input filter parameter.
    * @param  Filter Plugin filtration object
    */
-  QList<PluginDescription> GetPluginList ( const PluginFilter &Filter );
+  QList<Daqster::PluginDescription> GetPluginList ( const PluginFilter &Filter=PluginFilter() );
 
 
   /**
@@ -106,8 +97,22 @@ public:
    */
   void ShowPluginManagerGui ();
 
-protected:
+  QBasePluginObject *CreatePluginObject(const QString &KeyHash);
 
+protected:
+  /**
+   * Empty Constructor
+   */
+  QPluginManager ( const QString& ConfigFile = QString("daqster.ini") );
+
+  QPluginManager( QPluginManager const& );
+
+  QPluginManager& operator= (QPluginManager const&);
+
+  /**
+   * Empty Destructor
+   */
+  virtual ~QPluginManager ();
   /**
    * @brief FileHash calculate Hash of some file
    * @param Filename
@@ -122,8 +127,10 @@ protected:
    */
   void LoadPluginsInfoFromPersistency();
 
+   bool LoadPluginInterfaceObject(const QString &PluginFileName,const QString& Hash  );
 protected:
-  QMutex m_Mutex;
+  /*Pointer to sinleton obejct*/
+  static QPluginManager* g_Instance;
   // Plugins Directory list
   QList<QString> m_DirList;
   // Map with founded plugins: Map file Hash with PluginDescription   bb
@@ -132,15 +139,9 @@ protected:
   QMap<QString,Daqster::QPluginObjectsInterface*> m_PluginMap;
   QString m_ConfigFile;
 
+
 };
 
-/**
- * @brief Use GetApplicationPluginManager function to get singleton pointer to Plugin Manager.
- * If you use this function every where you wi
- * @return  Pointer to QPluginManager.
- */
-
-QPluginManager& FRAME_WORKSHARED_EXPORT GetApplicationPluginManager();
 
 } // end of package namespace
 

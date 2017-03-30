@@ -113,17 +113,22 @@ void MainWindow::on_actionHideMainMenu_triggered(bool checked)
 }
 #include"base/QPluginObjectsInterface.h"
 #include"base/QBasePluginObject.h"
-//using namespace Daqster;
+#include"testplugincreation.h"
 
 void MainWindow::on_actionSave_triggered()
 {
+    TestPluginCreation* test = new TestPluginCreation();
+    test->run();
 
-    Daqster::QPluginManager& pm = Daqster::GetApplicationPluginManager();
- //   qDebug() << "Plugin Manager: " << pm;
-    pm.SearchForPlugins();
-    pm.ShowPluginManagerGui();
-
-
+/*
+    Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
+    if( NULL != pm )
+    {
+        qDebug() << "Plugin Manager: " << pm;
+        pm->SearchForPlugins();
+        pm->ShowPluginManagerGui();
+    }
+*/
 
 
 //    QPluginLoader p( tr("./plugins/DaqsterTemlatePlugin.so"), this );

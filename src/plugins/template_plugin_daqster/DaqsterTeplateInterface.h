@@ -4,22 +4,10 @@
 #include <QObject>
 #include "plugin_global.h"
 #include "base/QPluginObjectsInterface.h"
-#include "base/QBasePluginObject.h"
-#include <QMainWindow>
+
 
 using namespace Daqster;
 
-class TemplatePluginObject: public QBasePluginObject{
-    Q_OBJECT
-public:
-    TemplatePluginObject(QObject* Parent = NULL);
-    virtual ~TemplatePluginObject();
-
-public slots:
-    void MainWinDestroyed(QObject *obj);
-private:
-    QMainWindow* m_Win;
-};
 
 class PLUGIN_EXPORT DaqsterTeplateInterface:  public QPluginObjectsInterface
 {

@@ -163,6 +163,7 @@ PluginDescription & PluginDescription::operator=(const PluginDescription &b){
     m_PluginTypeName    = b.m_PluginTypeName   ;
     m_Version           = b.m_Version          ;
     m_Icon              = b.m_Icon             ;
+    m_Hash              = b.m_Hash             ;
     return *this;
 }
 
@@ -180,7 +181,9 @@ bool  PluginDescription::operator==(const PluginDescription &b){
                      m_Author.compare(  b.m_Author )||
                      m_Version.compare(  b.m_Version )||
                      m_PluginTypeName.compare(  b.m_PluginTypeName )||
-                     m_Description.compare(  b.m_Description )
+                     m_Description.compare(  b.m_Description )||
+                     m_License.compare(  b.m_License )||
+                     m_Hash.compare(  b.m_Hash )
                      ))
                 );
 }

@@ -17,8 +17,10 @@ INCLUDEPATH += ../../frame_work
 FRAMEWORK_LIB_NAME = frame_work
 
 SOURCES += main.cpp\
-        mainwindow.cpp
-HEADERS  += mainwindow.h
+        mainwindow.cpp \
+    testplugincreation.cpp
+HEADERS  += mainwindow.h \
+    testplugincreation.h
 
 
 LIBS += -L../../../bin/libs  -L../../../bin/extlibs
