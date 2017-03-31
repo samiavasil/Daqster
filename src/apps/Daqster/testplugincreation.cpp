@@ -24,7 +24,7 @@ void TestPluginCreation::run()
         //PluginManager->ShowPluginManagerGui();
         QList<Daqster::PluginDescription> PluginsList = PluginManager->GetPluginList();
         foreach ( Daqster::PluginDescription Desc, PluginsList) {
-           PluginManager->CreatePluginObject( Desc.GetHash() );
+           PluginManager->CreatePluginObject( Desc.GetProperty(PLUGIN_HASH).toString() );
         }
     }
 }

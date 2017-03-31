@@ -32,13 +32,12 @@ class FRAME_WORKSHARED_EXPORT PluginDescription;
   * Class is used for plugin filtration by some properties.
   */
 
-class PluginFilter
+class FRAME_WORKSHARED_EXPORT PluginFilter
 {
 public:
 
   // Constructors/Destructors
   //  
-
 
   /**
    * Empty Constructor
@@ -50,8 +49,6 @@ public:
    */
   virtual ~PluginFilter ();
 
-
-
   /**
    * This function test is the plugin described with input parameter is filtered or
    * not.
@@ -59,29 +56,6 @@ public:
    * @param  _Description Plugin description
    */
   bool IsFiltered (const  Daqster::PluginDescription& Description) const;
-
-protected:
-
-public:
-
-protected:
-
-public:
-
-protected:
-
-
-private:
-
-public:
-
-private:
-
-public:
-
-private:
-
-
 
 };
 } // end of package namespace

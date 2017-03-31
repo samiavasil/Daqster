@@ -32,7 +32,6 @@ namespace Ui {
 
 namespace Daqster {
 
-class FRAME_WORKSHARED_EXPORT QPluginFilter;
 
 /**
   * class QPluginListView
@@ -41,7 +40,7 @@ class FRAME_WORKSHARED_EXPORT QPluginFilter;
   * tbd ).
   */
 
-class QPluginListView : public QWidget
+class FRAME_WORKSHARED_EXPORT QPluginListView : public QWidget
 {
 public:
 
@@ -62,7 +61,7 @@ public:
    * Set view plugin flter.
    * @param  Filter
    */
-  void SetPluginFilter (const Daqster::QPluginFilter& Filter);
+  void SetPluginFilter (const Daqster::PluginFilter& Filter);
 
 protected:
   // Plugin filter

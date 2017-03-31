@@ -38,8 +38,6 @@ public:
 
   // Constructors/Destructors
   //  
-
-
   /**
    * Empty Constructor
    */
@@ -50,48 +48,9 @@ public:
    */
   virtual ~QBasePluginObject ();
 
-  // Static Public attributes
-  //  
-
-  // Public attributes
-  //  
-
-
 protected:
-
-  // Static Protected attributes
-  //  
-
-  // Protected attributes
-  //  
-
-public:
-
-protected:
-
-public:
-
-protected:
-
-
-private:
-
-  // Static Private attributes
-  //  
-
-  // Private attributes
-  //  
-
   // Pointer to plugin interface object
   const Daqster::QPluginObjectsInterface* m_InterfaceObject;
-public:
-
-private:
-
-public:
-
-
-
 };
 } // end of package namespace
 

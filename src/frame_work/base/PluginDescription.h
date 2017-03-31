@@ -17,8 +17,6 @@ General Public Licence for more details.
 
 Initial version of this file was created on 16.03.2017 at 12:33:53
 **************************************************************************/
-
-
 #ifndef PLUGINDESCRIPTION_H
 #define PLUGINDESCRIPTION_H
 
@@ -26,14 +24,25 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 #include <QString>
 #include <QIcon>
 
+#define PLUGIN_AUTHOR_PROPERTY        "Author"
+#define PLUGIN_DESCRIPTION_PROPERTY   "Description"
+#define PLUGIN_DETAIL_DESCRIPTION     "DetailDescription"
+#define PLUGIN_ICON                   "Icon"
+#define PLUGIN_LICENSE                "License"
+#define PLUGIN_LOCATION               "Location"
+#define PLUGIN_NAME                   "Name"
+#define PLUGIN_TYPE                   "Type"
+#define PLUGIN_TYPE_NAME              "TypeName"
+#define PLUGIN_VERSION                "Version"
+#define PLUGIN_HASH                   "Hash"
+#define PLUGIN_HELTHY_STATE           "HealthyState"
+
 class QSettings;
+
 namespace Daqster {
 
-typedef enum{
-    SOME_TYPE           = 0x1,
-    DETECT_BY_TYPE_NAME = 0x80000000,
-    UNDEFINED_TYPE      = 0xffffffff
-} PluginType_t;
+class PrivateDescription;
+
 
 /**
   * class PluginDescription
@@ -46,6 +55,21 @@ class FRAME_WORKSHARED_EXPORT PluginDescription
 {
     friend class QPluginObjectsInterface;
 public:
+    typedef enum{
+        SOME_TYPE           = 0x1,
+        DETECT_BY_TYPE_NAME = 0x80000000,
+        UNDEFINED_TYPE      = 0xffffffff
+    } PluginType_t;
+
+    typedef enum{
+        FOUNDED ,  /*Founded in plugin search procedure                */
+        IF_LOADED, /*Interface plugin object (object factory) successfully loaded */
+        OBJECT_CREATION, /*Trying to create Plugin object*/
+        HEALTHY ,  /*Founded, loaded and one or more plugins objects are successfully created */
+        ILL ,      /*Founded but exception occured when tryed to load  */
+        UNDEFINED  /*Not defined state                                 */
+    } PluginHealtyState_t;
+
     typedef enum{
       NOTHING_OPT              = 0,
       LOCATION_OPT             = 1 << 1,
@@ -65,18 +89,7 @@ public:
   /**
    * Empty Constructor
    */
-  PluginDescription (const QString &              Location = QString(),
-                      const bool                   Enabled  = true,
-                      const QString &              Name = QString(),
-                      const Daqster::PluginType_t  PluginType = Daqster::DETECT_BY_TYPE_NAME,
-                      const QString &              PluginTypeName= QString(),
-                      const QString &              Author = QString(),
-                      const QString &              Description = QString(),
-                      const QString &              DetailDescription = QString(),
-                      const QString &              License = QString(),
-                      const QString &              Version = QString(),
-                      const QIcon   &              Icon = QIcon()
-                     );
+  explicit PluginDescription ();
 
    /**
    * @brief Copy constructor
@@ -88,18 +101,25 @@ public:
    */
   virtual ~PluginDescription ();
 
+  void SetProperty(const char *name, const QVariant &value);
+
+  QVariant GetProperty(const char *name) const;
+
+  QList<QByteArray> GetPropertiesNames() const;
    /**
     * @brief IsEmpty
     * @return
     */
-   bool IsEmpty();
+   bool IsEmpty() const;
 
    /**
    * @brief PluginDescription::Compare - Return bitmask with difference betwen two PluginDescription objects
    * @param Object for compare
-   * @return Bitmask with PlugDiff values ( see PlugDiff type)
+   * @return Return 0 if object Pairs are the same
+   *                > 0 if this have some equal properties as b
+   *                < 0 if this haven't some equal properties as b
    */
-   unsigned int Compare(const PluginDescription &b) const;
+   int Compare(const PluginDescription &b) const;
 
    /**
     * @brief Compare objects valid fields
@@ -124,149 +144,16 @@ public:
    PluginDescription &operator =(const PluginDescription &b);
 
   /**
-   * @brief Return plugin author
-   * @return const QString&
-   */
-  const QString& GetAuthor () const;
-
-  /**
-   * @brief Set Author Name
-   * @param Author
-   */
-  void SetAuthor(const QString &Author);
-
-  /**
-   * @brief Get plugin description
-   * @return const QString&
-   */
-  const QString& GetDescription () const;
-
-  /**
-   * @brief Get plugin detail description.
-   * @return const QString&
-   */
-  const QString& GetDetailDescription () const;
-
-  /**
-   * @brief Return plugin embeded icon.
-   * @return const QIcon&
-   */
-  const QIcon& GetIcon () const;
-
-  /**
-   * @brief Get plugin license
-   * @return const QString&
-   */
-  const QString& GetLicense () const;
-
-  /**
-   * @brief Return plugin name
-   * @return const QString&
-   */
-  const QString& GetName () const;
-
-  /**
-   * @brief Return plugin basic type. If this isn't set to some type you can check typeName
-   * string and try to detect type from name.
-   * @return const Daqster::PluginType_t&
-   */
-  const Daqster::PluginType_t& GetType () const;
-
-  /**
-   * @brief Get plugin type name
-   * @return const QString&
-   */
-  const QString& GetTypeName () const;
-
-  /**
-   * @brief Get plugin version
-   * @return const QString&
-   */
-  const QString& GetVersion () const;
-
-  /**
-   * @brief Get plugin directory Location
-   * @return
-   */
-  const QString& GetLocation( ) const;
-
-  /**
-   * @brief Return Plugin file hash
-   * @return
-   */
-  const QString& GetHash() const;
-
-  /**
    * @brief Return is plugin enabled
    * @return true/false
    */
   bool  IsEnabled() const;
 
   /**
-   * @brief SetDescription
-   * @param Description
-   */
-  void SetDescription(const QString &Description);
-
-  /**
-   * @brief SetDetailDescription
-   * @param DetailDescription
-   */
-  void SetDetailDescription(const QString &DetailDescription);
-
-  /**
-   * @brief SetIcon
-   * @param Icon
-   */
-  void SetIcon(const QIcon &Icon);
-
-  /**
-   * @brief SetLicense
-   * @param License
-   */
-  void SetLicense(const QString &License);
-
-  /**
-   * @brief SetName
-   * @param Name
-   */
-  void SetName(const QString &Name);
-
-  /**
-   * @brief SetPluginType
-   * @param PluginType
-   */
-  void SetPluginType(const Daqster::PluginType_t &PluginType);
-
-  /**
-   * @brief SetPluginTypeName
-   * @param PluginTypeName
-   */
-  void SetPluginTypeName(const QString &PluginTypeName);
-
-  /**
-   * @brief SetVersion
-   * @param Version
-   */
-  void SetVersion(const QString &Version);
-
-  /**
    * @brief Enable plugin
    * @param En - true/false
    */
   void Enable( bool En );
-
-  /**
-   * @brief Set plugin directory Location
-   * @param Location
-   */
-  void SetLocation( const QString& Location );
-
-  /**
-   * @brief Set File Hash. Used by plugin manager.
-   * @return
-   */
-  void SetHash(const QString &Hash);
 
   /**
    * @brief Store Plugin Parammeters to Qsetting store
@@ -282,36 +169,13 @@ public:
    */
   bool GetPluginParamsFromPersistency(QSettings &Store);
 
+
 protected:
-  //properties
-  // Plugin Author
-  QString m_Author;
-  // Plugin Description
-  QString m_Description;
-  // Plugin detailed description
-  QString m_DetailDescription;
-  // Plugin Embeded Icon
-  QIcon m_Icon;
-  // Plugin License
-  QString m_License;
-  // Plugin Location
-  QString m_Location;
-  // Plugin name
-  QString m_Name;
-  // Plugin type
-  Daqster::PluginType_t m_PluginType;
-  // Plugin Type Name
-  QString m_PluginTypeName;
-  // Plugin Version
-  QString m_Version;
+    void CopyDinamycProperties(const PluginDescription &b);
+protected:
   // Is plugin enabled for usage
   bool m_Enabled;
-  /* Cryptographic Hash of plugin file,
-   * wich can be used to verify where the file isn't
-   * changed on the fly.
-   * */
-  QString m_Hash;
-
+  PrivateDescription *m_PrivateDescription;
 };
 } // end of package namespace
 
