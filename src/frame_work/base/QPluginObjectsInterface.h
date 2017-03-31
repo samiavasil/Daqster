@@ -18,7 +18,6 @@ General Public Licence for more details.
 Initial version of this file was created on 12.03.2017 at 20:54:50
 **************************************************************************/
 
-
 #ifndef QPLUGINOBJECTSINTERFACE_H
 #define QPLUGINOBJECTSINTERFACE_H
 #include "global.h"
@@ -27,8 +26,11 @@ Initial version of this file was created on 12.03.2017 at 20:54:50
 #include <QString>
 #include<QSharedPointer>
 #include "PluginDescription.h"
+
 class QPluginLoader;
 class QSettings;
+
+
 namespace Daqster {
 
 class QBasePluginObject;
@@ -62,92 +64,111 @@ public:
     * @brief Get plugin Location
     * @return plugin location
     */
-   const QString&  GetLocation();
+   QString GetLocation() const;
+
+   /**
+    * Set new plugin loader.
+    * When the plugin is loaded on first time we create QPluginLoader and its method
+    * instance() returns QPluginObjectInterface*  plugInterface. On this point
+    * plugInterface->setPluginLoader() function is called to set pointer to
+    * QPluginLoader.
+    * @param  Loader New plugin loader
+    */
+   void SetPluginLoader (QSharedPointer<QPluginLoader> & Loader);
+
+   /**
+    * @brief Set plugin location. This function should be called just from PluginManager
+    * when succesfully load pugin from some configured directory.
+    * @param Plugin dirctory Location
+    */
+   void SetLocation(const QString &Location);
+
+   /**
+    * @brief Set File Hash. Used by plugin manager.
+    * @return
+    */
+   void SetHash(const QString &Hash);
+
+   /**
+    * @brief Set plugin Healthy State. Defined states are:
+    * TODO:Not readdy at all TBD
+    *           FOUNDED   -  Founded in plugin search procedure
+    *           IF_LOADED -  Interface plugin object (object factory) successfully loaded
+    *           HEALTHY   -  Founded, loaded and one or more plugins objects are successfully created
+    *           ILL       -  Founded but exception occured when tryed to load
+    *           UNDEFINED -  Not defined state
+    * @param State
+    */
+   void SetHealthyState(const PluginDescription::PluginHealtyState_t& State );
+
+   PluginDescription::PluginHealtyState_t GetHealthyState();
+
+   /**
+    * @brief Return Plugin file hash
+    * @return Hash
+    */
+   QString GetHash() const;
 
   /**
    * Return plugin basic type. If this isn't set to some type you can check typeName
    * string and try to detect type from name.
    * @return Daqster::PluginType_t
    */
-  Daqster::PluginType_t GetType ();
-
+  PluginDescription::PluginType_t GetType () const;
 
   /**
    * Return plugin embeded icon.
-   * @return const &QIcon
+   * @return QIcon
    */
-  const QIcon& GetIcon ();
-
+  QIcon GetIcon() const;
 
   /**
    * Return plugin name
-   * @return const QString&
+   * @return Plugin Name
    */
-  const QString& GetName ();
-
+  QString GetName() const;
 
   /**
    * Get plugin type name
-   * @return const QString&
+   * @return Plugin type name
    */
-  const QString& GetTypeName ();
-
+  QString GetTypeName() const;
 
   /**
    * Get plugin version
-   * @return const QString&
+   * @return Plugin Version
    */
-  const QString& GetVersion ();
-
+  QString GetVersion() const;
 
   /**
    * Get plugin description
-   * @return const QString&
+   * @return Plugin Description
    */
-  const QString& GetDescription ();
-
+  QString GetDescription() const;
 
   /**
    * Get plugin detail description.
-   * @return const QString&
+   * @return Plugin Detail Description
    */
-  const QString& GetDetailDescription ();
-
+  QString GetDetailDescription() const;
 
   /**
    * Get plugin license
-   * @return const QString&
+   * @return Plugin License
    */
-  const QString& GetLicense ();
-
+  QString GetLicense() const;
 
   /**
    * Return plugin author
-   * @return const QString&
+   * @return Plugin Author
    */
-  const QString& GetAuthor ();
-
-  /**
-   * @brief Return Plugin file hash
-   * @return
-   */
-  const QString& GetHash() const;
+  QString GetAuthor() const;
 
   /**
    * @brief Return Plugin Descriptor
    * @return
    */
   const Daqster::PluginDescription& GetPluginDescriptor() const;
-  /**
-   * Set new plugin loader.
-   * When the plugin is loaded on first time we create QPluginLoader and its method
-   * instance() returns QPluginObjectInterface*  plugInterface. On this point 
-   * plugInterface->setPluginLoader() function is called to set pointer to
-   * QPluginLoader.
-   * @param  Loader New plugin loader
-   */
-  void SetPluginLoader (QSharedPointer<QPluginLoader> & Loader);
-
 
   /**
    * Create  new plugin object.
@@ -155,13 +176,6 @@ public:
    * @param  Parrent Pointer to parent QObject
    */
   Daqster::QBasePluginObject* CreatePlugin (QObject* Parrent = NULL);
-
-  /**
-   * @brief Set plugin location. This function should be called just from PluginManager
-   * when succesfully load pugin from some configured directory.
-   * @param Plugin dirctory Location
-   */
-  void SetLocation(const QString &Location);
 
   /**
    * @brief Store Plugin Parameters to persistent settings store.
@@ -173,11 +187,6 @@ public:
    */
   bool StorePluginParamsToPersistency( QSettings& Store );
 
-  /**
-   * @brief Set File Hash. Used by plugin manager.
-   * @return
-   */
-  void SetHash(const QString &Hash);
 
 protected:
   /**

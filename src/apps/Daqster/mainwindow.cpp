@@ -117,8 +117,16 @@ void MainWindow::on_actionHideMainMenu_triggered(bool checked)
 
 void MainWindow::on_actionSave_triggered()
 {
+
     TestPluginCreation* test = new TestPluginCreation();
     test->run();
+    Daqster::PluginDescription Desc;
+//    Desc.setProperty( "Test1", "BlahBaba");
+//    Desc.setProperty( "Test2", 33);
+//     QList<QByteArray> names = Desc.dynamicPropertyNames();
+//     foreach (QByteArray name, names) {
+//         qDebug() << name  << "-> " << Desc.property(name) << " Type: " << Desc.property(name).type();
+//     }
 
 /*
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();

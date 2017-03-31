@@ -38,7 +38,8 @@ QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter&
     QTreeWidget *treeWidget = ui->treeWidget;
     treeWidget->setColumnCount(5);
     QList<QTreeWidgetItem *> items;
-    for (int i = 0; i < 10; ++i)
+    QList<Daqster::PluginDescription> PlugList = QPluginManager::instance()->GetPluginList( Filter );
+    foreach ( Daqster::PluginDescription Desc , PlugList )
     {
         QTreeWidgetItem* it = new QTreeWidgetItem((QTreeWidget*)0);
         for(int j =0;j<5;j++){
@@ -46,6 +47,20 @@ QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter&
         }
         items.append(it);
     }
+
+/*    QString m_Author;
+    QString m_Description;
+    QString m_DetailDescription;
+    QIcon m_Icon;
+    QString m_License;
+    QString m_Location;
+    QString m_Name;
+    Daqster::PluginType_t m_PluginType;
+    QString m_PluginTypeName;
+    QString m_Version;
+    bool m_Enabled;
+    QString m_Hash;
+  */
 
 
 
@@ -60,8 +75,9 @@ QPluginListView::~QPluginListView () {
  * Set view plugin flter.
  * @param  Filter
  */
-void QPluginListView::SetPluginFilter (const Daqster::QPluginFilter& Filter)
+void QPluginListView::SetPluginFilter (const PluginFilter &Filter)
 {
+    m_PluginFilter = Filter;
 }
 
 }

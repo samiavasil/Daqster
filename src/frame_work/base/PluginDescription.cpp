@@ -1,4 +1,4 @@
-/************************************************************************
+﻿/************************************************************************
                         Daqster/PluginDescription.cpp.cpp - Copyright 
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
@@ -19,36 +19,30 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 **************************************************************************/
 
 #include "PluginDescription.h"
+#include "base/debug.h"
+#include<QObject>
 #include<QSettings>
 
 namespace Daqster {
+
+/*This is internal private class to store Plugin description*/
+class PrivateDescription : public QObject{
+    public:
+    explicit PrivateDescription( QObject* Parent = NULL ):QObject(Parent){
+
+    }
+    virtual ~PrivateDescription(){
+
+    }
+};
+
+
 // Constructors/Destructors
 //  
 
-PluginDescription::PluginDescription(const QString &               Location,
-                                      const bool                   Enabled,
-                                      const QString &              Name,
-                                      const Daqster::PluginType_t  PluginType,
-                                      const QString &              PluginTypeName,
-                                      const QString &              Author,
-                                      const QString &              Description,
-                                      const QString &              DetailDescription,
-                                      const QString &              License,
-                                      const QString &              Version,
-                                      const QIcon   &              Icon
-                                    )
+PluginDescription::PluginDescription()
 {
-   m_Location          = Location;
-   m_Enabled           = Enabled;
-   m_Name              = Name;
-   m_PluginType        = PluginType;
-   m_Author            = Author;
-   m_Description       = Description;
-   m_DetailDescription = DetailDescription;
-   m_License           = License;
-   m_PluginTypeName    = PluginTypeName;
-   m_Version           = Version;
-   m_Icon              = Icon;
+   m_PrivateDescription = new PrivateDescription();
 }
 
 /**
@@ -57,25 +51,47 @@ PluginDescription::PluginDescription(const QString &               Location,
 */
 PluginDescription::PluginDescription(const PluginDescription& b)
 {
-    *this = b;
+    m_PrivateDescription = new PrivateDescription();
+    m_Enabled = b.m_Enabled;
+    CopyDinamycProperties( b );
 }
 
 PluginDescription::~PluginDescription () {
-
+    if( NULL != m_PrivateDescription ){
+        m_PrivateDescription->deleteLater();
+    }
 }
 
-bool  PluginDescription::IsEmpty()
+void PluginDescription::SetProperty( const char *name, const QVariant &value )
 {
-    return ( *this == PluginDescription() );
+    m_PrivateDescription->setProperty( name, value );
+}
+
+QVariant  PluginDescription::GetProperty( const char *name ) const
+{
+    return m_PrivateDescription->property( name );
+}
+
+QList<QByteArray>  PluginDescription::GetPropertiesNames( ) const
+{
+    return  m_PrivateDescription->dynamicPropertyNames();
+}
+
+bool  PluginDescription::IsEmpty() const
+{
+    return ( 0 == m_PrivateDescription->dynamicPropertyNames().count() );
 }
 
 /**
- * @brief PluginDescription::Compare - Return bitmask with difference betwen two PluginDescription objects
- * @param Object for compare
- * @return Bitmask with PlugDiff values ( see PlugDiff type)
- */
-unsigned int  PluginDescription::Compare( const PluginDescription &b ) const{
-    unsigned int diff = NOTHING_OPT;
+* @brief PluginDescription::Compare - Return bitmask with difference betwen two PluginDescription objects
+* @param Object for compare
+* @return Return 0 if object Pairs are the same
+*                > 0 if this have some equal properties as b
+*                < 0 if this haven't some equal properties as b
+*/
+int  PluginDescription::Compare( const PluginDescription &b ) const{
+    /* TODO: TBD
+     * unsigned int diff = NOTHING_OPT;
     if( m_Location.compare(  b.m_Location ) ){
         diff |= LOCATION_OPT;
     }
@@ -108,8 +124,8 @@ unsigned int  PluginDescription::Compare( const PluginDescription &b ) const{
     }
     if( m_Icon.name().compare( b.m_Icon.name() ) ){
         diff |= ICON_OPT;
-    }
-    return diff;
+    }*/
+    return 0;
 }
 
 /**
@@ -120,6 +136,8 @@ unsigned int  PluginDescription::Compare( const PluginDescription &b ) const{
  */
 bool  PluginDescription::CompareByValidFields( const PluginDescription &b ) const{
     bool ret = true;
+     // TODO: TBD
+ #if 0
     if(  !m_Location.isEmpty() && m_Location.compare(  b.m_Name ) ){
        ret = false;
     }else if( m_Enabled != b.m_Enabled ){
@@ -143,7 +161,24 @@ bool  PluginDescription::CompareByValidFields( const PluginDescription &b ) cons
     }else if( m_Icon.isNull() && m_Icon.name().compare( b.m_Icon.name() ) ){
         ret = false;
     }
+#endif
     return ret;
+}
+
+void PluginDescription::CopyDinamycProperties( const PluginDescription &b ){
+    QList<QByteArray> names = m_PrivateDescription->dynamicPropertyNames();
+    /*Delete old properies and copy new ones*/
+    QVariant Invalid;
+    foreach( QByteArray name, names ){
+        m_PrivateDescription->setProperty( name,Invalid );
+    }
+
+    names = b.GetPropertiesNames();
+    foreach( QByteArray name, names ){
+        if( m_PrivateDescription->setProperty( name, b.GetProperty(name) ) ){
+            DEBUG << "Strange - set of this dynamic property should return false here. Chek it - maybe it is defined with Q_PROPERTY  macro";
+        }
+    }
 }
 
 /**
@@ -152,18 +187,9 @@ bool  PluginDescription::CompareByValidFields( const PluginDescription &b ) cons
  * @return PluginDescription
  */
 PluginDescription & PluginDescription::operator=(const PluginDescription &b){
-    m_Location          = b.m_Location         ;
-    m_Enabled           = b.m_Enabled          ;
-    m_Name              = b.m_Name             ;
-    m_PluginType        = b.m_PluginType       ;
-    m_Author            = b.m_Author           ;
-    m_Description       = b.m_Description      ;
-    m_DetailDescription = b.m_DetailDescription;
-    m_License           = b.m_License          ;
-    m_PluginTypeName    = b.m_PluginTypeName   ;
-    m_Version           = b.m_Version          ;
-    m_Icon              = b.m_Icon             ;
-    m_Hash              = b.m_Hash             ;
+    CopyDinamycProperties( b );
+    /*Copy static properties*/
+    m_Enabled = b.m_Enabled;
     return *this;
 }
 
@@ -173,211 +199,21 @@ PluginDescription & PluginDescription::operator=(const PluginDescription &b){
  * @return true if objects are equal
  */
 bool  PluginDescription::operator==(const PluginDescription &b){
-    return(
-                ( m_PluginType == b.m_PluginType )&&
-                (!(
-                     m_Name.compare(  b.m_Name )||
-                     m_Location.compare(  b.m_Location )||
-                     m_Author.compare(  b.m_Author )||
-                     m_Version.compare(  b.m_Version )||
-                     m_PluginTypeName.compare(  b.m_PluginTypeName )||
-                     m_Description.compare(  b.m_Description )||
-                     m_License.compare(  b.m_License )||
-                     m_Hash.compare(  b.m_Hash )
-                     ))
-                );
-}
-
-
-/**
- * Return plugin author
- * @return const QString&
- */
-const QString& PluginDescription::GetAuthor () const
-{
-    return m_Author;
-}
-
-/**
- * Get plugin description
- * @return const QString&
- */
-const QString& PluginDescription::GetDescription () const
-{
-    return m_Description;
-}
-
-/**
- * Get plugin detail description.
- * @return const QString&
- */
-const QString& PluginDescription::GetDetailDescription () const
-{
-    return m_DetailDescription;
-}
-
-/**
- * Return plugin embeded icon.
- * @return const QIcon&
- */
-const QIcon& PluginDescription::GetIcon () const
-{
-    return m_Icon;
-}
-
-/**
- * Get plugin license
- * @return const QString&
- */
-const QString& PluginDescription::GetLicense () const
-{
-    return m_License;
-}
-
-/**
- * Return plugin name
- * @return const QString&
- */
-const QString& PluginDescription::GetName () const
-{
-    return m_Name;
-}
-
-/**
- * Return plugin basic type. If this isn't set to some type you can check typeName
- * string and try to detect type from name.
- * @return const Daqster::PluginType_t&
- */
-const Daqster::PluginType_t& PluginDescription::GetType () const
-{
-    return m_PluginType;
-}
-
-/**
- * Get plugin type name
- * @return const QString&
- */
-
-const QString& PluginDescription::GetTypeName ()const
-{
-    return m_PluginTypeName;
-}
-
-
-/**
- * Get plugin version
- * @return const QString&
- */
-const QString& PluginDescription::GetVersion () const
-{
-    return m_Version;
-}
-
-/**
- * @brief Get plugin directory Location
- * @return
- */
-const QString &PluginDescription::GetLocation() const
-{
-    return m_Location;
-}
-
-/**
- * @brief Return Plugin file hash
- * @return
- */
-const QString& PluginDescription::GetHash() const
-{
-    return m_Hash;
-}
-
-/**
- * @brief Return is plugin enabled
- * @return true/false
- */
-bool PluginDescription::IsEnabled() const
-{
-    return m_Enabled;
-}
-
-/**
- * @brief Set Author Name
- * @param Author
- */
-void PluginDescription::SetAuthor(const QString &Author) {
-    m_Author = Author;
-}
-
-/**
- * @brief PluginDescription::SetDescription
- * @param Description
- */
-void PluginDescription::SetDescription(const QString &Description)
-{
-    m_Description = Description;
-}
-
-/**
- * @brief PluginDescription::SetDetailDescription
- * @param DetailDescription
- */
-void PluginDescription::SetDetailDescription(const QString &DetailDescription)
-{
-    m_DetailDescription = DetailDescription;
-}
-
-/**
- * @brief PluginDescription::SetIcon
- * @param Icon
- */
-void PluginDescription::SetIcon(const QIcon &Icon)
-{
-    m_Icon = Icon;
-}
-
-/**
- * @brief PluginDescription::SetLicense
- * @param License
- */
-void PluginDescription::SetLicense(const QString &License)
-{
-    m_License = License;
-}
-
-/**
- * @brief PluginDescription::SetName
- * @param Name
- */
-void PluginDescription::SetName(const QString &Name)
-{
-    m_Name = Name;
-}
-
-/**
- * @brief PluginDescription::SetPluginType
- * @param PluginType
- */
-void PluginDescription::SetPluginType(const Daqster::PluginType_t &PluginType)
-{
-    m_PluginType = PluginType;
-}
-
-/**
- * @brief PluginDescription::SetPluginTypeName
- * @param PluginTypeName
- */
-void PluginDescription::SetPluginTypeName(const QString &PluginTypeName)
-{
-    m_PluginTypeName = PluginTypeName;
-}
-
-/**
- * @brief PluginDescription::SetVersion
- * @param Version
- */
-void PluginDescription::SetVersion(const QString &Version)
-{
-    m_Version = Version;
+    bool ret = false;
+    if( m_Enabled == b.m_Enabled ){
+        QList<QByteArray> ThisNames = this->m_PrivateDescription->dynamicPropertyNames();
+        QList<QByteArray> BNames    = b.m_PrivateDescription->dynamicPropertyNames();
+        if( ThisNames.count() == BNames.count() ){
+            ret = true;
+            foreach( QByteArray Name, ThisNames ) {
+                if( this->GetProperty(Name) !=  b.GetProperty(Name) ){
+                    ret = false;
+                    break;
+                }
+            }
+        }
+    }
+   return ret;
 }
 
 /**
@@ -390,34 +226,16 @@ void PluginDescription::Enable( bool En )
 }
 
 /**
- * @brief Set plugin directory Location
- * @param Location
- */
-void PluginDescription::SetLocation(const QString &Location)
-{
-    m_Location = Location;
-}
-
-/**
  * @brief Store Plugin Parammeters to Qsetting store
  * @param Store
  * @return
  */
 bool PluginDescription::StorePluginParamsToPersistency( QSettings &Store )
 {
-    Store.beginGroup( m_Hash );
-    Store.setValue("Author", m_Author );
-    Store.setValue("Description", m_Description);
-    Store.setValue("DetailDescription", m_DetailDescription);
-    Store.setValue("License", m_License);
-    Store.setValue("Location", m_Location);
-    Store.setValue("Name", m_Name);
-    Store.setValue("Type", m_PluginType);
-    Store.setValue("TypeName", m_PluginTypeName);
-    Store.setValue("Version", m_Version);
-    Store.setValue("Enabled", m_Enabled);
-    Store.setValue("Hash", m_Hash);
-    Store.endGroup();
+    QList<QByteArray> names = m_PrivateDescription->dynamicPropertyNames();
+    foreach( QByteArray name, names ){
+        Store.setValue( name, m_PrivateDescription->property(name) );
+    }
     return true;
 }
 
@@ -429,34 +247,25 @@ bool PluginDescription::StorePluginParamsToPersistency( QSettings &Store )
 bool PluginDescription::GetPluginParamsFromPersistency( QSettings &Store )
 {
     bool ret = false;
-    Store.beginGroup( m_Hash );
-    SetAuthor(Store.value("Author", "" ).toString());
-    SetDescription(Store.value("Description", "").toString());
-    SetDetailDescription(Store.value("DetailDescription", "").toString());
-    SetLicense(Store.value("License", "").toString());
-    SetLocation(Store.value("Location", "").toString());
-    SetName(Store.value("Name", "").toString());
-    SetPluginType((PluginType_t)Store.value("Type", UNDEFINED_TYPE).toUInt());
-    SetPluginTypeName(Store.value("TypeName", "").toString());
-    SetVersion(Store.value("Version", "").toString());
-    Enable(Store.value("Enabled", false).toBool());
-    SetHash(Store.value("Hash", "").toString());
-    Store.endGroup();
+    QList<QByteArray> names = m_PrivateDescription->dynamicPropertyNames();
+    /*Delete old properies and copy new ones*/
+    QVariant Invalid();
+    foreach( QByteArray name, names ){
+        m_PrivateDescription->setProperty( name,Invalid );
+    }
+
+    QStringList list = Store.childKeys();
+    foreach( QString name, list ){
+        if( m_PrivateDescription->setProperty( name.toUtf8().data(), Store.value(name, "" ) ) ){
+            DEBUG << "Strange - set of this dynamic property should return false here. Chek it - maybe it is defined with Q_PROPERTY  macro";
+        }
+    }
     if( 1 )/*TODO: TBD Check for somehting*/
     {
         ret = true;
     }
+
     return ret;
 }
-
-/**
- * @brief Set File Hash. Used by plugin manager.
- * @return
- */
-void PluginDescription::SetHash(const QString &Hash)
-{
-    m_Hash = Hash;
-}
-
 
 }

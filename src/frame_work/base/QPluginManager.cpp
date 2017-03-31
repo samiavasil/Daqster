@@ -68,7 +68,7 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash  )
     QPluginObjectsInterface* ObjInterface = m_PluginMap.value( KeyHash, NULL );
     if( NULL == ObjInterface ){
         if( m_PluginsHashDescMap.contains( KeyHash ) ){
-            if( LoadPluginInterfaceObject( m_PluginsHashDescMap[KeyHash].GetLocation(), KeyHash ) ){
+            if( !LoadPluginInterfaceObject( m_PluginsHashDescMap[KeyHash].GetLocation(), KeyHash ) ){
                 DEBUG << "Can't load plugin from file" << m_PluginsHashDescMap[KeyHash].GetLocation();
             }
         }

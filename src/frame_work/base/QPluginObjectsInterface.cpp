@@ -39,139 +39,43 @@ QPluginObjectsInterface::~QPluginObjectsInterface () {
 }
 
 /**
- * @brief Get plugin Location
- * @return plugin location
- */
-const QString &QPluginObjectsInterface::GetLocation()
-{
-    return m_PluginDescryptor.GetLocation();
-}
-
-/**
  * @brief Set plugin location. This function should be called just from PluginManager
  * when succesfully load pugin from some configured directory.
  * @param Plugin dirctory Location
  */
 void QPluginObjectsInterface::SetLocation( const QString & Location )
 {
-    m_PluginDescryptor.SetLocation(Location);
+    m_PluginDescryptor.SetProperty( PLUGIN_LOCATION, Location );
 }
 
-bool QPluginObjectsInterface::StorePluginParamsToPersistency( QSettings &Store )
-{
-    return m_PluginDescryptor.StorePluginParamsToPersistency( Store );
-}
-
+/**
+ * @brief Set File Hash. Used by plugin manager.
+ * @return
+ */
 void QPluginObjectsInterface::SetHash(const QString &Hash)
 {
-    m_PluginDescryptor.SetHash(Hash);
+    m_PluginDescryptor.SetProperty( PLUGIN_HASH, Hash );
 }
 
 /**
- * Return plugin basic type. If this isn't set to some type you can check typeName
- * string and try to detect type from name.
- * @return Daqster::PluginType_t
+ * @brief Set plugin Healthy State. Defined states are:
+ * TODO:Not readdy at all TBD
+ *           FOUNDED   -  Founded in plugin search procedure
+ *           IF_LOADED -  Interface plugin object (object factory) successfully loaded
+ *           HEALTHY   -  Founded, loaded and one or more plugins objects are successfully created
+ *           ILL       -  Founded but exception occured when tryed to load
+ *           UNDEFINED -  Not defined state
+ * @param State
  */
-Daqster::PluginType_t QPluginObjectsInterface::GetType ()
+void QPluginObjectsInterface::SetHealthyState( const PluginDescription::PluginHealtyState_t& State)
 {
-    return m_PluginDescryptor.m_PluginType;
+    m_PluginDescryptor.SetProperty( PLUGIN_HELTHY_STATE, State );
 }
-
-
-/**
- * Return plugin embeded icon.
- * @return const QIcon
- */
-const QIcon& QPluginObjectsInterface::GetIcon ()
-{
-    return m_PluginDescryptor.m_Icon;
-}
-
-
-/**
- * Return plugin name
- * @return const QString&
- */
-const QString& QPluginObjectsInterface::GetName ()
-{
-    return  m_PluginDescryptor.m_Name;
-}
-
-
-/**
- * Get plugin type name
- * @return const QString&
- */
-const QString& QPluginObjectsInterface::GetTypeName ()
-{
-    return m_PluginDescryptor.m_PluginTypeName;
-}
-
-
-/**
- * Get plugin version
- * @return const QString&
- */
-const QString& QPluginObjectsInterface::GetVersion ()
-{
-    return m_PluginDescryptor.m_Version;
-}
-
-
-/**
- * Get plugin description
- * @return const QString&
- */
-const QString& QPluginObjectsInterface::GetDescription ()
-{
-    return m_PluginDescryptor.m_Description;
-}
-
-
-/**
- * Get plugin detail description.
- * @return const QString&
- */
-const QString& QPluginObjectsInterface::GetDetailDescription ()
-{
-    return m_PluginDescryptor.m_DetailDescription;
-}
-
-
-/**
- * Get plugin license
- * @return const QString&
- */
-const QString& QPluginObjectsInterface::GetLicense ()
-{
-    return m_PluginDescryptor.m_License;
-}
-
-
-/**
- * Return plugin author
- * @return const QString&
- */
-const QString& QPluginObjectsInterface::GetAuthor ()
-{
-    return m_PluginDescryptor.m_Author;
-}
-
-const QString &QPluginObjectsInterface::GetHash() const
-{
-    return m_PluginDescryptor.GetHash();
-}
-
-const PluginDescription &QPluginObjectsInterface::GetPluginDescriptor() const
-{
-    return m_PluginDescryptor;
-}
-
 
 /**
  * Set new plugin loader.
  * When the plugin is loaded on first time we create QPluginLoader and its method
- * instance() returns QPluginObjectInterface*  plugInterface. On this point 
+ * instance() returns QPluginObjectInterface*  plugInterface. On this point
  * plugInterface->setPluginLoader() function is called to set pointer to
  * QPluginLoader.
  * @param  Loader New plugin loader
@@ -179,6 +83,133 @@ const PluginDescription &QPluginObjectsInterface::GetPluginDescriptor() const
 void QPluginObjectsInterface::SetPluginLoader (QSharedPointer<QPluginLoader> & Loader)
 {
     m_PluginLoader = Loader;
+}
+
+PluginDescription::PluginHealtyState_t QPluginObjectsInterface::GetHealthyState( )
+{
+    return (PluginDescription::PluginHealtyState_t)m_PluginDescryptor.GetProperty( PLUGIN_HELTHY_STATE ).toUInt();
+}
+
+/**
+ * @brief Store Plugin Parameters to persistent settings store.
+ * The main idea is when some plugin is loaded one time information for plugin is saved
+ * on store and in feature this plugin information is used without loading of plugin.
+ * Plugin will be loaded just if it is explicitly used esle just the persistent information is used.
+ * @param Store
+ * @return
+ */
+bool QPluginObjectsInterface::StorePluginParamsToPersistency( QSettings &Store )
+{
+    return m_PluginDescryptor.StorePluginParamsToPersistency( Store );
+}
+
+/**
+ * @brief Get plugin Location
+ * @return plugin location
+ */
+QString QPluginObjectsInterface::GetLocation() const
+{
+    return  m_PluginDescryptor.GetProperty( PLUGIN_LOCATION ).toString();
+}
+
+/**
+ * @brief Return Plugin file hash
+ * @return
+ */
+QString QPluginObjectsInterface::GetHash() const
+{
+    return m_PluginDescryptor.GetProperty( PLUGIN_HASH ).toString();
+}
+
+/**
+ * Return plugin basic type. If this isn't set to some type you can check typeName
+ * string and try to detect type from name.
+ * @return Daqster::PluginType_t
+ */
+PluginDescription::PluginType_t QPluginObjectsInterface::GetType () const
+{
+    return (PluginDescription::PluginType_t)m_PluginDescryptor.GetProperty( PLUGIN_TYPE ).toUInt();
+}
+
+/**
+ * Return plugin embeded icon.
+ * @return QIcon
+ */
+QIcon QPluginObjectsInterface::GetIcon () const
+{
+    return m_PluginDescryptor.GetProperty( PLUGIN_ICON ).value<QIcon>();
+}
+
+
+/**
+ * Return plugin name
+ * @return Plugin name
+ */
+QString QPluginObjectsInterface::GetName () const
+{
+    return m_PluginDescryptor.GetProperty( PLUGIN_NAME ).toString();
+}
+
+/**
+ * Get plugin type name
+ * @return Plugin type name
+ */
+QString QPluginObjectsInterface::GetTypeName () const
+{
+    return m_PluginDescryptor.GetProperty( PLUGIN_TYPE_NAME ).toString();
+}
+
+/**
+ * Get plugin version
+ * @return Plugin Version
+ */
+QString QPluginObjectsInterface::GetVersion () const
+{
+    return m_PluginDescryptor.GetProperty( PLUGIN_VERSION ).toString();
+}
+
+
+/**
+ * Get plugin description
+ * @return Plugin Description
+ */
+QString QPluginObjectsInterface::GetDescription () const
+{
+    return m_PluginDescryptor.GetProperty( PLUGIN_DESCRIPTION_PROPERTY ).toString();
+}
+
+
+/**
+ * Get plugin detail description.
+ * @return Plugin Detail Description
+ */
+QString QPluginObjectsInterface::GetDetailDescription () const
+{
+    return m_PluginDescryptor.GetProperty( PLUGIN_DETAIL_DESCRIPTION ).toString();
+}
+
+
+/**
+ * Get plugin license
+ * @return Plugin License
+ */
+QString QPluginObjectsInterface::GetLicense () const
+{
+    return m_PluginDescryptor.GetProperty( PLUGIN_LICENSE ).toString();
+}
+
+/**
+ * Return plugin author
+ * @return Plugin Author
+ */
+QString QPluginObjectsInterface::GetAuthor () const
+{
+    return m_PluginDescryptor.GetProperty( PLUGIN_AUTHOR_PROPERTY ).toString();
+}
+
+const PluginDescription &QPluginObjectsInterface::GetPluginDescriptor() const
+{
+    return m_PluginDescryptor;
 }
 
 /**
