@@ -99,6 +99,8 @@ public:
 
   QBasePluginObject *CreatePluginObject(const QString &KeyHash);
 
+
+
 protected:
   /**
    * Empty Constructor
@@ -128,6 +130,8 @@ protected:
   void LoadPluginsInfoFromPersistency();
 
    bool LoadPluginInterfaceObject(const QString &PluginFileName,const QString& Hash  );
+
+   void StorePluginStateToPersistncy(QPluginObjectsInterface *ObjInterface);
 protected:
   /*Pointer to sinleton obejct*/
   static QPluginManager* g_Instance;
