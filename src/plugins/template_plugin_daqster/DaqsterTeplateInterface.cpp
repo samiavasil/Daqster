@@ -12,14 +12,14 @@ DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObject
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::SOME_TYPE );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
     m_PluginDescryptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
-    m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION_PROPERTY, "MyPluginTemplate" );
+    m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "MyPluginTemplate" );
     char docstr[] = \
     "This is a basic Daqster plugin template and can be used for implementing a new type daqster plugin \n\
     \n\
     Here you can add detailed description of the plugin...";
     m_PluginDescryptor.SetProperty( PLUGIN_DETAIL_DESCRIPTION, QObject::tr( docstr ) );
     m_PluginDescryptor.SetProperty( PLUGIN_LICENSE, QObject::tr( "The plugin's license have to be....." ) );
-    m_PluginDescryptor.SetProperty( PLUGIN_AUTHOR_PROPERTY, "Vasil Vasilev" );
+    m_PluginDescryptor.SetProperty( PLUGIN_AUTHOR, "Vasil Vasilev" );
 
 #else
     QIcon icon( QString::fromUtf8(":/template.png") );

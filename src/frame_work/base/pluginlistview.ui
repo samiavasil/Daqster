@@ -6,9 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>526</width>
-    <height>415</height>
+    <width>1106</width>
+    <height>312</height>
    </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+    <horstretch>3</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
   </property>
   <property name="windowTitle">
    <string>Form</string>
@@ -23,131 +29,12 @@
        </item>
        <item>
         <widget class="QTreeWidget" name="treeWidget">
-         <column>
-          <property name="text">
-           <string>sdfsfd</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>New Column</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>New Column</string>
-          </property>
-         </column>
-         <column>
-          <property name="text">
-           <string>New Column</string>
-          </property>
-         </column>
-         <item>
-          <property name="text">
-           <string>New Item</string>
-          </property>
-          <item>
-           <property name="text">
-            <string>New Subitem</string>
-           </property>
-           <property name="icon">
-            <iconset resource="../resources.qrc">
-             <normaloff>:/Icons/icons/down.png</normaloff>:/Icons/icons/down.png</iconset>
-           </property>
-           <property name="text">
-            <string>fgfdg</string>
-           </property>
-           <property name="text">
-            <string>dfgdfgdf</string>
-           </property>
-           <property name="text">
-            <string>dfgdgdfgd</string>
-           </property>
-          </item>
-         </item>
-         <item>
-          <property name="text">
-           <string>New Item</string>
-          </property>
-          <property name="text">
-           <string/>
-          </property>
-          <item>
-           <property name="text">
-            <string>New Subitem</string>
-           </property>
-           <property name="text">
-            <string>gdfgfdg</string>
-           </property>
-           <property name="text">
-            <string>fgdgdfgd</string>
-           </property>
-           <property name="text">
-            <string>gdfgdfgdf</string>
-           </property>
-          </item>
-         </item>
-         <item>
-          <property name="text">
-           <string>New Item</string>
-          </property>
-          <property name="text">
-           <string/>
-          </property>
-          <item>
-           <property name="text">
-            <string>New Subitem</string>
-           </property>
-           <property name="text">
-            <string>dfgdfgd</string>
-           </property>
-           <property name="text">
-            <string>dfgfd</string>
-           </property>
-           <property name="text">
-            <string>gdfgd</string>
-           </property>
-          </item>
-         </item>
-         <item>
-          <property name="text">
-           <string>New Item</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>New Item</string>
-          </property>
-          <item>
-           <property name="text">
-            <string>New Subitem</string>
-           </property>
-           <property name="text">
-            <string>gdfgfd</string>
-           </property>
-           <property name="text">
-            <string>gdfg</string>
-           </property>
-           <property name="text">
-            <string>dfgdgfd</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>New Subitem</string>
-           </property>
-           <property name="text">
-            <string>dfg</string>
-           </property>
-           <property name="text">
-            <string>ghfdh</string>
-           </property>
-           <property name="text">
-            <string>dgfgdfgdf</string>
-           </property>
-          </item>
-         </item>
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+           <horstretch>4</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
         </widget>
        </item>
       </layout>
@@ -199,8 +86,6 @@
    </item>
   </layout>
  </widget>
- <resources>
-  <include location="../resources.qrc"/>
- </resources>
+ <resources/>
  <connections/>
 </ui>

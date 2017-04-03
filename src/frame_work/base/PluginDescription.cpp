@@ -194,6 +194,15 @@ PluginDescription & PluginDescription::operator=(const PluginDescription &b){
 }
 
 /**
+ * @brief Return is plugin enabled
+ * @return true/false
+ */
+bool PluginDescription::IsEnabled() const
+{
+    return m_Enabled;
+}
+
+/**
  * @brief Overoading operator ==
  * @param PluginDescription object
  * @return true if objects are equal
