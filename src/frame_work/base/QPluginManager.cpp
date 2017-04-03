@@ -96,6 +96,12 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash  )
                  PersistentHealthy =  PluginDescription::ILL;
                  ObjInterface->SetHealthyState( PersistentHealthy );
                  StorePluginStateToPersistncy(ObjInterface);
+                 QMessageBox::warning(NULL, tr("Attention"),
+                                                  tr("There was application crach on last time loading of plugin %1 .\n"
+                                                     "Now we try second time and if it fail the plugin will be disabled.\n"
+                                                     "To enable Plugin please change HealthyState state in configuration .ini file."
+                                                     ).arg( ObjInterface->GetLocation() ),
+                                                  QMessageBox::Ok);
                  DEBUG << "Second chance for loading of plugin: " << ObjInterface->GetLocation() << ". If it fail it will be disabled.";
              }else if( Healthy == PluginDescription::IF_LOADED ){
                  Healthy = PluginDescription::OBJECT_CREATION;
@@ -113,7 +119,7 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash  )
              }
         }
 
-        if( PersistentHealthy != Healthy ){
+        if( ObjInterface->GetHealthyState() != Healthy ){
             ObjInterface->SetHealthyState( Healthy );
             /*Store Persistent Plugin status*/
             StorePluginStateToPersistncy(ObjInterface);

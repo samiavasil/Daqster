@@ -24,8 +24,8 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 #include <QString>
 #include <QIcon>
 
-#define PLUGIN_AUTHOR_PROPERTY        "Author"
-#define PLUGIN_DESCRIPTION_PROPERTY   "Description"
+#define PLUGIN_AUTHOR                 "Author"
+#define PLUGIN_DESCRIPTION            "Description"
 #define PLUGIN_DETAIL_DESCRIPTION     "DetailDescription"
 #define PLUGIN_ICON                   "Icon"
 #define PLUGIN_LICENSE                "License"

@@ -175,7 +175,7 @@ QString QPluginObjectsInterface::GetVersion () const
  */
 QString QPluginObjectsInterface::GetDescription () const
 {
-    return m_PluginDescryptor.GetProperty( PLUGIN_DESCRIPTION_PROPERTY ).toString();
+    return m_PluginDescryptor.GetProperty( PLUGIN_DESCRIPTION ).toString();
 }
 
 
@@ -204,7 +204,7 @@ QString QPluginObjectsInterface::GetLicense () const
  */
 QString QPluginObjectsInterface::GetAuthor () const
 {
-    return m_PluginDescryptor.GetProperty( PLUGIN_AUTHOR_PROPERTY ).toString();
+    return m_PluginDescryptor.GetProperty( PLUGIN_AUTHOR ).toString();
 }
 
 const PluginDescription &QPluginObjectsInterface::GetPluginDescriptor() const

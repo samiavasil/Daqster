@@ -21,6 +21,8 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include "QPluginListView.h"
 #include "ui_pluginlistview.h"
 #include "QPluginManager.h"
+#include <QMap>
+
 
 namespace Daqster {
 // Constructors/Destructors
@@ -37,34 +39,65 @@ QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter&
     ui->setupUi( this );
     QTreeWidget *treeWidget = ui->treeWidget;
     treeWidget->setColumnCount(5);
-    QList<QTreeWidgetItem *> items;
+
+
+    QMap<PluginDescription::PluginType_t, QTreeWidgetItem *> Map;
     QList<Daqster::PluginDescription> PlugList = QPluginManager::instance()->GetPluginList( Filter );
+    PluginDescription::PluginType_t Type;
+    QTreeWidgetItem *root_it, *it;
     foreach ( Daqster::PluginDescription Desc , PlugList )
     {
-        QTreeWidgetItem* it = new QTreeWidgetItem((QTreeWidget*)0);
-        for(int j =0;j<5;j++){
-            it->setData( j,Qt::DisplayRole, QString("Col %1").arg(j)  );
+        Type = (PluginDescription::PluginType_t)Desc.GetProperty(PLUGIN_TYPE).toUInt();
+        root_it   = Map.value( Type, NULL );
+        if( NULL == root_it ){
+           root_it = new QTreeWidgetItem((QTreeWidget*)0);
+           root_it->setData( 0,Qt::DisplayRole, tr("Plugin Type %1").arg(Type) );
+           root_it->setFlags(Qt::ItemIsUserTristate|Qt::ItemIsUserCheckable|Qt::ItemIsEnabled);
+           root_it->setCheckState( 1, Qt::PartiallyChecked);
+
+           Map[Type] = root_it;
         }
-        items.append(it);
+        if( root_it ){
+            it = new QTreeWidgetItem((QTreeWidget*)0);
+            if( NULL != it ){
+                it->setIcon( 0, Desc.GetProperty( PLUGIN_ICON ).value<QIcon>() );
+                it->setData( 0,Qt::DisplayRole, Desc.GetProperty(PLUGIN_NAME).toString() );
+                it->setCheckState( 1, Desc.IsEnabled() ? Qt::Checked : Qt::Unchecked );
+                it->setData( 2, Qt::DisplayRole, Desc.GetProperty(PLUGIN_VERSION).toString() );
+                it->setData( 3, Qt::DisplayRole, Desc.GetProperty(PLUGIN_AUTHOR).toString() );
+                it->setData( 4, Qt::DisplayRole, Desc.GetProperty(PLUGIN_DESCRIPTION).toString() );
+                root_it->addChild( it );
+            }
+        }
+
     }
 
-/*    QString m_Author;
-    QString m_Description;
-    QString m_DetailDescription;
-    QIcon m_Icon;
-    QString m_License;
-    QString m_Location;
-    QString m_Name;
-    Daqster::PluginType_t m_PluginType;
-    QString m_PluginTypeName;
-    QString m_Version;
-    bool m_Enabled;
-    QString m_Hash;
-  */
 
 
+/*************************************
+ *
+ *   QString m_Name;
+ *   QString m_Author;
+ *   bool m_Enabled;
+ *   QString m_Version;
+ *   QString m_Description;
 
-    treeWidget->insertTopLevelItems(0, items);
+
+ *  QString m_DetailDescription;
+ *  QIcon m_Icon;
+ *  QString m_License;
+ *  QString m_Location;
+
+ *  Daqster::PluginType_t m_PluginType;
+ *  QString m_PluginTypeName;
+ *  QString m_Hash;
+ *
+ ***************************************/
+
+    QStringList HeaderList;
+    HeaderList << "Name" << "Enable" << "Version" << "Author" << "Description"; //"Status" <<
+    treeWidget->setHeaderLabels( HeaderList );
+    treeWidget->insertTopLevelItems(0, Map.values());
 }
 
 QPluginListView::~QPluginListView () {

@@ -39,7 +39,8 @@ SOURCES += \
     base/QPluginListView.cpp \
     base/QPluginManager.cpp \
     base/QPluginManagerGui.cpp \
-    base/PluginFilter.cpp
+    base/PluginFilter.cpp \
+    base/plugindetails.cpp
 
 HEADERS += \
     base/build_cfg.h \
@@ -52,7 +53,8 @@ HEADERS += \
     base/QPluginManager.h \
     base/QPluginManagerGui.h \
     base/PluginFilter.h \
-    base/Singleton.h
+    base/Singleton.h \
+    base/plugindetails.h
 
 symbian {
     MMP_RULES += EXPORTUNFROZEN
@@ -75,7 +77,8 @@ unix:!symbian {
 
 FORMS += \
     base/pluginlistview.ui \
-    base/pluginmanagergui.ui
+    base/pluginmanagergui.ui \
+    base/plugindetails.ui
 
 RESOURCES += \
     resources.qrc
