@@ -20,7 +20,7 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 #ifndef PLUGINDESCRIPTION_H
 #define PLUGINDESCRIPTION_H
 
-#include "base/global.h"
+#include "global.h"
 #include <QString>
 #include <QIcon>
 
@@ -57,6 +57,7 @@ class FRAME_WORKSHARED_EXPORT PluginDescription
 public:
     typedef enum{
         SOME_TYPE           = 0x1,
+        SECOND_TYPE              ,
         DETECT_BY_TYPE_NAME = 0x80000000,
         UNDEFINED_TYPE      = 0xffffffff
     } PluginType_t;

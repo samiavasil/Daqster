@@ -235,7 +235,7 @@ protected:
 //
 // This helps, that deprecated or "future" plugins, which fit not to the current implementation of the interface will not be loaded
 // but a sophisticated error message is shown.
-
+/*TODO: Plugin Version control should be implemented*/
 static const char* daqster_PluginObjectInterface_OldVersions[] = {
      CREATE_PLUGIN_INTERFACE_VERSION_STR(-1,-1,-1),//version TODO: DELL ME not real version in moment
      NULL

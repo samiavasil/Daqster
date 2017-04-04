@@ -4,15 +4,15 @@
 
 DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObjectsInterface(parent)
 {
-    Q_INIT_RESOURCE(template);
+    Q_INIT_RESOURCE(fancy_test);
     DEBUG << "DaqsterTeplateInterface object create";
-    QIcon icon( QString::fromUtf8(":/template.png") );
+    QIcon icon( QString::fromUtf8(":/fancy.png") );
     m_PluginDescryptor.SetProperty( PLUGIN_ICON, icon );
-    m_PluginDescryptor.SetProperty( PLUGIN_NAME, "PluginTemplate" );
-    m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::SECOND_TYPE );
+    m_PluginDescryptor.SetProperty( PLUGIN_NAME, "PluginFancyTest" );
+    m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::SOME_TYPE );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
     m_PluginDescryptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
-    m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "MyPluginTemplate" );
+    m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "Plugin Fancy Test " );
     char docstr[] = \
     "This is a basic Daqster plugin template and can be used for implementing a new type daqster plugin \n\
     \n\

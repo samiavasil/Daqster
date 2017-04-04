@@ -1,5 +1,5 @@
 #include "testplugincreation.h"
-#include <base/QPluginManager.h>
+#include <QPluginManager.h>
 #include<QDebug>
 #define GUI_PLUG_NUM (10)
 TestPluginCreation::TestPluginCreation()
@@ -20,7 +20,7 @@ void TestPluginCreation::run()
     if( NULL != PluginManager )
     {
         qDebug() << "Plugin Manager: " << PluginManager;
-        PluginManager->SearchForPlugins();
+      //  PluginManager->SearchForPlugins();
         //PluginManager->ShowPluginManagerGui();
         QList<Daqster::PluginDescription> PluginsList = PluginManager->GetPluginList();
         foreach ( Daqster::PluginDescription Desc, PluginsList) {

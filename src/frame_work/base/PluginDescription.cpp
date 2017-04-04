@@ -245,6 +245,7 @@ bool PluginDescription::StorePluginParamsToPersistency( QSettings &Store )
     foreach( QByteArray name, names ){
         Store.setValue( name, m_PrivateDescription->property(name) );
     }
+    Store.setValue( "Enabled", m_Enabled );
     return true;
 }
 
@@ -269,6 +270,7 @@ bool PluginDescription::GetPluginParamsFromPersistency( QSettings &Store )
             DEBUG << "Strange - set of this dynamic property should return false here. Chek it - maybe it is defined with Q_PROPERTY  macro";
         }
     }
+    m_Enabled = Store.value( "Enabled", false ).toBool();
     if( 1 )/*TODO: TBD Check for somehting*/
     {
         ret = true;

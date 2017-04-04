@@ -13,7 +13,7 @@ UI_DIR       = $$PWD/Build
 TARGET   = Daqster
 TEMPLATE = app
 DESTDIR = ../../../bin
-INCLUDEPATH += ../../frame_work
+INCLUDEPATH += ../../frame_work/base
 FRAMEWORK_LIB_NAME = frame_work
 
 SOURCES += main.cpp\

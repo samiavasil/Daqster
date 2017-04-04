@@ -4,17 +4,17 @@
 
 DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObjectsInterface(parent)
 {
-    Q_INIT_RESOURCE(template);
+    Q_INIT_RESOURCE(uggly_test);
     DEBUG << "DaqsterTeplateInterface object create";
-    QIcon icon( QString::fromUtf8(":/template.png") );
+    QIcon icon( QString::fromUtf8(":/uggly.png") );
     m_PluginDescryptor.SetProperty( PLUGIN_ICON, icon );
-    m_PluginDescryptor.SetProperty( PLUGIN_NAME, "PluginTemplate" );
-    m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::SECOND_TYPE );
+    m_PluginDescryptor.SetProperty( PLUGIN_NAME, "UgglyTestPlugin" );
+    m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::DETECT_BY_TYPE_NAME );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
     m_PluginDescryptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
-    m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "MyPluginTemplate" );
+    m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "Uggly Test Plugin" );
     char docstr[] = \
-    "This is a basic Daqster plugin template and can be used for implementing a new type daqster plugin \n\
+    "UgglyTestPlugin is a basic Daqster plugin template and can be used for implementing a new type daqster plugin \n\
     \n\
     Here you can add detailed description of the plugin...";
     m_PluginDescryptor.SetProperty( PLUGIN_DETAIL_DESCRIPTION, QObject::tr( docstr ) );

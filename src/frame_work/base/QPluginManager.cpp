@@ -186,6 +186,7 @@ void QPluginManager::SearchForPlugins ()
     QDir PluginsDir;
     QSettings settings( m_ConfigFile, QSettings::IniFormat );
     Daqster::QPluginObjectsInterface* ObjInterface = NULL;
+    bool Changed = false;
     //  settings.setIniCodec("UTF-8");
     settings.beginGroup("Plugins");
     foreach (QString Hash, m_PluginMap.keys()) {
@@ -205,6 +206,7 @@ void QPluginManager::SearchForPlugins ()
                     settings.beginGroup( Hash );
                     settings.remove( "" );
                     settings.endGroup();
+                    Changed = true;
                 }
             }
         }
@@ -225,6 +227,7 @@ void QPluginManager::SearchForPlugins ()
                         if( !LoadPluginInterfaceObject( fileName, Hash ) ){
                             DEBUG << "Can' Load plugin from file" << fileName;
                         }
+                        Changed = true;
                     }
                     ObjInterface = m_PluginMap.value( Hash, NULL );
                     if( NULL != ObjInterface )
@@ -248,7 +251,10 @@ void QPluginManager::SearchForPlugins ()
     foreach (QString Hash, m_PluginsHashDescMap.keys()) {
         DEBUG << Hash;
     }
-    DEBUG << "End m_PluginsHashDescMap Hashes";
+
+    if( true == Changed ){
+        emit PluginsListChangeDetected();
+    }
 }
 
 
