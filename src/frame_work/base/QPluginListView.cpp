@@ -28,6 +28,7 @@ namespace Daqster {
 // Constructors/Destructors
 //  
 
+
 /**
  * Constructor
  * @param  Filter Plugin filtrato parameter
@@ -37,67 +38,8 @@ QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter&
     m_PluginFilter = Filter;
     ui = new Ui::PluginListView();
     ui->setupUi( this );
-    QTreeWidget *treeWidget = ui->treeWidget;
-    treeWidget->setColumnCount(5);
-
-
-    QMap<PluginDescription::PluginType_t, QTreeWidgetItem *> Map;
-    QList<Daqster::PluginDescription> PlugList = QPluginManager::instance()->GetPluginList( Filter );
-    PluginDescription::PluginType_t Type;
-    QTreeWidgetItem *root_it, *it;
-    foreach ( Daqster::PluginDescription Desc , PlugList )
-    {
-        Type = (PluginDescription::PluginType_t)Desc.GetProperty(PLUGIN_TYPE).toUInt();
-        root_it   = Map.value( Type, NULL );
-        if( NULL == root_it ){
-           root_it = new QTreeWidgetItem((QTreeWidget*)0);
-           root_it->setData( 0,Qt::DisplayRole, tr("Plugin Type %1").arg(Type) );
-           root_it->setFlags(Qt::ItemIsUserTristate|Qt::ItemIsUserCheckable|Qt::ItemIsEnabled);
-           root_it->setCheckState( 1, Qt::PartiallyChecked);
-
-           Map[Type] = root_it;
-        }
-        if( root_it ){
-            it = new QTreeWidgetItem((QTreeWidget*)0);
-            if( NULL != it ){
-                it->setIcon( 0, Desc.GetProperty( PLUGIN_ICON ).value<QIcon>() );
-                it->setData( 0,Qt::DisplayRole, Desc.GetProperty(PLUGIN_NAME).toString() );
-                it->setCheckState( 1, Desc.IsEnabled() ? Qt::Checked : Qt::Unchecked );
-                it->setData( 2, Qt::DisplayRole, Desc.GetProperty(PLUGIN_VERSION).toString() );
-                it->setData( 3, Qt::DisplayRole, Desc.GetProperty(PLUGIN_AUTHOR).toString() );
-                it->setData( 4, Qt::DisplayRole, Desc.GetProperty(PLUGIN_DESCRIPTION).toString() );
-                root_it->addChild( it );
-            }
-        }
-
-    }
-
-
-
-/*************************************
- *
- *   QString m_Name;
- *   QString m_Author;
- *   bool m_Enabled;
- *   QString m_Version;
- *   QString m_Description;
-
-
- *  QString m_DetailDescription;
- *  QIcon m_Icon;
- *  QString m_License;
- *  QString m_Location;
-
- *  Daqster::PluginType_t m_PluginType;
- *  QString m_PluginTypeName;
- *  QString m_Hash;
- *
- ***************************************/
-
-    QStringList HeaderList;
-    HeaderList << "Name" << "Enable" << "Version" << "Author" << "Description"; //"Status" <<
-    treeWidget->setHeaderLabels( HeaderList );
-    treeWidget->insertTopLevelItems(0, Map.values());
+    connect( QPluginManager::instance(), SIGNAL(PluginsListChangeDetected()), this, SLOT(RefreshView()) );
+    RefreshView();
 }
 
 QPluginListView::~QPluginListView () {
@@ -111,6 +53,65 @@ QPluginListView::~QPluginListView () {
 void QPluginListView::SetPluginFilter (const PluginFilter &Filter)
 {
     m_PluginFilter = Filter;
+}
+
+/**
+ * @brief Refresh plugin list view slot
+ */
+void QPluginListView::RefreshView(){
+    QMap<PluginDescription::PluginType_t, QTreeWidgetItem *> Map;
+    QList<Daqster::PluginDescription> PlugList = QPluginManager::instance()->GetPluginList( m_PluginFilter );
+    PluginDescription::PluginType_t Type;
+    QTreeWidgetItem *root_it, *it;
+    QTreeWidget *treeWidget = NULL;
+    treeWidget = ui->treeWidget;
+    treeWidget->setColumnCount(5);
+
+    foreach ( Daqster::PluginDescription Desc , PlugList )
+    {
+        Type = (PluginDescription::PluginType_t)Desc.GetProperty(PLUGIN_TYPE).toUInt();
+        root_it   = Map.value( Type, NULL );
+        if( NULL == root_it ){
+            root_it = new QTreeWidgetItem((QTreeWidget*)0);
+            root_it->setData( 0,Qt::DisplayRole, tr("Plugin Type %1").arg(Type) );
+            root_it->setFlags(Qt::ItemIsUserTristate|Qt::ItemIsUserCheckable|Qt::ItemIsEnabled);
+            root_it->setCheckState( 1, Qt::Unchecked);
+            Map[Type] = root_it;
+        }
+        if( root_it ){
+            it = new QTreeWidgetItem((QTreeWidget*)0);
+            if( NULL != it ){
+                Qt::CheckState CheckState = Desc.IsEnabled() ? Qt::Checked : Qt::Unchecked;
+                Qt::CheckState RootCheckState = root_it->checkState( 1 );
+                it->setIcon( 0, Desc.GetProperty( PLUGIN_ICON ).value<QIcon>() );
+                it->setData( 0, Qt::DisplayRole, Desc.GetProperty(PLUGIN_NAME).toString() );
+                it->setCheckState( 1, CheckState );
+                it->setData( 2, Qt::DisplayRole, Desc.GetProperty(PLUGIN_VERSION).toString() );
+                it->setData( 3, Qt::DisplayRole, Desc.GetProperty(PLUGIN_AUTHOR).toString() );
+                it->setData( 4, Qt::DisplayRole, Desc.GetProperty(PLUGIN_DESCRIPTION).toString() );
+                root_it->addChild( it );
+
+                if( Qt::Checked == CheckState ){
+                    if( Qt::Unchecked == RootCheckState ){
+                        RootCheckState = Qt::Checked;
+                    }
+                }
+                else{
+                    if(  Qt::Checked == RootCheckState ){
+                        RootCheckState = Qt::PartiallyChecked;
+                    }
+                }
+                root_it->setCheckState( 1,RootCheckState);
+            }
+        }
+    }
+
+    QStringList HeaderList;
+    HeaderList << "Name" << "Enable" << "Version" << "Author" << "Description"; //"Status" <<
+    treeWidget->setHeaderLabels( HeaderList );
+    treeWidget->header()->setSectionResizeMode( QHeaderView::ResizeToContents );
+    treeWidget->insertTopLevelItems(0, Map.values());
+    treeWidget->expandAll();
 }
 
 }

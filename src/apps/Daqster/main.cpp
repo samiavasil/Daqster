@@ -1,6 +1,7 @@
 #include <QApplication>
 #include "mainwindow.h"
-#include "base/debug.h"
+#include "debug.h"
+#include"QPluginManager.h"
 
 
 class msg{
@@ -44,6 +45,7 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
     MainWindow w;
     w.show();
+    Daqster::QPluginManager::instance()->SearchForPlugins();
     DEBUG << "Show window";
     return a.exec();
 }

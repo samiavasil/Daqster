@@ -1,7 +1,8 @@
 #include "mainwindow.h"
 #include "mainwindow.h"
-#include "base/debug.h"
-#include "base/QPluginManager.h"
+#include "debug.h"
+#include "QPluginManager.h"
+#include"testplugincreation.h"
 #include"ui_mainwindow.h"
 #include<QMdiSubWindow>
 #include<QMouseEvent>
@@ -111,51 +112,11 @@ void MainWindow::on_actionHideMainMenu_triggered(bool checked)
         menuBar()->show();
     }
 }
-#include"base/QPluginObjectsInterface.h"
-#include"base/QBasePluginObject.h"
-#include"testplugincreation.h"
 
 void MainWindow::on_actionSave_triggered()
 {
-
     TestPluginCreation* test = new TestPluginCreation();
     test->run();
-    Daqster::PluginDescription Desc;
-//    Desc.setProperty( "Test1", "BlahBaba");
-//    Desc.setProperty( "Test2", 33);
-//     QList<QByteArray> names = Desc.dynamicPropertyNames();
-//     foreach (QByteArray name, names) {
-//         qDebug() << name  << "-> " << Desc.property(name) << " Type: " << Desc.property(name).type();
-//     }
-
-/*
-    Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
-    if( NULL != pm )
-    {
-        qDebug() << "Plugin Manager: " << pm;
-        pm->SearchForPlugins();
-        pm->ShowPluginManagerGui();
-    }
-*/
-
-
-//    QPluginLoader p( tr("./plugins/DaqsterTemlatePlugin.so"), this );
-//    QObject* Inst = p.instance();
-
-//  //  delete Inst;
-//  //  Inst = NULL;
-// //   if( p.unload() ) Inst = NULL;
-//    if( NULL != Inst ){
-//        Daqster::QPluginObjectsInterface* ObjInterface = dynamic_cast<Daqster::QPluginObjectsInterface*>(Inst);
-//        if( ObjInterface ){
-//            Daqster::QBasePluginObject* Object = ObjInterface->CreatePlugin();
-//            if( Object ){
-//                DEBUG << "Plugin creted successfully";
-//            }
-//        }
-
-//    }
-
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)

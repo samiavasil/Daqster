@@ -53,6 +53,7 @@ class QBasePluginObject;
 #include<assert.h>
 class FRAME_WORKSHARED_EXPORT QPluginManager : public QObject
 {
+    Q_OBJECT
 public:
 
   // Constructors/Destructors
@@ -99,7 +100,11 @@ public:
 
   QBasePluginObject *CreatePluginObject(const QString &KeyHash);
 
-
+signals:
+  /**
+   * @brief QPluginManager
+   */
+  void PluginsListChangeDetected();
 
 protected:
   /**

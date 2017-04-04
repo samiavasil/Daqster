@@ -19,7 +19,7 @@ TemplatePluginObject::TemplatePluginObject(QObject *Parent):QBasePluginObject ( 
     if( NULL != pm )
     {
         DEBUG << "Plugin Manager: " << pm;
-   //     pm->SearchForPlugins();
+ //       pm->SearchForPlugins();
         pm->ShowPluginManagerGui();
     }
 

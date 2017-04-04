@@ -54,7 +54,8 @@ HEADERS += \
     base/QPluginManagerGui.h \
     base/PluginFilter.h \
     base/Singleton.h \
-    base/plugindetails.h
+    base/plugindetails.h \
+    base/plugin_global.h
 
 symbian {
     MMP_RULES += EXPORTUNFROZEN
@@ -81,4 +82,4 @@ FORMS += \
     base/plugindetails.ui
 
 RESOURCES += \
-    resources.qrc
+    framework_resources.qrc

@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>fancy.png</file>
+    </qresource>
+</RCC>

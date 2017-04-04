@@ -13,7 +13,7 @@ class PLUGIN_EXPORT DaqsterTeplateInterface:  public QPluginObjectsInterface
 {
     Q_OBJECT
 #if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
-    Q_PLUGIN_METADATA(IID "Daqster.PlugIn.BaseInterface" FILE "DaqsterTeplateInterface.json")
+    Q_PLUGIN_METADATA(IID "Daqster.PlugIn.BaseInterface" FILE "PluginMainTest.json")
 #endif
     Q_INTERFACES(Daqster::QPluginObjectsInterface)
 public:

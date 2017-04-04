@@ -30,6 +30,7 @@ QPluginManagerGui::QPluginManagerGui( QWidget* Parent ):QDialog(Parent) {
     ui = new Ui::PluginManagerGui();
     ui->setupUi(this);
     ui->horizontalLayout->insertWidget( 0, new QPluginListView(this) /**TODO Fix Me*/);
+    resize(800,600);
 }
 
 QPluginManagerGui::~QPluginManagerGui () {

@@ -42,6 +42,7 @@ namespace Daqster {
 
 class FRAME_WORKSHARED_EXPORT QPluginListView : public QWidget
 {
+    Q_OBJECT
 public:
 
   // Constructors/Destructors
@@ -63,9 +64,20 @@ public:
    */
   void SetPluginFilter (const Daqster::PluginFilter& Filter);
 
+protected slots:
+
+  /**
+   * @brief Refresh plugin list view slot
+   */
+  void RefreshView();
+
+signals:
+    void PluginDisabled( QString Hash );
+
 protected:
   // Plugin filter
-  Daqster::PluginFilter m_PluginFilter;
+    Daqster::PluginFilter m_PluginFilter;
+
 private:
   Ui::PluginListView* ui;
 };

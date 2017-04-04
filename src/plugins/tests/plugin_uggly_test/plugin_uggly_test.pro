@@ -3,7 +3,7 @@
 # Project created by QtCreator 2012-06-21T13:34:25
 #
 #-------------------------------------------------
-include(../../include/paths_cfg.pri)
+include(../../../include/paths_cfg.pri)
 DESTDIR      = $${PLUGINS_DEST_DIR}
 QT          += core gui
 TEMPLATE     = lib
@@ -22,7 +22,7 @@ TEMPLATE     = lib
 CONFIG      += plugin
 DEFINES     += BUILD_AVAILABLE_PLUGIN
 
-TARGET   = DaqsterTemlatePlugin
+TARGET   = UgglyTestPlugin
 
 SOURCES += \
     DaqsterTeplateInterface.cpp \
@@ -35,10 +35,9 @@ HEADERS += \
 FORMS +=
 
 RESOURCES += \
-    template.qrc
+    uggly_test.qrc
 
-OTHER_FILES += \
-    DaqsterTeplateInterface.json
+OTHER_FILES +=
 
 win32 {
     # On Windows you can't mix release and debug libraries.
@@ -59,3 +58,6 @@ win32 {
 }else{
     LIBS        += -l$${FRAMEWORK_LIB_NAME}
 }
+
+DISTFILES += \
+    UgglyTestPlugin.json
