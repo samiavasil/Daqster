@@ -27,7 +27,7 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 #define PLUGIN_AUTHOR                 "Author"
 #define PLUGIN_DESCRIPTION            "Description"
 #define PLUGIN_DETAIL_DESCRIPTION     "DetailDescription"
-#define PLUGIN_ICON                   "Icon"
+//#define PLUGIN_ICON                   "Icon"
 #define PLUGIN_LICENSE                "License"
 #define PLUGIN_LOCATION               "Location"
 #define PLUGIN_NAME                   "Name"
@@ -161,7 +161,7 @@ public:
    * @param Store
    * @return
    */
-  bool StorePluginParamsToPersistency( QSettings &Store );
+  bool StorePluginParamsToPersistency( QSettings &Store ) const;
 
   /**
    * @brief Get Plugin Parammeters from Qsetting store
@@ -170,14 +170,20 @@ public:
    */
   bool GetPluginParamsFromPersistency(QSettings &Store);
 
-
+  void SetIcon( const QIcon& Icon );
+  QIcon GetIcon() const;
+  friend QDebug operator<<(QDebug ds, const PluginDescription &obj) ;
 protected:
     void CopyDinamycProperties(const PluginDescription &b);
 protected:
   // Is plugin enabled for usage
   bool m_Enabled;
+  QIcon m_Icon;
   PrivateDescription *m_PrivateDescription;
 };
+
+//QDebug operator<<(QDebug ds, const PluginDescription &obj) ;
+
 } // end of package namespace
 
 #endif // PLUGINDESCRIPTION_H

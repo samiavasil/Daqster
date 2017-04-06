@@ -115,6 +115,7 @@ void MainWindow::on_actionHideMainMenu_triggered(bool checked)
 
 void MainWindow::on_actionSave_triggered()
 {
+    Daqster::QPluginManager::instance()->SearchForPlugins();
     TestPluginCreation* test = new TestPluginCreation();
     test->run();
 }

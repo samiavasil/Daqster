@@ -7,7 +7,7 @@ DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObject
     Q_INIT_RESOURCE(template);
     DEBUG << "DaqsterTeplateInterface object create";
     QIcon icon( QString::fromUtf8(":/template.png") );
-    m_PluginDescryptor.SetProperty( PLUGIN_ICON, icon );
+    m_PluginDescryptor.SetIcon( icon );
     m_PluginDescryptor.SetProperty( PLUGIN_NAME, "PluginTemplate" );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::SECOND_TYPE );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
