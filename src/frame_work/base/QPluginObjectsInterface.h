@@ -104,6 +104,18 @@ public:
    PluginDescription::PluginHealtyState_t GetHealthyState();
 
    /**
+    * @brief Return is plugin enabled
+    * @return true/false
+    */
+   bool  IsEnabled() const;
+
+   /**
+    * @brief Enable plugin
+    * @param En - true/false
+    */
+   void Enable( bool En );
+
+   /**
     * @brief Return Plugin file hash
     * @return Hash
     */

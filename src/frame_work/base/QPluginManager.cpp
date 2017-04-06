@@ -69,7 +69,7 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash  )
     QPluginObjectsInterface* ObjInterface = m_PluginMap.value( KeyHash, NULL );
 
     if( NULL == ObjInterface ){
-        if( m_PluginsHashDescMap.contains( KeyHash ) ){
+        if( m_PluginsHashDescMap.contains( KeyHash ) && m_PluginsHashDescMap[KeyHash].IsEnabled() ){
             PersistentHealthy = (PluginDescription::PluginHealtyState_t) m_PluginsHashDescMap[KeyHash].GetProperty(PLUGIN_HELTHY_STATE).toUInt();
             if( PluginDescription::ILL != PersistentHealthy ){
                 if( !LoadPluginInterfaceObject( m_PluginsHashDescMap[KeyHash].GetProperty(PLUGIN_LOCATION).toString(), KeyHash ) ){
@@ -81,7 +81,7 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash  )
         }
     }
 
-    if( NULL != ObjInterface ){
+    if( NULL != ObjInterface && ObjInterface->IsEnabled() ){
         PluginDescription::PluginHealtyState_t Healthy = ObjInterface->GetHealthyState();
         if( PersistentHealthy == PluginDescription::UNDEFINED){
             PersistentHealthy = Healthy;
@@ -95,7 +95,7 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash  )
                  */
                  PersistentHealthy =  PluginDescription::ILL;
                  ObjInterface->SetHealthyState( PersistentHealthy );
-                 StorePluginStateToPersistncy(ObjInterface);
+                 StorePluginStateToPersistncy(ObjInterface->GetPluginDescriptor());
                  QMessageBox::warning(NULL, tr("Attention"),
                                                   tr("There was application crach on last time loading of plugin %1 .\n"
                                                      "Now we try second time and if it fail the plugin will be disabled.\n"
@@ -107,7 +107,7 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash  )
                  Healthy = PluginDescription::OBJECT_CREATION;
                  ObjInterface->SetHealthyState( Healthy );
                  /*Store Persistent Plugin status*/
-                 StorePluginStateToPersistncy(ObjInterface);
+                 StorePluginStateToPersistncy(ObjInterface->GetPluginDescriptor());
              }
 
              Object = ObjInterface->CreatePlugin();
@@ -122,22 +122,45 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash  )
         if( ObjInterface->GetHealthyState() != Healthy ){
             ObjInterface->SetHealthyState( Healthy );
             /*Store Persistent Plugin status*/
-            StorePluginStateToPersistncy(ObjInterface);
+            StorePluginStateToPersistncy(ObjInterface->GetPluginDescriptor());
         }
     }
     return Object;
 }
 
+void QPluginManager::EnableDisablePlugin( const QString &Hash, bool Enable )
+{
+    Daqster::PluginDescription Desc = m_PluginsHashDescMap.value( Hash, Daqster::PluginDescription() );
+    if( !Desc.IsEmpty() ){
+       /*Hash founded*/
+       if( Enable != Desc.IsEnabled() ){
+          Desc.Enable( Enable );
+          m_PluginsHashDescMap[Hash] = Desc;
 
-void QPluginManager::StorePluginStateToPersistncy( QPluginObjectsInterface* ObjInterface  ){
-    if( NULL != ObjInterface ){
-        QSettings settings( m_ConfigFile, QSettings::IniFormat );
-        settings.beginGroup( "Plugins" );
-        settings.beginGroup( ObjInterface->GetHash() );
-        ObjInterface->StorePluginParamsToPersistency( settings );
-        settings.endGroup();
-        settings.endGroup();
+          //TODO: TBD what we do with instanciated Plugin interface
+          Daqster::QPluginObjectsInterface* object = m_PluginMap.value( Hash, NULL );
+          if( NULL != object ){
+              object->Enable( Enable );
+          }
+          StorePluginStateToPersistncy( Desc );
+
+       }
     }
+}
+
+void QPluginManager::EnableDisablePluginList(const QList<QString> &HashList, bool Enable)
+{
+
+}
+
+
+void QPluginManager::StorePluginStateToPersistncy( const PluginDescription& Desc  ){
+    QSettings settings( m_ConfigFile, QSettings::IniFormat );
+    settings.beginGroup( "Plugins" );
+    settings.beginGroup( Desc.GetProperty(PLUGIN_HASH).toString() );
+    Desc.StorePluginParamsToPersistency( settings );
+    settings.endGroup();
+    settings.endGroup();
 }
 
 /**
@@ -233,12 +256,14 @@ void QPluginManager::SearchForPlugins ()
                     if( NULL != ObjInterface )
                     {
                         ObjInterface->StorePluginParamsToPersistency( settings );
-                        m_PluginsHashDescMap[Hash] = ObjInterface->GetPluginDescriptor();
                     }
                     settings.endGroup();
                 }
+                qDebug() << "Plugin: " << Hash << ": " << fileName ;
+                qDebug() << m_PluginsHashDescMap[Hash];
             }
         }
+
     }
     settings.endGroup();
     //Dump
@@ -367,6 +392,7 @@ bool QPluginManager::LoadPluginInterfaceObject( const QString& PluginFileName, c
                     ObjInterface->SetHash( Hash );
                     ObjInterface->SetHealthyState(PluginDescription::IF_LOADED);
                     m_PluginMap[ Hash ] = ObjInterface;
+                    m_PluginsHashDescMap[Hash] = ObjInterface->GetPluginDescriptor();
                     ret = true;
                 }
                 else if( NULL != Inst )

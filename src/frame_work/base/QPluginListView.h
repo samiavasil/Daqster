@@ -29,6 +29,7 @@ namespace Ui {
     class PluginListView;
 }
 
+class QTreeWidgetItem;
 
 namespace Daqster {
 
@@ -71,6 +72,7 @@ protected slots:
    */
   void RefreshView();
 
+  void TreeItem(QTreeWidgetItem *item, int col);
 signals:
     void PluginDisabled( QString Hash );
 

@@ -100,6 +100,21 @@ public:
 
   QBasePluginObject *CreatePluginObject(const QString &KeyHash);
 
+public slots:
+  /**
+    * @brief Slot to Enable/Disable Plugin
+    * @param Hash
+    * @param Enable
+    */
+   void EnableDisablePlugin( const QString& Hash, bool Enable );
+
+   /**
+    * @brief Slot to Enable/Disable Plugin List
+    * @param HashList
+    * @param Enable
+    */
+   void EnableDisablePluginList( const QList<QString>& HashList, bool Enable );
+
 signals:
   /**
    * @brief QPluginManager
@@ -136,7 +151,7 @@ protected:
 
    bool LoadPluginInterfaceObject(const QString &PluginFileName,const QString& Hash  );
 
-   void StorePluginStateToPersistncy(QPluginObjectsInterface *ObjInterface);
+   void StorePluginStateToPersistncy(const PluginDescription &Desc);
 protected:
   /*Pointer to sinleton obejct*/
   static QPluginManager* g_Instance;

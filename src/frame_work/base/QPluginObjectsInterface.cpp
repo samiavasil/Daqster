@@ -90,6 +90,25 @@ PluginDescription::PluginHealtyState_t QPluginObjectsInterface::GetHealthyState(
     return (PluginDescription::PluginHealtyState_t)m_PluginDescryptor.GetProperty( PLUGIN_HELTHY_STATE ).toUInt();
 }
 
+
+/**
+ * @brief Return is plugin enabled
+ * @return true/false
+ */
+bool QPluginObjectsInterface::IsEnabled() const
+{
+   m_PluginDescryptor.IsEnabled();
+}
+
+/**
+ * @brief Enable plugin
+ * @param En - true/false
+ */
+void QPluginObjectsInterface::Enable(bool En)
+{
+    m_PluginDescryptor.Enable( En );
+}
+
 /**
  * @brief Store Plugin Parameters to persistent settings store.
  * The main idea is when some plugin is loaded one time information for plugin is saved
@@ -137,7 +156,7 @@ PluginDescription::PluginType_t QPluginObjectsInterface::GetType () const
  */
 QIcon QPluginObjectsInterface::GetIcon () const
 {
-    return m_PluginDescryptor.GetProperty( PLUGIN_ICON ).value<QIcon>();
+    return m_PluginDescryptor.GetIcon();//m_PluginDescryptor.GetProperty( PLUGIN_ICON ).value<QIcon>();
 }
 
 

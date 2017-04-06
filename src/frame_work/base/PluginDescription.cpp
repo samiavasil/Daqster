@@ -22,8 +22,10 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 #include "base/debug.h"
 #include<QObject>
 #include<QSettings>
+#include<QMetaProperty>
 
 namespace Daqster {
+
 
 /*This is internal private class to store Plugin description*/
 class PrivateDescription : public QObject{
@@ -36,12 +38,22 @@ class PrivateDescription : public QObject{
     }
 };
 
+QDebug operator<<(QDebug ds, const PluginDescription &obj)
+{
+    ds << "Enabled: " << obj.IsEnabled() << "\n";
+    foreach( QByteArray Name, obj.m_PrivateDescription->dynamicPropertyNames() ) {
+        ds << Name << ": {" << obj.m_PrivateDescription->property( Name ).toString() << "}\n";
+    }
+    return ds;
+}
+
 
 // Constructors/Destructors
 //  
 
 PluginDescription::PluginDescription()
 {
+   m_Enabled = true;
    m_PrivateDescription = new PrivateDescription();
 }
 
@@ -53,6 +65,7 @@ PluginDescription::PluginDescription(const PluginDescription& b)
 {
     m_PrivateDescription = new PrivateDescription();
     m_Enabled = b.m_Enabled;
+    m_Icon = b.m_Icon;
     CopyDinamycProperties( b );
 }
 
@@ -190,6 +203,7 @@ PluginDescription & PluginDescription::operator=(const PluginDescription &b){
     CopyDinamycProperties( b );
     /*Copy static properties*/
     m_Enabled = b.m_Enabled;
+    m_Icon = b.m_Icon;
     return *this;
 }
 
@@ -239,7 +253,7 @@ void PluginDescription::Enable( bool En )
  * @param Store
  * @return
  */
-bool PluginDescription::StorePluginParamsToPersistency( QSettings &Store )
+bool PluginDescription::StorePluginParamsToPersistency( QSettings &Store ) const
 {
     QList<QByteArray> names = m_PrivateDescription->dynamicPropertyNames();
     foreach( QByteArray name, names ){
@@ -278,5 +292,17 @@ bool PluginDescription::GetPluginParamsFromPersistency( QSettings &Store )
 
     return ret;
 }
+
+void PluginDescription::SetIcon(const QIcon &Icon)
+{
+    m_Icon = Icon;
+}
+
+QIcon PluginDescription::GetIcon() const
+{
+    return m_Icon;
+}
+
+
 
 }

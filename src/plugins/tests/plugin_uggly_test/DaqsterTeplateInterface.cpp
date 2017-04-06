@@ -7,7 +7,7 @@ DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObject
     Q_INIT_RESOURCE(uggly_test);
     DEBUG << "DaqsterTeplateInterface object create";
     QIcon icon( QString::fromUtf8(":/uggly.png") );
-    m_PluginDescryptor.SetProperty( PLUGIN_ICON, icon );
+    m_PluginDescryptor.SetIcon( icon );
     m_PluginDescryptor.SetProperty( PLUGIN_NAME, "UgglyTestPlugin" );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::DETECT_BY_TYPE_NAME );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
