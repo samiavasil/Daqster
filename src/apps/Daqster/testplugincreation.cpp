@@ -14,7 +14,7 @@ void TestPluginCreation::stopRunning()
 }
 
 
-void TestPluginCreation::run()
+void TestPluginCreation::run(QObject *Parent)
 {
     Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
     if( NULL != PluginManager )
@@ -23,8 +23,9 @@ void TestPluginCreation::run()
       //  PluginManager->SearchForPlugins();
         //PluginManager->ShowPluginManagerGui();
         QList<Daqster::PluginDescription> PluginsList = PluginManager->GetPluginList();
-        foreach ( Daqster::PluginDescription Desc, PluginsList) {
-           PluginManager->CreatePluginObject( Desc.GetProperty(PLUGIN_HASH).toString() );
+        foreach ( const Daqster::PluginDescription& Desc, PluginsList) {
+           for( int i=0;i < 6;i++)
+            PluginManager->CreatePluginObject( Desc.GetProperty(PLUGIN_HASH).toString(), NULL );
         }
     }
 }

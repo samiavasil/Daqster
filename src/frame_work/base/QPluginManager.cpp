@@ -143,7 +143,7 @@ void QPluginManager::EnableDisablePlugin( const QString &Hash, bool Enable )
               object->Enable( Enable );
           }
           StorePluginStateToPersistncy( Desc );
-
+          emit PluginsListChangeDetected();
        }
     }
 }
@@ -247,10 +247,14 @@ void QPluginManager::SearchForPlugins ()
                     settings.beginGroup( Hash );
                     if(  false == m_PluginMap.contains( Hash ) )
                     {
-                        if( !LoadPluginInterfaceObject( fileName, Hash ) ){
+                        if( LoadPluginInterfaceObject( fileName, Hash ) )
+                        {
+                            Changed = true;
+                        }
+                        else
+                        {
                             DEBUG << "Can' Load plugin from file" << fileName;
                         }
-                        Changed = true;
                     }
                     ObjInterface = m_PluginMap.value( Hash, NULL );
                     if( NULL != ObjInterface )
@@ -259,8 +263,11 @@ void QPluginManager::SearchForPlugins ()
                     }
                     settings.endGroup();
                 }
-                qDebug() << "Plugin: " << Hash << ": " << fileName ;
-                qDebug() << m_PluginsHashDescMap[Hash];
+                //TODO: DELL ME
+                if( m_PluginsHashDescMap.contains( Hash ) ){
+                    qDebug() << "Plugin: " << Hash << ": " << fileName ;
+                    qDebug() << m_PluginsHashDescMap[Hash];
+                }
             }
         }
 
