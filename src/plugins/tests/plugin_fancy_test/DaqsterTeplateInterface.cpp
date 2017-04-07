@@ -31,7 +31,7 @@ Daqster::QBasePluginObject *DaqsterTeplateInterface::CreatePluginInternal(QObjec
 {
     TemplatePluginObject* Obj = new TemplatePluginObject(Parrent);
     if( NULL != Obj ){
-        Obj->SetName( m_PluginDescryptor.GetProperty(PLUGIN_LOCATION).toString() );
+        Obj->SetName( m_PluginDescryptor.GetProperty(PLUGIN_NAME).toString() );
     }
     return Obj;
 }

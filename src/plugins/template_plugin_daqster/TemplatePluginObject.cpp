@@ -27,6 +27,9 @@ TemplatePluginObject::TemplatePluginObject(QObject *Parent):QBasePluginObject ( 
 
 TemplatePluginObject::~TemplatePluginObject()
 {
+    if( m_Win ){
+        m_Win->deleteLater();
+    }
     DEBUG_V << "TemplatePluginObject destroyed";
 }
 

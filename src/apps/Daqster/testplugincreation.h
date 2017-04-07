@@ -10,7 +10,7 @@ public:
     TestPluginCreation();
 public slots:
     void stopRunning();
-virtual void run();
+virtual void run(QObject* Parent);
 
 signals:
 
