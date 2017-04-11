@@ -21,7 +21,7 @@ Initial version of this file was created on 12.03.2017 at 20:54:50
 #include "QPluginObjectsInterface.h"
 #include "QBasePluginObject.h"
 #include "debug.h"
-#include <QPluginLoader>
+#include "QPluginLoaderExt.h"
 
 
 namespace Daqster {
@@ -74,13 +74,13 @@ void QPluginObjectsInterface::SetHealthyState( const PluginDescription::PluginHe
 
 /**
  * Set new plugin loader.
- * When the plugin is loaded on first time we create QPluginLoader and its method
+ * When the plugin is loaded on first time we create QPluginLoaderExt and its method
  * instance() returns QPluginObjectInterface*  plugInterface. On this point
  * plugInterface->setPluginLoader() function is called to set pointer to
- * QPluginLoader.
+ * QPluginLoaderExt.
  * @param  Loader New plugin loader
  */
-void QPluginObjectsInterface::SetPluginLoader (QSharedPointer<QPluginLoader> & Loader)
+void QPluginObjectsInterface::SetPluginLoader (QSharedPointer<QPluginLoaderExt> & Loader)
 {
     m_PluginLoader = Loader;
 }
@@ -120,6 +120,21 @@ void QPluginObjectsInterface::Enable(bool En)
 bool QPluginObjectsInterface::StorePluginParamsToPersistency( QSettings &Store )
 {
     return m_PluginDescryptor.StorePluginParamsToPersistency( Store );
+}
+
+/**
+ * @brief Destroy all Objects included in Plugin Object Pool
+ * TODO: TBD - currently objects are just deleted. If have a need,
+ * can be defined some API for clean object destroy in
+ * @return true on success
+ *         false otherwise
+ */
+bool QPluginObjectsInterface::ShutdownAllPluginObjects()
+{
+    while( !m_PluginInstList.isEmpty() ){
+          delete m_PluginInstList.takeFirst();
+    }
+    return true;
 }
 
 /**
@@ -252,6 +267,9 @@ void QPluginObjectsInterface::pluginInstanceDestroyed( QObject *obj )
     if( NULL != Plugin ){
         DEBUG << "Remove Plugins num " << m_PluginInstList.removeAll( Plugin );
         DEBUG << "Not destroyed Plugins count " << m_PluginInstList.count();
+        if( 0 == m_PluginInstList.count() ){
+            emit AllPluginObjectsDestroyed( GetHash() );
+        }
     }
 }
 

@@ -109,7 +109,7 @@ void QPluginListView::RefreshView(){
     treeWidget = ui->treeWidget;
     treeWidget->setColumnCount(5);
     ui->treeWidget->clear();
-    foreach ( Daqster::PluginDescription Desc , PlugList )
+    foreach ( const Daqster::PluginDescription& Desc , PlugList )
     {
         Type = (PluginDescription::PluginType_t)Desc.GetProperty(PLUGIN_TYPE).toUInt();
         root_it   = Map.value( Type, NULL );

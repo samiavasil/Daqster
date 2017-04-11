@@ -61,6 +61,7 @@ public:
 
    static QPluginManager* instance();
 
+   static bool Initialize();
   /**
    * Return list with founded plugins. Return list can be filtered by criteria
    * described in input filter parameter.
@@ -98,7 +99,7 @@ public:
    */
   void ShowPluginManagerGui ();
 
-  QBasePluginObject *CreatePluginObject(const QString &KeyHash);
+  QBasePluginObject *CreatePluginObject(const QString &KeyHash, QObject *Parent = NULL);
 
 public slots:
   /**
@@ -114,6 +115,15 @@ public slots:
     * @param Enable
     */
    void EnableDisablePluginList( const QList<QString>& HashList, bool Enable );
+
+   /**
+    * @brief This slot can be connected to QPluginObjectsInterface signal AllPluginObjectDestroyed in order
+    * to automaticaly unload plugin.
+    * @param Hash
+    */
+   void AllPluginObjectsDestroyed( const QString& Hash );
+
+   void ShutdownPluginManager();
 
 signals:
   /**
@@ -162,8 +172,6 @@ protected:
   // Map Hash to plugin base interface object QPluginObjectsInterface.
   QMap<QString,Daqster::QPluginObjectsInterface*> m_PluginMap;
   QString m_ConfigFile;
-
-
 };
 
 

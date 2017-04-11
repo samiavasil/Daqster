@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QPluginManager.cpp.cpp - Copyright 
+                        Daqster/QPluginManager.cpp.cpp - Copyright
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -18,26 +18,27 @@ General Public Licence for more details.
 Initial version of this file was created on 16.03.2017 at 11:40:20
 **************************************************************************/
 #include "debug.h"
+#include"QBasePluginObject.h"
 #include "QPluginManager.h"
 #include "QPluginManagerGui.h"
 #include "QPluginListView.h"
 #include "PluginFilter.h"
 #include "QPluginObjectsInterface.h"
+#include "QPluginLoaderExt.h"
+
 #include <QDir>
 #include <QApplication>
 #include <QSharedPointer>
-#include <QPluginLoader>
 #include <QSettings>
 #include<QCryptographicHash>
 #include<QFile>
 #include<QMessageBox>
-
 #include<QThread>
-#include"QBasePluginObject.h"
+
 
 namespace Daqster {
 // Constructors/Destructors
-//  
+//
  QPluginManager* QPluginManager::g_Instance =  NULL;
 
 QPluginManager::QPluginManager (const QString &ConfigFile ) {
@@ -46,7 +47,9 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     LoadPluginsInfoFromPersistency();
 }
 
-QPluginManager::~QPluginManager () { }
+QPluginManager::~QPluginManager () {
+
+}
 
 /**
  * @brief QPluginManager::instance
@@ -62,7 +65,12 @@ QPluginManager *QPluginManager::instance()
     return g_Instance;
 }
 
-QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash  )
+bool QPluginManager::Initialize()
+{
+    return connect( QApplication::instance() ,SIGNAL(aboutToQuit()), QPluginManager::instance(),SLOT(ShutdownPluginManager()) );
+}
+
+QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, QObject* Parent  )
 {
     PluginDescription::PluginHealtyState_t PersistentHealthy = PluginDescription::UNDEFINED;
     QBasePluginObject* Object = NULL;
@@ -110,7 +118,7 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash  )
                  StorePluginStateToPersistncy(ObjInterface->GetPluginDescriptor());
              }
 
-             Object = ObjInterface->CreatePlugin();
+             Object = ObjInterface->CreatePlugin(Parent);
              if( NULL != Object ){
                 Healthy = PluginDescription::HEALTHY;
              }
@@ -212,13 +220,13 @@ void QPluginManager::SearchForPlugins ()
     bool Changed = false;
     //  settings.setIniCodec("UTF-8");
     settings.beginGroup("Plugins");
-    foreach (QString Hash, m_PluginMap.keys()) {
+    foreach (const QString& Hash, m_PluginMap.keys()) {
         ObjInterface = m_PluginMap.value( Hash, NULL );
         /*Check is this plugin file still exist*/
         if( NULL != ObjInterface )
         {
             QString cHash;
-             FileHash( ObjInterface->GetLocation(),  cHash  );
+            FileHash( ObjInterface->GetLocation(),  cHash  );
             {
                 if( 0 != cHash.compare( Hash ) )
                 {
@@ -235,10 +243,10 @@ void QPluginManager::SearchForPlugins ()
         }
     }
 
-    foreach ( QString path, m_DirList ) {
+    foreach ( const QString& path, m_DirList ) {
         if( PluginsDir.cd( path ) )
         {
-            foreach (QString fileName, PluginsDir.entryList(QDir::Files)) {
+            foreach (  QString fileName, PluginsDir.entryList(QDir::Files)) {
                 fileName = PluginsDir.absoluteFilePath( fileName );
                 QString Hash;
                 FileHash( fileName,  Hash  );
@@ -275,12 +283,12 @@ void QPluginManager::SearchForPlugins ()
     settings.endGroup();
     //Dump
     DEBUG << "Begin m_PluginMap Hashes";
-    foreach (QString Hash, m_PluginMap.keys()) {
+    foreach ( const QString& Hash, m_PluginMap.keys()) {
         DEBUG << Hash;
     }
     DEBUG << "End m_PluginMap Hashes";
     DEBUG << "Begin m_PluginsHashDescMap Hashes";
-    foreach (QString Hash, m_PluginsHashDescMap.keys()) {
+    foreach ( const QString& Hash, m_PluginsHashDescMap.keys()) {
         DEBUG << Hash;
     }
 
@@ -350,7 +358,7 @@ void QPluginManager::LoadPluginsInfoFromPersistency()
     {
         QString Hash;
         settings.beginGroup("Plugins");
-        foreach ( QString Name, settings.childGroups() ) {
+        foreach ( const QString& Name, settings.childGroups() ) {
             PluginDescription Desk;
             bool added = false;
             QString PersHash;
@@ -364,8 +372,8 @@ void QPluginManager::LoadPluginsInfoFromPersistency()
                 {
                     if( 0 == Hash.compare(PersHash) )
                     {
-                         m_PluginsHashDescMap[PersHash] = Desk;
-                         added = true;
+                        m_PluginsHashDescMap[PersHash] = Desk;
+                        added = true;
                     }
                 }
             }
@@ -380,34 +388,69 @@ void QPluginManager::LoadPluginsInfoFromPersistency()
     }
 }
 
+
+/**
+ * @brief This slot can be connected to QPluginObjectsInterface signal AllPluginObjectDestroyed in order
+ * to automaticaly unload plugin.
+ * @param Hash
+ */
+void QPluginManager::AllPluginObjectsDestroyed(const QString &Hash)
+{
+    QPluginObjectsInterface* OIface = m_PluginMap.take( Hash );
+    if( 0 != OIface ){
+       OIface->deleteLater();
+    }
+}
+
+void QPluginManager::ShutdownPluginManager()
+{
+    foreach( const QString& Hash , m_PluginMap.keys() ) {
+        QPluginObjectsInterface* OIface = m_PluginMap.take( Hash );
+        if( 0 != OIface ){
+           OIface->ShutdownAllPluginObjects();
+           delete OIface;
+        }
+    }
+}
+
+
 bool QPluginManager::LoadPluginInterfaceObject( const QString& PluginFileName, const QString& Hash  )
 {
 
     QPluginObjectsInterface* ObjInterface = NULL;
     bool ret = false;
-            QSharedPointer<QPluginLoader> pluginLoader( new QPluginLoader(PluginFileName));
-            /*All symbols are resolved in load time*/
-            pluginLoader->setLoadHints( QLibrary::ResolveAllSymbolsHint );
-            QObject* Inst = pluginLoader->instance();
-            if( NULL != Inst )
-            {
-                ObjInterface = dynamic_cast<Daqster::QPluginObjectsInterface*>(Inst);
-                if( NULL != ObjInterface )
-                {
-                    ObjInterface->SetPluginLoader( pluginLoader );
-                    ObjInterface->SetLocation( PluginFileName );
-                    ObjInterface->SetHash( Hash );
-                    ObjInterface->SetHealthyState(PluginDescription::IF_LOADED);
-                    m_PluginMap[ Hash ] = ObjInterface;
-                    m_PluginsHashDescMap[Hash] = ObjInterface->GetPluginDescriptor();
-                    ret = true;
-                }
-                else if( NULL != Inst )
-                {
-                    Inst->deleteLater();
-                }
+    QSharedPointer<QPluginLoaderExt> pluginLoader( new QPluginLoaderExt(PluginFileName), &QObject::deleteLater );
+    /*All symbols are resolved in load time*/
+    pluginLoader->setLoadHints( QLibrary::ResolveAllSymbolsHint );
+    QObject* Inst = pluginLoader->instance();
+    if( NULL != Inst )
+    {
+        ObjInterface = dynamic_cast<Daqster::QPluginObjectsInterface*>(Inst);
+        if( NULL != ObjInterface )
+        {
+            ObjInterface->SetPluginLoader( pluginLoader );
+            ObjInterface->SetLocation( PluginFileName );
+            ObjInterface->SetHash( Hash );
+            ObjInterface->SetHealthyState(PluginDescription::IF_LOADED);
+            m_PluginMap[ Hash ] = ObjInterface;
+            m_PluginsHashDescMap[Hash] = ObjInterface->GetPluginDescriptor();
+            connect( ObjInterface, SIGNAL(AllPluginObjectsDestroyed(QString)), this, SLOT(AllPluginObjectsDestroyed(QString)) );
+            ret = true;
+        }
+        else{
+            DEBUG << "Bad Plugin '" << PluginFileName << "'Try to unload resources";
+            if( pluginLoader->unload() ){
+                DEBUG << "Bad Plugin '" << PluginFileName << "' Unloaded successfully";
             }
-      return ret;
+            else{
+                DEBUG << "Bad Plugin '" << PluginFileName << "' Can't unload !!??";
+            }
+        }
+    }
+    else{
+        DEBUG << "Bad Plugin '" << PluginFileName << "' Can't be loaded ";
+    }
+    return ret;
 }
 
 }//End of Daqster namespace

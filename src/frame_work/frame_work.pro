@@ -40,7 +40,8 @@ SOURCES += \
     base/QPluginManager.cpp \
     base/QPluginManagerGui.cpp \
     base/PluginFilter.cpp \
-    base/plugindetails.cpp
+    base/QPluginLoaderExt.cpp \
+    base/PluginDetails.cpp
 
 HEADERS += \
     base/build_cfg.h \
@@ -54,8 +55,9 @@ HEADERS += \
     base/QPluginManagerGui.h \
     base/PluginFilter.h \
     base/Singleton.h \
-    base/plugindetails.h \
-    base/plugin_global.h
+    base/plugin_global.h \
+    base/QPluginLoaderExt.h \
+    base/PluginDetails.h
 
 symbian {
     MMP_RULES += EXPORTUNFROZEN

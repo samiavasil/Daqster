@@ -27,7 +27,7 @@ Initial version of this file was created on 12.03.2017 at 20:54:50
 #include<QSharedPointer>
 #include "PluginDescription.h"
 
-class QPluginLoader;
+class QPluginLoaderExt;
 class QSettings;
 
 
@@ -39,8 +39,8 @@ class QBasePluginObject;
   * class QPluginObjectsInterface
   * @brief This is a base plugin interface class.
   * All plugins should inherite this plugin interface in oreder to create plugin  objects.
-  * QPluginLoader class instantiate objects from this class. Object from this class contains
-  * pointer associasion to coresponding QPluginLoader object wich load it.
+  * QPluginLoaderExt class instantiate objects from this class. Object from this class contains
+  * pointer associasion to coresponding QPluginLoaderExt object wich load it.
   * QPluginObjectsInterface objects can save it member parametters in persistent QSettings store.
   */
 
@@ -68,13 +68,13 @@ public:
 
    /**
     * Set new plugin loader.
-    * When the plugin is loaded on first time we create QPluginLoader and its method
+    * When the plugin is loaded on first time we create QPluginLoaderExt and its method
     * instance() returns QPluginObjectInterface*  plugInterface. On this point
     * plugInterface->setPluginLoader() function is called to set pointer to
-    * QPluginLoader.
+    * QPluginLoaderExt.
     * @param  Loader New plugin loader
     */
-   void SetPluginLoader (QSharedPointer<QPluginLoader> & Loader);
+   void SetPluginLoader (QSharedPointer<QPluginLoaderExt> & Loader);
 
    /**
     * @brief Set plugin location. This function should be called just from PluginManager
@@ -199,6 +199,15 @@ public:
    */
   bool StorePluginParamsToPersistency( QSettings& Store );
 
+  /**
+   * @brief Destroy all Objects included in Plugin Object Pool
+   * @return true on success
+   *         false otherwise
+   */
+  bool ShutdownAllPluginObjects();
+
+signals:
+  void AllPluginObjectsDestroyed(const QString &Hash);
 
 protected:
   /**
@@ -215,8 +224,8 @@ protected slots:
 protected:
   Daqster::PluginDescription m_PluginDescryptor;
   // Plugin loader
-  QSharedPointer<QPluginLoader> m_PluginLoader;
-  // List  with currently instantiated plugins
+  QSharedPointer<QPluginLoaderExt> m_PluginLoader;
+  // Plugin Object Pool - List  with currently instantiated plugins
   QList<Daqster::QBasePluginObject *> m_PluginInstList;
 };
 } // end of package namespace

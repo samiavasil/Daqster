@@ -2,13 +2,14 @@
 #define DEBUG_H
 
 //#define FULL_DUMP
-//#define FULL_VERBOSE_DUMP
+#define FULL_VERBOSE_DUMP
 #define ENABLE_DUMP
 #if 1
 #include  <QDebug>
 #include  <QtGlobal>
 
 #if defined( ENABLE_VERBOSE_DUMP ) || defined( FULL_VERBOSE_DUMP )
+    /*#define DEBUG QDebug(QtDebugMsg)<<QString("DBG file:///%1:%2:0").arg(__FILE__).arg(__LINE__)<<": "*/
     #define DEBUG            QDebug(QtDebugMsg)<<"DBG:   "<<__FILE__<<" Line:"<<__LINE__<<": "
     #define DEBUG_V          QDebug(QtDebugMsg)<<"DBG_V: "<<__FILE__<<" Line:"<<__LINE__<<": "
 #elif defined( ENABLE_DUMP ) || defined( FULL_DUMP )
