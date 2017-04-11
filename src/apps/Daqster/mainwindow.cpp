@@ -117,7 +117,7 @@ void MainWindow::on_actionSave_triggered()
 {
     Daqster::QPluginManager::instance()->SearchForPlugins();
     TestPluginCreation* test = new TestPluginCreation();
-    test->run();
+    test->run( this );
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)

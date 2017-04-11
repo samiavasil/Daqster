@@ -41,7 +41,7 @@ class PrivateDescription : public QObject{
 QDebug operator<<(QDebug ds, const PluginDescription &obj)
 {
     ds << "Enabled: " << obj.IsEnabled() << "\n";
-    foreach( QByteArray Name, obj.m_PrivateDescription->dynamicPropertyNames() ) {
+    foreach( const QByteArray& Name, obj.m_PrivateDescription->dynamicPropertyNames() ) {
         ds << Name << ": {" << obj.m_PrivateDescription->property( Name ).toString() << "}\n";
     }
     return ds;
@@ -75,16 +75,31 @@ PluginDescription::~PluginDescription () {
     }
 }
 
+/**
+* @brief Set Dynamic Property. There is a Predefined properties NAMES but if you
+* want you can set additional Properties
+* @param name    - If property name isn't defined it dynamicaly created new property
+* @param value
+*/
 void PluginDescription::SetProperty( const char *name, const QVariant &value )
 {
     m_PrivateDescription->setProperty( name, value );
 }
 
+/**
+ * @brief Return Property
+ * @param name
+ * @return Return property with this name if exist, else return invalid QVariant
+ */
 QVariant  PluginDescription::GetProperty( const char *name ) const
 {
     return m_PrivateDescription->property( name );
 }
 
+/**
+ * @brief Get List with Properties Names
+ * @return List with Properties Names
+ */
 QList<QByteArray>  PluginDescription::GetPropertiesNames( ) const
 {
     return  m_PrivateDescription->dynamicPropertyNames();
@@ -182,12 +197,12 @@ void PluginDescription::CopyDinamycProperties( const PluginDescription &b ){
     QList<QByteArray> names = m_PrivateDescription->dynamicPropertyNames();
     /*Delete old properies and copy new ones*/
     QVariant Invalid;
-    foreach( QByteArray name, names ){
+    foreach( const QByteArray& name, names ){
         m_PrivateDescription->setProperty( name,Invalid );
     }
 
     names = b.GetPropertiesNames();
-    foreach( QByteArray name, names ){
+    foreach( const QByteArray& name, names ){
         if( m_PrivateDescription->setProperty( name, b.GetProperty(name) ) ){
             DEBUG << "Strange - set of this dynamic property should return false here. Chek it - maybe it is defined with Q_PROPERTY  macro";
         }
@@ -228,7 +243,7 @@ bool  PluginDescription::operator==(const PluginDescription &b){
         QList<QByteArray> BNames    = b.m_PrivateDescription->dynamicPropertyNames();
         if( ThisNames.count() == BNames.count() ){
             ret = true;
-            foreach( QByteArray Name, ThisNames ) {
+            foreach( const QByteArray& Name, ThisNames ) {
                 if( this->GetProperty(Name) !=  b.GetProperty(Name) ){
                     ret = false;
                     break;
@@ -256,7 +271,7 @@ void PluginDescription::Enable( bool En )
 bool PluginDescription::StorePluginParamsToPersistency( QSettings &Store ) const
 {
     QList<QByteArray> names = m_PrivateDescription->dynamicPropertyNames();
-    foreach( QByteArray name, names ){
+    foreach( const QByteArray& name, names ){
         Store.setValue( name, m_PrivateDescription->property(name) );
     }
     Store.setValue( "Enabled", m_Enabled );
@@ -274,12 +289,12 @@ bool PluginDescription::GetPluginParamsFromPersistency( QSettings &Store )
     QList<QByteArray> names = m_PrivateDescription->dynamicPropertyNames();
     /*Delete old properies and copy new ones*/
     QVariant Invalid();
-    foreach( QByteArray name, names ){
+    foreach( const QByteArray& name, names ){
         m_PrivateDescription->setProperty( name,Invalid );
     }
 
     QStringList list = Store.childKeys();
-    foreach( QString name, list ){
+    foreach( const QString& name, list ){
         if( m_PrivateDescription->setProperty( name.toUtf8().data(), Store.value(name, "" ) ) ){
             DEBUG << "Strange - set of this dynamic property should return false here. Chek it - maybe it is defined with Q_PROPERTY  macro";
         }

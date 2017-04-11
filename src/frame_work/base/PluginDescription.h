@@ -24,6 +24,8 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 #include <QString>
 #include <QIcon>
 
+/*Predefined properties NAMES
+*/
 #define PLUGIN_AUTHOR                 "Author"
 #define PLUGIN_DESCRIPTION            "Description"
 #define PLUGIN_DETAIL_DESCRIPTION     "DetailDescription"
@@ -102,11 +104,27 @@ public:
    */
   virtual ~PluginDescription ();
 
+   /**
+   * @brief Set Dynamic Property. There is a Predefined properties NAMES but if you
+   * want you can set additional Properties
+   * @param name    - If property name isn't defined it dynamicaly created new property
+   * @param value
+   */
   void SetProperty(const char *name, const QVariant &value);
 
+  /**
+   * @brief Return Property
+   * @param name
+   * @return Return property with this name if exist, else return invalid QVariant
+   */
   QVariant GetProperty(const char *name) const;
 
+  /**
+   * @brief Get List with Properties Names
+   * @return List with Properties Names
+   */
   QList<QByteArray> GetPropertiesNames() const;
+
    /**
     * @brief IsEmpty
     * @return

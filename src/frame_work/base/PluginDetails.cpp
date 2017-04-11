@@ -1,4 +1,4 @@
-#include "plugindetails.h"
+#include "PluginDetails.h"
 #include "ui_plugindetails.h"
 
 PluginDetails::PluginDetails(QWidget *parent) :
