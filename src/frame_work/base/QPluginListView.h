@@ -73,6 +73,9 @@ protected slots:
   void RefreshView();
 
   void TreeItem(QTreeWidgetItem *item, int col);
+
+  void ShowDetails();
+
 signals:
     void PluginDisabled( QString Hash );
 
