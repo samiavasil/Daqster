@@ -69,6 +69,7 @@ public:
    */
   QList<Daqster::PluginDescription> GetPluginList ( const PluginFilter &Filter=PluginFilter() );
 
+  Daqster::PluginDescription GetPluginDescriptionByHash ( const QString &Hash );
 
   /**
    * This function create PlunListView widget. This function internaly (on PluginView

@@ -24,6 +24,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include "QPluginManager.h"
 #include <QMap>
 #include <QTreeWidgetItem>
+#include "PluginDetails.h"
 
 namespace Daqster {
 // Constructors/Destructors
@@ -46,6 +47,7 @@ QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter&
 
     connect( QPluginManager::instance(), SIGNAL(PluginsListChangeDetected()), this, SLOT(RefreshView()), Qt::QueuedConnection );
     connect( ui->treeWidget,SIGNAL(itemChanged(QTreeWidgetItem*,int)),this, SLOT(TreeItem(QTreeWidgetItem*,int)),Qt::QueuedConnection);
+    connect(ui->detailsButton, SIGNAL(pressed()), this, SLOT(ShowDetails()) );
 }
 
 void QPluginListView::TreeItem( QTreeWidgetItem* item, int col ){
@@ -79,6 +81,16 @@ void QPluginListView::TreeItem( QTreeWidgetItem* item, int col ){
                 break;
             }
         }
+    }
+}
+
+void QPluginListView::ShowDetails()
+{
+    PluginDetails Details;
+    QTreeWidgetItem* item = ui->treeWidget->currentItem();
+    if( NULL != item ){
+        Details.setPluginDescription( QPluginManager::instance()->GetPluginDescriptionByHash(item->data( 1, TREE_DATA_ROLE).toString() ) );
+        Details.exec();
     }
 }
 

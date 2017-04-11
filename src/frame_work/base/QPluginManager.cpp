@@ -196,6 +196,20 @@ QList<Daqster::PluginDescription> QPluginManager::GetPluginList( const Daqster::
     return List;
 }
 
+PluginDescription QPluginManager::GetPluginDescriptionByHash(const QString &Hash)
+{
+    PluginDescription Desc;
+    auto it = m_PluginsHashDescMap.begin();
+    while( it != m_PluginsHashDescMap.end() ){
+        if( !it.key().compare(Hash) ){
+            Desc = it.value();
+            break;
+        }
+        it++;
+    }
+    return Desc;
+}
+
 /**
  * This function create PlunListView widget. This function internaly (on PluginView
  * creation) create signal/slot connection betwen PluginManager and PluginViews in
