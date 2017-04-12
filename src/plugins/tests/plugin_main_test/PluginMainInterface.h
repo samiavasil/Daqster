@@ -1,5 +1,5 @@
-#ifndef DATAPLOTINTERFACE_H
-#define DATAPLOTINTERFACE_H
+#ifndef PLUGINMAININTERFACE_H
+#define PLUGINMAININTERFACE_H
 
 #include <QObject>
 #include "plugin_global.h"
@@ -9,7 +9,7 @@
 using namespace Daqster;
 
 
-class PLUGIN_EXPORT DaqsterTeplateInterface:  public QPluginObjectsInterface
+class PLUGIN_EXPORT PluginFancyInterface:  public QPluginObjectsInterface
 {
     Q_OBJECT
 #if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
@@ -17,8 +17,8 @@ class PLUGIN_EXPORT DaqsterTeplateInterface:  public QPluginObjectsInterface
 #endif
     Q_INTERFACES(Daqster::QPluginObjectsInterface)
 public:
-    DaqsterTeplateInterface( QObject* parent = 0);
-    ~DaqsterTeplateInterface(  );
+    PluginFancyInterface( QObject* parent = 0);
+    ~PluginFancyInterface(  );
 protected:
     virtual Daqster::QBasePluginObject* CreatePluginInternal(QObject* Parrent = NULL);
 };

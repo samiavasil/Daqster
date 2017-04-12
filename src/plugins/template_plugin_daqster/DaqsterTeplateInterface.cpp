@@ -2,7 +2,7 @@
 #include "debug.h"
 #include "TemplatePluginObject.h"
 
-DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObjectsInterface(parent)
+PluginFancyInterface::PluginFancyInterface(QObject* parent ):QPluginObjectsInterface(parent)
 {
     Q_INIT_RESOURCE(template);
     DEBUG << "DaqsterTeplateInterface object create";
@@ -22,14 +22,14 @@ DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObject
     m_PluginDescryptor.SetProperty( PLUGIN_AUTHOR, "Vasil Vasilev" );
 }
 
-DaqsterTeplateInterface::~DaqsterTeplateInterface(  )
+PluginFancyInterface::~PluginFancyInterface(  )
 {
     DEBUG << "DaqsterTeplateInterface object delete";
 }
 
-Daqster::QBasePluginObject *DaqsterTeplateInterface::CreatePluginInternal(QObject *Parrent)
+Daqster::QBasePluginObject *PluginFancyInterface::CreatePluginInternal(QObject *Parrent)
 {
-    TemplatePluginObject* Obj = new TemplatePluginObject(Parrent);
+    PluginFancyObject* Obj = new PluginFancyObject(Parrent);
     if( NULL != Obj ){
         Obj->SetName( m_PluginDescryptor.GetProperty(PLUGIN_NAME).toString() );
     }

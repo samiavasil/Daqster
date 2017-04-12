@@ -1,4 +1,4 @@
-#include "TemplatePluginObject.h"
+#include "PluginFancyObject.h"
 #include "QPluginManager.h"
 #include "debug.h"
 #include <QMainWindow>
@@ -6,7 +6,7 @@
 #include<QLayout>
 
 
-TemplatePluginObject::TemplatePluginObject(QObject *Parent):QBasePluginObject ( Parent  ){
+PluginFancyObject::PluginFancyObject(QObject *Parent):QBasePluginObject ( Parent  ){
     m_Win = new QMainWindow();
     QLabel* label = new QLabel( );
     label->setText("PluginTemplate Demo");
@@ -19,13 +19,13 @@ TemplatePluginObject::TemplatePluginObject(QObject *Parent):QBasePluginObject ( 
     if( NULL != pm )
     {
         DEBUG << "Plugin Manager: " << pm;
-//        pm->SearchForPlugins();
+ //       pm->SearchForPlugins();
         pm->ShowPluginManagerGui();
     }
 
 }
 
-TemplatePluginObject::~TemplatePluginObject()
+PluginFancyObject::~PluginFancyObject()
 {
     if( m_Win ){
         m_Win->deleteLater();
@@ -33,7 +33,7 @@ TemplatePluginObject::~TemplatePluginObject()
     DEBUG_V << "TemplatePluginObject destroyed";
 }
 
-void TemplatePluginObject::SetName(const QString &name)
+void PluginFancyObject::SetName(const QString &name)
 {
     if( m_Win )
     {
@@ -41,7 +41,7 @@ void TemplatePluginObject::SetName(const QString &name)
     }
 }
 
-void TemplatePluginObject::MainWinDestroyed( QObject* obj )
+void PluginFancyObject::MainWinDestroyed( QObject* obj )
 {
     m_Win = NULL;
     deleteLater();

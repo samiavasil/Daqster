@@ -1,5 +1,5 @@
-#ifndef DATAPLOTINTERFACE_H
-#define DATAPLOTINTERFACE_H
+#ifndef PLUGINFANCYINTERFACE_H
+#define PLUGINFANCYINTERFACE_H
 
 #include <QObject>
 #include "plugin_global.h"
@@ -9,18 +9,18 @@
 using namespace Daqster;
 
 
-class PLUGIN_EXPORT DaqsterTeplateInterface:  public QPluginObjectsInterface
+class PLUGIN_EXPORT PluginFancyInterface:  public QPluginObjectsInterface
 {
     Q_OBJECT
 #if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
-    Q_PLUGIN_METADATA(IID "Daqster.PlugIn.BaseInterface" FILE "UgglyTestPlugin.json")
+    Q_PLUGIN_METADATA(IID "Daqster.PlugIn.BaseInterface" FILE "PluginFancyTest.json")
 #endif
     Q_INTERFACES(Daqster::QPluginObjectsInterface)
 public:
-    DaqsterTeplateInterface( QObject* parent = 0);
-    ~DaqsterTeplateInterface(  );
+    PluginFancyInterface( QObject* parent = 0);
+    ~PluginFancyInterface(  );
 protected:
     virtual Daqster::QBasePluginObject* CreatePluginInternal(QObject* Parrent = NULL);
 };
 
-#endif // DATAPLOTINTERFACE_H
+#endif // PLUGINFANCYINTERFACE_H

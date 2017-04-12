@@ -1,5 +1,5 @@
-#ifndef TEMPLATEPLUGINOBJECT_H
-#define TEMPLATEPLUGINOBJECT_H
+#ifndef PLUGINFANCYOBJECT_H
+#define PLUGINFANCYOBJECT_H
 #include "QBasePluginObject.h"
 class QMainWindow;
 
@@ -16,4 +16,4 @@ public slots:
 private:
     QMainWindow* m_Win;
 };
-#endif // TEMPLATEPLUGINOBJECT_H
+#endif // PLUGINFANCYOBJECT_H
