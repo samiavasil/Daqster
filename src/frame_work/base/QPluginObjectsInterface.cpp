@@ -85,6 +85,11 @@ void QPluginObjectsInterface::SetPluginLoader (QSharedPointer<QPluginLoaderExt> 
     m_PluginLoader = Loader;
 }
 
+QSharedPointer<QPluginLoaderExt> &QPluginObjectsInterface::GetPluginLoader()
+{
+    return m_PluginLoader;
+}
+
 PluginDescription::PluginHealtyState_t QPluginObjectsInterface::GetHealthyState( )
 {
     return (PluginDescription::PluginHealtyState_t)m_PluginDescryptor.GetProperty( PLUGIN_HELTHY_STATE ).toUInt();

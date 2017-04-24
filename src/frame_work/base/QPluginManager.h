@@ -163,6 +163,8 @@ protected:
    bool LoadPluginInterfaceObject(const QString &PluginFileName,const QString& Hash  );
 
    void StorePluginStateToPersistncy(const PluginDescription &Desc);
+
+   void ShutdownPlugin(const QString &Hash);
 protected:
   /*Pointer to sinleton obejct*/
   static QPluginManager* g_Instance;

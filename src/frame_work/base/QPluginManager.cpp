@@ -410,20 +410,35 @@ void QPluginManager::LoadPluginsInfoFromPersistency()
  */
 void QPluginManager::AllPluginObjectsDestroyed(const QString &Hash)
 {
+    QPluginObjectsInterface* OIface = m_PluginMap.value( Hash, NULL );
+    if( NULL != OIface  )
+    {   //&& ( !OIface->IsEnabled() )
+        /* Destroy Plugin Interface If Plugin is disabled and all
+         * Plugin objects instanses are destroyed */
+        OIface->GetPluginLoader()->unload();
+        OIface = m_PluginMap.take( Hash );
+        delete OIface;
+    }
+}
+
+void QPluginManager::ShutdownPlugin( const QString &Hash )
+{
     QPluginObjectsInterface* OIface = m_PluginMap.take( Hash );
-    if( 0 != OIface ){
-       OIface->deleteLater();
+    if( NULL != OIface ){
+   //     OIface->GetPluginLoader()->ShutdownAllPluginObjects();
+      //  delete OIface;
     }
 }
 
 void QPluginManager::ShutdownPluginManager()
 {
     foreach( const QString& Hash , m_PluginMap.keys() ) {
-        QPluginObjectsInterface* OIface = m_PluginMap.take( Hash );
-        if( 0 != OIface ){
-           OIface->ShutdownAllPluginObjects();
-           delete OIface;
-        }
+        ShutdownPlugin( Hash );
+//        QPluginObjectsInterface* OIface = m_PluginMap.take( Hash );
+//        if( 0 != OIface ){
+//           OIface->ShutdownAllPluginObjects();
+//           delete OIface;
+//        }
     }
 }
 

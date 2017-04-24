@@ -77,6 +77,12 @@ public:
    void SetPluginLoader (QSharedPointer<QPluginLoaderExt> & Loader);
 
    /**
+    * @brief Return Plugin Loader object
+    * @return
+    */
+   QSharedPointer<QPluginLoaderExt> & GetPluginLoader ();
+
+   /**
     * @brief Set plugin location. This function should be called just from PluginManager
     * when succesfully load pugin from some configured directory.
     * @param Plugin dirctory Location
