@@ -13,6 +13,8 @@ public:
 
 public slots:
     void MainWinDestroyed(QObject *obj);
+protected slots:
+    void ShowPlugins();
 private:
     QMainWindow* m_Win;
 };

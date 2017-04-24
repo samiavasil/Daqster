@@ -2,7 +2,7 @@
 #include "debug.h"
 #include "PluginUgglyObject.h"
 
-PluginFancyInterface::PluginFancyInterface(QObject* parent ):QPluginObjectsInterface(parent)
+PluginUgglyInterface::PluginUgglyInterface(QObject* parent ):QPluginObjectsInterface(parent)
 {
     Q_INIT_RESOURCE(uggly_test);
     DEBUG << "DaqsterTeplateInterface object create";
@@ -22,14 +22,14 @@ PluginFancyInterface::PluginFancyInterface(QObject* parent ):QPluginObjectsInter
     m_PluginDescryptor.SetProperty( PLUGIN_AUTHOR, "Vasil Vasilev" );
 }
 
-PluginFancyInterface::~PluginFancyInterface(  )
+PluginUgglyInterface::~PluginUgglyInterface(  )
 {
-    DEBUG << "DaqsterTeplateInterface object delete";
+    DEBUG << "PluginUgglyInterface object delete";
 }
 
-Daqster::QBasePluginObject *PluginFancyInterface::CreatePluginInternal(QObject *Parrent)
+Daqster::QBasePluginObject *PluginUgglyInterface::CreatePluginInternal(QObject *Parrent)
 {
-    PluginFancyObject* Obj = new PluginFancyObject(Parrent);
+    PluginUgglyObject* Obj = new PluginUgglyObject(Parrent);
     if( NULL != Obj ){
         Obj->SetName( m_PluginDescryptor.GetProperty(PLUGIN_NAME).toString() );
     }

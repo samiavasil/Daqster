@@ -77,7 +77,7 @@ protected slots:
   void ShowDetails();
 
 signals:
-    void PluginDisabled( QString Hash );
+    void EnableDisablePlugin( const QString &Hash, bool Enable );
 
 protected:
   // Plugin filter

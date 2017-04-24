@@ -35,7 +35,7 @@ QPluginObjectsInterface::QPluginObjectsInterface (  QObject* Parent ):QObject(Pa
 }
 
 QPluginObjectsInterface::~QPluginObjectsInterface () {
-
+    DEBUG << "   QPluginObjectsInterface destroy";
 }
 
 /**
@@ -136,8 +136,8 @@ bool QPluginObjectsInterface::StorePluginParamsToPersistency( QSettings &Store )
  */
 bool QPluginObjectsInterface::ShutdownAllPluginObjects()
 {
-    while( !m_PluginInstList.isEmpty() ){
-          delete m_PluginInstList.takeFirst();
+    foreach ( Daqster::QBasePluginObject* pO ,  m_PluginInstList ){
+          pO->ShutdownPluginObject();
     }
     return true;
 }
@@ -176,7 +176,7 @@ PluginDescription::PluginType_t QPluginObjectsInterface::GetType () const
  */
 QIcon QPluginObjectsInterface::GetIcon () const
 {
-    return m_PluginDescryptor.GetIcon();//m_PluginDescryptor.GetProperty( PLUGIN_ICON ).value<QIcon>();
+    return m_PluginDescryptor.GetIcon();
 }
 
 

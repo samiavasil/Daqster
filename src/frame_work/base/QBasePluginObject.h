@@ -35,7 +35,11 @@ class FRAME_WORKSHARED_EXPORT QBasePluginObject : public QObject
 {
     Q_OBJECT
 public:
-
+  typedef enum{
+        WORKING_STATE,
+        SHUTTING_DOWN_STATE,
+        TURNED_OFF_STATE
+   }eShutdownStatus;
   // Constructors/Destructors
   //  
   /**
@@ -48,9 +52,23 @@ public:
    */
   virtual ~QBasePluginObject ();
 
+  /**
+   * @brief This function should be overrided in plugin implementations.
+   * Depending from the need it can be executed sincnchronous or assynchronous mode.
+   * @param NONE
+   * @return  TURNED_OFF_STATE - when is runned in asynchronous way and all plugin finishing work is finished.
+   *          SHUTTING_DOWN_STATE - when is run in assynchronous way. If the functions return this value, then
+   *          plugin mannager should wait plugin to finish shutdown. It can check is the plugin finished it work
+   *          with pooling of the result GetPluginObjectStatus
+   */
+  virtual QBasePluginObject::eShutdownStatus ShutdownPluginObject();
+
+  virtual QBasePluginObject::eShutdownStatus GetPluginObjectStatus();
+
 protected:
   // Pointer to plugin interface object
   const Daqster::QPluginObjectsInterface* m_InterfaceObject;
+  eShutdownStatus m_PoState;
 };
 } // end of package namespace
 

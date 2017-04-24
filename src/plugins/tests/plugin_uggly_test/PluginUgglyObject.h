@@ -4,15 +4,17 @@
 class QMainWindow;
 
 using namespace Daqster;
-class PluginFancyObject: public QBasePluginObject{
+class PluginUgglyObject: public QBasePluginObject{
     Q_OBJECT
 public:
-    PluginFancyObject(QObject* Parent = NULL);
-    virtual ~PluginFancyObject();
+    PluginUgglyObject(QObject* Parent = NULL);
+    virtual ~PluginUgglyObject();
     void SetName(const QString& name);
 
 public slots:
     void MainWinDestroyed(QObject *obj);
+protected slots:
+    void ShowPlugins();
 private:
     QMainWindow* m_Win;
 };

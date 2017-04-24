@@ -210,7 +210,7 @@ public:
    * @return true on success
    *         false otherwise
    */
-  bool ShutdownAllPluginObjects();
+  virtual bool ShutdownAllPluginObjects();
 
 signals:
   void AllPluginObjectsDestroyed(const QString &Hash);

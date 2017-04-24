@@ -9,7 +9,7 @@
 using namespace Daqster;
 
 
-class PLUGIN_EXPORT PluginFancyInterface:  public QPluginObjectsInterface
+class PLUGIN_EXPORT DaqsterTemplateInterface:  public QPluginObjectsInterface
 {
     Q_OBJECT
 #if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
@@ -17,8 +17,8 @@ class PLUGIN_EXPORT PluginFancyInterface:  public QPluginObjectsInterface
 #endif
     Q_INTERFACES(Daqster::QPluginObjectsInterface)
 public:
-    PluginFancyInterface( QObject* parent = 0);
-    ~PluginFancyInterface(  );
+    DaqsterTemplateInterface( QObject* parent = 0);
+    ~DaqsterTemplateInterface(  );
 protected:
     virtual Daqster::QBasePluginObject* CreatePluginInternal(QObject* Parrent = NULL);
 };

@@ -24,7 +24,7 @@ PluginFancyInterface::PluginFancyInterface(QObject* parent ):QPluginObjectsInter
 
 PluginFancyInterface::~PluginFancyInterface(  )
 {
-    DEBUG << "DaqsterTeplateInterface object delete";
+    DEBUG << "PluginFancyInterface object delete";
 }
 
 Daqster::QBasePluginObject *PluginFancyInterface::CreatePluginInternal(QObject *Parrent)

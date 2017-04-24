@@ -145,12 +145,16 @@ void QPluginManager::EnableDisablePlugin( const QString &Hash, bool Enable )
           Desc.Enable( Enable );
           m_PluginsHashDescMap[Hash] = Desc;
 
-          //TODO: TBD what we do with instanciated Plugin interface
+
           Daqster::QPluginObjectsInterface* object = m_PluginMap.value( Hash, NULL );
           if( NULL != object ){
               object->Enable( Enable );
           }
           StorePluginStateToPersistncy( Desc );
+          if( !Enable )
+          {
+            ShutdownPlugin( Hash );
+          }
           emit PluginsListChangeDetected();
        }
     }
@@ -328,10 +332,10 @@ void QPluginManager::AddPluginsDirectory (const QString& Directory)
  * Show plugin manager GUI widget. In this GUI you can see available plugins,
  * rescan for new plugins, dynamic unload , enable/disable plugin loading.
  */
-void QPluginManager::ShowPluginManagerGui ()
+void QPluginManager::ShowPluginManagerGui (QWidget *Parent)
 {
-    QPluginManagerGui Dialog;
-    Dialog.exec();
+    QPluginManagerGui* d = new QPluginManagerGui(Parent);
+    d->show();
 }
 
 /**
@@ -415,7 +419,7 @@ void QPluginManager::AllPluginObjectsDestroyed(const QString &Hash)
     {   //&& ( !OIface->IsEnabled() )
         /* Destroy Plugin Interface If Plugin is disabled and all
          * Plugin objects instanses are destroyed */
-        OIface->GetPluginLoader()->unload();
+
         OIface = m_PluginMap.take( Hash );
         delete OIface;
     }
@@ -423,9 +427,9 @@ void QPluginManager::AllPluginObjectsDestroyed(const QString &Hash)
 
 void QPluginManager::ShutdownPlugin( const QString &Hash )
 {
-    QPluginObjectsInterface* OIface = m_PluginMap.take( Hash );
+    QPluginObjectsInterface* OIface = m_PluginMap.value( Hash, NULL );
     if( NULL != OIface ){
-   //     OIface->GetPluginLoader()->ShutdownAllPluginObjects();
+        OIface->ShutdownAllPluginObjects();
       //  delete OIface;
     }
 }

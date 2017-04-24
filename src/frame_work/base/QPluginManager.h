@@ -98,7 +98,7 @@ public:
    * Show plugin manager GUI widget. In this GUI you can see available plugins,
    * rescan for new plugins, dynamic unload , enable/disable plugin loading.
    */
-  void ShowPluginManagerGui ();
+  void ShowPluginManagerGui ( QWidget *Parent = NULL );
 
   QBasePluginObject *CreatePluginObject(const QString &KeyHash, QObject *Parent = NULL);
 
@@ -131,6 +131,13 @@ signals:
    * @brief QPluginManager
    */
   void PluginsListChangeDetected();
+
+  /**
+   * @brief This signal will be emited when shutdwown All plugins after execution of ShutdownPluginManager call
+   * TBD
+   * @param Status
+   */\
+  void AllPluginsShutdownFinished( bool Status );
 
 protected:
   /**
