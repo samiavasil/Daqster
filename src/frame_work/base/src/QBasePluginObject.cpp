@@ -26,7 +26,7 @@ namespace Daqster {
 
 QBasePluginObject::QBasePluginObject (QObject *Parent):QObject( Parent ),m_PoState(QBasePluginObject::WORKING_STATE)
 {
-    m_InterfaceObject = NULL;
+
 }
 
 QBasePluginObject::~QBasePluginObject ()

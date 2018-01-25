@@ -6,6 +6,7 @@
 DESTDIR = ../../bin/libs
 #CONFIG += debug_and_release
 TARGET = frame_work
+CONFIG+= c++11
 #win32|mac:!wince*:!win32-msvc:!macx-xcode:CONFIG += debug_and_release build_all
 win32 {
     # On Windows you can't mix release and debug libraries.
@@ -22,44 +23,46 @@ win32 {
 }
 
 TEMPLATE = lib
-INCLUDEPATH += ../include/extlibs
+INCLUDEPATH += $$PWD/base/src
+INCLUDEPATH += $$PWD/base/src/include/
+INCLUDEPATH += $$PWD/../include/extlibs
 DEFINES += FRAME_WORK_LIBRARY
 OBJECTS_DIR  = $$PWD/Build
 MOC_DIR      = $$PWD/Build
 RCC_DIR      = $$PWD/Build
 UI_DIR       = $$PWD/Build
-QMAKE_CXXFLAGS += -std=c++11
+
 
 greaterThan(QT_MAJOR_VERSION, 4) {
     QT += widgets
 }
 
 SOURCES += \
-    base/QBasePluginObject.cpp \
-    base/QPluginObjectsInterface.cpp \
-    base/PluginDescription.cpp \
-    base/QPluginListView.cpp \
-    base/QPluginManager.cpp \
-    base/QPluginManagerGui.cpp \
-    base/PluginFilter.cpp \
-    base/QPluginLoaderExt.cpp \
-    base/PluginDetails.cpp
+    base/src/QBasePluginObject.cpp \
+    base/src/QDaqsterPluginInterface.cpp \
+    base/src/PluginDescription.cpp \
+    base/src/QPluginListView.cpp \
+    base/src/QPluginManager.cpp \
+    base/src/QPluginManagerGui.cpp \
+    base/src/PluginFilter.cpp \
+    base/src/QPluginLoaderExt.cpp \
+    base/src/PluginDetails.cpp
 
 HEADERS += \
-    base/build_cfg.h \
-    base/debug.h \
-    base/global.h \
-    base/QBasePluginObject.h \
-    base/QPluginObjectsInterface.h \
-    base/PluginDescription.h \
-    base/QPluginListView.h \
-    base/QPluginManager.h \
-    base/QPluginManagerGui.h \
-    base/PluginFilter.h \
-    base/Singleton.h \
-    base/plugin_global.h \
-    base/QPluginLoaderExt.h \
-    base/PluginDetails.h
+    base/src/include/QBasePluginObject.h \
+    base/src/include/QDaqsterPluginInterface.h \
+    base/src/include/QPluginManager.h \
+    base/src/include/PluginDescription.h \
+    base/src/include/build_cfg.h \
+    base/src/include/debug.h \
+    base/src/global.h \
+    base/src/QPluginListView.h \
+    base/src/QPluginManagerGui.h \
+    base/src/PluginFilter.h \
+    base/src/Singleton.h \
+    base/src/plugin_global.h \
+    base/src/QPluginLoaderExt.h \
+    base/src/PluginDetails.h
 
 symbian {
     MMP_RULES += EXPORTUNFROZEN
@@ -81,9 +84,9 @@ unix:!symbian {
 }
 
 FORMS += \
-    base/pluginlistview.ui \
-    base/pluginmanagergui.ui \
-    base/plugindetails.ui
+    base/src/pluginlistview.ui \
+    base/src/pluginmanagergui.ui \
+    base/src/plugindetails.ui
 
 RESOURCES += \
     framework_resources.qrc

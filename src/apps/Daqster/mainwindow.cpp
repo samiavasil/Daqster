@@ -7,7 +7,7 @@
 #include<QMdiSubWindow>
 #include<QMouseEvent>
 #include<QPluginLoader>
-#include<QPluginManagerGui.h>
+#include<QPluginManager.h>
 
 
 MainWindow::MainWindow(QWidget *parent) :
@@ -76,9 +76,7 @@ void MainWindow::mouseMoveEvent( QMouseEvent * event ){
 
 void MainWindow::on_actionNew_triggered()
 {
-  Daqster::QPluginManagerGui mng;
-  mng.setVisible(true);
-  mng.exec();
+  Daqster::QPluginManager::instance()->ShowPluginManagerGui(this);
 }
 
 void MainWindow::on_actionFullScreen_triggered(bool checked)

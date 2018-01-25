@@ -21,11 +21,11 @@ Initial version of this file was created on 12.03.2017 at 20:54:50
 #ifndef QBASEPLUGINOBJECT_H
 #define QBASEPLUGINOBJECT_H
 #include <QObject>
-#include "global.h"
+#include "build_cfg.h"
 
 namespace Daqster {
 
-class QPluginObjectsInterface;
+class QDaqsterPluginInterface;
 /**
   * class QBasePluginObject
   * 
@@ -67,7 +67,6 @@ public:
 
 protected:
   // Pointer to plugin interface object
-  const Daqster::QPluginObjectsInterface* m_InterfaceObject;
   eShutdownStatus m_PoState;
 };
 } // end of package namespace

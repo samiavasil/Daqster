@@ -19,7 +19,7 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 **************************************************************************/
 
 #include "PluginDescription.h"
-#include "base/debug.h"
+#include "debug.h"
 #include<QObject>
 #include<QSettings>
 #include<QMetaProperty>
@@ -288,7 +288,7 @@ bool PluginDescription::GetPluginParamsFromPersistency( QSettings &Store )
     bool ret = false;
     QList<QByteArray> names = m_PrivateDescription->dynamicPropertyNames();
     /*Delete old properies and copy new ones*/
-    QVariant Invalid();
+    QVariant Invalid;
     foreach( const QByteArray& name, names ){
         m_PrivateDescription->setProperty( name,Invalid );
     }

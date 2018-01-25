@@ -13,7 +13,7 @@ UI_DIR       = $$PWD/Build
 TARGET   = Daqster
 TEMPLATE = app
 DESTDIR = ../../../bin
-INCLUDEPATH += ../../frame_work/base
+INCLUDEPATH += ../../frame_work/base/src/include
 FRAMEWORK_LIB_NAME = frame_work
 
 SOURCES += main.cpp\
@@ -22,7 +22,6 @@ SOURCES += main.cpp\
 HEADERS  += mainwindow.h \
     testplugincreation.h
 
-QMAKE_CXXFLAGS += -std=c++11
 
 LIBS += -L../../../bin/libs  -L../../../bin/extlibs
 
@@ -35,6 +34,7 @@ win32 {
 
 #    CONFIG           += debug_and_release
 #    CONFIG           += build_all
+    CONFIG+= c++11
     CONFIG(debug, debug|release) {
         TARGET = $${TARGET}d
         LIBS        += -l$${FRAMEWORK_LIB_NAME}d

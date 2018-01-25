@@ -2,7 +2,7 @@
 #include "debug.h"
 #include "TemplatePluginObject.h"
 
-DaqsterTemplateInterface::DaqsterTemplateInterface(QObject* parent ):QPluginObjectsInterface(parent)
+DaqsterTemplateInterface::DaqsterTemplateInterface(QObject* parent ):QDaqsterPluginInterface(parent)
 {
     Q_INIT_RESOURCE(template);
     DEBUG << "DaqsterTeplateInterface object create";
