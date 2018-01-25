@@ -28,6 +28,8 @@ OBJECTS_DIR  = $$PWD/Build
 MOC_DIR      = $$PWD/Build
 RCC_DIR      = $$PWD/Build
 UI_DIR       = $$PWD/Build
+QMAKE_CXXFLAGS += -std=c++11
+
 greaterThan(QT_MAJOR_VERSION, 4) {
     QT += widgets
 }

@@ -66,7 +66,7 @@ PluginDescription::PluginDescription(const PluginDescription& b)
     m_PrivateDescription = new PrivateDescription();
     m_Enabled = b.m_Enabled;
     m_Icon = b.m_Icon;
-    CopyDinamycProperties( b );
+    CopyDynamicProperties( b );
 }
 
 PluginDescription::~PluginDescription () {
@@ -193,7 +193,7 @@ bool  PluginDescription::CompareByValidFields( const PluginDescription &b ) cons
     return ret;
 }
 
-void PluginDescription::CopyDinamycProperties( const PluginDescription &b ){
+void PluginDescription::CopyDynamicProperties( const PluginDescription &b ){
     QList<QByteArray> names = m_PrivateDescription->dynamicPropertyNames();
     /*Delete old properies and copy new ones*/
     QVariant Invalid;
@@ -215,7 +215,7 @@ void PluginDescription::CopyDinamycProperties( const PluginDescription &b ){
  * @return PluginDescription
  */
 PluginDescription & PluginDescription::operator=(const PluginDescription &b){
-    CopyDinamycProperties( b );
+    CopyDynamicProperties( b );
     /*Copy static properties*/
     m_Enabled = b.m_Enabled;
     m_Icon = b.m_Icon;

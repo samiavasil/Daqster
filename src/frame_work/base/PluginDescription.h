@@ -192,7 +192,7 @@ public:
   QIcon GetIcon() const;
   friend QDebug operator<<(QDebug ds, const PluginDescription &obj) ;
 protected:
-    void CopyDinamycProperties(const PluginDescription &b);
+    void CopyDynamicProperties(const PluginDescription &b);
 protected:
   // Is plugin enabled for usage
   bool m_Enabled;

@@ -335,6 +335,7 @@ void QPluginManager::AddPluginsDirectory (const QString& Directory)
 void QPluginManager::ShowPluginManagerGui (QWidget *Parent)
 {
     QPluginManagerGui* d = new QPluginManagerGui(Parent);
+    d->setAttribute(Qt::WA_DeleteOnClose);
     d->show();
 }
 
