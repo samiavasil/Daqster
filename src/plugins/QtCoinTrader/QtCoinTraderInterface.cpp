@@ -9,8 +9,8 @@ DaqsterTemplateInterface::DaqsterTemplateInterface(QObject* parent ):QDaqsterPlu
     QIcon icon( QString::fromUtf8(":/QtCoinTrader.png") );
     m_PluginDescryptor.SetIcon( icon );
     m_PluginDescryptor.SetProperty( PLUGIN_NAME, "QtCoinTrader" );
-    m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::SECOND_TYPE );
-    m_PluginDescryptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
+    m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN );
+    m_PluginDescryptor.SetProperty( PLUGIN_TYPE_NAME, "This is a plugin application for coin trading" );
     m_PluginDescryptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
     m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "QtCoinTrader Plugin" );
     char docstr[] = \

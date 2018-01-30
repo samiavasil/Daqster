@@ -37,6 +37,8 @@ private slots:
     void onCopyAvailable();
 
     void onPasteAvailable();
+    void on_actionOpen_triggered();
+
 signals:
     void copyAvailable(bool);
     void undoAvailable(bool);

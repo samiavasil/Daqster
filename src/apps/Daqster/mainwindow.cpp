@@ -8,7 +8,7 @@
 #include<QMouseEvent>
 #include<QPluginLoader>
 #include<QPluginManager.h>
-
+#include"AppToolbar.h"
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),ui(new Ui::MainWindow)
@@ -135,4 +135,10 @@ void MainWindow::closeEvent(QCloseEvent *event)
           widget->close();
         }
     }
+}
+
+void MainWindow::on_actionOpen_triggered()
+{
+    AppToolbar* tool = new AppToolbar();
+    tool->show();
 }

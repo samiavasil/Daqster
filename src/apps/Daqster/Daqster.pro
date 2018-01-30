@@ -18,9 +18,11 @@ FRAMEWORK_LIB_NAME = frame_work
 
 SOURCES += main.cpp\
         mainwindow.cpp \
-    testplugincreation.cpp
+    testplugincreation.cpp \
+    AppToolbar.cpp
 HEADERS  += mainwindow.h \
-    testplugincreation.h
+    testplugincreation.h \
+    AppToolbar.h
 
 
 LIBS += -L../../../bin/libs  -L../../../bin/extlibs
@@ -50,3 +52,6 @@ RESOURCES += icons.qrc
 
 FORMS += \
     mainwindow.ui
+
+DISTFILES += \
+    StyleFile

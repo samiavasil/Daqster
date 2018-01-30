@@ -58,7 +58,8 @@ class FRAME_WORKSHARED_EXPORT PluginDescription
     friend class QDaqsterPluginInterface;
 public:
     typedef enum{
-        SOME_TYPE           = 0x1,
+        APPLICATION_PLUGIN  = 0x1,
+        SOME_TYPE           = 0x2,
         SECOND_TYPE              ,
         DETECT_BY_TYPE_NAME = 0x80000000,
         UNDEFINED_TYPE      = 0xffffffff
