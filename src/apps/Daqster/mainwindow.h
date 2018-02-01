@@ -39,6 +39,7 @@ private slots:
     void onPasteAvailable();
     void on_actionOpen_triggered();
 
+    void RunApplication(const QString &AppName );
 signals:
     void copyAvailable(bool);
     void undoAvailable(bool);

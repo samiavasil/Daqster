@@ -23,6 +23,7 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 #include "build_cfg.h"
 #include <QString>
 #include <QIcon>
+#include<QVariant>
 
 /*Predefined properties NAMES
 */
@@ -60,7 +61,8 @@ public:
     typedef enum{
         APPLICATION_PLUGIN  = 0x1,
         SOME_TYPE           = 0x2,
-        SECOND_TYPE              ,
+        SECOND_TYPE         ,
+        USER_DEFINED_TYPE   ,
         DETECT_BY_TYPE_NAME = 0x80000000,
         UNDEFINED_TYPE      = 0xffffffff
     } PluginType_t;
@@ -125,6 +127,9 @@ public:
    * @return List with Properties Names
    */
   QList<QByteArray> GetPropertiesNames() const;
+
+
+  QMap<QString,QVariant> GetAllProperties() const;
 
    /**
     * @brief IsEmpty

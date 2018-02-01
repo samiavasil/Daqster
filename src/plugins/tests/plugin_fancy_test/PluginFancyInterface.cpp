@@ -9,7 +9,7 @@ PluginFancyInterface::PluginFancyInterface(QObject* parent ):QDaqsterPluginInter
     QIcon icon( QString::fromUtf8(":/fancy.png") );
     m_PluginDescryptor.SetIcon( icon );
     m_PluginDescryptor.SetProperty( PLUGIN_NAME, "PluginFancyTest" );
-    m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::SOME_TYPE );
+    m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
     m_PluginDescryptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
     m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "Plugin Fancy Test " );

@@ -65,6 +65,11 @@ public:
 
   virtual QBasePluginObject::eShutdownStatus GetPluginObjectStatus();
 
+  virtual bool Initialize() = 0;
+
+protected:
+  virtual void DeInitialize() = 0;
+
 protected:
   // Pointer to plugin interface object
   eShutdownStatus m_PoState;

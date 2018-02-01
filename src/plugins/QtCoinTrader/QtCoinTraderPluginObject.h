@@ -10,9 +10,14 @@ public:
     QtCoinTraderPluginObject(QObject* Parent = NULL);
     virtual ~QtCoinTraderPluginObject();
     void SetName(const QString& name);
+    virtual bool Initialize();
+
+protected:
+    virtual void DeInitialize();
 
 public slots:
     void MainWinDestroyed(QObject *obj);
+
 protected slots:
     void ShowPlugins();
 private:

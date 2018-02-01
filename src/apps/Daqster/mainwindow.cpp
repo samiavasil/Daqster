@@ -9,6 +9,7 @@
 #include<QPluginLoader>
 #include<QPluginManager.h>
 #include"AppToolbar.h"
+#include<QBasePluginObject.h>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),ui(new Ui::MainWindow)
@@ -140,5 +141,11 @@ void MainWindow::closeEvent(QCloseEvent *event)
 void MainWindow::on_actionOpen_triggered()
 {
     AppToolbar* tool = new AppToolbar();
+    connect(tool,SIGNAL(PleaseRunApplication(QString)),this, SLOT(RunApplication(QString)));
     tool->show();
+}
+
+void MainWindow::RunApplication(const QString& AppName )
+{
+    qDebug() << "Run Application: " << AppName;
 }

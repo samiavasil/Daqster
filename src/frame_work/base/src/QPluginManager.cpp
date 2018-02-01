@@ -190,7 +190,7 @@ QList<Daqster::PluginDescription> QPluginManager::GetPluginList( const Daqster::
     */
     auto it = List.begin();
     while( it != List.end() ){
-        if( Filter.IsFiltered( *it ) ){
+        if( !Filter.IsFiltered( *it ) ){
             it = List.erase(it);
         }
         else{

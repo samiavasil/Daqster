@@ -11,6 +11,12 @@ class AppToolbar : public QToolBar
 public:
     explicit AppToolbar(QWidget *parent = 0);
     ~AppToolbar();
+
+private slots:
+    void OnActionTrigered();
+signals:
+    void PleaseRunApplication( QString );
+
 private:
 };
 

@@ -50,7 +50,7 @@ public:
    */
   virtual ~PluginFilter ();
 
-  void AddFilter();
+  void AddFilter( const QString& Property,const QString& Value );
   /**
    * This function test is the plugin described with input parameter is filtered or
    * not.

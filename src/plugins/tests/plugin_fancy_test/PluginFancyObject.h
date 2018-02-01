@@ -11,6 +11,10 @@ public:
     virtual ~PluginFancyObject();
     void SetName(const QString& name);
 
+    virtual bool Initialize();
+protected:
+    virtual void DeInitialize();
+
 public slots:
     void MainWinDestroyed(QObject *obj);
 protected slots:

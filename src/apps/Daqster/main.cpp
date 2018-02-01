@@ -2,7 +2,9 @@
 #include "mainwindow.h"
 #include "debug.h"
 #include"QPluginManager.h"
-
+#include<AppToolbar.h>
+#include<QBasePluginObject.h>
+#include<QCommandLineParser>
 
 class msg{
 public:
@@ -34,6 +36,26 @@ public:
     }
 };
 
+void PluginsInit()
+{
+/*TODO:  Move this on some initialization routine*/
+Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
+PluginManager->SearchForPlugins();
+if( NULL != PluginManager )
+{
+    qDebug() << "Plugin Manager: " << PluginManager;
+  //  PluginManager->SearchForPlugins();
+    //PluginManager->ShowPluginManagerGui();
+    QList<Daqster::PluginDescription> PluginsList = PluginManager->GetPluginList();
+    /*Just try to load/unload all plugins in initialization phase*/
+    foreach ( const Daqster::PluginDescription& Desc, PluginsList) {
+       for( int i=0;i < 1; i++){
+            PluginManager->CreatePluginObject( Desc.GetProperty(PLUGIN_HASH).toString(), NULL )->deleteLater();
+       }
+    }
+}
+}
+
 int main(int argc, char *argv[])
 {
 //    msg m;
@@ -42,9 +64,20 @@ int main(int argc, char *argv[])
 #else
  //   qInstallMessageHandler(m.myMessageOutput);
 #endif
+    //TODO: Check argument parser: http://doc.qt.io/qt-5/qcommandlineparser.html
     QApplication a(argc, argv);
-    MainWindow w;
-    w.show();
+    QApplication::setApplicationName("Daqster");
+    QApplication::setApplicationVersion("0.1");
+
+    QCommandLineParser parser;
+    parser.setApplicationDescription("This program is used to run Daqster Application plugins");
+    parser.addHelpOption();
+    parser.addVersionOption();
+    parser.addPositionalArgument("source", QCoreApplication::translate("main", "Source file to copy."));
+    parser.addPositionalArgument("destination", QCoreApplication::translate("main", "Destination directory."));
+
+  // MainWindow w;
+   // w.show();
 qDebug() << __BASE_FILE__  << __FILE__;
     /*For correct plugoins shutdown behaviour QPluginManager initialization should be called. */
     if( !Daqster::QPluginManager::instance()->Initialize() ){
@@ -52,6 +85,9 @@ qDebug() << __BASE_FILE__  << __FILE__;
     }
 
     DEBUG << "Show window";
+    PluginsInit();
+    AppToolbar ApTooolbar;
+    ApTooolbar.show();
     int res = a.exec();
     //Daqster::QPluginManager::instance()->ShutdownPluginManager();
     return res;

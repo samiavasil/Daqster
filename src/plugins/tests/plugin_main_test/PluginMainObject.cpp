@@ -6,7 +6,25 @@
 #include<QLayout>
 #include<QPushButton>
 
-PluginMainObject::PluginMainObject(QObject *Parent):QBasePluginObject ( Parent  ){
+PluginMainObject::PluginMainObject(QObject *Parent):QBasePluginObject ( Parent  ),m_Win(NULL){
+
+}
+
+PluginMainObject::~PluginMainObject()
+{
+    DeInitialize();
+}
+
+void PluginMainObject::SetName(const QString &name)
+{
+    if( m_Win )
+    {
+        m_Win->setWindowTitle( name );
+    }
+}
+
+bool PluginMainObject::Initialize()
+{
     m_Win = new QMainWindow();
     QLabel* label = new QLabel( );
     label->setText("PluginTemplate Demo");
@@ -19,20 +37,12 @@ PluginMainObject::PluginMainObject(QObject *Parent):QBasePluginObject ( Parent  
     connect( button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()) );
 }
 
-PluginMainObject::~PluginMainObject()
+void PluginMainObject::DeInitialize()
 {
     if( m_Win ){
         m_Win->deleteLater();
     }
     DEBUG_V << "PluginMainObject destroyed";
-}
-
-void PluginMainObject::SetName(const QString &name)
-{
-    if( m_Win )
-    {
-        m_Win->setWindowTitle( name );
-    }
 }
 
 void PluginMainObject::MainWinDestroyed( QObject* obj )

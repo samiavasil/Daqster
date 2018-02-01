@@ -6,7 +6,26 @@
 #include<QLayout>
 #include<QPushButton>
 
-QtCoinTraderPluginObject::QtCoinTraderPluginObject(QObject *Parent):QBasePluginObject ( Parent  ){
+QtCoinTraderPluginObject::QtCoinTraderPluginObject(QObject *Parent):QBasePluginObject ( Parent  ),m_Win(NULL){
+
+}
+
+QtCoinTraderPluginObject::~QtCoinTraderPluginObject()
+{
+    DeInitialize();
+}
+
+
+void QtCoinTraderPluginObject::SetName(const QString &name)
+{
+    if( m_Win )
+    {
+        m_Win->setWindowTitle( name );
+    }
+}
+
+bool QtCoinTraderPluginObject::Initialize()
+{
     m_Win = new QMainWindow();
     QLabel* label = new QLabel( );
     label->setText("PluginTemplate Demo");
@@ -19,20 +38,12 @@ QtCoinTraderPluginObject::QtCoinTraderPluginObject(QObject *Parent):QBasePluginO
     connect( button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()) );
 }
 
-QtCoinTraderPluginObject::~QtCoinTraderPluginObject()
+void QtCoinTraderPluginObject::DeInitialize()
 {
     if( m_Win ){
         m_Win->deleteLater();
     }
     DEBUG_V << "TemplatePluginObject destroyed";
-}
-
-void QtCoinTraderPluginObject::SetName(const QString &name)
-{
-    if( m_Win )
-    {
-        m_Win->setWindowTitle( name );
-    }
 }
 
 void QtCoinTraderPluginObject::MainWinDestroyed( QObject* obj )

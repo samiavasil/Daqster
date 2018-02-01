@@ -105,6 +105,16 @@ QList<QByteArray>  PluginDescription::GetPropertiesNames( ) const
     return  m_PrivateDescription->dynamicPropertyNames();
 }
 
+QMap<QString, QVariant> PluginDescription::GetAllProperties() const
+{
+    QMap<QString, QVariant> map;
+    QList<QByteArray>names = m_PrivateDescription->dynamicPropertyNames();
+    foreach( auto name, names ) {
+        map[name.data()] = m_PrivateDescription->property( name.data() );
+    }
+    return map;
+}
+
 bool  PluginDescription::IsEmpty() const
 {
     return ( 0 == m_PrivateDescription->dynamicPropertyNames().count() );
