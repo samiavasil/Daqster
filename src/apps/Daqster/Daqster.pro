@@ -19,10 +19,12 @@ FRAMEWORK_LIB_NAME = frame_work
 SOURCES += main.cpp\
         mainwindow.cpp \
     testplugincreation.cpp \
-    AppToolbar.cpp
+    AppToolbar.cpp \
+    ApplicationsManager.cpp
 HEADERS  += mainwindow.h \
     testplugincreation.h \
-    AppToolbar.h
+    AppToolbar.h \
+    ApplicationsManager.h
 
 
 LIBS += -L../../../bin/libs  -L../../../bin/extlibs

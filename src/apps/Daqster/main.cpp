@@ -73,8 +73,22 @@ int main(int argc, char *argv[])
     parser.setApplicationDescription("This program is used to run Daqster Application plugins");
     parser.addHelpOption();
     parser.addVersionOption();
-    parser.addPositionalArgument("source", QCoreApplication::translate("main", "Source file to copy."));
-    parser.addPositionalArgument("destination", QCoreApplication::translate("main", "Destination directory."));
+    parser.addPositionalArgument("apps ...", QCoreApplication::translate("main", "One ore more Application plugin names which will be automaticaly started"));
+
+
+    // An option with a value
+    QCommandLineOption targetDirectoryOption(QStringList() << "t" << "target-directory",
+            QCoreApplication::translate("main", "Copy all source files into <directory>."),
+            QCoreApplication::translate("main", "directory"));
+    parser.addOption(targetDirectoryOption);
+
+    // Process the actual command line arguments given by the user
+    parser.process(a);
+
+
+     const QStringList args = parser.positionalArguments();
+
+     qDebug() << "Positional Argumments: " << args;
 
   // MainWindow w;
    // w.show();

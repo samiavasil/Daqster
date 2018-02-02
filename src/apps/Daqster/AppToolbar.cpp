@@ -5,6 +5,8 @@
 #include<QDebug>
 #include"QPluginManager.h"
 #include"PluginFilter.h"
+#include"ApplicationsManager.h"
+
 AppToolbar::AppToolbar(QWidget *parent) :
     QToolBar(parent)
 {
@@ -30,7 +32,7 @@ AppToolbar::AppToolbar(QWidget *parent) :
 AppToolbar::~AppToolbar()
 {
 }
-
+#include<QStringList>
 void AppToolbar::OnActionTrigered()
 {
   QAction* sender = dynamic_cast<QAction*>( QObject::sender() );
@@ -38,6 +40,7 @@ void AppToolbar::OnActionTrigered()
       QString AppName = sender->objectName();
       emit PleaseRunApplication( AppName );
       qDebug() << "Run Application: " << AppName;
+      ApplicationsManager::Instance().StartApplication( QString("./Daqster"), QStringList());
   }
 }
 
