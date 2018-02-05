@@ -1,17 +1,21 @@
-#include "mainwindow.h"
-#include "mainwindow.h"
+#include "QtCoinTraderWindow.h"
+#include "QtCoinTraderWindow.h"
 #include "debug.h"
 #include "QPluginManager.h"
-#include"testplugincreation.h"
+//#include"testplugincreation.h"
 #include"ui_mainwindow.h"
 #include<QMdiSubWindow>
 #include<QMouseEvent>
 #include<QPluginLoader>
 #include<QPluginManager.h>
-#include"AppToolbar.h"
+//#include"AppToolbar.h"
 #include<QBasePluginObject.h>
+#include<QTimer>
+#include<QCursor>
 
-MainWindow::MainWindow(QWidget *parent) :
+QTimer timer;
+
+QtCoinTraderWindow::QtCoinTraderWindow(QWidget *parent) :
     QMainWindow(parent),ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
@@ -27,37 +31,45 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->mainToolBar->setMouseTracking(true);
     ui->mdiArea->setMouseTracking(true);
 
+    connect(&timer,SIGNAL(timeout()),this,SLOT(CursorShow()));
+    timer.start(100);
 }
 
-MainWindow::~MainWindow()
+
+QtCoinTraderWindow::~QtCoinTraderWindow()
 {
     if( ui ){
         delete ui;
     }
 }
 
+void QtCoinTraderWindow::CursorShow(){
+    QPoint pos = QCursor::pos();
+    QString st = QString("Position: %1,%2 ").arg(pos.x()).arg(pos.y());
+    ui->lineEdit->setText( st);
+}
 
-void MainWindow::onUndoAvailable()
+void QtCoinTraderWindow::onUndoAvailable()
 {
     //emit undoAvailable(_designer->core()->formWindowManager()->actionUndo()->isEnabled());
 }
 
-void MainWindow::onRedoAvailable()
+void QtCoinTraderWindow::onRedoAvailable()
 {
     //emit redoAvailable(_designer->core()->formWindowManager()->actionRedo()->isEnabled());
 }
 
-void MainWindow::onCopyAvailable()
+void QtCoinTraderWindow::onCopyAvailable()
 {
     //emit copyAvailable(_designer->core()->formWindowManager()->actionCopy()->isEnabled());
 }
 
-void MainWindow::onPasteAvailable()
+void QtCoinTraderWindow::onPasteAvailable()
 {
     //emit pasteAvailable(_designer->core()->formWindowManager()->actionPaste()->isEnabled());
 }
 
-void MainWindow::mouseMoveEvent( QMouseEvent * event ){
+void QtCoinTraderWindow::mouseMoveEvent( QMouseEvent * event ){
 
     if( event ){
         if( !menuBar()->isVisible() ){
@@ -75,12 +87,12 @@ void MainWindow::mouseMoveEvent( QMouseEvent * event ){
     QMainWindow::mouseMoveEvent(event);
 }
 
-void MainWindow::on_actionNew_triggered()
+void QtCoinTraderWindow::on_actionNew_triggered()
 {
   Daqster::QPluginManager::instance()->ShowPluginManagerGui(this);
 }
 
-void MainWindow::on_actionFullScreen_triggered(bool checked)
+void QtCoinTraderWindow::on_actionFullScreen_triggered(bool checked)
 {
     //static QMdiSubWindow* old;
     if( checked ){
@@ -92,7 +104,7 @@ void MainWindow::on_actionFullScreen_triggered(bool checked)
 
 }
 
-void MainWindow::on_actionHideToolbar_triggered(bool checked)
+void QtCoinTraderWindow::on_actionHideToolbar_triggered(bool checked)
 {
     if( checked ){
         ui->mainToolBar->hide();
@@ -105,7 +117,7 @@ void MainWindow::on_actionHideToolbar_triggered(bool checked)
 }
 
 
-void MainWindow::on_actionHideMainMenu_triggered(bool checked)
+void QtCoinTraderWindow::on_actionHideMainMenu_triggered(bool checked)
 {
     if( checked ){
         menuBar()->hide();
@@ -115,14 +127,28 @@ void MainWindow::on_actionHideMainMenu_triggered(bool checked)
     }
 }
 
-void MainWindow::on_actionSave_triggered()
+void QtCoinTraderWindow::on_actionSave_triggered()
 {
-    Daqster::QPluginManager::instance()->SearchForPlugins();
-    TestPluginCreation* test = new TestPluginCreation();
-    test->run( this );
+    Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
+    if( NULL != PluginManager )
+    {
+        qDebug() << "Plugin Manager: " << PluginManager;
+      //  PluginManager->SearchForPlugins();
+        //PluginManager->ShowPluginManagerGui();
+        QList<Daqster::PluginDescription> PluginsList = PluginManager->GetPluginList();
+        Daqster::QBasePluginObject* obj;
+        foreach ( const Daqster::PluginDescription& Desc, PluginsList) {
+           for( int i=0;i < 1; i++){
+                obj = PluginManager->CreatePluginObject( Desc.GetProperty(PLUGIN_HASH).toString(), this );
+                if( NULL != obj ){
+                    obj->Initialize();
+                }
+           }
+        }
+    }
 }
 
-void MainWindow::closeEvent(QCloseEvent *event)
+void QtCoinTraderWindow::closeEvent(QCloseEvent *event)
 {
         /*if (maybeSave()) {
             writeSettings();
@@ -138,14 +164,14 @@ void MainWindow::closeEvent(QCloseEvent *event)
     }
 }
 
-void MainWindow::on_actionOpen_triggered()
+void QtCoinTraderWindow::on_actionOpen_triggered()
 {
-    AppToolbar* tool = new AppToolbar();
-    connect(tool,SIGNAL(PleaseRunApplication(QString)),this, SLOT(RunApplication(QString)));
-    tool->show();
+//    AppToolbar* tool = new AppToolbar();
+//    connect(tool,SIGNAL(PleaseRunApplication(QString)),this, SLOT(RunApplication(QString)));
+//    tool->show();
 }
 
-void MainWindow::RunApplication(const QString& AppName )
+void QtCoinTraderWindow::RunApplication(const QString& AppName )
 {
     qDebug() << "Run Application: " << AppName;
 }

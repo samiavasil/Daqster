@@ -9,13 +9,13 @@ class MainWindow;
 }
 
 
-class MainWindow : public QMainWindow
+class QtCoinTraderWindow : public QMainWindow
 {
     Q_OBJECT
     
 public:
-    explicit MainWindow(QWidget *parent = 0);
-    virtual ~MainWindow();
+    explicit QtCoinTraderWindow(QWidget *parent = 0);
+    virtual ~QtCoinTraderWindow();
     void closeEvent(QCloseEvent *event);
 
 private slots:
@@ -47,8 +47,8 @@ signals:
     void pasteAvailable(bool);
 protected:
     virtual void mouseMoveEvent ( QMouseEvent * event );
-protected:
-
+protected slots:
+    void CursorShow();
 
 private:
     Ui::MainWindow *ui;

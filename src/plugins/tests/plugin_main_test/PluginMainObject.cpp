@@ -27,7 +27,7 @@ bool PluginMainObject::Initialize()
 {
     m_Win = new QMainWindow();
     QLabel* label = new QLabel( );
-    label->setText("PluginTemplate Demo");
+    label->setText("PluginMain Test Demo");
     m_Win->setCentralWidget(label);
     QPushButton* button = new QPushButton(m_Win);
 

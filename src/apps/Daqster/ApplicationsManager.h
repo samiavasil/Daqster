@@ -1,22 +1,41 @@
 #ifndef APPLICATIONSMANAGER_H
 #define APPLICATIONSMANAGER_H
 #include<QObject>
-#include<QList>
+#include<QMap>
 #include<QString>
 #include<QProcess>
+#include"main.h"
 
 class ApplicationsManager:public QObject
 {
     Q_OBJECT
 public:
-    static ApplicationsManager& Instance();
+    typedef enum{
+        APP_NA,
+        APP_STARTED,
+        APP_STOPED
+    }AppEvent_t;
 
+    typedef struct{
+        QString            Name;
+        QStringList        Arguments;
+        QProcess::OpenMode Mode;
+    }AppDescriptor_t;
+
+    typedef uint32_t AppHndl_t;
+    static ApplicationsManager& Instance();
+    ~ApplicationsManager();
+    bool GetAppDescryptor(const AppHndl_t& Hndl, AppDescriptor_t& Desc );
 public slots:
     void StartApplication(const QString& Name, const QStringList & Arguments, QProcess::OpenMode Mode = QProcess::ReadWrite );
 
+signals:
+    void ApplicationEvent(const ApplicationsManager::AppHndl_t &AppHnd, const ApplicationsManager::AppEvent_t &ev);
 private:
     ApplicationsManager();
-    QList<QProcess*>  m_ProcessList;
+    AppHndl_t nextHndl;
+    QMap<AppHndl_t,QProcess*>  m_ProcessMap;
+    QMap<AppHndl_t,AppDescriptor_t>  m_ProcessDescs;
     static ApplicationsManager* m_Manager;
 };
 

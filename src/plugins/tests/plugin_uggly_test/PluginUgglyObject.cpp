@@ -27,7 +27,7 @@ bool PluginUgglyObject::Initialize()
 {
     m_Win = new QMainWindow();
     QLabel* label = new QLabel( );
-    label->setText("PluginTemplate Demo");
+    label->setText("Plugin Uggly Demo");
     m_Win->setCentralWidget(label);
     QPushButton* button = new QPushButton(m_Win);
 

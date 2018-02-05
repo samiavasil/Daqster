@@ -26,13 +26,16 @@ TARGET   = QtCoinTraderPlugin
 
 SOURCES += \
     QtCoinTraderInterface.cpp \
-    QtCoinTraderPluginObject.cpp
+    QtCoinTraderPluginObject.cpp \
+    QtCoinTraderWindow.cpp
 
 HEADERS += \
     QtCoinTraderInterface.h \
-    QtCoinTraderPluginObject.h
+    QtCoinTraderPluginObject.h \
+    QtCoinTraderWindow.h
 
-FORMS +=
+FORMS += \
+    mainwindow.ui
 
 RESOURCES += \
     QtCoinTrader.qrc

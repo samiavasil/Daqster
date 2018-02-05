@@ -1,22 +1,23 @@
 #include <QApplication>
-#include "mainwindow.h"
 #include "debug.h"
 #include"QPluginManager.h"
 #include<AppToolbar.h>
 #include<QBasePluginObject.h>
 #include<QCommandLineParser>
 
+#include"main.h"
+
 class msg{
 public:
 
 #if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
     static void myMessageOutput(QtMsgType type, const char *b)
-     {
+    {
         QString msg;
         msg.sprintf("%s", b);
 #else
-     static void myMessageOutput(QtMsgType type, const QMessageLogContext &, const QString & msg)
-      {
+    static void myMessageOutput(QtMsgType type, const QMessageLogContext &, const QString & msg)
+    {
 #endif
 
         switch (type) {
@@ -24,7 +25,7 @@ public:
             fprintf(stderr, "%s\n", msg.toStdString().c_str());
             break;
         case QtWarningMsg:
-         //TODO:   fprintf(stderr, "%s\n", msg);
+            //TODO:   fprintf(stderr, "%s\n", msg);
             break;
         case QtCriticalMsg:
             fprintf(stderr, "%s\n", msg.toStdString().c_str());
@@ -38,31 +39,32 @@ public:
 
 void PluginsInit()
 {
-/*TODO:  Move this on some initialization routine*/
-Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
-PluginManager->SearchForPlugins();
-if( NULL != PluginManager )
-{
-    qDebug() << "Plugin Manager: " << PluginManager;
-  //  PluginManager->SearchForPlugins();
-    //PluginManager->ShowPluginManagerGui();
-    QList<Daqster::PluginDescription> PluginsList = PluginManager->GetPluginList();
-    /*Just try to load/unload all plugins in initialization phase*/
-    foreach ( const Daqster::PluginDescription& Desc, PluginsList) {
-       for( int i=0;i < 1; i++){
-            PluginManager->CreatePluginObject( Desc.GetProperty(PLUGIN_HASH).toString(), NULL )->deleteLater();
-       }
+    /*TODO:  Move this on some initialization routine*/
+    Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
+    PluginManager->SearchForPlugins();
+    if( NULL != PluginManager )
+    {
+        qDebug() << "Plugin Manager: " << PluginManager;
+        //  PluginManager->SearchForPlugins();
+        //PluginManager->ShowPluginManagerGui();
+        QList<Daqster::PluginDescription> PluginsList = PluginManager->GetPluginList();
+        /*Just try to load/unload all plugins in initialization phase*/
+        foreach ( const Daqster::PluginDescription& Desc, PluginsList) {
+            for( int i=0;i < 1; i++){
+                PluginManager->CreatePluginObject( Desc.GetProperty(PLUGIN_HASH).toString(), NULL )->deleteLater();
+            }
+        }
     }
-}
 }
 
 int main(int argc, char *argv[])
 {
-//    msg m;
+    int res = 0;
+    //    msg m;
 #if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
     qInstallMsgHandler(m.myMessageOutput);
 #else
- //   qInstallMessageHandler(m.myMessageOutput);
+    //   qInstallMessageHandler(m.myMessageOutput);
 #endif
     //TODO: Check argument parser: http://doc.qt.io/qt-5/qcommandlineparser.html
     QApplication a(argc, argv);
@@ -78,31 +80,57 @@ int main(int argc, char *argv[])
 
     // An option with a value
     QCommandLineOption targetDirectoryOption(QStringList() << "t" << "target-directory",
-            QCoreApplication::translate("main", "Copy all source files into <directory>."),
-            QCoreApplication::translate("main", "directory"));
+                                             QCoreApplication::translate("main", "Copy all source files into <directory>."),
+                                             QCoreApplication::translate("main", "directory"));
     parser.addOption(targetDirectoryOption);
 
     // Process the actual command line arguments given by the user
     parser.process(a);
 
 
-     const QStringList args = parser.positionalArguments();
+    const QStringList args = parser.positionalArguments();
 
-     qDebug() << "Positional Argumments: " << args;
+    qDebug() << "Positional Argumments: " << args;
 
-  // MainWindow w;
-   // w.show();
-qDebug() << __BASE_FILE__  << __FILE__;
+    Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
     /*For correct plugoins shutdown behaviour QPluginManager initialization should be called. */
-    if( !Daqster::QPluginManager::instance()->Initialize() ){
+    if( PluginManager->Initialize() ){
         DEBUG << "QPluginManager Initialization Error" ;
     }
 
     DEBUG << "Show window";
     PluginsInit();
-    AppToolbar ApTooolbar;
-    ApTooolbar.show();
-    int res = a.exec();
+qDebug() << "ARGS: " << args;
+    if( args.count() > 0 ){
+
+        Daqster::PluginFilter Filter;
+        Filter.AddFilter( PLUGIN_TYPE, QString("%1").arg(Daqster::PluginDescription::APPLICATION_PLUGIN) );
+        QList<Daqster::PluginDescription> PluginsList = PluginManager->GetPluginList( Filter );
+        Daqster::QBasePluginObject* obj;
+        foreach( auto Name, args ) {
+            foreach ( const Daqster::PluginDescription& Desc, PluginsList) {
+                qDebug()<< "Desc: "<< Desc.GetProperty(PLUGIN_NAME).toString() << "\nName: "<<Name;
+                if( 0 == Desc.GetProperty(PLUGIN_NAME).toString().compare(Name) ){
+                    obj = PluginManager->CreatePluginObject( Desc.GetProperty(PLUGIN_HASH).toString(), NULL );
+                    if( NULL != obj ){
+                        obj->Initialize();
+                        QApplication::setApplicationName(Desc.GetProperty(PLUGIN_HASH).toString());
+                    }
+                }
+            }
+        }
+        res = a.exec();
+    }
+    else{
+
+        // MainWindow w;
+        // w.show();
+        qDebug() << __BASE_FILE__  << __FILE__;
+        AppToolbar AppBar;
+        AppBar.show();
+        res = a.exec();
+    }
+
     //Daqster::QPluginManager::instance()->ShutdownPluginManager();
     return res;
 }

@@ -17,17 +17,16 @@ INCLUDEPATH += ../../frame_work/base/src/include
 FRAMEWORK_LIB_NAME = frame_work
 
 SOURCES += main.cpp\
-        mainwindow.cpp \
-    testplugincreation.cpp \
     AppToolbar.cpp \
     ApplicationsManager.cpp
-HEADERS  += mainwindow.h \
-    testplugincreation.h \
+HEADERS  += \
     AppToolbar.h \
-    ApplicationsManager.h
+    ApplicationsManager.h \
+    main.h
 
 
 LIBS += -L../../../bin/libs  -L../../../bin/extlibs
+CONFIG+= c++11
 
 win32 {
     # On Windows you can't mix release and debug libraries.
@@ -38,7 +37,6 @@ win32 {
 
 #    CONFIG           += debug_and_release
 #    CONFIG           += build_all
-    CONFIG+= c++11
     CONFIG(debug, debug|release) {
         TARGET = $${TARGET}d
         LIBS        += -l$${FRAMEWORK_LIB_NAME}d
