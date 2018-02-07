@@ -4,6 +4,7 @@
 #include<AppToolbar.h>
 #include<QBasePluginObject.h>
 #include<QCommandLineParser>
+#include"ApplicationsManager.h"
 
 #include"main.h"
 
@@ -102,13 +103,19 @@ int main(int argc, char *argv[])
     PluginsInit();
 qDebug() << "ARGS: " << args;
     if( args.count() > 0 ){
-
         Daqster::PluginFilter Filter;
         Filter.AddFilter( PLUGIN_TYPE, QString("%1").arg(Daqster::PluginDescription::APPLICATION_PLUGIN) );
         QList<Daqster::PluginDescription> PluginsList = PluginManager->GetPluginList( Filter );
-        Daqster::QBasePluginObject* obj;
-        foreach( auto Name, args ) {
-            foreach ( const Daqster::PluginDescription& Desc, PluginsList) {
+
+        if( args.count() > 1 ){
+            foreach( auto Name, args ) {
+                ApplicationsManager::Instance().StartApplication( "./Daqster",QStringList(Name) );
+            }
+        }
+        else{
+            QString Name = args[0];
+            Daqster::QBasePluginObject* obj = NULL;
+            foreach ( const Daqster::PluginDescription& Desc, PluginsList ) {
                 qDebug()<< "Desc: "<< Desc.GetProperty(PLUGIN_NAME).toString() << "\nName: "<<Name;
                 if( 0 == Desc.GetProperty(PLUGIN_NAME).toString().compare(Name) ){
                     obj = PluginManager->CreatePluginObject( Desc.GetProperty(PLUGIN_HASH).toString(), NULL );

@@ -29,8 +29,11 @@ public:
 public slots:
     void StartApplication(const QString& Name, const QStringList & Arguments, QProcess::OpenMode Mode = QProcess::ReadWrite );
 
+    void KillAll();
 signals:
     void ApplicationEvent(const ApplicationsManager::AppHndl_t &AppHnd, const ApplicationsManager::AppEvent_t &ev);
+protected slots:
+    void AppFinished(int exitCode, QProcess::ExitStatus exitStatus);
 private:
     ApplicationsManager();
     AppHndl_t nextHndl;

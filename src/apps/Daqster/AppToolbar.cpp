@@ -38,16 +38,24 @@ AppToolbar::AppToolbar(QWidget *parent) :
     setWindowFlags(Qt::FramelessWindowHint);
     //dynamic_cast<QApplication*>(QApplication::instance())->desktop();
     move(0,0);
-    QObject::connect( this,
-                      SIGNAL(PleaseRunApplication(QString,QStringList,QProcess::OpenMode)),
-                      &ApplicationsManager::Instance(),
-                      SLOT(StartApplication(QString,QStringList,QProcess::OpenMode))
-                      );
-    QObject::connect( &ApplicationsManager::Instance(),
-                      SIGNAL(ApplicationEvent(ApplicationsManager::AppHndl_t,ApplicationsManager::AppEvent_t)),
-                      this,
-                      SLOT(ApplicationEvent(ApplicationsManager::AppHndl_t,ApplicationsManager::AppEvent_t))
-                      );
+    connect( this,
+             SIGNAL(PleaseRunApplication(QString,QStringList,QProcess::OpenMode)),
+             &ApplicationsManager::Instance(),
+             SLOT(StartApplication(QString,QStringList,QProcess::OpenMode))
+             );
+
+    connect( &ApplicationsManager::Instance(),
+             SIGNAL(ApplicationEvent(ApplicationsManager::AppHndl_t,ApplicationsManager::AppEvent_t)),
+             this,
+             SLOT(ApplicationEvent(ApplicationsManager::AppHndl_t,ApplicationsManager::AppEvent_t))
+             );
+
+    connect( tButton,
+             SIGNAL(clicked(bool)),
+             &ApplicationsManager::Instance(),
+             SLOT(KillAll())
+             );
+
     ApplicationsManager::Instance().setParent( this );
 }
 
@@ -63,10 +71,11 @@ void AppToolbar::ApplicationEvent(const ApplicationsManager::AppHndl_t ApHndl, c
     if( ApplicationsManager::Instance().GetAppDescryptor( ApHndl , Desc) ){
         switch (ev) {
         case ApplicationsManager::APP_STARTED:{
-            QAction* actionNew = new QAction( Desc.Name,this);//TODO: Fix name to be the Argument list
-            actionNew->setObjectName( Desc.Name );
+            QString appName = Desc.Arguments[0];
+            QAction* actionNew = new QAction(appName ,this);//TODO: Fix name to be the Argument list
+            actionNew->setData( appName );
             Daqster::PluginDescription val;
-            if( GetAppPluginDescription(Desc.Name,val)){
+            if( GetAppPluginDescription( appName ,val)){
                 actionNew->setIcon(val.GetIcon());
             }
             m_AppMenu->addAction(actionNew);
