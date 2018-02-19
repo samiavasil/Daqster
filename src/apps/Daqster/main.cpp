@@ -58,6 +58,9 @@ void PluginsInit()
     }
 }
 
+//#include "RestApi.h"
+#include<QLibrary>
+
 int main(int argc, char *argv[])
 {
     int res = 0;
@@ -78,7 +81,13 @@ int main(int argc, char *argv[])
     parser.addVersionOption();
     parser.addPositionalArgument("apps ...", QCoreApplication::translate("main", "One ore more Application plugin names which will be automaticaly started"));
 
-
+//QLibrary lib("RestApi"); // QLibrary will try the platform's library suffix
+//if(!lib.isLoaded())
+//if (!lib.load()) {
+//  qDebug() << "Library load error:" << lib.errorString();
+//   exit(-1);
+//}
+    //RestApi::Api();//.SendRequest( RestApi::GET, "ui->urlEdit->text()" );
     // An option with a value
     QCommandLineOption targetDirectoryOption(QStringList() << "t" << "target-directory",
                                              QCoreApplication::translate("main", "Copy all source files into <directory>."),
@@ -95,7 +104,7 @@ int main(int argc, char *argv[])
 
     Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
     /*For correct plugoins shutdown behaviour QPluginManager initialization should be called. */
-    if( PluginManager->Initialize() ){
+    if( !PluginManager->Initialize() ){
         DEBUG << "QPluginManager Initialization Error" ;
     }
 

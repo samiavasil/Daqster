@@ -12,6 +12,8 @@
 #include<QBasePluginObject.h>
 #include<QTimer>
 #include<QCursor>
+#include"RestApi.h"
+#include"RestApiTester.h"
 
 QTimer timer;
 
@@ -169,6 +171,9 @@ void QtCoinTraderWindow::on_actionOpen_triggered()
 //    AppToolbar* tool = new AppToolbar();
 //    connect(tool,SIGNAL(PleaseRunApplication(QString)),this, SLOT(RunApplication(QString)));
 //    tool->show();
+    RestApiTester dlg(this);
+    dlg.setWindowFlags(Qt::Window);
+    dlg.exec();
 }
 
 void QtCoinTraderWindow::RunApplication(const QString& AppName )

@@ -4,6 +4,7 @@
 #
 #-------------------------------------------------
 QT       += core gui widgets
+#QT += network
 OBJECTS_DIR  = $$PWD/Build
 MOC_DIR      = $$PWD/Build
 RCC_DIR      = $$PWD/Build
@@ -14,6 +15,7 @@ TARGET   = Daqster
 TEMPLATE = app
 DESTDIR = ../../../bin
 INCLUDEPATH += ../../frame_work/base/src/include
+INCLUDEPATH += ../../plugins/QtCoinTrader/RestApi
 FRAMEWORK_LIB_NAME = frame_work
 
 SOURCES += main.cpp\
@@ -26,6 +28,7 @@ HEADERS  += \
 
 
 LIBS += -L../../../bin/libs  -L../../../bin/extlibs
+#-lRestApi
 CONFIG+= c++11
 
 win32 {

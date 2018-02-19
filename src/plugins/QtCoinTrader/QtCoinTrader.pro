@@ -4,8 +4,10 @@
 #
 #-------------------------------------------------
 include(../../include/paths_cfg.pri)
+include(qtrest/com_github_kafeg_qtrest.pri)
 DESTDIR      = $${PLUGINS_DEST_DIR}
-QT          += core gui
+QT          += core gui network qml
+QT += webenginewidgets
 TEMPLATE     = lib
 INCLUDEPATH += ../
 INCLUDEPATH += $${FRAMEWORK_INCLUDES_DIR}
@@ -20,6 +22,9 @@ LIBS        += -L$${EXT_LIBS_DIR} -L$${LIBS_DIR}
 
 TEMPLATE     = lib
 CONFIG      += plugin
+CONFIG      += create_prl
+CONFIG      += link_prl
+
 DEFINES     += BUILD_AVAILABLE_PLUGIN
 
 TARGET   = QtCoinTraderPlugin
@@ -27,15 +32,21 @@ TARGET   = QtCoinTraderPlugin
 SOURCES += \
     QtCoinTraderInterface.cpp \
     QtCoinTraderPluginObject.cpp \
-    QtCoinTraderWindow.cpp
+    QtCoinTraderWindow.cpp \
+    RestApiTester.cpp \
+    RequestForm.cpp
 
 HEADERS += \
     QtCoinTraderInterface.h \
     QtCoinTraderPluginObject.h \
-    QtCoinTraderWindow.h
+    QtCoinTraderWindow.h \
+    RestApiTester.h \
+    RequestForm.h
 
 FORMS += \
-    mainwindow.ui
+    mainwindow.ui \
+    restapitester.ui \
+    RequestForm.ui
 
 RESOURCES += \
     QtCoinTrader.qrc
@@ -62,3 +73,10 @@ win32 {
 }else{
     LIBS        += -l$${FRAMEWORK_LIB_NAME}
 }
+
+win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/RestApi/release/ -lRestApi
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/RestApi/debug/ -lRestApi
+else:unix: LIBS += -L$$OUT_PWD/RestApi/ -lRestApi
+
+INCLUDEPATH += $$PWD/RestApi
+DEPENDPATH += $$PWD/RestApi
