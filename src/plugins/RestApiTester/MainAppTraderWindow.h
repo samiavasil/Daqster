@@ -9,13 +9,13 @@ class MainWindow;
 }
 
 
-class QtCoinTraderWindow : public QMainWindow
+class MainAppTraderWindow : public QMainWindow
 {
     Q_OBJECT
     
 public:
-    explicit QtCoinTraderWindow(QWidget *parent = 0);
-    virtual ~QtCoinTraderWindow();
+    explicit MainAppTraderWindow(QWidget *parent = 0);
+    virtual ~MainAppTraderWindow();
     void closeEvent(QCloseEvent *event);
 
 private slots:

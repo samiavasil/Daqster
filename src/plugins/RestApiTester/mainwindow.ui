@@ -576,7 +576,7 @@ QCheckBox::indicator:disabled, QRadioButton::indicator:disabled
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionNew">
    <property name="icon">
-    <iconset resource="QtCoinTrader.qrc">
+    <iconset resource="RestApiTester.qrc">
      <normaloff>:/toolbar/icons/icons/new.png</normaloff>:/toolbar/icons/icons/new.png</iconset>
    </property>
    <property name="text">
@@ -588,7 +588,7 @@ QCheckBox::indicator:disabled, QRadioButton::indicator:disabled
   </action>
   <action name="actionOpen">
    <property name="icon">
-    <iconset resource="QtCoinTrader.qrc">
+    <iconset resource="RestApiTester.qrc">
      <normaloff>:/toolbar/icons/icons/open.png</normaloff>:/toolbar/icons/icons/open.png</iconset>
    </property>
    <property name="text">
@@ -600,7 +600,7 @@ QCheckBox::indicator:disabled, QRadioButton::indicator:disabled
   </action>
   <action name="actionSave">
    <property name="icon">
-    <iconset resource="QtCoinTrader.qrc">
+    <iconset resource="RestApiTester.qrc">
      <normaloff>:/toolbar/icons/icons/save.png</normaloff>:/toolbar/icons/icons/save.png</iconset>
    </property>
    <property name="text">
@@ -676,7 +676,8 @@ QCheckBox::indicator:disabled, QRadioButton::indicator:disabled
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <resources>
-  <include location="QtCoinTrader.qrc"/>
+  <include location="RestApiTester.qrc"/>
+  <include location="RestApiTester.qrc"/>
  </resources>
  <connections/>
 </ui>

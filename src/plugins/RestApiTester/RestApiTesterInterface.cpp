@@ -1,18 +1,18 @@
-#include "QtCoinTraderInterface.h"
+#include "RestApiTesterInterface.h"
 #include "debug.h"
-#include "QtCoinTraderPluginObject.h"
+#include "RestApiTesterPluginObject.h"
 
-DaqsterTemplateInterface::DaqsterTemplateInterface(QObject* parent ):QDaqsterPluginInterface(parent)
+RestApiTesterInterface::RestApiTesterInterface(QObject* parent ):QDaqsterPluginInterface(parent)
 {
-    Q_INIT_RESOURCE(QtCoinTrader);
+    Q_INIT_RESOURCE(RestApiTester);
     DEBUG << "DaqsterTeplateInterface object create";
-    QIcon icon( QString::fromUtf8(":/QtCoinTrader.png") );
+    QIcon icon( QString::fromUtf8(":/RestApiTester.png") );
     m_PluginDescryptor.SetIcon( icon );
-    m_PluginDescryptor.SetProperty( PLUGIN_NAME, "QtCoinTrader" );
+    m_PluginDescryptor.SetProperty( PLUGIN_NAME, "RestApiTester" );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE_NAME, "This is a plugin application for coin trading" );
     m_PluginDescryptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
-    m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "QtCoinTrader Plugin" );
+    m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "RestApiTester Plugin" );
     char docstr[] = \
     "This is a basic Daqster plugin template and can be used for implementing a new type daqster plugin \n\
     \n\
@@ -22,17 +22,14 @@ DaqsterTemplateInterface::DaqsterTemplateInterface(QObject* parent ):QDaqsterPlu
     m_PluginDescryptor.SetProperty( PLUGIN_AUTHOR, "Vasil Vasilev" );
 }
 
-DaqsterTemplateInterface::~DaqsterTemplateInterface(  )
+RestApiTesterInterface::~RestApiTesterInterface(  )
 {
     DEBUG << "DaqsterTemplateInterface object delete";
 }
 
-
-
-
-Daqster::QBasePluginObject *DaqsterTemplateInterface::CreatePluginInternal(QObject *Parrent)
+Daqster::QBasePluginObject *RestApiTesterInterface::CreatePluginInternal(QObject *Parrent)
 {
-    QtCoinTraderPluginObject* Obj = new QtCoinTraderPluginObject(Parrent);
+    RestApiTesterPluginObject* Obj = new RestApiTesterPluginObject(Parrent);
     if( NULL != Obj ){
         Obj->SetName( m_PluginDescryptor.GetProperty(PLUGIN_NAME).toString() );
     }
@@ -40,7 +37,7 @@ Daqster::QBasePluginObject *DaqsterTemplateInterface::CreatePluginInternal(QObje
 }
 
 #if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
-Q_EXPORT_PLUGIN2(QtCoinTraderPlugin, QtCoinTraderInterface)
+Q_EXPORT_PLUGIN2(RestApiTesterPlugin, RestApiTesterInterface)
 #endif
 
 

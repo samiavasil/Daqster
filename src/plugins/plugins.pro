@@ -2,7 +2,10 @@ TEMPLATE = subdirs
 #BUILD_TEST_PLUGINS = TESTS
 
 SUBDIRS += QtCoinTrader \
-    QtCoinTrader/RestApi
+           RestApiTester \
+           RestApiTester/RestApi
+
+
 CONFIG+= c++11
 
 if( defined( BUILD_TEST_PLUGINS,var ) ){
@@ -12,4 +15,7 @@ if( defined( BUILD_TEST_PLUGINS,var ) ){
              tests/plugin_uggly_test \
 
 }
+
+RESOURCES += \
+    RestApiTester/RestApiTester.qrc
 

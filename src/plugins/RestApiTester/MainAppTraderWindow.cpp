@@ -1,5 +1,5 @@
-#include "QtCoinTraderWindow.h"
-#include "QtCoinTraderWindow.h"
+#include "MainAppTraderWindow.h"
+#include "MainAppTraderWindow.h"
 #include "debug.h"
 #include "QPluginManager.h"
 //#include"testplugincreation.h"
@@ -17,7 +17,7 @@
 
 QTimer timer;
 
-QtCoinTraderWindow::QtCoinTraderWindow(QWidget *parent) :
+MainAppTraderWindow::MainAppTraderWindow(QWidget *parent) :
     QMainWindow(parent),ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
@@ -38,40 +38,40 @@ QtCoinTraderWindow::QtCoinTraderWindow(QWidget *parent) :
 }
 
 
-QtCoinTraderWindow::~QtCoinTraderWindow()
+MainAppTraderWindow::~MainAppTraderWindow()
 {
     if( ui ){
         delete ui;
     }
 }
 
-void QtCoinTraderWindow::CursorShow(){
+void MainAppTraderWindow::CursorShow(){
     QPoint pos = QCursor::pos();
     QString st = QString("Position: %1,%2 ").arg(pos.x()).arg(pos.y());
     ui->lineEdit->setText( st);
 }
 
-void QtCoinTraderWindow::onUndoAvailable()
+void MainAppTraderWindow::onUndoAvailable()
 {
     //emit undoAvailable(_designer->core()->formWindowManager()->actionUndo()->isEnabled());
 }
 
-void QtCoinTraderWindow::onRedoAvailable()
+void MainAppTraderWindow::onRedoAvailable()
 {
     //emit redoAvailable(_designer->core()->formWindowManager()->actionRedo()->isEnabled());
 }
 
-void QtCoinTraderWindow::onCopyAvailable()
+void MainAppTraderWindow::onCopyAvailable()
 {
     //emit copyAvailable(_designer->core()->formWindowManager()->actionCopy()->isEnabled());
 }
 
-void QtCoinTraderWindow::onPasteAvailable()
+void MainAppTraderWindow::onPasteAvailable()
 {
     //emit pasteAvailable(_designer->core()->formWindowManager()->actionPaste()->isEnabled());
 }
 
-void QtCoinTraderWindow::mouseMoveEvent( QMouseEvent * event ){
+void MainAppTraderWindow::mouseMoveEvent( QMouseEvent * event ){
 
     if( event ){
         if( !menuBar()->isVisible() ){
@@ -89,12 +89,12 @@ void QtCoinTraderWindow::mouseMoveEvent( QMouseEvent * event ){
     QMainWindow::mouseMoveEvent(event);
 }
 
-void QtCoinTraderWindow::on_actionNew_triggered()
+void MainAppTraderWindow::on_actionNew_triggered()
 {
   Daqster::QPluginManager::instance()->ShowPluginManagerGui(this);
 }
 
-void QtCoinTraderWindow::on_actionFullScreen_triggered(bool checked)
+void MainAppTraderWindow::on_actionFullScreen_triggered(bool checked)
 {
     //static QMdiSubWindow* old;
     if( checked ){
@@ -106,7 +106,7 @@ void QtCoinTraderWindow::on_actionFullScreen_triggered(bool checked)
 
 }
 
-void QtCoinTraderWindow::on_actionHideToolbar_triggered(bool checked)
+void MainAppTraderWindow::on_actionHideToolbar_triggered(bool checked)
 {
     if( checked ){
         ui->mainToolBar->hide();
@@ -119,7 +119,7 @@ void QtCoinTraderWindow::on_actionHideToolbar_triggered(bool checked)
 }
 
 
-void QtCoinTraderWindow::on_actionHideMainMenu_triggered(bool checked)
+void MainAppTraderWindow::on_actionHideMainMenu_triggered(bool checked)
 {
     if( checked ){
         menuBar()->hide();
@@ -129,7 +129,7 @@ void QtCoinTraderWindow::on_actionHideMainMenu_triggered(bool checked)
     }
 }
 
-void QtCoinTraderWindow::on_actionSave_triggered()
+void MainAppTraderWindow::on_actionSave_triggered()
 {
     Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
     if( NULL != PluginManager )
@@ -150,7 +150,7 @@ void QtCoinTraderWindow::on_actionSave_triggered()
     }
 }
 
-void QtCoinTraderWindow::closeEvent(QCloseEvent *event)
+void MainAppTraderWindow::closeEvent(QCloseEvent *event)
 {
         /*if (maybeSave()) {
             writeSettings();
@@ -166,7 +166,7 @@ void QtCoinTraderWindow::closeEvent(QCloseEvent *event)
     }
 }
 
-void QtCoinTraderWindow::on_actionOpen_triggered()
+void MainAppTraderWindow::on_actionOpen_triggered()
 {
 //    AppToolbar* tool = new AppToolbar();
 //    connect(tool,SIGNAL(PleaseRunApplication(QString)),this, SLOT(RunApplication(QString)));
@@ -176,7 +176,7 @@ void QtCoinTraderWindow::on_actionOpen_triggered()
     dlg.exec();
 }
 
-void QtCoinTraderWindow::RunApplication(const QString& AppName )
+void MainAppTraderWindow::RunApplication(const QString& AppName )
 {
     qDebug() << "Run Application: " << AppName;
 }

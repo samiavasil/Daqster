@@ -15,7 +15,7 @@ TARGET   = Daqster
 TEMPLATE = app
 DESTDIR = ../../../bin
 INCLUDEPATH += ../../frame_work/base/src/include
-INCLUDEPATH += ../../plugins/QtCoinTrader/RestApi
+INCLUDEPATH += ../../plugins/RestApiTester/RestApi  #DELL ME
 FRAMEWORK_LIB_NAME = frame_work
 
 SOURCES += main.cpp\

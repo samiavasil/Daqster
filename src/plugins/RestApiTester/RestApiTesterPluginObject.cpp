@@ -1,19 +1,19 @@
-#include "QtCoinTraderPluginObject.h"
+#include "RestApiTesterPluginObject.h"
 #include "QPluginManager.h"
 #include "debug.h"
-#include<QMainWindow>
+#include<MainAppTraderWindow.h>
 
-QtCoinTraderPluginObject::QtCoinTraderPluginObject(QObject *Parent):QBasePluginObject ( Parent  ),m_Win(NULL){
+RestApiTesterPluginObject::RestApiTesterPluginObject(QObject *Parent):QBasePluginObject ( Parent  ),m_Win(NULL){
 
 }
 
-QtCoinTraderPluginObject::~QtCoinTraderPluginObject()
+RestApiTesterPluginObject::~RestApiTesterPluginObject()
 {
     DeInitialize();
 }
 
 
-void QtCoinTraderPluginObject::SetName(const QString &name)
+void RestApiTesterPluginObject::SetName(const QString &name)
 {
     if( m_Win )
     {
@@ -21,23 +21,10 @@ void QtCoinTraderPluginObject::SetName(const QString &name)
     }
 }
 
-#include <QQmlApplicationEngine>
-
- #include <QQmlApplicationEngine>
-#include <QQuickStyle>
-bool QtCoinTraderPluginObject::Initialize()
+bool RestApiTesterPluginObject::Initialize()
 {
-
-
-//    m_Win = new QMainWindow();
-//    m_Win->show();
- QQuickStyle::setStyle("Material");
-QStringList lis = QQuickStyle::availableStyles();
-    QQmlApplicationEngine* engine = new QQmlApplicationEngine(m_Win);
-    //engine.rootContext()->setContextProperty("awesome", awesome);
-    engine->load(QUrl(QStringLiteral("qrc:/qml/About.qml")));
-
-
+    m_Win = new MainAppTraderWindow();
+    m_Win->show();
     /* m_Win = new QMainWindow();
     QLabel* label = new QLabel( );
     label->setText("QTCoinTrader Plugin");
@@ -50,7 +37,7 @@ QStringList lis = QQuickStyle::availableStyles();
     connect( button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()) );*/
 }
 
-void QtCoinTraderPluginObject::DeInitialize()
+void RestApiTesterPluginObject::DeInitialize()
 {
     if( m_Win ){
         m_Win->deleteLater();
@@ -58,7 +45,7 @@ void QtCoinTraderPluginObject::DeInitialize()
     DEBUG_V << "TemplatePluginObject destroyed";
 }
 
-void QtCoinTraderPluginObject::MainWinDestroyed( QObject* obj )
+void RestApiTesterPluginObject::MainWinDestroyed( QObject* obj )
 {
     m_Win = NULL;
     deleteLater();
@@ -67,7 +54,7 @@ void QtCoinTraderPluginObject::MainWinDestroyed( QObject* obj )
 
 }
 
-void QtCoinTraderPluginObject::ShowPlugins()
+void RestApiTesterPluginObject::ShowPlugins()
 {
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
     if( NULL != pm )

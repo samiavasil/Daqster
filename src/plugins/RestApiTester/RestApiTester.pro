@@ -4,10 +4,8 @@
 #
 #-------------------------------------------------
 include(../../include/paths_cfg.pri)
-include(../../external_libs/qtrest/com_github_kafeg_qtrest.pri)
 DESTDIR      = $${PLUGINS_DEST_DIR}
-QT          += core gui network qml
-QT += quickcontrols2
+QT          += core gui network
 QT += webenginewidgets
 TEMPLATE     = lib
 INCLUDEPATH += ../
@@ -28,24 +26,31 @@ CONFIG      += link_prl
 
 DEFINES     += BUILD_AVAILABLE_PLUGIN
 
-TARGET   = QtCoinTraderPlugin
+TARGET   = RestApiTesterPlugin
 
 SOURCES += \
-    QtCoinTraderInterface.cpp \
-    QtCoinTraderPluginObject.cpp
+    RestApiTester.cpp \
+    RequestForm.cpp \
+    RestApiTesterInterface.cpp \
+    RestApiTesterPluginObject.cpp \
+    MainAppTraderWindow.cpp
 
 HEADERS += \
-    QtCoinTraderInterface.h \
-    QtCoinTraderPluginObject.h
+    RestApiTester.h \
+    RequestForm.h \
+    RestApiTesterInterface.h \
+    RestApiTesterPluginObject.h \
+    MainAppTraderWindow.h
 
-
-FORMS +=
+FORMS += \
+    mainwindow.ui \
+    restapitester.ui \
+    RequestForm.ui
 
 RESOURCES += \
-    QtCoinTrader.qrc
+    RestApiTester.qrc
 
-OTHER_FILES += \
-    QtCoinTraderInterface.json
+OTHER_FILES +=
 
 win32 {
     # On Windows you can't mix release and debug libraries.
@@ -75,6 +80,4 @@ INCLUDEPATH += $$PWD/RestApi
 DEPENDPATH += $$PWD/RestApi
 
 DISTFILES += \
-    qml/About.qml \
-    qml/SideBar.qml \
-    qml/SideBarDelegate.qml
+    RestApiTester.json

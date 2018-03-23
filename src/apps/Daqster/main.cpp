@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
     //   qInstallMessageHandler(m.myMessageOutput);
 #endif
     //TODO: Check argument parser: http://doc.qt.io/qt-5/qcommandlineparser.html
+QApplication::setAttribute(Qt::AA_ShareOpenGLContexts,true );
     QApplication a(argc, argv);
     QApplication::setApplicationName("Daqster");
     QApplication::setApplicationVersion("0.1");
