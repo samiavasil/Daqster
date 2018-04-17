@@ -32,17 +32,23 @@ TARGET   = QtCoinTraderPlugin
 
 SOURCES += \
     QtCoinTraderInterface.cpp \
-    QtCoinTraderPluginObject.cpp
+    QtCoinTraderPluginObject.cpp \
+    api/ExchangeApi.cpp \
+    api/models/ExchangeModel.cpp
 
 HEADERS += \
     QtCoinTraderInterface.h \
-    QtCoinTraderPluginObject.h
+    QtCoinTraderPluginObject.h \
+    api/ExchangeApi.h \
+    api/models/ExchangeModel.h
 
 
 FORMS +=
 
 RESOURCES += \
-    QtCoinTrader.qrc
+    QtCoinTrader.qrc \
+    qml/qml_example/qml.qrc \
+    assets/assets.qrc
 
 OTHER_FILES += \
     QtCoinTraderInterface.json
@@ -77,4 +83,17 @@ DEPENDPATH += $$PWD/RestApi
 DISTFILES += \
     qml/About.qml \
     qml/SideBar.qml \
-    qml/SideBarDelegate.qml
+    qml/SideBarDelegate.qml \
+    qml/qml_example/About.qml \
+    qml/qml_example/ActualCouponsList.qml \
+    qml/qml_example/ArchiveCouponsList.qml \
+    qml/qml_example/CouponDetail.qml \
+    qml/qml_example/CouponsDetailDelegate.qml \
+    qml/qml_example/CouponsList.qml \
+    qml/qml_example/CouponsListDelegate.qml \
+    qml/qml_example/main.qml \
+    qml/qml_example/Search.qml \
+    qml/qml_example/SearchCategories.qml \
+    qml/qml_example/Statistics.qml \
+    qml/qml_example/includes/Log.js \
+    qml/qml_example/includes/Utils.qml
