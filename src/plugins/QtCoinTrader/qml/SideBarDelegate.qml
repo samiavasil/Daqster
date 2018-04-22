@@ -1,48 +1,53 @@
 import QtQuick 2.0
 import QtQuick.Controls 2.3
 ItemDelegate {
-    property string value: ""
-  //  id: sideBarDelegate
-    width: parent.width
 
+    property string value: ""
+    property alias imgSource: image.source
+
+    height: 80
     highlighted: ListView.isCurrentItem
     anchors.horizontalCenter: parent.horizontalCenter
+
+    Image {
+        id: image
+        anchors.top: parent.top
+        anchors.topMargin: 17
+        anchors.horizontalCenterOffset: 0
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 39
+        fillMode: Image.PreserveAspectFit
+    }
     Text{
+        id: delText
         color: "#e5ea19"
         text: value
+        anchors.right: parent.right
+        anchors.rightMargin: 0
+        anchors.left: parent.left
+        anchors.leftMargin: 0
+        anchors.top: parent.top
+        anchors.topMargin: 55
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 0
         verticalAlignment: Text.AlignVCenter
-        font.pointSize: 12
-        font.family: "Times New Roman"
+
+        font.family: "Times New Roman";
+        font.pointSize: 10;
+        font.bold: true
+
+
         fontSizeMode: Text.HorizontalFit
-        anchors.fill: parent
         horizontalAlignment: Text.AlignHCenter
 
 
     }
 
-    //             onClicked: {
-    //                 if (listView.currentIndex != index) {
-    //                     listView.currentIndex = index
-    //                     stackView.replace(model.source)
-    //                 }
-    //                 drawer.close()
-    //             }
-}
-
-//Item {
-//    id: sideBarDelegate
-// anchors.fill: parent
-//    width: parent.width
-//    Text {
-//        property string name: title
-//        color: "#ec34f0"
-
-//        font.bold: true
-//        horizontalAlignment: Text.AlignHCenter
-//        font.pointSize: 10
-//        text: "name"
-//        styleColor: "#f31515"
+//    MouseArea {
 //        anchors.fill: parent
+//        onClicked: list.currentIndex = index
 //    }
-//}
+
+}
 

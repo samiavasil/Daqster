@@ -96,4 +96,7 @@ DISTFILES += \
     qml/qml_example/SearchCategories.qml \
     qml/qml_example/Statistics.qml \
     qml/qml_example/includes/Log.js \
-    qml/qml_example/includes/Utils.qml
+    qml/qml_example/includes/Utils.qml \
+    qml/MdiArrea.qml \
+    qml/ViewModel.qml \
+    qml/ViewWin.qml

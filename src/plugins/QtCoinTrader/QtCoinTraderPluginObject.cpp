@@ -102,8 +102,8 @@ QStringList lis = QQuickStyle::availableStyles();
     QQmlApplicationEngine* engine = new QQmlApplicationEngine(m_Win);
     //engine.rootContext()->setContextProperty("awesome", awesome);
 
-    // engine->load(QUrl(QStringLiteral("qrc:/qml/About.qml")));
-    engine->load(QUrl(QStringLiteral("qrc:/main.qml")));
+    engine->load(QUrl(QStringLiteral("qrc:/qml/About.qml")));
+  //   engine->load(QUrl(QStringLiteral("qrc:/main.qml")));
 
 
     /* m_Win = new QMainWindow();

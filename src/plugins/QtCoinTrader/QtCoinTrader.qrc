@@ -4,6 +4,9 @@
         <file>qml/About.qml</file>
         <file>qml/SideBar.qml</file>
         <file>qml/SideBarDelegate.qml</file>
+        <file>qml/MdiArrea.qml</file>
+        <file>qml/ViewWin.qml</file>
+        <file>qml/ViewModel.qml</file>
     </qresource>
     <qresource prefix="/toolbar/icons">
         <file>icons/exit.png</file>
