@@ -10,10 +10,16 @@ GridView{
     property int visibleNum: maxCol*maxRow
     property int visRow:     ((visibleNum/maxCol) + ( visibleNum%maxCol ? 1 : 0 ))
     property int visCol:  ( (visibleNum/visRow) + ( visibleNum%visRow ? 1 : 0 ) )
+    property alias modelGrid: delModel.model
 
+    function  addToModel( a ) {
+       // delModel.model.append(  a )
 
-    function  addToModel(   a ) {
-        lModel.append(  a )
+    }
+
+    function setGroups(index) {
+        console.log('set Groups for', index)
+        delModel.items.setGroups(index, 1, ['items', 'tested'])
     }
 
     keyNavigationWraps: true
@@ -25,30 +31,46 @@ GridView{
     CheckBox{
         checked: false
         onClicked: {
-            lModel.append(   { colorM: "orange" } )
+            modelGrid.append(   { colorM: "orange" } )
         }
     }
 
     model: DelegateModel{
+         id : delModel
 
-        model:ViewModel {
-            id: lModel
+//        model:ViewModel  {
+//            id: lModel
 
-            //                ListElement { colorM: "orange"
-            //                              textL:   "test"
-            //                }
-        }
+//            //                ListElement { colorM: "orange"
+//            //                              textL:   "test"
+//            //                }
+//        }
 
+        groups : [DelegateModelGroup {name: "tested"}]
 
+        filterOnGroup:"tested"
 
         delegate:  ViewWin{
+            id: item
             width: grid.cellWidth
             height: grid.cellHeight
-            text:  textL
-            color: colorM
-            source: sourceM
+            text:   title
+//            text: {
+//                var text = "Name: " + title
+//                if ( item.DelegateModel.inTested )
+//                    text += " (" + item.DelegateModel.testedIndex + ")"
+//                item.DelegateModel.inTested =!item.DelegateModel.inTested
+//                return text;
+//            }
+            color:  colorM
+            source: imgSource
+
         }
 
+        //     drawer.close()
+//        console.log(model, "  ", model.inTested )
+//        model.inTested= !model.inTested
+//        console.log("model.inTested: ", model.inTested )
     }
 
 }

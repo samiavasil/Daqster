@@ -42,11 +42,7 @@ ApplicationWindow {
             console.log("URAAAAAAAAAAAA ", sideBar.model.get( sideBar.currentIndex ).colorM )
             console.log("URAAAAAAAAAAAA ", sideBar.model.get( sideBar.currentIndex ).title )
             console.log("URAAAAAAAAAAAA ", sideBar.model.get( sideBar.currentIndex ).imgSource )
-            mdiArea.addToModel( { "colorM" : sideBar.model.get( sideBar.currentIndex ).colorM,
-                                   "textL" : sideBar.model.get( sideBar.currentIndex ).title,
-                                   "sourceM" : sideBar.model.get( sideBar.currentIndex ).imgSource
-                                }
-                               )
+            mdiArea.setGroups(sideBar.currentIndex)
         }
     }
 
@@ -106,8 +102,6 @@ ApplicationWindow {
     }
 
 
-
-
     SideBar {
         id: sideBar
         width: 145
@@ -121,48 +115,8 @@ ApplicationWindow {
         visible: toolButton.checked
 
 
-        model: ListModel {
-            ListElement { title: qsTr("Bitfinex")
-                imgSource: "https://s2.coinmarketcap.com/static/img/exchanges/32x32/37.png"
-                colorM: "magenta"
-            } //; source: "qrc:/ArchiveCouponsList.qml"
-
-            ListElement { title: qsTr("Binance")
-                imgSource: "https://s2.coinmarketcap.com/static/img/exchanges/32x32/270.png"
-                colorM: "chartreuse"
-            } //; source: "qrc:/About.qml" }
-            ListElement { title: qsTr("Bitinka")
-                imgSource: "https://s2.coinmarketcap.com/static/img/exchanges/32x32/327.png"
-                colorM: "indigo"
-            }
-            ListElement { title: qsTr("Bitstamp")
-                imgSource: "https://s2.coinmarketcap.com/static/img/exchanges/32x32/70.png"
-                colorM: "orange"
-            }
-            ListElement { title: qsTr("Bittrex")
-                imgSource: "https://s2.coinmarketcap.com/static/img/exchanges/32x32/22.png"
-                colorM: "purple"
-            }   //; source: "qrc:/ArchiveCouponsList.qml" }
-            ListElement { title: qsTr("Kraken")
-                imgSource: "https://s2.coinmarketcap.com/static/img/exchanges/32x32/24.png"
-                colorM: "cyan"
-            }
-            ListElement { title: qsTr("OKEx_")
-                imgSource: "https://s2.coinmarketcap.com/static/img/exchanges/32x32/294.png"
-                colorM: "magenta"
-            }
-            ListElement { title: qsTr("HitBTC")
-                imgSource: "https://s2.coinmarketcap.com/static/img/exchanges/32x32/42.png"
-                colorM: "indigo"
-            }
-            ListElement { title: qsTr("Lbank")
-                imgSource: "https://s2.coinmarketcap.com/static/img/exchanges/32x32/333.png"
-                colorM: "purple"
-            }
-            ListElement { title: qsTr("EXX")
-                imgSource: "https://s2.coinmarketcap.com/static/img/exchanges/32x32/331.png"
-                colorM: "cyan"
-            }
+        model: ViewModel {
+             id: sideBarModel
 
         }
 
@@ -177,6 +131,7 @@ ApplicationWindow {
         anchors.leftMargin: sideBar.visible?sideBar.width:0
         anchors.top: parent.top
         anchors.right: parent.right
+        modelGrid: sideBarModel
     }
 
 
