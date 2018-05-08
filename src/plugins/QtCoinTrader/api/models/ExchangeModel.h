@@ -4,16 +4,16 @@
 #include "abstractjsonrestlistmodel.h"
 #include "api/ExchangeApi.h"
 
-class CouponModel : public AbstractJsonRestListModel
+class ExchangeModel : public AbstractJsonRestListModel
 {
     Q_OBJECT
 
 public:
-    explicit CouponModel(QObject *parent = 0);
+    explicit ExchangeModel(QObject *parent = 0);
 
     static void declareQML() {
         AbstractJsonRestListModel::declareQML();
-        qmlRegisterType<CouponModel>("com.github.qtrestexample.coupons", 1, 0, "CouponModel");
+        qmlRegisterType<ExchangeModel>("com.github.samiavasil.cointrader.exchange", 1, 0, "ExchangeModel");
     }
 
 protected:

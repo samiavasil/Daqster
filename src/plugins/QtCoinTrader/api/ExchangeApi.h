@@ -4,14 +4,14 @@
 #include "apibase.h"
 #include <QtQml>
 
-class SkidKZApi : public APIBase
+class ExchangeApi : public APIBase
 {
     Q_OBJECT
 public:
-    Q_INVOKABLE explicit SkidKZApi();
+    Q_INVOKABLE explicit ExchangeApi();
 
     static void declareQML() {
-        qmlRegisterType<SkidKZApi>("com.github.qtrestexample.skidkzapi", 1, 0, "SkidKZApi");
+        qmlRegisterType<ExchangeApi>("com.github.samiavasil.cointrader.exchangeapi", 1, 0, "ExchangeApi");
     }
 
     //requests
@@ -19,7 +19,7 @@ public:
                            QVariantMap filters = QVariantMap(), QStringList fields = QStringList(), QString id = 0);
 
     //get list of objects
-    QNetworkReply *getCoupons(QStringList sort, Pagination *pagination,
+    QNetworkReply *getMarkets(QStringList sort, Pagination *pagination,
                               QVariantMap filters = QVariantMap(), QStringList fields = QStringList());
     //get full data for specified item
     QNetworkReply *getCouponDetail(QString id);

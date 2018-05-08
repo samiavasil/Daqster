@@ -92,8 +92,8 @@ bool QtCoinTraderPluginObject::Initialize()
     QGuiApplication::setApplicationVersion("1.0");
     QGuiApplication::setOrganizationName("Forsk.Ru");
     QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-    SkidKZApi::declareQML();
-    CouponModel::declareQML();
+    ExchangeApi::declareQML();
+    ExchangeModel::declareQML();
     JsonRestListModel::declareQML();
 //    m_Win = new QMainWindow();
 //    m_Win->show();

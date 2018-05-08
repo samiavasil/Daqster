@@ -3,16 +3,16 @@
 #include <QTextStream>
 #include <QUrlQuery>
 
-SkidKZApi::SkidKZApi() : APIBase(0)
+ExchangeApi::ExchangeApi() : APIBase(0)
 {
 
 }
 
-QNetworkReply *SkidKZApi::handleRequest(QString path, QStringList sort, Pagination *pagination,
+QNetworkReply *ExchangeApi::handleRequest(QString path, QStringList sort, Pagination *pagination,
                                   QVariantMap filters, QStringList fields, QString id)
 {
     if (path == "/v1.1/public/getmarkets") {
-        return getCoupons(sort, pagination, filters, fields);
+        return getMarkets(sort, pagination, filters, fields);
     }
     else if (path == "/v1/coupon/{id}") {
         return getCouponDetail(id);
@@ -24,7 +24,7 @@ QNetworkReply *SkidKZApi::handleRequest(QString path, QStringList sort, Paginati
 
 //In this methods we get list of objects, based on specified page number, filters, sort and fileds list.
 //We can fetch all fields or only needed in our list.
-QNetworkReply *SkidKZApi::getCoupons(QStringList sort, Pagination *pagination, QVariantMap filters, QStringList fields)
+QNetworkReply *ExchangeApi::getMarkets(QStringList sort, Pagination *pagination, QVariantMap filters, QStringList fields)
 {
     //URL and GET parameters
     QUrl url = QUrl(baseUrl()+"/v1.1/public/getmarkets");
@@ -75,7 +75,7 @@ QNetworkReply *SkidKZApi::getCoupons(QStringList sort, Pagination *pagination, Q
 
 //If we fetch e.g. 3 of 10 fields in our 'getCoupons' methods,
 //we may to get full information from needed item by it ID
-QNetworkReply *SkidKZApi::getCouponDetail(QString id)
+QNetworkReply *ExchangeApi::getCouponDetail(QString id)
 {
     if (id.isEmpty()) {
         qDebug() << "ID is empty!";
@@ -91,7 +91,7 @@ url.setQuery(query.query());
     return reply;
 }
 
-QNetworkReply *SkidKZApi::getCategories(QStringList sort, Pagination *pagination)
+QNetworkReply *ExchangeApi::getCategories(QStringList sort, Pagination *pagination)
 {
     //URL and GET parameters
     QUrl url = QUrl(baseUrl()+"/v1/categories");

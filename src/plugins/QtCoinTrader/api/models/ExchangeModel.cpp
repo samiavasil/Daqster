@@ -1,23 +1,23 @@
 #include "ExchangeModel.h"
 
-CouponModel::CouponModel(QObject *parent) : AbstractJsonRestListModel(parent)
+ExchangeModel::ExchangeModel(QObject *parent) : AbstractJsonRestListModel(parent)
 {
 
 }
 
-QNetworkReply *CouponModel::fetchMoreImpl(const QModelIndex &parent)
+QNetworkReply *ExchangeModel::fetchMoreImpl(const QModelIndex &parent)
 {
     Q_UNUSED(parent)
 
-    return static_cast<SkidKZApi *>(apiInstance())->getCoupons(sort(), pagination(), filters(), fields());
+    return static_cast<ExchangeApi *>(apiInstance())->getMarkets(sort(), pagination(), filters(), fields());
 }
 
-QNetworkReply *CouponModel::fetchDetailImpl(QString id)
+QNetworkReply *ExchangeModel::fetchDetailImpl(QString id)
 {
-    return static_cast<SkidKZApi *>(apiInstance())->getCouponDetail(id);
+    return static_cast<ExchangeApi *>(apiInstance())->getCouponDetail(id);
 }
 
-bool CouponModel::ResultToListPreparation(const QJsonDocument &document, QJsonArray& jsonArray ){
+bool ExchangeModel::ResultToListPreparation(const QJsonDocument &document, QJsonArray& jsonArray ){
     bool Ret = false;
     if( document.isObject() ){
         QJsonObject obj = document.object();
@@ -28,7 +28,7 @@ bool CouponModel::ResultToListPreparation(const QJsonDocument &document, QJsonAr
 }
 
 
-QVariantMap CouponModel::preProcessItem(QVariantMap item)
+QVariantMap ExchangeModel::preProcessItem(QVariantMap item)
 {
 #if 0
 //    QDate date = QDateTime::fromString(item.value("createTimestamp").toString(), "yyyy-MM-dd hh:mm:ss").date();
