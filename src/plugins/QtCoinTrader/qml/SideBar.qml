@@ -76,12 +76,13 @@ Rectangle {
                             //      ListView.replace(model.source)
                             //   Qt.quit()
                             console.log("index = ", listV.currentIndex)
-                            sendIdx(listV.currentIndex)
+
 
                         }
+                        sendIdx(listV.currentIndex)
                         //     drawer.close()
                         //console.log(model, "  ", model.inTested )
-                        model.inTested= !model.inTested
+
                         //console.log("model.inTested: ", model.inTested )
                     }
                 }

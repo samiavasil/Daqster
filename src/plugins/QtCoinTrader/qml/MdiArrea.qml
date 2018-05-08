@@ -19,7 +19,9 @@ GridView{
 
     function setGroups(index) {
         console.log('set Groups for', index)
-        delModel.items.setGroups(index, 1, ['items', 'tested'])
+        var groups = delModel.items.get(index).groups
+      //  groups.contains('tested')
+        delModel.items.setGroups(index, 1, (groups.indexOf('tested')>=0)?['items']:['items', 'tested'])
     }
 
     keyNavigationWraps: true

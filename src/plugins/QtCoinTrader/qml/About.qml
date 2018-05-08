@@ -35,14 +35,19 @@ ApplicationWindow {
         value: rows.value
     }
 
+    Component.onCompleted: {
+        sideBar.onSendIdx.connect(mdiArea.setGroups)
+    }
+
     Connections {
         target: sideBar
+
         onCurrentIndexChanged: {
             //rect.color = Qt.rgba(Math.random(), Math.random(), Math.random(), 1);
             console.log("URAAAAAAAAAAAA ", sideBar.model.get( sideBar.currentIndex ).colorM )
             console.log("URAAAAAAAAAAAA ", sideBar.model.get( sideBar.currentIndex ).title )
             console.log("URAAAAAAAAAAAA ", sideBar.model.get( sideBar.currentIndex ).imgSource )
-            mdiArea.setGroups(sideBar.currentIndex)
+         //   mdiArea.setGroups(sideBar.currentIndex)
         }
     }
 
