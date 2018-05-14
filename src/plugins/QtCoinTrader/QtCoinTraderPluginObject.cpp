@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
 
 #include "jsonrestlistmodel.h"
 #include "api/models/ExchangeModel.h"
-
+#include"utils/RandData.h"
 bool QtCoinTraderPluginObject::Initialize()
 {
 
@@ -95,13 +95,14 @@ bool QtCoinTraderPluginObject::Initialize()
     ExchangeApi::declareQML();
     ExchangeModel::declareQML();
     JsonRestListModel::declareQML();
+    qmlRegisterType<RandData>("com.github.samiavasil.cointrader.randdata", 1, 0, "RandData");
 //    m_Win = new QMainWindow();
 //    m_Win->show();
  QQuickStyle::setStyle("Material");
 QStringList lis = QQuickStyle::availableStyles();
     QQmlApplicationEngine* engine = new QQmlApplicationEngine(m_Win);
     //engine.rootContext()->setContextProperty("awesome", awesome);
-
+//engine->rootContext()->setContextProperty("dataFromCpp", new RandData());
     engine->load(QUrl(QStringLiteral("qrc:/qml/About.qml")));
   //   engine->load(QUrl(QStringLiteral("qrc:/main.qml")));
 

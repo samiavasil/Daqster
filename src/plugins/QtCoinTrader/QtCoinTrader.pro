@@ -9,6 +9,7 @@ DESTDIR      = $${PLUGINS_DEST_DIR}
 QT          += core gui network qml
 QT += quickcontrols2
 QT += webenginewidgets
+QT += charts
 TEMPLATE     = lib
 INCLUDEPATH += ../
 INCLUDEPATH += $${FRAMEWORK_INCLUDES_DIR}
@@ -34,13 +35,15 @@ SOURCES += \
     QtCoinTraderInterface.cpp \
     QtCoinTraderPluginObject.cpp \
     api/ExchangeApi.cpp \
-    api/models/ExchangeModel.cpp
+    api/models/ExchangeModel.cpp \
+    utils/RandData.cpp
 
 HEADERS += \
     QtCoinTraderInterface.h \
     QtCoinTraderPluginObject.h \
     api/ExchangeApi.h \
-    api/models/ExchangeModel.h
+    api/models/ExchangeModel.h \
+    utils/RandData.h
 
 
 FORMS +=
