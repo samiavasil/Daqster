@@ -11,7 +11,7 @@ ExchangeApi::ExchangeApi() : APIBase(0)
 QNetworkReply *ExchangeApi::handleRequest(QString path, QStringList sort, Pagination *pagination,
                                   QVariantMap filters, QStringList fields, QString id)
 {
-    if (path == "/v1.1/public/getmarkets") {
+        if (path == "/v1.1/public/getmarkets") {
         return getMarkets(sort, pagination, filters, fields);
     }
     else if (path == "/v1/coupon/{id}") {
@@ -20,6 +20,10 @@ QNetworkReply *ExchangeApi::handleRequest(QString path, QStringList sort, Pagina
     else if (path == "/v1/categories") {
         return getCategories(sort, pagination);
     }
+    else if( path == "v1.1/public/getcurrencies" ){
+        return getMarkets(sort, pagination, filters, fields);
+    }
+    return NULL;
 }
 
 //In this methods we get list of objects, based on specified page number, filters, sort and fileds list.

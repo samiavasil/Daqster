@@ -1,10 +1,10 @@
 #include "ExchangeModel.h"
 
-ExchangeModel::ExchangeModel(QObject *parent) : AbstractJsonRestListModel(parent)
+ExchangeModel::ExchangeModel(QObject *parent) : JsonRestListModel/*AbstractJsonRestListModel*/(parent)
 {
 
 }
-
+/*
 QNetworkReply *ExchangeModel::fetchMoreImpl(const QModelIndex &parent)
 {
     Q_UNUSED(parent)
@@ -15,7 +15,7 @@ QNetworkReply *ExchangeModel::fetchMoreImpl(const QModelIndex &parent)
 QNetworkReply *ExchangeModel::fetchDetailImpl(QString id)
 {
     return static_cast<ExchangeApi *>(apiInstance())->getCouponDetail(id);
-}
+}*/
 
 bool ExchangeModel::ResultToListPreparation(const QJsonDocument &document, QJsonArray& jsonArray ){
     bool Ret = false;

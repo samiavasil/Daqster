@@ -1,10 +1,11 @@
 #ifndef COUPONMODEL_H
 #define COUPONMODEL_H
 
-#include "abstractjsonrestlistmodel.h"
+//#include "abstractjsonrestlistmodel.h"
+#include "jsonrestlistmodel.h"
 #include "api/ExchangeApi.h"
 
-class ExchangeModel : public AbstractJsonRestListModel
+class ExchangeModel : public JsonRestListModel//AbstractJsonRestListModel
 {
     Q_OBJECT
 
@@ -17,8 +18,8 @@ public:
     }
 
 protected:
-    QNetworkReply *fetchMoreImpl(const QModelIndex &parent);
-    QNetworkReply *fetchDetailImpl(QString id);
+ //   QNetworkReply *fetchMoreImpl(const QModelIndex &parent);
+ //   QNetworkReply *fetchDetailImpl(QString id);
     QVariantMap preProcessItem(QVariantMap item);
     bool ResultToListPreparation(const QJsonDocument &document, QJsonArray &jsonArray);
 };

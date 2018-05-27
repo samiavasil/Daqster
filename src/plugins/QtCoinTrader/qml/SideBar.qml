@@ -16,7 +16,7 @@ Rectangle {
     property alias colorValue: rectangle.color
  //   property alias mouseArr: mouseArrea
 
-    width: 100
+//    width: 100
     property alias slider: slider
     //    color: "#000000"
     //    gradient: Gradient {
@@ -64,6 +64,7 @@ Rectangle {
                 height: (3*width)/4
                 value: model.title
                 imgSource: model.imgSource
+                color: "yellow"
                 //    font.pointSize: 20
                 //     ToolTip.visible: hovered
                 //     ToolTip.text: model.title
