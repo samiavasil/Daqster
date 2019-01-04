@@ -1,0 +1,3 @@
+[submodule "src/external_libs/qtrest_lib/qtrest"]
+	path = src/external_libs/qtrest_lib/qtrest
+	url = git@github.com:samiavasil/qtrest.git
