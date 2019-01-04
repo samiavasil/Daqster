@@ -1,4 +1,4 @@
-#include "ExchangeApi.h".h"
+#include "ExchangeApi.h"
 #include <QFile>
 #include <QTextStream>
 #include <QUrlQuery>

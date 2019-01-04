@@ -1,11 +1,13 @@
 #ifndef COUPONMODEL_H
 #define COUPONMODEL_H
 
+#include "qtrest_lib_global.h"
 //#include "abstractjsonrestlistmodel.h"
 #include "jsonrestlistmodel.h"
-#include "api/ExchangeApi.h"
+#include "api/Exchange/ExchangeApi.h"
 
-class ExchangeModel : public JsonRestListModel//AbstractJsonRestListModel
+
+class QTREST_LIBSHARED_EXPORT ExchangeModel : public JsonRestListModel//AbstractJsonRestListModel
 {
     Q_OBJECT
 

@@ -82,19 +82,16 @@ int main(int argc, char *argv[])
 }
 #endif
 
-#include "jsonrestlistmodel.h"
-#include "api/models/ExchangeModel.h"
+#include"qtrest_lib.h"
 #include"utils/RandData.h"
 bool QtCoinTraderPluginObject::Initialize()
 {
 
-    QGuiApplication::setApplicationName("Skid.KZ");
+    QGuiApplication::setApplicationName("QtCoinTrader");
     QGuiApplication::setApplicationVersion("1.0");
-    QGuiApplication::setOrganizationName("Forsk.Ru");
+    QGuiApplication::setOrganizationName("Samiavasil");
     QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-    ExchangeApi::declareQML();
-    ExchangeModel::declareQML();
-    JsonRestListModel::declareQML();
+ initializeRest();
     qmlRegisterType<RandData>("com.github.samiavasil.cointrader.randdata", 1, 0, "RandData");
 //    m_Win = new QMainWindow();
 //    m_Win->show();

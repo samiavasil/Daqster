@@ -1,10 +1,12 @@
 #ifndef SKIDKZAPI_H
 #define SKIDKZAPI_H
 
+#include "qtrest_lib_global.h"
 #include "apibase.h"
 #include <QtQml>
 
-class ExchangeApi : public APIBase
+
+class QTREST_LIBSHARED_EXPORT ExchangeApi : public APIBase
 {
     Q_OBJECT
 public:

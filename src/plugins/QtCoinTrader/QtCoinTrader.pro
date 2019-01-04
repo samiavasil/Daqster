@@ -3,17 +3,17 @@
 # Project created by QtCreator 2012-06-21T13:34:25
 #
 #-------------------------------------------------
+TEMPLATE     = lib
 include(../../include/paths_cfg.pri)
-include(../../external_libs/qtrest/com_github_kafeg_qtrest.pri)
+#include(../../external_libs/qtrest/com_github_kafeg_qtrest.pri)
 DESTDIR      = $${PLUGINS_DEST_DIR}
 QT          += core gui network qml
 QT += quickcontrols2
 QT += webenginewidgets
 QT += charts
-TEMPLATE     = lib
 INCLUDEPATH += ../
 INCLUDEPATH += $${FRAMEWORK_INCLUDES_DIR}
-INCLUDEPATH += $${EXT_LIBS_INCLUDES_DIR}
+INCLUDEPATH += $${EXT_LIBS_INCLUDES_DIR}/qtrest_lib/
 INCLUDEPATH += $$PWD
 DEPENDPATH  += $$PWD
 OBJECTS_DIR  = $$PWD/Build
@@ -34,15 +34,11 @@ TARGET   = QtCoinTraderPlugin
 SOURCES += \
     QtCoinTraderInterface.cpp \
     QtCoinTraderPluginObject.cpp \
-    api/ExchangeApi.cpp \
-    api/models/ExchangeModel.cpp \
     utils/RandData.cpp
 
 HEADERS += \
     QtCoinTraderInterface.h \
     QtCoinTraderPluginObject.h \
-    api/ExchangeApi.h \
-    api/models/ExchangeModel.h \
     utils/RandData.h
 
 
@@ -68,12 +64,15 @@ win32 {
     CONFIG(debug, debug|release) {
         TARGET = $${TARGET}d
         LIBS        += -l$${FRAMEWORK_LIB_NAME}d
+        LIBS        += -lqtrest_libd
     }
     else{
         LIBS        += -l$${FRAMEWORK_LIB_NAME}
+        LIBS        += -lqtrest_lib
     }
 }else{
     LIBS        += -l$${FRAMEWORK_LIB_NAME}
+    LIBS        += -lqtrest_lib
 }
 
 win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/RestApi/release/ -lRestApi
