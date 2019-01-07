@@ -25,12 +25,12 @@ DEFINES     += BUILD_AVAILABLE_PLUGIN
 TARGET   = PluginMainTest
 
 SOURCES += \
-    DaqsterTeplateInterface.cpp \
-    TemplatePluginObject.cpp
+    PluginMainInterface.cpp \
+    PluginMainObject.cpp
 
 HEADERS += \
-    DaqsterTeplateInterface.h \
-    TemplatePluginObject.h
+    PluginMainInterface.h \
+    PluginMainObject.h
 
 FORMS +=
 

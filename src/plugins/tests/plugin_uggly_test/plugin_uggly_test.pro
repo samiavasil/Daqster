@@ -25,12 +25,12 @@ DEFINES     += BUILD_AVAILABLE_PLUGIN
 TARGET   = UgglyTestPlugin
 
 SOURCES += \
-    DaqsterTeplateInterface.cpp \
-    TemplatePluginObject.cpp
+    PluginUgglyInterface.cpp \
+    PluginUgglyObject.cpp
 
 HEADERS += \
-    DaqsterTeplateInterface.h \
-    TemplatePluginObject.h
+    PluginUgglyInterface.h \
+    PluginUgglyObject.h
 
 FORMS +=
 

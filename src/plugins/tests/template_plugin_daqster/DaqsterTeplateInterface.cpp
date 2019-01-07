@@ -2,19 +2,19 @@
 #include "debug.h"
 #include "TemplatePluginObject.h"
 
-DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObjectsInterface(parent)
+DaqsterTemplateInterface::DaqsterTemplateInterface(QObject* parent ):QDaqsterPluginInterface(parent)
 {
-    Q_INIT_RESOURCE(main_test);
+    Q_INIT_RESOURCE(template);
     DEBUG << "DaqsterTeplateInterface object create";
-    QIcon icon( QString::fromUtf8(":/main.png") );
+    QIcon icon( QString::fromUtf8(":/template.png") );
     m_PluginDescryptor.SetIcon( icon );
-    m_PluginDescryptor.SetProperty( PLUGIN_NAME, "PluginMainTest" );
-    m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::SOME_TYPE );
+    m_PluginDescryptor.SetProperty( PLUGIN_NAME, "PluginTemplate" );
+    m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::SECOND_TYPE );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
     m_PluginDescryptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
-    m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "Plugin Main Test" );
+    m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "MyPluginTemplate" );
     char docstr[] = \
-    "PluginMainTest is a basic Daqster plugin test. \n\
+    "This is a basic Daqster plugin template and can be used for implementing a new type daqster plugin \n\
     \n\
     Here you can add detailed description of the plugin...";
     m_PluginDescryptor.SetProperty( PLUGIN_DETAIL_DESCRIPTION, QObject::tr( docstr ) );
@@ -22,12 +22,12 @@ DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObject
     m_PluginDescryptor.SetProperty( PLUGIN_AUTHOR, "Vasil Vasilev" );
 }
 
-DaqsterTeplateInterface::~DaqsterTeplateInterface(  )
+DaqsterTemplateInterface::~DaqsterTemplateInterface(  )
 {
-    DEBUG << "DaqsterTeplateInterface object delete";
+    DEBUG << "DaqsterTemplateInterface object delete";
 }
 
-Daqster::QBasePluginObject *DaqsterTeplateInterface::CreatePluginInternal(QObject *Parrent)
+Daqster::QBasePluginObject *DaqsterTemplateInterface::CreatePluginInternal(QObject *Parrent)
 {
     TemplatePluginObject* Obj = new TemplatePluginObject(Parrent);
     if( NULL != Obj ){

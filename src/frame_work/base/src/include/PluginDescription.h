@@ -20,7 +20,7 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 #ifndef PLUGINDESCRIPTION_H
 #define PLUGINDESCRIPTION_H
 
-#include "global.h"
+#include "build_cfg.h"
 #include <QString>
 #include <QIcon>
 
@@ -55,7 +55,7 @@ class PrivateDescription;
 
 class FRAME_WORKSHARED_EXPORT PluginDescription
 {
-    friend class QPluginObjectsInterface;
+    friend class QDaqsterPluginInterface;
 public:
     typedef enum{
         SOME_TYPE           = 0x1,
@@ -192,7 +192,7 @@ public:
   QIcon GetIcon() const;
   friend QDebug operator<<(QDebug ds, const PluginDescription &obj) ;
 protected:
-    void CopyDinamycProperties(const PluginDescription &b);
+    void CopyDynamicProperties(const PluginDescription &b);
 protected:
   // Is plugin enabled for usage
   bool m_Enabled;

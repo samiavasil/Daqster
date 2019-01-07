@@ -21,7 +21,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 
 #ifndef PLUGINFILTER_H
 #define PLUGINFILTER_H
-#include "global.h"
+#include "build_cfg.h"
 
 namespace Daqster {
 

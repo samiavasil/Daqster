@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QPluginObjectsInterface.cpp - Copyright vvasilev
+                        Daqster/QDaqsterPluginInterface.cpp - Copyright vvasilev
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -18,11 +18,10 @@ General Public Licence for more details.
 Initial version of this file was created on 12.03.2017 at 20:54:50
 **************************************************************************/
 
-#include "QPluginObjectsInterface.h"
+#include "QDaqsterPluginInterface.h"
 #include "QBasePluginObject.h"
-#include "debug.h"
 #include "QPluginLoaderExt.h"
-
+#include "debug.h"
 
 namespace Daqster {
 
@@ -30,12 +29,12 @@ namespace Daqster {
  * Empty Constructor
  * @param  parent
  */
-QPluginObjectsInterface::QPluginObjectsInterface (  QObject* Parent ):QObject(Parent) {
+QDaqsterPluginInterface::QDaqsterPluginInterface (  QObject* Parent ):QObject(Parent) {
 
 }
 
-QPluginObjectsInterface::~QPluginObjectsInterface () {
-
+QDaqsterPluginInterface::~QDaqsterPluginInterface () {
+    DEBUG << "   QDaqsterPluginInterface destroy";
 }
 
 /**
@@ -43,7 +42,7 @@ QPluginObjectsInterface::~QPluginObjectsInterface () {
  * when succesfully load pugin from some configured directory.
  * @param Plugin dirctory Location
  */
-void QPluginObjectsInterface::SetLocation( const QString & Location )
+void QDaqsterPluginInterface::SetLocation( const QString & Location )
 {
     m_PluginDescryptor.SetProperty( PLUGIN_LOCATION, Location );
 }
@@ -52,7 +51,7 @@ void QPluginObjectsInterface::SetLocation( const QString & Location )
  * @brief Set File Hash. Used by plugin manager.
  * @return
  */
-void QPluginObjectsInterface::SetHash(const QString &Hash)
+void QDaqsterPluginInterface::SetHash(const QString &Hash)
 {
     m_PluginDescryptor.SetProperty( PLUGIN_HASH, Hash );
 }
@@ -67,7 +66,7 @@ void QPluginObjectsInterface::SetHash(const QString &Hash)
  *           UNDEFINED -  Not defined state
  * @param State
  */
-void QPluginObjectsInterface::SetHealthyState( const PluginDescription::PluginHealtyState_t& State)
+void QDaqsterPluginInterface::SetHealthyState( const PluginDescription::PluginHealtyState_t& State)
 {
     m_PluginDescryptor.SetProperty( PLUGIN_HELTHY_STATE, State );
 }
@@ -80,12 +79,17 @@ void QPluginObjectsInterface::SetHealthyState( const PluginDescription::PluginHe
  * QPluginLoaderExt.
  * @param  Loader New plugin loader
  */
-void QPluginObjectsInterface::SetPluginLoader (QSharedPointer<QPluginLoaderExt> & Loader)
+void QDaqsterPluginInterface::SetPluginLoader (QSharedPointer<QPluginLoaderExt> & Loader)
 {
     m_PluginLoader = Loader;
 }
 
-PluginDescription::PluginHealtyState_t QPluginObjectsInterface::GetHealthyState( )
+QSharedPointer<QPluginLoaderExt> &QDaqsterPluginInterface::GetPluginLoader()
+{
+    return m_PluginLoader;
+}
+
+PluginDescription::PluginHealtyState_t QDaqsterPluginInterface::GetHealthyState( )
 {
     return (PluginDescription::PluginHealtyState_t)m_PluginDescryptor.GetProperty( PLUGIN_HELTHY_STATE ).toUInt();
 }
@@ -95,16 +99,16 @@ PluginDescription::PluginHealtyState_t QPluginObjectsInterface::GetHealthyState(
  * @brief Return is plugin enabled
  * @return true/false
  */
-bool QPluginObjectsInterface::IsEnabled() const
+bool QDaqsterPluginInterface::IsEnabled() const
 {
-   m_PluginDescryptor.IsEnabled();
+   return m_PluginDescryptor.IsEnabled();
 }
 
 /**
  * @brief Enable plugin
  * @param En - true/false
  */
-void QPluginObjectsInterface::Enable(bool En)
+void QDaqsterPluginInterface::Enable(bool En)
 {
     m_PluginDescryptor.Enable( En );
 }
@@ -117,7 +121,7 @@ void QPluginObjectsInterface::Enable(bool En)
  * @param Store
  * @return
  */
-bool QPluginObjectsInterface::StorePluginParamsToPersistency( QSettings &Store )
+bool QDaqsterPluginInterface::StorePluginParamsToPersistency( QSettings &Store )
 {
     return m_PluginDescryptor.StorePluginParamsToPersistency( Store );
 }
@@ -129,10 +133,10 @@ bool QPluginObjectsInterface::StorePluginParamsToPersistency( QSettings &Store )
  * @return true on success
  *         false otherwise
  */
-bool QPluginObjectsInterface::ShutdownAllPluginObjects()
+bool QDaqsterPluginInterface::ShutdownAllPluginObjects()
 {
-    while( !m_PluginInstList.isEmpty() ){
-          delete m_PluginInstList.takeFirst();
+    foreach ( Daqster::QBasePluginObject* pO ,  m_PluginInstList ){
+          pO->ShutdownPluginObject();
     }
     return true;
 }
@@ -141,7 +145,7 @@ bool QPluginObjectsInterface::ShutdownAllPluginObjects()
  * @brief Get plugin Location
  * @return plugin location
  */
-QString QPluginObjectsInterface::GetLocation() const
+QString QDaqsterPluginInterface::GetLocation() const
 {
     return  m_PluginDescryptor.GetProperty( PLUGIN_LOCATION ).toString();
 }
@@ -150,7 +154,7 @@ QString QPluginObjectsInterface::GetLocation() const
  * @brief Return Plugin file hash
  * @return
  */
-QString QPluginObjectsInterface::GetHash() const
+QString QDaqsterPluginInterface::GetHash() const
 {
     return m_PluginDescryptor.GetProperty( PLUGIN_HASH ).toString();
 }
@@ -160,7 +164,7 @@ QString QPluginObjectsInterface::GetHash() const
  * string and try to detect type from name.
  * @return Daqster::PluginType_t
  */
-PluginDescription::PluginType_t QPluginObjectsInterface::GetType () const
+PluginDescription::PluginType_t QDaqsterPluginInterface::GetType () const
 {
     return (PluginDescription::PluginType_t)m_PluginDescryptor.GetProperty( PLUGIN_TYPE ).toUInt();
 }
@@ -169,9 +173,9 @@ PluginDescription::PluginType_t QPluginObjectsInterface::GetType () const
  * Return plugin embeded icon.
  * @return QIcon
  */
-QIcon QPluginObjectsInterface::GetIcon () const
+QIcon QDaqsterPluginInterface::GetIcon () const
 {
-    return m_PluginDescryptor.GetIcon();//m_PluginDescryptor.GetProperty( PLUGIN_ICON ).value<QIcon>();
+    return m_PluginDescryptor.GetIcon();
 }
 
 
@@ -179,7 +183,7 @@ QIcon QPluginObjectsInterface::GetIcon () const
  * Return plugin name
  * @return Plugin name
  */
-QString QPluginObjectsInterface::GetName () const
+QString QDaqsterPluginInterface::GetName () const
 {
     return m_PluginDescryptor.GetProperty( PLUGIN_NAME ).toString();
 }
@@ -188,7 +192,7 @@ QString QPluginObjectsInterface::GetName () const
  * Get plugin type name
  * @return Plugin type name
  */
-QString QPluginObjectsInterface::GetTypeName () const
+QString QDaqsterPluginInterface::GetTypeName () const
 {
     return m_PluginDescryptor.GetProperty( PLUGIN_TYPE_NAME ).toString();
 }
@@ -197,7 +201,7 @@ QString QPluginObjectsInterface::GetTypeName () const
  * Get plugin version
  * @return Plugin Version
  */
-QString QPluginObjectsInterface::GetVersion () const
+QString QDaqsterPluginInterface::GetVersion () const
 {
     return m_PluginDescryptor.GetProperty( PLUGIN_VERSION ).toString();
 }
@@ -207,7 +211,7 @@ QString QPluginObjectsInterface::GetVersion () const
  * Get plugin description
  * @return Plugin Description
  */
-QString QPluginObjectsInterface::GetDescription () const
+QString QDaqsterPluginInterface::GetDescription () const
 {
     return m_PluginDescryptor.GetProperty( PLUGIN_DESCRIPTION ).toString();
 }
@@ -217,7 +221,7 @@ QString QPluginObjectsInterface::GetDescription () const
  * Get plugin detail description.
  * @return Plugin Detail Description
  */
-QString QPluginObjectsInterface::GetDetailDescription () const
+QString QDaqsterPluginInterface::GetDetailDescription () const
 {
     return m_PluginDescryptor.GetProperty( PLUGIN_DETAIL_DESCRIPTION ).toString();
 }
@@ -227,7 +231,7 @@ QString QPluginObjectsInterface::GetDetailDescription () const
  * Get plugin license
  * @return Plugin License
  */
-QString QPluginObjectsInterface::GetLicense () const
+QString QDaqsterPluginInterface::GetLicense () const
 {
     return m_PluginDescryptor.GetProperty( PLUGIN_LICENSE ).toString();
 }
@@ -236,12 +240,12 @@ QString QPluginObjectsInterface::GetLicense () const
  * Return plugin author
  * @return Plugin Author
  */
-QString QPluginObjectsInterface::GetAuthor () const
+QString QDaqsterPluginInterface::GetAuthor () const
 {
     return m_PluginDescryptor.GetProperty( PLUGIN_AUTHOR ).toString();
 }
 
-const PluginDescription &QPluginObjectsInterface::GetPluginDescriptor() const
+const PluginDescription &QDaqsterPluginInterface::GetPluginDescriptor() const
 {
     return m_PluginDescryptor;
 }
@@ -251,7 +255,7 @@ const PluginDescription &QPluginObjectsInterface::GetPluginDescriptor() const
  * @return Daqster::QBasePluginObject*
  * @param  Parrent Pointer to parent QObject
  */
-Daqster::QBasePluginObject* QPluginObjectsInterface::CreatePlugin (QObject* Parrent)
+Daqster::QBasePluginObject* QDaqsterPluginInterface::CreatePlugin (QObject* Parrent)
 {
     QBasePluginObject * obj = CreatePluginInternal( Parrent );
     if( NULL != obj ){
@@ -261,7 +265,7 @@ Daqster::QBasePluginObject* QPluginObjectsInterface::CreatePlugin (QObject* Parr
     return obj;
 }
 
-void QPluginObjectsInterface::pluginInstanceDestroyed( QObject *obj )
+void QDaqsterPluginInterface::pluginInstanceDestroyed( QObject *obj )
 {
     QBasePluginObject* Plugin = (QBasePluginObject*)(obj);//TODO:?
     if( NULL != Plugin ){
