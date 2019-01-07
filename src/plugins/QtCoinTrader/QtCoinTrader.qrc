@@ -1,0 +1,23 @@
+<RCC>
+    <qresource prefix="/">
+        <file>QtCoinTrader.png</file>
+        <file>qml/About.qml</file>
+        <file>qml/SideBar.qml</file>
+        <file>qml/SideBarDelegate.qml</file>
+        <file>qml/MdiArrea.qml</file>
+        <file>qml/ViewWin.qml</file>
+        <file>qml/ViewModel.qml</file>
+    </qresource>
+    <qresource prefix="/toolbar/icons">
+        <file>icons/exit.png</file>
+        <file>icons/new.png</file>
+        <file>icons/open.png</file>
+        <file>icons/save.png</file>
+        <file>icons/up.png</file>
+        <file>icons/right.png</file>
+        <file>icons/left.png</file>
+        <file>icons/down.png</file>
+        <file>icons/left_1.png</file>
+        <file>icons/right_1.png</file>
+    </qresource>
+</RCC>
