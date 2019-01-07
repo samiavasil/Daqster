@@ -1,6 +1,10 @@
 TEMPLATE = subdirs
+#BUILD_TEST_PLUGINS = TESTS
 
-BUILD_TEST_PLUGINS = TESTS
+SUBDIRS += RestApiTester \
+           RestApiTester/RestApi
+
+
 CONFIG+= c++11
 
 if( defined( BUILD_TEST_PLUGINS,var ) ){
@@ -10,3 +14,8 @@ if( defined( BUILD_TEST_PLUGINS,var ) ){
              tests/plugin_uggly_test \
 
 }
+
+
+RESOURCES += \
+    RestApiTester/RestApiTester.qrc
+
