@@ -10,6 +10,9 @@ public:
     PluginUgglyObject(QObject* Parent = NULL);
     virtual ~PluginUgglyObject();
     void SetName(const QString& name);
+    virtual bool Initialize();
+protected:
+    virtual void DeInitialize();
 
 public slots:
     void MainWinDestroyed(QObject *obj);

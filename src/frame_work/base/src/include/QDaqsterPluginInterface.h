@@ -30,7 +30,10 @@ Initial version of this file was created on 12.03.2017 at 20:54:50
 class QPluginLoaderExt;
 class QSettings;
 
-
+/*
+VVV On the future plugin descriptions, types and some adtional information can be provided by plugin Json files,
+for now it are a properties on plugin interface.
+*/
 namespace Daqster {
 
 class QBasePluginObject;

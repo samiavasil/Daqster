@@ -6,7 +6,25 @@
 #include<QLayout>
 #include<QPushButton>
 
-PluginFancyObject::PluginFancyObject(QObject *Parent):QBasePluginObject ( Parent  ){
+PluginFancyObject::PluginFancyObject(QObject *Parent):QBasePluginObject ( Parent  ),m_Win(NULL){
+
+}
+
+PluginFancyObject::~PluginFancyObject()
+{
+    DeInitialize();
+}
+
+void PluginFancyObject::SetName(const QString &name)
+{
+    if( m_Win )
+    {
+        m_Win->setWindowTitle( name );
+    }
+}
+
+bool PluginFancyObject::Initialize()
+{
     m_Win = new QMainWindow();
     QLabel* label = new QLabel( );
     label->setText("PluginFancyObject Demo");
@@ -17,23 +35,14 @@ PluginFancyObject::PluginFancyObject(QObject *Parent):QBasePluginObject ( Parent
     m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
     connect( m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)) );
     connect( button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()) );
-
 }
 
-PluginFancyObject::~PluginFancyObject()
+void PluginFancyObject::DeInitialize()
 {
     if( m_Win ){
         m_Win->deleteLater();
     }
     DEBUG_V << "PluginFancyObject destroyed";
-}
-
-void PluginFancyObject::SetName(const QString &name)
-{
-    if( m_Win )
-    {
-        m_Win->setWindowTitle( name );
-    }
 }
 
 void PluginFancyObject::MainWinDestroyed( QObject* obj )

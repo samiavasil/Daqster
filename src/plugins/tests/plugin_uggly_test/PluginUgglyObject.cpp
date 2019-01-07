@@ -6,26 +6,13 @@
 #include<QLayout>
 #include<QPushButton>
 
-PluginUgglyObject::PluginUgglyObject(QObject *Parent):QBasePluginObject ( Parent  ){
-    m_Win = new QMainWindow();
-    QLabel* label = new QLabel( );
-    label->setText("PluginTemplate Demo");
-    m_Win->setCentralWidget(label);
-    QPushButton* button = new QPushButton(m_Win);
-
-    m_Win->show();
-    m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
-    connect( m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)) );
-    connect( button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()) );
+PluginUgglyObject::PluginUgglyObject(QObject *Parent):QBasePluginObject ( Parent  ),m_Win(NULL){
 
 }
 
 PluginUgglyObject::~PluginUgglyObject()
 {
-    if( m_Win ){
-        m_Win->deleteLater();
-    }
-    DEBUG_V << "PluginUgglyObject destroyed";
+    DeInitialize();
 }
 
 void PluginUgglyObject::SetName(const QString &name)
@@ -34,6 +21,28 @@ void PluginUgglyObject::SetName(const QString &name)
     {
         m_Win->setWindowTitle( name );
     }
+}
+
+bool PluginUgglyObject::Initialize()
+{
+    m_Win = new QMainWindow();
+    QLabel* label = new QLabel( );
+    label->setText("Plugin Uggly Demo");
+    m_Win->setCentralWidget(label);
+    QPushButton* button = new QPushButton(m_Win);
+
+    m_Win->show();
+    m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
+    connect( m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)) );
+    connect( button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()) );
+}
+
+void PluginUgglyObject::DeInitialize()
+{
+    if( m_Win ){
+        m_Win->deleteLater();
+    }
+    DEBUG_V << "PluginUgglyObject destroyed";
 }
 
 void PluginUgglyObject::MainWinDestroyed( QObject* obj )
