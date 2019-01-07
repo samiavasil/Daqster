@@ -22,6 +22,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #ifndef PLUGINFILTER_H
 #define PLUGINFILTER_H
 #include "build_cfg.h"
+#include <QMap>
 
 namespace Daqster {
 
@@ -49,6 +50,7 @@ public:
    */
   virtual ~PluginFilter ();
 
+  void AddFilter( const QString& Property,const QString& Value );
   /**
    * This function test is the plugin described with input parameter is filtered or
    * not.
@@ -56,7 +58,8 @@ public:
    * @param  _Description Plugin description
    */
   bool IsFiltered (const  Daqster::PluginDescription& Description) const;
-
+private:
+    QMap<QString,QString> m_MapProperties;
 };
 } // end of package namespace
 

@@ -19,7 +19,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 **************************************************************************/
 
 #include "PluginFilter.h"
-
+#include"PluginDescription.h"
 namespace Daqster {
 // Constructors/Destructors
 //  
@@ -30,6 +30,12 @@ PluginFilter::PluginFilter () {
 PluginFilter::~PluginFilter () { }
 
 
+void PluginFilter::AddFilter(const QString &Property, const QString &Value)
+{
+    m_MapProperties[Property] = Value;
+}
+
+
 /**
  * This function test is the plugin described with input parameter is filtered or
  * not.
@@ -38,7 +44,24 @@ PluginFilter::~PluginFilter () { }
  */
 bool PluginFilter::IsFiltered (const  Daqster::PluginDescription& Description) const
 {
-    return false;
+    bool Ret = true;
+    QMap<QString,QVariant>properties = Description.GetAllProperties();
+
+    auto matchProp = m_MapProperties.constBegin();
+    while( matchProp != m_MapProperties.constEnd() ){
+        if( properties.contains( matchProp.key() )  ){
+            if( 0 != matchProp.value().compare( properties.value(matchProp.key(),QVariant()).toString() ) ){
+                Ret = false;
+                break;
+            }
+        }
+        else{
+            Ret = false;
+            break;
+        }
+        matchProp++;
+    }
+    return Ret;
 }
 
 }

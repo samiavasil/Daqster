@@ -67,7 +67,8 @@ QPluginManager *QPluginManager::instance()
 
 bool QPluginManager::Initialize()
 {
-    return connect( QApplication::instance() ,SIGNAL(aboutToQuit()), QPluginManager::instance(),SLOT(ShutdownPluginManager()) );
+    connect( QApplication::instance() ,SIGNAL(aboutToQuit()), QPluginManager::instance(),SLOT(ShutdownPluginManager()) );
+    return true;
 }
 
 QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, QObject* Parent  )
@@ -190,7 +191,7 @@ QList<Daqster::PluginDescription> QPluginManager::GetPluginList( const Daqster::
     */
     auto it = List.begin();
     while( it != List.end() ){
-        if( Filter.IsFiltered( *it ) ){
+        if( !Filter.IsFiltered( *it ) ){
             it = List.erase(it);
         }
         else{
@@ -484,6 +485,7 @@ bool QPluginManager::LoadPluginInterfaceObject( const QString& PluginFileName, c
     }
     else{
         DEBUG << "Bad Plugin '" << PluginFileName << "' Can't be loaded ";
+        DEBUG << pluginLoader->errorString();
     }
     return ret;
 }
