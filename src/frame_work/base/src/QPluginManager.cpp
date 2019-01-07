@@ -23,7 +23,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include "QPluginManagerGui.h"
 #include "QPluginListView.h"
 #include "PluginFilter.h"
-#include "QPluginObjectsInterface.h"
+#include "QDaqsterPluginInterface.h"
 #include "QPluginLoaderExt.h"
 
 #include <QDir>
@@ -74,7 +74,7 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, Q
 {
     PluginDescription::PluginHealtyState_t PersistentHealthy = PluginDescription::UNDEFINED;
     QBasePluginObject* Object = NULL;
-    QPluginObjectsInterface* ObjInterface = m_PluginMap.value( KeyHash, NULL );
+    QDaqsterPluginInterface* ObjInterface = m_PluginMap.value( KeyHash, NULL );
 
     if( NULL == ObjInterface ){
         if( m_PluginsHashDescMap.contains( KeyHash ) && m_PluginsHashDescMap[KeyHash].IsEnabled() ){
@@ -145,12 +145,16 @@ void QPluginManager::EnableDisablePlugin( const QString &Hash, bool Enable )
           Desc.Enable( Enable );
           m_PluginsHashDescMap[Hash] = Desc;
 
-          //TODO: TBD what we do with instanciated Plugin interface
-          Daqster::QPluginObjectsInterface* object = m_PluginMap.value( Hash, NULL );
+
+          Daqster::QDaqsterPluginInterface* object = m_PluginMap.value( Hash, NULL );
           if( NULL != object ){
               object->Enable( Enable );
           }
           StorePluginStateToPersistncy( Desc );
+          if( !Enable )
+          {
+            ShutdownPlugin( Hash );
+          }
           emit PluginsListChangeDetected();
        }
     }
@@ -230,7 +234,7 @@ void QPluginManager::SearchForPlugins ()
 {
     QDir PluginsDir;
     QSettings settings( m_ConfigFile, QSettings::IniFormat );
-    Daqster::QPluginObjectsInterface* ObjInterface = NULL;
+    Daqster::QDaqsterPluginInterface* ObjInterface = NULL;
     bool Changed = false;
     //  settings.setIniCodec("UTF-8");
     settings.beginGroup("Plugins");
@@ -328,10 +332,11 @@ void QPluginManager::AddPluginsDirectory (const QString& Directory)
  * Show plugin manager GUI widget. In this GUI you can see available plugins,
  * rescan for new plugins, dynamic unload , enable/disable plugin loading.
  */
-void QPluginManager::ShowPluginManagerGui ()
+void QPluginManager::ShowPluginManagerGui (QWidget *Parent)
 {
-    QPluginManagerGui Dialog;
-    Dialog.exec();
+    QPluginManagerGui* d = new QPluginManagerGui(Parent);
+    d->setAttribute(Qt::WA_DeleteOnClose);
+    d->show();
 }
 
 /**
@@ -404,26 +409,41 @@ void QPluginManager::LoadPluginsInfoFromPersistency()
 
 
 /**
- * @brief This slot can be connected to QPluginObjectsInterface signal AllPluginObjectDestroyed in order
+ * @brief This slot can be connected to QDaqsterPluginInterface signal AllPluginObjectDestroyed in order
  * to automaticaly unload plugin.
  * @param Hash
  */
 void QPluginManager::AllPluginObjectsDestroyed(const QString &Hash)
 {
-    QPluginObjectsInterface* OIface = m_PluginMap.take( Hash );
-    if( 0 != OIface ){
-       OIface->deleteLater();
+    QDaqsterPluginInterface* OIface = m_PluginMap.value( Hash, NULL );
+    if( NULL != OIface  )
+    {   //&& ( !OIface->IsEnabled() )
+        /* Destroy Plugin Interface If Plugin is disabled and all
+         * Plugin objects instanses are destroyed */
+
+        OIface = m_PluginMap.take( Hash );
+        delete OIface;
+    }
+}
+
+void QPluginManager::ShutdownPlugin( const QString &Hash )
+{
+    QDaqsterPluginInterface* OIface = m_PluginMap.value( Hash, NULL );
+    if( NULL != OIface ){
+        OIface->ShutdownAllPluginObjects();
+      //  delete OIface;
     }
 }
 
 void QPluginManager::ShutdownPluginManager()
 {
     foreach( const QString& Hash , m_PluginMap.keys() ) {
-        QPluginObjectsInterface* OIface = m_PluginMap.take( Hash );
-        if( 0 != OIface ){
-           OIface->ShutdownAllPluginObjects();
-           delete OIface;
-        }
+        ShutdownPlugin( Hash );
+//        QDaqsterPluginInterface* OIface = m_PluginMap.take( Hash );
+//        if( 0 != OIface ){
+//           OIface->ShutdownAllPluginObjects();
+//           delete OIface;
+//        }
     }
 }
 
@@ -431,15 +451,16 @@ void QPluginManager::ShutdownPluginManager()
 bool QPluginManager::LoadPluginInterfaceObject( const QString& PluginFileName, const QString& Hash  )
 {
 
-    QPluginObjectsInterface* ObjInterface = NULL;
+    QDaqsterPluginInterface* ObjInterface = NULL;
     bool ret = false;
     QSharedPointer<QPluginLoaderExt> pluginLoader( new QPluginLoaderExt(PluginFileName), &QObject::deleteLater );
     /*All symbols are resolved in load time*/
     pluginLoader->setLoadHints( QLibrary::ResolveAllSymbolsHint );
     QObject* Inst = pluginLoader->instance();
+    qDebug() << "PLUGIN METADATA: \n\t" << pluginLoader->metaData();
     if( NULL != Inst )
     {
-        ObjInterface = dynamic_cast<Daqster::QPluginObjectsInterface*>(Inst);
+        ObjInterface = dynamic_cast<Daqster::QDaqsterPluginInterface*>(Inst);
         if( NULL != ObjInterface )
         {
             ObjInterface->SetPluginLoader( pluginLoader );

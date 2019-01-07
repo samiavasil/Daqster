@@ -1,8 +1,8 @@
-#include "DaqsterTeplateInterface.h"
+#include "PluginUgglyInterface.h"
 #include "debug.h"
-#include "TemplatePluginObject.h"
+#include "PluginUgglyObject.h"
 
-DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObjectsInterface(parent)
+PluginUgglyInterface::PluginUgglyInterface(QObject* parent ):QDaqsterPluginInterface(parent)
 {
     Q_INIT_RESOURCE(uggly_test);
     DEBUG << "DaqsterTeplateInterface object create";
@@ -22,14 +22,14 @@ DaqsterTeplateInterface::DaqsterTeplateInterface(QObject* parent ):QPluginObject
     m_PluginDescryptor.SetProperty( PLUGIN_AUTHOR, "Vasil Vasilev" );
 }
 
-DaqsterTeplateInterface::~DaqsterTeplateInterface(  )
+PluginUgglyInterface::~PluginUgglyInterface(  )
 {
-    DEBUG << "DaqsterTeplateInterface object delete";
+    DEBUG << "PluginUgglyInterface object delete";
 }
 
-Daqster::QBasePluginObject *DaqsterTeplateInterface::CreatePluginInternal(QObject *Parrent)
+Daqster::QBasePluginObject *PluginUgglyInterface::CreatePluginInternal(QObject *Parrent)
 {
-    TemplatePluginObject* Obj = new TemplatePluginObject(Parrent);
+    PluginUgglyObject* Obj = new PluginUgglyObject(Parrent);
     if( NULL != Obj ){
         Obj->SetName( m_PluginDescryptor.GetProperty(PLUGIN_NAME).toString() );
     }

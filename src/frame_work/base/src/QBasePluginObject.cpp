@@ -24,12 +24,27 @@ namespace Daqster {
 // Constructors/Destructors
 //  
 
-QBasePluginObject::QBasePluginObject (QObject *Parent):QObject( Parent ) {
-    m_InterfaceObject = NULL;
+QBasePluginObject::QBasePluginObject (QObject *Parent):QObject( Parent ),m_PoState(QBasePluginObject::WORKING_STATE)
+{
+
 }
 
-QBasePluginObject::~QBasePluginObject () {
+QBasePluginObject::~QBasePluginObject ()
+{
 
+}
+
+QBasePluginObject::eShutdownStatus QBasePluginObject::ShutdownPluginObject()
+{
+    m_PoState = SHUTTING_DOWN_STATE;
+    deleteLater();
+    m_PoState = TURNED_OFF_STATE;
+    return m_PoState;
+}
+
+QBasePluginObject::eShutdownStatus QBasePluginObject::GetPluginObjectStatus()
+{
+    return m_PoState;
 }
 
 }

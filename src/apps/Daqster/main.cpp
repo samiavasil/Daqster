@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
     MainWindow w;
     w.show();
-
+qDebug() << __BASE_FILE__  << __FILE__;
     /*For correct plugoins shutdown behaviour QPluginManager initialization should be called. */
     if( !Daqster::QPluginManager::instance()->Initialize() ){
         DEBUG << "QPluginManager Initialization Error" ;

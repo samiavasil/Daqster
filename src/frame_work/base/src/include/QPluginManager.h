@@ -19,7 +19,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 **************************************************************************/
 #ifndef QPLUGINMANAGER_H
 #define QPLUGINMANAGER_H
-#include "global.h"
+#include "build_cfg.h"
 #include "PluginFilter.h"
 #include "PluginDescription.h"
 #include <QObject>
@@ -30,9 +30,9 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 
 namespace Daqster {
 
-
+class PluginFilter;
 class QPluginListView;
-class QPluginObjectsInterface;
+class QDaqsterPluginInterface;
 class QBasePluginObject;
 /**
  * @brief The QPluginManager class  is used to manage all availlable plugins.
@@ -67,7 +67,7 @@ public:
    * described in input filter parameter.
    * @param  Filter Plugin filtration object
    */
-  QList<Daqster::PluginDescription> GetPluginList ( const PluginFilter &Filter=PluginFilter() );
+  QList<Daqster::PluginDescription> GetPluginList ( const PluginFilter &Filter = PluginFilter());
 
   Daqster::PluginDescription GetPluginDescriptionByHash ( const QString &Hash );
 
@@ -98,7 +98,7 @@ public:
    * Show plugin manager GUI widget. In this GUI you can see available plugins,
    * rescan for new plugins, dynamic unload , enable/disable plugin loading.
    */
-  void ShowPluginManagerGui ();
+  void ShowPluginManagerGui ( QWidget *Parent = NULL );
 
   QBasePluginObject *CreatePluginObject(const QString &KeyHash, QObject *Parent = NULL);
 
@@ -118,7 +118,7 @@ public slots:
    void EnableDisablePluginList( const QList<QString>& HashList, bool Enable );
 
    /**
-    * @brief This slot can be connected to QPluginObjectsInterface signal AllPluginObjectDestroyed in order
+    * @brief This slot can be connected to QDaqsterPluginInterface signal AllPluginObjectDestroyed in order
     * to automaticaly unload plugin.
     * @param Hash
     */
@@ -131,6 +131,13 @@ signals:
    * @brief QPluginManager
    */
   void PluginsListChangeDetected();
+
+  /**
+   * @brief This signal will be emited when shutdwown All plugins after execution of ShutdownPluginManager call
+   * TBD
+   * @param Status
+   */\
+  void AllPluginsShutdownFinished( bool Status );
 
 protected:
   /**
@@ -163,6 +170,8 @@ protected:
    bool LoadPluginInterfaceObject(const QString &PluginFileName,const QString& Hash  );
 
    void StorePluginStateToPersistncy(const PluginDescription &Desc);
+
+   void ShutdownPlugin(const QString &Hash);
 protected:
   /*Pointer to sinleton obejct*/
   static QPluginManager* g_Instance;
@@ -170,8 +179,8 @@ protected:
   QList<QString> m_DirList;
   // Map with founded plugins: Map file Hash with PluginDescription   bb
   QMap<QString, Daqster::PluginDescription> m_PluginsHashDescMap;
-  // Map Hash to plugin base interface object QPluginObjectsInterface.
-  QMap<QString,Daqster::QPluginObjectsInterface*> m_PluginMap;
+  // Map Hash to plugin base interface object QDaqsterPluginInterface.
+  QMap<QString,Daqster::QDaqsterPluginInterface*> m_PluginMap;
   QString m_ConfigFile;
 };
 

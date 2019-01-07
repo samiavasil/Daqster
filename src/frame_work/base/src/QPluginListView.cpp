@@ -46,6 +46,7 @@ QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter&
     RefreshView();
 
     connect( QPluginManager::instance(), SIGNAL(PluginsListChangeDetected()), this, SLOT(RefreshView()), Qt::QueuedConnection );
+    connect( this, SIGNAL(EnableDisablePlugin(QString,bool)), QPluginManager::instance(), SLOT(EnableDisablePlugin(QString,bool)), Qt::QueuedConnection );
     connect( ui->treeWidget,SIGNAL(itemChanged(QTreeWidgetItem*,int)),this, SLOT(TreeItem(QTreeWidgetItem*,int)),Qt::QueuedConnection);
     connect(ui->detailsButton, SIGNAL(pressed()), this, SLOT(ShowDetails()) );
 }
@@ -55,7 +56,7 @@ void QPluginListView::TreeItem( QTreeWidgetItem* item, int col ){
         DEBUG << "Plugin " << item->data( col, TREE_DATA_ROLE).toString() << ": " << item->checkState(col);
         if( NULL != item->parent() ){
             bool Enable = item->checkState(col) == Qt::Unchecked ? false : true;
-            QPluginManager::instance()->EnableDisablePlugin(  item->data( col, TREE_DATA_ROLE).toString(), Enable );
+            emit EnableDisablePlugin(  item->data( col, TREE_DATA_ROLE).toString(), Enable );
 
         }
         else{
@@ -63,13 +64,13 @@ void QPluginListView::TreeItem( QTreeWidgetItem* item, int col ){
             switch ( item->checkState(col) ) {
             case Qt::Checked:{
                 for( int i = 0; i < item->childCount(); i++ ) {
-                    QPluginManager::instance()->EnableDisablePlugin(  item->child( i )->data( col, TREE_DATA_ROLE).toString(), true );
+                    emit EnableDisablePlugin(  item->child( i )->data( col, TREE_DATA_ROLE).toString(), true );
                 }
                 break;
             }
             case Qt::Unchecked:{
                 for( int i = 0; i < item->childCount(); i++ ) {
-                    QPluginManager::instance()->EnableDisablePlugin(  item->child( i )->data( col, TREE_DATA_ROLE).toString(), false );
+                    emit EnableDisablePlugin(  item->child( i )->data( col, TREE_DATA_ROLE).toString(), false );
                 }
                 break;
             }
