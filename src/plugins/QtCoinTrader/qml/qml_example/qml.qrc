@@ -1,0 +1,17 @@
+<RCC>
+    <qresource prefix="/">
+        <file>main.qml</file>
+        <file>CouponsList.qml</file>
+        <file>CouponsListDelegate.qml</file>
+        <file>includes/Utils.qml</file>
+        <file>About.qml</file>
+        <file>Statistics.qml</file>
+        <file>ActualCouponsList.qml</file>
+        <file>ArchiveCouponsList.qml</file>
+        <file>CouponDetail.qml</file>
+        <file>CouponsDetailDelegate.qml</file>
+        <file>Search.qml</file>
+        <file>SearchCategories.qml</file>
+        <file>includes/Log.js</file>
+    </qresource>
+</RCC>
