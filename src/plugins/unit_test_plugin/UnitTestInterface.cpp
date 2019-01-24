@@ -8,7 +8,7 @@ UnitTestInterface::UnitTestInterface(QObject* parent ):QPluginInterface(parent)
     DEBUG << "DaqsterTeplateInterface object create";
     QIcon icon( QString::fromUtf8(":/unit_test.png") );
     m_PluginDescryptor.SetIcon( icon );
-    m_PluginDescryptor.SetProperty( PLUGIN_NAME, "UnitTestTemplate" );
+    m_PluginDescryptor.SetProperty( PLUGIN_NAME, "UnitTest" );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
     m_PluginDescryptor.SetProperty( PLUGIN_VERSION, "0.0.1" );

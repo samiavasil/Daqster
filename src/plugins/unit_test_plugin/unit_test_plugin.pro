@@ -38,6 +38,8 @@ RESOURCES += \
 
 OTHER_FILES +=
 
+LIBS        +=  -L$${EXT_LIBS_DIR}/lib -lcmocka
+
 win32 {
     # On Windows you can't mix release and debug libraries.
     # The designer is built in release mode. If you like to use it
