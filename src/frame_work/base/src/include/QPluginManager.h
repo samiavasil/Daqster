@@ -32,7 +32,7 @@ namespace Daqster {
 
 class PluginFilter;
 class QPluginListView;
-class QDaqsterPluginInterface;
+class QPluginInterface;
 class QBasePluginObject;
 /**
  * @brief The QPluginManager class  is used to manage all availlable plugins.
@@ -118,7 +118,7 @@ public slots:
    void EnableDisablePluginList( const QList<QString>& HashList, bool Enable );
 
    /**
-    * @brief This slot can be connected to QDaqsterPluginInterface signal AllPluginObjectDestroyed in order
+    * @brief This slot can be connected to QPluginInterface signal AllPluginObjectDestroyed in order
     * to automaticaly unload plugin.
     * @param Hash
     */
@@ -179,8 +179,8 @@ protected:
   QList<QString> m_DirList;
   // Map with founded plugins: Map file Hash with PluginDescription   bb
   QMap<QString, Daqster::PluginDescription> m_PluginsHashDescMap;
-  // Map Hash to plugin base interface object QDaqsterPluginInterface.
-  QMap<QString,Daqster::QDaqsterPluginInterface*> m_PluginMap;
+  // Map Hash to plugin base interface object QPluginInterface.
+  QMap<QString,Daqster::QPluginInterface*> m_PluginMap;
   QString m_ConfigFile;
 };
 

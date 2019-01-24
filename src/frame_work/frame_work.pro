@@ -39,18 +39,17 @@ greaterThan(QT_MAJOR_VERSION, 4) {
 
 SOURCES += \
     base/src/QBasePluginObject.cpp \
-    base/src/QDaqsterPluginInterface.cpp \
     base/src/PluginDescription.cpp \
     base/src/QPluginListView.cpp \
     base/src/QPluginManager.cpp \
     base/src/QPluginManagerGui.cpp \
     base/src/PluginFilter.cpp \
     base/src/QPluginLoaderExt.cpp \
-    base/src/PluginDetails.cpp
+    base/src/PluginDetails.cpp \
+    base/src/QPluginInterface.cpp
 
 HEADERS += \
     base/src/include/QBasePluginObject.h \
-    base/src/include/QDaqsterPluginInterface.h \
     base/src/include/QPluginManager.h \
     base/src/include/PluginDescription.h \
     base/src/include/build_cfg.h \
@@ -62,7 +61,8 @@ HEADERS += \
     base/src/Singleton.h \
     base/src/plugin_global.h \
     base/src/QPluginLoaderExt.h \
-    base/src/PluginDetails.h
+    base/src/PluginDetails.h \
+    base/src/include/QPluginInterface.h
 
 symbian {
     MMP_RULES += EXPORTUNFROZEN

@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QDaqsterPluginInterface.h - Copyright vvasilev
+                        Daqster/QPluginInterface.h - Copyright vvasilev
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -18,8 +18,8 @@ General Public Licence for more details.
 Initial version of this file was created on 12.03.2017 at 20:54:50
 **************************************************************************/
 
-#ifndef QPLUGINOBJECTSINTERFACE_H
-#define QPLUGINOBJECTSINTERFACE_H
+#ifndef QPLUGININTERFACE_H
+#define QPLUGININTERFACE_H
 #include "build_cfg.h"
 #include <QObject>
 #include <QIcon>
@@ -39,15 +39,15 @@ namespace Daqster {
 class QBasePluginObject;
 
 /**
-  * class QDaqsterPluginInterface
+  * class QPluginInterface
   * @brief This is a base plugin interface class.
   * All plugins should inherite this plugin interface in oreder to create plugin  objects.
   * QPluginLoaderExt class instantiate objects from this class. Object from this class contains
   * pointer associasion to coresponding QPluginLoaderExt object wich load it.
-  * QDaqsterPluginInterface objects can save it member parametters in persistent QSettings store.
+  * QPluginInterface objects can save it member parametters in persistent QSettings store.
   */
 
-class FRAME_WORKSHARED_EXPORT QDaqsterPluginInterface : public QObject
+class FRAME_WORKSHARED_EXPORT QPluginInterface : public QObject
 {
     Q_OBJECT
 public:
@@ -56,12 +56,12 @@ public:
    * Empty Constructor
    * @param  parent
    */
-   QDaqsterPluginInterface (QObject* Parent = NULL );
+   QPluginInterface (QObject* Parent = NULL );
 
   /**
    * Empty Destructor
    */
-  virtual ~QDaqsterPluginInterface ();
+  virtual ~QPluginInterface ();
 
    /**
     * @brief Get plugin Location
@@ -242,7 +242,7 @@ protected:
 
 
 /*Next declarations insired fom itom project :)*/
-#define IID_DAQSTER_PLUGIN_INTERFACE   "Daqster.PlugIn.QDaqsterPluginInterface"
+#define IID_DAQSTER_PLUGIN_INTERFACE   "Daqster.PlugIn.QPluginInterface"
 #define CREATE_PLUGIN_INTERFACE_VERSION_STR(major,minor,patch) IID_DAQSTER_PLUGIN_INTERFACE"/"#major"."#minor"."#patch
 #define CREATE_PLUGIN_INTERFACE_VERSION(major,minor,patch) ((major<<16)|(minor<<8)|(patch))
 
@@ -262,7 +262,7 @@ protected:
 //
 // 1. append the string behind the variable daqster_PluginInterface_CurrentVersion (e.g. CREATE_PLUGIN_INTERFACE_VERSION_STR(0,0,0)) to the array daqster_PluginInterface_OldVersions
 // 2. change the version number in the string daqster_PluginInterface_CurrentVersion (e.g. CREATE_PLUGIN_INTERFACE_VERSION_STR(0,0,1))
-// TODO: DELL ME 3. if the QDaqsterPluginInterface version number is incremented, the ito.AbstractItomDesignerPlugin number in AbstractItomDesignerPlugin.h must be incremented as well.
+// TODO: DELL ME 3. if the QPluginInterface version number is incremented, the ito.AbstractItomDesignerPlugin number in AbstractItomDesignerPlugin.h must be incremented as well.
 //
 //
 // This helps, that deprecated or "future" plugins, which fit not to the current implementation of the interface will not be loaded
@@ -274,5 +274,5 @@ static const char* daqster_PluginObjectInterface_OldVersions[] = {
 };
 static const char* daqster_PluginInterface_CurrentVersion = DAQSTER_PLUGIN_INTERFACE_VERSION; //results in "Daqster.PlugIn.BaseInterface/x.x.x";
 // must be out of namespace
-Q_DECLARE_INTERFACE(Daqster::QDaqsterPluginInterface , daqster_PluginInterface_CurrentVersion )
+Q_DECLARE_INTERFACE(Daqster::QPluginInterface , daqster_PluginInterface_CurrentVersion )
 #endif // QPLUGINBASESINTERFACE_H

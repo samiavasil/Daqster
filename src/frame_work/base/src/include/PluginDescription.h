@@ -56,7 +56,7 @@ class PrivateDescription;
 
 class FRAME_WORKSHARED_EXPORT PluginDescription
 {
-    friend class QDaqsterPluginInterface;
+    friend class QPluginInterface;
 public:
     typedef enum{
         APPLICATION_PLUGIN  = 0x1,

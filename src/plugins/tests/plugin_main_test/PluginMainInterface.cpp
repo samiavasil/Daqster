@@ -2,7 +2,7 @@
 #include "debug.h"
 #include "PluginMainObject.h"
 
-PluginMainInterface::PluginMainInterface(QObject* parent ):QDaqsterPluginInterface(parent)
+PluginMainInterface::PluginMainInterface(QObject* parent ):QPluginInterface(parent)
 {
     Q_INIT_RESOURCE(main_test);
     DEBUG << "DaqsterTeplateInterface object create";

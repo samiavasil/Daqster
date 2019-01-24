@@ -2,7 +2,7 @@
 #include "debug.h"
 #include "PluginUgglyObject.h"
 
-PluginUgglyInterface::PluginUgglyInterface(QObject* parent ):QDaqsterPluginInterface(parent)
+PluginUgglyInterface::PluginUgglyInterface(QObject* parent ):QPluginInterface(parent)
 {
     Q_INIT_RESOURCE(uggly_test);
     DEBUG << "DaqsterTeplateInterface object create";
