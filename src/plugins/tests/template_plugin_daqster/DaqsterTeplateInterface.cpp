@@ -5,7 +5,7 @@
 DaqsterTemplateInterface::DaqsterTemplateInterface(QObject* parent ):QPluginInterface(parent)
 {
     Q_INIT_RESOURCE(template);
-    DEBUG << "DaqsterTeplateInterface object create";
+    DEBUG << "DaqsterTemplateInterface object create";
     QIcon icon( QString::fromUtf8(":/template.png") );
     m_PluginDescryptor.SetIcon( icon );
     m_PluginDescryptor.SetProperty( PLUGIN_NAME, "PluginTemplate" );
@@ -37,7 +37,7 @@ Daqster::QBasePluginObject *DaqsterTemplateInterface::CreatePluginInternal(QObje
 }
 
 #if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
-Q_EXPORT_PLUGIN2(DaqsterTemlatePlugin, DaqsterTeplateInterface)
+Q_EXPORT_PLUGIN2(DaqsterTemlatePlugin, DaqsterTemplateInterface)
 #endif
 
 

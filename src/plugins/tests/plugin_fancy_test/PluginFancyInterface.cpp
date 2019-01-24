@@ -5,7 +5,7 @@
 PluginFancyInterface::PluginFancyInterface(QObject* parent ):QPluginInterface(parent)
 {
     Q_INIT_RESOURCE(fancy_test);
-    DEBUG << "DaqsterTeplateInterface object create";
+    DEBUG << "PluginFancyInterface object create";
     QIcon icon( QString::fromUtf8(":/fancy.png") );
     m_PluginDescryptor.SetIcon( icon );
     m_PluginDescryptor.SetProperty( PLUGIN_NAME, "PluginFancyTest" );
@@ -37,7 +37,7 @@ Daqster::QBasePluginObject *PluginFancyInterface::CreatePluginInternal(QObject *
 }
 
 #if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
-Q_EXPORT_PLUGIN2(DaqsterTemlatePlugin, DaqsterTeplateInterface)
+Q_EXPORT_PLUGIN2(PluginFancyTest, PluginFancyInterface)
 #endif
 
 
