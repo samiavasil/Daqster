@@ -10,4 +10,3 @@ if( defined( BUILD_TEST_PLUGINS,var ) ){
              tests/plugin_uggly_test \
 
 }
-

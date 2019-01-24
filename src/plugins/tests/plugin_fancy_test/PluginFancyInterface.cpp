@@ -2,7 +2,7 @@
 #include "debug.h"
 #include "PluginFancyObject.h"
 
-PluginFancyInterface::PluginFancyInterface(QObject* parent ):QDaqsterPluginInterface(parent)
+PluginFancyInterface::PluginFancyInterface(QObject* parent ):QPluginInterface(parent)
 {
     Q_INIT_RESOURCE(fancy_test);
     DEBUG << "DaqsterTeplateInterface object create";
