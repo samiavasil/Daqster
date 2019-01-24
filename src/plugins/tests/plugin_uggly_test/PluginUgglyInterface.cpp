@@ -37,7 +37,7 @@ Daqster::QBasePluginObject *PluginUgglyInterface::CreatePluginInternal(QObject *
 }
 
 #if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
-Q_EXPORT_PLUGIN2(DaqsterTemlatePlugin, DaqsterTeplateInterface)
+Q_EXPORT_PLUGIN2(UgglyTestPlugin, PluginUgglyInterface)
 #endif
 
 
