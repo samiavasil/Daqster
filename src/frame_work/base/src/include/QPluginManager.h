@@ -79,7 +79,7 @@ public:
    * @param  Parrent Pointer to parent QWidget.
    * @param  Filter Optional list filter.
    */
-  Daqster::QPluginListView*  CreatePluginListView (QWidget* Parrent = NULL, Daqster::PluginFilter* Filter = NULL);
+  Daqster::QPluginListView*  CreatePluginListView (QWidget* Parrent = nullptr, Daqster::PluginFilter* Filter = nullptr);
 
 
   /**
@@ -98,9 +98,9 @@ public:
    * Show plugin manager GUI widget. In this GUI you can see available plugins,
    * rescan for new plugins, dynamic unload , enable/disable plugin loading.
    */
-  void ShowPluginManagerGui ( QWidget *Parent = NULL );
+  void ShowPluginManagerGui ( QWidget *Parent = nullptr );
 
-  QBasePluginObject *CreatePluginObject(const QString &KeyHash, QObject *Parent = NULL);
+  QBasePluginObject *CreatePluginObject(const QString &KeyHash, QObject *Parent = nullptr);
 
 public slots:
   /**

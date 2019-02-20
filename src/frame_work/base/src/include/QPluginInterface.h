@@ -56,7 +56,7 @@ public:
    * Empty Constructor
    * @param  parent
    */
-   QPluginInterface (QObject* Parent = NULL );
+   QPluginInterface (QObject* Parent = nullptr );
 
   /**
    * Empty Destructor
@@ -196,7 +196,7 @@ public:
    * @return Daqster::QBasePluginObject*
    * @param  Parrent Pointer to parent QObject
    */
-  Daqster::QBasePluginObject* CreatePlugin (QObject* Parrent = NULL);
+  Daqster::QBasePluginObject* CreatePlugin (QObject* Parrent = nullptr);
 
   /**
    * @brief Store Plugin Parameters to persistent settings store.
@@ -225,7 +225,7 @@ protected:
    * @return QBasePluginObject *
    * @param  Parrent Parent object
    */
-  virtual Daqster::QBasePluginObject* CreatePluginInternal(QObject* Parrent = NULL) = 0;
+  virtual Daqster::QBasePluginObject* CreatePluginInternal(QObject* Parrent = nullptr) = 0;
 
 protected slots:
   void pluginInstanceDestroyed( QObject* obj );
@@ -250,7 +250,7 @@ protected:
 #define DAQSTER_PLUGIN_INTERFACE_MINOR 0
 #define DAQSTER_PLUGIN_INTERFACE_PATCH 0
 #define DAQSTER_PLUGIN_INTERFACE_VERSION CREATE_PLUGIN_INTERFACE_VERSION(DAQSTER_PLUGIN_INTERFACE_MAJOR,DAQSTER_PLUGIN_INTERFACE_MINOR,DAQSTER_PLUGIN_INTERFACE_PATCH)
-
+#define DAQSTER_PLUGIN_INTERFACE_VERSION_STR CREATE_PLUGIN_INTERFACE_VERSION_STR(DAQSTER_PLUGIN_INTERFACE_MAJOR,DAQSTER_PLUGIN_INTERFACE_MINOR,DAQSTER_PLUGIN_INTERFACE_PATCH)
 //###########################################################################################################
 //   Interface version:
 //###########################################################################################################
@@ -270,9 +270,9 @@ protected:
 /*TODO: Plugin Version control should be implemented*/
 static const char* daqster_PluginObjectInterface_OldVersions[] = {
      CREATE_PLUGIN_INTERFACE_VERSION_STR(-1,-1,-1),//version TODO: DELL ME not real version in moment
-     NULL
+     nullptr
 };
-static const char* daqster_PluginInterface_CurrentVersion = DAQSTER_PLUGIN_INTERFACE_VERSION; //results in "Daqster.PlugIn.BaseInterface/x.x.x";
+static const char* daqster_PluginInterface_CurrentVersion = DAQSTER_PLUGIN_INTERFACE_VERSION_STR; //results in "Daqster.PlugIn.BaseInterface/x.x.x";
 // must be out of namespace
 Q_DECLARE_INTERFACE(Daqster::QPluginInterface , daqster_PluginInterface_CurrentVersion )
 #endif // QPLUGINBASESINTERFACE_H

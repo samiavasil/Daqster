@@ -30,7 +30,7 @@ PluginFancyInterface::~PluginFancyInterface(  )
 Daqster::QBasePluginObject *PluginFancyInterface::CreatePluginInternal(QObject *Parrent)
 {
     PluginFancyObject* Obj = new PluginFancyObject(Parrent);
-    if( NULL != Obj ){
+    if( nullptr != Obj ){
         Obj->SetName( m_PluginDescryptor.GetProperty(PLUGIN_NAME).toString() );
     }
     return Obj;

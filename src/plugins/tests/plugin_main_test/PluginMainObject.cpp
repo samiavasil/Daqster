@@ -6,7 +6,7 @@
 #include<QLayout>
 #include<QPushButton>
 
-PluginMainObject::PluginMainObject(QObject *Parent):QBasePluginObject ( Parent  ),m_Win(NULL){
+PluginMainObject::PluginMainObject(QObject *Parent):QBasePluginObject ( Parent  ),m_Win(nullptr){
 
 }
 
@@ -47,9 +47,9 @@ void PluginMainObject::DeInitialize()
 
 void PluginMainObject::MainWinDestroyed( QObject* obj )
 {
-    m_Win = NULL;
+    m_Win = nullptr;
     deleteLater();
-    if( NULL == obj )
+    if( nullptr == obj )
         DEBUG << "Strange::!!!";
 
 }
@@ -57,7 +57,7 @@ void PluginMainObject::MainWinDestroyed( QObject* obj )
 void PluginMainObject::ShowPlugins()
 {
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
-    if( NULL != pm )
+    if( nullptr != pm )
     {
         DEBUG << "Plugin Manager: " << pm;
    //     pm->SearchForPlugins();

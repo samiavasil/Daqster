@@ -20,7 +20,7 @@ public:
     PluginFancyInterface( QObject* parent = 0);
     ~PluginFancyInterface(  );
 protected:
-    virtual Daqster::QBasePluginObject* CreatePluginInternal(QObject* Parrent = NULL);
+    virtual Daqster::QBasePluginObject* CreatePluginInternal(QObject* Parrent = nullptr);
 };
 
 #endif // PLUGINFANCYINTERFACE_H

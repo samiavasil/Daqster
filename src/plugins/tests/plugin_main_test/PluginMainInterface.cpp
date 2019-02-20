@@ -30,7 +30,7 @@ PluginMainInterface::~PluginMainInterface(  )
 Daqster::QBasePluginObject *PluginMainInterface::CreatePluginInternal(QObject *Parrent)
 {
     PluginMainObject* Obj = new PluginMainObject(Parrent);
-    if( NULL != Obj ){
+    if( nullptr != Obj ){
         Obj->SetName( m_PluginDescryptor.GetProperty(PLUGIN_NAME).toString() );
     }
     return Obj;

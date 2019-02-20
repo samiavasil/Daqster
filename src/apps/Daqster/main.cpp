@@ -42,9 +42,10 @@ void PluginsInit()
 {
     /*TODO:  Move this on some initialization routine*/
     Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
-    PluginManager->SearchForPlugins();
-    if( NULL != PluginManager )
+
+    if( nullptr != PluginManager )
     {
+        PluginManager->SearchForPlugins();
         qDebug() << "Plugin Manager: " << PluginManager;
         //  PluginManager->SearchForPlugins();
         //PluginManager->ShowPluginManagerGui();
@@ -52,7 +53,7 @@ void PluginsInit()
         /*Just try to load/unload all plugins in initialization phase*/
         foreach ( const Daqster::PluginDescription& Desc, PluginsList) {
             for( int i=0;i < 1; i++){
-                PluginManager->CreatePluginObject( Desc.GetProperty(PLUGIN_HASH).toString(), NULL )->deleteLater();
+                PluginManager->CreatePluginObject( Desc.GetProperty(PLUGIN_HASH).toString(), nullptr )->deleteLater();
             }
         }
     }
@@ -116,12 +117,12 @@ qDebug() << "ARGS: " << args;
         }
         else{
             QString Name = args[0];
-            Daqster::QBasePluginObject* obj = NULL;
+            Daqster::QBasePluginObject* obj = nullptr;
             foreach ( const Daqster::PluginDescription& Desc, PluginsList ) {
                 qDebug()<< "Desc: "<< Desc.GetProperty(PLUGIN_NAME).toString() << "\nName: "<<Name;
                 if( 0 == Desc.GetProperty(PLUGIN_NAME).toString().compare(Name) ){
-                    obj = PluginManager->CreatePluginObject( Desc.GetProperty(PLUGIN_HASH).toString(), NULL );
-                    if( NULL != obj ){
+                    obj = PluginManager->CreatePluginObject( Desc.GetProperty(PLUGIN_HASH).toString(), nullptr );
+                    if( nullptr != obj ){
                         obj->Initialize();
                         QApplication::setApplicationName(Desc.GetProperty(PLUGIN_HASH).toString());
                     }

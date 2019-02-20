@@ -3,7 +3,7 @@
 
 ApplicationsManager* ApplicationsManager::m_Manager;
 
-ApplicationsManager::ApplicationsManager():QObject(NULL),nextHndl(0)
+ApplicationsManager::ApplicationsManager():QObject(nullptr),nextHndl(0)
 {
 
 }
@@ -15,7 +15,7 @@ ApplicationsManager::~ApplicationsManager()
 
 ApplicationsManager &ApplicationsManager::Instance()
 {
-    if( NULL == m_Manager ){
+    if( nullptr == m_Manager ){
         m_Manager = new ApplicationsManager();
     }
     return *m_Manager;
@@ -26,7 +26,7 @@ void ApplicationsManager::KillAll()
     blockSignals(true);
     auto iter = m_ProcessMap.begin();
     while( iter != m_ProcessMap.end() ) {
-        if( NULL != iter.value() ){
+        if( nullptr != iter.value() ){
             iter.value()->close();
             //delete iter.value();
            //
@@ -62,7 +62,7 @@ void ApplicationsManager::AppFinished( int exitCode, QProcess::ExitStatus exitSt
         AppHndl_t apHndl = (AppHndl_t)sender->property("AppHndl").toUInt();
         if( m_ProcessMap.contains( apHndl )){
             m_ProcessMap[apHndl]->deleteLater();
-            m_ProcessMap[apHndl] = NULL;
+            m_ProcessMap[apHndl] = nullptr;
             qDebug() << "Process Stop: Hndl" << apHndl << " With exitCode "
                      << exitCode << ", exitStatus " << exitStatus;
         }

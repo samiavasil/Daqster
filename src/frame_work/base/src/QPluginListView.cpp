@@ -52,9 +52,9 @@ QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter&
 }
 
 void QPluginListView::TreeItem( QTreeWidgetItem* item, int col ){
-    if( NULL != item && col == 1){
+    if( nullptr != item && col == 1){
         DEBUG << "Plugin " << item->data( col, TREE_DATA_ROLE).toString() << ": " << item->checkState(col);
-        if( NULL != item->parent() ){
+        if( nullptr != item->parent() ){
             bool Enable = item->checkState(col) == Qt::Unchecked ? false : true;
             emit EnableDisablePlugin(  item->data( col, TREE_DATA_ROLE).toString(), Enable );
 
@@ -89,7 +89,7 @@ void QPluginListView::ShowDetails()
 {
     PluginDetails Details;
     QTreeWidgetItem* item = ui->treeWidget->currentItem();
-    if( NULL != item ){
+    if( nullptr != item ){
         Details.setPluginDescription( QPluginManager::instance()->GetPluginDescriptionByHash(item->data( 1, TREE_DATA_ROLE).toString() ) );
         Details.exec();
     }
@@ -116,7 +116,7 @@ void QPluginListView::RefreshView(){
     QList<Daqster::PluginDescription> PlugList = QPluginManager::instance()->GetPluginList( m_PluginFilter );
     PluginDescription::PluginType_t Type;
     QTreeWidgetItem *root_it, *it;
-    QTreeWidget *treeWidget = NULL;
+    QTreeWidget *treeWidget = nullptr;
     ui->treeWidget->blockSignals(true);
 
     treeWidget = ui->treeWidget;
@@ -125,8 +125,8 @@ void QPluginListView::RefreshView(){
     foreach ( const Daqster::PluginDescription& Desc , PlugList )
     {
         Type = (PluginDescription::PluginType_t)Desc.GetProperty(PLUGIN_TYPE).toUInt();
-        root_it   = Map.value( Type, NULL );
-        if( NULL == root_it ){
+        root_it   = Map.value( Type, nullptr );
+        if( nullptr == root_it ){
             root_it = new QTreeWidgetItem((QTreeWidget*)0);
             root_it->setData( 0,Qt::DisplayRole, tr("Plugin Type %1").arg(Type) );
             root_it->setData( 0, TREE_DATA_ROLE, Type );
@@ -137,7 +137,7 @@ void QPluginListView::RefreshView(){
         }
         if( root_it ){
             it = new QTreeWidgetItem((QTreeWidget*)0);
-            if( NULL != it ){
+            if( nullptr != it ){
                 Qt::CheckState CheckState = Desc.IsEnabled() ? Qt::Checked : Qt::Unchecked;
                 Qt::CheckState RootCheckState = root_it->checkState( 1 );
                 int childCounter = root_it->data( 0, CHECK_ROOT_HELPER ).toInt();

@@ -52,7 +52,7 @@ public:
   * Constructor
   * @param  Filter Plugin filtrato parameter
   */
-  QPluginListView ( QWidget* Parent = NULL ,const Daqster::PluginFilter& Filter = Daqster::PluginFilter() );
+  QPluginListView ( QWidget* Parent = nullptr ,const Daqster::PluginFilter& Filter = Daqster::PluginFilter() );
 
   /**
    * Empty Destructor

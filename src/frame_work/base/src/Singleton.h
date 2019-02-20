@@ -7,10 +7,10 @@ class Singleton
 {
 public:
     static T* instance(){
-        if(  NULL == g_instance ){
+        if(  nullptr == g_instance ){
             g_instance = new T();
         }
-        assert( g_instance != NULL );
+        assert( g_instance != nullptr );
         return g_instance;
     }
 
@@ -23,6 +23,6 @@ private:
     static T* g_instance;
 };
 
-template < class T> T* Singleton<T>::g_instance =  NULL;
+template < class T> T* Singleton<T>::g_instance =  nullptr;
 
 #endif // SINGLETON_H

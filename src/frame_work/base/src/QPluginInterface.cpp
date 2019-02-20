@@ -258,7 +258,7 @@ const PluginDescription &QPluginInterface::GetPluginDescriptor() const
 Daqster::QBasePluginObject* QPluginInterface::CreatePlugin (QObject* Parrent)
 {
     QBasePluginObject * obj = CreatePluginInternal( Parrent );
-    if( NULL != obj ){
+    if( nullptr != obj ){
         m_PluginInstList.append( obj );
         connect( obj, SIGNAL(destroyed(QObject*)), this, SLOT(pluginInstanceDestroyed(QObject*)) );
     }
@@ -268,7 +268,7 @@ Daqster::QBasePluginObject* QPluginInterface::CreatePlugin (QObject* Parrent)
 void QPluginInterface::pluginInstanceDestroyed( QObject *obj )
 {
     QBasePluginObject* Plugin = (QBasePluginObject*)(obj);//TODO:?
-    if( NULL != Plugin ){
+    if( nullptr != Plugin ){
         DEBUG << "Remove Plugins num " << m_PluginInstList.removeAll( Plugin );
         DEBUG << "Not destroyed Plugins count " << m_PluginInstList.count();
         if( 0 == m_PluginInstList.count() ){
