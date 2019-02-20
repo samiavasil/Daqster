@@ -7,7 +7,7 @@ using namespace Daqster;
 class TemplatePluginObject: public QBasePluginObject{
     Q_OBJECT
 public:
-    TemplatePluginObject(QObject* Parent = NULL);
+    TemplatePluginObject(QObject* Parent = nullptr);
     virtual ~TemplatePluginObject();
     void SetName(const QString& name);
     virtual bool Initialize();

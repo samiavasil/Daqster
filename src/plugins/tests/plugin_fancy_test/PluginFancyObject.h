@@ -7,7 +7,7 @@ using namespace Daqster;
 class PluginFancyObject: public QBasePluginObject{
     Q_OBJECT
 public:
-    PluginFancyObject(QObject* Parent = NULL);
+    PluginFancyObject(QObject* Parent = nullptr);
     virtual ~PluginFancyObject();
     void SetName(const QString& name);
 

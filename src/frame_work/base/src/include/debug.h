@@ -32,14 +32,14 @@ extern QDbg* m_Debug;
 
 #define DEBUG_ENABLE( x ) if( x ){ \
                             if( !m_Debug ){\
-                               m_Debug = new QDbg( QString(__FILE__) , NULL );\
+                               m_Debug = new QDbg( QString(__FILE__) , nullptr );\
                             }\
                             m_Debug->logEnable(x);\
                           }else{\
                             if( m_Debug ){\
                                 m_Debug->logEnable(x);\
                                 delete m_Debug;\
-                                m_Debug = NULL;\
+                                m_Debug = nullptr;\
                             }\
                           }
 #endif

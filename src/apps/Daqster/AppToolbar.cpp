@@ -7,10 +7,10 @@
 #include"ApplicationsManager.h"
 
 AppToolbar::AppToolbar(QWidget *parent) :
-    QToolBar(parent),m_AppMenu(NULL)
+    QToolBar(parent),m_AppMenu(nullptr)
 {
     QList<Daqster::PluginDescription> list = GetAppPluginList();
-    QAction* actionNew = NULL;
+    QAction* actionNew = nullptr;
     //actionNew->setObjectName( val.GetProperty(PLUGIN_NAME).toString() );
     //actionNew->setIcon(val.GetIcon());
  //   addAction(actionNew);
@@ -119,7 +119,7 @@ QList<Daqster::PluginDescription> AppToolbar::GetAppPluginList()
 void AppToolbar::OnActionTrigered()
 {
   QAction* sender = dynamic_cast<QAction*>( QObject::sender() );
-  if( NULL != sender ){
+  if( nullptr != sender ){
       QString AppName = sender->objectName();
       emit PleaseRunApplication( QString("./Daqster"), QStringList( AppName ) );
       qDebug() << "Run Application: " << AppName;

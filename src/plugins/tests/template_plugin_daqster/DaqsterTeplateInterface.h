@@ -20,7 +20,7 @@ public:
     DaqsterTemplateInterface( QObject* parent = 0);
     ~DaqsterTemplateInterface(  );
 protected:
-    virtual Daqster::QBasePluginObject* CreatePluginInternal(QObject* Parrent = NULL);
+    virtual Daqster::QBasePluginObject* CreatePluginInternal(QObject* Parrent = nullptr);
 };
 
 #endif // DATAPLOTINTERFACE_H

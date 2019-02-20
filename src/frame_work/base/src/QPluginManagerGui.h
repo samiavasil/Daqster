@@ -43,7 +43,7 @@ public:
   /**
    * Empty Constructor
    */
-  QPluginManagerGui (QWidget *Parent = NULL );
+  QPluginManagerGui (QWidget *Parent = nullptr );
 
   /**
    * Empty Destructor

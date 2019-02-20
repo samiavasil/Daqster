@@ -39,7 +39,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 namespace Daqster {
 // Constructors/Destructors
 //
- QPluginManager* QPluginManager::g_Instance =  NULL;
+ QPluginManager* QPluginManager::g_Instance =  nullptr;
 
 QPluginManager::QPluginManager (const QString &ConfigFile ) {
     m_ConfigFile = ConfigFile;
@@ -58,10 +58,10 @@ QPluginManager::~QPluginManager () {
 QPluginManager *QPluginManager::instance()
 {
     assert( QApplication::instance()->thread() == QThread::currentThread() );
-    if(  NULL == g_Instance ){
+    if(  nullptr == g_Instance ){
         g_Instance = new QPluginManager();
     }
-    assert( g_Instance != NULL );
+    assert( g_Instance != nullptr );
     return g_Instance;
 }
 
@@ -74,10 +74,10 @@ bool QPluginManager::Initialize()
 QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, QObject* Parent  )
 {
     PluginDescription::PluginHealtyState_t PersistentHealthy = PluginDescription::UNDEFINED;
-    QBasePluginObject* Object = NULL;
-    QPluginInterface* ObjInterface = m_PluginMap.value( KeyHash, NULL );
+    QBasePluginObject* Object = nullptr;
+    QPluginInterface* ObjInterface = m_PluginMap.value( KeyHash, nullptr );
 
-    if( NULL == ObjInterface ){
+    if( nullptr == ObjInterface ){
         if( m_PluginsHashDescMap.contains( KeyHash ) && m_PluginsHashDescMap[KeyHash].IsEnabled() ){
             PersistentHealthy = (PluginDescription::PluginHealtyState_t) m_PluginsHashDescMap[KeyHash].GetProperty(PLUGIN_HELTHY_STATE).toUInt();
             if( PluginDescription::ILL != PersistentHealthy ){
@@ -85,12 +85,12 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, Q
                     DEBUG << "Can't load plugin from file" << m_PluginsHashDescMap[KeyHash].GetProperty(PLUGIN_LOCATION).toString();
                 }
 
-                ObjInterface = m_PluginMap.value( KeyHash, NULL );
+                ObjInterface = m_PluginMap.value( KeyHash, nullptr );
             }
         }
     }
 
-    if( NULL != ObjInterface && ObjInterface->IsEnabled() ){
+    if( nullptr != ObjInterface && ObjInterface->IsEnabled() ){
         PluginDescription::PluginHealtyState_t Healthy = ObjInterface->GetHealthyState();
         if( PersistentHealthy == PluginDescription::UNDEFINED){
             PersistentHealthy = Healthy;
@@ -105,7 +105,7 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, Q
                  PersistentHealthy =  PluginDescription::ILL;
                  ObjInterface->SetHealthyState( PersistentHealthy );
                  StorePluginStateToPersistncy(ObjInterface->GetPluginDescriptor());
-                 QMessageBox::warning(NULL, tr("Attention"),
+                 QMessageBox::warning(nullptr, tr("Attention"),
                                                   tr("There was application crach on last time loading of plugin %1 .\n"
                                                      "Now we try second time and if it fail the plugin will be disabled.\n"
                                                      "To enable Plugin please change HealthyState state in configuration .ini file."
@@ -120,7 +120,7 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, Q
              }
 
              Object = ObjInterface->CreatePlugin(Parent);
-             if( NULL != Object ){
+             if( nullptr != Object ){
                 Healthy = PluginDescription::HEALTHY;
              }
              else{
@@ -147,8 +147,8 @@ void QPluginManager::EnableDisablePlugin( const QString &Hash, bool Enable )
           m_PluginsHashDescMap[Hash] = Desc;
 
 
-          Daqster::QPluginInterface* object = m_PluginMap.value( Hash, NULL );
-          if( NULL != object ){
+          Daqster::QPluginInterface* object = m_PluginMap.value( Hash, nullptr );
+          if( nullptr != object ){
               object->Enable( Enable );
           }
           StorePluginStateToPersistncy( Desc );
@@ -235,14 +235,14 @@ void QPluginManager::SearchForPlugins ()
 {
     QDir PluginsDir;
     QSettings settings( m_ConfigFile, QSettings::IniFormat );
-    Daqster::QPluginInterface* ObjInterface = NULL;
+    Daqster::QPluginInterface* ObjInterface = nullptr;
     bool Changed = false;
     //  settings.setIniCodec("UTF-8");
     settings.beginGroup("Plugins");
     foreach (const QString& Hash, m_PluginMap.keys()) {
-        ObjInterface = m_PluginMap.value( Hash, NULL );
+        ObjInterface = m_PluginMap.value( Hash, nullptr );
         /*Check is this plugin file still exist*/
-        if( NULL != ObjInterface )
+        if( nullptr != ObjInterface )
         {
             QString cHash;
             FileHash( ObjInterface->GetLocation(),  cHash  );
@@ -283,8 +283,8 @@ void QPluginManager::SearchForPlugins ()
                             DEBUG << "Can' Load plugin from file" << fileName;
                         }
                     }
-                    ObjInterface = m_PluginMap.value( Hash, NULL );
-                    if( NULL != ObjInterface )
+                    ObjInterface = m_PluginMap.value( Hash, nullptr );
+                    if( nullptr != ObjInterface )
                     {
                         ObjInterface->StorePluginParamsToPersistency( settings );
                     }
@@ -416,8 +416,8 @@ void QPluginManager::LoadPluginsInfoFromPersistency()
  */
 void QPluginManager::AllPluginObjectsDestroyed(const QString &Hash)
 {
-    QPluginInterface* OIface = m_PluginMap.value( Hash, NULL );
-    if( NULL != OIface  )
+    QPluginInterface* OIface = m_PluginMap.value( Hash, nullptr );
+    if( nullptr != OIface  )
     {   //&& ( !OIface->IsEnabled() )
         /* Destroy Plugin Interface If Plugin is disabled and all
          * Plugin objects instanses are destroyed */
@@ -429,8 +429,8 @@ void QPluginManager::AllPluginObjectsDestroyed(const QString &Hash)
 
 void QPluginManager::ShutdownPlugin( const QString &Hash )
 {
-    QPluginInterface* OIface = m_PluginMap.value( Hash, NULL );
-    if( NULL != OIface ){
+    QPluginInterface* OIface = m_PluginMap.value( Hash, nullptr );
+    if( nullptr != OIface ){
         OIface->ShutdownAllPluginObjects();
       //  delete OIface;
     }
@@ -452,17 +452,17 @@ void QPluginManager::ShutdownPluginManager()
 bool QPluginManager::LoadPluginInterfaceObject( const QString& PluginFileName, const QString& Hash  )
 {
 
-    QPluginInterface* ObjInterface = NULL;
+    QPluginInterface* ObjInterface = nullptr;
     bool ret = false;
     QSharedPointer<QPluginLoaderExt> pluginLoader( new QPluginLoaderExt(PluginFileName), &QObject::deleteLater );
     /*All symbols are resolved in load time*/
     pluginLoader->setLoadHints( QLibrary::ResolveAllSymbolsHint );
     QObject* Inst = pluginLoader->instance();
     qDebug() << "PLUGIN METADATA: \n\t" << pluginLoader->metaData();
-    if( NULL != Inst )
+    if( nullptr != Inst )
     {
         ObjInterface = dynamic_cast<Daqster::QPluginInterface*>(Inst);
-        if( NULL != ObjInterface )
+        if( nullptr != ObjInterface )
         {
             ObjInterface->SetPluginLoader( pluginLoader );
             ObjInterface->SetLocation( PluginFileName );

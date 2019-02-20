@@ -45,7 +45,7 @@ public:
   /**
    * Empty Constructor
    */
-  QBasePluginObject (  QObject* Parent = NULL );
+  QBasePluginObject (  QObject* Parent = nullptr );
 
   /**
    * Empty Destructor

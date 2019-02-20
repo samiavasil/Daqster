@@ -30,7 +30,7 @@ namespace Daqster {
 /*This is internal private class to store Plugin description*/
 class PrivateDescription : public QObject{
     public:
-    explicit PrivateDescription( QObject* Parent = NULL ):QObject(Parent){
+    explicit PrivateDescription( QObject* Parent = nullptr ):QObject(Parent){
 
     }
     virtual ~PrivateDescription(){
@@ -70,7 +70,7 @@ PluginDescription::PluginDescription(const PluginDescription& b)
 }
 
 PluginDescription::~PluginDescription () {
-    if( NULL != m_PrivateDescription ){
+    if( nullptr != m_PrivateDescription ){
         m_PrivateDescription->deleteLater();
     }
 }

@@ -30,7 +30,7 @@ PluginUgglyInterface::~PluginUgglyInterface(  )
 Daqster::QBasePluginObject *PluginUgglyInterface::CreatePluginInternal(QObject *Parrent)
 {
     PluginUgglyObject* Obj = new PluginUgglyObject(Parrent);
-    if( NULL != Obj ){
+    if( nullptr != Obj ){
         Obj->SetName( m_PluginDescryptor.GetProperty(PLUGIN_NAME).toString() );
     }
     return Obj;
