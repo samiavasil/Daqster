@@ -25,7 +25,7 @@ win32 {
 TEMPLATE = lib
 INCLUDEPATH += $$PWD/base/src
 INCLUDEPATH += $$PWD/base/src/include/
-INCLUDEPATH += $$PWD/../include/extlibs
+#INCLUDEPATH += $$PWD/../bin/external_libs/include
 DEFINES += FRAME_WORK_LIBRARY
 OBJECTS_DIR  = $$PWD/Build
 MOC_DIR      = $$PWD/Build

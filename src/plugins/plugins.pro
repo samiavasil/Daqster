@@ -1,7 +1,7 @@
 TEMPLATE = subdirs
 
 BUILD_TEST_PLUGINS = TESTS
-CONFIG+= c++11
+
 
 if( defined( BUILD_TEST_PLUGINS,var ) ){
  SUBDIRS +=  tests/template_plugin_daqster\
