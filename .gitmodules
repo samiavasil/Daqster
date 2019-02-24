@@ -1,0 +1,3 @@
+[submodule "src/external_libs/nodeeditor"]
+	path = src/external_libs/nodeeditor
+	url = git@github.com:samiavasil/nodeeditor.git
