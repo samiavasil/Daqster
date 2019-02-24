@@ -25,7 +25,7 @@ HEADERS  += \
     main.h
 
 
-LIBS += -L../../../bin/libs  -L../../../bin/extlibs
+LIBS += -L../../../bin/libs
 CONFIG+= c++11
 
 win32 {
