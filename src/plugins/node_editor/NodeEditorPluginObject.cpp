@@ -20,9 +20,10 @@
 
 #include <nodes/DataModelRegistry>
 
-#include "TestNodeModel.h"
-
-
+#include "ModuloModel.h"
+#include "NumberSourceDataModel.h"
+#include "NumberDisplayDataModel.h"
+#include "Converters.h"
 
 using QtNodes::DataModelRegistry;
 using QtNodes::FlowScene;
@@ -35,7 +36,58 @@ static std::shared_ptr<DataModelRegistry>
 registerDataModels()
 {
   auto ret = std::make_shared<DataModelRegistry>();
-  ret->registerModel<ModuloModel>("Operators");
+
+
+  ret->registerModel<NumberSourceDataModel>("Sources");
+
+  ret->registerModel<NumberDisplayDataModel>("Displays");
+
+//  ret->registerModel<AdditionModel>("Operators");
+
+//  ret->registerModel<SubtractionModel>("Operators");
+
+//  ret->registerModel<MultiplicationModel>("Operators");
+
+//  ret->registerModel<DivisionModel>("Operators");
+
+  ret->registerModel<ModuloModel<int>>("Operators");
+
+
+  ret->registerTypeConverter(std::make_pair(ComplexType<int>().type(),
+                                            ComplexType<double>().type()),
+                             TypeConverter{AnyToAnyComplexIntConverter<int, double>()});
+
+  ret->registerTypeConverter(std::make_pair(ComplexType<double>().type(),
+                                            ComplexType<int>().type()),
+                             TypeConverter{AnyToAnyComplexIntConverter<double,int>()});
+
+  ret->registerTypeConverter(std::make_pair(ComplexType<int>().type(),
+                                            DecimalData().type()),
+                             TypeConverter{ComplexIntToDecimalConverter()});
+  /*
+   *
+  ret->registerTypeConverter(std::make_pair(DecimalData().type(),
+                                            IntegerData().type()),
+                             TypeConverter{DecimalToIntegerConverter()});
+
+
+
+
+
+  ret->registerTypeConverter(std::make_pair(IntegerData().type(),
+                                            DecimalData().type()),
+                             TypeConverter{IntegerToDecimalConverter()});
+
+
+  ret->registerTypeConverter(std::make_pair(DecimalData().type(),
+                                            ComplexType<int>().type()),
+                             TypeConverter{DecimalToComplexIntConverter()});
+
+
+  ret->registerTypeConverter(std::make_pair(ComplexType<int>().type(),
+                                            DecimalData().type()),
+                             TypeConverter{ComplexIntToDecimalConverter()});*/
+
  return ret;
 }
 
@@ -114,7 +166,7 @@ bool NodeEditorPluginObject::Initialize()
     l->addWidget(new FlowView(scene));
     l->setContentsMargins(0, 0, 0, 0);
     l->setSpacing(0);
-
+    m_Win->resize(800, 600);
     m_Win->show();
     m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
     connect( m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)) );

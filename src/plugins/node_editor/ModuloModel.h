@@ -20,17 +20,18 @@ using QtNodes::NodeDataModel;
 using QtNodes::NodeValidationState;
 
 class IntegerData;
+#include "ComplexType.h"
 
+template<typename _Tp>
 class ModuloModel
   : public NodeDataModel
 {
-  Q_OBJECT
 
 public:
 
   ModuloModel();
   virtual
-  ~ModuloModel() = default;
+  ~ModuloModel();
 
 public:
 
@@ -93,7 +94,7 @@ public:
 
   QWidget *
   embeddedWidget() override {
-      return &m_w;
+      return m_w;
   }
 
   NodeValidationState
@@ -104,15 +105,20 @@ public:
 
 private:
 
-  std::weak_ptr<IntegerData> _number1;
-  std::weak_ptr<IntegerData> _number2;
+  std::weak_ptr<ComplexType<_Tp>> _number1;
+  std::weak_ptr<ComplexType<_Tp>> _number2;
 
-  std::shared_ptr<IntegerData> _result;
+  std::shared_ptr<ComplexType<_Tp>> _result;
+
 
   NodeValidationState modelValidationState = NodeValidationState::Warning;
   QString modelValidationError = QStringLiteral("Missing or incorrect inputs");
-  QComboBox m_w;
+  QComboBox* m_w;
 };
+
+template class ModuloModel<int>;
+//template class ModuloModel<double>;
+
 
 
 #endif // TESTNODEMODEL_H

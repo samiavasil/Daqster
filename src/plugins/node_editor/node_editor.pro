@@ -28,13 +28,21 @@ TARGET   = NodeEditorPlugin
 SOURCES += \
     NodeEditorTeplateInterface.cpp \
     NodeEditorPluginObject.cpp \
-    TestNodeModel.cpp
+    NumberDisplayDataModel.cpp \
+    NumberSourceDataModel.cpp \
+    ModuloModel.cpp \
+    Converters.cpp
 
 HEADERS += \
     NodeEditorInterface.h \
     NodeEditorPluginObject.h \
-    TestNodeModel.h \
-    IntegerData.h
+    IntegerData.h \
+    ComplexType.h \
+    ModuloModel.h \
+    NumberDisplayDataModel.h \
+    NumberSourceDataModel.h \
+    DecimalData.h \
+    Converters.h
 
 FORMS +=
 

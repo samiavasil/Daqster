@@ -1,20 +1,29 @@
-#include "TestNodeModel.h"
+#include "ModuloModel.h"
 
 
 #include <QtGui/QDoubleValidator>
-
 #include "IntegerData.h"
+#include "ComplexType.h"
+template<typename _Tp>
+ModuloModel< _Tp>::ModuloModel(){
+    m_w = new QComboBox();
+    m_w->addItem("edno");
+    m_w->addItem("dwe");
+    m_w->addItem("tri");
 
-ModuloModel::ModuloModel(){
-    m_w.addItem("edno");
-    m_w.addItem("dwe");
-    m_w.addItem("tri");
-    m_w.show();
 }
 
+template<typename _Tp>
+ModuloModel< _Tp>::~ModuloModel()
+{
+    if(m_w){
+       delete m_w;
+    }
+}
 
+template<typename _Tp>
 QJsonObject
-ModuloModel::
+ModuloModel< _Tp>::
 save() const
 {
   QJsonObject modelJson;
@@ -24,9 +33,9 @@ save() const
   return modelJson;
 }
 
-
+template<typename _Tp>
 unsigned int
-ModuloModel::
+ModuloModel< _Tp>::
 nPorts(PortType portType) const
 {
   unsigned int result = 1;
@@ -47,29 +56,29 @@ nPorts(PortType portType) const
   return result;
 }
 
-
+template<typename _Tp>
 NodeDataType
-ModuloModel::
+ModuloModel< _Tp>::
 dataType(PortType, PortIndex) const
 {
-  return IntegerData().type();
+  return ComplexType<_Tp>().type();
 }
 
-
+template<typename _Tp>
 std::shared_ptr<NodeData>
-ModuloModel::
+ModuloModel< _Tp>::
 outData(PortIndex)
 {
   return _result;
 }
 
-
+template<typename _Tp>
 void
-ModuloModel::
+ModuloModel< _Tp>::
 setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
 {
   auto numberData =
-    std::dynamic_pointer_cast<IntegerData>(data);
+    std::dynamic_pointer_cast<  ComplexType<_Tp>>(data);
 
   if (portIndex == 0)
   {
@@ -83,8 +92,8 @@ setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
   {
     PortIndex const outPortIndex = 0;
 
-    auto n1 = _number1.lock();
-    auto n2 = _number2.lock();
+    auto n1 = std::dynamic_pointer_cast< ComplexType<_Tp>>(_number1.lock());
+    auto n2 = std::dynamic_pointer_cast< ComplexType<_Tp>>(_number2.lock());
 
     if (n2 && (n2->number() == 0.0))
     {
@@ -96,7 +105,7 @@ setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
     {
       modelValidationState = NodeValidationState::Valid;
       modelValidationError = QString();
-      _result = std::make_shared<IntegerData>(n1->number() %
+      _result = std::make_shared< ComplexType<_Tp>>(n1->number() %
                                               n2->number());
     }
     else
@@ -110,17 +119,17 @@ setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
   }
 }
 
-
+template<typename _Tp>
 NodeValidationState
-ModuloModel::
+ModuloModel< _Tp>::
 validationState() const
 {
   return modelValidationState;
 }
 
-
+template<typename _Tp>
 QString
-ModuloModel::
+ModuloModel< _Tp>::
 validationMessage() const
 {
   return modelValidationError;
