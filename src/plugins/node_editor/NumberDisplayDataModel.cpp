@@ -1,6 +1,6 @@
 #include "NumberDisplayDataModel.h"
 
-#include "DecimalData.h"
+#include "ComplexType.h"
 
 NumberDisplayDataModel::
 NumberDisplayDataModel()
@@ -37,7 +37,7 @@ NodeDataType
 NumberDisplayDataModel::
 dataType(PortType, PortIndex) const
 {
-  return DecimalData().type();
+  return ComplexType<double>().type();
 }
 
 
@@ -54,7 +54,7 @@ void
 NumberDisplayDataModel::
 setInData(std::shared_ptr<NodeData> data, int)
 {
-  auto numberData = std::dynamic_pointer_cast<DecimalData>(data);
+  auto numberData = std::dynamic_pointer_cast<ComplexType<double>>(data);
 
   if (numberData)
   {

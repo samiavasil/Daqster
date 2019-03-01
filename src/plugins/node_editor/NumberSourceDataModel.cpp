@@ -3,25 +3,33 @@
 #include <QtCore/QJsonValue>
 #include <QtGui/QDoubleValidator>
 
-//#include "DecimalData.h"
+#include "NumbeSourceDataUi.h"
 
 #include<QTimer>
 #include<QRandomGenerator>
-
+#include<QSlider>
 NumberSourceDataModel::
 NumberSourceDataModel()
-  : _lineEdit(new QLineEdit())
+  : m_ui(new NumbeSourceDataUi()),m_time(0)
 {
-  _lineEdit->setValidator(new QDoubleValidator());
+  QLineEdit& edit =  m_ui->lineEdit();
+  edit.setValidator(new QDoubleValidator());
 
-  _lineEdit->setMaximumSize(_lineEdit->sizeHint());
+  edit.setMaximumSize(edit.sizeHint());
 
-  connect(_lineEdit, &QLineEdit::textChanged,
+  connect(&edit, &QLineEdit::textChanged,
           this, &NumberSourceDataModel::onTextEdited);
+  connect( &m_ui->timeSlider(), SIGNAL(valueChanged(int)),
+          this, SLOT(ChangeTime(int)));
 
-  _lineEdit->setText("0.0");
+  edit.setText("0.0");
 }
 
+void
+NumberSourceDataModel::
+ChangeTime(int t){
+  m_time = t;
+}
 
 QJsonObject
 NumberSourceDataModel::
@@ -45,13 +53,13 @@ restore(QJsonObject const &p)
   if (!v.isUndefined())
   {
     QString strNum = v.toString();
-
+    QLineEdit& edit =  m_ui->lineEdit();
     bool   ok;
     double d = strNum.toDouble(&ok);
     if (ok)
     {
       _number = std::make_shared<ComplexType<double>>(d);
-      _lineEdit->setText(strNum);
+      edit.setText(strNum);
     }
   }
 }
@@ -87,8 +95,8 @@ onTextEdited(QString const &string)
   Q_UNUSED(string);
 
   bool ok = false;
-
-  double number = _lineEdit->text().toDouble(&ok);
+  QLineEdit& edit =  m_ui->lineEdit();
+  double number = edit.text().toDouble(&ok);
 
   if (ok)
   {
@@ -110,15 +118,20 @@ dataType(PortType, PortIndex) const
   return ComplexType<double>().type();
 }
 
-void standaloneFunc()
+QWidget *
+NumberSourceDataModel::
+embeddedWidget()
 {
-
+    return m_ui;
 }
 
 std::shared_ptr<NodeData>
 NumberSourceDataModel::
 outData(PortIndex)
 {
-    QTimer::singleShot( 500,  Qt::VeryCoarseTimer, this, [this](){ this->_lineEdit->setText(QString::number(QRandomGenerator::global()->bounded(10) + 1)); } );
-  return _number;
+    QTimer::singleShot( m_time,  Qt::PreciseTimer, this, [this](){
+        QLineEdit& edit =  this->m_ui->lineEdit();
+        edit.setText(QString::number(QRandomGenerator::global()->bounded(10.2) + 1));
+    } );
+    return _number;
 }

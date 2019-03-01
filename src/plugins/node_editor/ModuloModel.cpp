@@ -4,6 +4,7 @@
 #include <QtGui/QDoubleValidator>
 #include "IntegerData.h"
 #include "ComplexType.h"
+#include <math.h>
 template<typename _Tp>
 ModuloModel< _Tp>::ModuloModel(){
     m_w = new QComboBox();
@@ -72,7 +73,17 @@ outData(PortIndex)
   return _result;
 }
 
+
+static inline int mod(int a, int b){
+    return (a%b);
+}
+
+static inline double mod(double a, double b){
+    return fmod(a, b);
+}
+
 template<typename _Tp>
+
 void
 ModuloModel< _Tp>::
 setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
@@ -105,8 +116,7 @@ setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
     {
       modelValidationState = NodeValidationState::Valid;
       modelValidationError = QString();
-      _result = std::make_shared< ComplexType<_Tp>>(n1->number() %
-                                              n2->number());
+      _result = std::make_shared< ComplexType<_Tp>>(mod(n1->number(), n2->number()));
     }
     else
     {

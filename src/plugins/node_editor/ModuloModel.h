@@ -37,7 +37,7 @@ public:
 
   QString
   caption() const override
-  { return QStringLiteral("Modulo"); }
+  { return QString("Modulo %1").arg(typeid(_Tp).name()); }
 
   bool
   captionVisible() const override
@@ -71,7 +71,7 @@ public:
 
   QString
   name() const override
-  { return QStringLiteral("Modulo"); }
+  { return QString("Modulo %1").arg(typeid(_Tp).name()); }
 
 public:
 
@@ -117,7 +117,7 @@ private:
 };
 
 template class ModuloModel<int>;
-//template class ModuloModel<double>;
+template class ModuloModel<double>;
 
 
 

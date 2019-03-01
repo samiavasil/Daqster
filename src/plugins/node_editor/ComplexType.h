@@ -19,7 +19,7 @@ public:
     : _number(0.0)
   {}
 
-  ComplexType(int const number)
+  ComplexType(_T const number)
     : _number(number)
   {}
 
@@ -33,7 +33,7 @@ public:
   { return _number; }
 
   QString numberAsText() const
-  { return QString::number(_number); }
+  { return QString::number(_number, 'f'); }
 
 private:
 
