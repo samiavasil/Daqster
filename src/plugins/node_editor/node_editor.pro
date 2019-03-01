@@ -26,12 +26,13 @@ DEFINES     += NODE_EDITOR_SHARED
 TARGET   = NodeEditorPlugin
 
 SOURCES += \
-    NodeEditorTeplateInterface.cpp \
     NodeEditorPluginObject.cpp \
     NumberDisplayDataModel.cpp \
     NumberSourceDataModel.cpp \
     ModuloModel.cpp \
-    Converters.cpp
+    Converters.cpp \
+    NodeEditorInterface.cpp \
+    NumbeSourceDataUi.cpp
 
 HEADERS += \
     NodeEditorInterface.h \
@@ -42,9 +43,11 @@ HEADERS += \
     NumberDisplayDataModel.h \
     NumberSourceDataModel.h \
     DecimalData.h \
-    Converters.h
+    Converters.h \
+    NumbeSourceDataUi.h
 
-FORMS +=
+FORMS += \
+    NumbeSourceDataUi.ui
 
 RESOURCES += \
     node_editor.qrc

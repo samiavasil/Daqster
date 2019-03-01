@@ -17,6 +17,7 @@ using QtNodes::NodeDataType;
 using QtNodes::NodeDataModel;
 using QtNodes::NodeValidationState;
 
+class NumbeSourceDataUi;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
 class NumberSourceDataModel
@@ -68,9 +69,11 @@ public:
   { }
 
   QWidget *
-  embeddedWidget() override { return _lineEdit; }
+  embeddedWidget() override;
 
 
+protected slots:
+  void ChangeTime(int t);
 private Q_SLOTS:
 
   void
@@ -80,5 +83,7 @@ private:
 
   std::shared_ptr<ComplexType<double>> _number;
 
-  QLineEdit * _lineEdit;
+  NumbeSourceDataUi * m_ui;
+
+  int m_time;
 };

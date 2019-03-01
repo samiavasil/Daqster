@@ -27,6 +27,7 @@
 
 using QtNodes::DataModelRegistry;
 using QtNodes::FlowScene;
+
 using QtNodes::FlowView;
 using QtNodes::ConnectionStyle;
 using QtNodes::TypeConverter;
@@ -51,6 +52,7 @@ registerDataModels()
 //  ret->registerModel<DivisionModel>("Operators");
 
   ret->registerModel<ModuloModel<int>>("Operators");
+  ret->registerModel<ModuloModel<double>>("Operators");
 
 
   ret->registerTypeConverter(std::make_pair(ComplexType<int>().type(),
@@ -169,9 +171,43 @@ bool NodeEditorPluginObject::Initialize()
     m_Win->resize(800, 600);
     m_Win->show();
     m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
+    connect(scene, SIGNAL(nodeContextMenu(Node&, const QPointF&)) ,this,SLOT(sceneContextMenuEvent(Node&, const QPointF&)) );
+    connect(scene, SIGNAL(nodeDoubleClicked(Node&)) ,this,SLOT(nodeDoubleClicked(Node&))  );
     connect( m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)) );
     connect( button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()) );
     return true;
+}
+
+void NodeEditorPluginObject::nodeDoubleClicked(Node& n)
+{
+    QMenu menu;
+    QAction *removeAction = menu.addAction("Laa");
+    QAction *markAction = menu.addAction("Daa");
+
+    QAction *selectedAction = menu.exec( );
+    if( selectedAction == markAction){
+        qDebug()<< "Laa";
+    }else if( selectedAction == removeAction){
+        qDebug()<< "Daa";
+    }
+}
+
+void
+NodeEditorPluginObject::
+sceneContextMenuEvent( Node& node, const QPointF& pos)
+{
+    QMenu menu;
+    QAction *embedAction    = menu.addAction("Embed");
+    QAction *deembedAction  = menu.addAction("Deembed");
+    QGraphicsView *v = node.nodeGraphicsObject().scene()->views().first();
+    QPoint viewP = v->mapFromScene(pos);
+    QAction *selectedAction = menu.exec( v->viewport()->mapToGlobal(viewP) );
+    if(  selectedAction == embedAction  ){
+        node.nodeGraphicsObject().embedQWidget(true);
+    }
+    else if(selectedAction == deembedAction){
+        node.nodeGraphicsObject().embedQWidget(false);
+    }
 }
 
 void NodeEditorPluginObject::DeInitialize()
