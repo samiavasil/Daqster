@@ -16,7 +16,6 @@ class ComplexType : public NodeData
 public:
 
   ComplexType()
-    : _number(0.0)
   {}
 
   ComplexType(_T const number)

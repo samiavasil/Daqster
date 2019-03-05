@@ -29,7 +29,7 @@ public:
   NumberSourceDataModel();
 
   virtual
-  ~NumberSourceDataModel() {}
+  ~NumberSourceDataModel();
 
 public:
 
@@ -65,8 +65,7 @@ public:
   outData(PortIndex port) override;
 
   void
-  setInData(std::shared_ptr<NodeData>, int) override
-  { }
+  setInData(std::shared_ptr<NodeData> data, PortIndex port) override;
 
   QWidget *
   embeddedWidget() override;
