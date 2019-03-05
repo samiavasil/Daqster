@@ -25,10 +25,18 @@ NumberSourceDataModel()
   edit.setText("0.0");
 }
 
+NumberSourceDataModel::~NumberSourceDataModel() {
+    if((!m_wembed) && m_ui){
+        m_ui->deleteLater();
+    }
+}
+
+
+
 void
 NumberSourceDataModel::
 ChangeTime(int t){
-  m_time = t;
+    m_time = t;
 }
 
 QJsonObject
@@ -74,7 +82,7 @@ nPorts(PortType portType) const
   switch (portType)
   {
     case PortType::In:
-      result = 0;
+      result = 1;
       break;
 
     case PortType::Out:
@@ -113,9 +121,25 @@ onTextEdited(QString const &string)
 
 NodeDataType
 NumberSourceDataModel::
-dataType(PortType, PortIndex) const
+dataType(PortType type , PortIndex ind) const
 {
-  return ComplexType<double>().type();
+    NodeDataType typ;
+    if( 0 == ind )
+    {
+        switch (type)
+        {
+        case PortType::In:
+            typ = ComplexType<int>().type();
+            break;
+
+        case PortType::Out:
+            typ =  ComplexType<double>().type();
+
+        default:
+            break;
+        }
+    }
+    return typ;
 }
 
 QWidget *
@@ -134,4 +158,23 @@ outData(PortIndex)
         edit.setText(QString::number(QRandomGenerator::global()->bounded(10.2) + 1));
     } );
     return _number;
+}
+
+void NumberSourceDataModel::setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex port)
+{
+    auto numberData = std::dynamic_pointer_cast<ComplexType<int>>(data);
+
+    if (numberData)
+    {
+      /*modelValidationState = NodeValidationState::Valid;
+      modelValidationError = QString();
+      _label->setText(numberData->numberAsText());*/
+        m_time = numberData->number();
+    }
+    /*else
+    {
+      modelValidationState = NodeValidationState::Warning;
+      modelValidationError = QStringLiteral("Missing or incorrect inputs");
+
+    }*/
 }

@@ -17,8 +17,8 @@ ModuloModel< _Tp>::ModuloModel(){
 template<typename _Tp>
 ModuloModel< _Tp>::~ModuloModel()
 {
-    if(m_w){
-       delete m_w;
+    if((!m_wembed) && m_w){
+        m_w->deleteLater();
     }
 }
 
@@ -106,7 +106,7 @@ setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
     auto n1 = std::dynamic_pointer_cast< ComplexType<_Tp>>(_number1.lock());
     auto n2 = std::dynamic_pointer_cast< ComplexType<_Tp>>(_number2.lock());
 
-    if (n2 && (n2->number() == 0.0))
+    if (n2 && (n2->number() == 0))
     {
       modelValidationState = NodeValidationState::Error;
       modelValidationError = QStringLiteral("Division by zero error");
