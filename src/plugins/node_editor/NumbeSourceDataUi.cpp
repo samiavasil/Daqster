@@ -1,7 +1,7 @@
-#include "NumbeSourceDataUi.h"
+#include "NumberSourceDataUi.h"
 #include "ui_NumbeSourceDataUi.h"
 
-NumbeSourceDataUi::NumbeSourceDataUi(QWidget *parent) :
+NumberSourceDataUi::NumberSourceDataUi(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::NumbeSourceDataUi)
 {
@@ -9,15 +9,15 @@ NumbeSourceDataUi::NumbeSourceDataUi(QWidget *parent) :
 
 }
 
-NumbeSourceDataUi::~NumbeSourceDataUi()
+NumberSourceDataUi::~NumberSourceDataUi()
 {
     delete ui;
 }
 
-QLineEdit& NumbeSourceDataUi::lineEdit(){
+QLineEdit& NumberSourceDataUi::lineEdit(){
     return *(ui->lineEdit);
 }
 
-QSlider& NumbeSourceDataUi::timeSlider(){
+QSlider& NumberSourceDataUi::timeSlider(){
     return *(ui->timeSlider);
 }

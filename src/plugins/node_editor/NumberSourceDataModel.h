@@ -6,7 +6,7 @@
 #include <nodes/NodeDataModel>
 
 #include <iostream>
-#include<ComplexType.h>
+#include<NumericType.h>
 
 //class DecimalData;
 
@@ -17,7 +17,7 @@ using QtNodes::NodeDataType;
 using QtNodes::NodeDataModel;
 using QtNodes::NodeValidationState;
 
-class NumbeSourceDataUi;
+class NumberSourceDataUi;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
 class NumberSourceDataModel
@@ -80,9 +80,9 @@ private Q_SLOTS:
 
 private:
 
-  std::shared_ptr<ComplexType<double>> _number;
+  std::shared_ptr<NumericType<double>> _number;
 
-  NumbeSourceDataUi * m_ui;
+  NumberSourceDataUi * m_ui;
 
   int m_time;
 };

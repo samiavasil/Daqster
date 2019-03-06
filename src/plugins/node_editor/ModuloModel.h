@@ -20,7 +20,7 @@ using QtNodes::NodeDataModel;
 using QtNodes::NodeValidationState;
 
 class IntegerData;
-#include "ComplexType.h"
+#include "NumericType.h"
 
 template<typename _Tp>
 class ModuloModel
@@ -105,10 +105,10 @@ public:
 
 private:
 
-  std::weak_ptr<ComplexType<_Tp>> _number1;
-  std::weak_ptr<ComplexType<_Tp>> _number2;
+  std::weak_ptr<NumericType<_Tp>> _number1;
+  std::weak_ptr<NumericType<_Tp>> _number2;
 
-  std::shared_ptr<ComplexType<_Tp>> _result;
+  std::shared_ptr<NumericType<_Tp>> _result;
 
 
   NodeValidationState modelValidationState = NodeValidationState::Warning;

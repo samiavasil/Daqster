@@ -8,13 +8,13 @@ class NumbeSourceDataUi;
 }
 class QLineEdit;
 class QSlider;
-class NumbeSourceDataUi : public QWidget
+class NumberSourceDataUi : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit NumbeSourceDataUi(QWidget *parent = 0);
-    ~NumbeSourceDataUi();
+    explicit NumberSourceDataUi(QWidget *parent = 0);
+    ~NumberSourceDataUi();
 
     QLineEdit &lineEdit();
     QSlider &timeSlider();

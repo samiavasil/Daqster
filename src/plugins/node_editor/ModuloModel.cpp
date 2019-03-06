@@ -2,8 +2,7 @@
 
 
 #include <QtGui/QDoubleValidator>
-#include "IntegerData.h"
-#include "ComplexType.h"
+#include "NumericType.h"
 #include <math.h>
 template<typename _Tp>
 ModuloModel< _Tp>::ModuloModel(){
@@ -62,7 +61,7 @@ NodeDataType
 ModuloModel< _Tp>::
 dataType(PortType, PortIndex) const
 {
-  return ComplexType<_Tp>().type();
+  return NumericType<_Tp>().type();
 }
 
 template<typename _Tp>
@@ -89,7 +88,7 @@ ModuloModel< _Tp>::
 setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
 {
   auto numberData =
-    std::dynamic_pointer_cast<  ComplexType<_Tp>>(data);
+    std::dynamic_pointer_cast<  NumericType<_Tp>>(data);
 
   if (portIndex == 0)
   {
@@ -103,8 +102,8 @@ setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
   {
     PortIndex const outPortIndex = 0;
 
-    auto n1 = std::dynamic_pointer_cast< ComplexType<_Tp>>(_number1.lock());
-    auto n2 = std::dynamic_pointer_cast< ComplexType<_Tp>>(_number2.lock());
+    auto n1 = std::dynamic_pointer_cast< NumericType<_Tp>>(_number1.lock());
+    auto n2 = std::dynamic_pointer_cast< NumericType<_Tp>>(_number2.lock());
 
     if (n2 && (n2->number() == 0))
     {
@@ -116,7 +115,7 @@ setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
     {
       modelValidationState = NodeValidationState::Valid;
       modelValidationError = QString();
-      _result = std::make_shared< ComplexType<_Tp>>(mod(n1->number(), n2->number()));
+      _result = std::make_shared< NumericType<_Tp>>(mod(n1->number(), n2->number()));
     }
     else
     {
