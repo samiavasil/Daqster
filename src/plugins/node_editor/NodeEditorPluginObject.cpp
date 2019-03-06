@@ -55,15 +55,15 @@ registerDataModels()
   ret->registerModel<ModuloModel<double>>("Operators");
 
 
-  ret->registerTypeConverter(std::make_pair(ComplexType<int>().type(),
-                                            ComplexType<double>().type()),
+  ret->registerTypeConverter(std::make_pair(NumericType<int>().type(),
+                                            NumericType<double>().type()),
                              TypeConverter{AnyToAnyComplexIntConverter<int, double>()});
 
-  ret->registerTypeConverter(std::make_pair(ComplexType<double>().type(),
-                                            ComplexType<int>().type()),
+  ret->registerTypeConverter(std::make_pair(NumericType<double>().type(),
+                                            NumericType<int>().type()),
                              TypeConverter{AnyToAnyComplexIntConverter<double,int>()});
 
-  ret->registerTypeConverter(std::make_pair(ComplexType<int>().type(),
+  ret->registerTypeConverter(std::make_pair(NumericType<int>().type(),
                                             DecimalData().type()),
                              TypeConverter{ComplexIntToDecimalConverter()});
   /*
@@ -82,11 +82,11 @@ registerDataModels()
 
 
   ret->registerTypeConverter(std::make_pair(DecimalData().type(),
-                                            ComplexType<int>().type()),
+                                            NumericType<int>().type()),
                              TypeConverter{DecimalToComplexIntConverter()});
 
 
-  ret->registerTypeConverter(std::make_pair(ComplexType<int>().type(),
+  ret->registerTypeConverter(std::make_pair(NumericType<int>().type(),
                                             DecimalData().type()),
                              TypeConverter{ComplexIntToDecimalConverter()});*/
 
@@ -150,8 +150,11 @@ void NodeEditorPluginObject::SetName(const QString &name)
     }
 }
 
+#include<QAudioInput>
+#include"ComplexType.h"
 bool NodeEditorPluginObject::Initialize()
 {
+ComplexType<QAudioInput> n(nullptr);
     m_Win = new QMainWindow();
     QWidget* mainWidget = new QWidget(m_Win);
     m_Win->setCentralWidget(mainWidget);

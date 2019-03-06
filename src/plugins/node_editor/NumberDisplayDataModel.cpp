@@ -1,7 +1,9 @@
 #include "NumberDisplayDataModel.h"
 
-#include "ComplexType.h"
+#include "NumericType.h"
+#include <QtCharts>
 
+using namespace QtCharts;
 NumberDisplayDataModel::
 NumberDisplayDataModel()
   : _label(new QLabel())
@@ -37,7 +39,7 @@ NodeDataType
 NumberDisplayDataModel::
 dataType(PortType, PortIndex) const
 {
-  return ComplexType<double>().type();
+  return NumericType<double>().type();
 }
 
 
@@ -54,7 +56,7 @@ void
 NumberDisplayDataModel::
 setInData(std::shared_ptr<NodeData> data, int)
 {
-  auto numberData = std::dynamic_pointer_cast<ComplexType<double>>(data);
+  auto numberData = std::dynamic_pointer_cast<NumericType<double>>(data);
 
   if (numberData)
   {

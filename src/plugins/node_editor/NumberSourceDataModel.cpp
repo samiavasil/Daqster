@@ -3,14 +3,14 @@
 #include <QtCore/QJsonValue>
 #include <QtGui/QDoubleValidator>
 
-#include "NumbeSourceDataUi.h"
+#include "NumberSourceDataUi.h"
 
 #include<QTimer>
 #include<QRandomGenerator>
 #include<QSlider>
 NumberSourceDataModel::
 NumberSourceDataModel()
-  : m_ui(new NumbeSourceDataUi()),m_time(0)
+  : m_ui(new NumberSourceDataUi()),m_time(0)
 {
   QLineEdit& edit =  m_ui->lineEdit();
   edit.setValidator(new QDoubleValidator());
@@ -66,7 +66,7 @@ restore(QJsonObject const &p)
     double d = strNum.toDouble(&ok);
     if (ok)
     {
-      _number = std::make_shared<ComplexType<double>>(d);
+      _number = std::make_shared<NumericType<double>>(d);
       edit.setText(strNum);
     }
   }
@@ -108,7 +108,7 @@ onTextEdited(QString const &string)
 
   if (ok)
   {
-    _number = std::make_shared<ComplexType<double>>(number);
+    _number = std::make_shared<NumericType<double>>(number);
 
     Q_EMIT dataUpdated(0);
   }
@@ -129,11 +129,11 @@ dataType(PortType type , PortIndex ind) const
         switch (type)
         {
         case PortType::In:
-            typ = ComplexType<int>().type();
+            typ = NumericType<int>().type();
             break;
 
         case PortType::Out:
-            typ =  ComplexType<double>().type();
+            typ =  NumericType<double>().type();
 
         default:
             break;
@@ -162,7 +162,7 @@ outData(PortIndex)
 
 void NumberSourceDataModel::setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex port)
 {
-    auto numberData = std::dynamic_pointer_cast<ComplexType<int>>(data);
+    auto numberData = std::dynamic_pointer_cast<NumericType<int>>(data);
 
     if (numberData)
     {

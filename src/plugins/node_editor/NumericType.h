@@ -1,5 +1,5 @@
-#ifndef COMPLEXTYPE_H
-#define COMPLEXTYPE_H
+#ifndef NUMERICXTYPE_H
+#define NUMERICXTYPE_H
 
 #pragma once
 
@@ -11,14 +11,16 @@ using QtNodes::NodeData;
 /// The class can potentially incapsulate any user data which
 /// need to be transferred within the Node Editor graph
 template<typename _T>
-class ComplexType : public NodeData
+class NumericType : public NodeData
 {
 public:
 
-  ComplexType(_T* data)
-  {
-      _data = std::shared_ptr<_T>(data);
-  }
+  NumericType()
+  {}
+
+  NumericType(_T const number)
+    : _number(number)
+  {}
 
   NodeDataType type() const override
   {
@@ -26,12 +28,15 @@ public:
                          typeid(_T).name()};
   }
 
-  _T& data() const
-  { return *_data; }
+  _T number() const
+  { return _number; }
+
+  QString numberAsText() const
+  { return QString::number(_number, 'f'); }
 
 private:
 
-  std::shared_ptr<_T> _data;
+  _T _number;
 };
 
 #endif // COMPLEXTYPE_H

@@ -19,6 +19,8 @@ UI_DIR       = $$PWD/Build
 LIBS        += -L$${EXT_LIBS_DIR} -L$${LIBS_DIR}
 
 CONFIG+= c++14
+QT += multimedia
+QT += charts
 CONFIG      += plugin
 DEFINES     += BUILD_AVAILABLE_PLUGIN
 DEFINES     += NODE_EDITOR_SHARED
@@ -32,22 +34,30 @@ SOURCES += \
     ModuloModel.cpp \
     Converters.cpp \
     NodeEditorInterface.cpp \
-    NumbeSourceDataUi.cpp
+    NumbeSourceDataUi.cpp \
+    XYSeriesIODevice.cpp \
+    AudioSourceWidget.cpp \
+    AudioSourceDataModel.cpp
 
 HEADERS += \
     NodeEditorInterface.h \
     NodeEditorPluginObject.h \
     IntegerData.h \
-    ComplexType.h \
     ModuloModel.h \
     NumberDisplayDataModel.h \
     NumberSourceDataModel.h \
     DecimalData.h \
     Converters.h \
-    NumbeSourceDataUi.h
+    NumericType.h \
+    ComplexType.h \
+    XYSeriesIODevice.h \
+    AudioSourceWidget.h \
+    AudioSourceDataModel.h \
+    NumberSourceDataUi.h
 
 FORMS += \
-    NumbeSourceDataUi.ui
+    AudioSourceWidget.ui \
+    NumberSourceDataUi.ui
 
 RESOURCES += \
     node_editor.qrc

@@ -2,7 +2,7 @@
 
 #include "DecimalData.h"
 #include "IntegerData.h"
-#include "ComplexType.h"
+#include "NumericType.h"
 
 using QtNodes::PortType;
 using QtNodes::PortIndex;

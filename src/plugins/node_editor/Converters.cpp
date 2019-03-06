@@ -48,7 +48,7 @@ operator()(std::shared_ptr<QtNodes::NodeData> data)
 
     if (numberData)
     {
-      _complex = std::make_shared<ComplexType<int>>(numberData->number());
+      _complex = std::make_shared<NumericType<int>>(numberData->number());
     }
 
     return _complex;
@@ -59,7 +59,7 @@ ComplexIntToDecimalConverter::
 operator()(std::shared_ptr<QtNodes::NodeData> data)
 {
     auto numberData =
-      std::dynamic_pointer_cast<ComplexType<int>>(data);
+      std::dynamic_pointer_cast<NumericType<int>>(data);
 
     if (numberData)
     {
@@ -74,11 +74,11 @@ template<typename _T1, typename _T2>
 std::shared_ptr<QtNodes::NodeData> AnyToAnyComplexIntConverter<_T1, _T2>::operator()(std::shared_ptr<QtNodes::NodeData> data)
 {
     auto numberData =
-      std::dynamic_pointer_cast<ComplexType<_T1>>(data);
+      std::dynamic_pointer_cast<NumericType<_T1>>(data);
 
     if (numberData)
     {
-      _decimal = std::make_shared<ComplexType<_T2>>(numberData->number());
+      _decimal = std::make_shared<NumericType<_T2>>(numberData->number());
     }
 
     return _decimal;
