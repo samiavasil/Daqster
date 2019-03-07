@@ -37,7 +37,9 @@ SOURCES += \
     NumbeSourceDataUi.cpp \
     XYSeriesIODevice.cpp \
     AudioSourceWidget.cpp \
-    AudioSourceDataModel.cpp
+    AudioSourceDataModel.cpp \
+    AudioNodeQdevIoConnector.cpp \
+    QDevIoDisplayModel.cpp
 
 HEADERS += \
     NodeEditorInterface.h \
@@ -53,7 +55,9 @@ HEADERS += \
     XYSeriesIODevice.h \
     AudioSourceWidget.h \
     AudioSourceDataModel.h \
-    NumberSourceDataUi.h
+    NumberSourceDataUi.h \
+    AudioNodeQdevIoConnector.h \
+    QDevIoDisplayModel.h
 
 FORMS += \
     AudioSourceWidget.ui \

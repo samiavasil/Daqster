@@ -1,0 +1,93 @@
+#include "QDevIoDisplayModel.h"
+#include "AudioNodeQdevIoConnector.h"
+
+QDevIoDisplayModel::QDevIoDisplayModel():m_connector(nullptr)
+{
+
+}
+
+QDevIoDisplayModel::~QDevIoDisplayModel()
+{
+
+}
+
+QJsonObject QDevIoDisplayModel::save() const
+{
+    QJsonObject modelJson;
+
+    modelJson["name"] = name();
+
+    return modelJson;
+}
+
+unsigned int QDevIoDisplayModel::nPorts(PortType portType) const
+{
+    int num = 0;
+    switch (portType) {
+    case QtNodes::PortType::In:
+        num = 1;
+        break;
+        /*case QtNodes::PortType::Out:
+        num = 1;
+        break;*/
+    default:
+        break;
+    }
+    return num;
+}
+
+NodeDataType QDevIoDisplayModel::dataType(PortType portType, PortIndex portIndex) const
+{
+    return AudioNodeQdevIoConnector().type();
+}
+
+std::shared_ptr<NodeData> QDevIoDisplayModel::outData(PortIndex port)
+{
+    return nullptr;
+}
+
+void QDevIoDisplayModel::setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
+{
+    auto conData = std::dynamic_pointer_cast<AudioNodeQdevIoConnector> (data);
+
+    if (portIndex == 0)
+    {
+
+        PortIndex const outPortIndex = 0;
+
+        if ( 0 )
+        {
+            modelValidationState = NodeValidationState::Error;
+            modelValidationError = QStringLiteral("Division by zero error");
+            m_connector.reset();
+        }
+        else if (conData)
+        {
+            modelValidationState = NodeValidationState::Valid;
+            modelValidationError = QString();
+            m_connector = conData;
+        }
+        else
+        {
+            modelValidationState = NodeValidationState::Warning;
+            modelValidationError = QStringLiteral("Missing or incorrect inputs");
+            m_connector.reset();
+        }
+//        Q_EMIT dataUpdated(outPortIndex);
+    }
+}
+
+QWidget *QDevIoDisplayModel::embeddedWidget()
+{
+    return nullptr;
+}
+
+QtNodes::NodeValidationState QDevIoDisplayModel::validationState() const
+{
+    return modelValidationState;
+}
+
+QString QDevIoDisplayModel::validationMessage() const
+{
+    return modelValidationError;
+}
