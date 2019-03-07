@@ -46,7 +46,7 @@ qint64 XYSeriesIODevice::readData(char *data, qint64 maxSize)
 
 qint64 XYSeriesIODevice::writeData(const char *data, qint64 maxSize)
 {
-    static const int resolution = 4;
+    static const int resolution = 1;
 
     if (m_buffer.isEmpty()) {
         m_buffer.reserve(sampleCount);
@@ -64,7 +64,7 @@ qint64 XYSeriesIODevice::writeData(const char *data, qint64 maxSize)
 
     for (int s = start; s < sampleCount; ++s, data += resolution){
          unsigned char  a = (( unsigned char)(*data));
-        m_buffer[s].setY(qreal(a) - 127 );
+        m_buffer[s].setY((qreal(a) - 127)/128 );
         //m_buffer[s].setY(qreal( ((short int)(*data)) - 0) / qreal(1024));
     }
 

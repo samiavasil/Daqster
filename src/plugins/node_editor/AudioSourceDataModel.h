@@ -65,11 +65,13 @@ public:
     QWidget *
     embeddedWidget() override;
 
+    void IO_connect(std::shared_ptr<QIODevice> io);
 private:
     QAudioDeviceInfo m_DeviceInfo;
     QAudioFormat     m_FormatAudio;
     std::shared_ptr<QAudioInput> m_audio_src;
     std::shared_ptr<AudioNodeQdevIoConnector> m_connector;
+    std::shared_ptr<QIODevice> m_devio;
 #if 0
 
 protected slots:

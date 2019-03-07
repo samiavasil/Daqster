@@ -12,6 +12,7 @@ using QtNodes::NodeDataType;
 using QtNodes::NodeDataModel;
 using QtNodes::NodeValidationState;
 class AudioNodeQdevIoConnector;
+class XYSeriesIODevice;
 
 class QDevIoDisplayModel : public NodeDataModel
 {
@@ -73,6 +74,8 @@ protected:
      std::shared_ptr<AudioNodeQdevIoConnector> m_connector;
      NodeValidationState modelValidationState = NodeValidationState::Warning;
      QString modelValidationError = QStringLiteral("Missing or incorrect inputs");
+     QWidget* m_widget;
+     XYSeriesIODevice* m_device;
 };
 
 #endif // QDEVIODISPLAY_H
