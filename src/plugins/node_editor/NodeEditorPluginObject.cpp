@@ -23,6 +23,8 @@
 #include "ModuloModel.h"
 #include "NumberSourceDataModel.h"
 #include "NumberDisplayDataModel.h"
+#include "AudioSourceDataModel.h"
+#include "QDevIoDisplayModel.h"
 #include "Converters.h"
 
 using QtNodes::DataModelRegistry;
@@ -40,9 +42,10 @@ registerDataModels()
 
 
   ret->registerModel<NumberSourceDataModel>("Sources");
+  ret->registerModel<AudioSourceDataModel>("Sources");
 
   ret->registerModel<NumberDisplayDataModel>("Displays");
-
+  ret->registerModel<QDevIoDisplayModel>("Displays");
 //  ret->registerModel<AdditionModel>("Operators");
 
 //  ret->registerModel<SubtractionModel>("Operators");
@@ -53,6 +56,8 @@ registerDataModels()
 
   ret->registerModel<ModuloModel<int>>("Operators");
   ret->registerModel<ModuloModel<double>>("Operators");
+
+
 
 
   ret->registerTypeConverter(std::make_pair(NumericType<int>().type(),
