@@ -39,7 +39,8 @@ SOURCES += \
     AudioSourceWidget.cpp \
     AudioSourceDataModel.cpp \
     AudioNodeQdevIoConnector.cpp \
-    QDevIoDisplayModel.cpp
+    QDevIoDisplayModel.cpp \
+    QDevioDisplayModelUi.cpp
 
 HEADERS += \
     NodeEditorInterface.h \
@@ -57,11 +58,13 @@ HEADERS += \
     AudioSourceDataModel.h \
     NumberSourceDataUi.h \
     AudioNodeQdevIoConnector.h \
-    QDevIoDisplayModel.h
+    QDevIoDisplayModel.h \
+    QDevioDisplayModelUi.h
 
 FORMS += \
     AudioSourceWidget.ui \
-    NumberSourceDataUi.ui
+    NumberSourceDataUi.ui \
+    QDevioDisplayModelUi.ui
 
 RESOURCES += \
     node_editor.qrc

@@ -8,13 +8,14 @@ using QtNodes::NodeDataType;
 using QtNodes::NodeData;
 
 class QIODevice;
+class AudioSourceDataModel;
 
 class AudioNodeQdevIoConnector : public NodeData
 {
 
 public:
 
-    AudioNodeQdevIoConnector();
+    explicit AudioNodeQdevIoConnector( AudioSourceDataModel* model );
 
     void SetDevIo( std::shared_ptr<QIODevice> dio );
 
@@ -27,7 +28,9 @@ public:
     std::shared_ptr<QIODevice>& DevIo(){ return m_Devio;}
 
 private:
+    AudioSourceDataModel* m_model;
     std::shared_ptr<QIODevice> m_Devio;
+
 };
 
 #endif // AUDIONODEQDEVIOCONNECTOR_H

@@ -1,9 +1,17 @@
 #include "QDevIoDisplayModel.h"
 #include "AudioNodeQdevIoConnector.h"
+#include"QDevioDisplayModelUi.h"
+#include <QtCharts/QLineSeries>
+#include "XYSeriesIODevice.h"
+
+QT_CHARTS_USE_NAMESPACE
 
 QDevIoDisplayModel::QDevIoDisplayModel():m_connector(nullptr)
 {
+    QLineSeries* series = new QLineSeries;
+    m_widget = new QDevioDisplayModelUi(series);
 
+    m_device = new XYSeriesIODevice(series, this);
 }
 
 QDevIoDisplayModel::~QDevIoDisplayModel()
@@ -38,7 +46,8 @@ unsigned int QDevIoDisplayModel::nPorts(PortType portType) const
 
 NodeDataType QDevIoDisplayModel::dataType(PortType portType, PortIndex portIndex) const
 {
-    return AudioNodeQdevIoConnector().type();
+    return NodeDataType { "AudioNodeQdevIoConnector",
+        "AudioNodeQdevIoConnector"};
 }
 
 std::shared_ptr<NodeData> QDevIoDisplayModel::outData(PortIndex port)
@@ -66,6 +75,8 @@ void QDevIoDisplayModel::setInData(std::shared_ptr<NodeData> data, PortIndex por
             modelValidationState = NodeValidationState::Valid;
             modelValidationError = QString();
             m_connector = conData;
+            m_connector->SetDevIo(std::shared_ptr<QIODevice>(m_device));
+            //m_connector->SetDevIo();
         }
         else
         {
@@ -79,7 +90,7 @@ void QDevIoDisplayModel::setInData(std::shared_ptr<NodeData> data, PortIndex por
 
 QWidget *QDevIoDisplayModel::embeddedWidget()
 {
-    return nullptr;
+    return m_widget;
 }
 
 QtNodes::NodeValidationState QDevIoDisplayModel::validationState() const

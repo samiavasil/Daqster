@@ -3,6 +3,7 @@
 
 AudioSourceDataModel::AudioSourceDataModel()
 {
+    m_connector = std::make_shared<AudioNodeQdevIoConnector>(this);
     m_FormatAudio.setChannelCount(1);
     m_FormatAudio.setCodec("audio/pcm");
     m_FormatAudio.setByteOrder(QAudioFormat::LittleEndian);
@@ -47,7 +48,8 @@ unsigned int AudioSourceDataModel::nPorts(QtNodes::PortType portType) const
 
 QtNodes::NodeDataType AudioSourceDataModel::dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const
 {
-    return AudioNodeQdevIoConnector().type();
+    return NodeDataType { "AudioNodeQdevIoConnector",
+                          "AudioNodeQdevIoConnector"};
 }
 
 std::shared_ptr<QtNodes::NodeData> AudioSourceDataModel::outData(QtNodes::PortIndex port)
@@ -63,4 +65,13 @@ void AudioSourceDataModel::setInData(std::shared_ptr<QtNodes::NodeData> data, Qt
 QWidget *AudioSourceDataModel::embeddedWidget()
 {
     return nullptr;
+}
+
+void AudioSourceDataModel::IO_connect(std::shared_ptr<QIODevice> io)
+{
+    m_devio = io;
+    if( m_devio ){
+        m_devio->open(QIODevice::WriteOnly);
+        m_audio_src->start(m_devio.get());
+    }
 }
