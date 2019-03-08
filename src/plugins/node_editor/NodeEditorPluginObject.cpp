@@ -176,7 +176,7 @@ ComplexType<QAudioInput> n(nullptr);
     l->addWidget(new FlowView(scene));
     l->setContentsMargins(0, 0, 0, 0);
     l->setSpacing(0);
-    m_Win->resize(800, 600);
+    m_Win->resize(1024, 768);
     m_Win->show();
     m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
     connect(scene, SIGNAL(nodeContextMenu(Node&, const QPointF&)) ,this,SLOT(sceneContextMenuEvent(Node&, const QPointF&)) );
