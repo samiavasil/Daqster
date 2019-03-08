@@ -11,7 +11,7 @@ QDevIoDisplayModel::QDevIoDisplayModel():m_connector(nullptr)
     QLineSeries* series = new QLineSeries;
     m_widget = new QDevioDisplayModelUi(series);
 
-    m_device = new XYSeriesIODevice(series, this);
+    m_device = std::make_shared<XYSeriesIODevice>(series, this);
 }
 
 QDevIoDisplayModel::~QDevIoDisplayModel()
@@ -61,9 +61,6 @@ void QDevIoDisplayModel::setInData(std::shared_ptr<NodeData> data, PortIndex por
 
     if (portIndex == 0)
     {
-
-        PortIndex const outPortIndex = 0;
-
         if ( 0 )
         {
             modelValidationState = NodeValidationState::Error;
@@ -75,16 +72,15 @@ void QDevIoDisplayModel::setInData(std::shared_ptr<NodeData> data, PortIndex por
             modelValidationState = NodeValidationState::Valid;
             modelValidationError = QString();
             m_connector = conData;
-            m_connector->SetDevIo(std::shared_ptr<QIODevice>(m_device));
-            //m_connector->SetDevIo();
+            m_connector->SetDevIo( m_device );
         }
         else
         {
             modelValidationState = NodeValidationState::Warning;
             modelValidationError = QStringLiteral("Missing or incorrect inputs");
+            m_connector->SetDevIo( nullptr );
             m_connector.reset();
         }
-//        Q_EMIT dataUpdated(outPortIndex);
     }
 }
 

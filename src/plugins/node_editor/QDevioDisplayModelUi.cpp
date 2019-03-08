@@ -18,10 +18,10 @@ QDevioDisplayModelUi::QDevioDisplayModelUi(QLineSeries *series, QWidget *parent)
     ui->setupUi(this);
 
     QChartView *chartView = new QChartView(m_chart);
-    chartView->setMinimumSize(800, 600);
+    chartView->setMinimumSize(400, 200);
     m_chart->addSeries(m_series);
     QValueAxis *axisX = new QValueAxis;
-    axisX->setRange(0, 2000);
+    axisX->setRange(0, 8000);
     axisX->setLabelFormat("%g");
     axisX->setTitleText("Samples");
     QValueAxis *axisY = new QValueAxis;

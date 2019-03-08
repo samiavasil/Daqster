@@ -71,7 +71,11 @@ void AudioSourceDataModel::IO_connect(std::shared_ptr<QIODevice> io)
 {
     m_devio = io;
     if( m_devio ){
-        m_devio->open(QIODevice::WriteOnly);
+        if( !m_devio->isOpen() )
+            m_devio->open(QIODevice::WriteOnly);
         m_audio_src->start(m_devio.get());
+    }
+    else{
+        m_audio_src->stop();
     }
 }

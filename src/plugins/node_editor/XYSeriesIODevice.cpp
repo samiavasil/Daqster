@@ -65,7 +65,6 @@ qint64 XYSeriesIODevice::writeData(const char *data, qint64 maxSize)
     for (int s = start; s < sampleCount; ++s, data += resolution){
          unsigned char  a = (( unsigned char)(*data));
         m_buffer[s].setY((qreal(a) - 127)/128 );
-        //m_buffer[s].setY(qreal( ((short int)(*data)) - 0) / qreal(1024));
     }
 
     m_series->replace(m_buffer);
