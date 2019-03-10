@@ -179,7 +179,6 @@ ComplexType<QAudioInput> n(nullptr);
     m_Win->resize(1024, 768);
     m_Win->show();
     m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
-    connect(scene, SIGNAL(nodeContextMenu(Node&, const QPointF&)) ,this,SLOT(sceneContextMenuEvent(Node&, const QPointF&)) );
     connect(scene, SIGNAL(nodeDoubleClicked(Node&)) ,this,SLOT(nodeDoubleClicked(Node&))  );
     connect( m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)) );
     connect( button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()) );
@@ -200,23 +199,6 @@ void NodeEditorPluginObject::nodeDoubleClicked(Node& n)
     }
 }
 
-void
-NodeEditorPluginObject::
-sceneContextMenuEvent( Node& node, const QPointF& pos)
-{
-    QMenu menu;
-    QAction *embedAction    = menu.addAction("Embed");
-    QAction *deembedAction  = menu.addAction("Deembed");
-    QGraphicsView *v = node.nodeGraphicsObject().scene()->views().first();
-    QPoint viewP = v->mapFromScene(pos);
-    QAction *selectedAction = menu.exec( v->viewport()->mapToGlobal(viewP) );
-    if(  selectedAction == embedAction  ){
-        node.nodeGraphicsObject().embedQWidget(true);
-    }
-    else if(selectedAction == deembedAction){
-        node.nodeGraphicsObject().embedQWidget(false);
-    }
-}
 
 void NodeEditorPluginObject::DeInitialize()
 {

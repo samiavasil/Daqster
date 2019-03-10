@@ -4,7 +4,6 @@
 #include <QtCore/QObject>
 #include <nodes/NodeDataModel>
 #include <QtMultimedia/QAudioDeviceInfo>
-#include <QtMultimedia/QAudioInput>
 
 using QtNodes::PortType;
 using QtNodes::PortIndex;
@@ -14,6 +13,7 @@ using QtNodes::NodeDataModel;
 using QtNodes::NodeValidationState;
 class QAudioInput;
 class AudioNodeQdevIoConnector;
+class AudioSourceDataModelUI;
 
 class AudioSourceDataModel : public NodeDataModel
 {
@@ -66,12 +66,19 @@ public:
     embeddedWidget() override;
 
     void IO_connect(std::shared_ptr<QIODevice> io);
+
+    virtual
+    ConnectionPolicy
+    portOutConnectionPolicy(PortIndex) const
+    {
+      return ConnectionPolicy::One;
+    }
 private:
     QAudioDeviceInfo m_DeviceInfo;
-    QAudioFormat     m_FormatAudio;
     std::shared_ptr<QAudioInput> m_audio_src;
     std::shared_ptr<AudioNodeQdevIoConnector> m_connector;
     std::shared_ptr<QIODevice> m_devio;
+    AudioSourceDataModelUI* m_Widget;
 #if 0
 
 protected slots:
