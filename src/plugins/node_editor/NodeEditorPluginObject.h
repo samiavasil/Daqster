@@ -21,7 +21,6 @@ public slots:
     void ShowPlugins();
 protected slots:
     void nodeDoubleClicked(Node &n);
-    void sceneContextMenuEvent(Node&,const QPointF&);
 private:
     QMainWindow* m_Win;
 };

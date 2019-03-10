@@ -46,8 +46,7 @@ unsigned int QDevIoDisplayModel::nPorts(PortType portType) const
 
 NodeDataType QDevIoDisplayModel::dataType(PortType portType, PortIndex portIndex) const
 {
-    return NodeDataType { "AudioNodeQdevIoConnector",
-        "AudioNodeQdevIoConnector"};
+    return NodeDataType {"QDevIO", "IO"};
 }
 
 std::shared_ptr<NodeData> QDevIoDisplayModel::outData(PortIndex port)

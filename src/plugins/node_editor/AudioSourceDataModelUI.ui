@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>AudioSourceDataModelUI</class>
+ <widget class="QWidget" name="AudioSourceDataModelUI">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>216</width>
+    <height>152</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <item>
+      <widget class="QComboBox" name="Device"/>
+     </item>
+     <item>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="2" column="0">
+        <widget class="QComboBox" name="SampleType"/>
+       </item>
+       <item row="1" column="0">
+        <widget class="QComboBox" name="SampleSize"/>
+       </item>
+       <item row="0" column="1">
+        <widget class="QComboBox" name="SampleRate"/>
+       </item>
+       <item row="1" column="1">
+        <widget class="QComboBox" name="ByteOdrer"/>
+       </item>
+       <item row="2" column="1">
+        <widget class="QComboBox" name="Codec"/>
+       </item>
+       <item row="0" column="0">
+        <widget class="QComboBox" name="ChannelNumber"/>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

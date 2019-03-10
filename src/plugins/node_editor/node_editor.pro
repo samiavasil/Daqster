@@ -36,11 +36,11 @@ SOURCES += \
     NodeEditorInterface.cpp \
     NumbeSourceDataUi.cpp \
     XYSeriesIODevice.cpp \
-    AudioSourceWidget.cpp \
     AudioSourceDataModel.cpp \
     AudioNodeQdevIoConnector.cpp \
     QDevIoDisplayModel.cpp \
-    QDevioDisplayModelUi.cpp
+    QDevioDisplayModelUi.cpp \
+    AudioSourceDataModelUI.cpp
 
 HEADERS += \
     NodeEditorInterface.h \
@@ -54,17 +54,17 @@ HEADERS += \
     NumericType.h \
     ComplexType.h \
     XYSeriesIODevice.h \
-    AudioSourceWidget.h \
     AudioSourceDataModel.h \
     NumberSourceDataUi.h \
     AudioNodeQdevIoConnector.h \
     QDevIoDisplayModel.h \
-    QDevioDisplayModelUi.h
+    QDevioDisplayModelUi.h \
+    AudioSourceDataModelUI.h
 
 FORMS += \
-    AudioSourceWidget.ui \
     NumberSourceDataUi.ui \
-    QDevioDisplayModelUi.ui
+    QDevioDisplayModelUi.ui \
+    AudioSourceDataModelUI.ui
 
 RESOURCES += \
     node_editor.qrc

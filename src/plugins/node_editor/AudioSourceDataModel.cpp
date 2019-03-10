@@ -1,17 +1,17 @@
 #include "AudioSourceDataModel.h"
 #include "AudioNodeQdevIoConnector.h"
+#include "AudioSourceDataModel.h"
+#include "AudioSourceDataModelUI.h"
+#include <QtMultimedia/QAudioInput>
 
 AudioSourceDataModel::AudioSourceDataModel()
 {
     m_connector = std::make_shared<AudioNodeQdevIoConnector>(this);
-    m_FormatAudio.setChannelCount(1);
-    m_FormatAudio.setCodec("audio/pcm");
-    m_FormatAudio.setByteOrder(QAudioFormat::LittleEndian);
-    m_FormatAudio.setSampleRate(8000);
-    m_FormatAudio.setSampleSize(8);
-    m_FormatAudio.setSampleType(QAudioFormat::UnSignedInt);
     m_DeviceInfo = QAudioDeviceInfo::defaultInputDevice();
-    m_audio_src  = std::make_shared<QAudioInput>(m_DeviceInfo, m_FormatAudio);
+    m_Widget = new AudioSourceDataModelUI;
+
+    m_audio_src  = std::make_shared<QAudioInput>(m_DeviceInfo, m_Widget->FormatAudio());
+    // m_audio_src->format().setSampleSize(16);
 }
 
 AudioSourceDataModel::~AudioSourceDataModel()
@@ -48,8 +48,7 @@ unsigned int AudioSourceDataModel::nPorts(QtNodes::PortType portType) const
 
 QtNodes::NodeDataType AudioSourceDataModel::dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const
 {
-    return NodeDataType { "AudioNodeQdevIoConnector",
-                          "AudioNodeQdevIoConnector"};
+    return NodeDataType {"QDevIO", "IO"};
 }
 
 std::shared_ptr<QtNodes::NodeData> AudioSourceDataModel::outData(QtNodes::PortIndex port)
@@ -59,20 +58,21 @@ std::shared_ptr<QtNodes::NodeData> AudioSourceDataModel::outData(QtNodes::PortIn
 
 void AudioSourceDataModel::setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex port)
 {
-
+    Q_ASSERT(0);
 }
 
 QWidget *AudioSourceDataModel::embeddedWidget()
 {
-    return nullptr;
+    return m_Widget;
 }
 
 void AudioSourceDataModel::IO_connect(std::shared_ptr<QIODevice> io)
 {
     m_devio = io;
     if( m_devio ){
-        if( !m_devio->isOpen() )
+        if( !m_devio->isOpen() ){
             m_devio->open(QIODevice::WriteOnly);
+        }
         m_audio_src->start(m_devio.get());
     }
     else{
