@@ -3,15 +3,14 @@
 #include "AudioSourceDataModel.h"
 #include "AudioSourceDataModelUI.h"
 #include <QtMultimedia/QAudioInput>
+#include<QDebug>
 
 AudioSourceDataModel::AudioSourceDataModel()
 {
     m_connector = std::make_shared<AudioNodeQdevIoConnector>(this);
     m_DeviceInfo = QAudioDeviceInfo::defaultInputDevice();
     m_Widget = new AudioSourceDataModelUI;
-
-    m_audio_src  = std::make_shared<QAudioInput>(m_DeviceInfo, m_Widget->FormatAudio());
-    // m_audio_src->format().setSampleSize(16);
+    connect(m_Widget, SIGNAL(ReloadAudioConnection()), this, SLOT(ReloadAudioConnection()));
 }
 
 AudioSourceDataModel::~AudioSourceDataModel()
@@ -70,12 +69,27 @@ void AudioSourceDataModel::IO_connect(std::shared_ptr<QIODevice> io)
 {
     m_devio = io;
     if( m_devio ){
+        if(m_audio_src)
+            m_audio_src->stop();
+        m_audio_src  = std::make_shared<QAudioInput>(m_DeviceInfo, m_Widget->FormatAudio());
+        m_audio_src->setObjectName("AudioInput");
+        connect(m_audio_src.get(),SIGNAL(destroyed(QObject*)), this,SLOT(destroyedObj(QObject*)));
         if( !m_devio->isOpen() ){
             m_devio->open(QIODevice::WriteOnly);
         }
         m_audio_src->start(m_devio.get());
     }
     else{
-        m_audio_src->stop();
+        if(m_audio_src)
+            m_audio_src->stop();
     }
+}
+
+void AudioSourceDataModel::ReloadAudioConnection()
+{
+    IO_connect(m_devio);
+}
+
+void AudioSourceDataModel::destroyedObj(QObject* obj){
+    qDebug() << "Destroyed: " << obj->objectName();
 }

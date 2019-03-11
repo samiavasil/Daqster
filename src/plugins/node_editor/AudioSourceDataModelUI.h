@@ -19,10 +19,20 @@ public:
 
     const QAudioFormat& FormatAudio() const;
 
-protected:
-    void InitSampleAudioParams(QAudioDeviceInfo &dInfo, int SampleRate);
+    bool isFormatSupported(const QAudioFormat &format) const;
+
+signals:
+    void ReloadAudioConnection();
+
 protected slots:
     void InitAudioParams(int idx);
+    void ChannelNumberChanged(int val);
+    void CodecChanged(int val);
+    void ByteOdrerChanged(int val);
+    void SampleRateChanged(int val);
+    void SampleSizeChanged(int val);
+    void SampleTypeChanged(int val);
+
 private:
     Ui::AudioSourceDataModelUI *ui;
     QAudioFormat     m_FormatAudio;

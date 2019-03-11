@@ -73,6 +73,11 @@ public:
     {
       return ConnectionPolicy::One;
     }
+
+public slots:
+    void ReloadAudioConnection();
+protected slots:
+    void destroyedObj(QObject *obj);
 private:
     QAudioDeviceInfo m_DeviceInfo;
     std::shared_ptr<QAudioInput> m_audio_src;
