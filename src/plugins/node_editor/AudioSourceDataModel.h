@@ -3,7 +3,7 @@
 
 #include <QtCore/QObject>
 #include <nodes/NodeDataModel>
-
+#include <QtMultimedia/QAudioDeviceInfo>
 
 using QtNodes::PortType;
 using QtNodes::PortIndex;
@@ -20,6 +20,12 @@ class AudioSourceDataModel : public NodeDataModel
     Q_OBJECT
 
 public:
+    typedef enum{
+        ASDM_STOP,
+        ASDM_START,
+        ASDM_RELOAD,
+    } StartStop;
+
     AudioSourceDataModel();
 
     virtual
@@ -75,30 +81,19 @@ public:
     }
 
 public slots:
-    void ReloadAudioConnection();
-protected slots:
+    virtual void outputConnectionDeleted(QtNodes::Connection const&con);
+
+private slots:
+    void ChangeAudioConnection(QAudioDeviceInfo &devInfo, QAudioFormat &formatAudio);
+    void StartAudio(AudioSourceDataModel::StartStop start);
     void destroyedObj(QObject *obj);
 private:
-    std::shared_ptr<QAudioInput> m_audio_src;
     std::shared_ptr<AudioNodeQdevIoConnector> m_connector;
     std::shared_ptr<QIODevice> m_devio;
+    std::shared_ptr<QAudioInput> m_audio_src;
+    QAudioFormat     m_FormatAudio;
+    QAudioDeviceInfo m_DevInfo;
     AudioSourceDataModelUI* m_Widget;
-#if 0
-
-protected slots:
-    void ChangeTime(int t);
-private Q_SLOTS:
-
-    void
-    onTextEdited(QString const &string);
-
-private:
-
-    std::shared_ptr<ComplexType<double>> _number;
-
-    //NumberSourceDataUi * m_ui;
-    int m_time;
-#endif
 };
 
 #endif // SOURCEDATAMODEL_H
