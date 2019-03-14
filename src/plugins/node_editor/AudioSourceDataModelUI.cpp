@@ -32,11 +32,17 @@ public:
     {
 
     }
+
     virtual int rowCount(const QModelIndex &parent = QModelIndex())  const{
-        return m_Data.count();
+        if (parent.isValid())
+            return 0;
+        else
+            return m_Data.count();
     }
 
     virtual bool insertRows(int row, int count, const QModelIndex &parent = QModelIndex()){
+        if (parent.isValid())
+                  return false;
         blockSignals(true);
         beginInsertRows(parent, row, row + count - 1);
         for(int i = row; i < row+count; i++){
@@ -48,6 +54,8 @@ public:
     }
 
     virtual bool removeRows(int row, int count, const QModelIndex &parent = QModelIndex()){
+        if (parent.isValid())
+                  return false;
         blockSignals(true);
         beginRemoveRows(parent, row, row + count - 1);
         for(int i = row; i < row+count; i++){
@@ -61,46 +69,51 @@ public:
     Qt::ItemFlags flags(const QModelIndex &index) const{
 
         Qt::ItemFlags flags = Qt::NoItemFlags;
-        QAudioFormat audioFormat = m_model.FormatAudio();
-        qDebug() << "row" << index.row();
-        switch (m_Type) {
-        case CHANNEL_NUMBER:{
-            audioFormat.setChannelCount(m_Data.value(index.row(),QVariant()).toInt());
-            break;
-        }
-        case CODEC:{
-            audioFormat.setCodec(m_Data.value(index.row(),QVariant()).toString());
-            break;
-        }
-        case BYTES_ORDER:{
-            audioFormat.setByteOrder(cEndianMap.key(m_Data.value(index.row(),QVariant()).toString()));
-            break;
-        }
-        case SAMPLE_RATE:{
-            audioFormat.setSampleRate(m_Data.value(index.row(),QVariant()).toInt());
-            break;
-        }
-        case SAMPLE_SIZE:{
-            audioFormat.setSampleSize(m_Data.value(index.row(),QVariant()).toInt());
-            break;
-        }
-        case SAMPLE_TYPE:{
-            audioFormat.setSampleType(cTypeMap.key(m_Data.value(index.row(),QVariant()).toString()));
-            break;
-        }
-        default:
-            break;
-        }
-qDebug() << audioFormat;
+        if (index.isValid()){
 
-        if(m_model.isFormatSupported(audioFormat))
-        {
-            flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
+            QAudioFormat audioFormat = m_model.FormatAudio();
+            qDebug() << "row" << index.row();
+            switch (m_Type) {
+            case CHANNEL_NUMBER:{
+                audioFormat.setChannelCount(m_Data.value(index.row(),QVariant()).toInt());
+                break;
+            }
+            case CODEC:{
+                audioFormat.setCodec(m_Data.value(index.row(),QVariant()).toString());
+                break;
+            }
+            case BYTES_ORDER:{
+                audioFormat.setByteOrder(cEndianMap.key(m_Data.value(index.row(),QVariant()).toString()));
+                break;
+            }
+            case SAMPLE_RATE:{
+                audioFormat.setSampleRate(m_Data.value(index.row(),QVariant()).toInt());
+                break;
+            }
+            case SAMPLE_SIZE:{
+                audioFormat.setSampleSize(m_Data.value(index.row(),QVariant()).toInt());
+                break;
+            }
+            case SAMPLE_TYPE:{
+                audioFormat.setSampleType(cTypeMap.key(m_Data.value(index.row(),QVariant()).toString()));
+                break;
+            }
+            default:
+                break;
+            }
+            qDebug() << audioFormat;
+
+            if(m_model.isFormatSupported(audioFormat))
+            {
+                flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
+            }
         }
         return flags;
     }
 
     virtual QVariant data(const QModelIndex &index, int role) const{
+        if (!index.isValid())
+                  return QVariant();
         return m_Data.value(index.row(),QVariant());
     }
 
@@ -141,22 +154,22 @@ AudioSourceDataModelUI::AudioSourceDataModelUI(QAudio::Mode mode, QWidget *paren
     ui->Device->setCurrentIndex(idx);
 
     QAudioComboModel* model = new QAudioComboModel(*this, QAudioComboModel::CHANNEL_NUMBER);
-    ui->ChannelNumber->setModel(model);
+//     ui->ChannelNumber->setModel(model);
     connect(ui->ChannelNumber, SIGNAL(currentIndexChanged(int)), this, SLOT(ChannelNumberChanged(int)));
     model = new QAudioComboModel(*this, QAudioComboModel::CODEC);
-    ui->Codec->setModel(model);
+ //    ui->Codec->setModel(model);
     connect(ui->Codec, SIGNAL(currentIndexChanged(int)), this, SLOT(CodecChanged(int)));
     model = new QAudioComboModel(*this, QAudioComboModel::BYTES_ORDER);
-    ui->ByteOdrer->setModel(model);
+//      ui->ByteOdrer->setModel(model);
     connect(ui->ByteOdrer, SIGNAL(currentIndexChanged(int)), this, SLOT(ByteOdrerChanged(int)));
     model = new QAudioComboModel(*this, QAudioComboModel::SAMPLE_RATE);
-    ui->SampleRate->setModel(model);
+//      ui->SampleRate->setModel(model);
     connect(ui->SampleRate, SIGNAL(currentIndexChanged(int)), this, SLOT(SampleRateChanged(int)));
     model = new QAudioComboModel(*this, QAudioComboModel::SAMPLE_SIZE);
-    ui->SampleSize->setModel(model);
+ //      ui->SampleSize->setModel(model);
     connect(ui->SampleSize, SIGNAL(currentIndexChanged(int)), this, SLOT(SampleSizeChanged(int)));
     model = new QAudioComboModel(*this, QAudioComboModel::SAMPLE_TYPE);
-    ui->SampleType->setModel(model);
+//    ui->SampleType->setModel(model);
     connect(ui->SampleType, SIGNAL(currentIndexChanged(int)), this, SLOT(SampleTypeChanged(int)));
 
     connect(ui->Device, SIGNAL(currentIndexChanged(int)), this, SLOT(InitAudioParams(int)),Qt::QueuedConnection);
@@ -176,15 +189,23 @@ const QAudioFormat &AudioSourceDataModelUI::FormatAudio() const
 
 void AudioSourceDataModelUI::InitAudioParams(int idx)
 {
-    QAudioDeviceInfo dInfo = m_devs[idx];
-    QList<int> chanCount = dInfo.supportedChannelCounts();
-    QStringList codecs = dInfo.supportedCodecs();
-    QList<int> srates = dInfo.supportedSampleRates();
-    QList<QAudioFormat::Endian> endians = dInfo.supportedByteOrders();
-    QAudioFormat prefFormat = dInfo.preferredFormat();
-    m_FormatAudio = dInfo.preferredFormat();
+    m_DevInfo =  m_devs[idx];
+    QList<int> chanCount = m_DevInfo.supportedChannelCounts();
+    QStringList codecs = m_DevInfo.supportedCodecs();
+    QList<int> srates = m_DevInfo.supportedSampleRates();
+    QList<QAudioFormat::Endian> endians = m_DevInfo.supportedByteOrders();
+    QAudioFormat prefFormat = m_DevInfo.preferredFormat();
+    qDebug()<< m_DevInfo.deviceName();
+    m_FormatAudio = m_DevInfo.preferredFormat();
+qDebug()<< m_DevInfo.deviceName();
+    ui->ChannelNumber->blockSignals(true);
+    ui->Codec->blockSignals(true);
+    ui->ByteOdrer->blockSignals(true);
+    ui->SampleRate->blockSignals(true);
+    ui->SampleSize->blockSignals(true);
+    ui->SampleType->blockSignals(true);
 
-    qDebug() << "NAME: " << dInfo.deviceName();
+    qDebug() << "NAME: " << m_DevInfo.deviceName();
     blockSignals(true);
     ui->ChannelNumber->clear();
     for(int i = 0; i < chanCount.count(); i++) {
@@ -228,7 +249,7 @@ void AudioSourceDataModelUI::InitAudioParams(int idx)
     }
 
     ui->SampleSize->clear();
-    foreach (int ssize, dInfo.supportedSampleSizes()) {
+    foreach (int ssize, m_DevInfo.supportedSampleSizes()) {
         ui->SampleSize->addItem(QString::number(ssize));
         if(prefFormat.sampleSize() == ssize){
             ui->SampleSize->setCurrentIndex(ui->SampleSize->count() - 1);
@@ -237,7 +258,7 @@ void AudioSourceDataModelUI::InitAudioParams(int idx)
     }
 
     ui->SampleType->clear();
-    foreach (QAudioFormat::SampleType stype, dInfo.supportedSampleTypes()) {
+    foreach (QAudioFormat::SampleType stype, m_DevInfo.supportedSampleTypes()) {
         ui->SampleType->addItem(cTypeMap.value(stype));
         if(prefFormat.sampleType() == stype){
             ui->SampleType->setCurrentIndex(ui->SampleType->count() - 1);
@@ -245,7 +266,14 @@ void AudioSourceDataModelUI::InitAudioParams(int idx)
         }
     }
     blockSignals(false);
+    ui->ChannelNumber->blockSignals(false);
+    ui->Codec->blockSignals(false);
+    ui->ByteOdrer->blockSignals(false);
+    ui->SampleRate->blockSignals(false);
+    ui->SampleSize->blockSignals(false);
+    ui->SampleType->blockSignals(false);
     emit ReloadAudioConnection();
+
 }
 
 
@@ -259,37 +287,48 @@ bool AudioSourceDataModelUI::isFormatSupported(const QAudioFormat &format) const
 }
 
 void AudioSourceDataModelUI::ChannelNumberChanged(int val){
-    m_FormatAudio.setChannelCount(ui->ChannelNumber->itemData(val).toInt());
-    qDebug() << ui->ChannelNumber->itemData(val).toInt();
+    qDebug() << "val: " << val;
+    m_FormatAudio.setChannelCount(ui->ChannelNumber->itemData(val, Qt::DisplayRole).toInt());
+    qDebug() << __FUNCTION__ << ui->ChannelNumber->itemData(val, Qt::DisplayRole).toInt();
     emit ReloadAudioConnection();
 }
 
 void AudioSourceDataModelUI::CodecChanged(int val){
-    m_FormatAudio.setCodec(ui->Codec->itemData(val).toString());
-    qDebug() << ui->Codec->itemData(val).toString();
+    qDebug() << "val: " << val;
+    m_FormatAudio.setCodec(ui->Codec->itemData(val, Qt::DisplayRole).toString());
+    qDebug() << __FUNCTION__ << ui->Codec->itemData(val, Qt::DisplayRole).toString();
     emit ReloadAudioConnection();
 }
 
 void AudioSourceDataModelUI::ByteOdrerChanged(int val){
-    m_FormatAudio.setByteOrder(cEndianMap.key(ui->ByteOdrer->itemData(val).toString()));
-    qDebug() << cEndianMap.key(ui->ByteOdrer->itemData(val).toString());
+    qDebug() << "val: " << val;
+    m_FormatAudio.setByteOrder(cEndianMap.key(ui->ByteOdrer->itemData(val, Qt::DisplayRole).toString()));
+    qDebug() << __FUNCTION__ << cEndianMap.key(ui->ByteOdrer->itemData(val, Qt::DisplayRole).toString());
     emit ReloadAudioConnection();
 }
 
 void AudioSourceDataModelUI::SampleRateChanged(int val){
-    m_FormatAudio.setSampleRate(ui->SampleRate->itemData(val).toInt());
-    qDebug() << ui->SampleRate->itemData(val).toInt();
+    qDebug() << "val: " << val;
+    m_FormatAudio.setSampleRate(ui->SampleRate->itemData(val, Qt::DisplayRole).toInt());
+    qDebug() << __FUNCTION__ << ui->SampleRate->itemData(val, Qt::DisplayRole).toInt();
     emit ReloadAudioConnection();
 }
 
 void AudioSourceDataModelUI::SampleSizeChanged(int val){
+    qDebug() << "val: " << val;
     m_FormatAudio.setSampleSize(ui->SampleSize->itemData(val).toInt());
-    qDebug() << ui->SampleSize->itemData(val).toInt();
+    qDebug() << __FUNCTION__ << ui->SampleSize->itemData(val, Qt::DisplayRole).toInt();
     emit ReloadAudioConnection();
 }
 
 void AudioSourceDataModelUI::SampleTypeChanged(int val){
-    m_FormatAudio.setSampleType(cTypeMap.key(ui->SampleType->itemData(val).toString()));
-    qDebug() << cEndianMap.key(ui->SampleType->itemData(val).toString());
+    qDebug() << "val: " << val;
+    m_FormatAudio.setSampleType(cTypeMap.key(ui->SampleType->itemData(val, Qt::DisplayRole).toString()));
+    qDebug() << __FUNCTION__ << cTypeMap.key(ui->SampleType->itemData(val, Qt::DisplayRole).toString());
     emit ReloadAudioConnection();
+}
+
+QAudioDeviceInfo AudioSourceDataModelUI::DevInfo() const
+{
+    return m_DevInfo;
 }

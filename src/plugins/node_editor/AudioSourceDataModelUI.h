@@ -21,6 +21,8 @@ public:
 
     bool isFormatSupported(const QAudioFormat &format) const;
 
+    QAudioDeviceInfo DevInfo() const;
+
 signals:
     void ReloadAudioConnection();
 
@@ -37,6 +39,8 @@ private:
     Ui::AudioSourceDataModelUI *ui;
     QAudioFormat     m_FormatAudio;
     QList<QAudioDeviceInfo> m_devs;
+    QAudioDeviceInfo m_DevInfo;
+
 };
 
 #endif // AUDIOSOURCEDATAMODELUI_H
