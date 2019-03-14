@@ -38,8 +38,6 @@ public:
     name() const override
     { return QStringLiteral("QDevIoDisplay"); }
 
-public:
-
     QJsonObject
     save() const override;
 

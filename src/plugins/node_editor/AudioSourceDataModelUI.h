@@ -3,43 +3,38 @@
 
 #include <QWidget>
 #include <QtMultimedia/QAudioDeviceInfo>
+#include "AudioSourceConfig.h"
+#include "AudioSourceDataModel.h"
 
 namespace Ui {
 class AudioSourceDataModelUI;
 }
-class QAudioFormat;
+
 class AudioSourceDataModelUI : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit AudioSourceDataModelUI(QAudio::Mode mode = QAudio::AudioInput, QWidget *parent = 0);
+    explicit AudioSourceDataModelUI(QAudioDeviceInfo &devInfo, QAudioFormat &formatAudio, QWidget *parent = 0);
     ~AudioSourceDataModelUI();
-
-
-    const QAudioFormat& FormatAudio() const;
-
-    bool isFormatSupported(const QAudioFormat &format) const;
+    const QAudioFormat FormatAudio() const;
 
     QAudioDeviceInfo DevInfo() const;
 
 signals:
-    void ReloadAudioConnection();
+    void ChangeAudioConnection(QAudioDeviceInfo& devInfo, QAudioFormat& formatAudio);
+    void Start(AudioSourceDataModel::StartStop start);
 
-protected slots:
-    void InitAudioParams(int idx);
-    void ChannelNumberChanged(int val);
-    void CodecChanged(int val);
-    void ByteOdrerChanged(int val);
-    void SampleRateChanged(int val);
-    void SampleSizeChanged(int val);
-    void SampleTypeChanged(int val);
-
+public slots:
+    void AudioStateChanged(QAudio::State state);
+private slots:
+    void Start(bool start);
+    void ConfigAudio();
 private:
     Ui::AudioSourceDataModelUI *ui;
-    QAudioFormat     m_FormatAudio;
-    QList<QAudioDeviceInfo> m_devs;
-    QAudioDeviceInfo m_DevInfo;
+    AudioSourceConfig m_Conf;
+    QAudioDeviceInfo & m_devInfo;
+    QAudioFormat &  m_formatAudio;
 
 };
 
