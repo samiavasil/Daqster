@@ -3,7 +3,7 @@
 
 #include <QtCore/QObject>
 #include <nodes/NodeDataModel>
-#include <QtMultimedia/QAudioDeviceInfo>
+
 
 using QtNodes::PortType;
 using QtNodes::PortIndex;
@@ -79,7 +79,6 @@ public slots:
 protected slots:
     void destroyedObj(QObject *obj);
 private:
-    QAudioDeviceInfo m_DeviceInfo;
     std::shared_ptr<QAudioInput> m_audio_src;
     std::shared_ptr<AudioNodeQdevIoConnector> m_connector;
     std::shared_ptr<QIODevice> m_devio;

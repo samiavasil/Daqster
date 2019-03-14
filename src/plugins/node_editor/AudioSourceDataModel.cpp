@@ -8,7 +8,6 @@
 AudioSourceDataModel::AudioSourceDataModel()
 {
     m_connector = std::make_shared<AudioNodeQdevIoConnector>(this);
-    m_DeviceInfo = QAudioDeviceInfo::defaultInputDevice();
     m_Widget = new AudioSourceDataModelUI;
     connect(m_Widget, SIGNAL(ReloadAudioConnection()), this, SLOT(ReloadAudioConnection()));
 }
@@ -71,13 +70,21 @@ void AudioSourceDataModel::IO_connect(std::shared_ptr<QIODevice> io)
     if( m_devio ){
         if(m_audio_src)
             m_audio_src->stop();
-        m_audio_src  = std::make_shared<QAudioInput>(m_DeviceInfo, m_Widget->FormatAudio());
-        m_audio_src->setObjectName("AudioInput");
-        connect(m_audio_src.get(),SIGNAL(destroyed(QObject*)), this,SLOT(destroyedObj(QObject*)));
-        if( !m_devio->isOpen() ){
-            m_devio->open(QIODevice::WriteOnly);
+        QAudioFormat format = m_Widget->FormatAudio();
+        QAudioDeviceInfo dInfo = m_Widget->DevInfo();
+        if( dInfo.isFormatSupported(format) ) {
+            m_audio_src  = std::make_shared<QAudioInput>(dInfo, format);
+            m_audio_src->setObjectName(QString("AudioInput: %1").arg(dInfo.deviceName()));
+            connect(m_audio_src.get(),SIGNAL(destroyed(QObject*)), this,SLOT(destroyedObj(QObject*)));
+            if( !m_devio->isOpen() ){
+                m_devio->open(QIODevice::WriteOnly);
+            }
+            m_audio_src->start(m_devio.get());
+            qDebug() << __FUNCTION__ << "Run DevName:" << dInfo.deviceName() << format;
         }
-        m_audio_src->start(m_devio.get());
+        else{
+            qDebug() << __FUNCTION__ << "DevName:" << dInfo.deviceName() << "Not Supported Format" << format;
+        }
     }
     else{
         if(m_audio_src)
