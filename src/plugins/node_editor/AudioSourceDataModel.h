@@ -79,7 +79,8 @@ public:
     {
       return ConnectionPolicy::One;
     }
-
+signals:
+    void ModChanged();
 public slots:
     virtual void outputConnectionDeleted(QtNodes::Connection const&con);
 
@@ -89,7 +90,7 @@ private slots:
     void destroyedObj(QObject *obj);
 private:
     std::shared_ptr<AudioNodeQdevIoConnector> m_connector;
-    std::shared_ptr<QIODevice> m_devio;
+    std::shared_ptr<QIODevice>   m_devio;
     std::shared_ptr<QAudioInput> m_audio_src;
     QAudioFormat     m_FormatAudio;
     QAudioDeviceInfo m_DevInfo;
