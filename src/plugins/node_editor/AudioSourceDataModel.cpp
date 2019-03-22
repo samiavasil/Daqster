@@ -15,6 +15,7 @@ AudioSourceDataModel::AudioSourceDataModel()
     m_Widget = new AudioSourceDataModelUI(m_DevInfo, m_FormatAudio);
     connect(m_Widget, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo&,QAudioFormat&)), this, SLOT(ChangeAudioConnection(QAudioDeviceInfo&,QAudioFormat&)));
     connect(m_Widget,SIGNAL(Start(AudioSourceDataModel::StartStop)),SLOT(StartAudio(AudioSourceDataModel::StartStop)));
+    connect(this, SIGNAL(ModChanged()), m_connector.get(), SLOT(ModChanged()));
 }
 
 AudioSourceDataModel::~AudioSourceDataModel()
@@ -86,6 +87,7 @@ void AudioSourceDataModel::ChangeAudioConnection(QAudioDeviceInfo &devInfo, QAud
         if(m_DevInfo != devInfo || m_FormatAudio != formatAudio){
             m_DevInfo = devInfo;
             m_FormatAudio = formatAudio;
+            emit ModChanged();
             StartAudio(ASDM_RELOAD);
         }
         else{

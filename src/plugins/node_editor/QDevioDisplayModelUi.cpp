@@ -27,6 +27,15 @@ QDevioDisplayModelUi::QDevioDisplayModelUi(QLineSeries *series, QWidget *parent)
     QValueAxis *axisY = new QValueAxis;
     axisY->setRange(-1, 1);
     axisY->setTitleText("Audio level");
+    QLineSeries* ser = new QLineSeries();
+    for(int i=0;i<2000;i++){
+        series->append(i,0.5);
+        ser->append(i,0.2);
+    }
+    m_chart->addSeries(ser);
+    m_chart->setAxisX(axisX, ser);
+    m_chart->setAxisY(axisY, ser);
+
     m_chart->setAxisX(axisX, m_series);
     m_chart->setAxisY(axisY, m_series);
     m_chart->legend()->hide();
