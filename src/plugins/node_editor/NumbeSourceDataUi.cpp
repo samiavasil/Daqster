@@ -1,5 +1,5 @@
 #include "NumberSourceDataUi.h"
-#include "ui_NumbeSourceDataUi.h"
+#include "ui_NumberSourceDataUi.h"
 
 NumberSourceDataUi::NumberSourceDataUi(QWidget *parent) :
     QWidget(parent),

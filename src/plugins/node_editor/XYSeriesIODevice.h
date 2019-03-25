@@ -34,6 +34,7 @@
 #include <QtCore/QPointF>
 #include <QtCore/QVector>
 #include <QtCharts/QChartGlobal>
+#include<QMutex>
 
 QT_CHARTS_BEGIN_NAMESPACE
 class QXYSeries;
@@ -47,15 +48,27 @@ class XYSeriesIODevice : public QIODevice
 public:
     explicit XYSeriesIODevice(QXYSeries *series, QObject *parent = nullptr);
 
-    static const int sampleCount = 8000;
-
 protected:
     qint64 readData(char *data, qint64 maxSize) override;
     qint64 writeData(const char *data, qint64 maxSize) override;
 
+protected slots:
+    void replaced();
+    void test();
+
 private:
     QXYSeries *m_series;
     QVector<QPointF> m_buffer;
+    bool m_Replaced;
+
+    QMutex m_lock;
+    qint64 m_read_idx;
+    qint64 m_write_idx;
+    int m_SampleCount;
+    int m_resolution;
+    int m_channels;
+    qint64 m_mask;
+    char *m_data;
 };
 
 #endif // XYSERIESIODEVICE_H

@@ -11,7 +11,7 @@ QDevIoDisplayModel::QDevIoDisplayModel():m_connector(nullptr)
     QLineSeries* series = new QLineSeries;
     m_widget = new QDevioDisplayModelUi(series);
 
-    m_device = std::make_shared<XYSeriesIODevice>(series, this);
+    m_device = QSharedPointer<XYSeriesIODevice>(new XYSeriesIODevice(series, this));
 }
 
 QDevIoDisplayModel::~QDevIoDisplayModel()
@@ -60,13 +60,8 @@ void QDevIoDisplayModel::setInData(std::shared_ptr<NodeData> data, PortIndex por
 
     if (portIndex == 0)
     {
-        if ( 0 )
-        {
-            modelValidationState = NodeValidationState::Error;
-            modelValidationError = QStringLiteral("Division by zero error");
-            m_connector.reset();
-        }
-        else if (conData)
+
+        if (conData)
         {
             modelValidationState = NodeValidationState::Valid;
             modelValidationError = QString();
@@ -77,8 +72,10 @@ void QDevIoDisplayModel::setInData(std::shared_ptr<NodeData> data, PortIndex por
         {
             modelValidationState = NodeValidationState::Warning;
             modelValidationError = QStringLiteral("Missing or incorrect inputs");
-            m_connector->SetDevIo( nullptr );
-            m_connector.reset();
+            if(m_connector) {
+                m_connector->SetDevIo( nullptr );
+                m_connector.reset();
+            }
         }
     }
 }
@@ -96,4 +93,9 @@ QtNodes::NodeValidationState QDevIoDisplayModel::validationState() const
 QString QDevIoDisplayModel::validationMessage() const
 {
     return modelValidationError;
+}
+
+bool QDevIoDisplayModel::UpdateModel(int chan_num)
+{
+
 }

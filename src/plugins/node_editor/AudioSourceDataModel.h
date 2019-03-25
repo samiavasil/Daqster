@@ -14,6 +14,7 @@ using QtNodes::NodeValidationState;
 class QAudioInput;
 class AudioNodeQdevIoConnector;
 class AudioSourceDataModelUI;
+class QAudioInputThread;
 
 class AudioSourceDataModel : public NodeDataModel
 {
@@ -71,7 +72,7 @@ public:
     QWidget *
     embeddedWidget() override;
 
-    void IO_connect(std::shared_ptr<QIODevice> io);
+    void IO_connect(QSharedPointer<QIODevice> io);
 
     virtual
     ConnectionPolicy
@@ -90,8 +91,8 @@ private slots:
     void destroyedObj(QObject *obj);
 private:
     std::shared_ptr<AudioNodeQdevIoConnector> m_connector;
-    std::shared_ptr<QIODevice>   m_devio;
-    std::shared_ptr<QAudioInput> m_audio_src;
+    QSharedPointer<QIODevice>   m_devio;
+    std::shared_ptr<QAudioInputThread> m_audio_src;
     QAudioFormat     m_FormatAudio;
     QAudioDeviceInfo m_DevInfo;
     AudioSourceDataModelUI* m_Widget;

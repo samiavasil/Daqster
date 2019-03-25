@@ -22,7 +22,7 @@ public:
     QDevIoDisplayModel();
 
     virtual
-    ~QDevIoDisplayModel();
+    ~QDevIoDisplayModel() override;
 
 public:
 
@@ -68,12 +68,14 @@ public:
     QString
     validationMessage() const override;
 
+    bool UpdateModel(int chan_num);
+
 protected:
      std::shared_ptr<AudioNodeQdevIoConnector> m_connector;
      NodeValidationState modelValidationState = NodeValidationState::Warning;
      QString modelValidationError = QStringLiteral("Missing or incorrect inputs");
      QWidget* m_widget;
-     std::shared_ptr<QIODevice> m_device;
+     QSharedPointer<QIODevice> m_device;
 };
 
 #endif // QDEVIODISPLAY_H
