@@ -10,10 +10,10 @@
 QT_CHARTS_USE_NAMESPACE
 
 QDevioDisplayModelUi::QDevioDisplayModelUi(QLineSeries *series, QWidget *parent) :
-    m_series(series),
-    m_chart(new QChart),
     QWidget(parent),
-    ui(new Ui::QDevioDisplayModelUi)
+    ui(new Ui::QDevioDisplayModelUi),
+    m_series(series),
+    m_chart(new QChart)
 {
     ui->setupUi(this);
 
@@ -25,7 +25,7 @@ QDevioDisplayModelUi::QDevioDisplayModelUi(QLineSeries *series, QWidget *parent)
     axisX->setLabelFormat("%g");
     axisX->setTitleText("Samples");
     QValueAxis *axisY = new QValueAxis;
-    axisY->setRange(-1, 1);
+    axisY->setRange(-1.3, 1.3);
     axisY->setTitleText("Audio level");
     QLineSeries* ser = new QLineSeries();
     for(int i=0;i<2000;i++){

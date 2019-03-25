@@ -41,7 +41,8 @@ SOURCES += \
     QDevIoDisplayModel.cpp \
     QDevioDisplayModelUi.cpp \
     AudioSourceDataModelUI.cpp \
-    AudioSourceConfig.cpp
+    AudioSourceConfig.cpp \
+    QAudioInputThread.cpp
 
 HEADERS += \
     NodeEditorInterface.h \
@@ -61,7 +62,8 @@ HEADERS += \
     QDevIoDisplayModel.h \
     QDevioDisplayModelUi.h \
     AudioSourceDataModelUI.h \
-    AudioSourceConfig.h
+    AudioSourceConfig.h \
+    QAudioInputThread.h
 
 FORMS += \
     NumberSourceDataUi.ui \

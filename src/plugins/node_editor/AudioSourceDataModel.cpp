@@ -70,15 +70,10 @@ QWidget *AudioSourceDataModel::embeddedWidget()
     return m_Widget;
 }
 
-void AudioSourceDataModel::IO_connect(std::shared_ptr<QIODevice> io)
+void AudioSourceDataModel::IO_connect(QSharedPointer<QIODevice> io)
 {
     m_devio = io;
-    if( m_devio ){
-        if( !m_devio->isOpen() ){
-            m_devio->open(QIODevice::WriteOnly);
-        }
-        StartAudio(ASDM_START);
-    }
+    StartAudio(ASDM_START);
 }
 
 void AudioSourceDataModel::ChangeAudioConnection(QAudioDeviceInfo &devInfo, QAudioFormat &formatAudio)
@@ -112,6 +107,8 @@ void AudioSourceDataModel::destroyedObj(QObject* obj){
     qDebug() << "Destroyed: " << obj->objectName();
 }
 
+#include<QAudioInputThread.h>
+
 void AudioSourceDataModel::StartAudio(StartStop start){
 
         //if( m_DevInfo.isFormatSupported(m_FormatAudio) ) {
@@ -122,9 +119,11 @@ void AudioSourceDataModel::StartAudio(StartStop start){
         break;
     }
     case ASDM_START:{
+#if 0
         if( !m_audio_src ){
             case ASDM_RELOAD:
             m_audio_src  = std::make_shared<QAudioInput>(m_DevInfo, m_FormatAudio);
+            m_audio_src->setNotifyInterval(1000);
             m_audio_src->setBufferSize(8000);
             m_audio_src->setObjectName(QString("AudioInput: %1").arg(m_DevInfo.deviceName()));
             connect(m_audio_src.get(),SIGNAL(destroyed(QObject*)), this,SLOT(destroyedObj(QObject*)));
@@ -133,6 +132,16 @@ void AudioSourceDataModel::StartAudio(StartStop start){
         if(m_devio){
             m_audio_src->start(m_devio.get());
         }
+#else
+   case ASDM_RELOAD:
+        if( !m_audio_src ){
+            m_audio_src  = std::make_shared<QAudioInputThread>();
+            connect(m_audio_src.get(),SIGNAL(stateChanged(QAudio::State)), m_Widget, SLOT(AudioStateChanged(QAudio::State)) );
+        }
+        if(m_devio){
+            m_audio_src->start(m_DevInfo, m_FormatAudio, m_devio);
+        }
+#endif
         break;
     }
 

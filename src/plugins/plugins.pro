@@ -2,6 +2,7 @@ TEMPLATE = subdirs
 
 #BUILD_TEST_PLUGINS = TESTS
 
+SUBDIRS += node_editor
 
 if( defined( BUILD_TEST_PLUGINS,var ) ){
  SUBDIRS +=  tests/template_plugin_daqster\

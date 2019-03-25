@@ -3,12 +3,14 @@
 #include<QObject>
 #include<memory>
 #include <nodes/NodeData>
+#include<QSharedPointer>
 
 using QtNodes::NodeDataType;
 using QtNodes::NodeData;
 
 class QIODevice;
 class AudioSourceDataModel;
+class QDevIoDisplayModel;
 
 class AudioNodeQdevIoConnector : public QObject, public NodeData
 {
@@ -17,7 +19,9 @@ public:
 
     explicit AudioNodeQdevIoConnector( AudioSourceDataModel* model, QObject *parent=nullptr );
 
-    void SetDevIo( std::shared_ptr<QIODevice> dio );
+    void SetDevIo(QSharedPointer<QIODevice> dio );
+
+    void ConnectPair( std::shared_ptr<QDevIoDisplayModel> display_model );
 
     virtual NodeDataType type() const
     {
@@ -25,11 +29,11 @@ public:
                               "AudioNodeQdevIoConnector"};
     }
 
-    std::shared_ptr<QIODevice>& DevIo(){ return m_Devio;}
+    QSharedPointer<QIODevice>& DevIo(){ return m_Devio;}
 
 private:
     AudioSourceDataModel* m_model;
-    std::shared_ptr<QIODevice> m_Devio;
+    QSharedPointer<QIODevice> m_Devio;
 public slots:
     void ModChanged();
 };
