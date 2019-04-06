@@ -1,5 +1,6 @@
 #include "RandData.h"
 #include<QDebug>
+#include<math.h>
 
 void RandData::wTimeout(){
     int HIGH = 100;

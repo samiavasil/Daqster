@@ -91,17 +91,17 @@ bool QtCoinTraderPluginObject::Initialize()
     QGuiApplication::setApplicationVersion("1.0");
     QGuiApplication::setOrganizationName("Samiavasil");
     QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
- initializeRest();
+    initializeRest();
     qmlRegisterType<RandData>("com.github.samiavasil.cointrader.randdata", 1, 0, "RandData");
-//    m_Win = new QMainWindow();
-//    m_Win->show();
- QQuickStyle::setStyle("Material");
-QStringList lis = QQuickStyle::availableStyles();
+    //    m_Win = new QMainWindow();
+    //    m_Win->show();
+    QQuickStyle::setStyle("Material");
+    QStringList lis = QQuickStyle::availableStyles();
     QQmlApplicationEngine* engine = new QQmlApplicationEngine(m_Win);
     //engine.rootContext()->setContextProperty("awesome", awesome);
-//engine->rootContext()->setContextProperty("dataFromCpp", new RandData());
+    //engine->rootContext()->setContextProperty("dataFromCpp", new RandData());
     engine->load(QUrl(QStringLiteral("qrc:/qml/About.qml")));
-  //   engine->load(QUrl(QStringLiteral("qrc:/main.qml")));
+    //   engine->load(QUrl(QStringLiteral("qrc:/main.qml")));
 
 
     /* m_Win = new QMainWindow();
@@ -139,7 +139,7 @@ void QtCoinTraderPluginObject::ShowPlugins()
     if( NULL != pm )
     {
         DEBUG << "Plugin Manager: " << pm;
-   //     pm->SearchForPlugins();
+        //     pm->SearchForPlugins();
         pm->ShowPluginManagerGui( m_Win );
     }
 }

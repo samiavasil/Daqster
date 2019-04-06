@@ -3,19 +3,19 @@
 
 #include <QObject>
 #include "plugin_global.h"
-#include "QDaqsterPluginInterface.h"
+#include "QPluginInterface.h"
 
 
 using namespace Daqster;
 
 
-class PLUGIN_EXPORT DaqsterTemplateInterface:  public QDaqsterPluginInterface
+class PLUGIN_EXPORT DaqsterTemplateInterface:  public QPluginInterface
 {
     Q_OBJECT
 #if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
     Q_PLUGIN_METADATA(IID IID_DAQSTER_PLUGIN_INTERFACE FILE "QtCoinTraderInterface.json")
 #endif
-    Q_INTERFACES(Daqster::QDaqsterPluginInterface)
+    Q_INTERFACES(Daqster::QPluginInterface)
 public:
     DaqsterTemplateInterface( QObject* parent = 0);
     ~DaqsterTemplateInterface(  );

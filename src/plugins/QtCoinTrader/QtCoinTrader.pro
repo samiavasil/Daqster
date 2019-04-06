@@ -75,9 +75,6 @@ win32 {
     LIBS        += -lqtrest_lib
 }
 
-win32:CONFIG(release, debug|release): LIBS += -L$$OUT_PWD/RestApi/release/ -lRestApi
-else:win32:CONFIG(debug, debug|release): LIBS += -L$$OUT_PWD/RestApi/debug/ -lRestApi
-else:unix: LIBS += -L$$OUT_PWD/RestApi/ -lRestApi
 
 INCLUDEPATH += $$PWD/RestApi
 DEPENDPATH += $$PWD/RestApi
