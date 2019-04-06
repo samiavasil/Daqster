@@ -14,9 +14,9 @@ Rectangle {
     property alias model: listV.model
     property alias bgopacity: slider.value
     property alias colorValue: rectangle.color
- //   property alias mouseArr: mouseArrea
+    //   property alias mouseArr: mouseArrea
 
-//    width: 100
+    //    width: 100
     property alias slider: slider
     //    color: "#000000"
     //    gradient: Gradient {
@@ -48,7 +48,7 @@ Rectangle {
             interactive: true
             highlightRangeMode: ListView.ApplyRange
             orientation: ListView.Vertical
-       //     keyNavigationWraps: yes
+            //     keyNavigationWraps: yes
             snapMode: ListView.SnapToItem
             //      flickableDirection: Flickable.AutoFlickDirection
             spacing: 2

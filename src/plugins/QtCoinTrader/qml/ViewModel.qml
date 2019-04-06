@@ -2,13 +2,13 @@ import QtQuick 2.0
 
 
 ListModel {
-//    ListElement { colorM: "blue";textL:"Aa";source: ""  }
-//    ListElement { colorM: "green";textL:"Bb";source: "" }
-//    ListElement { colorM: "red" }
-//    ListElement { colorM: "yellow" }
-//    ListElement { colorM: "orange" }
-//    ListElement { colorM: "purple" }
-//    ListElement { colorM: "cyan" }
+    //    ListElement { colorM: "blue";textL:"Aa";source: ""  }
+    //    ListElement { colorM: "green";textL:"Bb";source: "" }
+    //    ListElement { colorM: "red" }
+    //    ListElement { colorM: "yellow" }
+    //    ListElement { colorM: "orange" }
+    //    ListElement { colorM: "purple" }
+    //    ListElement { colorM: "cyan" }
     ListElement { title: qsTr("Bitfinex")
         imgSource: "https://s2.coinmarketcap.com/static/img/exchanges/32x32/37.png"
         colorM: "magenta"

@@ -16,8 +16,8 @@ ItemDelegate {
             id: image
 
             horizontalAlignment: Image.AlignHCenter
-         //   width:
-        //    height: parent.height
+            //   width:
+            //    height: parent.height
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.topMargin: 5
@@ -30,11 +30,11 @@ ItemDelegate {
             Layout.fillWidth: true
             Layout.fillHeight: false
             Layout.bottomMargin: 5
-       //     verticalAlignment: Text.AlignVCenter
+            //     verticalAlignment: Text.AlignVCenter
 
             font.family: "Times New Roman";
-          //  font.pointSize: 15;
-           // font.bold: true
+            //  font.pointSize: 15;
+            // font.bold: true
 
             minimumPointSize: 4
             fontSizeMode: Text.HorizontalFit

@@ -10,16 +10,16 @@ import QtQuick.Window 2.1
 ApplicationWindow {
     id: applicationWindow
     opacity: sideBar.bgopacity
-   //  Binding cols.value: mdiArea.maxCol
+    //  Binding cols.value: mdiArea.maxCol
 
-   // property Binding rows.value: mdiArea.maxRow
+    // property Binding rows.value: mdiArea.maxRow
     //    background: none.none
     visible: true
-//        width: 625
-//        height: 420
+    //        width: 625
+    //        height: 420
     visibility: "Maximized"
     //  color: "#442099"
-  //  flags:  Qt.FramelessWindowHint
+    //  flags:  Qt.FramelessWindowHint
     Material.theme: Material.Light
     Material.accent: Material.ShadeA700
     //  Material.primary: Material.Amber
@@ -47,7 +47,7 @@ ApplicationWindow {
             console.log("URAAAAAAAAAAAA ", sideBar.model.get( sideBar.currentIndex ).colorM )
             console.log("URAAAAAAAAAAAA ", sideBar.model.get( sideBar.currentIndex ).title )
             console.log("URAAAAAAAAAAAA ", sideBar.model.get( sideBar.currentIndex ).imgSource )
-         //   mdiArea.setGroups(sideBar.currentIndex)
+            //   mdiArea.setGroups(sideBar.currentIndex)
         }
     }
 
@@ -121,7 +121,7 @@ ApplicationWindow {
 
 
         model: ViewModel {
-             id: sideBarModel
+            id: sideBarModel
 
         }
 

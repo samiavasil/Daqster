@@ -13,14 +13,14 @@ GridView{
     property alias modelGrid: delModel.model
 
     function  addToModel( a ) {
-       // delModel.model.append(  a )
+        // delModel.model.append(  a )
 
     }
 
     function setGroups(index) {
         console.log('set Groups for', index)
         var groups = delModel.items.get(index).groups
-      //  groups.contains('tested')
+        //  groups.contains('tested')
         delModel.items.setGroups(index, 1, (groups.indexOf('tested')>=0)?['items']:['items', 'tested'])
     }
 
@@ -38,15 +38,15 @@ GridView{
     }
 
     model: DelegateModel{
-         id : delModel
+        id : delModel
 
-//        model:ViewModel  {
-//            id: lModel
+        //        model:ViewModel  {
+        //            id: lModel
 
-//            //                ListElement { colorM: "orange"
-//            //                              textL:   "test"
-//            //                }
-//        }
+        //            //                ListElement { colorM: "orange"
+        //            //                              textL:   "test"
+        //            //                }
+        //        }
 
         groups : [DelegateModelGroup {name: "tested"}]
 
@@ -57,22 +57,22 @@ GridView{
             width: grid.cellWidth
             height: grid.cellHeight
             text:   title
-//            text: {
-//                var text = "Name: " + title
-//                if ( item.DelegateModel.inTested )
-//                    text += " (" + item.DelegateModel.testedIndex + ")"
-//                item.DelegateModel.inTested =!item.DelegateModel.inTested
-//                return text;
-//            }
+            //            text: {
+            //                var text = "Name: " + title
+            //                if ( item.DelegateModel.inTested )
+            //                    text += " (" + item.DelegateModel.testedIndex + ")"
+            //                item.DelegateModel.inTested =!item.DelegateModel.inTested
+            //                return text;
+            //            }
             color:  colorM
             source: imgSource
 
         }
 
         //     drawer.close()
-//        console.log(model, "  ", model.inTested )
-//        model.inTested= !model.inTested
-//        console.log("model.inTested: ", model.inTested )
+        //        console.log(model, "  ", model.inTested )
+        //        model.inTested= !model.inTested
+        //        console.log("model.inTested: ", model.inTested )
     }
 
 }
