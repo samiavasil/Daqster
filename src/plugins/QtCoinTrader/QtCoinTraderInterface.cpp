@@ -2,7 +2,7 @@
 #include "debug.h"
 #include "QtCoinTraderPluginObject.h"
 
-DaqsterTemplateInterface::DaqsterTemplateInterface(QObject* parent ):QDaqsterPluginInterface(parent)
+DaqsterTemplateInterface::DaqsterTemplateInterface(QObject* parent ):QPluginInterface(parent)
 {
     Q_INIT_RESOURCE(QtCoinTrader);
     DEBUG << "DaqsterTeplateInterface object create";
