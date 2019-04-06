@@ -9,7 +9,7 @@ PluginMainInterface::PluginMainInterface(QObject* parent ):QPluginInterface(pare
     QIcon icon( QString::fromUtf8(":/main.png") );
     m_PluginDescryptor.SetIcon( icon );
     m_PluginDescryptor.SetProperty( PLUGIN_NAME, "PluginMainTest" );
-    m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::SOME_TYPE );
+    m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN );
     m_PluginDescryptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
     m_PluginDescryptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
     m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "Plugin Main Test" );
