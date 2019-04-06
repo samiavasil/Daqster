@@ -29,7 +29,7 @@ Item {
         Image {
             id: img
             anchors.top: parent.top
-           // anchors.topMargin: 17
+            // anchors.topMargin: 17
             anchors.horizontalCenter: parent.horizontalCenter
             fillMode: Image.TileVertically
         }
@@ -57,7 +57,7 @@ Item {
             Component.onCompleted: console.log("completed!");
         }
         //JsonRestListModel  //ExchangeModel
-         ExchangeModel{
+        ExchangeModel{
             id:  exchangeModel
             api: exchangeApi
 
@@ -82,44 +82,44 @@ Item {
         }
 
     }
-        SplitView{
-            anchors.fill: parent
-             anchors.margins:  10
-//            Rectangle{
-//                color: "#61f392"
-//                Layout.fillWidth: true
-//                Layout.fillHeight: true
-//                Layout.minimumWidth: 1
-            ListView {
-                    id: marketList
-//                    anchors.fill: Layout
-                    Layout.fillWidth:  false
-                    Layout.fillHeight: true
-                    width: parent.width/8
-//                    Layout.alignment: Qt.AlignLeft
-//                    Layout.minimumWidth: 1
-//                    Layout.preferredWidth: 4
-//                //    Layout.preferredWidth: 200
-//                    anchors.topMargin: 10
-                    property string titleText: qsTr("Actual")
+    SplitView{
+        anchors.fill: parent
+        anchors.margins:  10
+        //            Rectangle{
+        //                color: "#61f392"
+        //                Layout.fillWidth: true
+        //                Layout.fillHeight: true
+        //                Layout.minimumWidth: 1
+        ListView {
+            id: marketList
+            //                    anchors.fill: Layout
+            Layout.fillWidth:  false
+            Layout.fillHeight: true
+            width: parent.width/8
+            //                    Layout.alignment: Qt.AlignLeft
+            //                    Layout.minimumWidth: 1
+            //                    Layout.preferredWidth: 4
+            //        QtCoinTrader        //    Layout.preferredWidth: 200
+            //                    anchors.topMargin: 10
+            property string titleText: qsTr("Actual")
 
-                    function filter(filters)
-                    {
-                        filters.isArchive = 0;
-                        coupons.filters = filters;
-                        coupons.reload();
-                    }
+            function filter(filters)
+            {
+                filters.isArchive = 0;
+                coupons.filters = filters;
+                coupons.reload();
+            }
 
-                    model:exchangeModel
-                    delegate:SideBarDelegate{
-                        width: marketList.width
-                        height: marketList.height/4
-                        value: indexAt(  originX, originY ) + MarketName
-                        imgSource: LogoUrl
+            model:exchangeModel
+            delegate:SideBarDelegate{
+                width: marketList.width
+                height: marketList.height/4
+                value: indexAt(  originX, originY ) + MarketName
+                imgSource: LogoUrl
 
-                    }
+            }
 
-                    /* ItemDelegate {
+            /* ItemDelegate {
 
                 //    property string value: ""
                 //    property alias imgSource: image.source
@@ -136,66 +136,66 @@ Item {
                         //qsTr("text")
                     }
                 }*/
-//                }
+            //                }
+        }
+        ChartView {
+            id: mView
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            //                Layout.preferredWidth: 400
+
+            Layout.minimumWidth: 4
+            //                anchors.topMargin: 10
+            theme: ChartView.ChartThemeBrownSand
+            antialiasing: true
+
+            ValueAxis{
+                id: valueAxisX
+                min: 0
+                max: 100
+                tickCount: 12
+                //labelFormat: "%2.0f:00"
             }
-            ChartView {
-                id: mView
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-//                Layout.preferredWidth: 400
-
-                 Layout.minimumWidth: 4
-//                anchors.topMargin: 10
-                theme: ChartView.ChartThemeBrownSand
-                antialiasing: true
-
-                ValueAxis{
-                    id: valueAxisX
-                    min: 0
-                    max: 100
-                    tickCount: 12
-                    //labelFormat: "%2.0f:00"
-                }
-                ValueAxis{
-                    id: valueAxisY
-                    min:0
-                    max: 100
-                    tickCount: 50
-                }
-                RandData{
-                    id: dataRand
-                    //                        type:
-                }
-
-                //            LineSeries {
-                //                id: pieSeries
-                //                PieSlice { label: "eaten"; value: 94.9 }
-                //                PieSlice { label: "not yet eaten"; value: 5.1 }
-                //            }
-
-                //            LineSeries {
-                //                name: "LineSeries"
-                //                XYPoint { x: 0; y: 0 }
-                //                XYPoint { x: 1.1; y: 2.1 }
-                //                XYPoint { x: 1.9; y: 3.3 }
-                //                XYPoint { x: 2.1; y: 2.1 }
-                //                XYPoint { x: 2.9; y: 4.9 }
-                //                XYPoint { x: 3.4; y: 3.0 }
-                //                XYPoint { x: 4.1; y: 3.3 }
-                //            }
-                //            PieSeries {
-                //                id: pieSeries
-                //                PieSlice { label: "eaten"; value: 94.9 }
-                //                PieSlice { label: "not yet eaten"; value: 5.1 }
-                //            }
-                //                    Component.onCompleted: {
-                //                        console.log( "Xaxis: ", mView.series(0) )
-                //                    //    mView.createSeries(ChartView.SeriesTypeLine, dataFromCpp.name, mView.axisX(dataFromCpp), mView.axisY(dataFromCpp));
-
-                //                        mView.setAxisX( valueAxisX, dataFromCpp)
-                //                        mView.setAxisY( valueAxisY, dataFromCpp)
-                //                    }
+            ValueAxis{
+                id: valueAxisY
+                min:0
+                max: 100
+                tickCount: 50
             }
+            RandData{
+                id: dataRand
+                //                        type:
+            }
+
+            //            LineSeries {
+            //                id: pieSeries
+            //                PieSlice { label: "eaten"; value: 94.9 }
+            //                PieSlice { label: "not yet eaten"; value: 5.1 }
+            //            }
+
+            //            LineSeries {
+            //                name: "LineSeries"
+            //                XYPoint { x: 0; y: 0 }
+            //                XYPoint { x: 1.1; y: 2.1 }
+            //                XYPoint { x: 1.9; y: 3.3 }
+            //                XYPoint { x: 2.1; y: 2.1 }
+            //                XYPoint { x: 2.9; y: 4.9 }
+            //                XYPoint { x: 3.4; y: 3.0 }
+            //                XYPoint { x: 4.1; y: 3.3 }
+            //            }
+            //            PieSeries {
+            //                id: pieSeries
+            //                PieSlice { label: "eaten"; value: 94.9 }
+            //                PieSlice { label: "not yet eaten"; value: 5.1 }
+            //            }
+            //                    Component.onCompleted: {
+            //                        console.log( "Xaxis: ", mView.series(0) )
+            //                    //    mView.createSeries(ChartView.SeriesTypeLine, dataFromCpp.name, mView.axisX(dataFromCpp), mView.axisY(dataFromCpp));
+
+            //                        mView.setAxisX( valueAxisX, dataFromCpp)
+            //                        mView.setAxisY( valueAxisY, dataFromCpp)
+            //                    }
+        }
 
     }
     ToolButton{
