@@ -19,12 +19,12 @@ class DecimalToIntegerConverter
 
 public:
 
-  std::shared_ptr<NodeData>
-  operator()(std::shared_ptr<NodeData> data);
+    std::shared_ptr<NodeData>
+    operator()(std::shared_ptr<NodeData> data);
 
 private:
 
-  std::shared_ptr<NodeData> _integer;
+    std::shared_ptr<NodeData> _integer;
 };
 
 
@@ -33,12 +33,12 @@ class IntegerToDecimalConverter
 
 public:
 
-  std::shared_ptr<NodeData>
-  operator()(std::shared_ptr<NodeData> data);
+    std::shared_ptr<NodeData>
+    operator()(std::shared_ptr<NodeData> data);
 
 private:
 
-  std::shared_ptr<NodeData> _decimal;
+    std::shared_ptr<NodeData> _decimal;
 };
 
 
@@ -47,12 +47,12 @@ class DecimalToComplexIntConverter
 
 public:
 
-  std::shared_ptr<NodeData>
-  operator()(std::shared_ptr<NodeData> data);
+    std::shared_ptr<NodeData>
+    operator()(std::shared_ptr<NodeData> data);
 
 private:
 
-  std::shared_ptr<NodeData> _complex;
+    std::shared_ptr<NodeData> _complex;
 };
 
 
@@ -61,12 +61,12 @@ class ComplexIntToDecimalConverter
 
 public:
 
-  std::shared_ptr<NodeData>
-  operator()(std::shared_ptr<NodeData> data);
+    std::shared_ptr<NodeData>
+    operator()(std::shared_ptr<NodeData> data);
 
 private:
 
-  std::shared_ptr<NodeData> _decimal;
+    std::shared_ptr<NodeData> _decimal;
 };
 
 template<typename _T1, typename _T2>
@@ -75,12 +75,12 @@ class AnyToAnyComplexIntConverter
 
 public:
 
-  std::shared_ptr<NodeData>
-  operator()(std::shared_ptr<NodeData> data);
+    std::shared_ptr<NodeData>
+    operator()(std::shared_ptr<NodeData> data);
 
 private:
 
-  std::shared_ptr<NodeData> _decimal;
+    std::shared_ptr<NodeData> _decimal;
 };
 
 

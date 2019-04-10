@@ -38,40 +38,40 @@ using QtNodes::TypeConverterId;
 static std::shared_ptr<DataModelRegistry>
 registerDataModels()
 {
-  auto ret = std::make_shared<DataModelRegistry>();
+    auto ret = std::make_shared<DataModelRegistry>();
 
 
-  ret->registerModel<NumberSourceDataModel>("Sources");
-  ret->registerModel<AudioSourceDataModel>("Sources");
+    ret->registerModel<NumberSourceDataModel>("Sources");
+    ret->registerModel<AudioSourceDataModel>("Sources");
 
-  ret->registerModel<NumberDisplayDataModel>("Displays");
-  ret->registerModel<QDevIoDisplayModel>("Displays");
-//  ret->registerModel<AdditionModel>("Operators");
+    ret->registerModel<NumberDisplayDataModel>("Displays");
+    ret->registerModel<QDevIoDisplayModel>("Displays");
+    //  ret->registerModel<AdditionModel>("Operators");
 
-//  ret->registerModel<SubtractionModel>("Operators");
+    //  ret->registerModel<SubtractionModel>("Operators");
 
-//  ret->registerModel<MultiplicationModel>("Operators");
+    //  ret->registerModel<MultiplicationModel>("Operators");
 
-//  ret->registerModel<DivisionModel>("Operators");
+    //  ret->registerModel<DivisionModel>("Operators");
 
-  ret->registerModel<ModuloModel<int>>("Operators");
-  ret->registerModel<ModuloModel<double>>("Operators");
-
-
+    ret->registerModel<ModuloModel<int>>("Operators");
+    ret->registerModel<ModuloModel<double>>("Operators");
 
 
-  ret->registerTypeConverter(std::make_pair(NumericType<int>().type(),
-                                            NumericType<double>().type()),
-                             TypeConverter{AnyToAnyComplexIntConverter<int, double>()});
 
-  ret->registerTypeConverter(std::make_pair(NumericType<double>().type(),
-                                            NumericType<int>().type()),
-                             TypeConverter{AnyToAnyComplexIntConverter<double,int>()});
 
-  ret->registerTypeConverter(std::make_pair(NumericType<int>().type(),
-                                            DecimalData().type()),
-                             TypeConverter{ComplexIntToDecimalConverter()});
-  /*
+    ret->registerTypeConverter(std::make_pair(NumericType<int>().type(),
+                                              NumericType<double>().type()),
+                               TypeConverter{AnyToAnyComplexIntConverter<int, double>()});
+
+    ret->registerTypeConverter(std::make_pair(NumericType<double>().type(),
+                                              NumericType<int>().type()),
+                               TypeConverter{AnyToAnyComplexIntConverter<double,int>()});
+
+    ret->registerTypeConverter(std::make_pair(NumericType<int>().type(),
+                                              DecimalData().type()),
+                               TypeConverter{ComplexIntToDecimalConverter()});
+    /*
    *
   ret->registerTypeConverter(std::make_pair(DecimalData().type(),
                                             IntegerData().type()),
@@ -95,7 +95,7 @@ registerDataModels()
                                             DecimalData().type()),
                              TypeConverter{ComplexIntToDecimalConverter()});*/
 
- return ret;
+    return ret;
 }
 
 
@@ -103,24 +103,24 @@ static
 void
 setStyle()
 {
-  ConnectionStyle::setConnectionStyle(
-  R"(
-  {
-    "ConnectionStyle": {
-      "ConstructionColor": "gray",
-      "NormalColor": "black",
-      "SelectedColor": "gray",
-      "SelectedHaloColor": "deepskyblue",
-      "HoveredColor": "deepskyblue",
+    ConnectionStyle::setConnectionStyle(
+                R"(
+                {
+                "ConnectionStyle": {
+                "ConstructionColor": "gray",
+                "NormalColor": "black",
+                "SelectedColor": "gray",
+                "SelectedHaloColor": "deepskyblue",
+                "HoveredColor": "deepskyblue",
 
-      "LineWidth": 3.0,
-      "ConstructionLineWidth": 2.0,
-      "PointDiameter": 10.0,
+                "LineWidth": 3.0,
+                "ConstructionLineWidth": 2.0,
+                "PointDiameter": 10.0,
 
-      "UseDataDefinedColors": true
-    }
-  }
-  )");
+                "UseDataDefinedColors": true
+                }
+                }
+                )");
 }
 
 
@@ -159,7 +159,7 @@ void NodeEditorPluginObject::SetName(const QString &name)
 #include"ComplexType.h"
 bool NodeEditorPluginObject::Initialize()
 {
-ComplexType<QAudioInput> n(nullptr);
+    ComplexType<QAudioInput> n(nullptr);
     m_Win = new QMainWindow();
     QWidget* mainWidget = new QWidget(m_Win);
     m_Win->setCentralWidget(mainWidget);
@@ -223,7 +223,7 @@ void NodeEditorPluginObject::ShowPlugins()
     if( nullptr != pm )
     {
         DEBUG << "Plugin Manager: " << pm;
-   //     pm->SearchForPlugins();
+        //     pm->SearchForPlugins();
         pm->ShowPluginManagerGui( m_Win );
     }
 }

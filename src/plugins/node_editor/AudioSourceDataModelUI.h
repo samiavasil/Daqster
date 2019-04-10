@@ -15,14 +15,16 @@ class AudioSourceDataModelUI : public QWidget
     Q_OBJECT
 
 public:
-    explicit AudioSourceDataModelUI(QAudioDeviceInfo &devInfo, QAudioFormat &formatAudio, QWidget *parent = 0);
+    explicit AudioSourceDataModelUI(QAudioDeviceInfo &devInfo,
+                                    QAudioFormat &formatAudio,
+                                    QWidget *parent = 0);
     ~AudioSourceDataModelUI();
     const QAudioFormat FormatAudio() const;
 
     QAudioDeviceInfo DevInfo() const;
 
 signals:
-    void ChangeAudioConnection(QAudioDeviceInfo& devInfo, QAudioFormat& formatAudio);
+    void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
     void Start(AudioSourceDataModel::StartStop start);
 
 public slots:
@@ -33,8 +35,8 @@ private slots:
 private:
     Ui::AudioSourceDataModelUI *ui;
     AudioSourceConfig m_Conf;
-    QAudioDeviceInfo & m_devInfo;
-    QAudioFormat &  m_formatAudio;
+    QAudioDeviceInfo  m_devInfo;
+    QAudioFormat      m_formatAudio;
 
 };
 

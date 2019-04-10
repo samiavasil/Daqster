@@ -1,40 +1,44 @@
-#include "AudioSourceDataModel.h"
-#include "AudioNodeQdevIoConnector.h"
-#include "AudioSourceDataModel.h"
-#include "AudioSourceDataModelUI.h"
+#include <AudioSourceDataModel.h>
+#include <AudioNodeQdevIoConnector.h>
+#include <AudioSourceDataModel.h>
+#include <AudioSourceDataModelUI.h>
 #include <nodes/internal/Connection.hpp>
 #include <QtMultimedia/QAudioInput>
-#include<QDebug>
+#include <EventThreadPull.h>
+#include <AudioWorker.h>
+#include <QDebug>
 
 AudioSourceDataModel::AudioSourceDataModel()
 {
-    m_DevInfo = QAudioDeviceInfo::defaultInputDevice();
-    m_FormatAudio = m_DevInfo.preferredFormat();
-
+    qRegisterMetaType<AudioSourceDataModel::StartStop>("AudioSourceDataModel::StartStop");
+    
+    QAudioDeviceInfo devInfo = QAudioDeviceInfo::defaultInputDevice();
+    QAudioFormat formatAudio = devInfo.preferredFormat();
+    
     m_connector = std::make_shared<AudioNodeQdevIoConnector>(this);
-    m_Widget = new AudioSourceDataModelUI(m_DevInfo, m_FormatAudio);
-    connect(m_Widget, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo&,QAudioFormat&)), this, SLOT(ChangeAudioConnection(QAudioDeviceInfo&,QAudioFormat&)));
-    connect(m_Widget,SIGNAL(Start(AudioSourceDataModel::StartStop)),SLOT(StartAudio(AudioSourceDataModel::StartStop)));
-    connect(this, SIGNAL(ModChanged()), m_connector.get(), SLOT(ModChanged()));
+    m_Widget = new AudioSourceDataModelUI(devInfo, formatAudio);
+    m_Widget->setWindowFlags(Qt::Dialog);
+    m_Widget->setWindowModality(Qt::WindowModal);
+    connect(m_Widget,SIGNAL(Start(AudioSourceDataModel::StartStop)),SIGNAL(StartAudio(AudioSourceDataModel::StartStop)));
 }
 
 AudioSourceDataModel::~AudioSourceDataModel()
 {
-
+    
 }
 
 QJsonObject AudioSourceDataModel::save() const
 {
     QJsonObject modelJson;
-
+    
     modelJson["name"] = name();
-
     return modelJson;
 }
 
 unsigned int AudioSourceDataModel::nPorts(QtNodes::PortType portType) const
 {
-    int num = 0;
+    unsigned int num = 0;
+    
     switch (portType) {
     /*
     case QtNodes::PortType::In:
@@ -62,6 +66,8 @@ std::shared_ptr<QtNodes::NodeData> AudioSourceDataModel::outData(QtNodes::PortIn
 
 void AudioSourceDataModel::setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex port)
 {
+    Q_UNUSED(data);
+    Q_UNUSED(port);
     Q_ASSERT(0);
 }
 
@@ -70,36 +76,30 @@ QWidget *AudioSourceDataModel::embeddedWidget()
     return m_Widget;
 }
 
-void AudioSourceDataModel::IO_connect(QSharedPointer<QIODevice> io)
+void AudioSourceDataModel::IO_connect(std::shared_ptr<QIODevice> io)
 {
-    m_devio = io;
-    StartAudio(ASDM_START);
-}
-
-void AudioSourceDataModel::ChangeAudioConnection(QAudioDeviceInfo &devInfo, QAudioFormat &formatAudio)
-{
-    if( devInfo.isFormatSupported(formatAudio) ){
-        if(m_DevInfo != devInfo || m_FormatAudio != formatAudio){
-            m_DevInfo = devInfo;
-            m_FormatAudio = formatAudio;
-            emit ModChanged();
-            StartAudio(ASDM_RELOAD);
-        }
-        else{
-            StartAudio(ASDM_START);
-        }
+    
+    if(io != nullptr){
+        AudioWorker* worker= new AudioWorker(io);
+        connect(this, SIGNAL(destroyed()), worker, SLOT(deleteLater()));
+        connect(this, SIGNAL(StartAudio(AudioSourceDataModel::StartStop)),
+                worker, SLOT(Start(AudioSourceDataModel::StartStop)));
+        connect(worker, SIGNAL(stateChanged(QAudio::State)),
+                m_Widget, SLOT(AudioStateChanged(QAudio::State)) );
+        connect(this, SIGNAL(disconnected()), worker, SLOT(deleteLater()));
+        connect(m_Widget, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)),
+                worker, SLOT(UpdateAudioDevice(QAudioDeviceInfo, QAudioFormat)));
+        
+        EventThreadPull::thread_pull().AddWorker(worker);
     }
-    else{
-        qDebug() << "Unsupported Format... Stop Audio";
-        StartAudio(ASDM_STOP);
-    }
+    
+    emit StartAudio(ASDM_START);
 }
-
 
 void AudioSourceDataModel::outputConnectionDeleted(const QtNodes::Connection &con)
 {
     qDebug() << "Disconnected: " << con.getPortIndex(QtNodes::PortType::Out);
-    StartAudio(ASDM_STOP);
+    emit disconnected();
 }
 
 
@@ -107,46 +107,3 @@ void AudioSourceDataModel::destroyedObj(QObject* obj){
     qDebug() << "Destroyed: " << obj->objectName();
 }
 
-#include<QAudioInputThread.h>
-
-void AudioSourceDataModel::StartAudio(StartStop start){
-
-        //if( m_DevInfo.isFormatSupported(m_FormatAudio) ) {
-    switch (start) {
-    case ASDM_STOP:{
-        if(m_audio_src)
-            m_audio_src->stop();
-        break;
-    }
-    case ASDM_START:{
-#if 0
-        if( !m_audio_src ){
-            case ASDM_RELOAD:
-            m_audio_src  = std::make_shared<QAudioInput>(m_DevInfo, m_FormatAudio);
-            m_audio_src->setNotifyInterval(1000);
-            m_audio_src->setBufferSize(8000);
-            m_audio_src->setObjectName(QString("AudioInput: %1").arg(m_DevInfo.deviceName()));
-            connect(m_audio_src.get(),SIGNAL(destroyed(QObject*)), this,SLOT(destroyedObj(QObject*)));
-            connect(m_audio_src.get(),SIGNAL(stateChanged(QAudio::State)), m_Widget, SLOT(AudioStateChanged(QAudio::State)) );
-        }
-        if(m_devio){
-            m_audio_src->start(m_devio.get());
-        }
-#else
-   case ASDM_RELOAD:
-        if( !m_audio_src ){
-            m_audio_src  = std::make_shared<QAudioInputThread>();
-            connect(m_audio_src.get(),SIGNAL(stateChanged(QAudio::State)), m_Widget, SLOT(AudioStateChanged(QAudio::State)) );
-        }
-        if(m_devio){
-            m_audio_src->start(m_DevInfo, m_FormatAudio, m_devio);
-        }
-#endif
-        break;
-    }
-
-    default:
-        break;
-    }
-
-}

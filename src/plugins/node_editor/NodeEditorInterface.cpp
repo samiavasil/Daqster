@@ -14,9 +14,9 @@ NodeEditorInterface::NodeEditorInterface(QObject* parent ):QPluginInterface(pare
     m_PluginDescryptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
     m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "Node editor: Visual application factory." );
     char docstr[] = \
-    "This is a basic NodeEditor plugin .\n\\n\
-    Here you can add detailed description of the plugin...";
-    m_PluginDescryptor.SetProperty( PLUGIN_DETAIL_DESCRIPTION, QObject::tr( docstr ) );
+            "This is a basic NodeEditor plugin .\n\\n\
+            Here you can add detailed description of the plugin...";
+            m_PluginDescryptor.SetProperty( PLUGIN_DETAIL_DESCRIPTION, QObject::tr( docstr ) );
     m_PluginDescryptor.SetProperty( PLUGIN_LICENSE, QObject::tr( "The plugin's license have to be....." ) );
     m_PluginDescryptor.SetProperty( PLUGIN_AUTHOR, "Vasil Vasilev" );
 }

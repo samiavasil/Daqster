@@ -59,11 +59,16 @@ XYSeriesIODevice::XYSeriesIODevice(QXYSeries *series, QObject *parent) :
     QTimer::singleShot(100, this, SLOT(test()));
 }
 
+XYSeriesIODevice::~XYSeriesIODevice()
+{
+    qDebug() << "Destroy XYSeriesIODevice" << this;
+}
+
 void XYSeriesIODevice::test(){
 
     QMutexLocker locker(&m_lock);
     qint64 len = (m_write_idx - m_read_idx) & m_mask;
-//qDebug() << "R: " << len;
+    //qDebug() << "R: " << len;
     if(len > 0) {
 
         if (m_buffer.isEmpty()) {
@@ -90,14 +95,14 @@ void XYSeriesIODevice::test(){
         }
 
         if(m_read_idx!=m_write_idx){
-            qDebug() << "BAD Issue R " << m_read_idx <<  "W " << m_write_idx;
-            m_read_idx=m_write_idx;
+            qDebug() << "Possible Issue R " << m_read_idx <<  "W " << m_write_idx;
+         //   m_read_idx=m_write_idx;
         }
 
         m_series->replace(m_buffer);
     }
     else{
-       // qDebug() << "DN";
+        // qDebug() << "DN";
     }
 
     QTimer::singleShot(25, this, SLOT(test()));

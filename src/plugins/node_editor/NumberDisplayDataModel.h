@@ -18,56 +18,56 @@ using QtNodes::NodeValidationState;
 /// In this example it has no logic.
 class NumberDisplayDataModel : public NodeDataModel
 {
-  Q_OBJECT
+    Q_OBJECT
 
 public:
-  NumberDisplayDataModel();
+    NumberDisplayDataModel();
 
-  virtual
-  ~NumberDisplayDataModel() {}
-
-public:
-
-  QString
-  caption() const override
-  { return QStringLiteral("Result"); }
-
-  bool
-  captionVisible() const override
-  { return false; }
-
-  QString
-  name() const override
-  { return QStringLiteral("Result"); }
+    virtual
+    ~NumberDisplayDataModel() {}
 
 public:
 
-  unsigned int
-  nPorts(PortType portType) const override;
+    QString
+    caption() const override
+    { return QStringLiteral("Result"); }
 
-  NodeDataType
-  dataType(PortType portType,
-           PortIndex portIndex) const override;
+    bool
+    captionVisible() const override
+    { return false; }
 
-  std::shared_ptr<NodeData>
-  outData(PortIndex port) override;
+    QString
+    name() const override
+    { return QStringLiteral("Result"); }
 
-  void
-  setInData(std::shared_ptr<NodeData> data, int) override;
+public:
 
-  QWidget *
-  embeddedWidget() override { return _label; }
+    unsigned int
+    nPorts(PortType portType) const override;
 
-  NodeValidationState
-  validationState() const override;
+    NodeDataType
+    dataType(PortType portType,
+             PortIndex portIndex) const override;
 
-  QString
-  validationMessage() const override;
+    std::shared_ptr<NodeData>
+    outData(PortIndex port) override;
+
+    void
+    setInData(std::shared_ptr<NodeData> data, int) override;
+
+    QWidget *
+    embeddedWidget() override { return _label; }
+
+    NodeValidationState
+    validationState() const override;
+
+    QString
+    validationMessage() const override;
 
 private:
 
-  NodeValidationState modelValidationState = NodeValidationState::Warning;
-  QString modelValidationError = QStringLiteral("Missing or incorrect inputs");
+    NodeValidationState modelValidationState = NodeValidationState::Warning;
+    QString modelValidationError = QStringLiteral("Missing or incorrect inputs");
 
-  QLabel * _label;
+    QLabel * _label;
 };

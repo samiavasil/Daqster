@@ -75,7 +75,7 @@ protected:
      NodeValidationState modelValidationState = NodeValidationState::Warning;
      QString modelValidationError = QStringLiteral("Missing or incorrect inputs");
      QWidget* m_widget;
-     QSharedPointer<QIODevice> m_device;
+     std::shared_ptr<QIODevice> m_device;
 };
 
 #endif // QDEVIODISPLAY_H

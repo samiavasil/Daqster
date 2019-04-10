@@ -13,7 +13,10 @@ class AudioSourceConfig : public QWidget
     Q_OBJECT
 
 public:
-    explicit AudioSourceConfig(QAudio::Mode mode, QWidget *parent = 0);
+    explicit AudioSourceConfig(QAudio::Mode mode,
+                               QAudioDeviceInfo &devInfo,
+                               QAudioFormat &formatAudio,
+                               QWidget *parent = 0);
     ~AudioSourceConfig();
 
 
@@ -23,10 +26,10 @@ public:
 
     bool isFormatSupported(const QAudioFormat &format) const;
 
-    void show(QAudioDeviceInfo &devInfo, QAudioFormat &formatAudio);
+    void show();
 
 signals:
-    void ChangeAudioConnection(QAudioDeviceInfo& devInfo, QAudioFormat& formatAudio);
+    void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
 
 protected slots:
     void InitAudioParams(int idx);

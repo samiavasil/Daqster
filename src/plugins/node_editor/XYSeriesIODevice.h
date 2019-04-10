@@ -47,7 +47,7 @@ class XYSeriesIODevice : public QIODevice
     Q_OBJECT
 public:
     explicit XYSeriesIODevice(QXYSeries *series, QObject *parent = nullptr);
-
+ virtual ~XYSeriesIODevice();
 protected:
     qint64 readData(char *data, qint64 maxSize) override;
     qint64 writeData(const char *data, qint64 maxSize) override;
