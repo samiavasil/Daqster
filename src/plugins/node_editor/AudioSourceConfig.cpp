@@ -45,7 +45,7 @@ public:
 
     virtual bool insertRows(int row, int count, const QModelIndex &parent = QModelIndex()){
         if (parent.isValid())
-                  return false;
+            return false;
         blockSignals(true);
         beginInsertRows(parent, row, row + count - 1);
         for(int i = row; i < row+count; i++){
@@ -58,7 +58,7 @@ public:
 
     virtual bool removeRows(int row, int count, const QModelIndex &parent = QModelIndex()){
         if (parent.isValid())
-                  return false;
+            return false;
         blockSignals(true);
         beginRemoveRows(parent, row, row + count - 1);
         for(int i = row; i < row+count; i++){
@@ -118,8 +118,8 @@ public:
         Q_ASSERT(m_Data.count() > index.row());
         Q_ASSERT(0==index.column());
         if (index.isValid() &&
-            (role == Qt::DisplayRole||
-             role == Qt::WhatsThisRole))
+                (role == Qt::DisplayRole||
+                 role == Qt::WhatsThisRole))
             return m_Data.value(index.row(),QString("BadBoy"));
         else
             return QVariant();
@@ -144,16 +144,21 @@ protected:
 };
 
 
-AudioSourceConfig::AudioSourceConfig(QAudio::Mode mode, QWidget *parent) :
+AudioSourceConfig::AudioSourceConfig(QAudio::Mode mode,
+                                     QAudioDeviceInfo &devInfo,
+                                     QAudioFormat &formatAudio,
+                                     QWidget *parent) :
     QWidget(parent),
     ui(new Ui::AudioSourceConfig),
-    m_Mode(mode)
+    m_Mode(mode),
+    m_DevInfo(devInfo),
+    m_FormatAudio(formatAudio)
 {
 
     ui->setupUi(this);
 
     QAudioComboModel* model = new QAudioComboModel(*this, QAudioComboModel::CHANNEL_NUMBER);
-    //   ui->ChannelNumber->setModel(model);
+    //   ui->ChannelNumber->setModel(model); //TODO: FIX THIS to use a models or remove QAudioComboModel at all
     connect(ui->ChannelNumber, SIGNAL(currentIndexChanged(int)), this, SLOT(ChannelNumberChanged(int)));
     model = new QAudioComboModel(*this, QAudioComboModel::CODEC);
     //    ui->Codec->setModel(model);
@@ -269,7 +274,7 @@ void AudioSourceConfig::InitAudioParams(int idx)
     ui->SampleRate->blockSignals(false);
     ui->SampleSize->blockSignals(false);
     ui->SampleType->blockSignals(false);
-    emit ChangeAudioConnection(m_DevInfo, m_FormatAudio);
+//    emit ChangeAudioConnection(m_DevInfo, m_FormatAudio);
 
 }
 
@@ -283,10 +288,8 @@ bool AudioSourceConfig::isFormatSupported(const QAudioFormat &format) const{
     return ret;
 }
 
-void AudioSourceConfig::show(QAudioDeviceInfo &devInfo, QAudioFormat &formatAudio)
+void AudioSourceConfig::show()
 {
-    m_DevInfo = devInfo;
-    m_FormatAudio = formatAudio;
     qDebug() << "this: " << this << " Mode: " << m_Mode;
 
     m_Devs = QAudioDeviceInfo::availableDevices(m_Mode);

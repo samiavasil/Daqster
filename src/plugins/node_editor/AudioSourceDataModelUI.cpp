@@ -3,15 +3,18 @@
 #include "ui_AudioSourceDataModelUI.h"
 
 
-AudioSourceDataModelUI::AudioSourceDataModelUI(QAudioDeviceInfo& devInfo, QAudioFormat& formatAudio, QWidget *parent) :
+AudioSourceDataModelUI::AudioSourceDataModelUI(QAudioDeviceInfo& devInfo,
+                                               QAudioFormat& formatAudio,
+                                               QWidget *parent) :
     QWidget(parent),
     ui(new Ui::AudioSourceDataModelUI),
-    m_Conf(QAudio::AudioInput),
+    m_Conf(QAudio::AudioInput, devInfo, formatAudio),
     m_devInfo(devInfo),
     m_formatAudio(formatAudio)
 {
     ui->setupUi(this);
-    connect(&m_Conf, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo&,QAudioFormat&)),this ,SIGNAL(ChangeAudioConnection(QAudioDeviceInfo&,QAudioFormat&)));
+    connect(&m_Conf, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo ,QAudioFormat )),
+            this ,SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)));
     connect(ui->configButton, SIGNAL(clicked(bool)), this, SLOT(ConfigAudio()));
     connect(ui->playButton, SIGNAL(clicked(bool)), SLOT(Start(bool)));
 }
@@ -55,6 +58,6 @@ void AudioSourceDataModelUI::Start(bool start)
 
 void AudioSourceDataModelUI::ConfigAudio()
 {
-    m_Conf.show(m_devInfo, m_formatAudio);
+    m_Conf.show();
 }
 

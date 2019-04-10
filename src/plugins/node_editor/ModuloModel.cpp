@@ -26,11 +26,11 @@ QJsonObject
 ModuloModel< _Tp>::
 save() const
 {
-  QJsonObject modelJson;
+    QJsonObject modelJson;
 
-  modelJson["name"] = name();
+    modelJson["name"] = name();
 
-  return modelJson;
+    return modelJson;
 }
 
 template<typename _Tp>
@@ -38,22 +38,22 @@ unsigned int
 ModuloModel< _Tp>::
 nPorts(PortType portType) const
 {
-  unsigned int result = 1;
+    unsigned int result = 1;
 
-  switch (portType)
-  {
+    switch (portType)
+    {
     case PortType::In:
-      result = 2;
-      break;
+        result = 2;
+        break;
 
     case PortType::Out:
-      result = 1;
+        result = 1;
 
     default:
-      break;
-  }
+        break;
+    }
 
-  return result;
+    return result;
 }
 
 template<typename _Tp>
@@ -61,7 +61,7 @@ NodeDataType
 ModuloModel< _Tp>::
 dataType(PortType, PortIndex) const
 {
-  return NumericType<_Tp>().type();
+    return NumericType<_Tp>().type();
 }
 
 template<typename _Tp>
@@ -69,7 +69,7 @@ std::shared_ptr<NodeData>
 ModuloModel< _Tp>::
 outData(PortIndex)
 {
-  return _result;
+    return _result;
 }
 
 
@@ -87,45 +87,45 @@ void
 ModuloModel< _Tp>::
 setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
 {
-  auto numberData =
-    std::dynamic_pointer_cast<  NumericType<_Tp>>(data);
+    auto numberData =
+            std::dynamic_pointer_cast<  NumericType<_Tp>>(data);
 
-  if (portIndex == 0)
-  {
-    _number1 = numberData;
-  }
-  else
-  {
-    _number2 = numberData;
-  }
-
-  {
-    PortIndex const outPortIndex = 0;
-
-    auto n1 = std::dynamic_pointer_cast< NumericType<_Tp>>(_number1.lock());
-    auto n2 = std::dynamic_pointer_cast< NumericType<_Tp>>(_number2.lock());
-
-    if (n2 && (n2->number() == 0))
+    if (portIndex == 0)
     {
-      modelValidationState = NodeValidationState::Error;
-      modelValidationError = QStringLiteral("Division by zero error");
-      _result.reset();
-    }
-    else if (n1 && n2)
-    {
-      modelValidationState = NodeValidationState::Valid;
-      modelValidationError = QString();
-      _result = std::make_shared< NumericType<_Tp>>(mod(n1->number(), n2->number()));
+        _number1 = numberData;
     }
     else
     {
-      modelValidationState = NodeValidationState::Warning;
-      modelValidationError = QStringLiteral("Missing or incorrect inputs");
-      _result.reset();
+        _number2 = numberData;
     }
 
-    Q_EMIT dataUpdated(outPortIndex);
-  }
+    {
+        PortIndex const outPortIndex = 0;
+
+        auto n1 = std::dynamic_pointer_cast< NumericType<_Tp>>(_number1.lock());
+        auto n2 = std::dynamic_pointer_cast< NumericType<_Tp>>(_number2.lock());
+
+        if (n2 && (n2->number() == 0))
+        {
+            modelValidationState = NodeValidationState::Error;
+            modelValidationError = QStringLiteral("Division by zero error");
+            _result.reset();
+        }
+        else if (n1 && n2)
+        {
+            modelValidationState = NodeValidationState::Valid;
+            modelValidationError = QString();
+            _result = std::make_shared< NumericType<_Tp>>(mod(n1->number(), n2->number()));
+        }
+        else
+        {
+            modelValidationState = NodeValidationState::Warning;
+            modelValidationError = QStringLiteral("Missing or incorrect inputs");
+            _result.reset();
+        }
+
+        Q_EMIT dataUpdated(outPortIndex);
+    }
 }
 
 template<typename _Tp>
@@ -133,7 +133,7 @@ NodeValidationState
 ModuloModel< _Tp>::
 validationState() const
 {
-  return modelValidationState;
+    return modelValidationState;
 }
 
 template<typename _Tp>
@@ -141,5 +141,5 @@ QString
 ModuloModel< _Tp>::
 validationMessage() const
 {
-  return modelValidationError;
+    return modelValidationError;
 }

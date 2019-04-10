@@ -10,19 +10,19 @@
 #include<QSlider>
 NumberSourceDataModel::
 NumberSourceDataModel()
-  : m_ui(new NumberSourceDataUi()),m_time(0)
+    : m_ui(new NumberSourceDataUi()),m_time(0)
 {
-  QLineEdit& edit =  m_ui->lineEdit();
-  edit.setValidator(new QDoubleValidator());
+    QLineEdit& edit =  m_ui->lineEdit();
+    edit.setValidator(new QDoubleValidator());
 
-  edit.setMaximumSize(edit.sizeHint());
+    edit.setMaximumSize(edit.sizeHint());
 
-  connect(&edit, &QLineEdit::textChanged,
-          this, &NumberSourceDataModel::onTextEdited);
-  connect( &m_ui->timeSlider(), SIGNAL(valueChanged(int)),
-          this, SLOT(ChangeTime(int)));
+    connect(&edit, &QLineEdit::textChanged,
+            this, &NumberSourceDataModel::onTextEdited);
+    connect( &m_ui->timeSlider(), SIGNAL(valueChanged(int)),
+             this, SLOT(ChangeTime(int)));
 
-  edit.setText("0.0");
+    edit.setText("0.0");
 }
 
 NumberSourceDataModel::~NumberSourceDataModel() {
@@ -43,12 +43,12 @@ QJsonObject
 NumberSourceDataModel::
 save() const
 {
-  QJsonObject modelJson = NodeDataModel::save();
+    QJsonObject modelJson = NodeDataModel::save();
 
-  if (_number)
-    modelJson["number"] = QString::number(_number->number());
+    if (_number)
+        modelJson["number"] = QString::number(_number->number());
 
-  return modelJson;
+    return modelJson;
 }
 
 
@@ -56,20 +56,20 @@ void
 NumberSourceDataModel::
 restore(QJsonObject const &p)
 {
-  QJsonValue v = p["number"];
+    QJsonValue v = p["number"];
 
-  if (!v.isUndefined())
-  {
-    QString strNum = v.toString();
-    QLineEdit& edit =  m_ui->lineEdit();
-    bool   ok;
-    double d = strNum.toDouble(&ok);
-    if (ok)
+    if (!v.isUndefined())
     {
-      _number = std::make_shared<NumericType<double>>(d);
-      edit.setText(strNum);
+        QString strNum = v.toString();
+        QLineEdit& edit =  m_ui->lineEdit();
+        bool   ok;
+        double d = strNum.toDouble(&ok);
+        if (ok)
+        {
+            _number = std::make_shared<NumericType<double>>(d);
+            edit.setText(strNum);
+        }
     }
-  }
 }
 
 
@@ -77,22 +77,22 @@ unsigned int
 NumberSourceDataModel::
 nPorts(PortType portType) const
 {
-  unsigned int result = 1;
+    unsigned int result = 1;
 
-  switch (portType)
-  {
+    switch (portType)
+    {
     case PortType::In:
-      result = 1;
-      break;
+        result = 1;
+        break;
 
     case PortType::Out:
-      result = 1;
+        result = 1;
 
     default:
-      break;
-  }
+        break;
+    }
 
-  return result;
+    return result;
 }
 
 
@@ -100,22 +100,22 @@ void
 NumberSourceDataModel::
 onTextEdited(QString const &string)
 {
-  Q_UNUSED(string);
+    Q_UNUSED(string);
 
-  bool ok = false;
-  QLineEdit& edit =  m_ui->lineEdit();
-  double number = edit.text().toDouble(&ok);
+    bool ok = false;
+    QLineEdit& edit =  m_ui->lineEdit();
+    double number = edit.text().toDouble(&ok);
 
-  if (ok)
-  {
-    _number = std::make_shared<NumericType<double>>(number);
+    if (ok)
+    {
+        _number = std::make_shared<NumericType<double>>(number);
 
-    Q_EMIT dataUpdated(0);
-  }
-  else
-  {
-    Q_EMIT dataInvalidated(0);
-  }
+        Q_EMIT dataUpdated(0);
+    }
+    else
+    {
+        Q_EMIT dataInvalidated(0);
+    }
 }
 
 
@@ -166,7 +166,7 @@ void NumberSourceDataModel::setInData(std::shared_ptr<QtNodes::NodeData> data, Q
 
     if (numberData)
     {
-      /*modelValidationState = NodeValidationState::Valid;
+        /*modelValidationState = NodeValidationState::Valid;
       modelValidationError = QString();
       _label->setText(numberData->numberAsText());*/
         m_time = numberData->number();

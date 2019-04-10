@@ -11,7 +11,7 @@ QDevIoDisplayModel::QDevIoDisplayModel():m_connector(nullptr)
     QLineSeries* series = new QLineSeries;
     m_widget = new QDevioDisplayModelUi(series);
 
-    m_device = QSharedPointer<XYSeriesIODevice>(new XYSeriesIODevice(series, this));
+    m_device = std::shared_ptr<XYSeriesIODevice>(new XYSeriesIODevice(series, nullptr));
 }
 
 QDevIoDisplayModel::~QDevIoDisplayModel()

@@ -21,68 +21,68 @@ class NumberSourceDataUi;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
 class NumberSourceDataModel
-  : public NodeDataModel
+        : public NodeDataModel
 {
-  Q_OBJECT
+    Q_OBJECT
 
 public:
-  NumberSourceDataModel();
+    NumberSourceDataModel();
 
-  virtual
-  ~NumberSourceDataModel();
-
-public:
-
-  QString
-  caption() const override
-  { return QStringLiteral("Number Source"); }
-
-  bool
-  captionVisible() const override
-  { return false; }
-
-  QString
-  name() const override
-  { return QStringLiteral("NumberSource"); }
+    virtual
+    ~NumberSourceDataModel();
 
 public:
 
-  QJsonObject
-  save() const override;
+    QString
+    caption() const override
+    { return QStringLiteral("Number Source"); }
 
-  void
-  restore(QJsonObject const &p) override;
+    bool
+    captionVisible() const override
+    { return false; }
+
+    QString
+    name() const override
+    { return QStringLiteral("NumberSource"); }
 
 public:
 
-  unsigned int
-  nPorts(PortType portType) const override;
+    QJsonObject
+    save() const override;
 
-  NodeDataType
-  dataType(PortType portType, PortIndex portIndex) const override;
+    void
+    restore(QJsonObject const &p) override;
 
-  std::shared_ptr<NodeData>
-  outData(PortIndex port) override;
+public:
 
-  void
-  setInData(std::shared_ptr<NodeData> data, PortIndex port) override;
+    unsigned int
+    nPorts(PortType portType) const override;
 
-  QWidget *
-  embeddedWidget() override;
+    NodeDataType
+    dataType(PortType portType, PortIndex portIndex) const override;
+
+    std::shared_ptr<NodeData>
+    outData(PortIndex port) override;
+
+    void
+    setInData(std::shared_ptr<NodeData> data, PortIndex port) override;
+
+    QWidget *
+    embeddedWidget() override;
 
 
 protected slots:
-  void ChangeTime(int t);
+    void ChangeTime(int t);
 private Q_SLOTS:
 
-  void
-  onTextEdited(QString const &string);
+    void
+    onTextEdited(QString const &string);
 
 private:
 
-  std::shared_ptr<NumericType<double>> _number;
+    std::shared_ptr<NumericType<double>> _number;
 
-  NumberSourceDataUi * m_ui;
+    NumberSourceDataUi * m_ui;
 
-  int m_time;
+    int m_time;
 };

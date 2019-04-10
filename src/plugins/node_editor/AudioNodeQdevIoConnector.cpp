@@ -11,7 +11,7 @@ AudioNodeQdevIoConnector::AudioNodeQdevIoConnector( AudioSourceDataModel* model,
 
 }
 
-void AudioNodeQdevIoConnector::SetDevIo(QSharedPointer<QIODevice> dio)
+void AudioNodeQdevIoConnector::SetDevIo(std::shared_ptr<QIODevice> dio)
 {
     m_Devio = dio;
     if(m_model){

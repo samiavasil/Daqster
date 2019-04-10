@@ -19,21 +19,21 @@ public:
 
     explicit AudioNodeQdevIoConnector( AudioSourceDataModel* model, QObject *parent=nullptr );
 
-    void SetDevIo(QSharedPointer<QIODevice> dio );
+    void SetDevIo(std::shared_ptr<QIODevice> dio );
 
     void ConnectPair( std::shared_ptr<QDevIoDisplayModel> display_model );
 
     virtual NodeDataType type() const
     {
         return NodeDataType { "AudioNodeQdevIoConnector",
-                              "AudioNodeQdevIoConnector"};
+            "AudioNodeQdevIoConnector"};
     }
 
-    QSharedPointer<QIODevice>& DevIo(){ return m_Devio;}
+    std::shared_ptr<QIODevice>& DevIo(){ return m_Devio;}
 
 private:
     AudioSourceDataModel* m_model;
-    QSharedPointer<QIODevice> m_Devio;
+    std::shared_ptr<QIODevice> m_Devio;
 public slots:
     void ModChanged();
 };
