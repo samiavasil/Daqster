@@ -27,6 +27,8 @@ private:
     Ui::QDevioDisplayModelUi *ui;
     QLineSeries* m_series;
     QChart* m_chart;
+public slots:
+    void bufferReady(QVector<QPointF>& buff, int channel);
 };
 
 #endif // QDEVIODISPLAYMODELUI_H

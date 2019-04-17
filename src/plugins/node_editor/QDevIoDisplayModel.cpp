@@ -12,6 +12,8 @@ QDevIoDisplayModel::QDevIoDisplayModel():m_connector(nullptr)
     m_widget = new QDevioDisplayModelUi(series);
 
     m_device = std::shared_ptr<XYSeriesIODevice>(new XYSeriesIODevice(series, nullptr));
+    connect(m_device.get(), SIGNAL(bufferReady(QVector<QPointF>&, int)),
+            m_widget, SLOT(bufferReady(QVector<QPointF>&, int)));
 }
 
 QDevIoDisplayModel::~QDevIoDisplayModel()

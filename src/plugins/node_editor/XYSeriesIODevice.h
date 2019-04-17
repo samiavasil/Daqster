@@ -56,6 +56,9 @@ protected slots:
     void replaced();
     void test();
 
+signals:
+    void bufferReady(QVector<QPointF>& buff, int channel);
+
 private:
     QXYSeries *m_series;
     QVector<QPointF> m_buffer;

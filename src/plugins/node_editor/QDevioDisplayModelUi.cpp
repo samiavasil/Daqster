@@ -53,3 +53,8 @@ QDevioDisplayModelUi::~QDevioDisplayModelUi()
     m_chart->removeSeries(m_series);
     delete ui;
 }
+
+void QDevioDisplayModelUi::bufferReady(QVector<QPointF> &buff, int channel)
+{
+    m_series->replace(buff);
+}
