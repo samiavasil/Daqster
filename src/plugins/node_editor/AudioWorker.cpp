@@ -46,22 +46,6 @@ void AudioWorker::Start(AudioSourceDataModel::StartStop status)
 
 void AudioWorker::UpdateAudioDevice(QAudioDeviceInfo devInfo, QAudioFormat formatAudio)
 {
-#if 0
-    if( devInfo.isFormatSupported(formatAudio) ){
-        if(m_DevInfo != devInfo || m_FormatAudio != formatAudio){ //DELL ME - remove m_DevInfo m_FormatAudio
-            m_DevInfo = devInfo;
-            m_FormatAudio = formatAudio;
-            emit StartAudio(ASDM_RELOAD);
-        }
-        else{
-            emit StartAudio(ASDM_START);
-        }
-    }
-    else{
-        qDebug() << "Unsupported Format... Stop Audio";
-        emit StartAudio(ASDM_STOP);
-    }
-#endif
     bool was_started = false;
     if(m_audio_src != nullptr) {
         if(QAudio::StoppedState != m_audio_src->state()) {

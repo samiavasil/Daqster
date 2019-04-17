@@ -55,7 +55,7 @@ XYSeriesIODevice::XYSeriesIODevice(QXYSeries *series, QObject *parent) :
     m_mask = near_power_of_two(static_cast<unsigned long>(m_SampleCount*m_resolution*m_channels)) - 1;
     m_data = new char [m_mask + 1];
     connect(m_series, SIGNAL(pointsReplaced()), SLOT(replaced()),Qt::DirectConnection);
-
+ qRegisterMetaType<QVector<QPointF>>("QVector<QPointF>");
     QTimer::singleShot(100, this, SLOT(test()));
 }
 
@@ -99,7 +99,8 @@ void XYSeriesIODevice::test(){
          //   m_read_idx=m_write_idx;
         }
 
-        m_series->replace(m_buffer);
+      //  m_series->replace(m_buffer);
+        emit bufferReady(m_buffer, 0 );
     }
     else{
         // qDebug() << "DN";
