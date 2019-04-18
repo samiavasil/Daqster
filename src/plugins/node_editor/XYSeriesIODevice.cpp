@@ -28,7 +28,6 @@
 ****************************************************************************/
 
 #include "XYSeriesIODevice.h"
-#include <QtCharts/QXYSeries>
 #include<QTimer>
 #include<QDebug>
 #include<QMutexLocker>
@@ -42,21 +41,12 @@ static inline unsigned long near_power_of_two(unsigned long x) {
     return 1 << cnt;
 }
 
-XYSeriesIODevice::XYSeriesIODevice(QXYSeries *series, QObject *parent) :
-    QIODevice(parent),
-    m_series(series),
-    m_Replaced(true)
+XYSeriesIODevice::XYSeriesIODevice(QObject *parent) :
+    QIODevice(parent)
 {
-    m_read_idx = 0;
-    m_write_idx = 0;
-    m_SampleCount = 8000;
-    m_resolution = 2;
-    m_channels   = 2;
-    m_mask = near_power_of_two(static_cast<unsigned long>(m_SampleCount*m_resolution*m_channels)) - 1;
-    m_data = new char [m_mask + 1];
-    connect(m_series, SIGNAL(pointsReplaced()), SLOT(replaced()),Qt::DirectConnection);
- qRegisterMetaType<QVector<QPointF>>("QVector<QPointF>");
-    QTimer::singleShot(100, this, SLOT(test()));
+    initParams(2, 2, 8000);
+    qRegisterMetaType<QVector<QPointF>>("QVector<QPointF>");
+    QTimer::singleShot(100, this, SLOT(pollData()));
 }
 
 XYSeriesIODevice::~XYSeriesIODevice()
@@ -64,16 +54,21 @@ XYSeriesIODevice::~XYSeriesIODevice()
     qDebug() << "Destroy XYSeriesIODevice" << this;
 }
 
-void XYSeriesIODevice::test(){
+/**
+ * @brief XYSeriesIODevice::pollData
+ * Read data from ring buffer and send data to screen on regular time (25 ms).
+ * This is to have a evenly refresh of the screen
+ */
+void XYSeriesIODevice::pollData(){
 
     QMutexLocker locker(&m_lock);
     qint64 len = (m_write_idx - m_read_idx) & m_mask;
-    //qDebug() << "R: " << len;
+
     if(len > 0) {
 
         if (m_buffer.isEmpty()) {
-            m_buffer.reserve(m_SampleCount);
-            for (int i = 0; i < m_SampleCount; ++i)
+            m_buffer.reserve(m_sampleCount);
+            for (int i = 0; i < m_sampleCount; ++i)
                 m_buffer.append(QPointF(i, 0));
         }
 
@@ -81,14 +76,13 @@ void XYSeriesIODevice::test(){
         int s;
         int offset = m_channels*m_resolution;
         int availableSamples = len/(offset);
-        if (availableSamples < m_SampleCount) {
-            start = m_SampleCount - availableSamples;
+        if (availableSamples < m_sampleCount) {
+            start = m_sampleCount - availableSamples;
             for (  s = 0; s < start; ++s)
                 m_buffer[s].setY(m_buffer.at(s + availableSamples).y());
         }
 
-
-        for (  s = start; s < m_SampleCount && m_read_idx!=m_write_idx; ++s){
+        for (  s = start; s < m_sampleCount && m_read_idx!=m_write_idx; ++s){
             int a = (*reinterpret_cast<const short int*>(&(m_data[m_read_idx])));
             m_buffer[s].setY((qreal(a)/200));
             m_read_idx = (m_read_idx + offset) & m_mask;
@@ -96,17 +90,17 @@ void XYSeriesIODevice::test(){
 
         if(m_read_idx!=m_write_idx){
             qDebug() << "Possible Issue R " << m_read_idx <<  "W " << m_write_idx;
-         //   m_read_idx=m_write_idx;
+            m_read_idx=m_write_idx;
         }
 
-      //  m_series->replace(m_buffer);
+        //  m_series->replace(m_buffer);
         emit bufferReady(m_buffer, 0 );
     }
     else{
         // qDebug() << "DN";
     }
 
-    QTimer::singleShot(25, this, SLOT(test()));
+    QTimer::singleShot(25, this, SLOT(pollData()));
 }
 
 qint64 XYSeriesIODevice::readData(char *data, qint64 maxSize)
@@ -125,7 +119,7 @@ qint64 XYSeriesIODevice::writeData(const char *data, qint64 maxSize)
         m_data[m_write_idx] = data[i];
         m_write_idx = (m_write_idx + 1) & m_mask;
     }
-    //    qDebug() << "W:" << maxSize;
+
     if(overrun) {
         qDebug() << "Ring buffer overrun";
         m_read_idx = (m_write_idx-maxSize)&m_mask;
@@ -133,7 +127,15 @@ qint64 XYSeriesIODevice::writeData(const char *data, qint64 maxSize)
     return maxSize;
 }
 
-void XYSeriesIODevice::replaced()
+void XYSeriesIODevice::initParams(int resolution_bytes, int channels, int sampleCount)
 {
-    m_Replaced = true;
+    QMutexLocker locker(&m_lock);
+    m_read_idx = 0;
+    m_write_idx = 0;
+    m_resolution = resolution_bytes;
+    m_channels   = channels;
+    m_sampleCount = sampleCount;
+    m_mask = near_power_of_two(static_cast<unsigned long>(m_sampleCount*m_resolution*m_channels)) - 1;
+    m_data = new char [m_mask + 1];
 }
+
