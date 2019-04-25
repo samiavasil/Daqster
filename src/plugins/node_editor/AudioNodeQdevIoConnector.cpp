@@ -1,14 +1,18 @@
 #include "AudioNodeQdevIoConnector.h"
 #include "AudioSourceDataModel.h"
 #include "QDevIoDisplayModel.h"
+
 #include<QDebug>
 
-AudioNodeQdevIoConnector::AudioNodeQdevIoConnector( AudioSourceDataModel* model, QObject *parent ):
-    QObject(parent),
-    m_model(model),
+AudioNodeQdevIoConnector::AudioNodeQdevIoConnector(NodeDataModel *model ):
+    NodeDataModelToQIODeviceConnector(model),
+    m_model(nullptr),
     m_Devio(nullptr)
 {
-
+    m_model  = dynamic_cast<AudioSourceDataModel*>(model);
+    if(m_model) {
+        qDebug() << m_model;
+    }
 }
 
 void AudioNodeQdevIoConnector::SetDevIo(std::shared_ptr<QIODevice> dio)
@@ -24,22 +28,3 @@ void AudioNodeQdevIoConnector::SetDevIo(std::shared_ptr<QIODevice> dio)
     }
 }
 
-void AudioNodeQdevIoConnector::ConnectPair(std::shared_ptr<QDevIoDisplayModel> display_model)
-{
-
-}
-
-void AudioNodeQdevIoConnector::ModChanged()
-{
-    if(m_model){
-        QDevIoDisplayModel* model = dynamic_cast<QDevIoDisplayModel*>(m_model);
-        if( model ){
-            model->UpdateModel(10);
-        }
-        //m_model->pause;
-        //m_model->update;
-
-        //m_model->continue;
-        qDebug()<< "Model Changed";
-    }
-}

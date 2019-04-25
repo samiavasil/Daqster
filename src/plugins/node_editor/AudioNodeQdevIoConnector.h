@@ -1,27 +1,26 @@
 #ifndef AUDIONODEQDEVIOCONNECTOR_H
 #define AUDIONODEQDEVIOCONNECTOR_H
-#include<QObject>
-#include<memory>
-#include <nodes/NodeData>
-#include<QSharedPointer>
 
-using QtNodes::NodeDataType;
-using QtNodes::NodeData;
+#include <memory>
+#include <NodeDataModelToQIODeviceConnector.h>
+#include <QSharedPointer>
+
+#include<nodes/NodeDataModel>
+
+using QtNodes::NodeDataModel;
 
 class QIODevice;
 class AudioSourceDataModel;
 class QDevIoDisplayModel;
 
-class AudioNodeQdevIoConnector : public QObject, public NodeData
+class AudioNodeQdevIoConnector : public NodeDataModelToQIODeviceConnector
 {
     Q_OBJECT
 public:
 
-    explicit AudioNodeQdevIoConnector( AudioSourceDataModel* model, QObject *parent=nullptr );
+    explicit AudioNodeQdevIoConnector( NodeDataModel* model);
 
-    void SetDevIo(std::shared_ptr<QIODevice> dio );
-
-    void ConnectPair( std::shared_ptr<QDevIoDisplayModel> display_model );
+    virtual void SetDevIo(std::shared_ptr<QIODevice> dio);
 
     virtual NodeDataType type() const
     {
@@ -34,8 +33,7 @@ public:
 private:
     AudioSourceDataModel* m_model;
     std::shared_ptr<QIODevice> m_Devio;
-public slots:
-    void ModChanged();
+
 };
 
 #endif // AUDIONODEQDEVIOCONNECTOR_H

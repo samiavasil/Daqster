@@ -43,7 +43,8 @@ SOURCES += \
     AudioSourceDataModelUI.cpp \
     AudioSourceConfig.cpp \
     EventThreadPull.cpp \
-    AudioWorker.cpp
+    AudioWorker.cpp \
+    NodeDataModelToQIODeviceConnector.cpp
 
 HEADERS += \
     NodeEditorInterface.h \
@@ -65,7 +66,8 @@ HEADERS += \
     AudioSourceDataModelUI.h \
     AudioSourceConfig.h \
     EventThreadPull.h \
-    AudioWorker.h
+    AudioWorker.h \
+    NodeDataModelToQIODeviceConnector.h
 
 FORMS += \
     NumberSourceDataUi.ui \
