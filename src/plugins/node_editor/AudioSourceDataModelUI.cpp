@@ -59,5 +59,17 @@ void AudioSourceDataModelUI::Start(bool start)
 void AudioSourceDataModelUI::ConfigAudio()
 {
     m_Conf.show();
+    m_Conf.raise();
 }
+
+void AudioSourceDataModelUI::enterEvent(QEvent *event)
+{
+    if(QEvent::Enter == event->type()) {
+        if(m_Conf.isVisible()) {
+            m_Conf.raise();
+        }
+    }
+    QWidget::enterEvent(event);
+}
+
 
