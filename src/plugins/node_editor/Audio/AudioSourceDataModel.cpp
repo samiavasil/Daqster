@@ -20,6 +20,8 @@ AudioSourceDataModel::AudioSourceDataModel()
     m_Widget->setWindowFlags(Qt::Dialog);
     m_Widget->setWindowModality(Qt::WindowModal);
     connect(m_Widget,SIGNAL(Start(AudioSourceDataModel::StartStop)),SIGNAL(StartAudio(AudioSourceDataModel::StartStop)));
+    connect(m_Widget,SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)),
+            this, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)));
 }
 
 AudioSourceDataModel::~AudioSourceDataModel()
@@ -87,7 +89,7 @@ void AudioSourceDataModel::IO_connect(std::shared_ptr<QIODevice> io)
         connect(worker, SIGNAL(stateChanged(QAudio::State)),
                 m_Widget, SLOT(AudioStateChanged(QAudio::State)) );
         connect(this, SIGNAL(disconnected()), worker, SLOT(deleteLater()));
-        connect(m_Widget, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)),
+        connect(this, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)),
                 worker, SLOT(UpdateAudioDevice(QAudioDeviceInfo, QAudioFormat)));
         
         EventThreadPull::thread_pull().AddWorker(worker);

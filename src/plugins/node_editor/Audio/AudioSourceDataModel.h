@@ -32,7 +32,7 @@ public:
     AudioSourceDataModel();
 
     virtual
-    ~AudioSourceDataModel();
+    ~AudioSourceDataModel() override;
 
 public:
 
@@ -76,18 +76,18 @@ public:
 
     void IO_connect(std::shared_ptr<QIODevice> io);
 
-    virtual
-    ConnectionPolicy
-    portOutConnectionPolicy(PortIndex) const
+    virtual ConnectionPolicy portOutConnectionPolicy(PortIndex) const override
     {
         return ConnectionPolicy::One;
     }
+
 signals:
     void disconnected();
     void StartAudio(AudioSourceDataModel::StartStop start);
+    void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
 
 public slots:
-    virtual void outputConnectionDeleted(QtNodes::Connection const&con);
+    virtual void outputConnectionDeleted(QtNodes::Connection const&con) override;
 
 private slots:
     void destroyedObj(QObject *obj);

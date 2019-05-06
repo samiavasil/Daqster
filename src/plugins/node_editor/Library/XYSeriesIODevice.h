@@ -35,17 +35,20 @@
 #include <QtCore/QVector>
 #include<QMutex>
 
+class QDevIoDisplayModel;
 
 class XYSeriesIODevice : public QIODevice
 {
     Q_OBJECT
 public:
-    explicit XYSeriesIODevice(QObject *parent = nullptr);
- virtual ~XYSeriesIODevice();
+    explicit XYSeriesIODevice(QDevIoDisplayModel* model, QObject *parent = nullptr);
+    virtual ~XYSeriesIODevice() override;
+    const QDevIoDisplayModel *model() const;
 protected:
     qint64 readData(char *data, qint64 maxSize) override;
     qint64 writeData(const char *data, qint64 maxSize) override;
     void initParams(int resolution_bytes = 2, int channels   = 2, int sampleCount = 8000);
+
 protected slots:
     void pollData();
 
@@ -53,16 +56,17 @@ signals:
     void bufferReady(QVector<QPointF>& buff, int channel);
 
 private:
-    QVector<QPointF> m_buffer;
+    QVector<QPointF> m_buffer[2];
     QMutex m_lock;
-    qint64 m_read_idx;
-    qint64 m_write_idx;
+    quint64 m_read_idx;
+    quint64 m_write_idx;
     int m_sampleCount;
     int m_sampleFreq;
     int m_resolution;
     int m_channels;
-    qint64 m_mask;
+    quint64 m_mask;
     char *m_data;
+    const  QDevIoDisplayModel* m_model;
 };
 
 #endif // XYSERIESIODEVICE_H

@@ -1,17 +1,16 @@
-#include "QDevIoDisplayModel.h"
-#include "AudioNodeQdevIoConnector.h"
-#include"QDevioDisplayModelUi.h"
+#include <NodeDataModelToQIODeviceConnector.h>
+#include <XYSeriesIODevice.h>
+#include <QDevIoDisplayModel.h>
+#include <QDevioDisplayModelUi.h>
 #include <QtCharts/QLineSeries>
-#include "XYSeriesIODevice.h"
+#include <QDebug>
 
 QT_CHARTS_USE_NAMESPACE
 
 QDevIoDisplayModel::QDevIoDisplayModel():m_connector(nullptr)
 {
-    QLineSeries* series = new QLineSeries;
-
-    m_widget = new QDevioDisplayModelUi(series);
-    m_device = std::shared_ptr<XYSeriesIODevice>(new XYSeriesIODevice(nullptr));
+    m_widget = new QDevioDisplayModelUi();
+    m_device = std::shared_ptr<XYSeriesIODevice>(new XYSeriesIODevice(this));
     connect(m_device.get(), SIGNAL(bufferReady(QVector<QPointF>&, int)),
             m_widget, SLOT(bufferReady(QVector<QPointF>&, int)));
 }
@@ -32,7 +31,7 @@ QJsonObject QDevIoDisplayModel::save() const
 
 unsigned int QDevIoDisplayModel::nPorts(PortType portType) const
 {
-    int num = 0;
+    unsigned int num = 0;
     switch (portType) {
     case QtNodes::PortType::In:
         num = 1;
@@ -58,7 +57,7 @@ std::shared_ptr<NodeData> QDevIoDisplayModel::outData(PortIndex port)
 
 void QDevIoDisplayModel::setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
 {
-    auto conData = std::dynamic_pointer_cast<AudioNodeQdevIoConnector> (data);
+    auto conData = std::dynamic_pointer_cast<NodeDataModelToQIODeviceConnector> (data);
 
     if (portIndex == 0)
     {
@@ -68,14 +67,13 @@ void QDevIoDisplayModel::setInData(std::shared_ptr<NodeData> data, PortIndex por
             modelValidationState = NodeValidationState::Valid;
             modelValidationError = QString();
             m_connector = conData;
-            m_connector->SetDevIo( m_device );
+            m_connector->ConnectModels(this);
         }
         else
         {
             modelValidationState = NodeValidationState::Warning;
             modelValidationError = QStringLiteral("Missing or incorrect inputs");
             if(m_connector) {
-                m_connector->SetDevIo( nullptr );
                 m_connector.reset();
             }
         }
@@ -97,7 +95,12 @@ QString QDevIoDisplayModel::validationMessage() const
     return modelValidationError;
 }
 
-bool QDevIoDisplayModel::UpdateModel(int chan_num)
+void QDevIoDisplayModel::ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio)
 {
+    qDebug() <<   "Change: " << formatAudio << devInfo.deviceName();
+}
 
+std::shared_ptr<QIODevice> QDevIoDisplayModel::device() const
+{
+    return m_device;
 }

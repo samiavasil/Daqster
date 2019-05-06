@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>NumbeSourceDataUi</class>
- <widget class="QWidget" name="NumbeSourceDataUi">
+ <class>NumberSourceDataUi</class>
+ <widget class="QWidget" name="NumberSourceDataUi">
   <property name="geometry">
    <rect>
     <x>0</x>

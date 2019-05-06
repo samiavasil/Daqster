@@ -4,7 +4,7 @@
 #include <QWidget>
 
 namespace Ui {
-class NumbeSourceDataUi;
+class NumberSourceDataUi;
 }
 class QLineEdit;
 class QSlider;
@@ -19,7 +19,7 @@ public:
     QLineEdit &lineEdit();
     QSlider &timeSlider();
 private:
-    Ui::NumbeSourceDataUi *ui;
+    Ui::NumberSourceDataUi *ui;
 };
 
 #endif // NUMBESOURCEDATAUI_H

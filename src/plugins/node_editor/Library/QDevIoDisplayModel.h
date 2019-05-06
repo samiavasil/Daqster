@@ -3,7 +3,7 @@
 
 #include <QtCore/QObject>
 #include <nodes/NodeDataModel>
-
+#include <QtMultimedia/QAudioDeviceInfo>
 
 using QtNodes::PortType;
 using QtNodes::PortIndex;
@@ -12,8 +12,9 @@ using QtNodes::NodeDataType;
 using QtNodes::NodeDataModel;
 using QtNodes::NodeValidationState;
 
-class AudioNodeQdevIoConnector;
-class XYSeriesIODevice;
+class NodeDataModelToQIODeviceConnector;
+
+//TODO change QDevIoDisplayModel to QAudioDevIoDisplayModel:public QDevIoDisplayModel
 
 class QDevIoDisplayModel : public NodeDataModel
 {
@@ -69,14 +70,18 @@ public:
     QString
     validationMessage() const override;
 
-    bool UpdateModel(int chan_num);
+    std::shared_ptr<QIODevice> device() const;
+
+public slots:
+    void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
 
 protected:
-     std::shared_ptr<AudioNodeQdevIoConnector> m_connector;
+     std::shared_ptr<NodeDataModelToQIODeviceConnector> m_connector;
      NodeValidationState modelValidationState = NodeValidationState::Warning;
      QString modelValidationError = QStringLiteral("Missing or incorrect inputs");
      QWidget* m_widget;
      std::shared_ptr<QIODevice> m_device;
+     friend class AudioXYSeriesIODevice;
 };
 
 #endif // QDEVIODISPLAY_H
