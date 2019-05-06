@@ -17,7 +17,7 @@ class AudioSourceDataModelUI : public QWidget
 public:
     explicit AudioSourceDataModelUI(QAudioDeviceInfo &devInfo,
                                     QAudioFormat &formatAudio,
-                                    QWidget *parent = 0);
+                                    QWidget *parent = nullptr);
     ~AudioSourceDataModelUI();
     const QAudioFormat FormatAudio() const;
 
@@ -32,6 +32,8 @@ public slots:
 private slots:
     void Start(bool start);
     void ConfigAudio();
+protected:
+    virtual void enterEvent(QEvent *event);
 private:
     Ui::AudioSourceDataModelUI *ui;
     AudioSourceConfig m_Conf;

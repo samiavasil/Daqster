@@ -3,7 +3,7 @@
 
 NumberSourceDataUi::NumberSourceDataUi(QWidget *parent) :
     QWidget(parent),
-    ui(new Ui::NumbeSourceDataUi)
+    ui(new Ui::NumberSourceDataUi)
 {
     ui->setupUi(this);
 

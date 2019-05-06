@@ -25,58 +25,65 @@ CONFIG      += plugin
 DEFINES     += BUILD_AVAILABLE_PLUGIN
 DEFINES     += NODE_EDITOR_SHARED
 
+#Fix me
+INCLUDEPATH += $$PWD/Audio
+INCLUDEPATH += $$PWD/Library
+INCLUDEPATH += $$PWD/Examples
+INCLUDEPATH += $$PWD/ThreadPull
+
 TARGET   = NodeEditorPlugin
 
 SOURCES += \
     NodeEditorPluginObject.cpp \
-    NumberDisplayDataModel.cpp \
-    NumberSourceDataModel.cpp \
-    ModuloModel.cpp \
-    Converters.cpp \
     NodeEditorInterface.cpp \
-    NumbeSourceDataUi.cpp \
-    XYSeriesIODevice.cpp \
-    AudioSourceDataModel.cpp \
-    AudioNodeQdevIoConnector.cpp \
-    QDevIoDisplayModel.cpp \
-    QDevioDisplayModelUi.cpp \
-    AudioSourceDataModelUI.cpp \
-    AudioSourceConfig.cpp \
-    EventThreadPull.cpp \
-    AudioWorker.cpp \
-    NodeDataModelToQIODeviceConnector.cpp
+    Audio/AudioNodeQdevIoConnector.cpp \
+    Audio/AudioSourceConfig.cpp \
+    Audio/AudioSourceDataModel.cpp \
+    Audio/AudioSourceDataModelUI.cpp \
+    Audio/AudioWorker.cpp \
+    Library/NodeDataModelToQIODeviceConnector.cpp \
+    Examples/Converters.cpp \
+    Examples/ModuloModel.cpp \
+    Examples/NumberDisplayDataModel.cpp \
+    Examples/NumberSourceDataModel.cpp \
+    Examples/NumberSourceDataUi.cpp \
+    ThreadPull/EventThreadPull.cpp \
+    Library/QDevIoDisplayModel.cpp \
+    Library/QDevioDisplayModelUi.cpp \
+    Library/XYSeriesIODevice.cpp
 
 HEADERS += \
     NodeEditorInterface.h \
     NodeEditorPluginObject.h \
-    IntegerData.h \
-    ModuloModel.h \
-    NumberDisplayDataModel.h \
-    NumberSourceDataModel.h \
-    DecimalData.h \
-    Converters.h \
-    NumericType.h \
-    ComplexType.h \
-    XYSeriesIODevice.h \
-    AudioSourceDataModel.h \
-    NumberSourceDataUi.h \
-    AudioNodeQdevIoConnector.h \
-    QDevIoDisplayModel.h \
-    QDevioDisplayModelUi.h \
-    AudioSourceDataModelUI.h \
-    AudioSourceConfig.h \
-    EventThreadPull.h \
-    AudioWorker.h \
-    NodeDataModelToQIODeviceConnector.h
+    Audio/AudioNodeQdevIoConnector.h \
+    Audio/AudioSourceConfig.h \
+    Audio/AudioSourceDataModel.h \
+    Audio/AudioSourceDataModelUI.h \
+    Audio/AudioWorker.h \
+    Library/NodeDataModelToQIODeviceConnector.h \
+    Examples/Converters.h \
+    Examples/ModuloModel.h \
+    Examples/NumberDisplayDataModel.h \
+    Examples/NumberSourceDataModel.h \
+    Examples/NumberSourceDataUi.h \
+    Examples/Converters.h \
+    Examples/DecimalData.h \
+    Examples/IntegerData.h \
+    Examples/ModuloModel.h \
+    ThreadPull/EventThreadPull.h \
+    Library/ComplexType.h \
+    Library/QDevIoDisplayModel.h \
+    Library/QDevioDisplayModelUi.h \
+    Library/XYSeriesIODevice.h
 
 FORMS += \
-    NumberSourceDataUi.ui \
-    QDevioDisplayModelUi.ui \
-    AudioSourceDataModelUI.ui \
-    AudioSourceConfig.ui
+    Audio/AudioSourceConfig.ui \
+    Audio/AudioSourceDataModelUI.ui \
+    Examples/NumberSourceDataUi.ui \
+    Library/QDevioDisplayModelUi.ui
 
 RESOURCES += \
-    node_editor.qrc
+    Audio/node_editor.qrc
 
 OTHER_FILES +=
 

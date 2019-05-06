@@ -155,11 +155,8 @@ void NodeEditorPluginObject::SetName(const QString &name)
     }
 }
 
-#include<QAudioInput>
-#include"ComplexType.h"
 bool NodeEditorPluginObject::Initialize()
 {
-    ComplexType<QAudioInput> n(nullptr);
     m_Win = new QMainWindow();
     QWidget* mainWidget = new QWidget(m_Win);
     m_Win->setCentralWidget(mainWidget);

@@ -41,8 +41,9 @@ static inline unsigned long near_power_of_two(unsigned long x) {
     return 1 << cnt;
 }
 
-XYSeriesIODevice::XYSeriesIODevice(QObject *parent) :
-    QIODevice(parent)
+XYSeriesIODevice::XYSeriesIODevice(QDevIoDisplayModel *model, QObject *parent) :
+    QIODevice(parent),
+    m_model(model)
 {
     initParams(2, 2, 8000);
     qRegisterMetaType<QVector<QPointF>>("QVector<QPointF>");
@@ -54,6 +55,12 @@ XYSeriesIODevice::~XYSeriesIODevice()
     qDebug() << "Destroy XYSeriesIODevice" << this;
 }
 
+const QDevIoDisplayModel *XYSeriesIODevice::model() const
+{
+    return m_model;
+}
+
+
 /**
  * @brief XYSeriesIODevice::pollData
  * Read data from ring buffer and send data to screen on regular time (25 ms).
@@ -62,29 +69,27 @@ XYSeriesIODevice::~XYSeriesIODevice()
 void XYSeriesIODevice::pollData(){
 
     QMutexLocker locker(&m_lock);
-    qint64 len = (m_write_idx - m_read_idx) & m_mask;
+    quint64 len = (m_write_idx - m_read_idx) & m_mask;
+
 
     if(len > 0) {
-
-        if (m_buffer.isEmpty()) {
-            m_buffer.reserve(m_sampleCount);
-            for (int i = 0; i < m_sampleCount; ++i)
-                m_buffer.append(QPointF(i, 0));
-        }
-
         int start = 0;
         int s;
-        int offset = m_channels*m_resolution;
-        int availableSamples = len/(offset);
+        quint64 offset = m_channels*m_resolution;
+        quint64 availableSamples = len/(offset);
         if (availableSamples < m_sampleCount) {
             start = m_sampleCount - availableSamples;
-            for (  s = 0; s < start; ++s)
-                m_buffer[s].setY(m_buffer.at(s + availableSamples).y());
+            for (  s = 0; s < start; ++s) {
+                m_buffer[0][s].setY(m_buffer[0].at(s + availableSamples).y());
+                m_buffer[1][s].setY(m_buffer[1].at(s + availableSamples).y());
+            }
         }
 
         for (  s = start; s < m_sampleCount && m_read_idx!=m_write_idx; ++s){
             int a = (*reinterpret_cast<const short int*>(&(m_data[m_read_idx])));
-            m_buffer[s].setY((qreal(a)/200));
+            int b = (*reinterpret_cast<const short int*>(&(m_data[m_read_idx+m_resolution])));
+            m_buffer[0][s].setY((qreal(a)/200));
+            m_buffer[1][s].setY(0.5+(qreal(b)/200));
             m_read_idx = (m_read_idx + offset) & m_mask;
         }
 
@@ -92,9 +97,8 @@ void XYSeriesIODevice::pollData(){
             qDebug() << "Possible Issue R " << m_read_idx <<  "W " << m_write_idx;
             m_read_idx=m_write_idx;
         }
-
-        //  m_series->replace(m_buffer);
-        emit bufferReady(m_buffer, 0 );
+        emit bufferReady(m_buffer[0], 0 );
+        emit bufferReady(m_buffer[1], 1 );
     }
     else{
         // qDebug() << "DN";
@@ -110,12 +114,13 @@ qint64 XYSeriesIODevice::readData(char *data, qint64 maxSize)
     return -1;
 }
 
-qint64 XYSeriesIODevice::writeData(const char *data, qint64 maxSize)
+qint64 XYSeriesIODevice::writeData(const char *data, qint64 max)
 {
     QMutexLocker locker(&m_lock);
+     quint64 maxSize = static_cast<quint64>(max);
 
     bool overrun = ((m_read_idx -1 - m_write_idx) & m_mask) < maxSize;
-    for(int i=0 ; i< maxSize; i++ ) {
+    for(quint64 i=0 ; i< maxSize; i++ ) {
         m_data[m_write_idx] = data[i];
         m_write_idx = (m_write_idx + 1) & m_mask;
     }
@@ -124,7 +129,7 @@ qint64 XYSeriesIODevice::writeData(const char *data, qint64 maxSize)
         qDebug() << "Ring buffer overrun";
         m_read_idx = (m_write_idx-maxSize)&m_mask;
     }
-    return maxSize;
+    return static_cast<qint64>(maxSize);
 }
 
 void XYSeriesIODevice::initParams(int resolution_bytes, int channels, int sampleCount)
@@ -135,7 +140,12 @@ void XYSeriesIODevice::initParams(int resolution_bytes, int channels, int sample
     m_resolution = resolution_bytes;
     m_channels   = channels;
     m_sampleCount = sampleCount;
-    m_mask = near_power_of_two(static_cast<unsigned long>(m_sampleCount*m_resolution*m_channels)) - 1;
+    m_mask = near_power_of_two(static_cast<quint64>(m_sampleCount*m_resolution*m_channels)) - 1;
     m_data = new char [m_mask + 1];
+    for (int i = 0; i < 2; i++) {
+        m_buffer[i].reserve(m_sampleCount);
+        for (int j = 0; j < m_sampleCount; ++j)
+            m_buffer[i].append(QPointF(j, 0));
+    }
 }
 

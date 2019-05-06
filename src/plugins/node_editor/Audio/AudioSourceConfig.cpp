@@ -29,9 +29,8 @@ public:
 
     explicit QAudioComboModel(const AudioSourceConfig& model, AudioModelType type, QObject *parent = nullptr):
         QAbstractListModel(parent),
-        m_Type(type),
-        m_model(model)
-
+        m_model(model),
+        m_Type(type)
     {
 
     }
@@ -138,9 +137,9 @@ public:
 
 
 protected:
-    AudioModelType m_Type;
     const AudioSourceConfig& m_model;
     QList<QVariant> m_Data;
+    AudioModelType m_Type;
 };
 
 
@@ -150,30 +149,30 @@ AudioSourceConfig::AudioSourceConfig(QAudio::Mode mode,
                                      QWidget *parent) :
     QWidget(parent),
     ui(new Ui::AudioSourceConfig),
-    m_Mode(mode),
+    m_FormatAudio(formatAudio),
     m_DevInfo(devInfo),
-    m_FormatAudio(formatAudio)
+    m_Mode(mode)
 {
 
     ui->setupUi(this);
 
-    QAudioComboModel* model = new QAudioComboModel(*this, QAudioComboModel::CHANNEL_NUMBER);
-    //   ui->ChannelNumber->setModel(model); //TODO: FIX THIS to use a models or remove QAudioComboModel at all
+   //  QAudioComboModel* model = new QAudioComboModel(*this, QAudioComboModel::CHANNEL_NUMBER);
+ //      ui->ChannelNumber->setModel(model); //TODO: FIX THIS to use a models or remove QAudioComboModel at all
     connect(ui->ChannelNumber, SIGNAL(currentIndexChanged(int)), this, SLOT(ChannelNumberChanged(int)));
-    model = new QAudioComboModel(*this, QAudioComboModel::CODEC);
-    //    ui->Codec->setModel(model);
+  //   model = new QAudioComboModel(*this, QAudioComboModel::CODEC);
+ //        ui->Codec->setModel(model);
     connect(ui->Codec, SIGNAL(currentIndexChanged(int)), this, SLOT(CodecChanged(int)));
-    model = new QAudioComboModel(*this, QAudioComboModel::BYTES_ORDER);
-    //    ui->ByteOdrer->setModel(model);
+  //   model = new QAudioComboModel(*this, QAudioComboModel::BYTES_ORDER);
+ //      ui->ByteOdrer->setModel(model);
     connect(ui->ByteOdrer, SIGNAL(currentIndexChanged(int)), this, SLOT(ByteOdrerChanged(int)));
-    model = new QAudioComboModel(*this, QAudioComboModel::SAMPLE_RATE);
-    //    ui->SampleRate->setModel(model);
+  //   model = new QAudioComboModel(*this, QAudioComboModel::SAMPLE_RATE);
+ //       ui->SampleRate->setModel(model);
     connect(ui->SampleRate, SIGNAL(currentIndexChanged(int)), this, SLOT(SampleRateChanged(int)));
-    model = new QAudioComboModel(*this, QAudioComboModel::SAMPLE_SIZE);
-    //      ui->SampleSize->setModel(model);
+  //   model = new QAudioComboModel(*this, QAudioComboModel::SAMPLE_SIZE);
+ //          ui->SampleSize->setModel(model);
     connect(ui->SampleSize, SIGNAL(currentIndexChanged(int)), this, SLOT(SampleSizeChanged(int)));
-    model = new QAudioComboModel(*this, QAudioComboModel::SAMPLE_TYPE);
-    //   ui->SampleType->setModel(model);
+ //    model = new QAudioComboModel(*this, QAudioComboModel::SAMPLE_TYPE);
+ //        ui->SampleType->setModel(model);
     connect(ui->SampleType, SIGNAL(currentIndexChanged(int)), this, SLOT(SampleTypeChanged(int)));
 
     qDebug() << "this: " << this << " Mode: " << m_Mode;
