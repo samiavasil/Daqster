@@ -36,10 +36,9 @@ protected:
     virtual void enterEvent(QEvent *event);
 private:
     Ui::AudioSourceDataModelUI *ui;
+    QAudioDeviceInfo&  m_devInfo;
+    QAudioFormat&      m_formatAudio;
     AudioSourceConfig m_Conf;
-    QAudioDeviceInfo  m_devInfo;
-    QAudioFormat      m_formatAudio;
-
 };
 
 #endif // AUDIOSOURCEDATAMODELUI_H

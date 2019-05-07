@@ -8,9 +8,9 @@ AudioSourceDataModelUI::AudioSourceDataModelUI(QAudioDeviceInfo& devInfo,
                                                QWidget *parent) :
     QWidget(parent),
     ui(new Ui::AudioSourceDataModelUI),
-    m_Conf(QAudio::AudioInput, devInfo, formatAudio),
     m_devInfo(devInfo),
-    m_formatAudio(formatAudio)
+    m_formatAudio(formatAudio),
+    m_Conf(QAudio::AudioInput, m_devInfo, m_formatAudio)
 {
     ui->setupUi(this);
     connect(&m_Conf, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo ,QAudioFormat )),

@@ -97,7 +97,7 @@ QString QDevIoDisplayModel::validationMessage() const
 
 void QDevIoDisplayModel::ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio)
 {
-    qDebug() <<   "Change: " << formatAudio << devInfo.deviceName();
+    qDebug() <<   "Changed: " << formatAudio << devInfo.deviceName();
 }
 
 std::shared_ptr<QIODevice> QDevIoDisplayModel::device() const

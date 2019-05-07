@@ -12,16 +12,14 @@ AudioSourceDataModel::AudioSourceDataModel()
 {
     qRegisterMetaType<AudioSourceDataModel::StartStop>("AudioSourceDataModel::StartStop");
     
-    QAudioDeviceInfo devInfo = QAudioDeviceInfo::defaultInputDevice();
-    QAudioFormat formatAudio = devInfo.preferredFormat();
+    m_DevInfo = QAudioDeviceInfo::defaultInputDevice();
+    m_FormatAudio = m_DevInfo.preferredFormat();
     
     m_connector = std::make_shared<AudioNodeQdevIoConnector>(this);
-    m_Widget = new AudioSourceDataModelUI(devInfo, formatAudio);
+    m_Widget = new AudioSourceDataModelUI(m_DevInfo, m_FormatAudio);
     m_Widget->setWindowFlags(Qt::Dialog);
     m_Widget->setWindowModality(Qt::WindowModal);
     connect(m_Widget,SIGNAL(Start(AudioSourceDataModel::StartStop)),SIGNAL(StartAudio(AudioSourceDataModel::StartStop)));
-    connect(m_Widget,SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)),
-            this, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)));
 }
 
 AudioSourceDataModel::~AudioSourceDataModel()
@@ -89,9 +87,12 @@ void AudioSourceDataModel::IO_connect(std::shared_ptr<QIODevice> io)
         connect(worker, SIGNAL(stateChanged(QAudio::State)),
                 m_Widget, SLOT(AudioStateChanged(QAudio::State)) );
         connect(this, SIGNAL(disconnected()), worker, SLOT(deleteLater()));
-        connect(this, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)),
+        /*UI Widget change Audio type*/
+        connect(m_Widget, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)),
                 worker, SLOT(UpdateAudioDevice(QAudioDeviceInfo, QAudioFormat)));
-        
+        /*When the audio worker update Audio type the model notify for change */
+        connect(worker,SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)),
+                this, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)));
         EventThreadPull::thread_pull().AddWorker(worker);
     }
     
