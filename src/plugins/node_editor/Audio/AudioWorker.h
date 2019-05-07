@@ -25,6 +25,7 @@ public slots:
 signals:
     void resultReady(const QString &result);
     void stateChanged(QAudio::State);
+    void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
 private:
 
     std::shared_ptr<QAudioInput> m_audio_src;

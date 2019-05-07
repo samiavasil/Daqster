@@ -95,6 +95,8 @@ private slots:
 private:
     std::shared_ptr<AudioNodeQdevIoConnector> m_connector;
     AudioSourceDataModelUI* m_Widget;
+    QAudioDeviceInfo m_DevInfo;
+    QAudioFormat m_FormatAudio;
 };
 
 #endif // SOURCEDATAMODEL_H

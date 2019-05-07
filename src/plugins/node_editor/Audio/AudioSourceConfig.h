@@ -42,9 +42,9 @@ protected slots:
 
 private:
     Ui::AudioSourceConfig *ui;
-    QAudioFormat     m_FormatAudio;
     QList<QAudioDeviceInfo> m_Devs;
-    QAudioDeviceInfo m_DevInfo;
+    QAudioDeviceInfo& m_DevInfo;
+    QAudioFormat&     m_FormatAudio;
     QAudio::Mode m_Mode;
 
 };

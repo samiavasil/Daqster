@@ -198,7 +198,6 @@ void AudioSourceConfig::InitAudioParams(int idx)
     QList<int> srates = m_DevInfo.supportedSampleRates();
     QList<QAudioFormat::Endian> endians = m_DevInfo.supportedByteOrders();
 
-    m_FormatAudio = m_DevInfo.preferredFormat();
     ui->ChannelNumber->blockSignals(true);
     ui->Codec->blockSignals(true);
     ui->ByteOdrer->blockSignals(true);
@@ -273,7 +272,7 @@ void AudioSourceConfig::InitAudioParams(int idx)
     ui->SampleRate->blockSignals(false);
     ui->SampleSize->blockSignals(false);
     ui->SampleType->blockSignals(false);
-//    emit ChangeAudioConnection(m_DevInfo, m_FormatAudio);
+    emit ChangeAudioConnection(m_DevInfo, m_FormatAudio);
 
 }
 
