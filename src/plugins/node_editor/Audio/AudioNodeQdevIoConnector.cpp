@@ -12,9 +12,8 @@ AudioNodeQdevIoConnector::AudioNodeQdevIoConnector(NodeDataModel *model ):
 
 void AudioNodeQdevIoConnector::ConnectModels(QtNodes::NodeDataModel *dst_model)
 {
-
-    QDevIoDisplayModel* model_dst  = dynamic_cast<QDevIoDisplayModel*>(dst_model);
     AudioSourceDataModel* model_src  = dynamic_cast<AudioSourceDataModel*>(m_src_model);
+    QDevIoDisplayModel*   model_dst  = dynamic_cast<QDevIoDisplayModel*>(dst_model);
 
     if(model_src){
         std::shared_ptr<QIODevice>  xDevio = model_dst->device();

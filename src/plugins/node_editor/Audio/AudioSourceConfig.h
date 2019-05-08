@@ -22,8 +22,6 @@ public:
 
     const QAudioFormat& FormatAudio() const;
 
-    QAudioDeviceInfo DevInfo() const;
-
     bool isFormatSupported(const QAudioFormat &format) const;
 
     void show();

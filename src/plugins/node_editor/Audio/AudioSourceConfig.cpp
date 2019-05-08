@@ -149,8 +149,8 @@ AudioSourceConfig::AudioSourceConfig(QAudio::Mode mode,
                                      QWidget *parent) :
     QWidget(parent),
     ui(new Ui::AudioSourceConfig),
-    m_FormatAudio(formatAudio),
     m_DevInfo(devInfo),
+    m_FormatAudio(formatAudio),
     m_Mode(mode)
 {
 
@@ -353,7 +353,3 @@ void AudioSourceConfig::SampleTypeChanged(int val){
     emit ChangeAudioConnection(m_DevInfo, m_FormatAudio);
 }
 
-QAudioDeviceInfo AudioSourceConfig::DevInfo() const
-{
-    return m_DevInfo;
-}
