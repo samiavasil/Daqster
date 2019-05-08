@@ -97,7 +97,10 @@ QString QDevIoDisplayModel::validationMessage() const
 
 void QDevIoDisplayModel::ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio)
 {
+    std::shared_ptr<XYSeriesIODevice> device = std::dynamic_pointer_cast<XYSeriesIODevice>(m_device);
+
     qDebug() <<   "Changed: " << formatAudio << devInfo.deviceName();
+    device->ReinitDevice(formatAudio.sampleSize()/8, formatAudio.channelCount());
 }
 
 std::shared_ptr<QIODevice> QDevIoDisplayModel::device() const

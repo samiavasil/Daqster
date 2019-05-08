@@ -44,6 +44,8 @@ public:
     explicit XYSeriesIODevice(QDevIoDisplayModel* model, QObject *parent = nullptr);
     virtual ~XYSeriesIODevice() override;
     const QDevIoDisplayModel *model() const;
+    void ReinitDevice(int resolution_bytes, int channels, int sampleCount = 8000);
+
 protected:
     qint64 readData(char *data, qint64 maxSize) override;
     qint64 writeData(const char *data, qint64 maxSize) override;
@@ -56,7 +58,7 @@ signals:
     void bufferReady(QVector<QPointF>& buff, int channel);
 
 private:
-    QVector<QPointF> m_buffer[2];
+    QVector<QPointF> m_buffer[16];//FIX ME
     QMutex m_lock;
     quint64 m_read_idx;
     quint64 m_write_idx;

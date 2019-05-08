@@ -2,8 +2,9 @@
 #define QDEVIODISPLAYMODELUI_H
 
 #include <QWidget>
-
 #include <QtCharts/QChartGlobal>
+#include <QMap>
+#include <QVector>
 
 namespace Ui {
 class QDevioDisplayModelUi;
@@ -25,14 +26,19 @@ public:
     typedef int disp_hndl_t;
     explicit QDevioDisplayModelUi(QWidget *parent = nullptr);
     ~QDevioDisplayModelUi();
- //TODO   virtual disp_hndl_t AddChart();
- //   virtual void AddSeries(disp_hndl_t chart, int num);
- //   virtual void RemoveSeria(disp_hndl_t chart, int idx);
+    void UpdateConfig();
+    virtual disp_hndl_t AddChart();
+    virtual void RemoveChart(disp_hndl_t hndl);
+    virtual int SetSeries(disp_hndl_t chart, int num);
+    virtual int RemoveSeries();
 
 private:
     Ui::QDevioDisplayModelUi *ui;
-    QLineSeries* m_series;
+    QVector<QLineSeries*> m_series;
+    QMap<disp_hndl_t, QVector<QLineSeries*>> m_SeriesMap;
+    QMap<disp_hndl_t, QChart*> m_ChartMap;
     QChart* m_chart;
+    static disp_hndl_t m_NextHndl;
 public slots:
     void bufferReady(QVector<QPointF>& buff, int channel);
 protected slots:

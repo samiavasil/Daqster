@@ -43,9 +43,12 @@ static inline unsigned long near_power_of_two(unsigned long x) {
 
 XYSeriesIODevice::XYSeriesIODevice(QDevIoDisplayModel *model, QObject *parent) :
     QIODevice(parent),
+    m_data(nullptr),
     m_model(model)
 {
+    QMutexLocker locker(&m_lock);
     initParams(2, 2, 8000);
+
     qRegisterMetaType<QVector<QPointF>>("QVector<QPointF>");
     QTimer::singleShot(100, this, SLOT(pollData()));
 }
@@ -60,6 +63,12 @@ const QDevIoDisplayModel *XYSeriesIODevice::model() const
     return m_model;
 }
 
+void XYSeriesIODevice::ReinitDevice(int resolution_bytes, int channels, int sampleCount)
+{
+    QMutexLocker locker(&m_lock);
+    initParams(resolution_bytes, channels, sampleCount);
+}
+
 
 /**
  * @brief XYSeriesIODevice::pollData
@@ -70,7 +79,6 @@ void XYSeriesIODevice::pollData(){
 
     QMutexLocker locker(&m_lock);
     quint64 len = (m_write_idx - m_read_idx) & m_mask;
-
 
     if(len > 0) {
         int start = 0;
@@ -117,7 +125,7 @@ qint64 XYSeriesIODevice::readData(char *data, qint64 maxSize)
 qint64 XYSeriesIODevice::writeData(const char *data, qint64 max)
 {
     QMutexLocker locker(&m_lock);
-     quint64 maxSize = static_cast<quint64>(max);
+    quint64 maxSize = static_cast<quint64>(max);
 
     bool overrun = ((m_read_idx -1 - m_write_idx) & m_mask) < maxSize;
     for(quint64 i=0 ; i< maxSize; i++ ) {
@@ -134,18 +142,23 @@ qint64 XYSeriesIODevice::writeData(const char *data, qint64 max)
 
 void XYSeriesIODevice::initParams(int resolution_bytes, int channels, int sampleCount)
 {
-    QMutexLocker locker(&m_lock);
-    m_read_idx = 0;
-    m_write_idx = 0;
-    m_resolution = resolution_bytes;
-    m_channels   = channels;
+    m_read_idx    = 0;
+    m_write_idx   = 0;
+    m_resolution  = resolution_bytes;
+    m_channels    = channels;
     m_sampleCount = sampleCount;
     m_mask = near_power_of_two(static_cast<quint64>(m_sampleCount*m_resolution*m_channels)) - 1;
+
+    if(m_data != nullptr) {
+        delete [] m_data;
+    }
     m_data = new char [m_mask + 1];
-    for (int i = 0; i < 2; i++) {
-        m_buffer[i].reserve(m_sampleCount);
-        for (int j = 0; j < m_sampleCount; ++j)
-            m_buffer[i].append(QPointF(j, 0));
+    for (int i = 0; i < m_channels; i++) {//FIX ME
+        //        m_buffer[i].reserve(m_sampleCount);
+        if(m_buffer[i].count() < 8000)
+            for (int j = 0; j < m_sampleCount; ++j) {
+                m_buffer[i].append(QPointF(j, 0));
+            }
     }
 }
 
