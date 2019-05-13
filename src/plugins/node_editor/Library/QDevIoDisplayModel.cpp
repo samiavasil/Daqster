@@ -101,6 +101,7 @@ void QDevIoDisplayModel::ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioF
 
     qDebug() <<   "Changed: " << formatAudio << devInfo.deviceName();
     device->ReinitDevice(formatAudio.sampleSize()/8, formatAudio.channelCount());
+    dynamic_cast<QDevioDisplayModelUi*>(m_widget)->SetSeries(0, formatAudio.channelCount());
 }
 
 std::shared_ptr<QIODevice> QDevIoDisplayModel::device() const

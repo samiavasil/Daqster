@@ -88,16 +88,18 @@ void XYSeriesIODevice::pollData(){
         if (availableSamples < m_sampleCount) {
             start = m_sampleCount - availableSamples;
             for (  s = 0; s < start; ++s) {
-                m_buffer[0][s].setY(m_buffer[0].at(s + availableSamples).y());
-                m_buffer[1][s].setY(m_buffer[1].at(s + availableSamples).y());
+                for(int idx = 0; idx < m_channels; idx++) {
+                    m_buffer[idx][s].setY(m_buffer[idx].at(s + availableSamples).y());
+                }
+                //  m_buffer[1][s].setY(m_buffer[1].at(s + availableSamples).y());
             }
         }
 
         for (  s = start; s < m_sampleCount && m_read_idx!=m_write_idx; ++s){
-            int a = (*reinterpret_cast<const short int*>(&(m_data[m_read_idx])));
-            int b = (*reinterpret_cast<const short int*>(&(m_data[m_read_idx+m_resolution])));
-            m_buffer[0][s].setY((qreal(a)/200));
-            m_buffer[1][s].setY(0.5+(qreal(b)/200));
+            for(int idx = 0; idx < m_channels; idx++) {
+                int a = (*reinterpret_cast<const short int*>(&(m_data[m_read_idx + (m_resolution*idx)])));
+                m_buffer[idx][s].setY((0.5*idx)+(qreal(a)/200));
+            }
             m_read_idx = (m_read_idx + offset) & m_mask;
         }
 
@@ -105,8 +107,10 @@ void XYSeriesIODevice::pollData(){
             qDebug() << "Possible Issue R " << m_read_idx <<  "W " << m_write_idx;
             m_read_idx=m_write_idx;
         }
-        emit bufferReady(m_buffer[0], 0 );
-        emit bufferReady(m_buffer[1], 1 );
+
+        for(int idx = 0; idx < m_channels; idx++) {
+            emit bufferReady(m_buffer[idx], idx );
+        }
     }
     else{
         // qDebug() << "DN";

@@ -13,7 +13,7 @@ class QDevioDisplayModelUi;
 
 QT_CHARTS_BEGIN_NAMESPACE
 class QLineSeries;
-class QChart;
+class QChartView;
 QT_CHARTS_END_NAMESPACE
 
 QT_CHARTS_USE_NAMESPACE
@@ -29,20 +29,34 @@ public:
     void UpdateConfig();
     virtual disp_hndl_t AddChart();
     virtual void RemoveChart(disp_hndl_t hndl);
-    virtual int SetSeries(disp_hndl_t chart, int num);
+    virtual int SetSeries(disp_hndl_t hndl, int num);
     virtual int RemoveSeries();
 
+protected:
+    typedef enum{
+        LIST,
+        GRID
+    }grid_type;
+    void contextMenuEvent(QContextMenuEvent *event) override;
+    void populateThemeBox();
+    void populateAnimationBox();
+    void populateLegendBox();
+    void changeGrid(grid_type type);
 private:
     Ui::QDevioDisplayModelUi *ui;
-    QVector<QLineSeries*> m_series;
-    QMap<disp_hndl_t, QVector<QLineSeries*>> m_SeriesMap;
-    QMap<disp_hndl_t, QChart*> m_ChartMap;
-    QChart* m_chart;
-    static disp_hndl_t m_NextHndl;
+/*    QVector<QLineSeries*> m_series;*/
+    QMap<disp_hndl_t, QVector<QLineSeries*>*> m_SeriesMap;
+    QMap<disp_hndl_t, QChartView*> m_ChartMap;
+//    QChart* m_chart;
+    disp_hndl_t m_NextHndl;
+    grid_type   m_GridType;
+    int m_ColCount;
 public slots:
     void bufferReady(QVector<QPointF>& buff, int channel);
 protected slots:
     void pollData();
+    void updateUI();
+    void gridChanged(int val);
 };
 
 #endif // QDEVIODISPLAYMODELUI_H
