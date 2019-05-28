@@ -46,7 +46,11 @@
                </widget>
               </item>
               <item>
-               <widget class="QSpinBox" name="gridColumns"/>
+               <widget class="QSpinBox" name="gridColumns">
+                <property name="minimum">
+                 <number>1</number>
+                </property>
+               </widget>
               </item>
              </layout>
             </item>
