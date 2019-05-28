@@ -91,8 +91,7 @@ void XYSeriesIODevice::pollData(){
                 for(int idx = 0; idx < m_channels; idx++) {
                     m_buffer[idx][s].setY(m_buffer[idx].at(s + availableSamples).y());
                 }
-                //  m_buffer[1][s].setY(m_buffer[1].at(s + availableSamples).y());
-            }
+             }
         }
 
         for (  s = start; s < m_sampleCount && m_read_idx!=m_write_idx; ++s){

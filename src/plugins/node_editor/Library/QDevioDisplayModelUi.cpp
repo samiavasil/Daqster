@@ -15,7 +15,7 @@ QDevioDisplayModelUi::QDevioDisplayModelUi(QWidget *parent) :
     ui(new Ui::QDevioDisplayModelUi),
     m_NextHndl(0)
   /*,
-            m_chart(new QChart)*/
+              m_chart(new QChart)*/
 {
     m_GridType = LIST;
     m_ColCount = 1;
@@ -58,8 +58,9 @@ QDevioDisplayModelUi::QDevioDisplayModelUi(QWidget *parent) :
     connect(ui->gridColumns, SIGNAL(valueChanged(int)), this, SLOT(gridChanged(int)));
     disp_hndl_t hndl = AddChart();//TODO: Fix Me
     hndl = AddChart();
-     hndl = AddChart();
-//    SetSeries(hndl, 5);
+    hndl = AddChart();
+
+    //    SetSeries(hndl, 5);
     QTimer::singleShot(100, this, SLOT(pollData()));
 }
 
@@ -212,26 +213,27 @@ void QDevioDisplayModelUi::populateLegendBox()
 #include<QDebug>
 void QDevioDisplayModelUi::changeGrid(grid_type type) {
 
-    if( m_GridType != type) {
+    // if( m_GridType != type)
+    {
         m_GridType = type;
-    while(auto item = ui->gridLayout->itemAt(0)) {
-        ui->gridLayout->removeItem(item);
-        delete item;
-    }
-qDebug() << "Col count: " << ui->gridLayout->columnCount();
-    if(type == LIST) {
-        int i = 0;
-        for (QChartView *chartView : m_ChartMap) {
-            ui->gridLayout->addWidget(chartView, i, 0);
-            i++;
+        while(auto item = ui->gridLayout->itemAt(0)) {
+            ui->gridLayout->removeItem(item);
+            delete item;
         }
-    } else {
-        int i = 0;
-        for (QChartView *chartView : m_ChartMap) {
-            ui->gridLayout->addWidget(chartView, i/m_ColCount, i%m_ColCount);
-            i++;
+        qDebug() << "Col count: " << ui->gridLayout->columnCount();
+        if(type == LIST) {
+            int i = 0;
+            for (QChartView *chartView : m_ChartMap) {
+                ui->gridLayout->addWidget(chartView, i, 0);
+                i++;
+            }
+        } else {
+            int i = 0;
+            for (QChartView *chartView : m_ChartMap) {
+                ui->gridLayout->addWidget(chartView, i/m_ColCount, i%m_ColCount);
+                i++;
+            }
         }
-    }
     }
 }
 
@@ -334,7 +336,7 @@ void QDevioDisplayModelUi::contextMenuEvent(QContextMenuEvent *event)
         changeGrid(LIST);
     } else if(agrid == selectedAction) {
         changeGrid(GRID);
-    } else{
+    } else if(showAction == selectedAction) {
         ui->chartControl->setVisible(selectedAction->isChecked());
     }
 
@@ -346,8 +348,8 @@ void QDevioDisplayModelUi::pollData() {
 
 void QDevioDisplayModelUi::bufferReady(QVector<QPointF> &buff, int channel)
 {
-    auto series = m_SeriesMap.value(0, NULL);//TODO Fix this 0 index
-    Q_ASSERT(series != NULL);
+    auto series = m_SeriesMap.value(0, nullptr);//TODO Fix this 0 index
+    Q_ASSERT(series != nullptr);
     auto seria = series->value(channel);
     if(seria != nullptr)
         seria->replace(buff);
