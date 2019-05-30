@@ -15,9 +15,8 @@ QDevioDisplayModelUi::QDevioDisplayModelUi(QWidget *parent) :
     ui(new Ui::QDevioDisplayModelUi),
     m_NextHndl(0)
   /*,
-              m_chart(new QChart)*/
+                  m_chart(new QChart)*/
 {
-    m_GridType = LIST;
     m_ColCount = 1;
     ui->setupUi(this);
     ui->chartControl->setVisible(false);
@@ -211,36 +210,25 @@ void QDevioDisplayModelUi::populateLegendBox()
     ui->legend->setCurrentIndex(0);
 }
 #include<QDebug>
-void QDevioDisplayModelUi::changeGrid(grid_type type) {
+void QDevioDisplayModelUi::updateGrid() {
 
-    // if( m_GridType != type)
-    {
-        m_GridType = type;
-        while(auto item = ui->gridLayout->itemAt(0)) {
-            ui->gridLayout->removeItem(item);
-            delete item;
-        }
-        qDebug() << "Col count: " << ui->gridLayout->columnCount();
-        if(type == LIST) {
-            int i = 0;
-            for (QChartView *chartView : m_ChartMap) {
-                ui->gridLayout->addWidget(chartView, i, 0);
-                i++;
-            }
-        } else {
-            int i = 0;
-            for (QChartView *chartView : m_ChartMap) {
-                ui->gridLayout->addWidget(chartView, i/m_ColCount, i%m_ColCount);
-                i++;
-            }
-        }
+    while(auto item = ui->gridLayout->itemAt(0)) {
+        ui->gridLayout->removeItem(item);
+        delete item;
+    }
+    qDebug() << "Col count: " << ui->gridLayout->columnCount();
+
+    int i = 0;
+    for (QChartView *chartView : m_ChartMap) {
+        ui->gridLayout->addWidget(chartView, i/m_ColCount, i%m_ColCount);
+        i++;
     }
 }
 
 void QDevioDisplayModelUi::gridChanged(int val)
 {
     m_ColCount = val;
-    changeGrid(m_GridType);
+    updateGrid();
 }
 
 int QDevioDisplayModelUi::SetSeries(QDevioDisplayModelUi::disp_hndl_t hndl, int num)
@@ -327,16 +315,9 @@ void QDevioDisplayModelUi::contextMenuEvent(QContextMenuEvent *event)
     QAction *showAction    = menu.addAction("Show Chart Control");
     showAction->setCheckable(true);
     showAction->setChecked(ui->chartControl->isVisible());
-    QMenu* menu_ = menu.addMenu("View");
-    QAction *alist = menu_->addAction("List");
-    QAction *agrid = menu_->addAction("Grid");
     QAction *selectedAction = menu.exec( event->globalPos() );
 
-    if(alist == selectedAction) {
-        changeGrid(LIST);
-    } else if(agrid == selectedAction) {
-        changeGrid(GRID);
-    } else if(showAction == selectedAction) {
+    if(showAction == selectedAction) {
         ui->chartControl->setVisible(selectedAction->isChecked());
     }
 

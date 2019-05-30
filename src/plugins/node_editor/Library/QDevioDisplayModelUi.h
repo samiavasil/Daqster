@@ -33,15 +33,11 @@ public:
     virtual int RemoveSeries();
 
 protected:
-    typedef enum{
-        LIST,
-        GRID
-    }grid_type;
     void contextMenuEvent(QContextMenuEvent *event) override;
     void populateThemeBox();
     void populateAnimationBox();
     void populateLegendBox();
-    void changeGrid(grid_type type);
+    void updateGrid();
 private:
     Ui::QDevioDisplayModelUi *ui;
 /*    QVector<QLineSeries*> m_series;*/
@@ -49,7 +45,6 @@ private:
     QMap<disp_hndl_t, QChartView*> m_ChartMap;
 //    QChart* m_chart;
     disp_hndl_t m_NextHndl;
-    grid_type   m_GridType;
     int m_ColCount;
 public slots:
     void bufferReady(QVector<QPointF>& buff, int channel);
