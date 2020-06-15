@@ -56,8 +56,8 @@ QDevioDisplayModelUi::QDevioDisplayModelUi(QWidget *parent) :
     connect(ui->antialiasing, SIGNAL(toggled(bool)), this, SLOT(updateUI()));
     connect(ui->gridColumns, SIGNAL(valueChanged(int)), this, SLOT(gridChanged(int)));
     disp_hndl_t hndl = AddChart();//TODO: Fix Me
-    hndl = AddChart();
-    hndl = AddChart();
+//    hndl = AddChart();
+//    hndl = AddChart();
 
     //    SetSeries(hndl, 5);
     QTimer::singleShot(100, this, SLOT(pollData()));
