@@ -91,14 +91,13 @@ QApplication::setAttribute(Qt::AA_ShareOpenGLContexts,true );
     // Process the actual command line arguments given by the user
     parser.process(a);
 
-
     const QStringList args = parser.positionalArguments();
 
     qDebug() << "Positional Argumments: " << args;
 
     Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
-    /*For correct plugoins shutdown behaviour QPluginManager initialization should be called. */
-    if( !PluginManager->Initialize() ){
+    // For correct plugoins shutdown behaviour QPluginManager initialization should be called.
+    if(!PluginManager->Initialize()) {
         DEBUG << "QPluginManager Initialization Error" ;
     }
 
