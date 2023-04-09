@@ -1,6 +1,6 @@
 TEMPLATE = subdirs
 
-#BUILD_TEST_PLUGINS = TESTS
+BUILD_TEST_PLUGINS = TESTS
 
 SUBDIRS += node_editor
 

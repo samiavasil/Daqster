@@ -4,26 +4,25 @@
 #include <QDebug>
 
 EventThreadPull EventThreadPull::m_thread_pull;
-EventThreadPull::EventThreadPull() {
+EventThreadPull::EventThreadPull():m_WorkerThread(this) {
 
-    m_WorkerThread = new QThread(this);
     qRegisterMetaType<std::shared_ptr<QIODevice>>("std::shared_ptr<QIODevice>");
-    m_WorkerThread->start();
+    m_WorkerThread.start();
 
 }
 
 EventThreadPull::~EventThreadPull() {
 
-    m_WorkerThread->quit();
-    m_WorkerThread->wait();
-    m_WorkerThread->deleteLater();
-
+    m_WorkerThread.quit();
+    if(m_WorkerThread.wait(QDeadlineTimer(100))) {
+        m_WorkerThread.terminate();
+    }
 }
 
 void EventThreadPull::AddWorker(InEventLoopWorker *worker) {
-    worker->moveToThread(m_WorkerThread);
+    worker->moveToThread(&m_WorkerThread);
     //  connect(worker, SIGNAL(stateChanged(QAudio::State)), this, SIGNAL(stateChanged(QAudio::State)));
-    connect(m_WorkerThread, &QThread::finished, worker, &QObject::deleteLater);
+    connect(&m_WorkerThread, &QThread::finished, worker, &QObject::deleteLater);
     connect(this, SIGNAL(operate()), worker, SLOT(DoWork()));
     connect(worker, SIGNAL(destroyed(QObject*)), this, SLOT(destroyedWorker(QObject*)));
     emit operate();
@@ -37,7 +36,7 @@ void EventThreadPull::destroyedWorker(QObject *obj){
     qDebug() << "Destroy wirker object: " << static_cast<void*>(obj);
 }
 
-EventThreadPull& EventThreadPull::thread_pull()
+EventThreadPull& EventThreadPull::instance()
 {
     return m_thread_pull;
 }

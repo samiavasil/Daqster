@@ -13,7 +13,7 @@ class PLUGIN_EXPORT NodeEditorInterface:  public QPluginInterface
 {
     Q_OBJECT
 #if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
-    Q_PLUGIN_METADATA(IID "Daqster.PlugIn.BaseInterface" FILE "NodeEditorInterface.json")
+    Q_PLUGIN_METADATA(IID "Daqster.PlugIn.QPluginInterface" FILE "NodeEditorInterface.json")
 #endif
     Q_INTERFACES(Daqster::QPluginInterface)
 public:

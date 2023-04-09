@@ -33,9 +33,9 @@ void PluginDetails::setPluginDescription(const Daqster::PluginDescription &Descr
     ui->Platform->setText( "????" );
     QString s;
     QTextStream out(&s);
-    out << "Plugin name: " << m_Description.GetProperty(PLUGIN_NAME).toString() << endl <<
-           "Plugin type: " << m_Description.GetProperty(PLUGIN_TYPE).toString() << endl <<
-           "Plugin Description: " << m_Description.GetProperty(PLUGIN_DESCRIPTION).toString() << endl <<
+    out << "Plugin name: " << m_Description.GetProperty(PLUGIN_NAME).toString() << Qt::endl <<
+           "Plugin type: " << m_Description.GetProperty(PLUGIN_TYPE).toString() << Qt::endl <<
+           "Plugin Description: " << m_Description.GetProperty(PLUGIN_DESCRIPTION).toString() << Qt::endl <<
            "Plugin Description: " << m_Description.GetProperty(PLUGIN_DETAIL_DESCRIPTION).toString();
 
     ui->Description->setText( s );

@@ -1,3 +1,2 @@
-﻿TEMPLATE=cmake
+TEMPLATE=cmake
 SUBDIRS+=nodeeditor
-

@@ -2,12 +2,10 @@
 #define QAUDIOINPUTTHREAD_H
 
 #include <memory>
+#include<QThread>
 #include<QSharedPointer> //DELL MEEEE
 #include <QAudioInput> //DELL
 class QAudioInput; //DELL
-
-class QThread;
-
 
 class InEventLoopWorker : public QObject
 {
@@ -27,7 +25,7 @@ public:
     ~EventThreadPull();
     void AddWorker(InEventLoopWorker* worker);
     void stop();
-    static EventThreadPull& thread_pull();
+    static EventThreadPull& instance();
 
 public slots:
     void destroyedWorker(QObject* obj);
@@ -36,7 +34,7 @@ signals:
     void operate();
 protected:
     EventThreadPull();
-    QThread* m_WorkerThread;
+    QThread m_WorkerThread;
     static EventThreadPull m_thread_pull;
 };
 

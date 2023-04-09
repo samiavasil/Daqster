@@ -26,7 +26,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 
 namespace Daqster {
 
-class FRAME_WORKSHARED_EXPORT PluginDescription;
+class PluginDescription;
 
 /**
   * class PluginFilter

@@ -6,10 +6,12 @@
 include(../../include/paths_cfg.pri)
 DESTDIR      = $${PLUGINS_DEST_DIR}
 QT          += core gui
+
 TEMPLATE     = lib
 INCLUDEPATH += ../
 INCLUDEPATH += $${FRAMEWORK_INCLUDES_DIR}
 INCLUDEPATH += $${EXT_LIBS_INCLUDES_DIR}
+INCLUDEPATH += $$PWD/../../external_libs/nodeeditor/include
 INCLUDEPATH += $$PWD
 DEPENDPATH  += $$PWD
 OBJECTS_DIR  = $$PWD/Build

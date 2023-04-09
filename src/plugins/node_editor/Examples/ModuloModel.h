@@ -112,7 +112,7 @@ private:
 
 
     NodeValidationState modelValidationState = NodeValidationState::Warning;
-    QString modelValidationError = QStringLiteral("Missing or incorrect inputs");
+    QString modelValidationError = QString("Missing or incorrect inputs");
     QComboBox* m_w;
 };
 

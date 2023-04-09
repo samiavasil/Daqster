@@ -93,7 +93,7 @@ void AudioSourceDataModel::IO_connect(std::shared_ptr<QIODevice> io)
         /*When the audio worker update Audio type the model notify for change */
         connect(worker,SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)),
                 this, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo, QAudioFormat)));
-        EventThreadPull::thread_pull().AddWorker(worker);
+        EventThreadPull::instance().AddWorker(worker);
     }
     
     emit StartAudio(ASDM_START);

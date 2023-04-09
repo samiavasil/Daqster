@@ -1,4 +1,5 @@
 #include<QDebug>
+#include<QMessageBox>
 #include "AudioSourceConfig.h"
 #include "ui_AudioSourceConfig.h"
 
@@ -294,7 +295,16 @@ void AudioSourceConfig::show()
     ui->Device->blockSignals(true);
     ui->Device->clear();
     int idx = -1;
-
+	if (m_Devs.isEmpty())
+	{
+	    const QAudioDeviceInfo inputDevice = QAudioDeviceInfo::defaultInputDevice();
+	    if (inputDevice.isNull()) {
+	        QMessageBox::warning(nullptr, "audio",
+	                             "There is no audio input device available.");
+	        return ;
+	    }
+	    m_Devs.append(inputDevice);
+	}
     foreach (QAudioDeviceInfo dev, m_Devs) {
         ui->Device->addItem(dev.deviceName());
         if(m_DevInfo.deviceName() == dev.deviceName()){

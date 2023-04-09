@@ -18,11 +18,14 @@ FRAMEWORK_LIB_NAME = frame_work
 
 SOURCES += main.cpp\
     AppToolbar.cpp \
-    ApplicationsManager.cpp
+    ApplicationsManager.cpp \
+    QConsoleListener.cpp
+
 HEADERS  += \
     AppToolbar.h \
     ApplicationsManager.h \
-    main.h
+    main.h \
+    QConsoleListener.h
 
 
 LIBS += -L../../../bin/libs
