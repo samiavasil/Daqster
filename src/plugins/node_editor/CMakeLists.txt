@@ -1,0 +1,71 @@
+find_package(Qt5 COMPONENTS core gui multimedia charts OpenGL REQUIRED)
+#add_subdirectory(external)
+
+add_library(NodeEditorPlugin
+SHARED
+    NodeEditorPluginObject.cpp
+    NodeEditorInterface.cpp
+    Audio/AudioNodeQdevIoConnector.cpp
+    Audio/AudioSourceConfig.cpp
+    Audio/AudioSourceDataModel.cpp
+    Audio/AudioSourceDataModelUI.cpp
+    Audio/AudioWorker.cpp
+    Library/NodeDataModelToQIODeviceConnector.cpp
+    Examples/Converters.cpp
+    Examples/ModuloModel.cpp
+    Examples/NumberDisplayDataModel.cpp
+    Examples/NumberSourceDataModel.cpp
+    Examples/NumberSourceDataUi.cpp
+    ThreadPull/EventThreadPull.cpp
+    Library/QDevIoDisplayModel.cpp
+    Library/QDevioDisplayModelUi.cpp
+    Library/XYSeriesIODevice.cpp
+    NodeEditorInterface.h
+    NodeEditorPluginObject.h
+    Audio/AudioNodeQdevIoConnector.h
+    Audio/AudioSourceConfig.h
+    Audio/AudioSourceDataModel.h
+    Audio/AudioSourceDataModelUI.h
+    Audio/AudioWorker.h
+    Library/NodeDataModelToQIODeviceConnector.h
+    Examples/Converters.h
+    Examples/ModuloModel.h
+    Examples/NumberDisplayDataModel.h
+    Examples/NumberSourceDataModel.h
+    Examples/NumberSourceDataUi.h
+    Examples/Converters.h
+    Examples/DecimalData.h
+    Examples/IntegerData.h
+    Examples/ModuloModel.h
+    ThreadPull/EventThreadPull.h
+    Library/ComplexType.h
+    Library/QDevIoDisplayModel.h
+    Library/QDevioDisplayModelUi.h
+    Library/XYSeriesIODevice.h
+    Audio/AudioSourceConfig.ui
+    Audio/AudioSourceDataModelUI.ui
+    Examples/NumberSourceDataUi.ui
+    Library/QDevioDisplayModelUi.ui
+    Audio/node_editor.qrc
+)
+
+add_definitions(-DBUILD_AVAILABLE_PLUGIN
+    -DNODE_EDITOR_SHARED)
+
+target_include_directories(NodeEditorPlugin
+  PRIVATE
+    ./
+    ../../external_libs/nodeeditor/include
+    ./Audio
+    ./Library
+    ./Examples
+    ./ThreadPull
+  )
+target_link_libraries(NodeEditorPlugin
+    frame_work
+    nodes
+    Qt5::Core
+    Qt5::Gui
+    Qt5::Multimedia
+    Qt5::Charts
+    Qt5::OpenGL)

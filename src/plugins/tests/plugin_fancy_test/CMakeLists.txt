@@ -1,0 +1,18 @@
+find_package(Qt5 COMPONENTS core gui REQUIRED)
+
+add_library(plugin_fancy_test
+    SHARED
+    PluginFancyInterface.cpp
+    PluginFancyObject.cpp
+    PluginFancyInterface.h
+    PluginFancyObject.h
+    fancy_test.qrc
+)
+
+add_definitions(-DBUILD_AVAILABLE_PLUGIN)
+
+target_include_directories(plugin_fancy_test
+  PRIVATE
+    ./
+  )
+target_link_libraries(plugin_fancy_test frame_work Qt5::Core Qt5::Gui)

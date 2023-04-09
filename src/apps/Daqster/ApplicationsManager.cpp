@@ -20,16 +20,16 @@ void ApplicationsManager::KillAll() {
   auto iter = m_ProcessMap.begin();
   while (iter != m_ProcessMap.end()) {
     if (nullptr != iter.value()) {
-      // iter.value()->close();
+      // Send quit signal to the app
       QString data = QString::fromStdString("\nquit\n");
       qDebug() << "Write data: " << iter.value()->write(data.toLocal8Bit()) << " bytes";
       if (iter.value()->waitForFinished(10000)) {
         qDebug() << "Process stoped";
       } else {
-        qDebug() << "Can't stop Process " << iter.value()->program();
+        qDebug() << "Can't stop Process Try to kill: " << iter.value()->program();
+        iter.value()->kill();
       }
 
-      // iter.value()->kill();
     }
     iter = m_ProcessMap.erase(iter);
   }

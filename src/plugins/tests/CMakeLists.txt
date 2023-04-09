@@ -1,0 +1,4 @@
+add_subdirectory(plugin_main_test)
+add_subdirectory(plugin_fancy_test)
+add_subdirectory(plugin_uggly_test)
+add_subdirectory(template_plugin_daqster)
