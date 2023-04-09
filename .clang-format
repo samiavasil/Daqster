@@ -1,0 +1,11 @@
+BasedOnStyle: Google
+AccessModifierOffset: -2
+ColumnLimit: 0
+SortIncludes: false
+SortUsingDeclarations: false
+# Additional in BBP
+# Align trailing comments
+AlignTrailingComments: true
+# Order constructor initializer lists either in one line or every initializer in its own line.
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+
