@@ -23,3 +23,5 @@ add_subdirectory(src/apps)
 add_subdirectory(src/frame_work)
 add_subdirectory(src/plugins)
 add_subdirectory(src/external_libs/nodeeditor)
+add_subdirectory(src/external_libs/qtrest_lib)
+
