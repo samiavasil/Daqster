@@ -4,8 +4,8 @@ import QtCharts 2.0
 
 import com.github.samiavasil.cointrader.exchangeapi 1.0
 import com.github.samiavasil.cointrader.exchange 1.0
-import com.github.qtrest.jsonrestlistmodel 1.0
-import com.github.qtrest.pagination 1.0
+//import com.github.qtrest.jsonrestlistmodel 1.0
+//import com.github.qtrest.pagination 1.0
 import com.github.samiavasil.cointrader.randdata 1.0
 import QtQuick.Layouts 1.3
 import QtQuick.Controls 1.4

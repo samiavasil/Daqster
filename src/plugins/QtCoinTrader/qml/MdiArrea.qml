@@ -64,7 +64,7 @@ GridView{
             //                item.DelegateModel.inTested =!item.DelegateModel.inTested
             //                return text;
             //            }
-            color:  colorM
+            color:  yellow
             source: imgSource
 
         }
