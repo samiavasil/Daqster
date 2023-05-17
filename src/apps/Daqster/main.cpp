@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
           console, &QConsoleListener::newLine, [&a](const QString &strNewLine) {
             qDebug() << "Echo :" << strNewLine;
             // quit
-            if (strNewLine.compare("quit", Qt::CaseInsensitive) == 0) {
+            if (strNewLine.trimmed().compare("quit", Qt::CaseInsensitive) == 0) {
               qDebug() << "Goodbye";
               a.quit();
             }

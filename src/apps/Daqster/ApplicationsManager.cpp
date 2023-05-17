@@ -13,7 +13,7 @@ ApplicationsManager &ApplicationsManager::Instance() {
   }
   return *m_Manager;
 }
-
+#include<ostream>
 void ApplicationsManager::KillAll() {
   blockSignals(true);
   
@@ -21,7 +21,7 @@ void ApplicationsManager::KillAll() {
   while (iter != m_ProcessMap.end()) {
     if (nullptr != iter.value()) {
       // Send quit signal to the app
-      QString data = QString::fromStdString("\nquit\n");
+        QString data = QString::fromStdString(std::string("quit"));
       qDebug() << "Write data: " << iter.value()->write(data.toLocal8Bit()) << " bytes";
       if (iter.value()->waitForFinished(10000)) {
         qDebug() << "Process stoped";

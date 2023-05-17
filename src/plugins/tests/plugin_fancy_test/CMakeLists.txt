@@ -1,4 +1,4 @@
-find_package(Qt5 COMPONENTS core gui REQUIRED)
+find_package(Qt5 COMPONENTS Core Gui REQUIRED)
 
 add_library(plugin_fancy_test
     SHARED

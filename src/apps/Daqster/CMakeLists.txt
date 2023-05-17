@@ -1,4 +1,4 @@
-find_package(Qt5 COMPONENTS widgets  REQUIRED)
+find_package(Qt5 COMPONENTS Widgets  REQUIRED)
 add_executable(Daqster
     main.cpp
     main.h

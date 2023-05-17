@@ -1,4 +1,4 @@
-find_package(Qt5 COMPONENTS core gui multimedia charts OpenGL REQUIRED)
+find_package(Qt5 COMPONENTS Core Gui Multimedia Charts OpenGL REQUIRED)
 #add_subdirectory(external)
 
 add_library(NodeEditorPlugin

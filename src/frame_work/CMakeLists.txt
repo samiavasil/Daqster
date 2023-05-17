@@ -1,4 +1,4 @@
-find_package(Qt5 COMPONENTS widgets REQUIRED)
+find_package(Qt5 COMPONENTS Widgets REQUIRED)
 
 add_library(frame_work
     SHARED
