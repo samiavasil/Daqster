@@ -42,15 +42,14 @@ ApplicationWindow {
     Connections {
         target: sideBar
 
-        onCurrentIndexChanged: {
+        function onCurrentIndexChanged() {
             //rect.color = Qt.rgba(Math.random(), Math.random(), Math.random(), 1);
-            console.log("URAAAAAAAAAAAA ", sideBar.model.get( sideBar.currentIndex ).colorM )
-            console.log("URAAAAAAAAAAAA ", sideBar.model.get( sideBar.currentIndex ).title )
-            console.log("URAAAAAAAAAAAA ", sideBar.model.get( sideBar.currentIndex ).imgSource )
-            //   mdiArea.setGroups(sideBar.currentIndex)
+            console.log("URAAAAAAAAAAAA ", sideBar.model.get(sideBar.currentIndex).colorM)
+            console.log("URAAAAAAAAAAAA ", sideBar.model.get(sideBar.currentIndex).title)
+            console.log("URAAAAAAAAAAAA ", sideBar.model.get(sideBar.currentIndex).imgSource)
+            //mdiArea.setGroups(sideBar.currentIndex)
         }
     }
-
     header: ToolBar {
         ToolButton {
             id: toolButton

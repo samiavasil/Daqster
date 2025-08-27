@@ -21,8 +21,9 @@ void ApplicationsManager::KillAll() {
   while (iter != m_ProcessMap.end()) {
     if (nullptr != iter.value()) {
       // Send quit signal to the app
-        QString data = QString::fromStdString(std::string("quit"));
-      qDebug() << "Write data: " << iter.value()->write(data.toLocal8Bit()) << " bytes";
+      QProcess* proccess = iter.value();
+      QString data = QString::fromStdString(std::string("quit\r\n"));
+      qDebug() << "Write data: " << proccess->write(data.toLocal8Bit()) << " bytes";
       if (iter.value()->waitForFinished(10000)) {
         qDebug() << "Process stoped";
       } else {
@@ -53,12 +54,12 @@ void ApplicationsManager::StartApplication(const QString &Name,
             SLOT(AppFinished(int, QProcess::ExitStatus)));
     qDebug() << "Process '" << Name << "' Start: Hndl " << nextHndl;
     newProc->waitForStarted();
+
     emit ApplicationEvent(nextHndl, APP_STARTED);
     nextHndl++;
   } else {
     qDebug() << "Can't start process '" << Name << "' Start";
   }
-  newProc->write("data.toUtf8()");
 }
 
 void ApplicationsManager::AppFinished(int exitCode,

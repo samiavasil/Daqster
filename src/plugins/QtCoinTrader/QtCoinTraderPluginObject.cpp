@@ -90,7 +90,7 @@ bool QtCoinTraderPluginObject::Initialize()
     QGuiApplication::setApplicationName("QtCoinTrader");
     QGuiApplication::setApplicationVersion("1.0");
     QGuiApplication::setOrganizationName("Samiavasil");
-    QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+  //  QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     initializeRest();
     qmlRegisterType<RandData>("com.github.samiavasil.cointrader.randdata", 1, 0, "RandData");
     //    m_Win = new QMainWindow();
@@ -114,6 +114,7 @@ bool QtCoinTraderPluginObject::Initialize()
     m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
     connect( m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)) );
     connect( button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()) );*/
+    return true;
 }
 
 void QtCoinTraderPluginObject::DeInitialize()

@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
 #else
   //   qInstallMessageHandler(m.myMessageOutput);
 #endif
-
+  QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
   //  // detach from the current console window
   //   // if launched from a console window, that will still run waiting for the
   //   new console (below) to close
@@ -142,7 +142,7 @@ int main(int argc, char *argv[]) {
       qDebug() << "\nSearch for plugin: " << Name;
 
       int ctr = 0;
-      foreach (const Daqster::PluginDescription &Desc, PluginsList) {
+       foreach (const Daqster::PluginDescription &Desc, PluginsList) {
         ctr++;
         qDebug() << "  Plug" << ctr << ": "
                  << Desc.GetProperty(PLUGIN_NAME).toString();
@@ -161,7 +161,8 @@ int main(int argc, char *argv[]) {
       QConsoleListener *console = new QConsoleListener();
       QObject::connect(
           console, &QConsoleListener::newLine, [&a](const QString &strNewLine) {
-            qDebug() << "Echo :" << strNewLine;
+            static int aa;
+            qDebug() << "Echo :" << aa++ << strNewLine;
             // quit
             if (strNewLine.trimmed().compare("quit", Qt::CaseInsensitive) == 0) {
               qDebug() << "Goodbye";
