@@ -44,6 +44,13 @@ namespace Daqster {
 QPluginManager::QPluginManager (const QString &ConfigFile ) {
     m_ConfigFile = ConfigFile;
     m_DirList.append( qApp->applicationDirPath()+QString("/plugins") );
+    // Also support plugins from installed lib path and env override
+    const QString envDir = qgetenv("DAQSTER_PLUGIN_DIR");
+    if (!envDir.isEmpty()) {
+        m_DirList.append(envDir);
+    }
+    // Typical install layout: bin/Daqster with plugins under ../lib/daqster/plugins
+    m_DirList.append(QDir(qApp->applicationDirPath()+"/../lib/daqster/plugins").absolutePath());
     LoadPluginsInfoFromPersistency();
 }
 

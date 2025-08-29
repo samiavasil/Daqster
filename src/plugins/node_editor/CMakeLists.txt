@@ -69,3 +69,10 @@ target_link_libraries(NodeEditorPlugin
     Qt5::Multimedia
     Qt5::Charts
     Qt5::OpenGL)
+
+# Install plugin to dedicated directory
+install(TARGETS NodeEditorPlugin
+    RUNTIME DESTINATION bin/plugins
+    LIBRARY DESTINATION lib/daqster/plugins
+    ARCHIVE DESTINATION lib
+)
