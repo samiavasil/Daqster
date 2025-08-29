@@ -1,39 +1,53 @@
 # Daqster 
-Framework for Qt plugins creation.
+[Български](./README.md) | [English](./README.en.md)
 
-Site: https://samiavasil.github.io/Daqster/
+Daqster е рамка (Qt5) за създаване и зареждане на плъгини, с хост приложение и примерни плъгини.
 
-Works with Qt5.
+Сайт: https://samiavasil.github.io/Daqster/
 
-## Quick Start (CMake)
+## Бърз старт (CMake)
 
-### 1) Clone
+### 1) Клониране
 ```
 git clone https://github.com/samiavasil/Daqster.git
 cd Daqster
 git submodule update --init --recursive
 ```
 
-### 2) Configure & Build
+### 2) Конфигуриране и билд
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
-### 3) Run
-Бинарните артефакти са в `build/bin/`. Ако е нужно, укажете пътя към динамичните библиотеки и плъгини:
+### 3) Стартиране от build
 ```
 cd build/bin
-LD_LIBRARY_PATH=./libs:./extlibs/lib ./Daqster
+./Daqster
 ```
 
-## Structure
-- `src/frame_work` — ядро за откриване и управление на плъгини
+## Инсталация и стартиране
+Инсталирай (по подразбиране в `/usr/local` или в избран префикс):
+```
+cmake --install build --prefix ./install_dir
+```
+Стартиране:
+```
+./install_dir/bin/Daqster
+```
+- Библиотеките се намират автоматично чрез RPATH (`$ORIGIN/../lib`).
+- Плъгините се търсят в:
+  - `./plugins` (до бинарника),
+  - `../lib/daqster/plugins` (инсталационен път),
+  - директория от променлива на средата `DAQSTER_PLUGIN_DIR`.
+
+## Структура на проекта
+- `src/frame_work` — ядро за търсене/зареждане на плъгини
 - `src/apps/Daqster` — хост приложение
 - `src/plugins` — плъгини (NodeEditor, QtCoinTrader, примери/тестове)
 - `src/external_libs` — външни зависимости (nodeeditor, qtrest_lib)
 
-## Notes
-- CMake е основният и поддържан билд.
-- Предстои добавяне на `install()` цели и пакетиране.
+## Бележки
+- Поддържан билд: CMake.
+- Пакетиране и разширена документация могат да бъдат добавени.
 
