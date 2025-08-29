@@ -20,13 +20,83 @@ jobs:
       - name: Install Qt and deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y qtbase5-dev qtdeclarative5-dev qml-module-qtquick-controls2 libqt5charts5-dev libqt5multimedia5-plugins libqt5opengl5-dev libssl-dev
+          sudo apt-get install -y qtbase5-dev qtdeclarative5-dev qml-module-qtquick-controls2 libqt5charts5-dev qtmultimedia5-dev libqt5multimedia5-plugins libqt5opengl5-dev libssl-dev
+          sudo apt-get install -y qtquickcontrols2-5-dev
+          sudo apt-get install -y qml-module-qtcharts qml-module-qtquick2 qml-module-qt-labs-platform
+          sudo apt-get install -y qml-module-qt-labs-folderlistmodel qml-module-qt-labs-settings qml-module-qt-labs-sharedimage
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
         run: cmake --build build -j
       - name: Install to staging
         run: cmake --install build --prefix "$PWD/stage"
+      - name: Create Qt directories in staging
+        run: |
+          mkdir -p stage/lib/qt5/qml
+          mkdir -p stage/lib/qt5/plugins
+      - name: Find and copy QML modules to staging
+        run: |
+          # Find Qt installation paths using qmake
+          QT5_QML_PATH=""
+          QT5_PLUGINS_PATH=""
+          
+          # Try qmake -query first
+          if command -v qmake &> /dev/null; then
+            QT5_INSTALL_PREFIX=$(qmake -query QT_INSTALL_PREFIX 2>/dev/null)
+            if [ -n "$QT5_INSTALL_PREFIX" ]; then
+              QT5_QML_PATH="$QT5_INSTALL_PREFIX/qml"
+              QT5_PLUGINS_PATH="$QT5_INSTALL_PREFIX/plugins"
+              echo "Found Qt via qmake: $QT5_INSTALL_PREFIX"
+            fi
+          fi
+          
+          # Try qtpaths if qmake didn't work
+          if [ -z "$QT5_QML_PATH" ] && command -v qtpaths &> /dev/null; then
+            QT5_INSTALL_PREFIX=$(qtpaths --install-prefix 2>/dev/null)
+            if [ -n "$QT5_INSTALL_PREFIX" ]; then
+              QT5_QML_PATH="$QT5_INSTALL_PREFIX/qml"
+              QT5_PLUGINS_PATH="$QT5_INSTALL_PREFIX/plugins"
+              echo "Found Qt via qtpaths: $QT5_INSTALL_PREFIX"
+            fi
+          fi
+          
+          # Fallback: try to find Qt in common locations
+          if [ -z "$QT5_QML_PATH" ]; then
+            echo "Qt not found via tools, trying common locations"
+            for prefix in /usr /usr/local /opt/qt5 /opt/Qt/5.*; do
+              if [ -d "$prefix/qml" ]; then
+                QT5_QML_PATH="$prefix/qml"
+                QT5_PLUGINS_PATH="$prefix/plugins"
+                echo "Found Qt in common location: $prefix"
+                break
+              fi
+            done
+          fi
+          
+          echo "Final QML path: $QT5_QML_PATH"
+          echo "Final plugins path: $QT5_PLUGINS_PATH"
+          
+          # Copy QML modules if found
+          if [ -n "$QT5_QML_PATH" ] && [ -d "$QT5_QML_PATH" ]; then
+            echo "Copying QML modules from $QT5_QML_PATH"
+            cp -r "$QT5_QML_PATH"/* stage/lib/qt5/qml/ || true
+          else
+            echo "QML path not found!"
+          fi
+          
+          # Copy Qt plugins if found
+          if [ -n "$QT5_PLUGINS_PATH" ] && [ -d "$QT5_PLUGINS_PATH" ]; then
+            echo "Copying Qt plugins from $QT5_PLUGINS_PATH"
+            cp -r "$QT5_PLUGINS_PATH"/* stage/lib/qt5/plugins/ || true
+          else
+            echo "Plugins path not found!"
+          fi
+          
+          # List what we copied
+          echo "QML modules copied:"
+          ls -la stage/lib/qt5/qml/ || echo "No QML modules found"
+          echo "Qt plugins copied:"
+          ls -la stage/lib/qt5/plugins/ || echo "No Qt plugins found"
       - name: Pack
         run: |
           tar -C stage -czf daqster-${{ github.ref_name }}-linux.tar.gz .
@@ -37,4 +107,3 @@ jobs:
             daqster-${{ github.ref_name }}-linux.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

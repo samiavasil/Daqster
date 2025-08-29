@@ -20,3 +20,5 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Initial public version prepared for CI/CD setup.
 
 [0.1.0]: https://github.com/samiavasil/Daqster/releases/tag/v0.1.0
+
+

@@ -76,3 +76,8 @@ install(TARGETS NodeEditorPlugin
     LIBRARY DESTINATION lib/daqster/plugins
     ARCHIVE DESTINATION lib
 )
+
+# Ensure plugin can locate shared libs in ../.. /lib relative to its location
+set_target_properties(NodeEditorPlugin PROPERTIES
+    INSTALL_RPATH "$ORIGIN/../../lib"
+)
