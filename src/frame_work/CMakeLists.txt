@@ -33,3 +33,10 @@ target_include_directories(frame_work
     base/src/include
   )
 target_link_libraries(frame_work Qt5::Widgets)
+
+# Install shared library (and headers for consumers if needed)
+install(TARGETS frame_work
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+)

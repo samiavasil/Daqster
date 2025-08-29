@@ -19,6 +19,13 @@ if(CMAKE_VERSION VERSION_LESS "3.7.0")
     set(CMAKE_INCLUDE_CURRENT_DIR ON)
 endif()
 
+# RPATH settings for finding installed shared libs at runtime
+set(CMAKE_SKIP_BUILD_RPATH FALSE)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/bin")
+
 add_subdirectory(src/apps)
 add_subdirectory(src/frame_work)
 add_subdirectory(src/plugins)

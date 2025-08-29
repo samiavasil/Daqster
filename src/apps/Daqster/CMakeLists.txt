@@ -25,3 +25,8 @@ PRIVATE
     Qt5::Widgets
     frame_work
     )
+
+# Install executable
+install(TARGETS Daqster
+    RUNTIME DESTINATION bin
+)

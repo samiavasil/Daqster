@@ -34,3 +34,10 @@ target_link_libraries(QtCoinTraderPlugin
     Qt5::Network
 #   Qt5::OpenGL
     )
+
+# Install plugin to dedicated directory
+install(TARGETS QtCoinTraderPlugin
+    RUNTIME DESTINATION bin/plugins
+    LIBRARY DESTINATION lib/daqster/plugins
+    ARCHIVE DESTINATION lib
+)
