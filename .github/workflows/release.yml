@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-release-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install Qt and deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qtbase5-dev qtdeclarative5-dev qml-module-qtquick-controls2 libqt5charts5-dev libqt5multimedia5-plugins libqt5opengl5-dev libssl-dev
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build -j
+      - name: Install to staging
+        run: cmake --install build --prefix "$PWD/stage"
+      - name: Pack
+        run: |
+          tar -C stage -czf daqster-${{ github.ref_name }}-linux.tar.gz .
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            daqster-${{ github.ref_name }}-linux.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
