@@ -123,6 +123,21 @@ jobs:
             echo "Plugins path not found!"
           fi
           
+          # Ensure QtCharts is available - copy from system paths if needed
+          echo "Ensuring QtCharts is available..."
+          if [ -d "/usr/lib/x86_64-linux-gnu/qt5/qml/QtCharts" ]; then
+            echo "Copying QtCharts from system path"
+            cp -r /usr/lib/x86_64-linux-gnu/qt5/qml/QtCharts stage/lib/qt5/qml/ || true
+          fi
+          if [ -d "/usr/lib/x86_64-linux-gnu/qt5/qml/QtQuick" ]; then
+            echo "Copying QtQuick from system path"
+            cp -r /usr/lib/x86_64-linux-gnu/qt5/qml/QtQuick stage/lib/qt5/qml/ || true
+          fi
+          if [ -d "/usr/lib/x86_64-linux-gnu/qt5/qml/QtQml" ]; then
+            echo "Copying QtQml from system path"
+            cp -r /usr/lib/x86_64-linux-gnu/qt5/qml/QtQml stage/lib/qt5/qml/ || true
+          fi
+          
           # List what we copied
           echo "QML modules copied:"
           ls -la stage/lib/qt5/qml/ || echo "No QML modules found"
