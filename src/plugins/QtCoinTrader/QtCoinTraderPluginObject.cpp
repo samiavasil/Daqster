@@ -7,6 +7,7 @@
 #include <QtCharts/QLineSeries>
 #include <QtCharts/QPieSeries>
 #include <QtCharts/QValueAxis>
+#include <QtCharts/QPieSlice>
 
 QtCoinTraderPluginObject::QtCoinTraderPluginObject(QObject *Parent):QBasePluginObject ( Parent  ),m_Win(NULL){
 
@@ -102,26 +103,42 @@ bool QtCoinTraderPluginObject::Initialize()
     //    m_Win->show();
     QQuickStyle::setStyle("Material");
     QStringList lis = QQuickStyle::availableStyles();
+    
+    // Register QtCharts types for QML FIRST - before loading QML files
+    // Check if QtCharts namespace is already available
+    QQmlEngine tempEngine;
+    if (tempEngine.importPathList().isEmpty() || !tempEngine.importPathList().contains("QtCharts")) {
+        // qmlRegisterType<QChartView>("QtCharts", 2, 0, "ChartView");
+        // qmlRegisterType<QChart>("QtCharts", 2, 0, "Chart");
+        // qmlRegisterType<QLineSeries>("QtCharts", 2, 0, "LineSeries");
+        // qmlRegisterType<QPieSeries>("QtCharts", 2, 0, "PieSeries");
+        // qmlRegisterType<QValueAxis>("QtCharts", 2, 0, "ValueAxis");
+        // qmlRegisterType<QPieSlice>("QtCharts", 2, 0, "PieSlice");
+        qDebug() << "QtCharts types registered for QML";
+    } else {
+        qDebug() << "QtCharts types already available, skipping registration";
+    }
+    
+    // Register custom QML components FIRST - before loading QML files
+    // For QRC resources, we need to create proper C++ classes or use qmlRegisterType with QObject
+    qmlRegisterModule("com.github.samiavasil.cointrader", 1, 0);
+    qDebug() << "Custom QML module registered";
+    
+    // Register custom components as QObject types - this allows QML to find them
+    qmlRegisterType<QObject>("com.github.samiavasil.cointrader", 1, 0, "MdiArrea");
+    qmlRegisterType<QObject>("com.github.samiavasil.cointrader", 1, 0, "ViewWin");
+    qmlRegisterType<QObject>("com.github.samiavasil.cointrader", 1, 0, "SideBar");
+    qmlRegisterType<QObject>("com.github.samiavasil.cointrader", 1, 0, "ViewModel");
+    qmlRegisterType<QObject>("com.github.samiavasil.cointrader", 1, 0, "SideBarDelegate");
+    qDebug() << "Custom QML components registered";
+    
     QQmlApplicationEngine* engine = new QQmlApplicationEngine(m_Win);
+    
     //engine.rootContext()->setContextProperty("awesome", awesome);
     //engine->rootContext()->setContextProperty("dataFromCpp", new RandData());
-    engine->load(QUrl(QStringLiteral("qrc:/qml/About.qml")));
-    //   engine->load(QUrl(QStringLiteral("qrc:/main.qml")));
-
-    // Register QtCharts types for QML since QML files use "import QtCharts 2.0"
-    qmlRegisterType<QChartView>("QtCharts", 2, 0, "ChartView");
-    qmlRegisterType<QChart>("QtCharts", 2, 0, "Chart");
-    qmlRegisterType<QLineSeries>("QtCharts", 2, 0, "LineSeries");
-    qmlRegisterType<QPieSeries>("QtCharts", 2, 0, "PieSeries");
-    qmlRegisterType<QValueAxis>("QtCharts", 2, 0, "ValueAxis");
-    qDebug() << "QtCharts types registered for QML";
     
-    // Register custom QML components
-    qmlRegisterType(QUrl("qrc:/qml/MdiArrea.qml"), "com.github.samiavasil.cointrader", 1, 0, "MdiArrea");
-    qmlRegisterType(QUrl("qrc:/qml/ViewWin.qml"), "com.github.samiavasil.cointrader", 1, 0, "ViewWin");
-    qmlRegisterType(QUrl("qrc:/qml/SideBar.qml"), "com.github.samiavasil.cointrader", 1, 0, "SideBar");
-    qmlRegisterType(QUrl("qrc:/qml/ViewModel.qml"), "com.github.samiavasil.cointrader", 1, 0, "ViewModel");
-    qDebug() << "Custom QML components registered";
+    // NOW load QML file AFTER all types are registered
+    engine->load(QUrl(QStringLiteral("qrc:/qml/About.qml")));
 
 
     /* m_Win = new QMainWindow();
