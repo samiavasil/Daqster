@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-release-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -17,138 +17,134 @@ jobs:
         run: |
           git submodule sync --recursive
           git submodule update --init --recursive --depth=0
-      - name: Install Qt and deps
+      - name: Install Qt from system packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y qtbase5-dev qtdeclarative5-dev qml-module-qtquick-controls2 libqt5charts5-dev qtmultimedia5-dev libqt5multimedia5-plugins libqt5opengl5-dev libssl-dev
-          sudo apt-get install -y qtquickcontrols2-5-dev
-          sudo apt-get install -y qml-module-qtcharts qml-module-qtquick2 qml-module-qt-labs-platform
-          sudo apt-get install -y qml-module-qt-labs-folderlistmodel qml-module-qt-labs-settings qml-module-qt-labs-sharedimage
+          sudo apt-get install -y \
+            qtbase5-dev \
+            qtdeclarative5-dev \
+            qtquickcontrols2-5-dev \
+            qtmultimedia5-dev \
+            libqt5charts5-dev \
+            libssl-dev \
+            libicu70 \
+            qml-module-qtcharts \
+            qml-module-qtquick2 \
+            qml-module-qt-labs-platform \
+            qml-module-qt-labs-folderlistmodel \
+            qml-module-qt-labs-settings \
+            qml-module-qt-labs-sharedimage
       - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
-        run: cmake --build build -j
+        run: |
+          cmake --build build -j
       - name: Install to staging
         run: cmake --install build --prefix "$PWD/stage"
-      - name: Create Qt directories in staging
+      - name: Create AppImage structure
         run: |
-          mkdir -p stage/lib/qt5/qml
-          mkdir -p stage/lib/qt5/plugins
-      - name: Find and copy QML modules to staging
+          # Create AppImage structure
+          mkdir -p Daqster.AppDir/usr/{bin,lib,share/applications}
+          mkdir -p Daqster.AppDir/usr/lib/{plugins,qml}
+          
+          # Copy binaries and libraries
+          cp -r stage/* Daqster.AppDir/usr/
+          
+          # Copy Qt libraries and modules from system
+          cp -r /usr/lib/x86_64-linux-gnu/libQt5* Daqster.AppDir/usr/lib/ || true
+          cp -r /usr/lib/x86_64-linux-gnu/qt5/plugins/* Daqster.AppDir/usr/lib/plugins/ || true
+          cp -r /usr/lib/x86_64-linux-gnu/qt5/qml/* Daqster.AppDir/usr/lib/qml/ || true
+          
+          # Copy ICU libraries (required by Qt)
+          cp /usr/lib/x86_64-linux-gnu/libicu*.so.* Daqster.AppDir/usr/lib/ || true
+          
+          # Create icon in root directory for appimagetool
+          convert -size 256x256 xc:blue -fill white -pointsize 48 -font DejaVu-Sans-Bold -draw "text 100,150 'D'" Daqster.AppDir/daqster.png || echo "Icon creation failed, continuing without icon"
+          
+          # Create .desktop file in both locations
+          cat > Daqster.AppDir/daqster.desktop << 'EOF'
+          [Desktop Entry]
+          Name=Daqster
+          Comment=Professional development platform with plugin architecture
+          Exec=daqster
+          Icon=daqster
+          Terminal=false
+          Type=Application
+          Categories=Development;IDE;
+          Keywords=development;plugin;framework;
+          EOF
+          
+          # Also create in usr/share/applications for completeness
+          cat > Daqster.AppDir/usr/share/applications/daqster.desktop << 'EOF'
+          [Desktop Entry]
+          Name=Daqster
+          Comment=Professional development platform with plugin architecture
+          Exec=daqster
+          Icon=daqster
+          Terminal=false
+          Type=Application
+          Categories=Development;IDE;
+          Keywords=development;plugin;framework;
+          EOF
+          
+          # Create AppRun script
+          cat > Daqster.AppDir/AppRun << 'EOF'
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          
+          # Set library paths
+          export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+          
+          # Set Qt paths
+          export QML2_IMPORT_PATH="${HERE}/usr/lib/qml:${QML2_IMPORT_PATH}"
+          export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${QT_PLUGIN_PATH}"
+          export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/lib/plugins/platforms"
+          
+          # Set plugin paths
+          export DAQSTER_PLUGIN_DIR="${HERE}/usr/lib/daqster/plugins"
+          export DAQSTER_PLUGIN_PATH="${HERE}/usr/lib/daqster/plugins:${HOME}/.local/share/daqster/plugins"
+          
+          # Writable directories (outside AppImage)
+          export XDG_CONFIG_HOME="${HOME}/.config/daqster"
+          export XDG_DATA_HOME="${HOME}/.local/share/daqster"
+          export XDG_CACHE_HOME="${HOME}/.cache/daqster"
+          
+          # Create directories
+          mkdir -p "${XDG_CONFIG_HOME}"
+          mkdir -p "${XDG_DATA_HOME}"
+          mkdir -p "${XDG_CACHE_HOME}"
+          
+          # Start application
+          exec "${HERE}/usr/bin/Daqster" "$@"
+          EOF
+          
+          chmod +x Daqster.AppDir/AppRun
+          
+          # Show structure
+          echo "AppImage structure created:"
+          tree Daqster.AppDir/ || find Daqster.AppDir/ -type f | head -20
+      
+      - name: Create AppImage
         run: |
-          # Find Qt installation paths from the build toolchain
-          QT5_QML_PATH=""
-          QT5_PLUGINS_PATH=""
+          # Install appimagetool
+          wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
           
-          # First, check if CMake found a specific Qt installation
-          if [ -f "build/CMakeCache.txt" ]; then
-            echo "Checking CMake cache for Qt paths..."
-            QT5_CMAKE_PREFIX=$(grep "Qt5_DIR:FILEPATH=" build/CMakeCache.txt | cut -d'=' -f2 | head -1)
-            if [ -n "$QT5_CMAKE_PREFIX" ]; then
-              # Extract the prefix from Qt5_DIR (e.g., /path/to/qt5/lib/cmake/Qt5 -> /path/to/qt5)
-              QT5_INSTALL_PREFIX=$(echo "$QT5_CMAKE_PREFIX" | sed 's|/lib/cmake/Qt5.*||')
-              echo "Found Qt via CMake Qt5_DIR: $QT5_INSTALL_PREFIX"
-            fi
-          fi
+          # Extract appimagetool since FUSE is not available
+          ./appimagetool --appimage-extract
           
-          # If CMake didn't find it, try qmake from the build environment
-          if [ -z "$QT5_INSTALL_PREFIX" ]; then
-            echo "Trying to find Qt via build environment..."
-            # Check if we have a specific Qt toolchain in PATH
-            if command -v qmake &> /dev/null; then
-              QT5_INSTALL_PREFIX=$(qmake -query QT_INSTALL_PREFIX 2>/dev/null)
-              if [ -n "$QT5_INSTALL_PREFIX" ]; then
-                echo "Found Qt via build qmake: $QT5_INSTALL_PREFIX"
-              fi
-            fi
-          fi
+          # Create AppImage using extracted tool
+          ./squashfs-root/AppRun Daqster.AppDir Daqster-${{ github.ref_name }}-x86_64.AppImage
           
-          # If still not found, try qtpaths
-          if [ -z "$QT5_INSTALL_PREFIX" ] && command -v qtpaths &> /dev/null; then
-            QT5_INSTALL_PREFIX=$(qtpaths --install-prefix 2>/dev/null)
-            if [ -n "$QT5_INSTALL_PREFIX" ]; then
-              echo "Found Qt via qtpaths: $QT5_INSTALL_PREFIX"
-            fi
-          fi
-          
-          # Set QML and plugins paths
-          if [ -n "$QT5_INSTALL_PREFIX" ]; then
-            QT5_QML_PATH="$QT5_INSTALL_PREFIX/qml"
-            QT5_PLUGINS_PATH="$QT5_INSTALL_PREFIX/plugins"
-            
-            # Also check for Qt6-style paths
-            if [ ! -d "$QT5_QML_PATH" ] && [ -d "$QT5_INSTALL_PREFIX/lib/qml" ]; then
-              QT5_QML_PATH="$QT5_INSTALL_PREFIX/lib/qml"
-            fi
-            if [ ! -d "$QT5_PLUGINS_PATH" ] && [ -d "$QT5_INSTALL_PREFIX/lib/plugins" ]; then
-              QT5_PLUGINS_PATH="$QT5_INSTALL_PREFIX/lib/plugins"
-            fi
-          fi
-          
-          # Fallback: try to find Qt in common locations
-          if [ -z "$QT5_QML_PATH" ]; then
-            echo "Qt not found via build tools, trying common locations"
-            for prefix in /usr /usr/local /opt/qt5 /opt/Qt/5.* /opt/Qt/6.*; do
-              if [ -d "$prefix/qml" ] || [ -d "$prefix/lib/qml" ]; then
-                if [ -d "$prefix/qml" ]; then
-                  QT5_QML_PATH="$prefix/qml"
-                  QT5_PLUGINS_PATH="$prefix/plugins"
-                else
-                  QT5_QML_PATH="$prefix/lib/qml"
-                  QT5_PLUGINS_PATH="$prefix/lib/plugins"
-                fi
-                echo "Found Qt in common location: $prefix"
-                break
-              fi
-            done
-          fi
-          
-          echo "Final QML path: $QT5_QML_PATH"
-          echo "Final plugins path: $QT5_PLUGINS_PATH"
-          
-          # Copy QML modules if found
-          if [ -n "$QT5_QML_PATH" ] && [ -d "$QT5_QML_PATH" ]; then
-            echo "Copying QML modules from $QT5_QML_PATH"
-            cp -r "$QT5_QML_PATH"/* stage/lib/qt5/qml/ || true
-          else
-            echo "QML path not found!"
-          fi
-          
-          # Copy Qt plugins if found
-          if [ -n "$QT5_PLUGINS_PATH" ] && [ -d "$QT5_PLUGINS_PATH" ]; then
-            echo "Copying Qt plugins from $QT5_PLUGINS_PATH"
-            cp -r "$QT5_PLUGINS_PATH"/* stage/lib/qt5/plugins/ || true
-          else
-            echo "Plugins path not found!"
-          fi
-          
-          # Ensure QtCharts is available - copy from system paths if needed
-          echo "Ensuring QtCharts is available..."
-          if [ -d "/usr/lib/x86_64-linux-gnu/qt5/qml/QtCharts" ]; then
-            echo "Copying QtCharts from system path"
-            cp -r /usr/lib/x86_64-linux-gnu/qt5/qml/QtCharts stage/lib/qt5/qml/ || true
-          fi
-          if [ -d "/usr/lib/x86_64-linux-gnu/qt5/qml/QtQuick" ]; then
-            echo "Copying QtQuick from system path"
-            cp -r /usr/lib/x86_64-linux-gnu/qt5/qml/QtQuick stage/lib/qt5/qml/ || true
-          fi
-          if [ -d "/usr/lib/x86_64-linux-gnu/qt5/qml/QtQml" ]; then
-            echo "Copying QtQml from system path"
-            cp -r /usr/lib/x86_64-linux-gnu/qt5/qml/QtQml stage/lib/qt5/qml/ || true
-          fi
-          
-          # List what we copied
-          echo "QML modules copied:"
-          ls -la stage/lib/qt5/qml/ || echo "No QML modules found"
-          echo "Qt plugins copied:"
-          ls -la stage/lib/qt5/plugins/ || echo "No Qt plugins found"
-      - name: Pack
-        run: |
-          tar -C stage -czf daqster-${{ github.ref_name }}-linux.tar.gz .
+          # Show result
+          ls -la *.AppImage
+          file *.AppImage
+      
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            daqster-${{ github.ref_name }}-linux.tar.gz
+            Daqster-${{ github.ref_name }}-x86_64.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
