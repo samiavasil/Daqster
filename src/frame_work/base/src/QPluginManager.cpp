@@ -30,6 +30,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include <QApplication>
 #include <QSharedPointer>
 #include <QSettings>
+#include <QStandardPaths>
 #include<QCryptographicHash>
 #include<QFile>
 #include<QMessageBox>
@@ -42,15 +43,44 @@ namespace Daqster {
  QPluginManager* QPluginManager::g_Instance =  nullptr;
 
 QPluginManager::QPluginManager (const QString &ConfigFile ) {
-    m_ConfigFile = ConfigFile;
+    // Config file setup - използвай writable location за AppImage compatibility
+    if (ConfigFile.isEmpty() || ConfigFile == "daqster.ini") {
+        QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+        QDir().mkpath(configDir);
+        m_ConfigFile = configDir + "/daqster.ini";
+    } else {
+        m_ConfigFile = ConfigFile;
+    }
+    
+    // Plugin directories - подредени по приоритет
+    
+    // 1. Build директория (най-висок приоритет за дебъг)
     m_DirList.append( qApp->applicationDirPath()+QString("/plugins") );
-    // Also support plugins from installed lib path and env override
+    m_DirList.append(QDir(qApp->applicationDirPath()+"/../lib/daqster/plugins").absolutePath());
+    
+    // 2. Environment variable override (най-висок приоритет)
     const QString envDir = qgetenv("DAQSTER_PLUGIN_DIR");
     if (!envDir.isEmpty()) {
         m_DirList.append(envDir);
     }
-    // Typical install layout: bin/Daqster with plugins under ../lib/daqster/plugins
-    m_DirList.append(QDir(qApp->applicationDirPath()+"/../lib/daqster/plugins").absolutePath());
+    
+    // 2.1. Additional environment variable for multiple directories
+    const QString additionalDirs = qgetenv("DAQSTER_PLUGIN_PATH");
+    if (!additionalDirs.isEmpty()) {
+        QStringList dirs = additionalDirs.split(":", Qt::SkipEmptyParts);
+        foreach(const QString& dir, dirs) {
+            m_DirList.append(dir);
+        }
+    }
+    
+    // 3. User plugins directory
+    QString userPluginDir = QDir::homePath() + "/.local/share/daqster/plugins";
+    m_DirList.append(userPluginDir);
+    
+    // 4. System plugins directories (най-нисък приоритет)
+    m_DirList.append("/usr/lib/daqster/plugins");
+    m_DirList.append("/usr/local/lib/daqster/plugins");
+    
     LoadPluginsInfoFromPersistency();
 }
 
