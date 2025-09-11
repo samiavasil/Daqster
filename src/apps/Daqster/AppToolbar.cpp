@@ -4,6 +4,8 @@
 #include <QDebug>
 #include <QMenu>
 #include <QToolButton>
+#include <QFile>
+#include <QApplication>
 #include "ApplicationsManager.h"
 
 AppToolbar::AppToolbar(QWidget* parent) : QToolBar(parent), m_AppMenu(nullptr) {
@@ -109,7 +111,27 @@ void AppToolbar::OnActionTrigered() {
   QAction* sender = dynamic_cast<QAction*>(QObject::sender());
   if (nullptr != sender) {
     QString AppName = sender->objectName();
-    emit PleaseRunApplication(QString("./Daqster"), QStringList(AppName));
-    qDebug() << "Run Application: " << AppName;
+    
+    // Try multiple approaches for starting the application
+    QString executablePath;
+    
+    // 1. Check if we're in AppImage and AppRun exists
+    QString appImageEnv = qgetenv("APPIMAGE");
+    if (!appImageEnv.isEmpty()) {
+      QString appImagePath = qApp->applicationDirPath() + "/../AppRun";
+      if (QFile::exists(appImagePath)) {
+        executablePath = appImagePath;
+        qDebug() << "Using AppRun script for AppImage environment";
+      }
+    }
+    
+    // 2. If no AppRun found, try direct executable
+    if (executablePath.isEmpty()) {
+      executablePath = "./Daqster";
+      qDebug() << "Using direct executable";
+    }
+    
+    emit PleaseRunApplication(executablePath, QStringList(AppName));
+    qDebug() << "Run Application: " << AppName << " via " << executablePath;
   }
 }
