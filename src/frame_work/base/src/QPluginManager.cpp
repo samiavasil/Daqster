@@ -81,6 +81,13 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     m_DirList.append("/usr/lib/daqster/plugins");
     m_DirList.append("/usr/local/lib/daqster/plugins");
     
+    // Debug: Print all plugin search paths
+    qDebug() << "=== Plugin Search Paths ===";
+    for (int i = 0; i < m_DirList.size(); ++i) {
+        qDebug() << QString("Path %1: %2").arg(i + 1).arg(m_DirList[i]);
+    }
+    qDebug() << "=== End Plugin Search Paths ===";
+    
     LoadPluginsInfoFromPersistency();
 }
 

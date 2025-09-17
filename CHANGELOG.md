@@ -4,6 +4,41 @@
 Форматът следва [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) и
 проектът използва [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-09-18
+
+### Added
+- **Unified AppImage build system** - единен скрипт `tools/create_appimage.sh` за локално и CI създаване на AppImage
+- **GitHub Actions CI/CD** - автоматизирани билдове и releases с AppImage артефакти
+- **Debug AppImage support** - отделни Debug и Release AppImage билдове
+- **Comprehensive documentation**:
+  - `Docs/Architecture.md` и `Docs/Architecture.en.md` с PlantUML диаграми
+  - `Docs/HowToDebugAppImage.md` - ръководство за дебъгване на AppImage
+  - Обновени README файлове с подробни инструкции за билдове и environment променливи
+- **Enhanced plugin system**:
+  - Подобрено environment variable handling за child processes
+  - Debug output за plugin discovery paths
+  - AppImage detection и адаптивно поведение
+- **Professional build types** - Debug (за разработка) и Release (за production)
+- **Environment variables documentation** - пълно описание на всички променливи за plugin discovery, Qt environment и debugging
+
+### Changed
+- **AppImage creation process** - автоматизиран с unified скрипт, поддържа local и CI режими
+- **Plugin launching** - подобрено за AppImage среда с правилно environment setup
+- **CI/CD workflows** - опростени и оптимизирани за AppImage създаване
+- **Documentation structure** - организирана в `Docs/` директория с PlantUML диаграми
+
+### Fixed
+- **Plugin discovery в AppImage** - поправени environment variables за child processes
+- **QML loading issues** - поправен QtCoinTrader plugin за правилно QML зареждане
+- **CI permissions** - поправени execute permissions за AppImage скриптове
+- **Plugin launching от меню** - работи правилно в AppImage среда
+
+### Technical Details
+- **Build system**: CMake 3.16+, Qt 5.15.2, AppImage packaging
+- **Plugin architecture**: Dynamic loading с hash-based deduplication
+- **Process isolation**: Plugins се стартират като отделни QProcess
+- **Cross-platform**: Linux AppImage distribution готов
+
 ## [0.1.0] - 2025-08-29
 ### Added
 - Единен CMake билд: top-level `CMakeLists.txt` и поддиректории за apps, frame_work, plugins, external_libs.

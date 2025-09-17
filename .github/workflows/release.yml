@@ -42,100 +42,11 @@ jobs:
           cmake --build build -j
       - name: Install to staging
         run: cmake --install build --prefix "$PWD/stage"
-      - name: Create AppImage structure
+      - name: Create Release AppImage
         run: |
-          # Create AppImage structure
-          mkdir -p Daqster.AppDir/usr/{bin,lib,share/applications}
-          mkdir -p Daqster.AppDir/usr/lib/{plugins,qml}
-          
-          # Copy binaries and libraries
-          cp -r stage/* Daqster.AppDir/usr/
-          
-          # Copy Qt libraries and modules from system
-          cp -r /usr/lib/x86_64-linux-gnu/libQt5* Daqster.AppDir/usr/lib/ || true
-          cp -r /usr/lib/x86_64-linux-gnu/qt5/plugins/* Daqster.AppDir/usr/lib/plugins/ || true
-          cp -r /usr/lib/x86_64-linux-gnu/qt5/qml/* Daqster.AppDir/usr/lib/qml/ || true
-          
-          # Copy ICU libraries (required by Qt)
-          cp /usr/lib/x86_64-linux-gnu/libicu*.so.* Daqster.AppDir/usr/lib/ || true
-          
-          # Create icon in root directory for appimagetool
-          convert -size 256x256 xc:blue -fill white -pointsize 48 -font DejaVu-Sans-Bold -draw "text 100,150 'D'" Daqster.AppDir/daqster.png || echo "Icon creation failed, continuing without icon"
-          
-          # Create .desktop file in both locations
-          cat > Daqster.AppDir/daqster.desktop << 'EOF'
-          [Desktop Entry]
-          Name=Daqster
-          Comment=Professional development platform with plugin architecture
-          Exec=daqster
-          Icon=daqster
-          Terminal=false
-          Type=Application
-          Categories=Development;IDE;
-          Keywords=development;plugin;framework;
-          EOF
-          
-          # Also create in usr/share/applications for completeness
-          cat > Daqster.AppDir/usr/share/applications/daqster.desktop << 'EOF'
-          [Desktop Entry]
-          Name=Daqster
-          Comment=Professional development platform with plugin architecture
-          Exec=daqster
-          Icon=daqster
-          Terminal=false
-          Type=Application
-          Categories=Development;IDE;
-          Keywords=development;plugin;framework;
-          EOF
-          
-          # Create AppRun script
-          cat > Daqster.AppDir/AppRun << 'EOF'
-          #!/bin/bash
-          HERE="$(dirname "$(readlink -f "${0}")")"
-          
-          # Set library paths
-          export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-          
-          # Set Qt paths
-          export QML2_IMPORT_PATH="${HERE}/usr/lib/qml:${QML2_IMPORT_PATH}"
-          export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${QT_PLUGIN_PATH}"
-          export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/lib/plugins/platforms"
-          
-          # Set plugin paths
-          export DAQSTER_PLUGIN_DIR="${HERE}/usr/lib/daqster/plugins"
-          export DAQSTER_PLUGIN_PATH="${HERE}/usr/lib/daqster/plugins:${HOME}/.local/share/daqster/plugins"
-          
-          # Writable directories (outside AppImage)
-          export XDG_CONFIG_HOME="${HOME}/.config/daqster"
-          export XDG_DATA_HOME="${HOME}/.local/share/daqster"
-          export XDG_CACHE_HOME="${HOME}/.cache/daqster"
-          
-          # Create directories
-          mkdir -p "${XDG_CONFIG_HOME}"
-          mkdir -p "${XDG_DATA_HOME}"
-          mkdir -p "${XDG_CACHE_HOME}"
-          
-          # Start application
-          exec "${HERE}/usr/bin/Daqster" "$@"
-          EOF
-          
-          chmod +x Daqster.AppDir/AppRun
-          
-          # Show structure
-          echo "AppImage structure created:"
-          tree Daqster.AppDir/ || find Daqster.AppDir/ -type f | head -20
-      
-      - name: Create AppImage
-        run: |
-          # Install appimagetool
-          wget -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool
-          
-          # Extract appimagetool since FUSE is not available
-          ./appimagetool --appimage-extract
-          
-          # Create AppImage using extracted tool
-          ./squashfs-root/AppRun Daqster.AppDir Daqster-${{ github.ref_name }}-x86_64.AppImage
+          # Make script executable and use our unified AppImage creation script in CI mode
+          chmod +x ./tools/create_appimage.sh
+          ./tools/create_appimage.sh --mode ci
           
           # Show result
           ls -la *.AppImage
@@ -145,6 +56,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            Daqster-${{ github.ref_name }}-x86_64.AppImage
+            Daqster-x86_64.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -89,130 +89,26 @@ jobs:
         run: |
           cmake --install build-debug --prefix "$PWD/stage-debug"
       
-      - name: Create AppImage structure
+      - name: Create Release AppImage
         run: |
-          mkdir -p Daqster.AppDir/{usr/{bin,lib,share},usr/share/applications,usr/share/icons/hicolor/256x256/apps}
-          mkdir -p Daqster.AppDir/usr/lib/{plugins,qml}
+          # Make script executable and use our unified AppImage creation script in CI mode
+          chmod +x ./tools/create_appimage.sh
+          ./tools/create_appimage.sh --mode ci
           
-          # Copy executable
-          cp stage/bin/Daqster Daqster.AppDir/usr/bin/
-          
-          # Copy libraries
-          cp -r stage/lib/* Daqster.AppDir/usr/lib/
-          
-          # Copy Qt libraries and modules from system
-          cp -r /usr/lib/x86_64-linux-gnu/libQt5* Daqster.AppDir/usr/lib/ || true
-          cp -r /usr/lib/x86_64-linux-gnu/qt5/plugins/* Daqster.AppDir/usr/lib/plugins/ || true
-          cp -r /usr/lib/x86_64-linux-gnu/qt5/qml/* Daqster.AppDir/usr/lib/qml/ || true
-          
-          # Copy ICU libraries (required by Qt)
-          cp /usr/lib/x86_64-linux-gnu/libicu*.so.* Daqster.AppDir/usr/lib/ || true
-          
-          # Copy icon (if exists)
-          if [ -f "src/apps/Daqster/icons/Daqster.png" ]; then
-            cp src/apps/Daqster/icons/Daqster.png Daqster.AppDir/usr/share/icons/hicolor/256x256/apps/daqster.png
-            cp src/apps/Daqster/icons/Daqster.png Daqster.AppDir/daqster.png
-          else
-            # Create simple icon using ImageMagick with proper font
-            convert -size 256x256 xc:blue -fill white -pointsize 48 -font DejaVu-Sans-Bold -draw "text 100,150 'D'" Daqster.AppDir/usr/share/icons/hicolor/256x256/apps/daqster.png || echo "Icon creation failed, continuing without icon"
-            convert -size 256x256 xc:blue -fill white -pointsize 48 -font DejaVu-Sans-Bold -draw "text 100,150 'D'" Daqster.AppDir/daqster.png || echo "Icon creation failed, continuing without icon"
-          fi
-          
-          # Create .desktop file in both locations
-          cat > Daqster.AppDir/daqster.desktop << 'EOF'
-          [Desktop Entry]
-          Name=Daqster
-          Comment=Professional development platform with plugin architecture
-          Exec=daqster
-          Icon=daqster
-          Terminal=false
-          Type=Application
-          Categories=Development;IDE;
-          Keywords=development;plugin;framework;
-          EOF
-          
-          # Also create in usr/share/applications for completeness
-          cat > Daqster.AppDir/usr/share/applications/daqster.desktop << 'EOF'
-          [Desktop Entry]
-          Name=Daqster
-          Comment=Professional development platform with plugin architecture
-          Exec=daqster
-          Icon=daqster
-          Terminal=false
-          Type=Application
-          Categories=Development;IDE;
-          Keywords=development;plugin;framework;
-          EOF
-          
-          # Create AppRun script
-          cat > Daqster.AppDir/AppRun << 'EOF'
-          #!/bin/bash
-          HERE="$(dirname "$(readlink -f "${0}")")"
-          
-          # Set library paths
-          export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-          
-          # Set Qt paths
-          export QML2_IMPORT_PATH="${HERE}/usr/lib/qml:${QML2_IMPORT_PATH}"
-          export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${QT_PLUGIN_PATH}"
-          export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/lib/plugins/platforms"
-          
-          # Set plugin paths
-          export DAQSTER_PLUGIN_DIR="${HERE}/usr/lib/daqster/plugins"
-          export DAQSTER_PLUGIN_PATH="${HERE}/usr/lib/daqster/plugins:${HOME}/.local/share/daqster/plugins"
-          
-          # Writable directories (outside AppImage)
-          export XDG_CONFIG_HOME="${HOME}/.config/daqster"
-          export XDG_DATA_HOME="${HOME}/.local/share/daqster"
-          export XDG_CACHE_HOME="${HOME}/.cache/daqster"
-          
-          # Create directories
-          mkdir -p "${XDG_CONFIG_HOME}"
-          mkdir -p "${XDG_DATA_HOME}"
-          mkdir -p "${XDG_CACHE_HOME}"
-          
-          # Start application
-          exec "${HERE}/usr/bin/Daqster" "$@"
-          EOF
-          
-          chmod +x Daqster.AppDir/AppRun
-          
-          # Show structure
-          echo "AppImage structure created:"
-          find Daqster.AppDir -type f
-      
-      - name: Create AppImage
+      - name: Create Debug AppImage
         run: |
-          # Install appimagetool
-          wget -c "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
-          chmod +x appimagetool-x86_64.AppImage
-          
-          # Extract appimagetool since FUSE is not available
-          ./appimagetool-x86_64.AppImage --appimage-extract
-          
-          # Check AppDir structure before creating AppImage
-          echo "AppDir structure:"
-          find Daqster.AppDir -name "*.desktop" -o -name "*.png" -o -name "Daqster"
-          echo "Desktop file content:"
-          cat Daqster.AppDir/daqster.desktop || echo "Desktop file not found"
-          
-          # Create AppImage using extracted tool
-          ./squashfs-root/AppRun Daqster.AppDir Daqster-x86_64.AppImage
-          
-          # Check AppImage
-          file Daqster-x86_64.AppImage
-          ls -la Daqster-x86_64.AppImage
-          
-      - name: Create Debug AppImage structure
-        run: |
+          # Create debug AppImage using similar approach as release
           mkdir -p Daqster-Debug.AppDir/{usr/{bin,lib,share},usr/share/applications,usr/share/icons/hicolor/256x256/apps}
-          mkdir -p Daqster-Debug.AppDir/usr/lib/{plugins,qml}
+          mkdir -p Daqster-Debug.AppDir/usr/lib/{plugins,qml,daqster/plugins}
           
           # Copy debug executable
           cp stage-debug/bin/Daqster Daqster-Debug.AppDir/usr/bin/
           
           # Copy libraries
           cp -r stage-debug/lib/* Daqster-Debug.AppDir/usr/lib/
+          
+          # Copy plugins to correct location
+          cp -r stage-debug/bin/plugins/* Daqster-Debug.AppDir/usr/lib/daqster/plugins/ || true
           
           # Copy Qt libraries and modules from system
           cp -r /usr/lib/x86_64-linux-gnu/libQt5* Daqster-Debug.AppDir/usr/lib/ || true
@@ -222,11 +118,7 @@ jobs:
           # Copy ICU libraries (required by Qt)
           cp /usr/lib/x86_64-linux-gnu/libicu*.so.* Daqster-Debug.AppDir/usr/lib/ || true
           
-          # Copy debug symbols
-          cp -r build-debug/CMakeFiles Daqster-Debug.AppDir/usr/lib/ || true
-          find build-debug -name "*.so" -exec cp {} Daqster-Debug.AppDir/usr/lib/ \; || true
-          
-          # Create icon
+          # Create debug icon
           convert -size 256x256 xc:lightblue -pointsize 20 -fill black -gravity center -annotate +0+0 "Daqster\nDebug" Daqster-Debug.AppDir/daqster.png || echo "Icon creation failed, continuing without icon"
           cp Daqster-Debug.AppDir/daqster.png Daqster-Debug.AppDir/usr/share/icons/hicolor/256x256/apps/
           
@@ -246,7 +138,7 @@ jobs:
           # Also create in usr/share/applications
           cp Daqster-Debug.AppDir/daqster.desktop Daqster-Debug.AppDir/usr/share/applications/
           
-          # Create AppRun script
+          # Create AppRun script (same as release)
           cat > Daqster-Debug.AppDir/AppRun << 'EOF'
           #!/bin/bash
           HERE="$(dirname "$(readlink -f "${0}")")"
@@ -279,12 +171,6 @@ jobs:
           
           chmod +x Daqster-Debug.AppDir/AppRun
           
-          # Show structure
-          echo "Debug AppImage structure created:"
-          find Daqster-Debug.AppDir -type f
-      
-      - name: Create Debug AppImage
-        run: |
           # Create Debug AppImage using extracted tool
           ./squashfs-root/AppRun Daqster-Debug.AppDir Daqster-Debug-x86_64.AppImage
           

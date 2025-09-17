@@ -1,3 +1,6 @@
 /bin/
 /*CMakeLists.txt.user
 /build*/
+/tools/Build*
+/.fuse_hidden001190e600000eeb
+/Daqster-x86_64.AppImage

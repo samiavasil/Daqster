@@ -6,6 +6,7 @@
 #include <QBasePluginObject.h>
 #include <QCommandLineParser>
 #include <QFile>
+#include <QDir>
 #include "debug.h"
 #include "QConsoleListener.h"
 #include "main.h"
@@ -124,6 +125,13 @@ int main(int argc, char *argv[]) {
   DEBUG << "Show window";
   PluginsInit();
   qDebug() << "ARGS: " << args;
+  
+  // Debug: Print current environment and paths
+  qDebug() << "=== Application Environment Debug ===";
+  qDebug() << "APPIMAGE env var:" << qgetenv("APPIMAGE");
+  qDebug() << "Current working directory:" << QDir::currentPath();
+  qDebug() << "Application directory:" << qApp->applicationDirPath();
+  qDebug() << "=== End Application Environment Debug ===";
   
   // Define Filter outside if/else scope so it can be used in both sections
   Daqster::PluginFilter Filter;

@@ -5,6 +5,7 @@
 #include <QMenu>
 #include <QToolButton>
 #include <QFile>
+#include <QDir>
 #include <QApplication>
 #include "ApplicationsManager.h"
 
@@ -127,8 +128,10 @@ void AppToolbar::OnActionTrigered() {
     
     // 2. If no AppRun found, try direct executable
     if (executablePath.isEmpty()) {
-      executablePath = "./Daqster";
-      qDebug() << "Using direct executable";
+      executablePath = qApp->applicationDirPath() + "/Daqster";
+      qDebug() << "Using direct executable:" << executablePath;
+      qDebug() << "Current working directory:" << QDir::currentPath();
+      qDebug() << "Application directory:" << qApp->applicationDirPath();
     }
     
     emit PleaseRunApplication(executablePath, QStringList(AppName));
