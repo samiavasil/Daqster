@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-release-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Ensure submodules full history
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive --depth=0
+      - name: Install Qt from system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            qtbase5-dev \
+            qtdeclarative5-dev \
+            qtquickcontrols2-5-dev \
+            qtmultimedia5-dev \
+            libqt5charts5-dev \
+            libssl-dev \
+            libicu70 \
+            qml-module-qtcharts \
+            qml-module-qtquick2 \
+            qml-module-qt-labs-platform \
+            qml-module-qt-labs-folderlistmodel \
+            qml-module-qt-labs-settings \
+            qml-module-qt-labs-sharedimage
+      - name: Configure
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: |
+          cmake --build build -j
+      - name: Install to staging
+        run: cmake --install build --prefix "$PWD/stage"
+      - name: Create Release AppImage
+        run: |
+          # Make script executable and use our unified AppImage creation script in CI mode
+          chmod +x ./tools/create_appimage.sh
+          ./tools/create_appimage.sh --mode ci
+          
+          # Show result
+          ls -la *.AppImage
+          file *.AppImage
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Daqster-x86_64.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

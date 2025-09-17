@@ -5,6 +5,8 @@
 #include <QApplication>
 #include <QBasePluginObject.h>
 #include <QCommandLineParser>
+#include <QFile>
+#include <QDir>
 #include "debug.h"
 #include "QConsoleListener.h"
 #include "main.h"
@@ -123,30 +125,63 @@ int main(int argc, char *argv[]) {
   DEBUG << "Show window";
   PluginsInit();
   qDebug() << "ARGS: " << args;
+  
+  // Debug: Print current environment and paths
+  qDebug() << "=== Application Environment Debug ===";
+  qDebug() << "APPIMAGE env var:" << qgetenv("APPIMAGE");
+  qDebug() << "Current working directory:" << QDir::currentPath();
+  qDebug() << "Application directory:" << qApp->applicationDirPath();
+  qDebug() << "=== End Application Environment Debug ===";
+  
+  // Define Filter outside if/else scope so it can be used in both sections
+  Daqster::PluginFilter Filter;
+  Filter.AddFilter(
+      PLUGIN_TYPE,
+      QString("%1").arg(Daqster::PluginDescription::APPLICATION_PLUGIN));
+  
   if (args.count() > 0) {
-    Daqster::PluginFilter Filter;
-    Filter.AddFilter(
-        PLUGIN_TYPE,
-        QString("%1").arg(Daqster::PluginDescription::APPLICATION_PLUGIN));
     QList<Daqster::PluginDescription> PluginsList =
-        PluginManager->GetPluginList();
+        PluginManager->GetPluginList(Filter);
 
     if (args.count() > 1) {
       foreach (auto Name, args) {
-        ApplicationsManager::Instance().StartApplication("./Daqster",
-                                                         QStringList(Name));
+        // Try multiple approaches for starting the application
+        QString executablePath;
+        
+        // 1. Check if we're in AppImage and AppRun exists
+        QString appImageEnv = qgetenv("APPIMAGE");
+        if (!appImageEnv.isEmpty()) {
+          QString appImagePath = qApp->applicationDirPath() + "/../AppRun";
+          if (QFile::exists(appImagePath)) {
+            executablePath = appImagePath;
+            qDebug() << "Using AppRun script for AppImage environment";
+          }
+        }
+        
+        // 2. If no AppRun found, try direct executable
+        if (executablePath.isEmpty()) {
+          executablePath = "./Daqster";
+          qDebug() << "Using direct executable";
+        }
+        
+        ApplicationsManager::Instance().StartApplication(executablePath, QStringList(Name));
+        qDebug() << "Start Application: " << Name << " via " << executablePath;
       }
     } else {
       QString Name = args[0];
       Daqster::QBasePluginObject *obj = nullptr;
       qDebug() << "\nSearch for plugin: " << Name;
+      
+      // Use the same filter as in the if section
+      QList<Daqster::PluginDescription> PluginsList = PluginManager->GetPluginList(Filter);
+      qDebug() << "PluginsList count: " << PluginsList.count();
 
       int ctr = 0;
        foreach (const Daqster::PluginDescription &Desc, PluginsList) {
         ctr++;
         qDebug() << "  Plug" << ctr << ": "
                  << Desc.GetProperty(PLUGIN_NAME).toString();
-        if (0 == Desc.GetProperty(PLUGIN_NAME).toString().compare(Name)) {
+        if (0 == Desc.GetProperty(PLUGIN_NAME).toString().compare(Name, Qt::CaseInsensitive)) {
           obj = PluginManager->CreatePluginObject(
               Desc.GetProperty(PLUGIN_HASH).toString(), nullptr);
           if (nullptr != obj) {

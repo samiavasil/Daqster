@@ -35,6 +35,7 @@ bool PluginFancyObject::Initialize()
     m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
     connect( m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)) );
     connect( button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()) );
+    return true;
 }
 
 void PluginFancyObject::DeInitialize()

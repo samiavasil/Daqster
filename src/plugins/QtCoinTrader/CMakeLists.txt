@@ -1,5 +1,5 @@
 find_package(Qt5 COMPONENTS Core Gui Qml QuickControls2 Charts Network OpenGL REQUIRED)
-find_package(ssl)
+find_package(OpenSSL REQUIRED)
 #add_subdirectory(external)
 
 add_library(QtCoinTraderPlugin
@@ -23,8 +23,8 @@ target_include_directories(QtCoinTraderPlugin
 
   )
 target_link_libraries(QtCoinTraderPlugin
-    crypto
-    ssl
+    OpenSSL::SSL
+    OpenSSL::Crypto
     frame_work
     qtrest_lib
     Qt5::Core
@@ -40,4 +40,9 @@ install(TARGETS QtCoinTraderPlugin
     RUNTIME DESTINATION bin/plugins
     LIBRARY DESTINATION lib/daqster/plugins
     ARCHIVE DESTINATION lib
+)
+
+# Ensure plugin can locate shared libs in ../.. /lib relative to its location
+set_target_properties(QtCoinTraderPlugin PROPERTIES
+    INSTALL_RPATH "$ORIGIN/../../lib"
 )
