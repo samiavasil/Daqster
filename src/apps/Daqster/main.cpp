@@ -53,10 +53,9 @@ void PluginsInit() {
     /*Just try to load/unload all plugins in initialization phase*/
     foreach (const Daqster::PluginDescription &Desc, PluginsList) {
       for (int i = 0; i < 1; i++) {
-        PluginManager
-            ->CreatePluginObject(Desc.GetProperty(PLUGIN_HASH).toString(),
-                                 nullptr)
-            ->deleteLater();
+        Daqster::QBasePluginObject* obj = PluginManager->CreatePluginObject(Desc.GetProperty(PLUGIN_HASH).toString(),nullptr);
+        if(obj != NULL)
+          obj->deleteLater();
       }
     }
   }
@@ -138,11 +137,18 @@ int main(int argc, char *argv[]) {
   Filter.AddFilter(
       PLUGIN_TYPE,
       QString("%1").arg(Daqster::PluginDescription::APPLICATION_PLUGIN));
-  
-  if (args.count() > 0) {
-    QList<Daqster::PluginDescription> PluginsList =
-        PluginManager->GetPluginList(Filter);
 
+  QList<Daqster::PluginDescription> PluginsList = PluginManager->GetPluginList(Filter);
+  qDebug() << "PluginsList count: " << PluginsList.count();
+  int ctr = 0;
+  foreach (const Daqster::PluginDescription &Desc, PluginsList) {
+    ctr++;
+    qDebug() << "  Plugin" << ctr << ": " << Desc.GetProperty(PLUGIN_NAME).toString();
+    qDebug() << "  Location" << ctr << ": " << Desc.GetProperty(PLUGIN_LOCATION).toString();
+
+  }
+
+  if (args.count() > 0) {
     if (args.count() > 1) {
       foreach (auto Name, args) {
         // Try multiple approaches for starting the application
@@ -171,11 +177,6 @@ int main(int argc, char *argv[]) {
       QString Name = args[0];
       Daqster::QBasePluginObject *obj = nullptr;
       qDebug() << "\nSearch for plugin: " << Name;
-      
-      // Use the same filter as in the if section
-      QList<Daqster::PluginDescription> PluginsList = PluginManager->GetPluginList(Filter);
-      qDebug() << "PluginsList count: " << PluginsList.count();
-
       int ctr = 0;
        foreach (const Daqster::PluginDescription &Desc, PluginsList) {
         ctr++;

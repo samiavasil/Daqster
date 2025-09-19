@@ -1,4 +1,4 @@
-find_package(Qt5 COMPONENTS Core Gui REQUIRED)
+# Use Qt detection from parent scope
 
 add_library(plugin_main_test
     SHARED
@@ -15,7 +15,7 @@ target_include_directories(plugin_main_test
   PRIVATE
     ./
   )
-target_link_libraries(plugin_main_test frame_work Qt5::Core Qt5::Gui)
+target_link_libraries(plugin_main_test frame_work Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui)
 
 # Install like other plugins
 install(TARGETS plugin_main_test

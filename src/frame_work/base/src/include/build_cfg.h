@@ -17,7 +17,8 @@ typedef uint32_t  u32;
 typedef uint64_t  u64;
 
 /*Configure dynamic library export macro*/
-#include <qglobal.h>
+/*Include Qt headers - try Qt6 first, fallback to Qt5*/
+#include <QtCore/qglobal.h>
 #if defined(FRAME_WORK_LIBRARY)
   #define FRAME_WORKSHARED_EXPORT Q_DECL_EXPORT
 #else

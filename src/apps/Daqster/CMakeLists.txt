@@ -1,4 +1,4 @@
-find_package(Qt5 COMPONENTS Widgets  REQUIRED)
+# Use Qt detection from parent scope
 add_executable(Daqster
     main.cpp
     main.h
@@ -22,7 +22,9 @@ PRIVATE
 
 target_link_libraries(Daqster
 PRIVATE
-    Qt5::Widgets
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Gui
     frame_work
     )
 

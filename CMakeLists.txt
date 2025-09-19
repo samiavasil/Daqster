@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(Daqster VERSION 0.1.0 LANGUAGES CXX)
+project(Daqster VERSION 0.2.0 LANGUAGES CXX)
+
+# Add cmake modules to path
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+# Detect Qt version (Qt6 preferred, Qt5 fallback)
+include(FindQtVersion)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY  ${PROJECT_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY  ${PROJECT_BINARY_DIR}/bin)
@@ -28,7 +34,29 @@ set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/bin")
 
 add_subdirectory(src/apps)
 add_subdirectory(src/frame_work)
+
+# External libraries - conditional based on Qt version and dependencies
+message(STATUS "=== External Libraries Status ===")
+
+if(QT_VERSION_MAJOR EQUAL 5)
+    # Check Qt5 dependencies for external libraries
+    if(QT_MULTIMEDIA_LIB AND NOT "${QT_MULTIMEDIA_LIB}" STREQUAL "")
+        add_subdirectory(src/external_libs/nodeeditor)
+        message(STATUS "NodeEditor library enabled for Qt5 (Multimedia available)")
+    else()
+        message(STATUS "NodeEditor library disabled for Qt5 (Multimedia not available)")
+    endif()
+    
+    if(QT_QUICKCONTROLS2_LIB AND NOT "${QT_QUICKCONTROLS2_LIB}" STREQUAL "")
+        add_subdirectory(src/external_libs/qtrest_lib)
+        message(STATUS "QtRest library enabled for Qt5 (QuickControls2 available)")
+    else()
+        message(STATUS "QtRest library disabled for Qt5 (QuickControls2 not available)")
+    endif()
+else()
+    message(STATUS "NodeEditor and QtRest libraries disabled for Qt6 (compatibility issues)")
+endif()
+
+# Plugins - after external libraries are processed
 add_subdirectory(src/plugins)
-add_subdirectory(src/external_libs/nodeeditor)
-add_subdirectory(src/external_libs/qtrest_lib)
 

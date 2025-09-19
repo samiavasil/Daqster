@@ -1,4 +1,4 @@
-find_package(Qt5 COMPONENTS Core Gui Multimedia Charts OpenGL REQUIRED)
+# Use Qt detection from parent scope
 #add_subdirectory(external)
 
 add_library(NodeEditorPlugin
@@ -64,11 +64,11 @@ target_include_directories(NodeEditorPlugin
 target_link_libraries(NodeEditorPlugin
     frame_work
     nodes
-    Qt5::Core
-    Qt5::Gui
-    Qt5::Multimedia
-    Qt5::Charts
-    Qt5::OpenGL)
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Multimedia
+    Qt${QT_VERSION_MAJOR}::Charts
+    Qt${QT_VERSION_MAJOR}::OpenGL)
 
 # Install plugin to dedicated directory
 install(TARGETS NodeEditorPlugin
