@@ -16,6 +16,18 @@ git submodule update --init --recursive
 
 ### 2) Configure & Build
 
+#### Qt Version Selection
+```bash
+# For Qt5 (default)
+cmake -S . -B build -DUSE_QT6=OFF
+
+# For Qt6
+cmake -S . -B build -DUSE_QT6=ON
+
+# Auto-detection from CMAKE_PREFIX_PATH
+cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/qt5
+```
+
 #### Debug Build (recommended for development)
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
@@ -178,10 +190,38 @@ AppImage is created automatically on every push/PR in GitHub Actions:
 QT_DEBUG_PLUGINS=1 ./Daqster-x86_64.AppImage
 ```
 
+## Dependency Management
+
+The project supports conditional compilation of components based on available Qt modules:
+
+### Qt5 Support
+- **Full support** - all plugins and external libraries (if required Qt modules are available)
+- **NodeEditor plugin** - requires `QtMultimedia` + NodeEditor library
+- **QtCoinTrader plugin** - requires `QtQuickControls2` + QtRest library
+- **Test plugins** - always enabled (basic Qt dependencies)
+
+### Qt6 Support
+- **Limited support** - only test plugins (external libraries disabled due to compatibility)
+- **Auto-detection** - system automatically selects appropriate components
+
+### Debug Information
+CMake shows clear information about which components are enabled/disabled and why:
+```
+=== External Libraries Status ===
+NodeEditor library enabled for Qt5 (Multimedia available)
+QtRest library disabled for Qt5 (QuickControls2 not available)
+
+=== Plugins Status ===
+NodeEditor plugin enabled for Qt5 (Multimedia + NodeEditor library available)
+QtCoinTrader plugin disabled for Qt5 (QuickControls2 not available)
+Test plugins enabled for Qt5 (plugin_fancy_test, plugin_main_test, ...)
+```
+
 ## Notes
 - **Build system:** CMake 3.16+
-- **Qt version:** 5.15.2 (local), 5.15.2+ (CI)
+- **Qt versions:** Qt5.15.2+ (full support), Qt6.x (limited support)
 - **AppImage:** Universal Linux package, works on all distributions
 - **Plugin system:** Dynamic loading with automatic discovery
+- **Dependency Management:** Conditional compilation based on available Qt modules
 
 

@@ -1,4 +1,4 @@
-find_package(Qt5 COMPONENTS Widgets REQUIRED)
+# Use Qt detection from parent scope
 
 add_library(frame_work
     SHARED
@@ -32,7 +32,12 @@ target_include_directories(frame_work
   PUBLIC
     base/src/include
   )
-target_link_libraries(frame_work Qt5::Widgets)
+
+target_link_libraries(frame_work 
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Gui
+)
 
 # Install shared library (and headers for consumers if needed)
 install(TARGETS frame_work

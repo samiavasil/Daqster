@@ -1,4 +1,4 @@
-find_package(Qt5 COMPONENTS Core Gui Qml QuickControls2 Charts Network OpenGL REQUIRED)
+# Use Qt detection from parent scope
 find_package(OpenSSL REQUIRED)
 #add_subdirectory(external)
 
@@ -27,12 +27,13 @@ target_link_libraries(QtCoinTraderPlugin
     OpenSSL::Crypto
     frame_work
     qtrest_lib
-    Qt5::Core
-    Qt5::Qml
-    Qt5::QuickControls2
-    Qt5::Charts
-    Qt5::Network
-#   Qt5::OpenGL
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Qml
+    Qt${QT_VERSION_MAJOR}::Quick
+    Qt${QT_VERSION_MAJOR}::QuickControls2
+    Qt${QT_VERSION_MAJOR}::Charts
+    Qt${QT_VERSION_MAJOR}::Network
+    Qt${QT_VERSION_MAJOR}::OpenGL
     )
 
 # Install plugin to dedicated directory
