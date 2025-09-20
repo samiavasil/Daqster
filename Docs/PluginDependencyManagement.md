@@ -2,7 +2,7 @@
 
 ## Общ преглед
 
-Новата Plugin Dependency Management система позволява автоматично управление на plugin dependencies и условно компилиране на plugins базирано на наличните Qt модули, external библиотеки и packages.
+Опростената Plugin Dependency Management система позволява автоматично управление на plugin dependencies и условно компилиране на plugins базирано на наличните Qt модули, external библиотеки и packages.
 
 ## Основни функции
 
@@ -15,12 +15,17 @@ register_plugin(PluginName
 )
 ```
 
-### 2. Conditional Plugin Building
+### 2. External Library Registration
+```cmake
+register_external_library(library_name)
+```
+
+### 3. Conditional Plugin Building
 ```cmake
 add_plugin_subdirectory(PluginName src/plugins/plugin_dir)
 ```
 
-### 3. Dependency Checking
+### 4. Dependency Checking
 - **Qt Modules**: Автоматично проверява наличността на Qt модули
 - **External Libraries**: Проверява дали target-ите съществуват
 - **Packages**: Проверява дали packages са намерени от find_package()
@@ -28,12 +33,14 @@ add_plugin_subdirectory(PluginName src/plugins/plugin_dir)
 ## Структура на системата
 
 ### PluginDependencyManager.cmake
-Главният модул съдържа:
+Опростеният модул съдържа само нужните функции:
 
 - `register_plugin()` - Регистрира plugin с dependencies
-- `check_plugin_dependencies()` - Проверява dependencies
+- `register_external_library()` - Регистрира external библиотека
+- `check_plugin_dependencies()` - Проверява plugin dependencies
+- `check_external_library_buildability()` - Проверява external библиотеки
 - `add_plugin_subdirectory()` - Добавя plugin директория условно
-- `is_plugin_enabled()` - Проверява дали plugin е включен
+- `is_plugin_enabled()` - Helper функция за проверка на статус
 - `print_plugin_status_summary()` - Показва статус на всички plugins
 - `print_build_configuration_summary()` - Показва build конфигурация
 
@@ -55,13 +62,9 @@ add_plugin_subdirectory(PluginName src/plugins/plugin_dir)
 # Include dependency manager
 include(PluginDependencyManager)
 
-# Register external libraries
-register_plugin(NodeEditorLibrary
-    REQUIRES_QT_MODULES Multimedia
-)
-
-# Add external library subdirectories
-add_plugin_subdirectory(NodeEditorLibrary src/external_libs/nodeeditor)
+# Register external libraries - те проверяват собствените си dependencies
+register_external_library(nodeeditor)
+register_external_library(qtrest_lib)
 ```
 
 ### 2. В plugins/CMakeLists.txt
@@ -129,18 +132,36 @@ External Libraries Buildability:
   - qtrest_lib: TRUE
 ```
 
-## Предимства
+## Опростена архитектура
+
+### Принципи:
+1. **External библиотеки** сами си проверяват dependencies-ите в техните CMake файлове
+2. **Plugins** декларират dependencies-ите си в `register_plugin()`
+3. **Няма дублиране** - единствен източник на истината за dependencies
+4. **Самостоятелност** - всеки plugin може да се build-ва независимо
+
+### Предимства на опростената система:
 
 1. **Автоматично управление**: Не е нужно ръчно да проверяваме dependencies
 2. **Гъвкавост**: Лесно добавяне на нови plugins с различни dependencies
 3. **Debug информация**: Подробна информация защо plugins са изключени
 4. **Консистентност**: Еднаква логика за всички plugins
 5. **Разширяемост**: Лесно добавяне на нови типове dependencies
+6. **Простота**: По-малко custom функции, по-лесно за разбиране
+7. **Самостоятелност**: External библиотеките са независими
+8. **Няма дублиране**: Dependencies се декларират само веднъж
 
 ## Миграция от стария подход
 
-### Преди:
+### Преди (сложен подход):
 ```cmake
+# В главния CMakeLists.txt
+if(QT_VERSION_MAJOR EQUAL 5)
+    add_subdirectory(src/external_libs/nodeeditor)
+    add_subdirectory(src/external_libs/qtrest_lib)
+endif()
+
+# В plugins/CMakeLists.txt
 if(QT_QUICKCONTROLS2_LIB AND NOT "${QT_QUICKCONTROLS2_LIB}" STREQUAL "" AND TARGET qtrest_lib)
     add_subdirectory(QtCoinTrader)
     message(STATUS "QtCoinTrader plugin enabled")
@@ -149,8 +170,13 @@ else()
 endif()
 ```
 
-### След:
+### След (опростен подход):
 ```cmake
+# В главния CMakeLists.txt
+register_external_library(nodeeditor)
+register_external_library(qtrest_lib)
+
+# В plugins/CMakeLists.txt
 register_plugin(QtCoinTraderPlugin
     REQUIRES_QT_MODULES Qml Quick QuickControls2
     REQUIRES_EXTERNAL_LIBS qtrest_lib

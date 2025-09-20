@@ -7,12 +7,15 @@ Daqster е рамка (Qt5) за създаване и зареждане на �
 
 ## Plugin Dependency Management
 
-Daqster включва автоматична система за управление на plugin dependencies:
+Daqster включва опростена автоматична система за управление на plugin dependencies:
 
 - **Автоматично откриване**: Проверява наличните Qt модули, external библиотеки и packages
 - **Условно компилиране**: Plugins се компилират само ако всички dependencies са налични
 - **Debug информация**: Подробна информация защо plugins са включени/изключени
 - **Гъвкавост**: Лесно добавяне на нови plugins с различни dependencies
+- **Простота**: Опростена архитектура с по-малко custom функции
+- **Самостоятелност**: External библиотеките сами си проверяват dependencies-ите
+- **Няма дублиране**: Dependencies се декларират само веднъж
 
 За повече информация вижте [Plugin Dependency Management](./Docs/PluginDependencyManagement.md).
 

@@ -89,16 +89,10 @@ function(register_plugin PLUGIN_NAME)
     set_property(GLOBAL PROPERTY PLUGIN_NAMES "${PLUGIN_NAMES}")
 endfunction()
 
-# Function to check if a plugin is enabled
+# Helper function to check if a plugin is enabled
 function(is_plugin_enabled PLUGIN_NAME RESULT_VAR)
     get_property(ENABLED GLOBAL PROPERTY PLUGIN_${PLUGIN_NAME}_ENABLED)
     set(${RESULT_VAR} ${ENABLED} PARENT_SCOPE)
-endfunction()
-
-# Function to get plugin disable reasons
-function(get_plugin_reasons PLUGIN_NAME REASONS_VAR)
-    get_property(REASONS GLOBAL PROPERTY PLUGIN_${PLUGIN_NAME}_REASONS)
-    set(${REASONS_VAR} "${REASONS}" PARENT_SCOPE)
 endfunction()
 
 # Function to add plugin subdirectory conditionally
@@ -109,7 +103,7 @@ function(add_plugin_subdirectory PLUGIN_NAME PLUGIN_DIR)
         add_subdirectory(${PLUGIN_DIR})
         message(STATUS "Adding plugin subdirectory: ${PLUGIN_DIR}")
     else()
-        get_plugin_reasons(${PLUGIN_NAME} REASONS)
+        get_property(REASONS GLOBAL PROPERTY PLUGIN_${PLUGIN_NAME}_REASONS)
         message(STATUS "Skipping plugin subdirectory: ${PLUGIN_DIR}")
         foreach(REASON ${REASONS})
             message(STATUS "  - ${REASON}")
@@ -139,6 +133,38 @@ function(check_external_library_buildability LIB_NAME)
     set(${LIB_NAME}_BUILD_REASONS "${REASONS}" PARENT_SCOPE)
 endfunction()
 
+# Function to register external library and add its subdirectory
+# External libraries check their own dependencies in their CMakeLists.txt
+function(register_external_library LIB_NAME)
+    # Check if library directory and CMakeLists.txt exist
+    check_external_library_buildability(${LIB_NAME})
+    
+    # Store library info globally
+    set_property(GLOBAL PROPERTY EXTERNAL_LIB_${LIB_NAME}_ENABLED ${${LIB_NAME}_BUILDABLE})
+    set_property(GLOBAL PROPERTY EXTERNAL_LIB_${LIB_NAME}_REASONS "${${LIB_NAME}_BUILD_REASONS}")
+    
+    # Add to global external library list
+    get_property(EXT_LIB_NAMES GLOBAL PROPERTY EXTERNAL_LIB_NAMES)
+    if(NOT EXT_LIB_NAMES)
+        set(EXT_LIB_NAMES "")
+    endif()
+    list(APPEND EXT_LIB_NAMES ${LIB_NAME})
+    set_property(GLOBAL PROPERTY EXTERNAL_LIB_NAMES "${EXT_LIB_NAMES}")
+    
+    # Log result and add subdirectory
+    if(${LIB_NAME}_BUILDABLE)
+        message(STATUS "${LIB_NAME} external library: ENABLED")
+        # Add subdirectory - the library will check its own dependencies
+        add_subdirectory(src/external_libs/${LIB_NAME})
+        message(STATUS "Adding external library subdirectory: src/external_libs/${LIB_NAME}")
+    else()
+        message(STATUS "${LIB_NAME} external library: DISABLED")
+        foreach(REASON ${${LIB_NAME}_BUILD_REASONS})
+            message(STATUS "  - ${REASON}")
+        endforeach()
+    endif()
+endfunction()
+
 # Function to print plugin status summary
 function(print_plugin_status_summary)
     message(STATUS "=== Plugin Status Summary ===")
@@ -152,7 +178,7 @@ function(print_plugin_status_summary)
             if(ENABLED)
                 message(STATUS "✓ ${PLUGIN}: ENABLED")
             else()
-                get_plugin_reasons(${PLUGIN} REASONS)
+                get_property(REASONS GLOBAL PROPERTY PLUGIN_${PLUGIN}_REASONS)
                 message(STATUS "✗ ${PLUGIN}: DISABLED")
                 foreach(REASON ${REASONS})
                     message(STATUS "    - ${REASON}")
@@ -171,23 +197,4 @@ function(print_build_configuration_summary)
     message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
     message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
     message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
-    
-    # Check external library buildability
-    check_external_library_buildability(nodeeditor)
-    check_external_library_buildability(qtrest_lib)
-    
-    message(STATUS "External Libraries Buildability:")
-    message(STATUS "  - nodeeditor: ${nodeeditor_BUILDABLE}")
-    if(NOT nodeeditor_BUILDABLE)
-        foreach(REASON ${nodeeditor_BUILD_REASONS})
-            message(STATUS "    - ${REASON}")
-        endforeach()
-    endif()
-    
-    message(STATUS "  - qtrest_lib: ${qtrest_lib_BUILDABLE}")
-    if(NOT qtrest_lib_BUILDABLE)
-        foreach(REASON ${qtrest_lib_BUILD_REASONS})
-            message(STATUS "    - ${REASON}")
-        endforeach()
-    endif()
 endfunction()

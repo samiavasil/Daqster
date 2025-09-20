@@ -44,22 +44,13 @@ message(STATUS "=== External Libraries Status ===")
 # Find required packages for external libraries
 find_package(OpenSSL)
 
-# Register external libraries with their dependencies
+# Register external libraries - they check their own dependencies
 if(QT_VERSION_MAJOR EQUAL 5)
-    # NodeEditor library - check only Qt modules
-    register_plugin(NodeEditorLibrary
-        REQUIRES_QT_MODULES Multimedia
-    )
+    # NodeEditor library - will check its own dependencies in its CMakeLists.txt
+    register_external_library(nodeeditor)
     
-    # QtRest library - check Qt modules and OpenSSL
-    register_plugin(QtRestLibrary
-        REQUIRES_QT_MODULES Qml QuickControls2
-        REQUIRES_PACKAGES OpenSSL
-    )
-    
-    # Add external library subdirectories conditionally
-    add_plugin_subdirectory(NodeEditorLibrary src/external_libs/nodeeditor)
-    add_plugin_subdirectory(QtRestLibrary src/external_libs/qtrest_lib)
+    # QtRest library - will check its own dependencies in its CMakeLists.txt
+    register_external_library(qtrest_lib)
     
 else()
     message(STATUS "External libraries disabled for Qt6 (compatibility issues)")
