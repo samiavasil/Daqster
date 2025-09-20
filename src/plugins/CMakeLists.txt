@@ -3,34 +3,40 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY  ${PROJECT_BINARY_DIR}/bin/plugins)
 # Plugins - conditional based on Qt version, available modules and external libraries
 message(STATUS "=== Plugins Status ===")
 
+# Register plugins with their dependencies
 if(QT_VERSION_MAJOR EQUAL 5)
-    # Check if required Qt5 modules and external libraries are available
-    if(QT_MULTIMEDIA_LIB AND NOT "${QT_MULTIMEDIA_LIB}" STREQUAL "" AND TARGET nodes)
-        add_subdirectory(node_editor)
-        message(STATUS "NodeEditor plugin enabled for Qt5 (Multimedia + NodeEditor library available)")
-    else()
-        if(NOT QT_MULTIMEDIA_LIB OR "${QT_MULTIMEDIA_LIB}" STREQUAL "")
-            message(STATUS "NodeEditor plugin disabled for Qt5 (Multimedia not available)")
-        else()
-            message(STATUS "NodeEditor plugin disabled for Qt5 (NodeEditor library not available)")
-        endif()
-    endif()
+    # NodeEditor plugin
+    register_plugin(NodeEditorPlugin
+        REQUIRES_QT_MODULES Multimedia Widgets
+        REQUIRES_EXTERNAL_LIBS nodes
+    )
     
-    if(QT_QUICKCONTROLS2_LIB AND NOT "${QT_QUICKCONTROLS2_LIB}" STREQUAL "" AND TARGET qtrest_lib)
-        add_subdirectory(QtCoinTrader)
-        message(STATUS "QtCoinTrader plugin enabled for Qt5 (QuickControls2 + QtRest library available)")
-    else()
-        if(NOT QT_QUICKCONTROLS2_LIB OR "${QT_QUICKCONTROLS2_LIB}" STREQUAL "")
-            message(STATUS "QtCoinTrader plugin disabled for Qt5 (QuickControls2 not available)")
-        else()
-            message(STATUS "QtCoinTrader plugin disabled for Qt5 (QtRest library not available)")
-        endif()
-    endif()
+    # QtCoinTrader plugin
+    register_plugin(QtCoinTraderPlugin
+        REQUIRES_QT_MODULES Qml Quick QuickControls2 Charts Network
+        REQUIRES_EXTERNAL_LIBS qtrest_lib
+        REQUIRES_PACKAGES OpenSSL
+    )
     
-    add_subdirectory(tests)
-    message(STATUS "Test plugins enabled for Qt5 (plugin_fancy_test, plugin_main_test, plugin_uggly_test, plugin_template_test)")
+    # Test plugins (always available)
+    register_plugin(TestPlugins
+        REQUIRES_QT_MODULES Core Widgets
+    )
+    
+    # Add plugin subdirectories conditionally
+    add_plugin_subdirectory(NodeEditorPlugin node_editor)
+    add_plugin_subdirectory(QtCoinTraderPlugin QtCoinTrader)
+    add_plugin_subdirectory(TestPlugins tests)
+    
 else()
     # For Qt6, only enable basic test plugins (no external dependencies)
-    add_subdirectory(tests)
-    message(STATUS "Only basic test plugins enabled for Qt6 (plugin_fancy_test, plugin_main_test, plugin_uggly_test, plugin_template_test) - NodeEditor and QtCoinTrader disabled due to external dependencies")                                                                                        
+    register_plugin(TestPlugins
+        REQUIRES_QT_MODULES Core Widgets
+    )
+    
+    add_plugin_subdirectory(TestPlugins tests)
+    message(STATUS "Only basic test plugins enabled for Qt6 - external library plugins disabled due to compatibility issues")
 endif()
+
+# Print final plugin status summary
+print_plugin_status_summary()

@@ -8,6 +8,9 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 # Detect Qt version (Qt6 preferred, Qt5 fallback)
 include(FindQtVersion)
 
+# Include plugin dependency manager
+include(PluginDependencyManager)
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY  ${PROJECT_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY  ${PROJECT_BINARY_DIR}/bin)
 
@@ -38,25 +41,35 @@ add_subdirectory(src/frame_work)
 # External libraries - conditional based on Qt version and dependencies
 message(STATUS "=== External Libraries Status ===")
 
+# Find required packages for external libraries
+find_package(OpenSSL)
+
+# Register external libraries with their dependencies
 if(QT_VERSION_MAJOR EQUAL 5)
-    # Check Qt5 dependencies for external libraries
-    if(QT_MULTIMEDIA_LIB AND NOT "${QT_MULTIMEDIA_LIB}" STREQUAL "")
-        add_subdirectory(src/external_libs/nodeeditor)
-        message(STATUS "NodeEditor library enabled for Qt5 (Multimedia available)")
-    else()
-        message(STATUS "NodeEditor library disabled for Qt5 (Multimedia not available)")
-    endif()
+    # NodeEditor library - check only Qt modules
+    register_plugin(NodeEditorLibrary
+        REQUIRES_QT_MODULES Multimedia
+    )
     
-    if(QT_QUICKCONTROLS2_LIB AND NOT "${QT_QUICKCONTROLS2_LIB}" STREQUAL "")
-        add_subdirectory(src/external_libs/qtrest_lib)
-        message(STATUS "QtRest library enabled for Qt5 (QuickControls2 available)")
-    else()
-        message(STATUS "QtRest library disabled for Qt5 (QuickControls2 not available)")
-    endif()
+    # QtRest library - check Qt modules and OpenSSL
+    register_plugin(QtRestLibrary
+        REQUIRES_QT_MODULES Qml QuickControls2
+        REQUIRES_PACKAGES OpenSSL
+    )
+    
+    # Add external library subdirectories conditionally
+    add_plugin_subdirectory(NodeEditorLibrary src/external_libs/nodeeditor)
+    add_plugin_subdirectory(QtRestLibrary src/external_libs/qtrest_lib)
+    
 else()
-    message(STATUS "NodeEditor and QtRest libraries disabled for Qt6 (compatibility issues)")
+    message(STATUS "External libraries disabled for Qt6 (compatibility issues)")
+    message(STATUS "  - NodeEditor: Qt6 compatibility issues")
+    message(STATUS "  - QtRest: Qt6 compatibility issues")
 endif()
 
 # Plugins - after external libraries are processed
 add_subdirectory(src/plugins)
+
+# Print final build configuration summary
+print_build_configuration_summary()
 
