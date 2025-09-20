@@ -31,10 +31,18 @@ target_link_libraries(QtCoinTraderPlugin
     Qt${QT_VERSION_MAJOR}::Qml
     Qt${QT_VERSION_MAJOR}::Quick
     Qt${QT_VERSION_MAJOR}::QuickControls2
-    Qt${QT_VERSION_MAJOR}::Charts
     Qt${QT_VERSION_MAJOR}::Network
     Qt${QT_VERSION_MAJOR}::OpenGL
     )
+
+# Conditionally link Charts if available
+if(QT_CHARTS_LIB AND NOT "${QT_CHARTS_LIB}" STREQUAL "")
+    target_link_libraries(QtCoinTraderPlugin Qt${QT_VERSION_MAJOR}::Charts)
+    target_compile_definitions(QtCoinTraderPlugin PRIVATE QT_CHARTS_AVAILABLE)
+    message(STATUS "QtCoinTraderPlugin: Charts support enabled")
+else()
+    message(STATUS "QtCoinTraderPlugin: Charts support disabled (Qt${QT_VERSION_MAJOR}::Charts not available)")
+endif()
 
 # Install plugin to dedicated directory
 install(TARGETS QtCoinTraderPlugin

@@ -76,8 +76,19 @@ register_plugin(QtCoinTraderPlugin
     REQUIRES_PACKAGES OpenSSL
 )
 
+# Register test plugins - each plugin is independent
+register_plugin(PluginMainTest
+    REQUIRES_QT_MODULES Core Gui
+)
+
+register_plugin(PluginFancyTest
+    REQUIRES_QT_MODULES Core Gui
+)
+
 # Add plugin subdirectories
 add_plugin_subdirectory(QtCoinTraderPlugin QtCoinTrader)
+add_plugin_subdirectory(PluginMainTest tests/plugin_main_test)
+add_plugin_subdirectory(PluginFancyTest tests/plugin_fancy_test)
 ```
 
 ## Типове Dependencies
@@ -87,7 +98,7 @@ add_plugin_subdirectory(QtCoinTraderPlugin QtCoinTrader)
 REQUIRES_QT_MODULES Core Widgets Qml Quick QuickControls2 Charts Network
 ```
 - Автоматично проверява наличността на Qt модули
-- Използва QT_*_LIB променливи
+- Използва `TARGET` проверка за Qt5::* targets
 
 ### External Libraries
 ```cmake
@@ -103,6 +114,42 @@ REQUIRES_PACKAGES OpenSSL
 - Проверява дали packages са намерени
 - Използва `*_FOUND` променливи
 
+## Test Plugins
+
+### Независими Test Plugins
+Всеки test plugin се регистрира като независим plugin:
+
+```cmake
+# Всеки test plugin е независим
+register_plugin(PluginMainTest
+    REQUIRES_QT_MODULES Core Gui
+)
+
+register_plugin(PluginFancyTest
+    REQUIRES_QT_MODULES Core Gui
+)
+
+register_plugin(PluginUgglyTest
+    REQUIRES_QT_MODULES Core Gui
+)
+
+register_plugin(TemplatePlugin
+    REQUIRES_QT_MODULES Core Gui
+)
+
+# Всеки plugin се добавя отделно
+add_plugin_subdirectory(PluginMainTest tests/plugin_main_test)
+add_plugin_subdirectory(PluginFancyTest tests/plugin_fancy_test)
+add_plugin_subdirectory(PluginUgglyTest tests/plugin_uggly_test)
+add_plugin_subdirectory(TemplatePlugin tests/template_plugin_daqster)
+```
+
+### Предимства на независимите test plugins:
+- ✅ **Независимост** - всеки plugin може да се изключи отделно
+- ✅ **Гъвкавост** - различни dependencies за различни test plugins
+- ✅ **Debug информация** - ясно защо конкретен plugin не се build-ва
+- ✅ **Разширяемост** - лесно добавяне на нови test plugins
+
 ## Debug и Logging
 
 Системата предоставя подробна информация за:
@@ -115,21 +162,18 @@ REQUIRES_PACKAGES OpenSSL
 ### Примерен изход:
 ```
 === Plugin Status Summary ===
-✓ NodeEditorLibrary: ENABLED
-✓ QtRestLibrary: ENABLED
 ✓ NodeEditorPlugin: ENABLED
 ✓ QtCoinTraderPlugin: ENABLED
-✓ TestPlugins: ENABLED
+✓ PluginMainTest: ENABLED
+✓ PluginFancyTest: ENABLED
+✓ PluginUgglyTest: ENABLED
+✓ TemplatePlugin: ENABLED
 
 === Build Configuration Summary ===
 Qt Version: 5.15.2
 Build Type: Debug
 C++ Standard: 14
 Compiler: GCC 9.3.0
-
-External Libraries Buildability:
-  - nodeeditor: TRUE
-  - qtrest_lib: TRUE
 ```
 
 ## Опростена архитектура
@@ -150,18 +194,13 @@ External Libraries Buildability:
 6. **Простота**: По-малко custom функции, по-лесно за разбиране
 7. **Самостоятелност**: External библиотеките са независими
 8. **Няма дублиране**: Dependencies се декларират само веднъж
+9. **Независими test plugins**: Всеки test plugin може да се изключи отделно
+10. **Централизирано управление**: Всички dependencies на едно място
 
 ## Миграция от стария подход
 
-### Преди (сложен подход):
+### Преди:
 ```cmake
-# В главния CMakeLists.txt
-if(QT_VERSION_MAJOR EQUAL 5)
-    add_subdirectory(src/external_libs/nodeeditor)
-    add_subdirectory(src/external_libs/qtrest_lib)
-endif()
-
-# В plugins/CMakeLists.txt
 if(QT_QUICKCONTROLS2_LIB AND NOT "${QT_QUICKCONTROLS2_LIB}" STREQUAL "" AND TARGET qtrest_lib)
     add_subdirectory(QtCoinTrader)
     message(STATUS "QtCoinTrader plugin enabled")
@@ -170,13 +209,8 @@ else()
 endif()
 ```
 
-### След (опростен подход):
+### След:
 ```cmake
-# В главния CMakeLists.txt
-register_external_library(nodeeditor)
-register_external_library(qtrest_lib)
-
-# В plugins/CMakeLists.txt
 register_plugin(QtCoinTraderPlugin
     REQUIRES_QT_MODULES Qml Quick QuickControls2
     REQUIRES_EXTERNAL_LIBS qtrest_lib

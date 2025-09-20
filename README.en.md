@@ -16,6 +16,7 @@ Daqster includes a simplified automatic plugin dependency management system:
 - **Simplicity**: Simplified architecture with fewer custom functions
 - **Independence**: External libraries check their own dependencies
 - **No duplication**: Dependencies are declared only once
+- **Independent test plugins**: Each test plugin can be disabled separately
 
 For more information see [Plugin Dependency Management](./Docs/PluginDependencyManagement.md).
 

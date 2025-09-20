@@ -16,6 +16,7 @@ Daqster включва опростена автоматична система 
 - **Простота**: Опростена архитектура с по-малко custom функции
 - **Самостоятелност**: External библиотеките сами си проверяват dependencies-ите
 - **Няма дублиране**: Dependencies се декларират само веднъж
+- **Независими test plugins**: Всеки test plugin може да се изключи отделно
 
 За повече информация вижте [Plugin Dependency Management](./Docs/PluginDependencyManagement.md).
 

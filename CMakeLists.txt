@@ -44,6 +44,12 @@ message(STATUS "=== External Libraries Status ===")
 # Find required packages for external libraries
 find_package(OpenSSL)
 
+# Find all Qt modules that might be needed by plugins
+# This ensures that Qt5*_FOUND variables are set before PluginDependencyManager runs
+find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS 
+    Core Gui Widgets Qml Quick QuickControls2 Charts Network Multimedia OpenGL
+)
+
 # Register external libraries - they check their own dependencies
 if(QT_VERSION_MAJOR EQUAL 5)
     # NodeEditor library - will check its own dependencies in its CMakeLists.txt

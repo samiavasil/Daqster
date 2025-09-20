@@ -12,17 +12,19 @@ function(check_plugin_dependencies PLUGIN_NAME)
     set(multiValueArgs REQUIRES_QT_MODULES REQUIRES_EXTERNAL_LIBS REQUIRES_PACKAGES)
     cmake_parse_arguments(PLUGIN_DEPS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
-    # Check Qt modules
+    # Check Qt modules - check if targets exist
     foreach(QT_MODULE ${PLUGIN_DEPS_REQUIRES_QT_MODULES})
-        string(TOUPPER ${QT_MODULE} QT_MODULE_UPPER)
-        set(QT_MODULE_VAR "QT_${QT_MODULE_UPPER}_LIB")
+        # Check if the Qt module target exists
+        set(QT_MODULE_TARGET "Qt${QT_VERSION_MAJOR}::${QT_MODULE}")
         
-        # Special handling for QuickControls2
-        if(QT_MODULE STREQUAL "QuickControls2")
-            set(QT_MODULE_VAR "QT_QUICKCONTROLS2_LIB")
+        # Debug information
+        if(TARGET ${QT_MODULE_TARGET})
+            message(STATUS "Checking Qt${QT_VERSION_MAJOR}::${QT_MODULE} - target exists: TRUE")
+        else()
+            message(STATUS "Checking Qt${QT_VERSION_MAJOR}::${QT_MODULE} - target exists: FALSE")
         endif()
         
-        if(NOT ${QT_MODULE_VAR} OR "${${QT_MODULE_VAR}}" STREQUAL "")
+        if(NOT TARGET ${QT_MODULE_TARGET})
             set(PLUGIN_ENABLED FALSE)
             list(APPEND REASONS "Qt${QT_VERSION_MAJOR}::${QT_MODULE} not available")
         endif()
