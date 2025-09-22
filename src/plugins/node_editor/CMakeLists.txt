@@ -61,14 +61,8 @@ target_include_directories(NodeEditorPlugin
     ./Examples
     ./ThreadPull
   )
-target_link_libraries(NodeEditorPlugin
-    frame_work
-    nodes
-    Qt${QT_VERSION_MAJOR}::Core
-    Qt${QT_VERSION_MAJOR}::Gui
-    Qt${QT_VERSION_MAJOR}::Multimedia
-    Qt${QT_VERSION_MAJOR}::Charts
-    Qt${QT_VERSION_MAJOR}::OpenGL)
+# Automatic linking for all dependencies
+link_component_dependencies(NodeEditorPlugin)
 
 # Install plugin to dedicated directory
 install(TARGETS NodeEditorPlugin

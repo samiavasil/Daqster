@@ -22,26 +22,16 @@ target_include_directories(QtCoinTraderPlugin
   PRIVATE
 
   )
-target_link_libraries(QtCoinTraderPlugin
-    OpenSSL::SSL
-    OpenSSL::Crypto
-    frame_work
-    qtrest_lib
-    Qt${QT_VERSION_MAJOR}::Core
-    Qt${QT_VERSION_MAJOR}::Qml
-    Qt${QT_VERSION_MAJOR}::Quick
-    Qt${QT_VERSION_MAJOR}::QuickControls2
-    Qt${QT_VERSION_MAJOR}::Network
-    Qt${QT_VERSION_MAJOR}::OpenGL
-    )
+# Automatic linking for all dependencies
+link_component_dependencies(QtCoinTraderPlugin)
 
 # Conditionally link Charts if available
-if(QT_CHARTS_LIB AND NOT "${QT_CHARTS_LIB}" STREQUAL "")
+if(Qt${QT_VERSION_MAJOR}Charts_FOUND)
     target_link_libraries(QtCoinTraderPlugin Qt${QT_VERSION_MAJOR}::Charts)
     target_compile_definitions(QtCoinTraderPlugin PRIVATE QT_CHARTS_AVAILABLE)
     message(STATUS "QtCoinTraderPlugin: Charts support enabled")
 else()
-    message(STATUS "QtCoinTraderPlugin: Charts support disabled (Qt${QT_VERSION_MAJOR}::Charts not available)")
+    message(STATUS "QtCoinTraderPlugin: Charts support disabled (Qt${QT_VERSION_MAJOR}Charts not found)")
 endif()
 
 # Install plugin to dedicated directory

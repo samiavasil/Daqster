@@ -35,7 +35,6 @@ set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/bin")
 
-add_subdirectory(src/apps)
 add_subdirectory(src/frame_work)
 
 # External libraries - conditional based on Qt version and dependencies
@@ -44,19 +43,23 @@ message(STATUS "=== External Libraries Status ===")
 # Find required packages for external libraries
 find_package(OpenSSL)
 
-# Find all Qt modules that might be needed by plugins
-# This ensures that Qt5*_FOUND variables are set before PluginDependencyManager runs
-find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS 
-    Core Gui Widgets Qml Quick QuickControls2 Charts Network Multimedia OpenGL
-)
+# Find only the core Qt modules needed for basic functionality
+# Other modules will be found dynamically by PluginDependencyManager
+find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS Core Gui Widgets)
 
-# Register external libraries - they check their own dependencies
+# Add external libraries directly - they check their own dependencies
 if(QT_VERSION_MAJOR EQUAL 5)
     # NodeEditor library - will check its own dependencies in its CMakeLists.txt
-    register_external_library(nodeeditor)
+    add_subdirectory(src/external_libs/nodeeditor)
+    message(STATUS "nodeeditor external library: ENABLED")
     
     # QtRest library - will check its own dependencies in its CMakeLists.txt
-    register_external_library(qtrest_lib)
+    add_subdirectory(src/external_libs/qtrest_lib)
+    message(STATUS "qtrest_lib external library: ENABLED")
+    
+    # Register external libraries as available dependencies
+    register_external_library_dependency(nodes)
+    register_external_library_dependency(qtrest_lib)
     
 else()
     message(STATUS "External libraries disabled for Qt6 (compatibility issues)")
@@ -66,6 +69,9 @@ endif()
 
 # Plugins - after external libraries are processed
 add_subdirectory(src/plugins)
+
+# Apps - after plugins are processed (frame_work is built in plugins)
+add_subdirectory(src/apps)
 
 # Print final build configuration summary
 print_build_configuration_summary()

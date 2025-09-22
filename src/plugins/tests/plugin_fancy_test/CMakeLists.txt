@@ -14,8 +14,10 @@ add_definitions(-DBUILD_AVAILABLE_PLUGIN)
 target_include_directories(plugin_fancy_test
   PRIVATE
     ./
+    ../../../frame_work/base/src/include
   )
-target_link_libraries(plugin_fancy_test frame_work Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui)
+# Automatic linking for all dependencies
+link_component_dependencies(plugin_fancy_test)
 
 # Install like other plugins
 install(TARGETS plugin_fancy_test

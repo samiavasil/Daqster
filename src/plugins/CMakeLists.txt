@@ -5,68 +5,80 @@ message(STATUS "=== Plugins Status ===")
 
 # Register plugins with their dependencies (from master branch analysis)
 if(QT_VERSION_MAJOR EQUAL 5)
-    # NodeEditor plugin - dependencies from master: Core, Gui, Multimedia, Charts, OpenGL
-    register_plugin(NodeEditorPlugin
-        REQUIRES_QT_MODULES Core Gui Multimedia Charts OpenGL
-        REQUIRES_EXTERNAL_LIBS nodes
+    # Register plugins with their dependencies
+    register_component(NodeEditorPlugin
+        REQUIRES_LIBRARIES 
+            Qt${QT_VERSION_MAJOR}::Core 
+            Qt${QT_VERSION_MAJOR}::Gui 
+            Qt${QT_VERSION_MAJOR}::Multimedia 
+            Qt${QT_VERSION_MAJOR}::Charts 
+            Qt${QT_VERSION_MAJOR}::OpenGL
+            nodes
+            frame_work
     )
     
-    # QtCoinTrader plugin - dependencies from master: Core, Gui, Qml, QuickControls2, Charts, Network, OpenGL
-    register_plugin(QtCoinTraderPlugin
-        REQUIRES_QT_MODULES Core Gui Qml QuickControls2 Charts Network OpenGL
-        REQUIRES_EXTERNAL_LIBS qtrest_lib
-        REQUIRES_PACKAGES OpenSSL
+    register_component(QtCoinTraderPlugin
+        REQUIRES_LIBRARIES 
+            Qt${QT_VERSION_MAJOR}::Core 
+            Qt${QT_VERSION_MAJOR}::Gui 
+            Qt${QT_VERSION_MAJOR}::Qml 
+            Qt${QT_VERSION_MAJOR}::QuickControls2 
+            Qt${QT_VERSION_MAJOR}::Charts 
+            Qt${QT_VERSION_MAJOR}::Network 
+            Qt${QT_VERSION_MAJOR}::OpenGL 
+            Qt${QT_VERSION_MAJOR}::WebSockets
+            qtrest_lib
+            OpenSSL::SSL
+            OpenSSL::Crypto
+            frame_work
     )
     
-    # Test plugins - each plugin is independent
-    register_plugin(PluginMainTest
-        REQUIRES_QT_MODULES Core Gui
+    register_component(PluginMainTest
+        REQUIRES_LIBRARIES 
+            Qt${QT_VERSION_MAJOR}::Core 
+            Qt${QT_VERSION_MAJOR}::Gui
+            frame_work
     )
     
-    register_plugin(PluginFancyTest
-        REQUIRES_QT_MODULES Core Gui
+    register_component(PluginFancyTest
+        REQUIRES_LIBRARIES 
+            Qt${QT_VERSION_MAJOR}::Core 
+            Qt${QT_VERSION_MAJOR}::Gui
+            frame_work
     )
     
-    register_plugin(PluginUgglyTest
-        REQUIRES_QT_MODULES Core Gui
+    register_component(PluginUgglyTest
+        REQUIRES_LIBRARIES 
+            Qt${QT_VERSION_MAJOR}::Core 
+            Qt${QT_VERSION_MAJOR}::Gui
+            frame_work
     )
     
-    register_plugin(TemplatePlugin
-        REQUIRES_QT_MODULES Core Gui
+    register_component(TemplatePlugin
+        REQUIRES_LIBRARIES 
+            Qt${QT_VERSION_MAJOR}::Core 
+            Qt${QT_VERSION_MAJOR}::Gui
+            frame_work
     )
     
     # Add plugin subdirectories conditionally
-    add_plugin_subdirectory(NodeEditorPlugin node_editor)
-    add_plugin_subdirectory(QtCoinTraderPlugin QtCoinTrader)
-    add_plugin_subdirectory(PluginMainTest tests/plugin_main_test)
-    add_plugin_subdirectory(PluginFancyTest tests/plugin_fancy_test)
-    add_plugin_subdirectory(PluginUgglyTest tests/plugin_uggly_test)
-    add_plugin_subdirectory(TemplatePlugin tests/template_plugin_daqster)
+    add_component_subdirectory(NodeEditorPlugin node_editor)
+    add_component_subdirectory(QtCoinTraderPlugin QtCoinTrader)
+    add_component_subdirectory(PluginMainTest tests/plugin_main_test)
+    add_component_subdirectory(PluginFancyTest tests/plugin_fancy_test)
+    add_component_subdirectory(PluginUgglyTest tests/plugin_uggly_test)
+    add_component_subdirectory(TemplatePlugin tests/template_plugin_daqster)
     
 else()
     # For Qt6, only enable basic test plugins (no external dependencies)
-    register_plugin(PluginMainTest
-        REQUIRES_QT_MODULES Core Gui
-    )
+    # Test plugins will register themselves in their own CMakeLists.txt files
     
-    register_plugin(PluginFancyTest
-        REQUIRES_QT_MODULES Core Gui
-    )
-    
-    register_plugin(PluginUgglyTest
-        REQUIRES_QT_MODULES Core Gui
-    )
-    
-    register_plugin(TemplatePlugin
-        REQUIRES_QT_MODULES Core Gui
-    )
-    
-    add_plugin_subdirectory(PluginMainTest tests/plugin_main_test)
-    add_plugin_subdirectory(PluginFancyTest tests/plugin_fancy_test)
-    add_plugin_subdirectory(PluginUgglyTest tests/plugin_uggly_test)
-    add_plugin_subdirectory(TemplatePlugin tests/template_plugin_daqster)
+    add_component_subdirectory(PluginMainTest tests/plugin_main_test)
+    add_component_subdirectory(PluginFancyTest tests/plugin_fancy_test)
+    add_component_subdirectory(PluginUgglyTest tests/plugin_uggly_test)
+    add_component_subdirectory(TemplatePlugin tests/template_plugin_daqster)
     message(STATUS "Only basic test plugins enabled for Qt6 - external library plugins disabled due to compatibility issues")
 endif()
 
 # Print final plugin status summary
-print_plugin_status_summary()
+print_component_status_summary()

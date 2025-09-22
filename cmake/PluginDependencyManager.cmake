@@ -9,43 +9,42 @@ function(check_plugin_dependencies PLUGIN_NAME)
     # Parse arguments for dependencies
     set(options)
     set(oneValueArgs)
-    set(multiValueArgs REQUIRES_QT_MODULES REQUIRES_EXTERNAL_LIBS REQUIRES_PACKAGES)
+    set(multiValueArgs REQUIRES_LIBRARIES)
     cmake_parse_arguments(PLUGIN_DEPS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
-    # Check Qt modules - check if targets exist
-    foreach(QT_MODULE ${PLUGIN_DEPS_REQUIRES_QT_MODULES})
-        # Check if the Qt module target exists
-        set(QT_MODULE_TARGET "Qt${QT_VERSION_MAJOR}::${QT_MODULE}")
-        
-        # Debug information
-        if(TARGET ${QT_MODULE_TARGET})
-            message(STATUS "Checking Qt${QT_VERSION_MAJOR}::${QT_MODULE} - target exists: TRUE")
+    # Check all libraries (Qt modules, external libs, packages)
+    foreach(LIBRARY ${PLUGIN_DEPS_REQUIRES_LIBRARIES})
+        # Check if it's a Qt module
+        if(LIBRARY MATCHES "^Qt[0-9]+::")
+            # Extract module name from Qt5::ModuleName
+            string(REGEX REPLACE "^Qt[0-9]+::" "" MODULE_NAME ${LIBRARY})
+            
+            # First try to find the module
+            find_package(Qt${QT_VERSION_MAJOR}${MODULE_NAME} QUIET)
+            
+            # Check if target exists
+            if(TARGET ${LIBRARY})
+                message(STATUS "Checking ${LIBRARY} - target exists: TRUE")
+            else()
+                message(STATUS "Checking ${LIBRARY} - target exists: FALSE")
+                set(PLUGIN_ENABLED FALSE)
+                list(APPEND REASONS "${LIBRARY} not available")
+            endif()
         else()
-            message(STATUS "Checking Qt${QT_VERSION_MAJOR}::${QT_MODULE} - target exists: FALSE")
-        endif()
-        
-        if(NOT TARGET ${QT_MODULE_TARGET})
-            set(PLUGIN_ENABLED FALSE)
-            list(APPEND REASONS "Qt${QT_VERSION_MAJOR}::${QT_MODULE} not available")
-        endif()
-    endforeach()
-    
-    # Check external libraries (targets)
-    foreach(EXT_LIB ${PLUGIN_DEPS_REQUIRES_EXTERNAL_LIBS})
-        if(NOT TARGET ${EXT_LIB})
-            set(PLUGIN_ENABLED FALSE)
-            list(APPEND REASONS "External library '${EXT_LIB}' not available")
-        endif()
-    endforeach()
-    
-    # Check packages
-    foreach(PACKAGE ${PLUGIN_DEPS_REQUIRES_PACKAGES})
-        string(TOUPPER ${PACKAGE} PACKAGE_UPPER)
-        set(PACKAGE_VAR "${PACKAGE_UPPER}_FOUND")
-        
-        if(NOT ${PACKAGE_VAR})
-            set(PLUGIN_ENABLED FALSE)
-            list(APPEND REASONS "Package '${PACKAGE}' not found")
+            # External library or package - check if target exists
+            if(TARGET ${LIBRARY})
+                message(STATUS "Checking ${LIBRARY} - target exists: TRUE")
+            else()
+                # Check if it's an external library that should be available
+                get_property(IS_AVAILABLE GLOBAL PROPERTY EXTERNAL_LIB_${LIBRARY}_AVAILABLE)
+                if(IS_AVAILABLE)
+                    message(STATUS "Checking ${LIBRARY} - external library available: TRUE")
+                else()
+                    message(STATUS "Checking ${LIBRARY} - target exists: FALSE")
+                    set(PLUGIN_ENABLED FALSE)
+                    list(APPEND REASONS "${LIBRARY} not available")
+                endif()
+            endif()
         endif()
     endforeach()
     
@@ -65,130 +64,108 @@ function(check_plugin_dependencies PLUGIN_NAME)
 endfunction()
 
 # Function to register a plugin with its dependencies
-function(register_plugin PLUGIN_NAME)
+function(register_component COMPONENT_NAME)
     set(options)
     set(oneValueArgs)
-    set(multiValueArgs REQUIRES_QT_MODULES REQUIRES_EXTERNAL_LIBS REQUIRES_PACKAGES)
+    set(multiValueArgs REQUIRES_LIBRARIES)
     cmake_parse_arguments(PLUGIN_DEPS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
     # Check dependencies
-    check_plugin_dependencies(${PLUGIN_NAME}
-        REQUIRES_QT_MODULES ${PLUGIN_DEPS_REQUIRES_QT_MODULES}
-        REQUIRES_EXTERNAL_LIBS ${PLUGIN_DEPS_REQUIRES_EXTERNAL_LIBS}
-        REQUIRES_PACKAGES ${PLUGIN_DEPS_REQUIRES_PACKAGES}
+    check_plugin_dependencies(${COMPONENT_NAME}
+        REQUIRES_LIBRARIES ${PLUGIN_DEPS_REQUIRES_LIBRARIES}
     )
     
-    # Store plugin info globally
-    set_property(GLOBAL PROPERTY PLUGIN_${PLUGIN_NAME}_ENABLED ${${PLUGIN_NAME}_ENABLED})
-    set_property(GLOBAL PROPERTY PLUGIN_${PLUGIN_NAME}_REASONS "${${PLUGIN_NAME}_REASONS}")
+    # Store component info globally
+    set_property(GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_ENABLED ${${COMPONENT_NAME}_ENABLED})
+    set_property(GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_REASONS "${${COMPONENT_NAME}_REASONS}")
     
-    # Add to global plugin list
-    get_property(PLUGIN_NAMES GLOBAL PROPERTY PLUGIN_NAMES)
-    if(NOT PLUGIN_NAMES)
-        set(PLUGIN_NAMES "")
+    # Store dependencies for automatic linking
+    set_property(GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_LIBRARIES "${PLUGIN_DEPS_REQUIRES_LIBRARIES}")
+    
+    # Add to global component list
+    get_property(COMPONENT_NAMES GLOBAL PROPERTY COMPONENT_NAMES)
+    if(NOT COMPONENT_NAMES)
+        set(COMPONENT_NAMES "")
     endif()
-    list(APPEND PLUGIN_NAMES ${PLUGIN_NAME})
-    set_property(GLOBAL PROPERTY PLUGIN_NAMES "${PLUGIN_NAMES}")
+    list(APPEND COMPONENT_NAMES ${COMPONENT_NAME})
+    set_property(GLOBAL PROPERTY COMPONENT_NAMES "${COMPONENT_NAMES}")
 endfunction()
 
-# Helper function to check if a plugin is enabled
-function(is_plugin_enabled PLUGIN_NAME RESULT_VAR)
-    get_property(ENABLED GLOBAL PROPERTY PLUGIN_${PLUGIN_NAME}_ENABLED)
+# Helper function to check if a component is enabled
+function(is_component_enabled COMPONENT_NAME RESULT_VAR)
+    get_property(ENABLED GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_ENABLED)
     set(${RESULT_VAR} ${ENABLED} PARENT_SCOPE)
 endfunction()
 
-# Function to add plugin subdirectory conditionally
-function(add_plugin_subdirectory PLUGIN_NAME PLUGIN_DIR)
-    is_plugin_enabled(${PLUGIN_NAME} ENABLED)
+# Function to add component subdirectory conditionally
+function(add_component_subdirectory COMPONENT_NAME COMPONENT_DIR)
+    is_component_enabled(${COMPONENT_NAME} ENABLED)
     
     if(ENABLED)
-        add_subdirectory(${PLUGIN_DIR})
-        message(STATUS "Adding plugin subdirectory: ${PLUGIN_DIR}")
+        add_subdirectory(${COMPONENT_DIR})
+        message(STATUS "Adding component subdirectory: ${COMPONENT_DIR}")
     else()
-        get_property(REASONS GLOBAL PROPERTY PLUGIN_${PLUGIN_NAME}_REASONS)
-        message(STATUS "Skipping plugin subdirectory: ${PLUGIN_DIR}")
+        get_property(REASONS GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_REASONS)
+        message(STATUS "Skipping component subdirectory: ${COMPONENT_DIR}")
         foreach(REASON ${REASONS})
             message(STATUS "  - ${REASON}")
         endforeach()
     endif()
 endfunction()
 
-# Function to check if external library can be built
-function(check_external_library_buildability LIB_NAME)
-    set(BUILDABLE TRUE)
-    set(REASONS "")
+# Function to automatically link component dependencies
+function(link_component_dependencies COMPONENT_NAME)
+    is_component_enabled(${COMPONENT_NAME} ENABLED)
     
-    # Check if library directory exists
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/external_libs/${LIB_NAME}")
-        set(BUILDABLE FALSE)
-        list(APPEND REASONS "Library directory not found: src/external_libs/${LIB_NAME}")
-    endif()
-    
-    # Check if CMakeLists.txt exists
-    if(BUILDABLE AND NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/external_libs/${LIB_NAME}/CMakeLists.txt")
-        set(BUILDABLE FALSE)
-        list(APPEND REASONS "CMakeLists.txt not found in library directory")
-    endif()
-    
-    # Set result variables in parent scope
-    set(${LIB_NAME}_BUILDABLE ${BUILDABLE} PARENT_SCOPE)
-    set(${LIB_NAME}_BUILD_REASONS "${REASONS}" PARENT_SCOPE)
-endfunction()
-
-# Function to register external library and add its subdirectory
-# External libraries check their own dependencies in their CMakeLists.txt
-function(register_external_library LIB_NAME)
-    # Check if library directory and CMakeLists.txt exist
-    check_external_library_buildability(${LIB_NAME})
-    
-    # Store library info globally
-    set_property(GLOBAL PROPERTY EXTERNAL_LIB_${LIB_NAME}_ENABLED ${${LIB_NAME}_BUILDABLE})
-    set_property(GLOBAL PROPERTY EXTERNAL_LIB_${LIB_NAME}_REASONS "${${LIB_NAME}_BUILD_REASONS}")
-    
-    # Add to global external library list
-    get_property(EXT_LIB_NAMES GLOBAL PROPERTY EXTERNAL_LIB_NAMES)
-    if(NOT EXT_LIB_NAMES)
-        set(EXT_LIB_NAMES "")
-    endif()
-    list(APPEND EXT_LIB_NAMES ${LIB_NAME})
-    set_property(GLOBAL PROPERTY EXTERNAL_LIB_NAMES "${EXT_LIB_NAMES}")
-    
-    # Log result and add subdirectory
-    if(${LIB_NAME}_BUILDABLE)
-        message(STATUS "${LIB_NAME} external library: ENABLED")
-        # Add subdirectory - the library will check its own dependencies
-        add_subdirectory(src/external_libs/${LIB_NAME})
-        message(STATUS "Adding external library subdirectory: src/external_libs/${LIB_NAME}")
-    else()
-        message(STATUS "${LIB_NAME} external library: DISABLED")
-        foreach(REASON ${${LIB_NAME}_BUILD_REASONS})
-            message(STATUS "  - ${REASON}")
+    if(ENABLED)
+        # Get stored dependencies
+        get_property(LIBRARIES GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_LIBRARIES)
+        
+        # Link all libraries
+        foreach(LIBRARY ${LIBRARIES})
+            target_link_libraries(${COMPONENT_NAME} ${LIBRARY})
         endforeach()
+        
+        message(STATUS "Auto-linked dependencies for ${COMPONENT_NAME}")
     endif()
 endfunction()
 
-# Function to print plugin status summary
-function(print_plugin_status_summary)
-    message(STATUS "=== Plugin Status Summary ===")
+# Function to register external library as available dependency
+# This allows other components to find and use external libraries
+function(register_external_library_dependency LIB_NAME)
+    # Check if the library target exists (it should be built by add_subdirectory)
+    if(TARGET ${LIB_NAME})
+        message(STATUS "External library ${LIB_NAME} available as dependency")
+        # Mark as available for other components
+        set_property(GLOBAL PROPERTY EXTERNAL_LIB_${LIB_NAME}_AVAILABLE TRUE)
+    else()
+        message(STATUS "External library ${LIB_NAME} not available as dependency")
+        set_property(GLOBAL PROPERTY EXTERNAL_LIB_${LIB_NAME}_AVAILABLE FALSE)
+    endif()
+endfunction()
+
+# Function to print component status summary
+function(print_component_status_summary)
+    message(STATUS "=== Component Status Summary ===")
     
-    # Get all registered plugins
-    get_property(PLUGINS GLOBAL PROPERTY PLUGIN_NAMES)
+    # Get all registered components
+    get_property(COMPONENTS GLOBAL PROPERTY COMPONENT_NAMES)
     
-    if(PLUGINS)
-        foreach(PLUGIN ${PLUGINS})
-            is_plugin_enabled(${PLUGIN} ENABLED)
+    if(COMPONENTS)
+        foreach(COMPONENT ${COMPONENTS})
+            is_component_enabled(${COMPONENT} ENABLED)
             if(ENABLED)
-                message(STATUS "✓ ${PLUGIN}: ENABLED")
+                message(STATUS "✓ ${COMPONENT}: ENABLED")
             else()
-                get_property(REASONS GLOBAL PROPERTY PLUGIN_${PLUGIN}_REASONS)
-                message(STATUS "✗ ${PLUGIN}: DISABLED")
+                get_property(REASONS GLOBAL PROPERTY COMPONENT_${COMPONENT}_REASONS)
+                message(STATUS "✗ ${COMPONENT}: DISABLED")
                 foreach(REASON ${REASONS})
                     message(STATUS "    - ${REASON}")
                 endforeach()
             endif()
         endforeach()
     else()
-        message(STATUS "No plugins registered")
+        message(STATUS "No components registered")
     endif()
 endfunction()
 

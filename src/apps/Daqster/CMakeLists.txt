@@ -20,13 +20,8 @@ PRIVATE
     ./
 )
 
-target_link_libraries(Daqster
-PRIVATE
-    Qt${QT_VERSION_MAJOR}::Core
-    Qt${QT_VERSION_MAJOR}::Widgets
-    Qt${QT_VERSION_MAJOR}::Gui
-    frame_work
-    )
+# Automatic linking for all dependencies
+link_component_dependencies(Daqster)
 
 # Install executable
 install(TARGETS Daqster
