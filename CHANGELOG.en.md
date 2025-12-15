@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **PluginDependencyManager System** - automatic plugin dependency management system
+  - `cmake/PluginDependencyManager.cmake` - core dependency management system
+  - `cmake/PluginExamples.cmake` - usage examples for the system
+  - `Docs/PluginDependencyManagement.md` - comprehensive documentation
+- **Automatic Plugin Management**:
+  - Automatic detection of Qt modules, external libraries and packages
+  - Conditional plugin compilation based on available dependencies
+  - Detailed debug information about plugin status
+  - Support for Qt5 (full functionality) and Qt6 (limited functionality)
+- **External Library Integration**:
+  - Qt5: NodeEditor + QtRest libraries included
+  - Qt6: External libraries disabled due to compatibility issues
+- **Enhanced Build System**:
+  - `register_plugin()` function for easy plugin registration
+  - Automatic dependency checking
+  - Conditional plugin subdirectory inclusion
+  - Build configuration and plugin status summaries
+
 ## [0.2.0] - 2025-09-18
 
 ### Added
