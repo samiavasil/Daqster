@@ -8,8 +8,6 @@ add_executable(Daqster
     AppToolbar.h
     mainwindow.ui
     icons.qrc
-    QConsoleListener.cpp
-    QConsoleListener.h
     StyleFile
 )
 
