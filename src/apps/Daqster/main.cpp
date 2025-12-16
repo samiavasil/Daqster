@@ -10,10 +10,11 @@
 #include "debug.h"
 #include "main.h"
 
+// Framework headers
 #ifdef Q_OS_WIN
-#include "WindowsShutdownHandler.h"
+#include <WindowsShutdownHandler.h>
 #else
-#include "UnixShutdownHandler.h"
+#include <UnixShutdownHandler.h>
 #endif
 
 class msg {

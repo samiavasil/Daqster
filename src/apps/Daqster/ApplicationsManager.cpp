@@ -1,62 +1,60 @@
 #include "ApplicationsManager.h"
+#include <QProcessManager.h>
 #include <QDebug>
 #include <QDir>
 #include <QProcessEnvironment>
 #include <QFileInfo>
 #include <QApplication>
 
-ApplicationsManager *ApplicationsManager::m_Manager;
+ApplicationsManager *ApplicationsManager::m_Manager = nullptr;
 
-ApplicationsManager::ApplicationsManager() : QObject(nullptr), nextHndl(0), m_headlessMode(false) {}
+ApplicationsManager::ApplicationsManager() 
+    : Daqster::QProcessManager(nullptr),
+      m_headlessMode(false)
+{
+    // Forward ProcessEvent signal to ApplicationEvent signal with compatible types
+    connect(this, &QProcessManager::ProcessEvent, 
+            this, [this](ProcessHandle_t handle, ProcessEvent_t event) {
+                AppEvent_t appEvent = static_cast<AppEvent_t>(event);
+                emit ApplicationEvent(handle, appEvent);
+            });
+}
 
-ApplicationsManager::~ApplicationsManager() { KillAll(); }
+ApplicationsManager::~ApplicationsManager() 
+{
+    KillAll();
+}
 
 ApplicationsManager &ApplicationsManager::Instance() {
-  if (nullptr == m_Manager) {
-    m_Manager = new ApplicationsManager();
-  }
-  return *m_Manager;
+    if (nullptr == m_Manager) {
+        m_Manager = new ApplicationsManager();
+    }
+    return *m_Manager;
 }
 
 void ApplicationsManager::SetHeadlessMode(bool enabled) {
-  m_headlessMode = enabled;
-}
-#include<ostream>
-void ApplicationsManager::KillAll() {
-  blockSignals(true);
-  
-  // Create a copy of process list to avoid iterator invalidation
-  // when AppFinished() is called during waitForFinished()
-  QList<QProcess*> processList = m_ProcessMap.values();
-  
-  for (QProcess* process : processList) {
-    if (nullptr != process) {
-      // Try graceful shutdown first
-      qDebug() << "Requesting graceful shutdown for process:" << process->program();
-      process->terminate(); // Sends SIGTERM on Unix, WM_CLOSE on Windows
-      
-      if (process->waitForFinished(10000)) {
-        qDebug() << "Process stopped gracefully";
-      } else {
-        qDebug() << "Process did not respond to terminate, forcing kill:" << process->program();
-        process->kill(); // Force kill with SIGKILL
-        process->waitForFinished(1000);
-      }
-    }
-  }
-  
-  blockSignals(false);
-  // Note: AppFinished() will clean up m_ProcessMap and m_ProcessDescs
+    m_headlessMode = enabled;
 }
 
-void ApplicationsManager::StartApplication(const QString &Name,
-                                           const QStringList &Arguments,
-                                           QProcess::OpenMode Mode) {
-  QProcess *newProc = new QProcess(this);
-  if (newProc) {
-    AppDescriptor_t Desc = {Name, Arguments, Mode};
-    qDebug() << "App: " << Name << "Args: " << Arguments;
-    newProc->setInputChannelMode(QProcess::ManagedInputChannel);
+bool ApplicationsManager::GetAppDescryptor(const AppHndl_t& Hndl, 
+                                          AppDescriptor_t& Desc) const
+{
+    return GetProcessDescriptor(Hndl, Desc);
+}
+
+void ApplicationsManager::StartApplication(const QString& Name, 
+                                          const QStringList& Arguments, 
+                                          QProcess::OpenMode Mode)
+{
+    // Delegate to base class StartProcess
+    StartProcess(Name, Arguments, Mode);
+}
+void ApplicationsManager::setupProcessEnvironment(QProcess* process, 
+                                                 const QString& name,
+                                                 const QStringList& arguments)
+{
+    Q_UNUSED(name);
+    Q_UNUSED(arguments);
     
     // Set environment variables for child process
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
@@ -112,7 +110,7 @@ void ApplicationsManager::StartApplication(const QString &Name,
     QDir().mkpath(env.value("XDG_DATA_HOME"));
     QDir().mkpath(env.value("XDG_CACHE_HOME"));
     
-    newProc->setProcessEnvironment(env);
+    process->setProcessEnvironment(env);
     
     // Debug: Print environment variables
     qDebug() << "=== Environment Variables for Child Process ===";
@@ -126,58 +124,21 @@ void ApplicationsManager::StartApplication(const QString &Name,
     qDebug() << "XDG_DATA_HOME:" << env.value("XDG_DATA_HOME");
     qDebug() << "XDG_CACHE_HOME:" << env.value("XDG_CACHE_HOME");
     qDebug() << "=== End Environment Variables ===";
-    
-    newProc->start(Name, Arguments, Mode);
-    m_ProcessMap[nextHndl] = newProc;
-    m_ProcessDescs[nextHndl] = Desc;
-    newProc->setProperty("AppHndl", nextHndl);
-    connect(newProc, SIGNAL(finished(int, QProcess::ExitStatus)), this,
-            SLOT(AppFinished(int, QProcess::ExitStatus)));
-    qDebug() << "Process '" << Name << "' Start: Hndl " << nextHndl;
-    newProc->waitForStarted();
-
-    emit ApplicationEvent(nextHndl, APP_STARTED);
-    nextHndl++;
-  } else {
-    qDebug() << "Can't start process '" << Name << "' Start";
-  }
 }
 
-void ApplicationsManager::AppFinished(int exitCode,
-                                      QProcess::ExitStatus exitStatus) {
+// Override base class method to forward events with ApplicationsManager signature
+void ApplicationsManager::OnProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
+    // First call base class to handle cleanup and emit ProcessEvent
+    QProcessManager::OnProcessFinished(exitCode, exitStatus);
+    
+    // Base class already emits ProcessEvent, which is what ApplicationEvent connects to
+    // No need to emit again - the signal connection will handle forwarding
+}
 
-  blockSignals(true);
-  QProcess *sender = dynamic_cast<QProcess *>(QObject::sender());
-  if (sender) {
-    AppHndl_t apHndl = (AppHndl_t)sender->property("AppHndl").toUInt();
-    if (m_ProcessMap.contains(apHndl)) {
-      // Emit event BEFORE removing descriptor so slots can access it
-      emit ApplicationEvent(apHndl, APP_STOPED);
-      
-      m_ProcessMap[apHndl]->deleteLater();
-      m_ProcessMap.remove(apHndl);
-      m_ProcessDescs.remove(apHndl);
-      qDebug() << "Process Stop: Hndl" << apHndl << " With exitCode "
-               << exitCode << ", exitStatus " << exitStatus;
-    } else {
-      qDebug() << "Can't find process with Hndl " << apHndl;
-    }
-  }
-  blockSignals(false);
-  
-  // If in headless mode and all processes finished, quit application
-  if (m_headlessMode && m_ProcessMap.isEmpty()) {
+// Override to implement headless mode quit logic
+void ApplicationsManager::onAllProcessesFinished() {
+  if (m_headlessMode) {
     qDebug() << "All child processes finished in headless mode. Exiting...";
     qApp->quit();
   }
-}
-
-bool ApplicationsManager::GetAppDescryptor(const AppHndl_t &Hndl,
-                                           AppDescriptor_t &Desc) {
-  bool ret = false;
-  if (m_ProcessDescs.contains(nextHndl)) {
-    Desc = m_ProcessDescs[Hndl];
-    ret = true;
-  }
-  return ret;
 }

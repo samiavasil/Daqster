@@ -24,6 +24,13 @@ add_library(frame_work
         base/src/include/QPluginManager.h
         base/src/include/QPluginInterface.h
         base/src/include/QBasePluginObject.h
+        base/src/platform/ShutdownHandler.h
+        base/src/platform/UnixShutdownHandler.h
+        base/src/platform/UnixShutdownHandler.cpp
+        base/src/platform/WindowsShutdownHandler.h
+        base/src/platform/WindowsShutdownHandler.cpp
+        base/src/process/QProcessManager.h
+        base/src/process/QProcessManager.cpp
 )
 
 add_definitions(-DFRAME_WORK_LIBRARY)
@@ -31,6 +38,8 @@ add_definitions(-DFRAME_WORK_LIBRARY)
 target_include_directories(frame_work
   PUBLIC
     base/src/include
+    base/src/platform
+    base/src/process
   )
 
 target_link_libraries(frame_work 
