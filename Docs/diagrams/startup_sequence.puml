@@ -1,0 +1,15 @@
+@startuml
+actor User
+participant App as "Daqster App"
+participant FW as "Framework"
+participant PM as "QProcessManager"
+participant Plugin as "Plugin Process"
+
+User -> App: start
+App -> FW: Plugin discovery
+FW -> App: list of plugins
+App -> PM: StartProcess(plugin)
+PM -> Plugin: start
+Plugin -> PM: ready
+PM -> App: ProcessEvent(PROCESS_STARTED)
+@enduml

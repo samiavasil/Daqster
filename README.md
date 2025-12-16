@@ -103,6 +103,37 @@ cd build/bin
 ./Daqster
 ```
 
+### Framework Architecture
+
+Daqster използва модулна framework архитектура, която позволява създаване на различни типове приложения:
+
+#### Platform Abstraction Layer
+- **ShutdownHandler** - базов клас за graceful shutdown:
+  - Cross-platform signal handling (Ctrl+C, SIGTERM)
+  - Виртуален интерфейс за лесно разширяване
+  - Unix: SIGINT/SIGTERM signal handlers
+  - Windows: Console event handlers + stdin fallback
+
+#### Process Management Layer
+- **QProcessManager** - generic базов клас за управление на child процеси:
+  - Handle-based process tracking
+  - Graceful terminate (10s timeout) + force kill fallback
+  - Virtual hooks за customization:
+    - `setupProcessEnvironment()` - custom environment setup
+    - `onAllProcessesFinished()` - cleanup при завършване на всички процеси
+  - ProcessEvent signals за state changes
+
+#### Application Layer
+- **ApplicationsManager** - Daqster-specific implementation:
+  - Наследява `QProcessManager`
+  - Backward compatibility (AppHndl_t, AppEvent_t, AppDescriptor_t)
+  - Daqster environment setup:
+    - AppImage detection и path configuration
+    - DAQSTER_PLUGIN_* environment variables
+    - XDG directories (config, data, cache)
+  - Headless mode support
+  - Signal forwarding към GUI компоненти
+
 ### Plugin Discovery System
 
 Плъгините се търсят в следния ред (по приоритет):
@@ -150,8 +181,12 @@ LD_LIBRARY_PATH="/custom/lib:$LD_LIBRARY_PATH" ./Daqster-x86_64.AppImage
 ```
 
 ## Структура на проекта
-- `src/frame_work` — ядро за търсене/зареждане на плъгини
-- `src/apps/Daqster` — хост приложение
+- `src/frame_work` — framework ядро за създаване на Qt приложения
+  - `base/src/` — базови компоненти:
+    - `platform/` — platform abstraction (ShutdownHandler за Windows/Unix)
+    - `process/` — process management (QProcessManager)
+    - `include/` — plugin система (QPluginManager, QPluginInterface)
+- `src/apps/Daqster` — хост приложение (наследява framework компонентите)
 - `src/plugins` — плъгини (NodeEditor, QtCoinTrader, примери/тестове)
 - `src/external_libs` — външни зависимости (nodeeditor, qtrest_lib)
 - `tools/` — инструменти за билд и пакетиране
@@ -160,6 +195,18 @@ LD_LIBRARY_PATH="/custom/lib:$LD_LIBRARY_PATH" ./Daqster-x86_64.AppImage
 - `Docs/` — документация
   - `Architecture.md` — архитектура на проекта
   - `HowToDebugAppImage.md` — ръководство за дебъгване на AppImage
+  - `FrameworkAPI.md` — API Reference for framework components
+  - `Architecture.md` — архитектура на проекта (diagrams in `Docs/diagrams/`)
+  - `DeveloperGuide.md` — developer getting-started & contribution guide
+  - `HowToDebugAppImage.md` — ръководство за дебъгване на AppImage
+  - `PluginDependencyManagement.md` — plugin dependency система
+
+### Quick Links
+
+- [Framework API Reference](./Docs/FrameworkAPI.md)
+- [Architecture Overview](./Docs/Architecture.md)
+- [Developer Guide](./Docs/DeveloperGuide.md)
+- [Plugin Dependency Management](./Docs/PluginDependencyManagement.md)
 
 ## Build Types
 

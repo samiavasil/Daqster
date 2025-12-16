@@ -7,6 +7,25 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Framework Architecture Refactoring** - major refactoring to extract reusable components:
+  - **Platform Abstraction Layer** (`frame_work/base/src/platform/`):
+    - `ShutdownHandler` - abstract base class for graceful shutdown
+    - `UnixShutdownHandler` - SIGINT/SIGTERM signal handling for Unix/Linux
+    - `WindowsShutdownHandler` - Windows console events + stdin fallback
+  - **Process Management Layer** (`frame_work/base/src/process/`):
+    - `QProcessManager` - generic base class for managing child processes
+    - Handle-based process tracking
+    - Graceful terminate with force-kill fallback
+    - Virtual hooks for customization (setupProcessEnvironment, onAllProcessesFinished)
+  - **ApplicationsManager Refactoring**:
+    - Inherits from `Daqster::QProcessManager`
+    - Backward compatibility preserved (type aliases, event mappings)
+    - Daqster-specific environment setup (plugin paths, AppImage detection, XDG directories)
+    - Signal forwarding (ProcessEvent → ApplicationEvent)
+  - **Cross-platform Support**:
+    - Platform-independent shutdown mechanism
+    - Proper Ctrl+C handling on Windows and Unix
+    - Graceful process termination on all platforms
 - **PluginDependencyManager System** - automatic plugin dependency management system
   - `cmake/PluginDependencyManager.cmake` - core dependency management system
   - `cmake/PluginExamples.cmake` - usage examples for the system

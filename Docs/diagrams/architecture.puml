@@ -1,0 +1,13 @@
+@startuml
+package "Framework" {
+  class QProcessManager
+  class ShutdownHandler
+  class QPluginManager
+}
+package "Application" {
+  class ApplicationsManager
+}
+QProcessManager <|-- ApplicationsManager
+ShutdownHandler ..> ApplicationsManager : requests shutdown
+QPluginManager --> ApplicationsManager : manages plugins
+@enduml

@@ -7,6 +7,25 @@
 ## [Unreleased]
 
 ### Added
+- **Framework Architecture Refactoring** - голям рефакторинг за извличане на reusable компоненти:
+  - **Platform Abstraction Layer** (`frame_work/base/src/platform/`):
+    - `ShutdownHandler` - абстрактен базов клас за graceful shutdown
+    - `UnixShutdownHandler` - SIGINT/SIGTERM signal handling за Unix/Linux
+    - `WindowsShutdownHandler` - Windows console events + stdin fallback
+  - **Process Management Layer** (`frame_work/base/src/process/`):
+    - `QProcessManager` - generic базов клас за управление на child процеси
+    - Handle-based process tracking
+    - Graceful terminate с force-kill fallback
+    - Virtual hooks за customization (setupProcessEnvironment, onAllProcessesFinished)
+  - **ApplicationsManager Refactoring**:
+    - Наследява от `Daqster::QProcessManager`
+    - Backward compatibility запазена (type aliases, event mappings)
+    - Daqster-specific environment setup (plugin paths, AppImage detection, XDG directories)
+    - Signal forwarding (ProcessEvent → ApplicationEvent)
+  - **Cross-platform Support**:
+    - Платформено-независим shutdown механизъм
+    - Правилно Ctrl+C handling на Windows и Unix
+    - Graceful процес терминация на всички платформи
 - **PluginDependencyManager System** - автоматична система за управление на plugin dependencies
   - `cmake/PluginDependencyManager.cmake` - основна система за dependency management
   - `cmake/PluginExamples.cmake` - примери за използване на системата
