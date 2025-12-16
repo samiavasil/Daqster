@@ -9,7 +9,12 @@
 #include <QDir>
 #include "debug.h"
 #include "main.h"
-#include <csignal>
+
+#ifdef Q_OS_WIN
+#include "WindowsShutdownHandler.h"
+#else
+#include "UnixShutdownHandler.h"
+#endif
 
 class msg {
 public:
@@ -58,19 +63,6 @@ void PluginsInit() {
   }
 }
 
-// Signal handler for graceful shutdown on Ctrl+C (SIGINT) and kill (SIGTERM)
-void signalHandler(int signal) {
-  if (signal == SIGINT || signal == SIGTERM) {
-    qDebug() << "\nReceived signal" << signal << "(" 
-             << (signal == SIGINT ? "Ctrl+C" : "SIGTERM") 
-             << "), shutting down gracefully...";
-    // Stop all child processes gracefully
-    ApplicationsManager::Instance().KillAll();
-    // Stop the application
-    QCoreApplication::quit();
-  }
-}
-
 int main(int argc, char *argv[]) {
 
   int res = 0;
@@ -99,9 +91,23 @@ int main(int argc, char *argv[]) {
   QApplication::setApplicationName("Daqster");
   QApplication::setApplicationVersion("0.1");
 
-  // Setup signal handlers for graceful shutdown
-  std::signal(SIGINT, signalHandler);   // Ctrl+C
-  std::signal(SIGTERM, signalHandler);  // kill command
+  // Setup platform-specific shutdown handler
+#ifdef Q_OS_WIN
+  WindowsShutdownHandler *shutdownHandler = new WindowsShutdownHandler(&a);
+#else
+  UnixShutdownHandler *shutdownHandler = new UnixShutdownHandler(&a);
+#endif
+  
+  if (!shutdownHandler->initialize()) {
+    qWarning() << "Failed to initialize shutdown handler";
+  }
+  
+  QObject::connect(shutdownHandler, &ShutdownHandler::shutdownRequested, [&a]() {
+    // Stop all child processes gracefully
+    ApplicationsManager::Instance().KillAll();
+    // Stop the application
+    a.quit();
+  });
 
   QCommandLineParser parser;
   parser.setApplicationDescription(
@@ -133,6 +139,7 @@ int main(int argc, char *argv[]) {
   // should be called.
   if (!PluginManager->Initialize()) {
     DEBUG << "QPluginManager Initialization Error";
+    return 1;
   }
 
   DEBUG << "Show window";
@@ -165,6 +172,7 @@ int main(int argc, char *argv[]) {
   if (args.count() > 0) {
     if (args.count() > 1) {
       // Multi-plugin mode: start multiple child processes
+      ApplicationsManager::Instance().SetHeadlessMode(true);
       foreach (auto Name, args) {
         // Try multiple approaches for starting the application
         QString executablePath;
@@ -209,6 +217,12 @@ int main(int argc, char *argv[]) {
             break;
           }
         }
+      }
+      
+      // Check if plugin was found
+      if (nullptr == obj) {
+        qCritical() << "Error: Plugin '" << Name << "' not found!";
+        return 1;
       }
     }
     res = a.exec();

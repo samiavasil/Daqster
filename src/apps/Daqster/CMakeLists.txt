@@ -8,6 +8,11 @@ add_executable(Daqster
     AppToolbar.h
     mainwindow.ui
     icons.qrc
+    ShutdownHandler.h
+    UnixShutdownHandler.h
+    UnixShutdownHandler.cpp
+    WindowsShutdownHandler.h
+    WindowsShutdownHandler.cpp
     StyleFile
 )
 

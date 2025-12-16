@@ -54,7 +54,8 @@ AppToolbar::AppToolbar(QWidget* parent) : QToolBar(parent), m_AppMenu(nullptr) {
           &ApplicationsManager::Instance(),
           SLOT(KillAll()));
 
-  ApplicationsManager::Instance().setParent(this);
+  // Don't set parent - ApplicationsManager is a singleton
+  // ApplicationsManager::Instance().setParent(this);
 }
 
 AppToolbar::~AppToolbar() {

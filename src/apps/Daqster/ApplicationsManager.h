@@ -26,6 +26,7 @@ public:
     static ApplicationsManager& Instance();
     ~ApplicationsManager();
     bool GetAppDescryptor(const AppHndl_t& Hndl, AppDescriptor_t& Desc );
+    void SetHeadlessMode(bool enabled);
 public slots:
     void StartApplication(const QString& Name, const QStringList & Arguments, QProcess::OpenMode Mode = QProcess::ReadWrite );
 
@@ -40,6 +41,7 @@ private:
     QMap<AppHndl_t,QProcess*>  m_ProcessMap;
     QMap<AppHndl_t,AppDescriptor_t>  m_ProcessDescs;
     static ApplicationsManager* m_Manager;
+    bool m_headlessMode;
 };
 
 #endif // APPLICATIONSMANAGER_H

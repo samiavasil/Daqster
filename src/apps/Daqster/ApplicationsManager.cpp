@@ -7,7 +7,7 @@
 
 ApplicationsManager *ApplicationsManager::m_Manager;
 
-ApplicationsManager::ApplicationsManager() : QObject(nullptr), nextHndl(0) {}
+ApplicationsManager::ApplicationsManager() : QObject(nullptr), nextHndl(0), m_headlessMode(false) {}
 
 ApplicationsManager::~ApplicationsManager() { KillAll(); }
 
@@ -17,29 +17,36 @@ ApplicationsManager &ApplicationsManager::Instance() {
   }
   return *m_Manager;
 }
+
+void ApplicationsManager::SetHeadlessMode(bool enabled) {
+  m_headlessMode = enabled;
+}
 #include<ostream>
 void ApplicationsManager::KillAll() {
   blockSignals(true);
   
-  auto iter = m_ProcessMap.begin();
-  while (iter != m_ProcessMap.end()) {
-    if (nullptr != iter.value()) {
-      // Send quit signal to the app
-      QProcess* proccess = iter.value();
-      QString data = QString::fromStdString(std::string("quit\r\n"));
-      qDebug() << "Write data: " << proccess->write(data.toLocal8Bit()) << " bytes";
-      if (iter.value()->waitForFinished(10000)) {
-        qDebug() << "Process stoped";
+  // Create a copy of process list to avoid iterator invalidation
+  // when AppFinished() is called during waitForFinished()
+  QList<QProcess*> processList = m_ProcessMap.values();
+  
+  for (QProcess* process : processList) {
+    if (nullptr != process) {
+      // Try graceful shutdown first
+      qDebug() << "Requesting graceful shutdown for process:" << process->program();
+      process->terminate(); // Sends SIGTERM on Unix, WM_CLOSE on Windows
+      
+      if (process->waitForFinished(10000)) {
+        qDebug() << "Process stopped gracefully";
       } else {
-        qDebug() << "Can't stop Process Try to kill: " << iter.value()->program();
-        iter.value()->kill();
+        qDebug() << "Process did not respond to terminate, forcing kill:" << process->program();
+        process->kill(); // Force kill with SIGKILL
+        process->waitForFinished(1000);
       }
-
     }
-    iter = m_ProcessMap.erase(iter);
   }
-  m_ProcessDescs.clear();
+  
   blockSignals(false);
+  // Note: AppFinished() will clean up m_ProcessMap and m_ProcessDescs
 }
 
 void ApplicationsManager::StartApplication(const QString &Name,
@@ -144,8 +151,12 @@ void ApplicationsManager::AppFinished(int exitCode,
   if (sender) {
     AppHndl_t apHndl = (AppHndl_t)sender->property("AppHndl").toUInt();
     if (m_ProcessMap.contains(apHndl)) {
+      // Emit event BEFORE removing descriptor so slots can access it
+      emit ApplicationEvent(apHndl, APP_STOPED);
+      
       m_ProcessMap[apHndl]->deleteLater();
-      m_ProcessMap[apHndl] = nullptr;
+      m_ProcessMap.remove(apHndl);
+      m_ProcessDescs.remove(apHndl);
       qDebug() << "Process Stop: Hndl" << apHndl << " With exitCode "
                << exitCode << ", exitStatus " << exitStatus;
     } else {
@@ -153,6 +164,12 @@ void ApplicationsManager::AppFinished(int exitCode,
     }
   }
   blockSignals(false);
+  
+  // If in headless mode and all processes finished, quit application
+  if (m_headlessMode && m_ProcessMap.isEmpty()) {
+    qDebug() << "All child processes finished in headless mode. Exiting...";
+    qApp->quit();
+  }
 }
 
 bool ApplicationsManager::GetAppDescryptor(const AppHndl_t &Hndl,
