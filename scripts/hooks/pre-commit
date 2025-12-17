@@ -37,8 +37,18 @@ if [ "$FOUND_PLANTUML" -ne 1 ]; then
   echo "To skip hook and commit anyway, run:"
   echo "  git commit --no-verify"
   echo
-  if [ "${PLANTUML_HOOK_STRICT}" = "1" ]; then
-    echo "Hook is in strict mode (PLANTUML_HOOK_STRICT=1). Aborting commit."
+  # Determine strict mode: environment variable or git config 'hooks.plantumlStrict'
+  STRICT_ENV="${PLANTUML_HOOK_STRICT:-}" 
+  if [ -z "$STRICT_ENV" ]; then
+    # check git config (local)
+    STRICT_CFG=$(git config --local --get hooks.plantumlStrict || echo "")
+    if [ "$STRICT_CFG" = "true" ] || [ "$STRICT_CFG" = "1" ]; then
+      STRICT_ENV=1
+    fi
+  fi
+
+  if [ "$STRICT_ENV" = "1" ]; then
+    echo "Hook is in strict mode (PLANTUML_HOOK_STRICT=1 or git config hooks.plantumlStrict=true). Aborting commit."
     exit 1
   else
     echo "Proceeding without rendering (friendly mode)."
