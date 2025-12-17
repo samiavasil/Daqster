@@ -27,11 +27,11 @@ jobs:
 
       - name: Render diagrams
         run: |
-          mkdir -p Docs/diagrams/generated
           for file in Docs/diagrams/*.puml; do
             echo "Rendering $file"
-            java -jar plantuml.jar -tsvg -o Docs/diagrams/generated "${file}"
-            java -jar plantuml.jar -tpng -o Docs/diagrams/generated "${file}"
+            # Render SVG next to source .puml (same folder)
+            java -jar plantuml.jar -tsvg -o Docs/diagrams "${file}"
+            java -jar plantuml.jar -tpng -o Docs/diagrams "${file}"
           done
 
       - name: Commit generated diagrams
@@ -40,7 +40,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Docs/diagrams/generated/*.svg Docs/diagrams/generated/*.png || true
+          git add Docs/diagrams/*.svg Docs/diagrams/*.png || true
           if git diff --staged --quiet; then
             echo "No diagram changes to commit"
             exit 0
