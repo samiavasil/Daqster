@@ -29,6 +29,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y graphviz
+          # Verify graphviz installation
+          which dot
+          dot -V
 
       - name: Download PlantUML
         run: |
@@ -41,6 +44,8 @@ jobs:
             exit 1
           fi
           echo "PlantUML downloaded successfully"
+          # Test PlantUML can find Graphviz
+          java -jar plantuml.jar -testdot
 
       - name: Render diagrams
         env:
