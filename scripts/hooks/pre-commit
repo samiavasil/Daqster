@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Render staged .puml diagrams before commit and stage generated SVG/PNG.
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT" || exit 1
+
+# Find staged puml files
+staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^Docs/diagrams/.*\.puml$' || true)
+if [ -z "$staged" ]; then
+  exit 0
+fi
+
+# Locate plantuml: CLI, local jar, or docker
+FOUND_PLANTUML=0
+if command -v plantuml >/dev/null 2>&1; then
+  PLANTUML_CMD="plantuml"
+  FOUND_PLANTUML=1
+elif [ -f "./tools/plantuml.jar" ]; then
+  PLANTUML_CMD="java -jar ./tools/plantuml.jar"
+  FOUND_PLANTUML=1
+elif [ -f "./plantuml.jar" ]; then
+  PLANTUML_CMD="java -jar ./plantuml.jar"
+  FOUND_PLANTUML=1
+elif command -v docker >/dev/null 2>&1; then
+  PLANTUML_CMD="docker run --rm -v \"$PWD\":/workspace -w /workspace plantuml/plantuml:jetty"
+  FOUND_PLANTUML=1
+fi
+
+if [ "$FOUND_PLANTUML" -ne 1 ]; then
+  echo
+  echo "⚠️  PlantUML not found. Diagrams will NOT be rendered."
+  echo "   Options:"
+  echo "     - Install PlantUML (plantuml CLI) or place plantuml.jar in project root or ./tools/"
+  echo "     - Use Docker: install Docker and rendering will use the container"
+  echo
+  echo "To skip hook and commit anyway, run:"
+  echo "  git commit --no-verify"
+  echo
+  if [ "${PLANTUML_HOOK_STRICT}" = "1" ]; then
+    echo "Hook is in strict mode (PLANTUML_HOOK_STRICT=1). Aborting commit."
+    exit 1
+  else
+    echo "Proceeding without rendering (friendly mode)."
+    exit 0
+  fi
+fi
+
+echo "Rendering PlantUML diagrams..."
+for f in $staged; do
+  echo "  rendering $f"
+  dir=$(dirname "$f")
+  if [[ "$PLANTUML_CMD" == docker* ]]; then
+    $PLANTUML_CMD -tsvg -tpng -o "$dir" "$f"
+  else
+    $PLANTUML_CMD -tsvg -tpng -o "$dir" "$f"
+  fi
+done
+
+# Stage generated files
+git add Docs/diagrams/*.svg Docs/diagrams/*.png || true
+exit 0
