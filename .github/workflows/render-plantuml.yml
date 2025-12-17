@@ -25,8 +25,8 @@ jobs:
         run: |
           # Use sourceforge mirror (more reliable than latest redirect)
           curl -L -o plantuml.jar https://sourceforge.net/projects/plantuml/files/plantuml.jar/download
-          # Verify it's a valid JAR
-          if ! file plantuml.jar | grep -q 'Java archive data'; then
+          # Validate it's a proper JAR/Zip file
+          if ! file plantuml.jar | grep -qE '(Java archive|Zip archive)'; then
             echo "Error: Downloaded file is not a valid JAR"
             file plantuml.jar
             exit 1
