@@ -15,3 +15,4 @@ PM -> App: ProcessEvent(PROCESS_STARTED)
 @enduml
 
 ' ci-trigger 2025-12-17T03:04:44+02:00
+' Trigger CI
