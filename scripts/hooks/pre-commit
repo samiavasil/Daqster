@@ -59,11 +59,13 @@ fi
 echo "Rendering PlantUML diagrams..."
 for f in $staged; do
   echo "  rendering $f"
-  dir=$(dirname "$f")
+  # Render outputs in the same directory as the .puml file
   if [[ "$PLANTUML_CMD" == docker* ]]; then
-    $PLANTUML_CMD -tsvg -tpng -o "$dir" "$f"
+    $PLANTUML_CMD -tsvg "$f"
+    $PLANTUML_CMD -tpng "$f"
   else
-    $PLANTUML_CMD -tsvg -tpng -o "$dir" "$f"
+    $PLANTUML_CMD -tsvg "$f"
+    $PLANTUML_CMD -tpng "$f"
   fi
 done
 
