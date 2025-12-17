@@ -11,6 +11,14 @@ if [ -z "$staged" ]; then
   exit 0
 fi
 
+# If any .puml is staged, render ALL diagrams for consistency
+all_puml=$(ls Docs/diagrams/*.puml 2>/dev/null || true)
+if [ -n "$all_puml" ]; then
+  render_list="$all_puml"
+else
+  render_list="$staged"
+fi
+
 # Locate plantuml: CLI, local jar, or docker
 FOUND_PLANTUML=0
 if command -v plantuml >/dev/null 2>&1; then
@@ -57,16 +65,41 @@ if [ "$FOUND_PLANTUML" -ne 1 ]; then
 fi
 
 echo "Rendering PlantUML diagrams..."
-for f in $staged; do
+
+# Determine output formats from git config, default to svg only
+formats_cfg=$(git config --local --get hooks.plantumlFormats || echo "svg")
+formats=""
+for fmt in $formats_cfg; do
+  case "$fmt" in
+    svg) formats="$formats -tsvg" ;;
+    png) formats="$formats -tpng" ;;
+    *) echo "Unknown format in hooks.plantumlFormats: $fmt (supported: svg png)" ;;
+  esac
+done
+formats=$(echo "$formats" | xargs) # trim
+if [ -z "$formats" ]; then
+  formats="-tsvg"
+fi
+
+for f in $render_list; do
   echo "  rendering $f"
-  dir=$(dirname "$f")
+  # Render outputs in the same directory as the .puml file
   if [[ "$PLANTUML_CMD" == docker* ]]; then
-    $PLANTUML_CMD -tsvg -tpng -o "$dir" "$f"
+    for opt in $formats; do
+      $PLANTUML_CMD $opt "$f"
+    done
   else
-    $PLANTUML_CMD -tsvg -tpng -o "$dir" "$f"
+    for opt in $formats; do
+      $PLANTUML_CMD $opt "$f"
+    done
   fi
 done
 
-# Stage generated files
-git add Docs/diagrams/*.svg Docs/diagrams/*.png || true
+# Stage generated files according to formats
+if echo "$formats_cfg" | grep -qw svg; then
+  git add Docs/diagrams/*.svg || true
+fi
+if echo "$formats_cfg" | grep -qw png; then
+  git add Docs/diagrams/*.png || true
+fi
 exit 0

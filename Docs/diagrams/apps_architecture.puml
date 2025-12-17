@@ -1,0 +1,22 @@
+@startuml
+skinparam packageStyle rect
+skinparam shadowing false
+
+title Applications Architecture
+
+package "Daqster App" {
+  class ApplicationsManager
+  class AppToolbar
+}
+
+package "Framework" {
+  class QProcessManager
+  class QPluginManager
+  class ShutdownHandler
+}
+
+ApplicationsManager <|-- QProcessManager
+ApplicationsManager --> QPluginManager : loads plugins
+ApplicationsManager ..> ShutdownHandler : graceful shutdown
+
+@enduml
