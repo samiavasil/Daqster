@@ -22,3 +22,4 @@ QProcessManager <|-- ApplicationsManager
 ShutdownHandler ..> ApplicationsManager : requests shutdown
 QPluginManager --> ApplicationsManager : manages plugins
 @enduml
+skinparam backgroundColor #ffffff
