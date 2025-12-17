@@ -1,55 +1,60 @@
 #include "ApplicationsManager.h"
+#include <QProcessManager.h>
 #include <QDebug>
 #include <QDir>
 #include <QProcessEnvironment>
 #include <QFileInfo>
 #include <QApplication>
 
-ApplicationsManager *ApplicationsManager::m_Manager;
+ApplicationsManager *ApplicationsManager::m_Manager = nullptr;
 
-ApplicationsManager::ApplicationsManager() : QObject(nullptr), nextHndl(0) {}
+ApplicationsManager::ApplicationsManager() 
+    : Daqster::QProcessManager(nullptr),
+      m_headlessMode(false)
+{
+    // Forward ProcessEvent signal to ApplicationEvent signal with compatible types
+    connect(this, &QProcessManager::ProcessEvent, 
+            this, [this](ProcessHandle_t handle, ProcessEvent_t event) {
+                AppEvent_t appEvent = static_cast<AppEvent_t>(event);
+                emit ApplicationEvent(handle, appEvent);
+            });
+}
 
-ApplicationsManager::~ApplicationsManager() { KillAll(); }
+ApplicationsManager::~ApplicationsManager() 
+{
+    KillAll();
+}
 
 ApplicationsManager &ApplicationsManager::Instance() {
-  if (nullptr == m_Manager) {
-    m_Manager = new ApplicationsManager();
-  }
-  return *m_Manager;
-}
-#include<ostream>
-void ApplicationsManager::KillAll() {
-  blockSignals(true);
-  
-  auto iter = m_ProcessMap.begin();
-  while (iter != m_ProcessMap.end()) {
-    if (nullptr != iter.value()) {
-      // Send quit signal to the app
-      QProcess* proccess = iter.value();
-      QString data = QString::fromStdString(std::string("quit\r\n"));
-      qDebug() << "Write data: " << proccess->write(data.toLocal8Bit()) << " bytes";
-      if (iter.value()->waitForFinished(10000)) {
-        qDebug() << "Process stoped";
-      } else {
-        qDebug() << "Can't stop Process Try to kill: " << iter.value()->program();
-        iter.value()->kill();
-      }
-
+    if (nullptr == m_Manager) {
+        m_Manager = new ApplicationsManager();
     }
-    iter = m_ProcessMap.erase(iter);
-  }
-  m_ProcessDescs.clear();
-  blockSignals(false);
+    return *m_Manager;
 }
 
-void ApplicationsManager::StartApplication(const QString &Name,
-                                           const QStringList &Arguments,
-                                           QProcess::OpenMode Mode) {
-  QProcess *newProc = new QProcess(this);
-  if (newProc) {
-    AppDescriptor_t Desc = {Name, Arguments, Mode};
-    qDebug() << "App: " << Name << "Args: " << Arguments;
-    newProc->setInputChannelMode(QProcess::ManagedInputChannel);
+void ApplicationsManager::SetHeadlessMode(bool enabled) {
+    m_headlessMode = enabled;
+}
+
+bool ApplicationsManager::GetAppDescryptor(const AppHndl_t& Hndl, 
+                                          AppDescriptor_t& Desc) const
+{
+    return GetProcessDescriptor(Hndl, Desc);
+}
+
+void ApplicationsManager::StartApplication(const QString& Name, 
+                                          const QStringList& Arguments, 
+                                          QProcess::OpenMode Mode)
+{
+    // Delegate to base class StartProcess
+    StartProcess(Name, Arguments, Mode);
+}
+void ApplicationsManager::setupProcessEnvironment(QProcess* process, 
+                                                 const QString& name,
+                                                 const QStringList& arguments)
+{
+    Q_UNUSED(name);
+    Q_UNUSED(arguments);
     
     // Set environment variables for child process
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
@@ -105,7 +110,7 @@ void ApplicationsManager::StartApplication(const QString &Name,
     QDir().mkpath(env.value("XDG_DATA_HOME"));
     QDir().mkpath(env.value("XDG_CACHE_HOME"));
     
-    newProc->setProcessEnvironment(env);
+    process->setProcessEnvironment(env);
     
     // Debug: Print environment variables
     qDebug() << "=== Environment Variables for Child Process ===";
@@ -119,48 +124,21 @@ void ApplicationsManager::StartApplication(const QString &Name,
     qDebug() << "XDG_DATA_HOME:" << env.value("XDG_DATA_HOME");
     qDebug() << "XDG_CACHE_HOME:" << env.value("XDG_CACHE_HOME");
     qDebug() << "=== End Environment Variables ===";
+}
+
+// Override base class method to forward events with ApplicationsManager signature
+void ApplicationsManager::OnProcessFinished(int exitCode, QProcess::ExitStatus exitStatus) {
+    // First call base class to handle cleanup and emit ProcessEvent
+    QProcessManager::OnProcessFinished(exitCode, exitStatus);
     
-    newProc->start(Name, Arguments, Mode);
-    m_ProcessMap[nextHndl] = newProc;
-    m_ProcessDescs[nextHndl] = Desc;
-    newProc->setProperty("AppHndl", nextHndl);
-    connect(newProc, SIGNAL(finished(int, QProcess::ExitStatus)), this,
-            SLOT(AppFinished(int, QProcess::ExitStatus)));
-    qDebug() << "Process '" << Name << "' Start: Hndl " << nextHndl;
-    newProc->waitForStarted();
-
-    emit ApplicationEvent(nextHndl, APP_STARTED);
-    nextHndl++;
-  } else {
-    qDebug() << "Can't start process '" << Name << "' Start";
-  }
+    // Base class already emits ProcessEvent, which is what ApplicationEvent connects to
+    // No need to emit again - the signal connection will handle forwarding
 }
 
-void ApplicationsManager::AppFinished(int exitCode,
-                                      QProcess::ExitStatus exitStatus) {
-
-  blockSignals(true);
-  QProcess *sender = dynamic_cast<QProcess *>(QObject::sender());
-  if (sender) {
-    AppHndl_t apHndl = (AppHndl_t)sender->property("AppHndl").toUInt();
-    if (m_ProcessMap.contains(apHndl)) {
-      m_ProcessMap[apHndl]->deleteLater();
-      m_ProcessMap[apHndl] = nullptr;
-      qDebug() << "Process Stop: Hndl" << apHndl << " With exitCode "
-               << exitCode << ", exitStatus " << exitStatus;
-    } else {
-      qDebug() << "Can't find process with Hndl " << apHndl;
-    }
+// Override to implement headless mode quit logic
+void ApplicationsManager::onAllProcessesFinished() {
+  if (m_headlessMode) {
+    qDebug() << "All child processes finished in headless mode. Exiting...";
+    qApp->quit();
   }
-  blockSignals(false);
-}
-
-bool ApplicationsManager::GetAppDescryptor(const AppHndl_t &Hndl,
-                                           AppDescriptor_t &Desc) {
-  bool ret = false;
-  if (m_ProcessDescs.contains(nextHndl)) {
-    Desc = m_ProcessDescs[Hndl];
-    ret = true;
-  }
-  return ret;
 }

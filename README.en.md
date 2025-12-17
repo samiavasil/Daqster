@@ -92,6 +92,37 @@ cd build/bin
 ./Daqster
 ```
 
+### Framework Architecture
+
+Daqster uses a modular framework architecture that allows creating different types of applications:
+
+#### Platform Abstraction Layer
+- **ShutdownHandler** - base class for graceful shutdown:
+  - Cross-platform signal handling (Ctrl+C, SIGTERM)
+  - Virtual interface for easy extension
+  - Unix: SIGINT/SIGTERM signal handlers
+  - Windows: Console event handlers + stdin fallback
+
+#### Process Management Layer
+- **QProcessManager** - generic base class for managing child processes:
+  - Handle-based process tracking
+  - Graceful terminate (10s timeout) + force kill fallback
+  - Virtual hooks for customization:
+    - `setupProcessEnvironment()` - custom environment setup
+    - `onAllProcessesFinished()` - cleanup when all processes finish
+  - ProcessEvent signals for state changes
+
+#### Application Layer
+- **ApplicationsManager** - Daqster-specific implementation:
+  - Inherits from `QProcessManager`
+  - Backward compatibility (AppHndl_t, AppEvent_t, AppDescriptor_t)
+  - Daqster environment setup:
+    - AppImage detection and path configuration
+    - DAQSTER_PLUGIN_* environment variables
+    - XDG directories (config, data, cache)
+  - Headless mode support
+  - Signal forwarding to GUI components
+
 ### Plugin Discovery System
 
 Plugins are searched in the following order (by priority):
@@ -139,16 +170,31 @@ LD_LIBRARY_PATH="/custom/lib:$LD_LIBRARY_PATH" ./Daqster-x86_64.AppImage
 ```
 
 ## Project Structure
-- `src/frame_work` — core for plugin discovery/loading
-- `src/apps/Daqster` — host application
+- `src/frame_work` — framework core for building Qt applications
+  - `base/src/` — base components:
+    - `platform/` — platform abstraction (ShutdownHandler for Windows/Unix)
+    - `process/` — process management (QProcessManager)
+    - `include/` — plugin system (QPluginManager, QPluginInterface)
+- `src/apps/Daqster` — host application (inherits framework components)
 - `src/plugins` — plugins (NodeEditor, QtCoinTrader, examples/tests)
 - `src/external_libs` — external dependencies (nodeeditor, qtrest_lib)
 - `tools/` — build and packaging tools
-  - `create_appimage.sh` — unified script for creating AppImage
+  - `create_appimage.sh` — unified script for AppImage creation
   - `Build_AppImage/` — directory for local AppImage builds
 - `Docs/` — documentation
   - `Architecture.md` — project architecture
+  - `FrameworkAPI.md` — API Reference for framework components
+  - `Architecture.md` — project architecture (diagrams in `Docs/diagrams/`)
+  - `DeveloperGuide.md` — developer getting-started & contribution guide
   - `HowToDebugAppImage.md` — guide for debugging AppImage
+  - `PluginDependencyManagement.md` — plugin dependency system
+
+### Quick Links
+
+- [Framework API Reference](./Docs/FrameworkAPI.md)
+- [Architecture Overview](./Docs/Architecture.md)
+- [Developer Guide](./Docs/DeveloperGuide.md)
+- [Plugin Dependency Management](./Docs/PluginDependencyManagement.md)
 
 ## Build Types
 

@@ -1,0 +1,61 @@
+name: Render PlantUML Diagrams
+
+on:
+  push:
+    paths:
+      - 'Docs/diagrams/**/*.puml'
+      - '.github/workflows/render-plantuml.yml'
+  workflow_dispatch: {}
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Download PlantUML
+        run: |
+          # Use sourceforge mirror (more reliable than latest redirect)
+          curl -L -o plantuml.jar https://sourceforge.net/projects/plantuml/files/plantuml.jar/download
+          # Validate it's a proper JAR/Zip file
+          if ! file plantuml.jar | grep -qE '(Java archive|Zip archive)'; then
+            echo "Error: Downloaded file is not a valid JAR"
+            file plantuml.jar
+            exit 1
+          fi
+          echo "PlantUML downloaded successfully"
+
+      - name: Render diagrams
+        run: |
+          for file in Docs/diagrams/*.puml; do
+            echo "Rendering $file"
+            # Render SVG/PNG in the same directory as the .puml file
+            java -jar plantuml.jar -tsvg "${file}"
+            java -jar plantuml.jar -tpng "${file}"
+          done
+
+      - name: Commit generated diagrams
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Docs/diagrams/*.svg Docs/diagrams/*.png || true
+          if git diff --staged --quiet; then
+            echo "No diagram changes to commit"
+            exit 0
+          fi
+          git commit -m "ci(docs): render PlantUML diagrams [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}

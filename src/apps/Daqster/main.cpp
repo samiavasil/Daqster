@@ -8,8 +8,14 @@
 #include <QFile>
 #include <QDir>
 #include "debug.h"
-#include "QConsoleListener.h"
 #include "main.h"
+
+// Framework headers
+#ifdef Q_OS_WIN
+#include <WindowsShutdownHandler.h>
+#else
+#include <UnixShutdownHandler.h>
+#endif
 
 class msg {
 public:
@@ -46,17 +52,14 @@ void PluginsInit() {
   if (nullptr != PluginManager) {
     PluginManager->SearchForPlugins();
     qDebug() << "Plugin Manager: " << PluginManager;
-    //  PluginManager->SearchForPlugins();
-    // PluginManager->ShowPluginManagerGui();
     QList<Daqster::PluginDescription> PluginsList =
         PluginManager->GetPluginList();
     /*Just try to load/unload all plugins in initialization phase*/
     foreach (const Daqster::PluginDescription &Desc, PluginsList) {
-      for (int i = 0; i < 1; i++) {
-        Daqster::QBasePluginObject* obj = PluginManager->CreatePluginObject(Desc.GetProperty(PLUGIN_HASH).toString(),nullptr);
-        if(obj != NULL)
-          obj->deleteLater();
-      }
+      Daqster::QBasePluginObject* obj = PluginManager->CreatePluginObject(
+          Desc.GetProperty(PLUGIN_HASH).toString(), nullptr);
+      if (obj != nullptr)
+        obj->deleteLater();
     }
   }
 }
@@ -89,6 +92,24 @@ int main(int argc, char *argv[]) {
   QApplication::setApplicationName("Daqster");
   QApplication::setApplicationVersion("0.1");
 
+  // Setup platform-specific shutdown handler
+#ifdef Q_OS_WIN
+  WindowsShutdownHandler *shutdownHandler = new WindowsShutdownHandler(&a);
+#else
+  UnixShutdownHandler *shutdownHandler = new UnixShutdownHandler(&a);
+#endif
+  
+  if (!shutdownHandler->initialize()) {
+    qWarning() << "Failed to initialize shutdown handler";
+  }
+  
+  QObject::connect(shutdownHandler, &ShutdownHandler::shutdownRequested, [&a]() {
+    // Stop all child processes gracefully
+    ApplicationsManager::Instance().KillAll();
+    // Stop the application
+    a.quit();
+  });
+
   QCommandLineParser parser;
   parser.setApplicationDescription(
       "This program is used to run Daqster Application plugins");
@@ -119,6 +140,7 @@ int main(int argc, char *argv[]) {
   // should be called.
   if (!PluginManager->Initialize()) {
     DEBUG << "QPluginManager Initialization Error";
+    return 1;
   }
 
   DEBUG << "Show window";
@@ -150,6 +172,8 @@ int main(int argc, char *argv[]) {
 
   if (args.count() > 0) {
     if (args.count() > 1) {
+      // Multi-plugin mode: start multiple child processes
+      ApplicationsManager::Instance().SetHeadlessMode(true);
       foreach (auto Name, args) {
         // Try multiple approaches for starting the application
         QString executablePath;
@@ -174,11 +198,12 @@ int main(int argc, char *argv[]) {
         qDebug() << "Start Application: " << Name << " via " << executablePath;
       }
     } else {
+      // Single plugin mode: run plugin directly in this process
       QString Name = args[0];
       Daqster::QBasePluginObject *obj = nullptr;
       qDebug() << "\nSearch for plugin: " << Name;
       int ctr = 0;
-       foreach (const Daqster::PluginDescription &Desc, PluginsList) {
+      foreach (const Daqster::PluginDescription &Desc, PluginsList) {
         ctr++;
         qDebug() << "  Plug" << ctr << ": "
                  << Desc.GetProperty(PLUGIN_NAME).toString();
@@ -194,23 +219,16 @@ int main(int argc, char *argv[]) {
           }
         }
       }
-      QConsoleListener *console = new QConsoleListener();
-      QObject::connect(
-          console, &QConsoleListener::newLine, [&a](const QString &strNewLine) {
-            static int aa;
-            qDebug() << "Echo :" << aa++ << strNewLine;
-            // quit
-            if (strNewLine.trimmed().compare("quit", Qt::CaseInsensitive) == 0) {
-              qDebug() << "Goodbye";
-              a.quit();
-            }
-          });
+      
+      // Check if plugin was found
+      if (nullptr == obj) {
+        qCritical() << "Error: Plugin '" << Name << "' not found!";
+        return 1;
+      }
     }
     res = a.exec();
   } else {
-
-    // MainWindow w;
-    // w.show();
+    // GUI mode: show AppToolbar
     qDebug() << __BASE_FILE__ << __FILE__;
     AppToolbar AppBar;
     AppBar.show();
