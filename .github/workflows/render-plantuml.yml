@@ -38,12 +38,19 @@ jobs:
           echo "PlantUML downloaded successfully"
 
       - name: Render diagrams
+        env:
+          PLANTUML_FORMATS: svg
         run: |
+          formats="${PLANTUML_FORMATS:-svg}"
           for file in Docs/diagrams/*.puml; do
             echo "Rendering $file"
-            # Render SVG/PNG in the same directory as the .puml file
-            java -jar plantuml.jar -tsvg "${file}"
-            java -jar plantuml.jar -tpng "${file}"
+            for fmt in $formats; do
+              case "$fmt" in
+                svg) java -jar plantuml.jar -tsvg "${file}" ;;
+                png) java -jar plantuml.jar -tpng "${file}" ;;
+                *) echo "Unknown format: $fmt (supported: svg png)" ;;
+              esac
+            done
           done
 
       - name: Commit generated diagrams
@@ -52,7 +59,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Docs/diagrams/*.svg Docs/diagrams/*.png || true
+          # Stage only configured formats (default: svg)
+          if echo "$PLANTUML_FORMATS" | grep -qw svg || [ -z "$PLANTUML_FORMATS" ]; then
+            git add Docs/diagrams/*.svg || true
+          fi
+          if echo "$PLANTUML_FORMATS" | grep -qw png; then
+            git add Docs/diagrams/*.png || true
+          fi
           if git diff --staged --quiet; then
             echo "No diagram changes to commit"
             exit 0
