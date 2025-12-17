@@ -41,9 +41,9 @@ jobs:
         run: |
           for file in Docs/diagrams/*.puml; do
             echo "Rendering $file"
-            # Render SVG next to source .puml (same folder)
-            java -jar plantuml.jar -tsvg -o Docs/diagrams "${file}"
-            java -jar plantuml.jar -tpng -o Docs/diagrams "${file}"
+            # Render SVG/PNG in the same directory as the .puml file
+            java -jar plantuml.jar -tsvg "${file}"
+            java -jar plantuml.jar -tpng "${file}"
           done
 
       - name: Commit generated diagrams
