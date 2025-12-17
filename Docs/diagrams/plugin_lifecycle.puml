@@ -1,0 +1,24 @@
+@startuml
+skinparam shadowing false
+
+title Plugin Lifecycle
+
+actor User
+participant Daqster
+participant QPluginManager
+participant Plugin as P
+
+User -> Daqster : Start Application
+Daqster -> QPluginManager : loadAll()
+QPluginManager -> P : instantiate
+P --> QPluginManager : initialize()
+QPluginManager --> Daqster : plugin ready
+Daqster --> User : UI available
+
+== Shutdown ==
+Daqster -> QPluginManager : unloadAll()
+QPluginManager -> P : shutdown()
+P --> QPluginManager : cleanup done
+QPluginManager --> Daqster : all unloaded
+
+@enduml
