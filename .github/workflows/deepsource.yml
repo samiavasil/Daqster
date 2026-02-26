@@ -38,6 +38,11 @@ jobs:
         run: |
           cmake --build build -j
 
+      - name: Analyze with DeepSource
+        if: secrets.DEEPSOURCE_DSN != ''
+        uses: deepsourcelabs/gh-actions-analyzer@v1
+        with:
+          dsn: ${{ secrets.DEEPSOURCE_DSN }}
       - name: Verify compile_commands.json
         run: |
           if [ ! -s build/compile_commands.json ]; then
