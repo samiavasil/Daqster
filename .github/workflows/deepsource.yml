@@ -37,3 +37,21 @@ jobs:
       - name: Build project
         run: |
           cmake --build build -j
+
+      - name: Verify compile_commands.json
+        run: |
+          if [ ! -s build/compile_commands.json ]; then
+            echo "ERROR: compile_commands.json missing or empty"
+            exit 1
+          fi
+          echo "compile_commands.json generated successfully"
+          echo "Entry count: $(python3 -c 'import json,sys; print(len(json.load(open("build/compile_commands.json"))))' 2>/dev/null || echo 'unknown')"
+
+      - name: Report compile_commands.json to DeepSource
+        if: ${{ env.DEEPSOURCE_DSN != '' }}
+        run: |
+          curl -sSfL https://deepsource.io/cli -o /tmp/deepsource-install.sh
+          sh /tmp/deepsource-install.sh
+          ./bin/deepsource report --analyzer cxx --key compile-commands --value-file build/compile_commands.json
+        env:
+          DEEPSOURCE_DSN: ${{ secrets.DEEPSOURCE_DSN }}
