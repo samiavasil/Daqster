@@ -39,7 +39,7 @@ jobs:
           cmake --build build -j
 
       - name: Analyze with DeepSource
-        if: ${{ secrets.DEEPSOURCE_DSN != '' }}
+        if: secrets.DEEPSOURCE_DSN != ''
         uses: deepsourcelabs/gh-actions-analyzer@v1
         with:
           dsn: ${{ secrets.DEEPSOURCE_DSN }}
