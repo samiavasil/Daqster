@@ -1,0 +1,8 @@
+version = 1
+
+[[analyzers]]
+name = "C & C++"
+enabled = true
+
+  [analyzers.meta]
+  import_path = "github.com/samiavasil/Daqster"
