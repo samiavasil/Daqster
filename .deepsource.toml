@@ -1,8 +1,8 @@
 version = 1
 
 [[analyzers]]
-name = "C & C++"
+name = "cxx"
 enabled = true
 
   [analyzers.meta]
-  import_path = "github.com/samiavasil/Daqster"
+  compile_commands_path = "build/compile_commands.json"
