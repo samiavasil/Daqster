@@ -7,6 +7,7 @@ class Singleton
 {
 public:
     static T* instance(){
+        static T* g_instance = nullptr;
         if(  nullptr == g_instance ){
             g_instance = new T();
         }
@@ -20,9 +21,6 @@ protected:
 private:
     Singleton( Singleton const& );
     Singleton& operator= (Singleton const&);
-    static T* g_instance;
 };
-
-template < class T> T* Singleton<T>::g_instance =  nullptr;
 
 #endif // SINGLETON_H

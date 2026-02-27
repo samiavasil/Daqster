@@ -55,8 +55,6 @@ protected:
 
 private:
     ApplicationsManager();
-    
-    static ApplicationsManager* m_Manager;
     bool m_headlessMode;
 };
 

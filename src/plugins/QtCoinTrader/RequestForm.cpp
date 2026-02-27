@@ -12,14 +12,14 @@
 //qDebug() << __FILE__ << " Line: " << __LINE__ << " "
 #define DEFAULT_ADDR "localhost:8001/radio/stations"
 
-static const char* servType[] = {
+static const char* const servType[] = {
     "http",
     "https"
 };
 
 
 
-static const char* reqType[] = {
+static const char* const reqType[] = {
     "GET",
     "POST",
     "PUT",

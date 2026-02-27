@@ -268,11 +268,11 @@ protected:
 // This helps, that deprecated or "future" plugins, which fit not to the current implementation of the interface will not be loaded
 // but a sophisticated error message is shown.
 /*TODO: Plugin Version control should be implemented*/
-static const char* daqster_PluginObjectInterface_OldVersions[] = {
+static const char* const daqster_PluginObjectInterface_OldVersions[] = {
      CREATE_PLUGIN_INTERFACE_VERSION_STR(-1,-1,-1),//version TODO: DELL ME not real version in moment
      nullptr
 };
-static const char* daqster_PluginInterface_CurrentVersion = DAQSTER_PLUGIN_INTERFACE_VERSION_STR; //results in "Daqster.PlugIn.BaseInterface/x.x.x";
+static const char* const daqster_PluginInterface_CurrentVersion = DAQSTER_PLUGIN_INTERFACE_VERSION_STR; //results in "Daqster.PlugIn.BaseInterface/x.x.x";
 // must be out of namespace
 Q_DECLARE_INTERFACE(Daqster::QPluginInterface , daqster_PluginInterface_CurrentVersion )
 #endif // QPLUGINBASESINTERFACE_H
