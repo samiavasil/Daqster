@@ -201,6 +201,12 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
+          # Match Linux CI Qt modules as closely as possible:
+          # - qtdeclarative: QML/Quick support (QtQml, QtQuick)
+          # - qtquickcontrols2: Qt Quick Controls 2 (used by QtCoinTrader)
+          # - qtmultimedia: multimedia APIs (used by NodeEditor plugin)
+          # - qtcharts: Qt Charts (used by NodeEditor/QtCoinTrader plugins)
+          modules: 'qtdeclarative qtquickcontrols2 qtmultimedia qtcharts'
 
       - name: Install Ninja
         run: |
