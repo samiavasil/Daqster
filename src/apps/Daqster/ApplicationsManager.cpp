@@ -21,7 +21,8 @@ ApplicationsManager::ApplicationsManager()
 
 ApplicationsManager::~ApplicationsManager() 
 {
-    KillAll();
+  qDebug() << "ApplicationsManager destructor: invoking KillAll()";
+  KillAll();
 }
 
 ApplicationsManager &ApplicationsManager::Instance() {
@@ -135,7 +136,7 @@ void ApplicationsManager::OnProcessFinished(int exitCode, QProcess::ExitStatus e
 // Override to implement headless mode quit logic
 void ApplicationsManager::onAllProcessesFinished() {
   if (m_headlessMode) {
-    qDebug() << "All child processes finished in headless mode. Exiting...";
+    qDebug() << "ApplicationsManager::onAllProcessesFinished(): all child processes finished in headless mode, calling qApp->quit()";
     qApp->quit();
   }
 }

@@ -8,8 +8,10 @@
 #include <QDir>
 #include <QApplication>
 #include "ApplicationsManager.h"
+#include "debug.h"
 
 AppToolbar::AppToolbar(QWidget* parent) : QToolBar(parent), m_AppMenu(nullptr) {
+  DEBUG << "AppToolbar constructed";
   QList<Daqster::PluginDescription> list = GetAppPluginList();
   QAction* actionNew = nullptr;
   //actionNew->setObjectName( val.GetProperty(PLUGIN_NAME).toString() );
@@ -51,14 +53,21 @@ AppToolbar::AppToolbar(QWidget* parent) : QToolBar(parent), m_AppMenu(nullptr) {
 
   connect(tButton,
           SIGNAL(clicked(bool)),
-          &ApplicationsManager::Instance(),
-          SLOT(KillAll()));
+      this,
+      SLOT(onExitClicked()));
 
   // Don't set parent - ApplicationsManager is a singleton
   // ApplicationsManager::Instance().setParent(this);
 }
 
 AppToolbar::~AppToolbar() {
+  DEBUG << "AppToolbar destroyed";
+}
+
+void AppToolbar::onExitClicked()
+{
+  DEBUG << "AppToolbar::onExitClicked(): calling ApplicationsManager::KillAll()";
+  ApplicationsManager::Instance().KillAll();
 }
 
 void AppToolbar::ApplicationEvent(const ApplicationsManager::AppHndl_t ApHndl, const ApplicationsManager::AppEvent_t& ev) {

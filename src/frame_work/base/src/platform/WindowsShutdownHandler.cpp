@@ -1,6 +1,7 @@
 #include "WindowsShutdownHandler.h"
 
 #include <QDebug>
+#include "debug.h"
 
 #ifdef Q_OS_WIN
 WindowsShutdownHandler* WindowsShutdownHandler::s_instance = nullptr;
@@ -66,6 +67,7 @@ BOOL WINAPI WindowsShutdownHandler::consoleCtrlHandler(DWORD signal)
         }
 
         qDebug() << "\nReceived Windows console event:" << signalName;
+        DEBUG << "Emitting shutdownRequested() from WindowsShutdownHandler";
         QMetaObject::invokeMethod(s_instance, "shutdownRequested", Qt::QueuedConnection);
         return TRUE;
     }
