@@ -185,3 +185,50 @@ jobs:
           path: |
             Daqster-x86_64.AppImage
             Daqster-Debug-x86_64.AppImage
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install Qt (5.15.2)
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '5.15.2'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+
+      - name: Install Ninja
+        run: |
+          choco install ninja -y
+
+      - name: Configure (Release)
+        run: |
+          cmake -S . -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (Release)
+        run: |
+          cmake --build build --config Release -j
+
+      - name: Install to staging (Release)
+        run: |
+          cmake --install build --prefix "${{ github.workspace }}\\stage-win"
+
+      - name: Bundle Qt runtime (windeployqt)
+        run: |
+          windeployqt --release --qmldir . "${{ github.workspace }}\\stage-win\\bin\\Daqster.exe"
+
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "${{ github.workspace }}\stage-win\*" -DestinationPath "${{ github.workspace }}\Daqster-Windows-x86_64.zip"
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Daqster-Windows-x86_64
+          path: Daqster-Windows-x86_64.zip
