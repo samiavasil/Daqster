@@ -1,5 +1,10 @@
 version = 1
 
+exclude_patterns = [
+  "build/**",
+  "src/external_libs/**",
+]
+
 [[analyzers]]
 name = "cxx"
 enabled = true

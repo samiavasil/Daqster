@@ -1,41 +1,72 @@
 # Use Qt detection from parent scope
 
-add_library(frame_work
-    SHARED
-        base/src/global.h
-        base/src/PluginDescription.cpp
-        base/src/PluginDetails.cpp
-        base/src/PluginDetails.h
-        base/src/PluginFilter.cpp
-        base/src/QBasePluginObject.cpp
-        base/src/QPluginInterface.cpp
-        base/src/QPluginListView.cpp
-        base/src/QPluginListView.h
-        base/src/QPluginLoaderExt.cpp
-        base/src/QPluginLoaderExt.h
-        base/src/QPluginManager.cpp
-        base/src/QPluginManagerGui.cpp
-        base/src/QPluginManagerGui.h
-        base/src/Singleton.h
-        base/src/pluginmanagergui.ui
-        base/src/pluginlistview.ui
-        base/src/plugindetails.ui
-        framework_resources.qrc
-        base/src/include/QPluginManager.h
-        base/src/include/QPluginInterface.h
-        base/src/include/QBasePluginObject.h
-        base/src/platform/ShutdownHandler.h
-        base/src/platform/UnixShutdownHandler.h
-        base/src/platform/UnixShutdownHandler.cpp
-        base/src/platform/StdinShutdownHandler.h
-        base/src/platform/StdinShutdownHandler.cpp
-        base/src/platform/WindowsShutdownHandler.h
-        base/src/platform/WindowsShutdownHandler.cpp
-        base/src/process/QProcessManager.h
-        base/src/process/QProcessManager.cpp
+option(FRAME_WORK_BUILD_STATIC "Build frame_work as a static library" OFF)
+
+set(FRAME_WORK_SOURCES
+  base/src/global.h
+  base/src/PluginDescription.cpp
+  base/src/PluginDetails.cpp
+  base/src/PluginDetails.h
+  base/src/PluginFilter.cpp
+  base/src/QBasePluginObject.cpp
+  base/src/QPluginInterface.cpp
+  base/src/QPluginListView.cpp
+  base/src/QPluginListView.h
+  base/src/QPluginLoaderExt.cpp
+  base/src/QPluginLoaderExt.h
+  base/src/QPluginManager.cpp
+  base/src/QPluginManagerGui.cpp
+  base/src/QPluginManagerGui.h
+  base/src/Singleton.h
+  base/src/pluginmanagergui.ui
+  base/src/pluginlistview.ui
+  base/src/plugindetails.ui
+  framework_resources.qrc
+  base/src/include/QPluginManager.h
+  base/src/include/QPluginInterface.h
+  base/src/include/QBasePluginObject.h
+  base/src/platform/ShutdownHandler.h
+  base/src/platform/StdinShutdownHandler.h
+  base/src/platform/StdinShutdownHandler.cpp
+  base/src/process/QProcessManager.h
+  base/src/process/QProcessManager.cpp
 )
 
-add_definitions(-DFRAME_WORK_LIBRARY)
+if(WIN32)
+  list(APPEND FRAME_WORK_SOURCES
+    base/src/platform/WindowsShutdownHandler.h
+    base/src/platform/WindowsShutdownHandler.cpp
+  )
+else()
+  list(APPEND FRAME_WORK_SOURCES
+    base/src/platform/UnixShutdownHandler.h
+    base/src/platform/UnixShutdownHandler.cpp
+  )
+endif()
+
+if(FRAME_WORK_BUILD_STATIC)
+  # Static build of frame_work: no dllimport/dllexport, all
+  # symbols are linked directly into consumers.
+  add_library(frame_work STATIC
+    ${FRAME_WORK_SOURCES}
+  )
+  target_compile_definitions(frame_work PUBLIC FRAME_WORK_STATIC)
+else()
+  # Default/shared build: provide a shared framework library
+  # with proper export/import decorations.
+  add_library(frame_work SHARED
+    ${FRAME_WORK_SOURCES}
+  )
+  target_compile_definitions(frame_work PRIVATE FRAME_WORK_LIBRARY)
+
+  # On Windows, also auto-export all public symbols from the
+  # frame_work DLL so that classes without explicit
+  # FRAME_WORKSHARED_EXPORT (e.g. QProcessManager,
+  # ShutdownHandler) are visible to Daqster.exe and plugins.
+  if(WIN32)
+    set_target_properties(frame_work PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+  endif()
+endif()
 
 target_include_directories(frame_work
   PUBLIC

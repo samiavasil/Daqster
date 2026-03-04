@@ -2,6 +2,7 @@
 
 #include "ShutdownHandler.h"
 
+#include <array>
 #include <csignal>
 
 class QSocketNotifier;
@@ -16,7 +17,7 @@ class QSocketNotifier;
  * a QSocketNotifier on the read-end lives in the Qt thread and emits
  * ShutdownHandler::shutdownRequested().
  */
-class UnixShutdownHandler : public ShutdownHandler
+class FRAME_WORKSHARED_EXPORT UnixShutdownHandler : public ShutdownHandler
 {
     Q_OBJECT
 
@@ -36,5 +37,5 @@ private:
     static UnixShutdownHandler *s_instance;
 
     // Self-pipe used from signal handler (write) and Qt thread (read)
-    static int s_sigPipe[2];
+    static std::array<int, 2> s_sigPipe;
 };

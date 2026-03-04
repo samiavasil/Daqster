@@ -21,7 +21,7 @@
  * This is orthogonal to OS-specific shutdown mechanisms (Unix signals,
  * Windows console control events) and can be combined with them.
  */
-class StdinShutdownHandler : public ShutdownHandler
+class FRAME_WORKSHARED_EXPORT StdinShutdownHandler : public ShutdownHandler
 {
     Q_OBJECT
 

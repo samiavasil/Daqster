@@ -19,7 +19,13 @@ typedef uint64_t  u64;
 /*Configure dynamic library export macro*/
 /*Include Qt headers - try Qt6 first, fallback to Qt5*/
 #include <QtCore/qglobal.h>
-#if defined(FRAME_WORK_LIBRARY)
+
+// When building/using frame_work as a static library (e.g. on
+// Windows MinGW in CI), we must not use dllimport/dllexport.
+// FRAME_WORK_STATIC is defined via CMake in that case.
+#if defined(FRAME_WORK_STATIC)
+  #define FRAME_WORKSHARED_EXPORT
+#elif defined(FRAME_WORK_LIBRARY)
   #define FRAME_WORKSHARED_EXPORT Q_DECL_EXPORT
 #else
   #define FRAME_WORKSHARED_EXPORT Q_DECL_IMPORT

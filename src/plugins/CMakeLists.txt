@@ -7,12 +7,18 @@ message(STATUS "=== Plugins Status ===")
 if(QT_VERSION_MAJOR EQUAL 5)
     # NodeEditor plugin
     register_plugin(NodeEditorPlugin
-        REQUIRES_QT_MODULES Multimedia Widgets
+        # Uses Core, Gui, Widgets (always present with QtBase) plus
+        # Multimedia, Charts and OpenGL. If any of the optional
+        # modules are missing, disable the plugin instead of
+        # failing the build.
+        REQUIRES_QT_MODULES Multimedia Charts OpenGL Widgets
         REQUIRES_EXTERNAL_LIBS nodes
     )
     
     # QtCoinTrader plugin
     register_plugin(QtCoinTraderPlugin
+        # Requires full QML/Quick/Controls2 + Charts + Network.
+        # Missing modules will cleanly disable the plugin.
         REQUIRES_QT_MODULES Qml Quick QuickControls2 Charts Network
         REQUIRES_EXTERNAL_LIBS qtrest_lib
         REQUIRES_PACKAGES OpenSSL

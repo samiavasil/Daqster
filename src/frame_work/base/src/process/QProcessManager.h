@@ -1,6 +1,8 @@
 #ifndef QPROCESSMANAGER_H
 #define QPROCESSMANAGER_H
 
+#include "build_cfg.h"
+
 #include <QObject>
 #include <QMap>
 #include <QString>
@@ -22,7 +24,7 @@ namespace Daqster {
  * This is a base class intended to be extended with application-specific
  * environment setup and process management logic.
  */
-class QProcessManager : public QObject
+class FRAME_WORKSHARED_EXPORT QProcessManager : public QObject
 {
     Q_OBJECT
 

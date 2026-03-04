@@ -13,7 +13,7 @@
  * Uses SetConsoleCtrlHandler for Ctrl+C, Ctrl+Break, and console close events
  * to request a graceful application shutdown.
  */
-class WindowsShutdownHandler : public ShutdownHandler
+class FRAME_WORKSHARED_EXPORT WindowsShutdownHandler : public ShutdownHandler
 {
     Q_OBJECT
 

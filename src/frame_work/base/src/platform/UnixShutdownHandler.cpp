@@ -7,7 +7,7 @@
 #include <unistd.h>
 
 UnixShutdownHandler *UnixShutdownHandler::s_instance = nullptr;
-int UnixShutdownHandler::s_sigPipe[2] = {-1, -1};
+std::array<int, 2> UnixShutdownHandler::s_sigPipe{{-1, -1}};
 
 UnixShutdownHandler::UnixShutdownHandler(QObject *parent)
     : ShutdownHandler(parent)
@@ -33,7 +33,7 @@ bool UnixShutdownHandler::initialize()
 
     // Create self-pipe once
     if (s_sigPipe[0] == -1 && s_sigPipe[1] == -1) {
-        if (::pipe(s_sigPipe) != 0) {
+        if (::pipe(s_sigPipe.data()) != 0) {
             qWarning() << "UnixShutdownHandler: failed to create signal pipe";
             return false;
         }
