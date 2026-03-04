@@ -8,55 +8,36 @@
 
 Platform-independent interface за graceful application shutdown. Handle-ва OS-specific shutdown сигнали и ги превръща в Qt signal.
 
-## Purpose
-
-- **Cross-platform**: Единен интерфейс за Unix и Windows
-- **Graceful shutdown**: Позволява cleanup преди exit
-- **Qt integration**: Emit-ва Qt signal за shutdown
-- **Signal safety**: Safe signal handling on Unix
-
-## Platform Implementations
-
-### UnixShutdownHandler
-**Files**: `UnixShutdownHandler.{h,cpp}`
-
-Handle-ва Unix signals:
-- `SIGINT` (Ctrl+C)
-- `SIGTERM` (kill command)
-
-**Implementation**:
-- Signal handler пише в pipe
-- Qt socket notifier чете от pipe (async-signal-safe)
-- Emit-ва `shutdownRequested()` от main thread
-
-### WindowsShutdownHandler  
-**Files**: `WindowsShutdownHandler.{h,cpp}`
-
-Handle-ва Windows console events:
+### Basic Usage (generic)
 - `CTRL_C_EVENT` (Ctrl+C)
 - `CTRL_BREAK_EVENT` (Ctrl+Break)
 - `CTRL_CLOSE_EVENT` (Close console window)
 
 **Implementation**:
-- Console handler callback
-- Emit-ва `shutdownRequested()` (Windows thread-safe)
+- Регистрира `SetConsoleCtrlHandler(consoleCtrlHandler, TRUE)`
+- В `consoleCtrlHandler(DWORD signal)` избира човекочитаемо име на event-а
+- Използва `QMetaObject::invokeMethod(..., "shutdownRequested", Qt::QueuedConnection)`
+    към активния `WindowsShutdownHandler`, за да emit-не сигнала в Qt нишката
 
-## Factory Method
+### StdinShutdownHandler  
+**Files**: `StdinShutdownHandler.{h,cpp}`
 
-```cpp
-static std::unique_ptr<ShutdownHandler> create();
-```
+Cross-platform handler за команден ред, който слуша standard input за текстови
+команди и ги преобразува в `shutdownRequested()` събития.
 
-Автоматично избира правилната имплементация based on platform:
-```cpp
-#ifdef Q_OS_UNIX
-    return std::make_unique<UnixShutdownHandler>();
-#elif defined(Q_OS_WIN)
-    return std::make_unique<WindowsShutdownHandler>();
-#else
-    return nullptr; // Unsupported platform
-#endif
-```
+Handle-ва stdin команди:
+- `quit`
+- `exit`
+
+**Implementation**:
+- На Windows: `QWinEventNotifier` върху `GetStdHandle(STD_INPUT_HANDLE)`
+- На Unix: `QSocketNotifier` върху `fileno(stdin)`
+- В `onActivated()` чете един ред с `std::getline(std::cin, ...)`, trim-ва до `QString`
+- При `"quit"` или `"exit"` (case-insensitive) emit-ва `shutdownRequested()`
+
+> Забележка: текущият Daqster код създава handler-ите директно (`new UnixShutdownHandler`,
+> `new WindowsShutdownHandler`, `new StdinShutdownHandler`) в `main.cpp`, вместо да ползва
+> обща фабрика. По желание може да се изгради фабричен метод върху този интерфейс.
 
 ## Public API
 
@@ -110,6 +91,42 @@ int main(int argc, char *argv[]) {
 }
 ```
 
+### Usage in Daqster (apps/Daqster/main.cpp)
+
+Daqster комбинира **OS-specific** и **stdin-based** shutdown handler-и:
+
+```cpp
+QApplication a(argc, argv);
+
+// 1) OS-specific handler (signals / console events)
+#ifdef Q_OS_WIN
+    auto *shutdownHandler = new WindowsShutdownHandler(&a);
+#else
+    auto *shutdownHandler = new UnixShutdownHandler(&a);
+#endif
+
+    if (!shutdownHandler->initialize()) {
+        qWarning() << "Failed to initialize OS shutdown handler";
+    }
+
+// 2) Stdin-based handler (quit/exit from terminal)
+    auto *stdinHandler = new StdinShutdownHandler(&a);
+    if (!stdinHandler->initialize()) {
+        qWarning() << "Failed to initialize stdin shutdown handler";
+    }
+
+// 3) Общ shutdown flow
+    auto shutdownLambda = [&a]() {
+        ApplicationsManager::Instance().KillAll();
+        a.quit();
+    };
+
+    QObject::connect(shutdownHandler, &ShutdownHandler::shutdownRequested,
+                                     &a, shutdownLambda);
+    QObject::connect(stdinHandler, &ShutdownHandler::shutdownRequested,
+                                     &a, shutdownLambda);
+```
+
 ### With Graceful Cleanup
 ```cpp
 int main(int argc, char *argv[]) {
@@ -152,53 +169,82 @@ public slots:
 
 ## Implementation Details
 
-### Unix (POSIX Signals)
+### Unix (POSIX Signals) – self-pipe в реалния код
 
-**Challenge**: Signal handlers мога да извикат само async-signal-safe функции.  
-**Solution**: Self-pipe trick
+Основната идея е същата като в примерния self-pipe по-горе, но реализирана с
+`std::signal` и статични полета в `UnixShutdownHandler`:
 
 ```cpp
-// Signal handler (async-signal-safe)
-static void signalHandler(int signal) {
-    char a = 1;
-    ::write(sigPipe[1], &a, sizeof(a));  // Write to pipe
+// UnixShutdownHandler (съкратен пример)
+UnixShutdownHandler *UnixShutdownHandler::s_instance = nullptr;
+int UnixShutdownHandler::s_sigPipe[2] = {-1, -1};
+
+bool UnixShutdownHandler::initialize()
+{
+    if (s_instance != nullptr && s_instance != this)
+        return false; // само една инстанция на процес
+
+    s_instance = this;
+
+    if (s_sigPipe[0] == -1 && s_sigPipe[1] == -1) {
+        if (::pipe(s_sigPipe) != 0)
+            return false;
+    }
+
+    std::signal(SIGINT, signalHandler);
+    std::signal(SIGTERM, signalHandler);
+
+    auto *notifier = new QSocketNotifier(s_sigPipe[0], QSocketNotifier::Read, this);
+    connect(notifier, &QSocketNotifier::activated,
+            this, &UnixShutdownHandler::onSignalActivated);
+
+    return true;
 }
 
-// Main thread (Qt event loop)
-void UnixShutdownHandler::initialize() {
-    // Create pipe
-    if (::pipe(sigPipe) != 0) return false;
-    
-    // Install signal handlers
-    struct sigaction sa;
-    sa.sa_handler = signalHandler;
-    sigaction(SIGINT, &sa, nullptr);
-    sigaction(SIGTERM, &sa, nullptr);
-    
-    // Qt socket notifier watches pipe
-    notifier = new QSocketNotifier(sigPipe[0], QSocketNotifier::Read);
-    connect(notifier, &QSocketNotifier::activated,
-            this, &ShutdownHandler::shutdownRequested);
+void UnixShutdownHandler::signalHandler(int signal)
+{
+    if (signal == SIGINT || signal == SIGTERM) {
+        const char ch = 1;
+        ::write(s_sigPipe[1], &ch, sizeof(ch)); // async-signal-safe
+    }
+}
+
+void UnixShutdownHandler::onSignalActivated(int fd)
+{
+    if (fd != s_sigPipe[0])
+        return;
+
+    char ch;
+    ::read(s_sigPipe[0], &ch, sizeof(ch)); // четем един байт, без да блокираме
+
+    Q_EMIT shutdownRequested();
 }
 ```
 
-### Windows (Console Events)
+### Windows (Console Events) – реален код
 
 ```cpp
-// Console handler callback
-BOOL WINAPI consoleHandler(DWORD signal) {
-    if (signal == CTRL_C_EVENT || 
-        signal == CTRL_BREAK_EVENT ||
-        signal == CTRL_CLOSE_EVENT) {
-        // Emit signal (Windows allows this)
-        emit shutdownRequested();
-        return TRUE;  // Handled
+bool WindowsShutdownHandler::initialize()
+{
+#ifdef Q_OS_WIN
+    if (!SetConsoleCtrlHandler(consoleCtrlHandler, TRUE)) {
+        return false;
     }
-    return FALSE;
+    return true;
+#else
+    return true; // no-op на други платформи
+#endif
 }
 
-void WindowsShutdownHandler::initialize() {
-    SetConsoleCtrlHandler(consoleHandler, TRUE);
+BOOL WINAPI WindowsShutdownHandler::consoleCtrlHandler(DWORD signal)
+{
+    if (s_instance) {
+        // логване на човеко-четимото име на event-а (Ctrl+C, Close, ...)
+        QMetaObject::invokeMethod(s_instance, "shutdownRequested",
+                                  Qt::QueuedConnection);
+        return TRUE;
+    }
+    return FALSE;
 }
 ```
 

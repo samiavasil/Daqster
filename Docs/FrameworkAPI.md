@@ -60,7 +60,8 @@ Platform implementations:
 
 - `UnixShutdownHandler` — uses `std::signal` handlers and a Qt wakeup
   mechanism to safely emit `shutdownRequested()` on the Qt main thread.
-- `WindowsShutdownHandler` — uses `SetConsoleCtrlHandler` and stdin fallback
+- `WindowsShutdownHandler` — uses `SetConsoleCtrlHandler` for console events
+- `StdinShutdownHandler` — optional stdin listener for `quit` / `exit` commands
 
 Usage:
 
