@@ -16,6 +16,7 @@
 #else
 #include <UnixShutdownHandler.h>
 #endif
+#include <StdinShutdownHandler.h>
 
 class msg {
 public:
@@ -92,23 +93,34 @@ int main(int argc, char *argv[]) {
   QApplication::setApplicationName("Daqster");
   QApplication::setApplicationVersion("0.1");
 
-  // Setup platform-specific shutdown handler
+  // Setup platform-specific shutdown handler (OS signals / console events)
 #ifdef Q_OS_WIN
   WindowsShutdownHandler *shutdownHandler = new WindowsShutdownHandler(&a);
 #else
   UnixShutdownHandler *shutdownHandler = new UnixShutdownHandler(&a);
 #endif
-  
+
   if (!shutdownHandler->initialize()) {
-    qWarning() << "Failed to initialize shutdown handler";
+    qWarning() << "Failed to initialize OS shutdown handler";
   }
-  
-  QObject::connect(shutdownHandler, &ShutdownHandler::shutdownRequested, [&a]() {
+
+  // Setup stdin-based shutdown handler (quit/exit from terminal)
+  StdinShutdownHandler *stdinHandler = new StdinShutdownHandler(&a);
+  if (!stdinHandler->initialize()) {
+    qWarning() << "Failed to initialize stdin shutdown handler";
+  }
+
+  auto shutdownLambda = [&a]() {
     // Stop all child processes gracefully
     ApplicationsManager::Instance().KillAll();
     // Stop the application
     a.quit();
-  });
+  };
+
+  QObject::connect(shutdownHandler, &ShutdownHandler::shutdownRequested,
+                   &a, shutdownLambda);
+  QObject::connect(stdinHandler, &ShutdownHandler::shutdownRequested,
+                   &a, shutdownLambda);
 
   QCommandLineParser parser;
   parser.setApplicationDescription(

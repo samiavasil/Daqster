@@ -27,6 +27,8 @@ add_library(frame_work
         base/src/platform/ShutdownHandler.h
         base/src/platform/UnixShutdownHandler.h
         base/src/platform/UnixShutdownHandler.cpp
+        base/src/platform/StdinShutdownHandler.h
+        base/src/platform/StdinShutdownHandler.cpp
         base/src/platform/WindowsShutdownHandler.h
         base/src/platform/WindowsShutdownHandler.cpp
         base/src/process/QProcessManager.h
