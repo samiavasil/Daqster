@@ -1,6 +1,6 @@
-#ifndef SINGLETON_H
+﻿#ifndef SINGLETON_H
 #define SINGLETON_H
-#include<assert.h>
+#include <cassert>
 
 template < class T>
 class Singleton

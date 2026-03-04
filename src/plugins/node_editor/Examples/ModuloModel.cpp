@@ -3,7 +3,7 @@
 
 #include <QtGui/QDoubleValidator>
 #include "NumericType.h"
-#include <math.h>
+#include <cmath>
 template<typename _Tp>
 ModuloModel< _Tp>::ModuloModel(){
     m_w = new QComboBox();

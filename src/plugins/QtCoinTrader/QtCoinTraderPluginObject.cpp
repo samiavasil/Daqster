@@ -21,7 +21,7 @@ QtCoinTraderPluginObject::~QtCoinTraderPluginObject()
 
 void QtCoinTraderPluginObject::SetName(const QString &name)
 {
-    if( m_Win )
+    if( nullptr != m_Win )
     {
         m_Win->setWindowTitle( name );
     }
@@ -156,7 +156,7 @@ bool QtCoinTraderPluginObject::Initialize()
 
 void QtCoinTraderPluginObject::DeInitialize()
 {
-    if( m_Win ){
+    if( nullptr != m_Win ){
         m_Win->deleteLater();
     }
     DEBUG_V << "TemplatePluginObject destroyed";

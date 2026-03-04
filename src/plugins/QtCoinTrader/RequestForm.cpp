@@ -79,7 +79,7 @@ void RequestForm::activateRequest(bool activate )
         QMutableListIterator<QNetworkReply*> i(m_netRereplyList);
         while (i.hasNext()) {
             QNetworkReply* reply = i.next();
-            if( reply )
+            if( nullptr != reply )
             {
                 reply->abort();
                 reply->deleteLater();
@@ -97,14 +97,14 @@ void RequestForm::timerEvent( QTimerEvent *event )
     QMutableListIterator<QNetworkReply*> i(m_netRereplyList);
     while (i.hasNext()) {
         QNetworkReply* reply = i.next();
-        if( reply )
+        if( nullptr != reply )
         {
             QNetworkReply* reply_new = sendRequest( reply->request(),(reqEnum_t)ui->comboReqType->currentIndex() , NULL );
             if( !reply->isRunning() )
             {
                reply->deleteLater();
 
-               if( reply_new )
+               if( nullptr != reply_new )
                {
                    i.setValue(reply_new);
                  // m_netRereplyList.push_front(  );
@@ -124,7 +124,7 @@ QNetworkReply* RequestForm::sendRequest(const QNetworkRequest& request, const re
 {
     QNetworkReply *reply = NULL;
     //DEBUG << "Request URL: " << request.url();
-    if( m_netMng )
+    if( nullptr != m_netMng )
     {
         switch ( reqType ) {
 
@@ -187,7 +187,7 @@ void RequestForm::httpFinished()
 {
 
  QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
- if( reply )
+ if( nullptr != reply )
  {
  //   send();
    //DEBUG << "REPLY httpFinished()" << reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute);
@@ -207,7 +207,7 @@ void RequestForm::httpFinished()
  void RequestForm::httpReadyRead()
  {
      QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
-     if( reply )
+     if( nullptr != reply )
      {
        //DEBUG << "httpReadyRead" << reply;
      }

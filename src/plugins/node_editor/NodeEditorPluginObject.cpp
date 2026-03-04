@@ -149,7 +149,7 @@ NodeEditorPluginObject::~NodeEditorPluginObject()
 
 void NodeEditorPluginObject::SetName(const QString &name)
 {
-    if( m_Win )
+    if( nullptr != m_Win )
     {
         m_Win->setWindowTitle( name );
     }
@@ -199,7 +199,7 @@ void NodeEditorPluginObject::nodeDoubleClicked(Node& n)
 
 void NodeEditorPluginObject::DeInitialize()
 {
-    if( m_Win ){
+    if( nullptr != m_Win ){
         m_Win->deleteLater();
     }
     DEBUG_V << "NodeEditorPluginObject destroyed";

@@ -50,7 +50,7 @@ class QBasePluginObject;
  * Note: Please don't use instance of this class directly on your code. Instead get global instance to
  * to object from this class with function GetApplicationPluginManager.
  */
-#include<assert.h>
+#include <cassert>
 class FRAME_WORKSHARED_EXPORT QPluginManager : public QObject
 {
     Q_OBJECT
