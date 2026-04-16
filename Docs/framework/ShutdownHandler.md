@@ -19,7 +19,7 @@ Platform-independent interface за graceful application shutdown. Handle-ва O
 - Използва `QMetaObject::invokeMethod(..., "shutdownRequested", Qt::QueuedConnection)`
     към активния `WindowsShutdownHandler`, за да emit-не сигнала в Qt нишката
 
-### StdinShutdownHandler  
+### StdinShutdownHandler
 **Files**: `StdinShutdownHandler.{h,cpp}`
 
 Cross-platform handler за команден ред, който слуша standard input за текстови

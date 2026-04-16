@@ -13,7 +13,7 @@
  * Uses SetConsoleCtrlHandler for Ctrl+C, Ctrl+Break, and console close events
  * to request a graceful application shutdown.
  */
-class FRAME_WORKSHARED_EXPORT WindowsShutdownHandler : public ShutdownHandler
+class FRAME_WORKSHARED_EXPORT WindowsShutdownHandler : public ShutdownHandler // skipcq: CXX-W2009
 {
     Q_OBJECT
 
@@ -27,6 +27,6 @@ private:
 #ifdef Q_OS_WIN
     QWinEventNotifier *m_notifier; // reserved for potential future use
     static BOOL WINAPI consoleCtrlHandler(DWORD signal);
-    static WindowsShutdownHandler* s_instance;
+    static WindowsShutdownHandler* s_instance; // skipcq: CXX-W2009
 #endif
 };

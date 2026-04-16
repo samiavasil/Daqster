@@ -7,7 +7,7 @@ class Singleton
 {
 public:
     static T* instance(){
-        static T* g_instance = nullptr;
+        static T* g_instance = nullptr; // skipcq: CXX-W2009
         if(  nullptr == g_instance ){
             g_instance = new T();
         }

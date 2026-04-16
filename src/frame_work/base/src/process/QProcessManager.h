@@ -24,7 +24,7 @@ namespace Daqster {
  * This is a base class intended to be extended with application-specific
  * environment setup and process management logic.
  */
-class FRAME_WORKSHARED_EXPORT QProcessManager : public QObject
+class FRAME_WORKSHARED_EXPORT QProcessManager : public QObject // skipcq: CXX-W2009
 {
     Q_OBJECT
 

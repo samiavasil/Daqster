@@ -37,7 +37,6 @@ void EventThreadPull::destroyedWorker(QObject *obj){
 
 EventThreadPull& EventThreadPull::instance()
 {
-    
     static EventThreadPull s_thread_pull;
     return s_thread_pull;
 }

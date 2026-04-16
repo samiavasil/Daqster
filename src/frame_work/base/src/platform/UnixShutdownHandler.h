@@ -17,7 +17,7 @@ class QSocketNotifier;
  * a QSocketNotifier on the read-end lives in the Qt thread and emits
  * ShutdownHandler::shutdownRequested().
  */
-class FRAME_WORKSHARED_EXPORT UnixShutdownHandler : public ShutdownHandler
+class FRAME_WORKSHARED_EXPORT UnixShutdownHandler : public ShutdownHandler // skipcq: CXX-W2009
 {
     Q_OBJECT
 
@@ -34,8 +34,8 @@ private:
     static void signalHandler(int signal);
 
     // One handler per process – used only from the Qt thread
-    static UnixShutdownHandler *s_instance;
+    static UnixShutdownHandler *s_instance; // skipcq: CXX-W2009
 
     // Self-pipe used from signal handler (write) and Qt thread (read)
-    static std::array<int, 2> s_sigPipe;
+    static std::array<int, 2> s_sigPipe; // skipcq: CXX-W2009
 };

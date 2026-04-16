@@ -4,7 +4,7 @@
 #include "debug.h"
 
 #ifdef Q_OS_WIN
-WindowsShutdownHandler* WindowsShutdownHandler::s_instance = nullptr;
+WindowsShutdownHandler* WindowsShutdownHandler::s_instance = nullptr; // skipcq: CXX-W2009
 #endif
 
 WindowsShutdownHandler::WindowsShutdownHandler(QObject *parent)

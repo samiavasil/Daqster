@@ -6,8 +6,8 @@
 
 #include <unistd.h>
 
-UnixShutdownHandler *UnixShutdownHandler::s_instance = nullptr;
-std::array<int, 2> UnixShutdownHandler::s_sigPipe{{-1, -1}};
+UnixShutdownHandler *UnixShutdownHandler::s_instance = nullptr; // skipcq: CXX-W2009
+std::array<int, 2> UnixShutdownHandler::s_sigPipe{{-1, -1}}; // skipcq: CXX-W2009
 
 UnixShutdownHandler::UnixShutdownHandler(QObject *parent)
     : ShutdownHandler(parent)

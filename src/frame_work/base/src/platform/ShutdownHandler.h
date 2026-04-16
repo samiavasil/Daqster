@@ -11,7 +11,7 @@
  * Implementations handle OS-specific shutdown mechanisms (signals on Unix,
  * console events on Windows, or stdin commands).
  */
-class FRAME_WORKSHARED_EXPORT ShutdownHandler : public QObject
+class FRAME_WORKSHARED_EXPORT ShutdownHandler : public QObject // skipcq: CXX-W2009
 {
     Q_OBJECT
 
