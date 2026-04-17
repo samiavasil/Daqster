@@ -47,7 +47,7 @@ class QBasePluginObject;
   * QPluginInterface objects can save it member parametters in persistent QSettings store.
   */
 
-class FRAME_WORKSHARED_EXPORT QPluginInterface : public QObject
+class FRAME_WORKSHARED_EXPORT QPluginInterface : public QObject // skipcq: CXX-W2009
 {
     Q_OBJECT
 public:

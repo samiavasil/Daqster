@@ -6,15 +6,15 @@ QPluginLoaderExt::QPluginLoaderExt(const QString &fileName, QObject *parent):QPl
 
 QPluginLoaderExt::~QPluginLoaderExt(){
     DEBUG_V << "Try to destroy QPluginLoaderExt '" << fileName() << "'";
-    if( isLoaded() ){
-
-        if( unload() ){
-            DEBUG_V << "Success unload Plugin library '" << fileName() << "'";
-        }
-        else{
-            DEBUG << "Failed to unload Plugin library '" << fileName() << "'";
-        }
-    } else {
+    if (!isLoaded()) {
         DEBUG_V << "Success unload Plugin library [was not loaded] '" << fileName() << "'";
+        return;
     }
+
+    if (!unload()) {
+        DEBUG << "Failed to unload Plugin library '" << fileName() << "'";
+        return;
+    }
+
+    DEBUG_V << "Success unload Plugin library '" << fileName() << "'";
 }
