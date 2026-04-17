@@ -22,7 +22,7 @@ using QtNodes::NodeValidationState;
 class IntegerData;
 #include "NumericType.h"
 
-template<typename _Tp>
+template<typename ValueType>
 class ModuloModel
         : public NodeDataModel
 {
@@ -37,7 +37,7 @@ public:
 
     QString
     caption() const override
-    { return QString("Modulo %1").arg(typeid(_Tp).name()); }
+    { return QString("Modulo %1").arg(typeid(ValueType).name()); }
 
     bool
     captionVisible() const override
@@ -71,7 +71,7 @@ public:
 
     QString
     name() const override
-    { return QString("Modulo %1").arg(typeid(_Tp).name()); }
+    { return QString("Modulo %1").arg(typeid(ValueType).name()); }
 
 public:
 
@@ -105,10 +105,10 @@ public:
 
 private:
 
-    std::weak_ptr<NumericType<_Tp>> _number1;
-    std::weak_ptr<NumericType<_Tp>> _number2;
+    std::weak_ptr<NumericType<ValueType>> _number1;
+    std::weak_ptr<NumericType<ValueType>> _number2;
 
-    std::shared_ptr<NumericType<_Tp>> _result;
+    std::shared_ptr<NumericType<ValueType>> _result;
 
 
     NodeValidationState modelValidationState = NodeValidationState::Warning;

@@ -140,32 +140,17 @@ QNetworkReply* RequestForm::sendRequest(const QNetworkRequest& request, const re
             break;
         }
         case E_PUT:
-        {
-            //DEBUG << "Put request isn't supported";
-            //reply = replm_netMng->put( QNetworkRequest(url), NULL );
-            break;
-        }
         case E_DELETE:
-        {
-            //DEBUG << "Delete request isn't supported";
-            //m_netMng->de( QNetworkRequest(url), NULL );
-            break;
-        }
-        case E_HEAD:
-        {
-            reply = m_netMng->head( request );
-            break;
-        }
         case E_OPTIONS:
+        case E_PATCH:
         {
             //DEBUG << "Option request isn't supported";
             //m_netMng->op( QNetworkRequest(url), NULL );
             break;
         }
-        case E_PATCH:
+        case E_HEAD:
         {
-            //DEBUG << "Patch request isn't supported";
-            //m_netMng->pa( QNetworkRequest(url), NULL );
+            reply = m_netMng->head( request );
             break;
         }
 
@@ -187,14 +172,8 @@ void RequestForm::httpFinished()
 {
 
  QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
- if( nullptr != reply )
- {
- //   send();
-   //DEBUG << "REPLY httpFinished()" << reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute);
- }
- else
- {
-    //DEBUG << "Some REPLY httpFinished(): ";
+ if (nullptr == reply) {
+         return;
  }
 
  if (reply->error()) {
@@ -207,14 +186,11 @@ void RequestForm::httpFinished()
  void RequestForm::httpReadyRead()
  {
      QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
-     if( nullptr != reply )
-     {
-       //DEBUG << "httpReadyRead" << reply;
+         if (nullptr == reply) {
+                 return;
      }
-     else
-     {
-       //DEBUG << "Some httpReadyRead";
-     }
+
+         Q_UNUSED(reply);
  }
 
  void RequestForm::updateDataReadProgress(qint64 a,qint64 b)

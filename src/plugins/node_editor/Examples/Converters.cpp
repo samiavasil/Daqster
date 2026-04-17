@@ -70,15 +70,15 @@ operator()(std::shared_ptr<QtNodes::NodeData> data)
 }
 
 
-template<typename _T1, typename _T2>
-std::shared_ptr<QtNodes::NodeData> AnyToAnyComplexIntConverter<_T1, _T2>::operator()(std::shared_ptr<QtNodes::NodeData> data)
+template<typename SourceType, typename TargetType>
+std::shared_ptr<QtNodes::NodeData> AnyToAnyComplexIntConverter<SourceType, TargetType>::operator()(std::shared_ptr<QtNodes::NodeData> data)
 {
     auto numberData =
-            std::dynamic_pointer_cast<NumericType<_T1>>(data);
+            std::dynamic_pointer_cast<NumericType<SourceType>>(data);
 
     if (numberData)
     {
-        _decimal = std::make_shared<NumericType<_T2>>(numberData->number());
+        _decimal = std::make_shared<NumericType<TargetType>>(numberData->number());
     }
 
     return _decimal;
