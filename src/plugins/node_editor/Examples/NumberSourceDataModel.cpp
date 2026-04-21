@@ -13,7 +13,7 @@ NumberSourceDataModel()
     : m_ui(new NumberSourceDataUi()),m_time(0)
 {
     QLineEdit& edit =  m_ui->lineEdit();
-    edit.setValidator(new QDoubleValidator());
+    edit.setValidator(new QDoubleValidator(&edit));
 
     edit.setMaximumSize(edit.sizeHint());
 
