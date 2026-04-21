@@ -6,7 +6,6 @@
 #include <QFileInfo>
 #include <QApplication>
 
-ApplicationsManager *ApplicationsManager::m_Manager = nullptr;
 
 ApplicationsManager::ApplicationsManager() 
     : Daqster::QProcessManager(nullptr),
@@ -22,14 +21,13 @@ ApplicationsManager::ApplicationsManager()
 
 ApplicationsManager::~ApplicationsManager() 
 {
-    KillAll();
+  qDebug() << "ApplicationsManager destructor: invoking KillAll()";
+  KillAll();
 }
 
 ApplicationsManager &ApplicationsManager::Instance() {
-    if (nullptr == m_Manager) {
-        m_Manager = new ApplicationsManager();
-    }
-    return *m_Manager;
+    static ApplicationsManager s_manager;
+    return s_manager;
 }
 
 void ApplicationsManager::SetHeadlessMode(bool enabled) {
@@ -138,7 +136,7 @@ void ApplicationsManager::OnProcessFinished(int exitCode, QProcess::ExitStatus e
 // Override to implement headless mode quit logic
 void ApplicationsManager::onAllProcessesFinished() {
   if (m_headlessMode) {
-    qDebug() << "All child processes finished in headless mode. Exiting...";
+    qDebug() << "ApplicationsManager::onAllProcessesFinished(): all child processes finished in headless mode, calling qApp->quit()";
     qApp->quit();
   }
 }

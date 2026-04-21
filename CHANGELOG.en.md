@@ -10,8 +10,9 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Framework Architecture Refactoring** - major refactoring to extract reusable components:
   - **Platform Abstraction Layer** (`frame_work/base/src/platform/`):
     - `ShutdownHandler` - abstract base class for graceful shutdown
-    - `UnixShutdownHandler` - SIGINT/SIGTERM signal handling for Unix/Linux
-    - `WindowsShutdownHandler` - Windows console events + stdin fallback
+    - `UnixShutdownHandler` - SIGINT/SIGTERM signal handling for Unix/Linux (self-pipe)
+    - `WindowsShutdownHandler` - Windows console events (SetConsoleCtrlHandler)
+    - `StdinShutdownHandler` - stdin-based quit/exit commands (cross-platform)
   - **Process Management Layer** (`frame_work/base/src/process/`):
     - `QProcessManager` - generic base class for managing child processes
     - Handle-based process tracking

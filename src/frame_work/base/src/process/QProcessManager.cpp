@@ -11,6 +11,7 @@ QProcessManager::QProcessManager(QObject *parent)
 
 QProcessManager::~QProcessManager()
 {
+    qDebug() << "QProcessManager destructor: invoking KillAll()";
     KillAll();
 }
 
@@ -62,6 +63,7 @@ void QProcessManager::StartProcess(const QString& name,
 
 void QProcessManager::KillAll()
 {
+    qDebug() << "QProcessManager::KillAll() called";
     blockSignals(true);
     
     // Create a copy of process list to avoid iterator invalidation

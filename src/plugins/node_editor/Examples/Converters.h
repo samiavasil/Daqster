@@ -69,7 +69,7 @@ private:
     std::shared_ptr<NodeData> _decimal;
 };
 
-template<typename _T1, typename _T2>
+template<typename SourceType, typename TargetType>
 class AnyToAnyComplexIntConverter
 {
 

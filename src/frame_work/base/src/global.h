@@ -1,5 +1,5 @@
-#ifndef __GLOBAL_H__
-#define __GLOBAL_H__
+#ifndef DAQ_GLOBAL_H
+#define DAQ_GLOBAL_H
 
 #include"build_cfg.h"
 

@@ -7,6 +7,7 @@
 #include <QCommandLineParser>
 #include <QFile>
 #include <QDir>
+#include <exception>
 #include "debug.h"
 #include "main.h"
 
@@ -16,6 +17,7 @@
 #else
 #include <UnixShutdownHandler.h>
 #endif
+#include <StdinShutdownHandler.h>
 
 class msg {
 public:
@@ -65,8 +67,8 @@ void PluginsInit() {
 }
 
 int main(int argc, char *argv[]) {
-
   int res = 0;
+  try {
   //    msg m;
 #if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
   qInstallMsgHandler(m.myMessageOutput);
@@ -92,22 +94,46 @@ int main(int argc, char *argv[]) {
   QApplication::setApplicationName("Daqster");
   QApplication::setApplicationVersion("0.1");
 
-  // Setup platform-specific shutdown handler
+  // Setup platform-specific shutdown handler (OS signals / console events)
 #ifdef Q_OS_WIN
   WindowsShutdownHandler *shutdownHandler = new WindowsShutdownHandler(&a);
 #else
   UnixShutdownHandler *shutdownHandler = new UnixShutdownHandler(&a);
 #endif
-  
+
   if (!shutdownHandler->initialize()) {
-    qWarning() << "Failed to initialize shutdown handler";
+    qWarning() << "Failed to initialize OS shutdown handler";
   }
-  
-  QObject::connect(shutdownHandler, &ShutdownHandler::shutdownRequested, [&a]() {
+
+  // Setup stdin-based shutdown handler (quit/exit from terminal)
+  StdinShutdownHandler *stdinHandler = new StdinShutdownHandler(&a);
+  if (!stdinHandler->initialize()) {
+    qWarning() << "Failed to initialize stdin shutdown handler";
+  }
+
+  auto shutdownLambda = [&a]() {
     // Stop all child processes gracefully
     ApplicationsManager::Instance().KillAll();
     // Stop the application
+    DEBUG << "Shutdown lambda invoked, quitting application";
     a.quit();
+  };
+
+  QObject::connect(shutdownHandler, &ShutdownHandler::shutdownRequested,
+                   &a, shutdownLambda);
+  QObject::connect(stdinHandler, &ShutdownHandler::shutdownRequested,
+                   &a, shutdownLambda);
+
+  // Windows-specific diagnostic: log when the last window is closed
+#ifdef Q_OS_WIN
+  QObject::connect(&a, &QGuiApplication::lastWindowClosed, []() {
+    DEBUG << "QGuiApplication::lastWindowClosed emitted (Windows)";
+  });
+#endif
+
+  // Log when the Qt event loop is about to quit (for all platforms)
+  QObject::connect(&a, &QCoreApplication::aboutToQuit, []() {
+    DEBUG << "QCoreApplication::aboutToQuit emitted";
   });
 
   QCommandLineParser parser;
@@ -226,15 +252,27 @@ int main(int argc, char *argv[]) {
         return 1;
       }
     }
+    DEBUG << "Entering Qt event loop (plugin mode)";
     res = a.exec();
   } else {
     // GUI mode: show AppToolbar
     qDebug() << __BASE_FILE__ << __FILE__;
     AppToolbar AppBar;
     AppBar.show();
+    DEBUG << "Entering Qt event loop (GUI toolbar mode)";
     res = a.exec();
   }
 
   // Daqster::QPluginManager::instance()->ShutdownPluginManager();
+  DEBUG << "main() exiting with code" << res;
   return res;
+  }
+  catch (const std::exception &e) {
+    qCritical() << "Unhandled std::exception in main:" << e.what();
+    return 1;
+  }
+  catch (...) {
+    qCritical() << "Unhandled unknown exception in main";
+    return 1;
+  }
 }

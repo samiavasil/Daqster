@@ -185,3 +185,115 @@ jobs:
           path: |
             Daqster-x86_64.AppImage
             Daqster-Debug-x86_64.AppImage
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install Qt (5.15.2)
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '5.15.2'
+          host: 'windows'
+          target: 'desktop'
+          # Use MinGW toolchain to match the default compiler
+          # (C:\mingw64\bin\c++.exe) used by CMake/Ninja in CI.
+          # This avoids ABI mismatches between MSVC-built Qt and
+          # MinGW binaries.
+          arch: 'win64_mingw81'
+          # Install Qt Charts explicitly; other optional modules
+          # (Qml, Quick, QuickControls2, Multimedia, Network) are
+          # detected at CMake time and missing ones will simply
+          # disable the corresponding plugins instead of failing
+          # the entire build.
+          modules: 'qtcharts'
+
+      - name: Install Ninja
+        run: |
+          choco install ninja -y
+
+      - name: Configure (Release)
+        run: |
+          cmake -S . -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (Release)
+        run: |
+          cmake --build build --config Release -j
+
+      - name: Install to staging (Release)
+        run: |
+          cmake --install build --prefix "${{ github.workspace }}\\stage-win"
+
+      - name: Bundle Qt runtime (windeployqt)
+        shell: pwsh
+        run: |
+          # Show where Qt is installed and whether the platform plugin exists
+          Write-Host "Qt5_Dir=$env:Qt5_Dir"
+          Write-Host "Qt plugins dir: $env:Qt5_Dir\plugins"
+          Write-Host "Qt platforms dir contents:"
+          Get-ChildItem "$env:Qt5_Dir\plugins\platforms" -ErrorAction SilentlyContinue || Write-Host "No platforms directory found"
+
+          # Remove any pre-existing Qt plugin/QML paths from the environment
+          # that might confuse the deployed application.
+          Remove-Item Env:QT_PLUGIN_PATH -ErrorAction SilentlyContinue
+          Remove-Item Env:QML2_IMPORT_PATH -ErrorAction SilentlyContinue
+          Remove-Item Env:QT_QPA_PLATFORM_PLUGIN_PATH -ErrorAction SilentlyContinue
+          Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+
+          # Ensure Qt binaries are on PATH so that the deployed application
+          # uses the correct Qt runtime.
+          $env:PATH = "$env:Qt5_Dir\bin;${env:PATH}"
+
+          # Manually copy the core Qt runtime and MinGW runtime DLLs, plus the
+          # platform plugins, into the staging tree. This avoids relying on
+          # windeployqt, which can be fragile in headless CI.
+          $stage = "${{ github.workspace }}\stage-win"
+
+          # Core Qt DLLs (Qt5Core/Gui/Widgets and friends)
+          Copy-Item "$env:Qt5_Dir\bin\Qt5*.dll" -Destination "$stage\bin" -Force
+
+          # MinGW runtime DLLs commonly required by Qt MinGW builds
+          $mingwRuntime = @(
+            "libstdc++-6.dll",
+            "libgcc_s_seh-1.dll",
+            "libwinpthread-1.dll"
+          )
+          foreach ($dll in $mingwRuntime) {
+            $src = Join-Path "$env:Qt5_Dir\bin" $dll
+            if (Test-Path $src) {
+              Copy-Item $src -Destination "$stage\bin" -Force
+            } else {
+              Write-Host "Optional runtime DLL not found: $dll"
+            }
+          }
+
+          # Platform plugins (qwindows, qminimal, qoffscreen, etc.) under
+          # bin\platforms so that Qt can locate them next to the executable.
+          $destPlatforms = "$stage\bin\platforms"
+          New-Item -ItemType Directory -Path $destPlatforms -Force | Out-Null
+          Copy-Item "$env:Qt5_Dir\plugins\platforms\*.dll" -Destination $destPlatforms -Force
+
+          # Try to locate and bundle the NodeEditor runtime DLL (libnodes.dll)
+          # so that NodeEditorPlugin can be loaded on Windows.
+          $nodesDll = Get-ChildItem "${{ github.workspace }}" -Recurse -Filter "libnodes.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($nodesDll) {
+            Write-Host "Found libnodes.dll at: $($nodesDll.FullName)"
+            Copy-Item $nodesDll.FullName -Destination "$stage\\bin" -Force
+          } else {
+            Write-Host "libnodes.dll not found; NodeEditorPlugin may not load at runtime."
+          }
+
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "${{ github.workspace }}\stage-win\*" -DestinationPath "${{ github.workspace }}\Daqster-Windows-x86_64.zip"
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Daqster-Windows-x86_64
+          path: Daqster-Windows-x86_64.zip

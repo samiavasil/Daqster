@@ -35,7 +35,6 @@ signals:
 protected:
     EventThreadPull();
     QThread m_WorkerThread;
-    static EventThreadPull m_thread_pull;
 };
 
 

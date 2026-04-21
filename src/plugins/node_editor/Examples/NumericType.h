@@ -10,7 +10,7 @@ using QtNodes::NodeData;
 
 /// The class can potentially incapsulate any user data which
 /// need to be transferred within the Node Editor graph
-template<typename _T>
+template<typename ValueType>
 class NumericType : public NodeData
 {
 public:
@@ -18,17 +18,17 @@ public:
   NumericType()
   {}
 
-  NumericType(_T const number)
+  NumericType(ValueType const number)
     : _number(number)
   {}
 
   NodeDataType type() const override
   {
-    return NodeDataType {typeid(_T).name(),
-                         typeid(_T).name()};
+    return NodeDataType {typeid(ValueType).name(),
+                         typeid(ValueType).name()};
   }
 
-  _T number() const
+  ValueType number() const
   { return _number; }
 
   QString numberAsText() const
@@ -36,7 +36,7 @@ public:
 
 private:
 
-  _T _number;
+  ValueType _number;
 };
 
 #endif // COMPLEXTYPE_H

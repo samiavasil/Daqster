@@ -3,9 +3,9 @@
 
 #include <QtGui/QDoubleValidator>
 #include "NumericType.h"
-#include <math.h>
-template<typename _Tp>
-ModuloModel< _Tp>::ModuloModel(){
+#include <cmath>
+template<typename ValueType>
+ModuloModel<ValueType>::ModuloModel(){
     m_w = new QComboBox();
     m_w->addItem("edno");
     m_w->addItem("dwe");
@@ -13,17 +13,17 @@ ModuloModel< _Tp>::ModuloModel(){
 
 }
 
-template<typename _Tp>
-ModuloModel< _Tp>::~ModuloModel()
+template<typename ValueType>
+ModuloModel<ValueType>::~ModuloModel()
 {
     if((!m_wembed) && m_w){
         m_w->deleteLater();
     }
 }
 
-template<typename _Tp>
+template<typename ValueType>
 QJsonObject
-ModuloModel< _Tp>::
+ModuloModel<ValueType>::
 save() const
 {
     QJsonObject modelJson;
@@ -33,9 +33,9 @@ save() const
     return modelJson;
 }
 
-template<typename _Tp>
+template<typename ValueType>
 unsigned int
-ModuloModel< _Tp>::
+ModuloModel<ValueType>::
 nPorts(PortType portType) const
 {
     unsigned int result = 1;
@@ -56,17 +56,17 @@ nPorts(PortType portType) const
     return result;
 }
 
-template<typename _Tp>
+template<typename ValueType>
 NodeDataType
-ModuloModel< _Tp>::
+ModuloModel<ValueType>::
 dataType(PortType, PortIndex) const
 {
-    return NumericType<_Tp>().type();
+    return NumericType<ValueType>().type();
 }
 
-template<typename _Tp>
+template<typename ValueType>
 std::shared_ptr<NodeData>
-ModuloModel< _Tp>::
+ModuloModel<ValueType>::
 outData(PortIndex)
 {
     return _result;
@@ -81,14 +81,14 @@ static inline double mod(double a, double b){
     return fmod(a, b);
 }
 
-template<typename _Tp>
+template<typename ValueType>
 
 void
-ModuloModel< _Tp>::
+ModuloModel<ValueType>::
 setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
 {
     auto numberData =
-            std::dynamic_pointer_cast<  NumericType<_Tp>>(data);
+            std::dynamic_pointer_cast<NumericType<ValueType>>(data);
 
     if (portIndex == 0)
     {
@@ -102,8 +102,8 @@ setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
     {
         PortIndex const outPortIndex = 0;
 
-        auto n1 = std::dynamic_pointer_cast< NumericType<_Tp>>(_number1.lock());
-        auto n2 = std::dynamic_pointer_cast< NumericType<_Tp>>(_number2.lock());
+        auto n1 = std::dynamic_pointer_cast<NumericType<ValueType>>(_number1.lock());
+        auto n2 = std::dynamic_pointer_cast<NumericType<ValueType>>(_number2.lock());
 
         if (n2 && (n2->number() == 0))
         {
@@ -115,7 +115,7 @@ setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
         {
             modelValidationState = NodeValidationState::Valid;
             modelValidationError = QString();
-            _result = std::make_shared< NumericType<_Tp>>(mod(n1->number(), n2->number()));
+            _result = std::make_shared<NumericType<ValueType>>(mod(n1->number(), n2->number()));
         }
         else
         {
@@ -128,17 +128,17 @@ setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
     }
 }
 
-template<typename _Tp>
+template<typename ValueType>
 NodeValidationState
-ModuloModel< _Tp>::
+ModuloModel<ValueType>::
 validationState() const
 {
     return modelValidationState;
 }
 
-template<typename _Tp>
+template<typename ValueType>
 QString
-ModuloModel< _Tp>::
+ModuloModel<ValueType>::
 validationMessage() const
 {
     return modelValidationError;

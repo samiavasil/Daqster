@@ -54,7 +54,7 @@ class PrivateDescription;
   * this class.
   */
 
-class FRAME_WORKSHARED_EXPORT PluginDescription
+class FRAME_WORKSHARED_EXPORT PluginDescription // skipcq: CXX-W2009
 {
     friend class QPluginInterface;
 public:

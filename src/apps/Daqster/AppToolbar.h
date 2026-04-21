@@ -18,6 +18,7 @@ public slots:
 
 private slots:
     void OnActionTrigered();
+    void onExitClicked();
     void ApplicationEvent(const ApplicationsManager::AppHndl_t ApHndl, const ApplicationsManager::AppEvent_t& ev);
 signals:
     void PleaseRunApplication(const QString &Name , const QStringList &Arguments, QProcess::OpenMode Mode = QProcess::ReadWrite);

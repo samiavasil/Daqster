@@ -17,7 +17,7 @@ PluginUgglyObject::~PluginUgglyObject()
 
 void PluginUgglyObject::SetName(const QString &name)
 {
-    if( m_Win )
+    if( nullptr != m_Win )
     {
         m_Win->setWindowTitle( name );
     }
@@ -40,7 +40,7 @@ bool PluginUgglyObject::Initialize()
 
 void PluginUgglyObject::DeInitialize()
 {
-    if( m_Win ){
+    if( nullptr != m_Win ){
         m_Win->deleteLater();
     }
     DEBUG_V << "PluginUgglyObject destroyed";

@@ -41,7 +41,7 @@ namespace Daqster {
   * tbd ).
   */
 
-class FRAME_WORKSHARED_EXPORT QPluginListView : public QWidget
+class FRAME_WORKSHARED_EXPORT QPluginListView : public QWidget // skipcq: CXX-W2009
 {
     Q_OBJECT
 public:

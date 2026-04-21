@@ -17,7 +17,7 @@ TemplatePluginObject::~TemplatePluginObject()
 
 void TemplatePluginObject::SetName(const QString &name)
 {
-    if( m_Win )
+    if( nullptr != m_Win )
     {
         m_Win->setWindowTitle( name );
     }
@@ -40,7 +40,7 @@ bool TemplatePluginObject::Initialize()
 
 void TemplatePluginObject::DeInitialize()
 {
-    if( m_Win ){
+    if( nullptr != m_Win ){
         m_Win->deleteLater();
     }
     DEBUG_V << "TemplatePluginObject destroyed";

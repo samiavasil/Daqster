@@ -1,15 +1,23 @@
-#pragma once
+﻿#pragma once
 
 #include "ShutdownHandler.h"
+
+#include <array>
 #include <csignal>
+
+class QSocketNotifier;
 
 /**
  * @brief Unix/Linux signal-based shutdown handler
- * 
- * Handles SIGINT (Ctrl+C) and SIGTERM (kill command) for graceful shutdown.
- * Standard Unix approach using signal handlers.
+ *
+ * Uses POSIX signals (SIGINT, SIGTERM) and the self-pipe pattern to
+ * safely forward shutdown requests into the Qt event loop.
+ *
+ * Signal handler (async context) writes to a pipe (async-signal-safe),
+ * a QSocketNotifier on the read-end lives in the Qt thread and emits
+ * ShutdownHandler::shutdownRequested().
  */
-class UnixShutdownHandler : public ShutdownHandler
+class FRAME_WORKSHARED_EXPORT UnixShutdownHandler : public ShutdownHandler // skipcq: CXX-W2009
 {
     Q_OBJECT
 
@@ -19,7 +27,15 @@ public:
 
     bool initialize() override;
 
+private Q_SLOTS:
+    void onSignalActivated(int fd);
+
 private:
     static void signalHandler(int signal);
-    static UnixShutdownHandler* s_instance;
+
+    // One handler per process – used only from the Qt thread
+    static UnixShutdownHandler *s_instance; // skipcq: CXX-W2009
+
+    // Self-pipe used from signal handler (write) and Qt thread (read)
+    static std::array<int, 2> s_sigPipe; // skipcq: CXX-W2009
 };

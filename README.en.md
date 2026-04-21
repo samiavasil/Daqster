@@ -100,8 +100,9 @@ Daqster uses a modular framework architecture that allows creating different typ
 - **ShutdownHandler** - base class for graceful shutdown:
   - Cross-platform signal handling (Ctrl+C, SIGTERM)
   - Virtual interface for easy extension
-  - Unix: SIGINT/SIGTERM signal handlers
-  - Windows: Console event handlers + stdin fallback
+  - Unix: SIGINT/SIGTERM signal handlers via self-pipe + QSocketNotifier
+  - Windows: Console event handlers (SetConsoleCtrlHandler)
+  - StdinShutdownHandler: optional quit/exit commands from stdin (both platforms)
 
 #### Process Management Layer
 - **QProcessManager** - generic base class for managing child processes:
