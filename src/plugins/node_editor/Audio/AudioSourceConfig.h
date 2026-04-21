@@ -41,8 +41,8 @@ protected slots:
 private:
     Ui::AudioSourceConfig *ui;
     QList<QAudioDeviceInfo> m_Devs;
-    QAudioDeviceInfo& m_DevInfo;
-    QAudioFormat&     m_FormatAudio;
+    QAudioDeviceInfo* m_DevInfo = nullptr;       // non-owning: externally managed
+    QAudioFormat* m_FormatAudio = nullptr;       // non-owning: externally managed
     QAudio::Mode m_Mode;
 
 };
