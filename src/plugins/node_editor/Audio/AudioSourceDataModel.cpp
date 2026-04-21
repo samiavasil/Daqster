@@ -24,7 +24,9 @@ AudioSourceDataModel::AudioSourceDataModel()
 
 AudioSourceDataModel::~AudioSourceDataModel()
 {
-    
+    if (m_Widget) {
+        delete m_Widget;  // Explicit ownership cleanup
+    }
 }
 
 QJsonObject AudioSourceDataModel::save() const
