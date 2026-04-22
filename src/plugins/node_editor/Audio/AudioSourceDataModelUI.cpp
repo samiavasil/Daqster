@@ -26,12 +26,12 @@ AudioSourceDataModelUI::~AudioSourceDataModelUI()
 
 const QAudioFormat AudioSourceDataModelUI::FormatAudio() const
 {
-    return QAudioFormat();
+    return m_formatAudio ? *m_formatAudio : QAudioFormat();
 }
 
 QAudioDeviceInfo AudioSourceDataModelUI::DevInfo() const
 {
-    return QAudioDeviceInfo();
+    return m_devInfo ? *m_devInfo : QAudioDeviceInfo();
 }
 
 void AudioSourceDataModelUI::AudioStateChanged(QAudio::State state)

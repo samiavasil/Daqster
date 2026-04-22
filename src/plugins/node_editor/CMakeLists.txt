@@ -6,6 +6,7 @@ SHARED
     NodeEditorPluginObject.cpp
     NodeEditorInterface.cpp
     Audio/AudioNodeQdevIoConnector.cpp
+    Audio/AudioComboModel.cpp
     Audio/AudioSourceConfig.cpp
     Audio/AudioSourceDataModel.cpp
     Audio/AudioSourceDataModelUI.cpp
@@ -23,6 +24,7 @@ SHARED
     NodeEditorInterface.h
     NodeEditorPluginObject.h
     Audio/AudioNodeQdevIoConnector.h
+    Audio/AudioComboModel.h
     Audio/AudioSourceConfig.h
     Audio/AudioSourceDataModel.h
     Audio/AudioSourceDataModelUI.h

@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QtMultimedia/QAudioDeviceInfo>
+#include "AudioComboModel.h"
 
 namespace Ui {
 class AudioSourceConfig;
@@ -41,10 +42,17 @@ protected slots:
 private:
     Ui::AudioSourceConfig *ui;
     QList<QAudioDeviceInfo> m_Devs;
-    QAudioDeviceInfo* m_DevInfo = nullptr;       // non-owning: externally managed
-    QAudioFormat* m_FormatAudio = nullptr;       // non-owning: externally managed
-    QAudio::Mode m_Mode;
+    QAudioDeviceInfo* m_DevInfo    = nullptr;   // non-owning: externally managed
+    QAudioFormat*     m_FormatAudio = nullptr;  // non-owning: externally managed
+    QAudio::Mode      m_Mode;
 
+    // One model per combo-box; owned by this widget (parent = this)
+    QAudioComboModel* m_ChannelModel    = nullptr;
+    QAudioComboModel* m_CodecModel      = nullptr;
+    QAudioComboModel* m_ByteOrderModel  = nullptr;
+    QAudioComboModel* m_SampleRateModel = nullptr;
+    QAudioComboModel* m_SampleSizeModel = nullptr;
+    QAudioComboModel* m_SampleTypeModel = nullptr;
 };
 
 #endif // AUDIOSOURCECONFIG_H
