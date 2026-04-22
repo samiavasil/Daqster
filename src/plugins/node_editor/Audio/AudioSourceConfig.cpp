@@ -49,7 +49,7 @@ AudioSourceConfig::AudioSourceConfig(QAudio::Mode mode,
     connect(ui->SampleType,    SIGNAL(currentIndexChanged(int)), this, SLOT(SampleTypeChanged(int)));
 
     qDebug() << "this: " << this << " Mode: " << m_Mode;
-    connect(ui->Device, SIGNAL(currentIndexChanged(int)), this, SLOT(InitAudioParams(int)));
+    connect(ui->Device, SIGNAL(currentIndexChanged(int)), this, SLOT(ABEInitAudioParams(int)));
 }
 
 AudioSourceConfig::~AudioSourceConfig()
@@ -226,7 +226,7 @@ void AudioSourceConfig::show()
     Q_ASSERT(m_DevInfo && *m_DevInfo == m_Devs[idx]);
     ui->Device->blockSignals(false);
 
-    InitAudioParams(idx);
+    ABEInitAudioParams(idx);
     QWidget::show();
 }
 

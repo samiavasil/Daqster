@@ -96,8 +96,30 @@ void XYSeriesIODevice::pollData(){
 
         for (  s = start; s < m_sampleCount && m_read_idx!=m_write_idx; ++s){
             for(int idx = 0; idx < m_channels; idx++) {
-                int a = (*reinterpret_cast<const short int*>(&(m_data[m_read_idx + (m_resolution*idx)])));
-                m_buffer[idx][s].setY((0.5*idx)+(qreal(a)/200));
+                const char* samplePtr = &(m_data[m_read_idx + (m_resolution * idx)]);
+                qint32 a = 0;
+                switch (m_resolution) {
+                case 1:
+                    a = *reinterpret_cast<const qint8*>(samplePtr);
+                    break;
+                case 2:
+                    a = *reinterpret_cast<const qint16*>(samplePtr);
+                    break;
+                case 3: // 24-bit little-endian, sign-extend from bit 23
+                    a = static_cast<quint8>(samplePtr[0])
+                      | (static_cast<quint8>(samplePtr[1]) << 8)
+                      | (static_cast<qint8>(samplePtr[2]) << 16);
+                    break;
+                case 4:
+                    a = *reinterpret_cast<const qint32*>(samplePtr);
+                    break;
+                default:
+                    a = *reinterpret_cast<const qint16*>(samplePtr);
+                    break;
+                }
+                // Normalize to [-1.0, 1.0], then offset channels for display
+                const qreal maxVal = static_cast<qreal>(1LL << (m_resolution * 8 - 1));
+                m_buffer[idx][s].setY((0.5 * idx) + (qreal(a) / maxVal));
             }
             m_read_idx = (m_read_idx + offset) & m_mask;
         }

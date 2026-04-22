@@ -31,7 +31,7 @@ signals:
     void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
 
 protected slots:
-    void InitAudioParams(int idx);
+    void ABEInitAudioParams(int idx);
     void ChannelNumberChanged(int val);
     void CodecChanged(int val);
     void ByteOdrerChanged(int val);
