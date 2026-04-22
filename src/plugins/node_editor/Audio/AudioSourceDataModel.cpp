@@ -24,9 +24,9 @@ AudioSourceDataModel::AudioSourceDataModel()
 
 AudioSourceDataModel::~AudioSourceDataModel()
 {
-    if (m_Widget) {
-        delete m_Widget;  // Explicit ownership cleanup
-    }
+    // Widget lifetime is owned by the node/view framework.
+    // Explicit delete here causes double-free during scene teardown.
+    m_Widget = nullptr;
 }
 
 QJsonObject AudioSourceDataModel::save() const

@@ -2,7 +2,8 @@
     "files.associations": {
         "iostream": "cpp",
         "array": "cpp",
-        "system_error": "cpp"
+        "system_error": "cpp",
+        "algorithm": "cpp"
     },
     "idf.pythonInstallPath": "/home/vav3sf/.platformio/penv/bin/python"
 }

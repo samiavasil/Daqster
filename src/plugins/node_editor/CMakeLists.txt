@@ -11,6 +11,7 @@ SHARED
     Audio/AudioSourceDataModel.cpp
     Audio/AudioSourceDataModelUI.cpp
     Audio/AudioWorker.cpp
+    Library/AudioFrameDecoder.cpp
     Library/NodeDataModelToQIODeviceConnector.cpp
     Examples/Converters.cpp
     Examples/ModuloModel.cpp
@@ -29,6 +30,7 @@ SHARED
     Audio/AudioSourceDataModel.h
     Audio/AudioSourceDataModelUI.h
     Audio/AudioWorker.h
+    Library/AudioFrameDecoder.h
     Library/NodeDataModelToQIODeviceConnector.h
     Examples/Converters.h
     Examples/ModuloModel.h

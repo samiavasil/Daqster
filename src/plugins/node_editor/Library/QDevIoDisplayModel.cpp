@@ -98,10 +98,22 @@ QString QDevIoDisplayModel::validationMessage() const
 void QDevIoDisplayModel::ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio)
 {
     std::shared_ptr<XYSeriesIODevice> device = std::dynamic_pointer_cast<XYSeriesIODevice>(m_device);
+    QDevioDisplayModelUi *displayUi = dynamic_cast<QDevioDisplayModelUi*>(m_widget);
 
     qDebug() <<   "Changed: " << formatAudio << devInfo.deviceName();
-    device->ReinitDevice(formatAudio.sampleSize()/8, formatAudio.channelCount());
-    dynamic_cast<QDevioDisplayModelUi*>(m_widget)->SetSeries(0, formatAudio.channelCount());
+
+    // Audio backends may report an invalid/unknown format when no input device
+    // is available. Avoid forwarding invalid channel/sample values to chart UI.
+    const bool validChannels = formatAudio.channelCount() > 0;
+    const bool validSampleSize = formatAudio.sampleSize() > 0;
+    const bool knownSampleType = formatAudio.sampleType() != QAudioFormat::Unknown;
+    if (!device || !displayUi || !validChannels || !validSampleSize || !knownSampleType) {
+        qWarning() << "Ignore invalid audio format update:" << formatAudio;
+        return;
+    }
+
+    device->ReinitDevice(formatAudio);
+    displayUi->SetSeries(0, formatAudio.channelCount());
 }
 
 std::shared_ptr<QIODevice> QDevIoDisplayModel::device() const

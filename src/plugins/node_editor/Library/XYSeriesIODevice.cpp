@@ -47,6 +47,18 @@ XYSeriesIODevice::XYSeriesIODevice(QDevIoDisplayModel *model, QObject *parent) :
     m_model(model)
 {
     QMutexLocker locker(&m_lock);
+
+    QAudioFormat defaultFormat;
+    defaultFormat.setCodec(QStringLiteral("audio/pcm"));
+    defaultFormat.setChannelCount(2);
+    defaultFormat.setSampleSize(16);
+    defaultFormat.setSampleType(QAudioFormat::SignedInt);
+    defaultFormat.setByteOrder(QAudioFormat::LittleEndian);
+    m_decoder.configure(defaultFormat);
+
+    m_resolution = m_decoder.bytesPerSample();
+    m_channels = m_decoder.channels();
+    m_frameBytes = m_decoder.frameBytes();
     initParams(2, 2, 8000);
 
     qRegisterMetaType<QVector<QPointF>>("QVector<QPointF>");
@@ -63,10 +75,21 @@ const QDevIoDisplayModel *XYSeriesIODevice::model() const
     return m_model;
 }
 
-void XYSeriesIODevice::ReinitDevice(int resolution_bytes, int channels, int sampleCount)
+void XYSeriesIODevice::ReinitDevice(const QAudioFormat &format,
+                                    int sampleCount)
 {
     QMutexLocker locker(&m_lock);
-    initParams(resolution_bytes, channels, sampleCount);
+
+    if (!m_decoder.configure(format)) {
+        qWarning() << "Unsupported audio format for waveform decoder:" << format;
+        return;
+    }
+
+    m_resolution = m_decoder.bytesPerSample();
+    m_channels = m_decoder.channels();
+    m_frameBytes = m_decoder.frameBytes();
+
+    initParams(m_resolution, m_channels, sampleCount);
 }
 
 
@@ -83,7 +106,7 @@ void XYSeriesIODevice::pollData(){
     if(len > 0) {
         int start = 0;
         int s;
-        quint64 offset = m_channels*m_resolution;
+        const quint64 offset = static_cast<quint64>(m_frameBytes);
         quint64 availableSamples = len/(offset);
         if (availableSamples < m_sampleCount) {
             start = m_sampleCount - availableSamples;
@@ -97,29 +120,8 @@ void XYSeriesIODevice::pollData(){
         for (  s = start; s < m_sampleCount && m_read_idx!=m_write_idx; ++s){
             for(int idx = 0; idx < m_channels; idx++) {
                 const char* samplePtr = &(m_data[m_read_idx + (m_resolution * idx)]);
-                qint32 a = 0;
-                switch (m_resolution) {
-                case 1:
-                    a = *reinterpret_cast<const qint8*>(samplePtr);
-                    break;
-                case 2:
-                    a = *reinterpret_cast<const qint16*>(samplePtr);
-                    break;
-                case 3: // 24-bit little-endian, sign-extend from bit 23
-                    a = static_cast<quint8>(samplePtr[0])
-                      | (static_cast<quint8>(samplePtr[1]) << 8)
-                      | (static_cast<qint8>(samplePtr[2]) << 16);
-                    break;
-                case 4:
-                    a = *reinterpret_cast<const qint32*>(samplePtr);
-                    break;
-                default:
-                    a = *reinterpret_cast<const qint16*>(samplePtr);
-                    break;
-                }
-                // Normalize to [-1.0, 1.0], then offset channels for display
-                const qreal maxVal = static_cast<qreal>(1LL << (m_resolution * 8 - 1));
-                m_buffer[idx][s].setY((0.5 * idx) + (qreal(a) / maxVal));
+                const qreal sample = m_decoder.decodeNormalizedSample(samplePtr);
+                m_buffer[idx][s].setY((0.5 * idx) + sample);
             }
             m_read_idx = (m_read_idx + offset) & m_mask;
         }
