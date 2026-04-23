@@ -185,7 +185,8 @@ bool AudioFrameDecoder::configure(const QAudioFormat &format)
 
     const bool isBig = format.byteOrder() == QAudioFormat::BigEndian;
 
-    if (format.sampleType() == QAudioFormat::SignedInt) {
+    switch (format.sampleType()) {
+    case QAudioFormat::SignedInt:
         switch (format.sampleSize()) {
         case 8:  m_decoder = decodeS8; break;
         case 16: m_decoder = isBig ? decodeS16BE : decodeS16LE; break;
@@ -193,7 +194,8 @@ bool AudioFrameDecoder::configure(const QAudioFormat &format)
         case 32: m_decoder = isBig ? decodeS32BE : decodeS32LE; break;
         default: break;
         }
-    } else if (format.sampleType() == QAudioFormat::UnSignedInt) {
+        break;
+    case QAudioFormat::UnSignedInt:
         switch (format.sampleSize()) {
         case 8:  m_decoder = decodeU8; break;
         case 16: m_decoder = isBig ? decodeU16BE : decodeU16LE; break;
@@ -201,10 +203,14 @@ bool AudioFrameDecoder::configure(const QAudioFormat &format)
         case 32: m_decoder = isBig ? decodeU32BE : decodeU32LE; break;
         default: break;
         }
-    } else if (format.sampleType() == QAudioFormat::Float) {
+        break;
+    case QAudioFormat::Float:
         if (format.sampleSize() == 32) {
             m_decoder = isBig ? decodeF32BE : decodeF32LE;
         }
+        break;
+    default:
+        break;
     }
 
     return m_decoder != nullptr;
