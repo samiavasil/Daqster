@@ -107,7 +107,7 @@ void QDevIoDisplayModel::ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioF
     const bool validChannels = formatAudio.channelCount() > 0;
     const bool validSampleSize = formatAudio.sampleSize() > 0;
     const bool knownSampleType = formatAudio.sampleType() != QAudioFormat::Unknown;
-    if (!device || !displayUi || !validChannels || !validSampleSize || !knownSampleType) {
+    if (!device.get() || displayUi == nullptr || !validChannels || !validSampleSize || !knownSampleType) {
         qWarning() << "Ignore invalid audio format update:" << formatAudio;
         return;
     }

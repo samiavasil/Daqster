@@ -24,7 +24,7 @@ public:
     bool isValid() const { return m_decoder != nullptr; }
 
 private:
-    typedef qreal (*DecoderFn)(const char *);
+    using DecoderFn = qreal (*)(const char *);
 
     DecoderFn m_decoder = nullptr;
     int m_bytesPerSample = 2;

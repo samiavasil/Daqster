@@ -5,7 +5,7 @@
 
 namespace {
 
-static inline qreal clampUnit(qreal x)
+inline qreal clampUnit(qreal x)
 {
     if (x > 1.0) return 1.0;
     if (x < -1.0) return -1.0;
@@ -14,12 +14,12 @@ static inline qreal clampUnit(qreal x)
 
 // --- Signed integer decoders ------------------------------------------------
 
-static qreal decodeS8(const char *p)
+qreal decodeS8(const char *p)
 {
     return clampUnit(qreal(*reinterpret_cast<const qint8 *>(p)) / qreal(127.0));
 }
 
-static qreal decodeS16LE(const char *p)
+qreal decodeS16LE(const char *p)
 {
     const qint16 v = static_cast<qint16>(
         static_cast<quint8>(p[0]) |
@@ -27,7 +27,7 @@ static qreal decodeS16LE(const char *p)
     return clampUnit(qreal(v) / qreal(32767.0));
 }
 
-static qreal decodeS16BE(const char *p)
+qreal decodeS16BE(const char *p)
 {
     const qint16 v = static_cast<qint16>(
         static_cast<quint8>(p[1]) |
@@ -35,7 +35,7 @@ static qreal decodeS16BE(const char *p)
     return clampUnit(qreal(v) / qreal(32767.0));
 }
 
-static qreal decodeS24LE(const char *p)
+qreal decodeS24LE(const char *p)
 {
     qint32 v = static_cast<quint8>(p[0]) |
               (static_cast<quint8>(p[1]) << 8) |
@@ -43,7 +43,7 @@ static qreal decodeS24LE(const char *p)
     return clampUnit(qreal(v) / qreal(8388607.0));
 }
 
-static qreal decodeS24BE(const char *p)
+qreal decodeS24BE(const char *p)
 {
     qint32 v = static_cast<quint8>(p[2]) |
               (static_cast<quint8>(p[1]) << 8) |
@@ -51,7 +51,7 @@ static qreal decodeS24BE(const char *p)
     return clampUnit(qreal(v) / qreal(8388607.0));
 }
 
-static qreal decodeS32LE(const char *p)
+qreal decodeS32LE(const char *p)
 {
     const qint32 v = static_cast<qint32>(
         static_cast<quint8>(p[0]) |
@@ -61,7 +61,7 @@ static qreal decodeS32LE(const char *p)
     return clampUnit(qreal(v) / qreal(2147483647.0));
 }
 
-static qreal decodeS32BE(const char *p)
+qreal decodeS32BE(const char *p)
 {
     const qint32 v = static_cast<qint32>(
         static_cast<quint8>(p[3]) |
@@ -73,13 +73,13 @@ static qreal decodeS32BE(const char *p)
 
 // --- Unsigned integer decoders ---------------------------------------------
 
-static qreal decodeU8(const char *p)
+qreal decodeU8(const char *p)
 {
     const int v = static_cast<quint8>(p[0]);
     return clampUnit(qreal(v - 128) / qreal(127.0));
 }
 
-static qreal decodeU16LE(const char *p)
+qreal decodeU16LE(const char *p)
 {
     const int v = static_cast<int>(
         static_cast<quint8>(p[0]) |
@@ -87,7 +87,7 @@ static qreal decodeU16LE(const char *p)
     return clampUnit(qreal(v - 32768) / qreal(32767.0));
 }
 
-static qreal decodeU16BE(const char *p)
+qreal decodeU16BE(const char *p)
 {
     const int v = static_cast<int>(
         static_cast<quint8>(p[1]) |
@@ -95,7 +95,7 @@ static qreal decodeU16BE(const char *p)
     return clampUnit(qreal(v - 32768) / qreal(32767.0));
 }
 
-static qreal decodeU24LE(const char *p)
+qreal decodeU24LE(const char *p)
 {
     const int v = static_cast<int>(
         static_cast<quint8>(p[0]) |
@@ -104,7 +104,7 @@ static qreal decodeU24LE(const char *p)
     return clampUnit(qreal(v - 8388608) / qreal(8388607.0));
 }
 
-static qreal decodeU24BE(const char *p)
+qreal decodeU24BE(const char *p)
 {
     const int v = static_cast<int>(
         static_cast<quint8>(p[2]) |
@@ -113,7 +113,7 @@ static qreal decodeU24BE(const char *p)
     return clampUnit(qreal(v - 8388608) / qreal(8388607.0));
 }
 
-static qreal decodeU32LE(const char *p)
+qreal decodeU32LE(const char *p)
 {
     const quint32 v = static_cast<quint32>(
         static_cast<quint8>(p[0]) |
@@ -123,7 +123,7 @@ static qreal decodeU32LE(const char *p)
     return clampUnit(qreal(static_cast<qint64>(v) - 2147483648LL) / qreal(2147483647.0));
 }
 
-static qreal decodeU32BE(const char *p)
+qreal decodeU32BE(const char *p)
 {
     const quint32 v = static_cast<quint32>(
         static_cast<quint8>(p[3]) |
@@ -135,7 +135,7 @@ static qreal decodeU32BE(const char *p)
 
 // --- Float decoders ---------------------------------------------------------
 
-static qreal decodeF32LE(const char *p)
+qreal decodeF32LE(const char *p)
 {
     quint32 bits = static_cast<quint32>(
         static_cast<quint8>(p[0]) |
@@ -144,12 +144,12 @@ static qreal decodeF32LE(const char *p)
         (static_cast<quint8>(p[3]) << 24));
     float value;
     std::memcpy(&value, &bits, sizeof(value));
-    if (value > 1.0f) value = 1.0f;
-    if (value < -1.0f) value = -1.0f;
+    if (value > 1.0F) value = 1.0F;
+    if (value < -1.0F) value = -1.0F;
     return qreal(value);
 }
 
-static qreal decodeF32BE(const char *p)
+qreal decodeF32BE(const char *p)
 {
     quint32 bits = static_cast<quint32>(
         static_cast<quint8>(p[3]) |
@@ -158,8 +158,8 @@ static qreal decodeF32BE(const char *p)
         (static_cast<quint8>(p[0]) << 24));
     float value;
     std::memcpy(&value, &bits, sizeof(value));
-    if (value > 1.0f) value = 1.0f;
-    if (value < -1.0f) value = -1.0f;
+    if (value > 1.0F) value = 1.0F;
+    if (value < -1.0F) value = -1.0F;
     return qreal(value);
 }
 
@@ -212,7 +212,7 @@ bool AudioFrameDecoder::configure(const QAudioFormat &format)
 
 qreal AudioFrameDecoder::decodeNormalizedSample(const char *samplePtr) const
 {
-    if (!m_decoder) {
+    if (m_decoder == nullptr) {
         return 0.0;
     }
     return m_decoder(samplePtr);
