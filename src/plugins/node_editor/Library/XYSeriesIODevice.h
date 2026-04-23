@@ -33,7 +33,9 @@
 #include <QtCore/QIODevice>
 #include <QtCore/QPointF>
 #include <QtCore/QVector>
+#include <QtMultimedia/QAudioFormat>
 #include<QMutex>
+#include "AudioFrameDecoder.h"
 
 class QDevIoDisplayModel;
 
@@ -44,7 +46,8 @@ public:
     explicit XYSeriesIODevice(QDevIoDisplayModel* model, QObject *parent = nullptr);
     virtual ~XYSeriesIODevice() override;
     const QDevIoDisplayModel *model() const;
-    void ReinitDevice(int resolution_bytes, int channels, int sampleCount = 8000);
+    void ReinitDevice(const QAudioFormat &format,
+                      int sampleCount = 8000);
 
 protected:
     qint64 readData(char *data, qint64 maxSize) override;
@@ -66,6 +69,8 @@ private:
     int m_sampleFreq;
     int m_resolution;
     int m_channels;
+    int m_frameBytes;
+    AudioFrameDecoder m_decoder;
     quint64 m_mask;
     char *m_data;
     const  QDevIoDisplayModel* m_model;

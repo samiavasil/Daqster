@@ -6,10 +6,12 @@ SHARED
     NodeEditorPluginObject.cpp
     NodeEditorInterface.cpp
     Audio/AudioNodeQdevIoConnector.cpp
+    Audio/AudioComboModel.cpp
     Audio/AudioSourceConfig.cpp
     Audio/AudioSourceDataModel.cpp
     Audio/AudioSourceDataModelUI.cpp
     Audio/AudioWorker.cpp
+    Library/AudioFrameDecoder.cpp
     Library/NodeDataModelToQIODeviceConnector.cpp
     Examples/Converters.cpp
     Examples/ModuloModel.cpp
@@ -23,10 +25,12 @@ SHARED
     NodeEditorInterface.h
     NodeEditorPluginObject.h
     Audio/AudioNodeQdevIoConnector.h
+    Audio/AudioComboModel.h
     Audio/AudioSourceConfig.h
     Audio/AudioSourceDataModel.h
     Audio/AudioSourceDataModelUI.h
     Audio/AudioWorker.h
+    Library/AudioFrameDecoder.h
     Library/NodeDataModelToQIODeviceConnector.h
     Examples/Converters.h
     Examples/ModuloModel.h

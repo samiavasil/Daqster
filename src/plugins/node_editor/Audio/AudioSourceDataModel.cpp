@@ -16,7 +16,7 @@ AudioSourceDataModel::AudioSourceDataModel()
     m_FormatAudio = m_DevInfo.preferredFormat();
     
     m_connector = std::make_shared<AudioNodeQdevIoConnector>(this);
-    m_Widget = new AudioSourceDataModelUI(m_DevInfo, m_FormatAudio);
+    m_Widget = new AudioSourceDataModelUI(&m_DevInfo, &m_FormatAudio);
     m_Widget->setWindowFlags(Qt::Dialog);
     m_Widget->setWindowModality(Qt::WindowModal);
     connect(m_Widget,SIGNAL(Start(AudioSourceDataModel::StartStop)),SIGNAL(StartAudio(AudioSourceDataModel::StartStop)));
@@ -24,7 +24,9 @@ AudioSourceDataModel::AudioSourceDataModel()
 
 AudioSourceDataModel::~AudioSourceDataModel()
 {
-    
+    // Widget lifetime is owned by the node/view framework.
+    // Explicit delete here causes double-free during scene teardown.
+    m_Widget = nullptr;
 }
 
 QJsonObject AudioSourceDataModel::save() const
