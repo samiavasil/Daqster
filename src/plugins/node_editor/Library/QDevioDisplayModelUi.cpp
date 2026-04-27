@@ -55,7 +55,7 @@ QDevioDisplayModelUi::QDevioDisplayModelUi(QWidget *parent) :
     connect(ui->theme, SIGNAL(currentIndexChanged(int)), this, SLOT(updateUI()));
     connect(ui->antialiasing, SIGNAL(toggled(bool)), this, SLOT(updateUI()));
     connect(ui->gridColumns, SIGNAL(valueChanged(int)), this, SLOT(gridChanged(int)));
-    disp_hndl_t hndl = AddChart();//TODO: Fix Me
+    const disp_hndl_t hndl = AddChart();//TODO: Fix Me
 //    hndl = AddChart();
 //    hndl = AddChart();
 

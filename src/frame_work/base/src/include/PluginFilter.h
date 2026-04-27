@@ -33,7 +33,7 @@ class PluginDescription;
   * Class is used for plugin filtration by some properties.
   */
 
-class FRAME_WORKSHARED_EXPORT PluginFilter
+class FRAME_WORKSHARED_EXPORT PluginFilter // skipcq: CXX-W2009
 {
 public:
 

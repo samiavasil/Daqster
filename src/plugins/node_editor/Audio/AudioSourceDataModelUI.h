@@ -15,8 +15,8 @@ class AudioSourceDataModelUI : public QWidget
     Q_OBJECT
 
 public:
-    explicit AudioSourceDataModelUI(QAudioDeviceInfo &devInfo,
-                                    QAudioFormat &formatAudio,
+    explicit AudioSourceDataModelUI(QAudioDeviceInfo* devInfo,
+                                    QAudioFormat* formatAudio,
                                     QWidget *parent = nullptr);
     ~AudioSourceDataModelUI();
     const QAudioFormat FormatAudio() const;
@@ -36,8 +36,8 @@ protected:
     virtual void enterEvent(QEvent *event);
 private:
     Ui::AudioSourceDataModelUI *ui;
-    QAudioDeviceInfo&  m_devInfo;
-    QAudioFormat&      m_formatAudio;
+    QAudioDeviceInfo* m_devInfo = nullptr;       // non-owning: externally managed
+    QAudioFormat* m_formatAudio = nullptr;       // non-owning: externally managed
     AudioSourceConfig m_Conf;
 };
 

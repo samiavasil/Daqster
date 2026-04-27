@@ -1,0 +1,28 @@
+@startuml
+skinparam packageStyle rect
+skinparam shadowing false
+
+title Framework Components
+
+package "Platform" {
+  class ShutdownHandler
+  class UnixShutdownHandler
+  class WindowsShutdownHandler
+}
+
+package "Process" {
+  class QProcessManager
+}
+
+package "Plugins" {
+  class QPluginManager
+  class QPluginInterface
+  class QPluginLoaderExt
+}
+
+ShutdownHandler <|-- UnixShutdownHandler
+ShutdownHandler <|-- WindowsShutdownHandler
+QProcessManager --> ShutdownHandler : uses
+QPluginManager ..> QPluginInterface : provides
+
+@enduml

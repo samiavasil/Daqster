@@ -12,14 +12,14 @@
 //qDebug() << __FILE__ << " Line: " << __LINE__ << " "
 #define DEFAULT_ADDR "localhost:8001/radio/stations"
 
-static const char* servType[] = {
+static const char* const servType[] = {
     "http",
     "https"
 };
 
 
 
-static const char* reqType[] = {
+static const char* const reqType[] = {
     "GET",
     "POST",
     "PUT",
@@ -79,7 +79,7 @@ void RequestForm::activateRequest(bool activate )
         QMutableListIterator<QNetworkReply*> i(m_netRereplyList);
         while (i.hasNext()) {
             QNetworkReply* reply = i.next();
-            if( reply )
+            if( nullptr != reply )
             {
                 reply->abort();
                 reply->deleteLater();
@@ -97,14 +97,14 @@ void RequestForm::timerEvent( QTimerEvent *event )
     QMutableListIterator<QNetworkReply*> i(m_netRereplyList);
     while (i.hasNext()) {
         QNetworkReply* reply = i.next();
-        if( reply )
+        if( nullptr != reply )
         {
             QNetworkReply* reply_new = sendRequest( reply->request(),(reqEnum_t)ui->comboReqType->currentIndex() , NULL );
             if( !reply->isRunning() )
             {
                reply->deleteLater();
 
-               if( reply_new )
+               if( nullptr != reply_new )
                {
                    i.setValue(reply_new);
                  // m_netRereplyList.push_front(  );
@@ -124,7 +124,7 @@ QNetworkReply* RequestForm::sendRequest(const QNetworkRequest& request, const re
 {
     QNetworkReply *reply = NULL;
     //DEBUG << "Request URL: " << request.url();
-    if( m_netMng )
+    if( nullptr != m_netMng )
     {
         switch ( reqType ) {
 
@@ -140,32 +140,17 @@ QNetworkReply* RequestForm::sendRequest(const QNetworkRequest& request, const re
             break;
         }
         case E_PUT:
-        {
-            //DEBUG << "Put request isn't supported";
-            //reply = replm_netMng->put( QNetworkRequest(url), NULL );
-            break;
-        }
         case E_DELETE:
-        {
-            //DEBUG << "Delete request isn't supported";
-            //m_netMng->de( QNetworkRequest(url), NULL );
-            break;
-        }
-        case E_HEAD:
-        {
-            reply = m_netMng->head( request );
-            break;
-        }
         case E_OPTIONS:
+        case E_PATCH:
         {
             //DEBUG << "Option request isn't supported";
             //m_netMng->op( QNetworkRequest(url), NULL );
             break;
         }
-        case E_PATCH:
+        case E_HEAD:
         {
-            //DEBUG << "Patch request isn't supported";
-            //m_netMng->pa( QNetworkRequest(url), NULL );
+            reply = m_netMng->head( request );
             break;
         }
 
@@ -187,14 +172,8 @@ void RequestForm::httpFinished()
 {
 
  QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
- if( reply )
- {
- //   send();
-   //DEBUG << "REPLY httpFinished()" << reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute);
- }
- else
- {
-    //DEBUG << "Some REPLY httpFinished(): ";
+ if (nullptr == reply) {
+         return;
  }
 
  if (reply->error()) {
@@ -207,14 +186,11 @@ void RequestForm::httpFinished()
  void RequestForm::httpReadyRead()
  {
      QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
-     if( reply )
-     {
-       //DEBUG << "httpReadyRead" << reply;
+         if (nullptr == reply) {
+                 return;
      }
-     else
-     {
-       //DEBUG << "Some httpReadyRead";
-     }
+
+         Q_UNUSED(reply);
  }
 
  void RequestForm::updateDataReadProgress(qint64 a,qint64 b)

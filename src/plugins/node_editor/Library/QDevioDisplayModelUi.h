@@ -16,8 +16,6 @@ class QLineSeries;
 class QChartView;
 QT_CHARTS_END_NAMESPACE
 
-QT_CHARTS_USE_NAMESPACE
-
 class QDevioDisplayModelUi : public QWidget
 {
     Q_OBJECT
@@ -40,9 +38,9 @@ protected:
     void updateGrid();
 private:
     Ui::QDevioDisplayModelUi *ui;
-/*    QVector<QLineSeries*> m_series;*/
-    QMap<disp_hndl_t, QVector<QLineSeries*>*> m_SeriesMap;
-    QMap<disp_hndl_t, QChartView*> m_ChartMap;
+/*    QVector<QtCharts::QLineSeries*> m_series;*/
+    QMap<disp_hndl_t, QVector<QtCharts::QLineSeries*>*> m_SeriesMap;
+    QMap<disp_hndl_t, QtCharts::QChartView*> m_ChartMap;
 //    QChart* m_chart;
     disp_hndl_t m_NextHndl;
     int m_ColCount;

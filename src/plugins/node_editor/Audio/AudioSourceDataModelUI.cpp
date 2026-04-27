@@ -3,14 +3,14 @@
 #include "ui_AudioSourceDataModelUI.h"
 
 
-AudioSourceDataModelUI::AudioSourceDataModelUI(QAudioDeviceInfo& devInfo,
-                                               QAudioFormat& formatAudio,
+AudioSourceDataModelUI::AudioSourceDataModelUI(QAudioDeviceInfo* devInfo,
+                                               QAudioFormat* formatAudio,
                                                QWidget *parent) :
     QWidget(parent),
     ui(new Ui::AudioSourceDataModelUI),
     m_devInfo(devInfo),
     m_formatAudio(formatAudio),
-    m_Conf(QAudio::AudioInput, m_devInfo, m_formatAudio)
+    m_Conf(QAudio::AudioInput, *m_devInfo, *m_formatAudio)
 {
     ui->setupUi(this);
     connect(&m_Conf, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo ,QAudioFormat )),
@@ -26,12 +26,12 @@ AudioSourceDataModelUI::~AudioSourceDataModelUI()
 
 const QAudioFormat AudioSourceDataModelUI::FormatAudio() const
 {
-    return QAudioFormat();
+    return m_formatAudio ? *m_formatAudio : QAudioFormat();
 }
 
 QAudioDeviceInfo AudioSourceDataModelUI::DevInfo() const
 {
-    return QAudioDeviceInfo();
+    return m_devInfo ? *m_devInfo : QAudioDeviceInfo();
 }
 
 void AudioSourceDataModelUI::AudioStateChanged(QAudio::State state)

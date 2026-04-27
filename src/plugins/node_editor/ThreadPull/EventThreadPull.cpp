@@ -3,7 +3,6 @@
 //#include <QtMultimedia/QAudioDeviceInfo>
 #include <QDebug>
 
-EventThreadPull EventThreadPull::m_thread_pull;
 EventThreadPull::EventThreadPull():m_WorkerThread(this) {
 
     qRegisterMetaType<std::shared_ptr<QIODevice>>("std::shared_ptr<QIODevice>");
@@ -38,5 +37,6 @@ void EventThreadPull::destroyedWorker(QObject *obj){
 
 EventThreadPull& EventThreadPull::instance()
 {
-    return m_thread_pull;
+    static EventThreadPull s_thread_pull;
+    return s_thread_pull;
 }

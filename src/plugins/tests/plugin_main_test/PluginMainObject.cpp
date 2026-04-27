@@ -17,7 +17,7 @@ PluginMainObject::~PluginMainObject()
 
 void PluginMainObject::SetName(const QString &name)
 {
-    if( m_Win )
+    if( nullptr != m_Win )
     {
         m_Win->setWindowTitle( name );
     }
@@ -40,7 +40,7 @@ bool PluginMainObject::Initialize()
 
 void PluginMainObject::DeInitialize()
 {
-    if( m_Win ){
+    if( nullptr != m_Win ){
         m_Win->deleteLater();
     }
     DEBUG_V << "PluginMainObject destroyed";

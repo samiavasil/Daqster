@@ -1,0 +1,13 @@
+version = 1
+
+exclude_patterns = [
+  "build/**",
+  "src/external_libs/**",
+]
+
+[[analyzers]]
+name = "cxx"
+enabled = true
+
+  [analyzers.meta]
+  compile_commands_path = "build/compile_commands.json"

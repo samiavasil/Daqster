@@ -54,7 +54,7 @@ outData(PortIndex)
 
 void
 NumberDisplayDataModel::
-setInData(std::shared_ptr<NodeData> data, int)
+setInData(std::shared_ptr<NodeData> data, int)  // skipcq: CXX-W2009
 {
     auto numberData = std::dynamic_pointer_cast<NumericType<double>>(data);
 

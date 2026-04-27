@@ -10,28 +10,28 @@ using QtNodes::NodeData;
 
 /// The class can potentially incapsulate any user data which
 /// need to be transferred within the Node Editor graph
-template<typename _T>
+template<typename ValueType>
 class ComplexType : public NodeData
 {
 public:
 
-  ComplexType(_T* data)
+  ComplexType(ValueType* data)
   {
-      _data = std::shared_ptr<_T>(data);
+      _data = std::shared_ptr<ValueType>(data);
   }
 
   NodeDataType type() const override
   {
-    return NodeDataType {typeid(_T).name(),
-                         typeid(_T).name()};
+    return NodeDataType {typeid(ValueType).name(),
+                         typeid(ValueType).name()};
   }
 
-  _T& data() const
+  ValueType& data() const
   { return *_data; }
 
 private:
 
-  std::shared_ptr<_T> _data;
+  std::shared_ptr<ValueType> _data;
 };
 
 #endif // COMPLEXTYPE_H

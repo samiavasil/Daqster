@@ -17,7 +17,7 @@ PluginFancyObject::~PluginFancyObject()
 
 void PluginFancyObject::SetName(const QString &name)
 {
-    if( m_Win )
+    if( nullptr != m_Win )
     {
         m_Win->setWindowTitle( name );
     }
@@ -40,7 +40,7 @@ bool PluginFancyObject::Initialize()
 
 void PluginFancyObject::DeInitialize()
 {
-    if( m_Win ){
+    if( nullptr != m_Win ){
         m_Win->deleteLater();
     }
     DEBUG_V << "PluginFancyObject destroyed";
