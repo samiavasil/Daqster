@@ -1,6 +1,19 @@
 # PluginDependencyManager.cmake
 # Manages plugin dependencies and conditional compilation based on external libraries
 
+# Helper: verbose status printing controlled by DAQSTER_VERBOSE_DEPENDENCIES
+if(NOT DEFINED DAQSTER_VERBOSE_DEPENDENCIES)
+    set(DAQSTER_VERBOSE_DEPENDENCIES OFF)
+endif()
+
+function(verbose_status)
+    if(DAQSTER_VERBOSE_DEPENDENCIES)
+        # join argv into single string
+        string(REPLACE ";" " " _msg "${ARGV}")
+        message(STATUS "${_msg}")
+    endif()
+endfunction()
+
 # Function to check if a plugin can be built based on its dependencies
 function(check_plugin_dependencies PLUGIN_NAME)
     set(PLUGIN_ENABLED TRUE)
@@ -21,26 +34,26 @@ function(check_plugin_dependencies PLUGIN_NAME)
             
             # First try to find the module
             find_package(Qt${QT_VERSION_MAJOR}${MODULE_NAME} QUIET)
-            
+
             # Check if target exists
             if(TARGET ${LIBRARY})
-                message(STATUS "Checking ${LIBRARY} - target exists: TRUE")
+                verbose_status("Checking ${LIBRARY} - target exists: TRUE")
             else()
-                message(STATUS "Checking ${LIBRARY} - target exists: FALSE")
+                verbose_status("Checking ${LIBRARY} - target exists: FALSE")
                 set(PLUGIN_ENABLED FALSE)
                 list(APPEND REASONS "${LIBRARY} not available")
             endif()
         else()
             # External library or package - check if target exists
             if(TARGET ${LIBRARY})
-                message(STATUS "Checking ${LIBRARY} - target exists: TRUE")
+                verbose_status("Checking ${LIBRARY} - target exists: TRUE")
             else()
                 # Check if it's an external library that should be available
                 get_property(IS_AVAILABLE GLOBAL PROPERTY EXTERNAL_LIB_${LIBRARY}_AVAILABLE)
                 if(IS_AVAILABLE)
-                    message(STATUS "Checking ${LIBRARY} - external library available: TRUE")
+                    verbose_status("Checking ${LIBRARY} - external library available: TRUE")
                 else()
-                    message(STATUS "Checking ${LIBRARY} - target exists: FALSE")
+                    verbose_status("Checking ${LIBRARY} - target exists: FALSE")
                     set(PLUGIN_ENABLED FALSE)
                     list(APPEND REASONS "${LIBRARY} not available")
                 endif()
@@ -124,26 +137,26 @@ function(link_component_dependencies COMPONENT_NAME)
         if(LIBRARIES)
             # Link each library only if available to avoid hard failures
             foreach(LIBRARY ${LIBRARIES})
-                if(TARGET ${LIBRARY})
-                    target_link_libraries(${COMPONENT_NAME} PRIVATE ${LIBRARY})
-                    message(STATUS "Linked target ${LIBRARY} -> ${COMPONENT_NAME}")
-                else()
+                        if(TARGET ${LIBRARY})
+                            target_link_libraries(${COMPONENT_NAME} PRIVATE ${LIBRARY})
+                            verbose_status("Linked target ${LIBRARY} -> ${COMPONENT_NAME}")
+                        else()
                     # Check if it's a registered external library
                     get_property(IS_AVAILABLE GLOBAL PROPERTY EXTERNAL_LIB_${LIBRARY}_AVAILABLE)
                     if(IS_AVAILABLE)
                         # Attempt to link by name; the external lib may provide an imported target or name
-                        target_link_libraries(${COMPONENT_NAME} PRIVATE ${LIBRARY})
-                        message(STATUS "Linked external library ${LIBRARY} -> ${COMPONENT_NAME}")
+                                target_link_libraries(${COMPONENT_NAME} PRIVATE ${LIBRARY})
+                                verbose_status("Linked external library ${LIBRARY} -> ${COMPONENT_NAME}")
                     else()
                         message(WARNING "Dependency '${LIBRARY}' for component '${COMPONENT_NAME}' not available; skipping link.\n  This may cause undefined references at link time if the dependency is really required.")
                     endif()
                 endif()
             endforeach()
         else()
-            message(STATUS "No automatic dependencies recorded for ${COMPONENT_NAME}")
+                    verbose_status("No automatic dependencies recorded for ${COMPONENT_NAME}")
         endif()
 
-        message(STATUS "Auto-linked dependencies processed for ${COMPONENT_NAME}")
+                verbose_status("Auto-linked dependencies processed for ${COMPONENT_NAME}")
     endif()
 endfunction()
 
@@ -152,11 +165,11 @@ endfunction()
 function(register_external_library_dependency LIB_NAME)
     # Check if the library target exists (it should be built by add_subdirectory)
     if(TARGET ${LIB_NAME})
-        message(STATUS "External library ${LIB_NAME} available as dependency")
+        verbose_status("External library ${LIB_NAME} available as dependency")
         # Mark as available for other components
         set_property(GLOBAL PROPERTY EXTERNAL_LIB_${LIB_NAME}_AVAILABLE TRUE)
     else()
-        message(STATUS "External library ${LIB_NAME} not available as dependency")
+        verbose_status("External library ${LIB_NAME} not available as dependency")
         set_property(GLOBAL PROPERTY EXTERNAL_LIB_${LIB_NAME}_AVAILABLE FALSE)
     endif()
 endfunction()
@@ -171,7 +184,7 @@ function(print_component_status_summary)
     if(COMPONENTS)
         foreach(COMPONENT ${COMPONENTS})
             is_component_enabled(${COMPONENT} ENABLED)
-            if(ENABLED)
+                if(ENABLED)
                 message(STATUS "✓ ${COMPONENT}: ENABLED")
             else()
                 get_property(REASONS GLOBAL PROPERTY COMPONENT_${COMPONENT}_REASONS)
