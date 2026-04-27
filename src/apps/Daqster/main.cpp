@@ -197,8 +197,6 @@ int main(int argc, char *argv[]) {
       QConsoleListener *console = new QConsoleListener();
       QObject::connect(
           console, &QConsoleListener::newLine, [&a](const QString &strNewLine) {
-            static int aa;
-            qDebug() << "Echo :" << aa++ << strNewLine;
             // quit
             if (strNewLine.trimmed().compare("quit", Qt::CaseInsensitive) == 0) {
               qDebug() << "Goodbye";

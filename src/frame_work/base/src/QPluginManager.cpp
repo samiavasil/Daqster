@@ -55,6 +55,7 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     // Plugin directories - подредени по приоритет
     
     // 1. Build директория (най-висок приоритет за дебъг)
+    m_DirList.append( qApp->applicationDirPath() );  // Търси в bin/ директорията
     m_DirList.append( qApp->applicationDirPath()+QString("/plugins") );
     m_DirList.append(QDir(qApp->applicationDirPath()+"/../lib/daqster/plugins").absolutePath());
     

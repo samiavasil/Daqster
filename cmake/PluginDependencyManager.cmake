@@ -120,13 +120,30 @@ function(link_component_dependencies COMPONENT_NAME)
     if(ENABLED)
         # Get stored dependencies
         get_property(LIBRARIES GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_LIBRARIES)
-        
-        # Link all libraries
-        foreach(LIBRARY ${LIBRARIES})
-            target_link_libraries(${COMPONENT_NAME} ${LIBRARY})
-        endforeach()
-        
-        message(STATUS "Auto-linked dependencies for ${COMPONENT_NAME}")
+
+        if(LIBRARIES)
+            # Link each library only if available to avoid hard failures
+            foreach(LIBRARY ${LIBRARIES})
+                if(TARGET ${LIBRARY})
+                    target_link_libraries(${COMPONENT_NAME} PRIVATE ${LIBRARY})
+                    message(STATUS "Linked target ${LIBRARY} -> ${COMPONENT_NAME}")
+                else()
+                    # Check if it's a registered external library
+                    get_property(IS_AVAILABLE GLOBAL PROPERTY EXTERNAL_LIB_${LIBRARY}_AVAILABLE)
+                    if(IS_AVAILABLE)
+                        # Attempt to link by name; the external lib may provide an imported target or name
+                        target_link_libraries(${COMPONENT_NAME} PRIVATE ${LIBRARY})
+                        message(STATUS "Linked external library ${LIBRARY} -> ${COMPONENT_NAME}")
+                    else()
+                        message(WARNING "Dependency '${LIBRARY}' for component '${COMPONENT_NAME}' not available; skipping link.\n  This may cause undefined references at link time if the dependency is really required.")
+                    endif()
+                endif()
+            endforeach()
+        else()
+            message(STATUS "No automatic dependencies recorded for ${COMPONENT_NAME}")
+        endif()
+
+        message(STATUS "Auto-linked dependencies processed for ${COMPONENT_NAME}")
     endif()
 endfunction()
 

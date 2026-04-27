@@ -8,13 +8,25 @@ function(create_application COMPONENT_NAME)
     set(multiValueArgs REQUIRES_LIBRARIES SOURCES)
     cmake_parse_arguments(APP "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
-    # Create executable
-    add_executable(${COMPONENT_NAME} ${APP_SOURCES})
-    
-    # Register as component
+    # Register as component and check dependencies FIRST
     register_component(${COMPONENT_NAME}
         REQUIRES_LIBRARIES ${APP_REQUIRES_LIBRARIES}
     )
+    
+    # Check if component is enabled
+    get_property(COMPONENT_ENABLED GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_ENABLED)
+    
+    if(NOT COMPONENT_ENABLED)
+        get_property(REASONS GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_REASONS)
+        message(STATUS "Skipping application ${COMPONENT_NAME} - dependencies not met:")
+        foreach(REASON ${REASONS})
+            message(STATUS "  - ${REASON}")
+        endforeach()
+        return()  # Exit early if dependencies not met
+    endif()
+    
+    # Create executable ONLY if dependencies are met
+    add_executable(${COMPONENT_NAME} ${APP_SOURCES})
     
     # Auto-link dependencies
     link_component_dependencies(${COMPONENT_NAME})
@@ -34,13 +46,25 @@ function(create_internal_library COMPONENT_NAME)
     set(multiValueArgs REQUIRES_LIBRARIES SOURCES)
     cmake_parse_arguments(LIB "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
-    # Create library
-    add_library(${COMPONENT_NAME} SHARED ${LIB_SOURCES})
-    
-    # Register as component
+    # Register as component and check dependencies FIRST
     register_component(${COMPONENT_NAME}
         REQUIRES_LIBRARIES ${LIB_REQUIRES_LIBRARIES}
     )
+    
+    # Check if component is enabled
+    get_property(COMPONENT_ENABLED GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_ENABLED)
+    
+    if(NOT COMPONENT_ENABLED)
+        get_property(REASONS GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_REASONS)
+        message(STATUS "Skipping library ${COMPONENT_NAME} - dependencies not met:")
+        foreach(REASON ${REASONS})
+            message(STATUS "  - ${REASON}")
+        endforeach()
+        return()  # Exit early if dependencies not met
+    endif()
+    
+    # Create library ONLY if dependencies are met
+    add_library(${COMPONENT_NAME} SHARED ${LIB_SOURCES})
     
     # Auto-link dependencies
     link_component_dependencies(${COMPONENT_NAME})
@@ -55,38 +79,78 @@ function(create_internal_library COMPONENT_NAME)
     message(STATUS "Created internal library: ${COMPONENT_NAME}")
 endfunction()
 
-# Template for Plugins
+# Template for Plugins (including test plugins)
 function(create_plugin COMPONENT_NAME)
     set(options)
-    set(oneValueArgs)
-    set(multiValueArgs REQUIRES_LIBRARIES SOURCES)
+    set(oneValueArgs INSTALL_RPATH)
+    set(multiValueArgs REQUIRES_LIBRARIES SOURCES INCLUDE_DIRECTORIES COMPILE_DEFINITIONS LINK_LIBRARIES)
     cmake_parse_arguments(PLUGIN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
-    # Create plugin library
-    add_library(${COMPONENT_NAME} SHARED ${PLUGIN_SOURCES})
-    
-    # Add plugin definition
-    target_compile_definitions(${COMPONENT_NAME} PRIVATE BUILD_AVAILABLE_PLUGIN)
-    
-    # Register as component
+    # Register as component and check dependencies FIRST
     register_component(${COMPONENT_NAME}
         REQUIRES_LIBRARIES ${PLUGIN_REQUIRES_LIBRARIES}
     )
+    
+    # Check if component is enabled
+    get_property(COMPONENT_ENABLED GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_ENABLED)
+    
+    if(NOT COMPONENT_ENABLED)
+        get_property(REASONS GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_REASONS)
+        message(STATUS "Skipping plugin ${COMPONENT_NAME} - dependencies not met:")
+        foreach(REASON ${REASONS})
+            message(STATUS "  - ${REASON}")
+        endforeach()
+        return()  # Exit early if dependencies not met
+    endif()
+    
+    # Create plugin library ONLY if dependencies are met
+    add_library(${COMPONENT_NAME} SHARED ${PLUGIN_SOURCES})
+    
+    # Add plugin definition - CRITICAL for PLUGIN_EXPORT to work
+    target_compile_definitions(${COMPONENT_NAME} PRIVATE BUILD_AVAILABLE_PLUGIN)
+    
+    # Standard include directories for all plugins
+    target_include_directories(${COMPONENT_NAME}
+        PRIVATE
+            ./
+            ../../../frame_work/base/src/include
+    )
+    
+    # Additional include directories if specified
+    if(PLUGIN_INCLUDE_DIRECTORIES)
+        target_include_directories(${COMPONENT_NAME} PRIVATE ${PLUGIN_INCLUDE_DIRECTORIES})
+    endif()
+    
+    # Additional compile definitions if specified
+    if(PLUGIN_COMPILE_DEFINITIONS)
+        target_compile_definitions(${COMPONENT_NAME} PRIVATE ${PLUGIN_COMPILE_DEFINITIONS})
+    endif()
+    
+    # Additional link libraries if specified
+    if(PLUGIN_LINK_LIBRARIES)
+        target_link_libraries(${COMPONENT_NAME} PRIVATE ${PLUGIN_LINK_LIBRARIES})
+    endif()
     
     # Auto-link dependencies
     link_component_dependencies(${COMPONENT_NAME})
     
     # Install plugin
     install(TARGETS ${COMPONENT_NAME}
-        RUNTIME DESTINATION bin/plugins
-        LIBRARY DESTINATION lib/daqster/plugins
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION bin
         ARCHIVE DESTINATION lib
     )
     
-    # Set RPATH for plugins
-    set_target_properties(${COMPONENT_NAME} PROPERTIES
-        INSTALL_RPATH "$ORIGIN/../../lib"
-    )
+    # Set RPATH for plugins (use custom or default)
+    if(PLUGIN_INSTALL_RPATH)
+        set_target_properties(${COMPONENT_NAME} PROPERTIES
+            INSTALL_RPATH "${PLUGIN_INSTALL_RPATH}"
+        )
+    else()
+        set_target_properties(${COMPONENT_NAME} PROPERTIES
+            INSTALL_RPATH "$ORIGIN/../../lib"
+        )
+    endif()
     
     message(STATUS "Created plugin: ${COMPONENT_NAME}")
 endfunction()
@@ -107,45 +171,3 @@ function(create_external_library COMPONENT_NAME)
     message(STATUS "Created external library: ${COMPONENT_NAME}")
 endfunction()
 
-# Template for Test Components
-function(create_test_component COMPONENT_NAME)
-    set(options)
-    set(oneValueArgs)
-    set(multiValueArgs REQUIRES_LIBRARIES SOURCES)
-    cmake_parse_arguments(TEST "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-    
-    # Create test plugin
-    add_library(${COMPONENT_NAME} SHARED ${TEST_SOURCES})
-    
-    # Add plugin definition
-    target_compile_definitions(${COMPONENT_NAME} PRIVATE BUILD_AVAILABLE_PLUGIN)
-    
-    # Include directories
-    target_include_directories(${COMPONENT_NAME}
-        PRIVATE
-            ./
-            ../../../frame_work/base/src/include
-    )
-    
-    # Register as component
-    register_component(${COMPONENT_NAME}
-        REQUIRES_LIBRARIES ${TEST_REQUIRES_LIBRARIES}
-    )
-    
-    # Auto-link dependencies
-    link_component_dependencies(${COMPONENT_NAME})
-    
-    # Install test plugin
-    install(TARGETS ${COMPONENT_NAME}
-        RUNTIME DESTINATION bin/plugins
-        LIBRARY DESTINATION lib/daqster/plugins
-        ARCHIVE DESTINATION lib
-    )
-    
-    # Set RPATH for test plugins
-    set_target_properties(${COMPONENT_NAME} PROPERTIES
-        INSTALL_RPATH "$ORIGIN/../../lib"
-    )
-    
-    message(STATUS "Created test component: ${COMPONENT_NAME}")
-endfunction()

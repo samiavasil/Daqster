@@ -1,0 +1,73 @@
+name: CI Matrix (Qt5/Qt6)
+
+on:
+  push:
+    branches: [ port-to-qt6, cmake_build ]
+  pull_request:
+    branches: [ port-to-qt6, cmake_build ]
+
+jobs:
+  build-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        qt-version: [5, 6]
+        build-type: [Debug, Release]
+        include:
+          - qt-version: 5
+            qt-packages: "qt5-default qt5-charts-dev qtmultimedia5-dev qtquickcontrols2-5-dev"
+            qt-prefix: "/usr/lib/x86_64-linux-gnu"
+          - qt-version: 6
+            qt-packages: "qt6-base-dev qt6-charts-dev qt6-multimedia-dev qt6-declarative-dev"
+            qt-prefix: "/usr/lib/x86_64-linux-gnu/qt6"
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    - name: Install Qt${{ matrix.qt-version }} dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y ${{ matrix.qt-packages }}
+        sudo apt install -y cmake build-essential libicu-dev
+
+    - name: Configure CMake
+      run: |
+        mkdir build-qt${{ matrix.qt-version }}-${{ matrix.build-type }}
+        cd build-qt${{ matrix.qt-version }}-${{ matrix.build-type }}
+        cmake -S .. -B . \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} \
+          -DCMAKE_PREFIX_PATH=${{ matrix.qt-prefix }} \
+          -DQT_VERSION=${{ matrix.qt-version }}
+
+    - name: Build
+      run: |
+        cd build-qt${{ matrix.qt-version }}-${{ matrix.build-type }}
+        cmake --build . -j
+
+    - name: Test
+      run: |
+        cd build-qt${{ matrix.qt-version }}-${{ matrix.build-type }}
+        ctest --output-on-failure
+
+    - name: Create AppImage (Release only)
+      if: matrix.build-type == 'Release'
+      run: |
+        cd build-qt${{ matrix.qt-version }}-${{ matrix.build-type }}
+        cmake --install . --prefix ./stage
+        chmod +x ../../tools/create_appimage.sh
+        ../../tools/create_appimage.sh --mode ci --qt-dir ${{ matrix.qt-prefix }} --source-dir ./stage
+
+    - name: Upload AppImage Artifacts
+      if: matrix.build-type == 'Release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: Daqster-Qt${{ matrix.qt-version }}-${{ matrix.build-type }}-x86_64.AppImage
+        path: build-qt${{ matrix.qt-version }}-${{ matrix.build-type }}/Daqster-x86_64.AppImage
+
+
+
+
+

@@ -11,6 +11,9 @@ include(FindQtVersion)
 # Include plugin dependency manager
 include(PluginDependencyManager)
 
+# Include component templates
+include(ComponentTemplates)
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY  ${PROJECT_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY  ${PROJECT_BINARY_DIR}/bin)
 
@@ -47,19 +50,13 @@ find_package(OpenSSL)
 # Other modules will be found dynamically by PluginDependencyManager
 find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS Core Gui Widgets)
 
-# Add external libraries directly - they check their own dependencies
+# Add external libraries using templates
 if(QT_VERSION_MAJOR EQUAL 5)
     # NodeEditor library - will check its own dependencies in its CMakeLists.txt
-    add_subdirectory(src/external_libs/nodeeditor)
-    message(STATUS "nodeeditor external library: ENABLED")
+    create_external_library(nodeeditor)
     
     # QtRest library - will check its own dependencies in its CMakeLists.txt
-    add_subdirectory(src/external_libs/qtrest_lib)
-    message(STATUS "qtrest_lib external library: ENABLED")
-    
-    # Register external libraries as available dependencies
-    register_external_library_dependency(nodes)
-    register_external_library_dependency(qtrest_lib)
+    create_external_library(qtrest_lib)
     
 else()
     message(STATUS "External libraries disabled for Qt6 (compatibility issues)")
@@ -67,11 +64,16 @@ else()
     message(STATUS "  - QtRest: Qt6 compatibility issues")
 endif()
 
-# Plugins - after external libraries are processed
-add_subdirectory(src/plugins)
+# Plugins - dependency система автоматично изключва неподдържани
+add_subdirectory(src/plugins/node_editor)
+add_subdirectory(src/plugins/QtCoinTrader)
+add_subdirectory(src/plugins/tests/plugin_main_test)
+add_subdirectory(src/plugins/tests/plugin_fancy_test)
+add_subdirectory(src/plugins/tests/plugin_uggly_test)
+add_subdirectory(src/plugins/tests/template_plugin_daqster)
 
 # Apps - after plugins are processed (frame_work is built in plugins)
-add_subdirectory(src/apps)
+add_subdirectory(src/apps/Daqster)
 
 # Print final build configuration summary
 print_build_configuration_summary()

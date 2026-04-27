@@ -1,16 +1,22 @@
-# Use Qt detection from parent scope
-add_executable(Daqster
-    main.cpp
-    main.h
-    ApplicationsManager.cpp
-    ApplicationsManager.h
-    AppToolbar.cpp
-    AppToolbar.h
-    mainwindow.ui
-    icons.qrc
-    QConsoleListener.cpp
-    QConsoleListener.h
-    StyleFile
+# Use template system for application
+create_application(Daqster
+    SOURCES
+        main.cpp
+        main.h
+        ApplicationsManager.cpp
+        ApplicationsManager.h
+        AppToolbar.cpp
+        AppToolbar.h
+        mainwindow.ui
+        icons.qrc
+        QConsoleListener.cpp
+        QConsoleListener.h
+        StyleFile
+    REQUIRES_LIBRARIES
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Widgets
+        Qt${QT_VERSION_MAJOR}::Gui
+        frame_work
 )
 
 #add_definitions(-D_STDSTREAM_DEFINED)
@@ -18,12 +24,4 @@ add_executable(Daqster
 target_include_directories(Daqster
 PRIVATE
     ./
-)
-
-# Automatic linking for all dependencies
-link_component_dependencies(Daqster)
-
-# Install executable
-install(TARGETS Daqster
-    RUNTIME DESTINATION bin
 )

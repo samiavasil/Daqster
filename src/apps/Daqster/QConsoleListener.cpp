@@ -30,7 +30,6 @@ QConsoleListener::QConsoleListener()
                          std::string line;
                          std::getline(std::cin, line);
                          QString strLine = QString::fromStdString(line);
-                         qDebug() << "Emit: " << strLine;
                          Q_EMIT this->finishedGetLine(strLine);
                      });
 #else
@@ -43,8 +42,6 @@ QConsoleListener::QConsoleListener()
                              //std::getline(std::cin, line);
                              line = file.readLine().toStdString();
                              QString strLine = QString::fromStdString(line);
-
-                             qDebug() << "Emit: " << strLine;
                              Q_EMIT this->finishedGetLine(strLine);
                          }
                      });
@@ -55,7 +52,6 @@ QConsoleListener::QConsoleListener()
 void QConsoleListener::on_finishedGetLine(const QString &strNewLine)
 {
     Q_EMIT this->newLine(strNewLine);
-    qDebug() << "Written: " << strNewLine;
 }
 
 QConsoleListener::~QConsoleListener()

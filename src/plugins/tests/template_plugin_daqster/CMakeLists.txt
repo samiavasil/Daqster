@@ -1,21 +1,14 @@
-# Use Qt detection from parent scope
-
-add_library(plugin_template_test
-    SHARED
-    DaqsterTeplateInterface.cpp
-    TemplatePluginObject.cpp
-    DaqsterTeplateInterface.h
-    TemplatePluginObject.h
-    template.qrc
-    DaqsterTeplateInterface.json
+# Use template system for plugin
+create_plugin(plugin_template_test
+    SOURCES
+        DaqsterTeplateInterface.cpp
+        TemplatePluginObject.cpp
+        DaqsterTeplateInterface.h
+        TemplatePluginObject.h
+        template.qrc
+        DaqsterTeplateInterface.json
+    REQUIRES_LIBRARIES
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Gui
+        frame_work
 )
-
-add_definitions(-DBUILD_AVAILABLE_PLUGIN)
-
-target_include_directories(plugin_template_test
-  PRIVATE
-    ./
-    ../../../frame_work/base/src/include
-  )
-# Automatic linking for all dependencies
-link_component_dependencies(plugin_template_test)
