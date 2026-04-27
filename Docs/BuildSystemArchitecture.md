@@ -1,3 +1,5 @@
+[Български](./BuildSystemArchitecture.md) | [English](./BuildSystemArchitecture.en.md)
+
 # Daqster Build System Architecture
 
 ## Общ преглед
@@ -117,23 +119,37 @@ create_internal_library(frame_work
 - Install в `lib/`
 - Export definitions чрез `FRAME_WORKSHARED_EXPORT`
 
-### 4. External Libraries
+### 4. External Libraries - `create_external_library()`
 
-External библиотеките се добавят директно чрез `add_subdirectory()` и регистрират като налични dependencies:
+External библиотеките се добавят чрез `create_external_library()`, което автоматично:
+- Инициализира git submodule ако директорията липсва (при `DAQSTER_AUTO_INIT_SUBMODULES=ON`)
+- Извиква `add_subdirectory()`
+- Регистрира библиотеката като налична dependency
+- Добавя copy wrapper target за копиране на артефакти в `build/lib/`
 
 ```cmake
-# Добавяне на external библиотека
-add_subdirectory(src/external_libs/nodeeditor)
-register_external_library_dependency(nodes)
-
-add_subdirectory(src/external_libs/qtrest_lib)
-register_external_library_dependency(qtrest_lib)
+# В root CMakeLists.txt — само за Qt5 (Qt6 compat issues)
+if(QT_VERSION_MAJOR EQUAL 5)
+    create_external_library(nodeeditor)   # target: nodes
+    create_external_library(qtrest_lib)   # target: qtrest_lib
+endif()
 ```
 
-**Характеристики:**
-- Използват собствените си CMakeLists.txt файлове
-- Регистрират се като налични dependencies след build
-- Позволяват на други компоненти да зависят от тях
+**⚠️ Важно:** Papameter на `create_external_library()` е директорийното име под `src/external_libs/`, но реалният CMake target може да е различен (напр. `nodeeditor` → target `nodes`).
+
+**Meta-target:**
+```bash
+cmake --build . --target daqster_build_externals  # билдва всички external libs
+```
+
+**CMake опции:**
+```cmake
+# Автоматично инициализиране на submodule ако директорията липсва (default: ON)
+-DDAQSTER_AUTO_INIT_SUBMODULES=ON
+
+# Показване на детайлни dependency проверки (default: OFF)
+-DDAQSTER_VERBOSE_DEPENDENCIES=ON
+```
 
 ## Dependency Management
 
@@ -328,29 +344,24 @@ Daqster/
 # Root CMakeLists.txt
 
 # 1. Include build system modules
-include(cmake/FindQtVersion.cmake)
-include(cmake/PluginDependencyManager.cmake)
-include(cmake/ComponentTemplates.cmake)
+include(FindQtVersion)
+include(PluginDependencyManager)
+include(ComponentTemplates)
 
 # 2. Core framework (no external dependencies)
 add_subdirectory(src/frame_work)
 
-# 3. External libraries (Qt5 only due to compatibility)
+# 3. External libraries — само Qt5 (Qt6 compat issues)
 if(QT_VERSION_MAJOR EQUAL 5)
-    add_subdirectory(src/external_libs/nodeeditor)
-    register_external_library_dependency(nodes)
-    
-    add_subdirectory(src/external_libs/qtrest_lib)
-    register_external_library_dependency(qtrest_lib)
+    create_external_library(nodeeditor)   # → target: nodes
+    create_external_library(qtrest_lib)   # → target: qtrest_lib
+else()
+    message(STATUS "External libraries disabled for Qt6 (compatibility issues)")
 endif()
 
-# 4. Plugins (conditional based on Qt version)
-if(QT_VERSION_MAJOR EQUAL 5)
-    add_subdirectory(src/plugins/node_editor)
-    add_subdirectory(src/plugins/QtCoinTrader)
-endif()
-
-# Test plugins (work with both Qt5 and Qt6)
+# 4. Plugins — всички се добавят; dependency системата ги изключва автоматично
+add_subdirectory(src/plugins/node_editor)        # Qt5-only (изисква nodes)
+add_subdirectory(src/plugins/QtCoinTrader)       # Qt5-only (изисква qtrest_lib)
 add_subdirectory(src/plugins/tests/plugin_main_test)
 add_subdirectory(src/plugins/tests/plugin_fancy_test)
 add_subdirectory(src/plugins/tests/plugin_uggly_test)
@@ -366,16 +377,15 @@ print_build_configuration_summary()
 ## Conditional Building
 
 ### Qt Version Based
-```cmake
-if(QT_VERSION_MAJOR EQUAL 5)
-    # Qt5-specific plugins
-    add_subdirectory(src/plugins/QtCoinTrader)
-    add_subdirectory(src/plugins/node_editor)
-else()
-    # Qt6 fallback or alternative
-    message(STATUS "External library plugins disabled for Qt6")
-endif()
+
+Всички plugin `add_subdirectory()` се извикват винаги. Dependency системата автоматично ги изключва ако нужните external libs липсват:
+
 ```
+Qt5 build:  NodeEditorPlugin ✅  QtCoinTraderPlugin ✅  test plugins ✅
+Qt6 build:  NodeEditorPlugin ✗   QtCoinTraderPlugin ✗   test plugins ✅
+```
+
+> **⚠️ Qt6 ограничение:** `NodeEditorPlugin` и `QtCoinTraderPlugin` не се компилират при Qt6 защото external библиотеките `nodeeditor` и `qtrest_lib` имат Qt6 compatibility issues и са изключени. Само test плъгините (`plugin_main_test`, `plugin_fancy_test`, `plugin_uggly_test`, `plugin_template_test`) работят с Qt6.
 
 ### Dependency Based (Automatic)
 Компонентът се изключва автоматично ако dependencies липсват:
@@ -624,7 +634,7 @@ create_internal_library(frame_work
 
 **Internal Function** - извиква се автоматично от template functions.
 
-#### `check_component_dependencies(COMPONENT_NAME REQUIRES_LIBRARIES ...)`
+#### `check_plugin_dependencies(COMPONENT_NAME REQUIRES_LIBRARIES ...)`
 Проверява дали всички dependencies са налични.
 
 **Returns:**
@@ -636,14 +646,20 @@ create_internal_library(frame_work
 
 **Internal Function** - извиква се автоматично от template functions.
 
-#### `register_external_library_dependency(LIBRARY_NAME)`
-Регистрира external библиотека като налична dependency.
+#### `create_external_library(COMPONENT_NAME)`
+Добавя external библиотека (submodule), регистрира я и настройва copy target.
 
 **Example:**
 ```cmake
-add_subdirectory(src/external_libs/nodeeditor)
-register_external_library_dependency(nodes)
+create_external_library(nodeeditor)  # добавя src/external_libs/nodeeditor
+create_external_library(qtrest_lib)  # добавя src/external_libs/qtrest_lib
 ```
+
+#### `register_external_library_dependency(LIBRARY_NAME)`
+Ниско-ниво функция — регистрира target като налична external dependency. Извиква се автоматично от `create_external_library()`.
+
+#### `verbose_status(...)`
+Извежда STATUS съобщение само ако `DAQSTER_VERBOSE_DEPENDENCIES=ON`.
 
 #### `print_component_status_summary()`
 Показва статус на всички регистрирани компоненти.
@@ -652,6 +668,22 @@ register_external_library_dependency(nodes)
 Показва обща информация за build конфигурацията.
 
 ## Build System Variables
+
+### CMake Options (команден ред)
+
+| Опция | Default | Описание |
+|---|---|---|
+| `USE_QT6` | — | `ON` за Qt6, `OFF` за Qt5; ако не е зададен — auto-detect от `CMAKE_PREFIX_PATH` |
+| `DAQSTER_VERBOSE_DEPENDENCIES` | `OFF` | Показва детайлни dependency проверки при configure |
+| `DAQSTER_AUTO_INIT_SUBMODULES` | `ON` | Автоматично `git submodule update --init` при липсваща external директория |
+
+**Пример:**
+```bash
+cmake -S . -B build \
+  -DUSE_QT6=OFF \
+  -DDAQSTER_VERBOSE_DEPENDENCIES=ON \
+  -DCMAKE_PREFIX_PATH=/path/to/Qt/5.15.2/gcc_64
+```
 
 ### Global Variables
 

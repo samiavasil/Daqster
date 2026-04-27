@@ -4,6 +4,7 @@ create_plugin(NodeEditorPlugin
         NodeEditorPluginObject.cpp
         NodeEditorInterface.cpp
         Audio/AudioNodeQdevIoConnector.cpp
+        Audio/AudioComboModel.cpp
         Audio/AudioSourceConfig.cpp
         Audio/AudioSourceDataModel.cpp
         Audio/AudioSourceDataModelUI.cpp
@@ -17,10 +18,12 @@ create_plugin(NodeEditorPlugin
         ThreadPull/EventThreadPull.cpp
         Library/QDevIoDisplayModel.cpp
         Library/QDevioDisplayModelUi.cpp
+        Library/AudioFrameDecoder.cpp
         Library/XYSeriesIODevice.cpp
         NodeEditorInterface.h
         NodeEditorPluginObject.h
         Audio/AudioNodeQdevIoConnector.h
+        Audio/AudioComboModel.h
         Audio/AudioSourceConfig.h
         Audio/AudioSourceDataModel.h
         Audio/AudioSourceDataModelUI.h
@@ -37,6 +40,7 @@ create_plugin(NodeEditorPlugin
         Examples/ModuloModel.h
         ThreadPull/EventThreadPull.h
         Library/ComplexType.h
+        Library/AudioFrameDecoder.h
         Library/QDevIoDisplayModel.h
         Library/QDevioDisplayModelUi.h
         Library/XYSeriesIODevice.h

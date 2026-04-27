@@ -6,17 +6,17 @@ Welcome to Daqster documentation. Quick navigation:
 
 ## Main Documentation
 
-- [📘 Project README](../README.md) - Project overview, build instructions, structure
-- [📘 README (English)](../README.en.md) - English version
+- [📘 Project README](../README.en.md) - Project overview, build instructions, structure
+- [📘 README (Български)](../README.md) - Bulgarian version
 
 ## Technical Documentation
 
 - [Framework API Reference](./FrameworkAPI.md)
-- [Architecture Overview](./Architecture.md)
+- [Architecture Overview](./Architecture.en.md)
 - [Developer Guide](./DeveloperGuide.md)
-- [Plugin Dependency Management](./BuildSystemArchitecture.md)
-- [Build Helper Scripts](./BuildHelpers.md)
-- [HowToDebugAppImage](./HowToDebugAppImage.md)
+- [Build System Architecture](./BuildSystemArchitecture.en.md)
+- [Build Helper Scripts](./BuildHelpers.en.md)
+- [How To Debug AppImage](./HowToDebugAppImage.md)
 
 ## Diagrams
 

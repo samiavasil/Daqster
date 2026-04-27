@@ -5,6 +5,12 @@ project(Daqster VERSION 0.2.0 LANGUAGES CXX)
 # Add cmake modules to path
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+# Control verbose dependency checks (default: minimal output)
+option(DAQSTER_VERBOSE_DEPENDENCIES "Show detailed dependency checks" OFF)
+
+# Automatically initialize missing external submodule directories when enabled
+option(DAQSTER_AUTO_INIT_SUBMODULES "Automatically run 'git submodule update --init' for missing external submodules" ON)
+
 # Detect Qt version (Qt6 preferred, Qt5 fallback)
 include(FindQtVersion)
 
@@ -13,6 +19,9 @@ include(PluginDependencyManager)
 
 # Include component templates
 include(ComponentTemplates)
+
+# Try to find git for optional submodule initialization
+find_package(Git QUIET)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY  ${PROJECT_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY  ${PROJECT_BINARY_DIR}/bin)

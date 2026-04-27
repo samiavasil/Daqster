@@ -14,6 +14,11 @@ function(verbose_status)
     endif()
 endfunction()
 
+# Ensure a meta-target exists to collect external build/copy steps
+if(NOT TARGET daqster_build_externals)
+    add_custom_target(daqster_build_externals)
+endif()
+
 # Function to check if a plugin can be built based on its dependencies
 function(check_plugin_dependencies PLUGIN_NAME)
     set(PLUGIN_ENABLED TRUE)
