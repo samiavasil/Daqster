@@ -1,14 +1,14 @@
 [Български](./BuildHelpers.md) | [English](./BuildHelpers.en.md)
 
-# Build Helper Scripts
+# Помощни build скриптове
 
-Скриптовете в `tools/build_helpers/` са помощни инструменти за разработка, тестване на build конфигурации и управление на external submodule-и.
+Скриптовете в `tools/build_helpers/` са помощни инструменти за разработка, тестване на build конфигурации и управление на външни submodule-и.
 
 ## Общ преглед
 
 | Скрипт | Цел |
 |---|---|
-| `manage_upstream.sh` | Управление на upstream remote за external libs |
+| `manage_upstream.sh` | Управление на upstream remote за външни библиотеки |
 | `debug_control.sh` | Контрол на ptrace за GDB attach |
 | `test_qt_versions.sh` | Автоматичен тест на Qt5/Qt6 detection |
 | `test_qt6_qtrest.sh` | Тест на Qt6 build с QtRest |
@@ -17,7 +17,7 @@
 
 ## manage_upstream.sh
 
-Управлява upstream remote за external библиотеките (`nodeeditor` и `qtrest_lib`), позволява fetch, merge и синхронизация с upstream проектите.
+Управлява upstream remote за външните библиотеки (`nodeeditor` и `qtrest_lib`), позволява fetch, merge и синхронизация с upstream проектите.
 
 **Употреба:**
 ```bash
@@ -67,7 +67,7 @@ NODEEDITOR_UPSTREAM=https://github.com/my-fork/nodeeditor.git \
 
 Контролира `kernel.yama.ptrace_scope` за разрешаване на GDB remote attach към процеси (нужно за debugging на plugins в Daqster).
 
-> **⚠️ Изисква `sudo`.** Промяната е временна (до рестарт) освен ако не е записана в `/etc/sysctl.d/`.
+> Изисква `sudo`. Промяната е временна (до рестарт), освен ако не е записана в `/etc/sysctl.d/`.
 
 **Употреба:**
 ```bash
@@ -106,19 +106,19 @@ NODEEDITOR_UPSTREAM=https://github.com/my-fork/nodeeditor.git \
 ./tools/build_helpers/test_qt_versions.sh
 ```
 
-**ENV опции:**
+**ENV променливи:**
 
 | Променлива | Default | Описание |
 |---|---|---|
 | `BUILD_DIR` | `test_build` | Директория за тестовия build |
-| `QT5_PREFIX` | `/mnt/Builder/bin/Linux/Qt/5.15.2/gcc_64` | Path към Qt5 |
-| `QT6_PREFIX` | `/mnt/Builder/bin/Linux/Qt/6.9.2/gcc_64` | Path към Qt6 |
+| `QT5_PREFIX` | `/mnt/Builder/bin/Linux/Qt/5.15.2/gcc_64` | Път до Qt5 |
+| `QT6_PREFIX` | `/mnt/Builder/bin/Linux/Qt/6.9.2/gcc_64` | Път до Qt6 |
 
 **Какво тества:**
 1. Qt5 с `USE_QT6=OFF` + Qt5 prefix
 2. Qt6 с `USE_QT6=ON` + Qt6 prefix
-3. Auto-detect с Qt5 prefix (без USE_QT6)
-4. Auto-detect с Qt6 prefix (без USE_QT6)
+3. Автоматично разпознаване с Qt5 prefix (без USE_QT6)
+4. Автоматично разпознаване с Qt6 prefix (без USE_QT6)
 
 **Пример:**
 ```bash
@@ -129,9 +129,9 @@ QT5_PREFIX=/usr/lib/qt5 ./tools/build_helpers/test_qt_versions.sh
 
 ## test_qt6_qtrest.sh
 
-Тества Qt6 build и проверява дали `qtrest_lib` артефактите са извадени. Полезен след промени в QtRest за Qt6 compatibility.
+Тества Qt6 build и проверява дали `qtrest_lib` артефактите са генерирани. Полезен е след промени в QtRest за Qt6 съвместимост.
 
-> **⚠️ Статус:** QtRest все още има Qt6 compatibility issues. Скриптът е за проверка на прогреса.
+> Статус: QtRest все още има проблеми със съвместимостта с Qt6. Скриптът е за проверка на прогреса.
 
 **Употреба:**
 ```bash
@@ -143,7 +143,7 @@ QT5_PREFIX=/usr/lib/qt5 ./tools/build_helpers/test_qt_versions.sh
 | Опция | Default | Описание |
 |---|---|---|
 | `--clean` | off | Изтрива build директорията преди configure |
-| `--qt-prefix PATH` | `/mnt/Builder/bin/Linux/Qt/6.9.2/gcc_64` | Path към Qt6 |
+| `--qt-prefix PATH` | `/mnt/Builder/bin/Linux/Qt/6.9.2/gcc_64` | Път до Qt6 |
 | `--build-dir DIR` | `build_qt6_qtrest` | Директория за build-а |
 
 **Пример:**

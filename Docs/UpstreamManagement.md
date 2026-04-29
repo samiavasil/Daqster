@@ -16,40 +16,40 @@
 - **Current Status:** 27 commits behind upstream, 0 commits ahead
 - **Branch:** `master` (tracking upstream)
 
-## 🛠️ **Upstream Management Script**
+## **Upstream Management Script**
 
-Използвайте `tools/manage_upstream.sh` скрипта за лесно управление на upstream updates:
+Използвайте `tools/build_helpers/manage_upstream.sh` скрипта за лесно управление на upstream updates:
 
 ### **Основни команди:**
 
 ```bash
 # Покажи текущото състояние
-./tools/manage_upstream.sh status
+./tools/build_helpers/manage_upstream.sh status
 
 # Провери за нови промени
-./tools/manage_upstream.sh check
+./tools/build_helpers/manage_upstream.sh check
 
 # Изтегли последните промени от upstream
-./tools/manage_upstream.sh fetch
+./tools/build_helpers/manage_upstream.sh fetch
 
 # Слей промени от upstream
-./tools/manage_upstream.sh merge nodeeditor
-./tools/manage_upstream.sh merge qtrest
-./tools/manage_upstream.sh merge all
+./tools/build_helpers/manage_upstream.sh merge nodeeditor
+./tools/build_helpers/manage_upstream.sh merge qtrest
+./tools/build_helpers/manage_upstream.sh merge all
 
 # Cherry-pick конкретен commit
-./tools/manage_upstream.sh cherry-pick <commit-hash>
+./tools/build_helpers/manage_upstream.sh cherry-pick <commit-hash>
 ```
 
-## 📋 **Workflow за Upstream Updates**
+## **Workflow за Upstream Updates**
 
 ### **1. Редовна проверка (месечно):**
 ```bash
 # Провери за нови промени
-./tools/manage_upstream.sh check
+./tools/build_helpers/manage_upstream.sh check
 
 # Ако има нови промени, изтегли ги
-./tools/manage_upstream.sh fetch
+./tools/build_helpers/manage_upstream.sh fetch
 ```
 
 ### **2. Анализ на промените:**
@@ -70,14 +70,14 @@ git diff HEAD..upstream/master --stat
 #### **A. Пълен merge (за QtRest):**
 ```bash
 # QtRest е по-малко модифициран, може да се merge-не директно
-./tools/manage_upstream.sh merge qtrest
+./tools/build_helpers/manage_upstream.sh merge qtrest
 ```
 
 #### **B. Cherry-pick (за NodeEditor):**
 ```bash
 # NodeEditor има много custom модификации
 # Cherry-pick само нужните commits
-./tools/manage_upstream.sh cherry-pick <commit-hash>
+./tools/build_helpers/manage_upstream.sh cherry-pick <commit-hash>
 ```
 
 #### **C. Създаване на integration branch:**
@@ -89,7 +89,7 @@ git merge upstream/master
 # Разреши конфликтите и тествай
 ```
 
-## ⚠️ **Важни съображения**
+## **Важни съображения**
 
 ### **NodeEditor специфики:**
 - **Много custom модификации** - 4 commits ahead of upstream
@@ -103,7 +103,7 @@ git merge upstream/master
 - **Препоръка:** Може да се merge-ва по-често
 - **Внимание:** Проверявай за Qt6 compatibility
 
-## 🔧 **Ръчни операции**
+## **Ръчни операции**
 
 ### **Добавяне на upstream remote:**
 ```bash
@@ -131,7 +131,7 @@ git cherry-pick <commit-hash>
 git merge upstream/master
 ```
 
-## 📊 **Monitoring и Alerts**
+## **Monitoring и Alerts**
 
 ### **GitHub Notifications:**
 - Настройте notifications за upstream repositories
@@ -141,7 +141,7 @@ git merge upstream/master
 ### **Automated Checks:**
 ```bash
 # Добавете в cron за месечна проверка
-0 0 1 * * /path/to/Daqster/tools/manage_upstream.sh check
+0 0 1 * * /path/to/Daqster/tools/build_helpers/manage_upstream.sh check
 ```
 
 ## 🚨 **Troubleshooting**
@@ -185,7 +185,7 @@ git remote add upstream <upstream-url>
 4. **Документиране** - записвайте какво сте cherry-pick-нали
 5. **Security first** - приоритизирайте security updates
 
-## 🔗 **Полезни линкове**
+## **Полезни линкове**
 
 - [Git Cherry-pick Guide](https://git-scm.com/docs/git-cherry-pick)
 - [Git Merge Strategies](https://git-scm.com/docs/merge-strategies)

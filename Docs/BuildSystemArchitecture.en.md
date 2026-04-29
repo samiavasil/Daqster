@@ -6,15 +6,15 @@
 
 Daqster's build system is based on CMake template functions that automatically manage dependencies and conditional compilation of components (applications, plugins, libraries) based on available Qt modules, external libraries, and packages.
 
-### 🎯 Key Features (v2.1)
+### Key Features (v2.1)
 
-- ✅ **Declarative syntax**: Everything is in the `create_plugin()` call
-- ✅ **Automatic dependency checking**: Verified before compilation
-- ✅ **Early return**: Components with missing dependencies are not created
-- ✅ **Elegant parameters**: `INCLUDE_DIRECTORIES`, `COMPILE_DEFINITIONS`, `LINK_LIBRARIES`, `INSTALL_RPATH`
-- ✅ **Qt5/Qt6 compatibility**: Automatically adapts to the Qt version
-- ✅ **Self-contained components**: Each component declares its own dependencies
-- ✅ **No CMake errors**: Target commands are only called for enabled components
+- **Declarative syntax**: Everything is in the `create_plugin()` call
+- **Automatic dependency checking**: Verified before compilation
+- **Early return**: Components with missing dependencies are not created
+- **Elegant parameters**: `INCLUDE_DIRECTORIES`, `COMPILE_DEFINITIONS`, `LINK_LIBRARIES`, `INSTALL_RPATH`
+- **Qt5/Qt6 compatibility**: Automatically adapts to the Qt version
+- **Self-contained components**: Each component declares its own dependencies
+- **No CMake errors**: Target commands are only called for enabled components
 
 ## Key Principles
 
@@ -135,7 +135,7 @@ if(QT_VERSION_MAJOR EQUAL 5)
 endif()
 ```
 
-**⚠️ Note:** The parameter to `create_external_library()` is the directory name under `src/external_libs/`, but the actual CMake target may differ (e.g., `nodeeditor` → target `nodes`).
+**Note:** The parameter to `create_external_library()` is the directory name under `src/external_libs/`, but the actual CMake target may differ (e.g., `nodeeditor` -> target `nodes`).
 
 **Meta-target:**
 ```bash
@@ -255,10 +255,10 @@ add_library(${COMPONENT_NAME} SHARED ${PLUGIN_SOURCES})
 ```
 
 **Advantages:**
-- ✅ No attempts to compile components with missing dependencies
-- ✅ No CMake errors for missing targets
-- ✅ Clean and clear output for disabled components
-- ✅ Additional settings (INCLUDE_DIRECTORIES, COMPILE_DEFINITIONS) only apply if the component is enabled
+- No attempts to compile components with missing dependencies
+- No CMake errors for missing targets
+- Clean and clear output for disabled components
+- Additional settings (INCLUDE_DIRECTORIES, COMPILE_DEFINITIONS) only apply if the component is enabled
 
 ## Qt Version Detection
 
@@ -353,8 +353,8 @@ add_subdirectory(src/frame_work)
 
 # 3. External libraries — Qt5 only (Qt6 compat issues)
 if(QT_VERSION_MAJOR EQUAL 5)
-    create_external_library(nodeeditor)   # → target: nodes
-    create_external_library(qtrest_lib)   # → target: qtrest_lib
+    create_external_library(nodeeditor)   # -> target: nodes
+    create_external_library(qtrest_lib)   # -> target: qtrest_lib
 else()
     message(STATUS "External libraries disabled for Qt6 (compatibility issues)")
 endif()
@@ -381,11 +381,11 @@ print_build_configuration_summary()
 All plugin `add_subdirectory()` calls are always made. The dependency system automatically excludes them if the required external libs are missing:
 
 ```
-Qt5 build:  NodeEditorPlugin ✅  QtCoinTraderPlugin ✅  test plugins ✅
-Qt6 build:  NodeEditorPlugin ✗   QtCoinTraderPlugin ✗   test plugins ✅
+Qt5 build:  NodeEditorPlugin enabled, QtCoinTraderPlugin enabled, test plugins enabled
+Qt6 build:  NodeEditorPlugin disabled, QtCoinTraderPlugin disabled, test plugins enabled
 ```
 
-> **⚠️ Qt6 limitation:** `NodeEditorPlugin` and `QtCoinTraderPlugin` do not compile with Qt6 because the external libraries `nodeeditor` and `qtrest_lib` have Qt6 compatibility issues and are excluded. Only the test plugins (`plugin_main_test`, `plugin_fancy_test`, `plugin_uggly_test`, `plugin_template_test`) work with Qt6.
+> Qt6 limitation: `NodeEditorPlugin` and `QtCoinTraderPlugin` do not compile with Qt6 because the external libraries `nodeeditor` and `qtrest_lib` have Qt6 compatibility issues and are excluded. Only the test plugins (`plugin_main_test`, `plugin_fancy_test`, `plugin_uggly_test`, `plugin_template_test`) work with Qt6.
 
 ### Dependency Based (Automatic)
 A component is excluded automatically if its dependencies are missing:
@@ -975,7 +975,7 @@ add_subdirectory(src/plugins/my_plugin)
 
 ## Best Practices Summary
 
-### ✅ Use the new parameters of create_plugin()
+### Use the new parameters of create_plugin()
 
 **Good:** Everything is declared in the `create_plugin()` call
 ```cmake
@@ -1005,14 +1005,14 @@ if(COMPONENT_ENABLED)
 endif()
 ```
 
-### ✅ Advantages of the new approach
+### Advantages of the new approach
 
 1. **Clean declarative syntax** — everything in one place
 2. **Automatic management** — the template function handles everything
 3. **No errors for missing targets** — additional settings only apply if the component is enabled
 4. **Easier to maintain** — clear and concise
 
-### ✅ Dependency Checking Flow
+### Dependency Checking Flow
 
 ```
 create_plugin(MyPlugin ...)
@@ -1021,14 +1021,14 @@ register_component(MyPlugin) - checks dependencies
     ↓
 get_property(COMPONENT_ENABLED)
     ↓
-if (NOT ENABLED) → return()  ← add_library() is NOT called!
+if (NOT ENABLED) -> return()  <- add_library() is NOT called!
     ↓
-if (ENABLED) → add_library(MyPlugin ...)
-             → target_include_directories() (if INCLUDE_DIRECTORIES is set)
-             → target_compile_definitions() (if COMPILE_DEFINITIONS is set)
-             → target_link_libraries() (automatic + LINK_LIBRARIES)
-             → install()
-             → set_target_properties()
+if (ENABLED) -> add_library(MyPlugin ...)
+             -> target_include_directories() (if INCLUDE_DIRECTORIES is set)
+             -> target_compile_definitions() (if COMPILE_DEFINITIONS is set)
+             -> target_link_libraries() (automatic + LINK_LIBRARIES)
+             -> install()
+             -> set_target_properties()
 ```
 
 ## Version History

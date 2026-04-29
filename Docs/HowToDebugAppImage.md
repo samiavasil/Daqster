@@ -17,18 +17,18 @@
 
 ---
 
-## Debug AppImage (Най-лесно) 🎯
+## Debug AppImage (Най-лесно)
 
 **Най-лесният начин** за дебъгване е да използваш Debug AppImage-а, който се създава автоматично в CI.
 
 ### Какво е Debug AppImage?
 
-- ✅ **Debug символи** - включени всички debug информация
-- ✅ **Stack traces** - детайлни stack traces при crashes
-- ✅ **Source mapping** - връзка към source code
-- ✅ **GDB ready** - може да се дебъгва с GDB
-- ❌ **По-голям размер** - заради debug символите
-- ❌ **По-бавно изпълнение** - debug оптимизации
+- **Debug символи** - включени всички debug информация
+- **Stack traces** - детайлни stack traces при crashes
+- **Source mapping** - връзка към source code
+- **GDB ready** - може да се дебъгва с GDB
+- **По-голям размер** - заради debug символите
+- **По-бавно изпълнение** - debug оптимизации
 
 ### Използване:
 
@@ -42,7 +42,7 @@ gdb ./Daqster-Debug-x86_64.AppImage
 
 ---
 
-## GDB с AppImage 🔧
+## GDB с AppImage
 
 GDB (GNU Debugger) е най-мощният инструмент за дебъгване на C++ приложения.
 
@@ -84,7 +84,7 @@ gdb ./Daqster-x86_64.AppImage
 
 ---
 
-## Valgrind за memory debugging 🧠
+## Valgrind за memory debugging
 
 Valgrind е отличен инструмент за откриване на memory leaks и други memory проблеми.
 
@@ -113,7 +113,7 @@ valgrind --tool=helgrind ./Daqster-x86_64.AppImage
 
 ---
 
-## Debug с environment variables 🔧
+## Debug с environment variables
 
 Можеш да включиш debug output чрез environment variables.
 
@@ -152,7 +152,7 @@ VERBOSE=1 ./Daqster-x86_64.AppImage
 
 ---
 
-## Extract AppImage за дебъг 📦
+## Extract AppImage за дебъг
 
 Можеш да извлечеш AppImage в директория и да дебъгваш директно изпълнимия файл.
 
@@ -176,13 +176,13 @@ export DAQSTER_PLUGIN_DIR=$(pwd)/squashfs-root/usr/lib/daqster/plugins
 
 ### Предимства:
 
-- ✅ **По-лесно дебъгване** - директно с GDB
-- ✅ **По-бързо** - няма overhead от AppImage
-- ✅ **По-гъвкаво** - можеш да променяш файлове
+- **По-лесно дебъгване** - директно с GDB
+- **По-бързо** - няма overhead от AppImage
+- **По-гъвкаво** - можеш да променяш файлове
 
 ---
 
-## Debug с Qt Creator 🛠️
+## Debug с Qt Creator
 
 Qt Creator е отличен IDE за дебъгване на Qt приложения.
 
@@ -194,11 +194,11 @@ Qt Creator е отличен IDE за дебъгване на Qt приложе�
    ```
 
 2. **Отвори в Qt Creator**:
-   - File → Open File or Project
+   - File -> Open File or Project
    - Избери `squashfs-root/usr/bin/Daqster`
 
 3. **Настрой debug configuration**:
-   - Run → Debug
+   - Run -> Debug
    - Настрой environment variables
    - Добави breakpoints
 
@@ -218,7 +218,7 @@ Qt Creator е отличен IDE за дебъгване на Qt приложе�
 
 ---
 
-## Debug с strace 🔍
+## Debug с strace
 
 strace проследява системните извиквания на приложението.
 
@@ -321,7 +321,7 @@ gdb ./Daqster-x86_64.AppImage
 
 ---
 
-## Препоръки 💡
+## Препоръки
 
 ### За най-лесно дебъгване:
 

@@ -1,24 +1,24 @@
 [Български](./BuildSystemArchitecture.md) | [English](./BuildSystemArchitecture.en.md)
 
-# Daqster Build System Architecture
+# Архитектура на build системата на Daqster
 
 ## Общ преглед
 
-Build системата на Daqster е базирана на CMake template functions, които автоматично управляват dependencies и условно компилиране на компоненти (applications, plugins, libraries) базирано на наличните Qt модули, external библиотеки и packages.
+Build системата на Daqster е базирана на CMake шаблонни функции, които автоматично управляват зависимостите и условното компилиране на компоненти (приложения, plugins, библиотеки) според наличните Qt модули, външни библиотеки и пакети.
 
-### 🎯 Ключови характеристики (v2.1)
+### Ключови характеристики (v2.1)
 
-- ✅ **Декларативен синтаксис**: Всичко е в `create_plugin()` извикването
-- ✅ **Автоматично dependency checking**: Проверява се преди компилация
-- ✅ **Early return**: Компонентите с липсващи dependencies не се създават
-- ✅ **Елегантни параметри**: `INCLUDE_DIRECTORIES`, `COMPILE_DEFINITIONS`, `LINK_LIBRARIES`, `INSTALL_RPATH`
-- ✅ **Qt5/Qt6 compatibility**: Автоматично адаптиране според Qt версията
-- ✅ **Self-contained components**: Всеки компонент декларира своите dependencies
-- ✅ **Няма CMake грешки**: Target команди се извикват само за enabled компоненти
+- **Декларативен синтаксис**: Всичко е в извикването на `create_plugin()`
+- **Автоматична проверка на зависимости**: Проверява се преди компилация
+- **Ранно прекратяване**: Компонентите с липсващи зависимости не се създават
+- **Ясни параметри**: `INCLUDE_DIRECTORIES`, `COMPILE_DEFINITIONS`, `LINK_LIBRARIES`, `INSTALL_RPATH`
+- **Qt5/Qt6 съвместимост**: Автоматично адаптиране според Qt версията
+- **Самостоятелни компоненти**: Всеки компонент декларира собствените си зависимости
+- **Без CMake грешки**: Target командите се извикват само за включените компоненти
 
 ## Ключови принципи
 
-### 1. Template-Based Component Creation
+### 1. Създаване на компоненти чрез шаблони
 Всеки тип компонент (app, plugin, library) се създава чрез специализирана template функция, която:
 - Автоматично проверява dependencies
 - Автоматично линква необходимите библиотеки
@@ -26,15 +26,15 @@ Build системата на Daqster е базирана на CMake template fu
 - Конфигурира install rules
 - Управлява RPATH за runtime linking
 
-### 2. Self-Contained Components
+### 2. Самостоятелни компоненти
 Всеки компонент декларира своите dependencies в собствения си `CMakeLists.txt` файл, без нужда от централизирана регистрация.
 
-### 3. Dynamic Qt Module Discovery
+### 3. Динамично откриване на Qt модули
 Qt модулите се откриват динамично само когато са необходими на компонент, вместо предварително да се търсят всички възможни модули.
 
-## Component Templates
+## Шаблони за компоненти
 
-### 1. Applications - `create_application()`
+### 1. Приложения - `create_application()`
 ```cmake
 create_application(Daqster
     SOURCES
@@ -99,7 +99,7 @@ create_plugin(QtCoinTraderPlugin
 - **Custom RPATH** чрез `INSTALL_RPATH` параметър (default: `$ORIGIN/../../lib`)
 - **Всички допълнителни настройки се прилагат автоматично само ако dependencies са налични**
 
-### 3. Internal Libraries - `create_internal_library()`
+### 3. Вътрешни библиотеки - `create_internal_library()`
 ```cmake
 create_internal_library(frame_work
     SOURCES
@@ -119,9 +119,9 @@ create_internal_library(frame_work
 - Install в `lib/`
 - Export definitions чрез `FRAME_WORKSHARED_EXPORT`
 
-### 4. External Libraries - `create_external_library()`
+### 4. Външни библиотеки - `create_external_library()`
 
-External библиотеките се добавят чрез `create_external_library()`, което автоматично:
+Външните библиотеки се добавят чрез `create_external_library()`, което автоматично:
 - Инициализира git submodule ако директорията липсва (при `DAQSTER_AUTO_INIT_SUBMODULES=ON`)
 - Извиква `add_subdirectory()`
 - Регистрира библиотеката като налична dependency
@@ -135,7 +135,7 @@ if(QT_VERSION_MAJOR EQUAL 5)
 endif()
 ```
 
-**⚠️ Важно:** Papameter на `create_external_library()` е директорийното име под `src/external_libs/`, но реалният CMake target може да е различен (напр. `nodeeditor` → target `nodes`).
+**Важно:** Параметърът на `create_external_library()` е името на директорията под `src/external_libs/`, но реалният CMake target може да е различен (например `nodeeditor` -> target `nodes`).
 
 **Meta-target:**
 ```bash
@@ -151,9 +151,9 @@ cmake --build . --target daqster_build_externals  # билдва всички ex
 -DDAQSTER_VERBOSE_DEPENDENCIES=ON
 ```
 
-## Dependency Management
+## Управление на зависимости
 
-### Автоматична проверка на dependencies
+### Автоматична проверка на зависимостите
 
 Функцията `check_component_dependencies()` автоматично:
 
@@ -255,10 +255,10 @@ add_library(${COMPONENT_NAME} SHARED ${PLUGIN_SOURCES})
 ```
 
 **Предимства:**
-- ✅ Няма опити за компилиране на компоненти с липсващи dependencies
-- ✅ Няма CMake грешки за missing targets
-- ✅ Чист и ясен output за disabled компоненти
-- ✅ Допълнителните настройки (INCLUDE_DIRECTORIES, COMPILE_DEFINITIONS) се прилагат само ако компонентът е enabled
+- Няма опити за компилиране на компоненти с липсващи dependencies
+- Няма CMake грешки за missing targets
+- Чист и ясен output за disabled компоненти
+- Допълнителните настройки (INCLUDE_DIRECTORIES, COMPILE_DEFINITIONS) се прилагат само ако компонентът е enabled
 
 ## Qt Version Detection
 
@@ -353,8 +353,8 @@ add_subdirectory(src/frame_work)
 
 # 3. External libraries — само Qt5 (Qt6 compat issues)
 if(QT_VERSION_MAJOR EQUAL 5)
-    create_external_library(nodeeditor)   # → target: nodes
-    create_external_library(qtrest_lib)   # → target: qtrest_lib
+    create_external_library(nodeeditor)   # -> target: nodes
+    create_external_library(qtrest_lib)   # -> target: qtrest_lib
 else()
     message(STATUS "External libraries disabled for Qt6 (compatibility issues)")
 endif()
@@ -376,18 +376,18 @@ print_build_configuration_summary()
 
 ## Conditional Building
 
-### Qt Version Based
+### Според версията на Qt
 
 Всички plugin `add_subdirectory()` се извикват винаги. Dependency системата автоматично ги изключва ако нужните external libs липсват:
 
 ```
-Qt5 build:  NodeEditorPlugin ✅  QtCoinTraderPlugin ✅  test plugins ✅
-Qt6 build:  NodeEditorPlugin ✗   QtCoinTraderPlugin ✗   test plugins ✅
+Qt5 build:  NodeEditorPlugin включен, QtCoinTraderPlugin включен, test plugins включени
+Qt6 build:  NodeEditorPlugin изключен, QtCoinTraderPlugin изключен, test plugins включени
 ```
 
-> **⚠️ Qt6 ограничение:** `NodeEditorPlugin` и `QtCoinTraderPlugin` не се компилират при Qt6 защото external библиотеките `nodeeditor` и `qtrest_lib` имат Qt6 compatibility issues и са изключени. Само test плъгините (`plugin_main_test`, `plugin_fancy_test`, `plugin_uggly_test`, `plugin_template_test`) работят с Qt6.
+> Qt6 ограничение: `NodeEditorPlugin` и `QtCoinTraderPlugin` не се компилират при Qt6, защото външните библиотеки `nodeeditor` и `qtrest_lib` имат проблеми със съвместимостта с Qt6 и са изключени. Само test плъгините (`plugin_main_test`, `plugin_fancy_test`, `plugin_uggly_test`, `plugin_template_test`) работят с Qt6.
 
-### Dependency Based (Automatic)
+### Според зависимости (автоматично)
 Компонентът се изключва автоматично ако dependencies липсват:
 
 ```cmake
@@ -407,9 +407,9 @@ create_plugin(QtCoinTraderPlugin
 # --   - OpenSSL::SSL not available
 ```
 
-## Plugin Discovery at Runtime
+## Откриване на plugins по време на изпълнение
 
-### Plugin Search Paths
+### Пътища за търсене на plugins
 
 `QPluginManager` търси plugins в следните директории (по приоритет):
 
@@ -452,9 +452,9 @@ QString userPluginDir = QDir::homePath() + "/.local/share/daqster/plugins";
 m_DirList.append(userPluginDir);
 ```
 
-## Examples
+## Примери
 
-### Adding a New Plugin
+### Добавяне на нов plugin
 
 1. Създайте директория: `src/plugins/MyNewPlugin/`
 
@@ -485,7 +485,7 @@ add_subdirectory(src/plugins/MyNewPlugin)
 cmake --build build --target MyNewPlugin
 ```
 
-### Adding a Plugin with External Dependencies and Custom Settings
+### Добавяне на plugin с външни зависимости и допълнителни настройки
 
 ```cmake
 create_plugin(AdvancedPlugin
@@ -520,7 +520,7 @@ create_plugin(AdvancedPlugin
 # команди не се извикват (няма CMake грешки).
 ```
 
-### Adding an External Library
+### Добавяне на външна библиотека
 
 1. Поставете библиотеката в `src/external_libs/mylibrary/`
 
@@ -541,7 +541,7 @@ create_plugin(MyPlugin
 )
 ```
 
-### Adding a New Application
+### Добавяне на ново приложение
 
 1. Създайте директория: `src/apps/MyApp/`
 
@@ -570,9 +570,9 @@ target_include_directories(MyApp PRIVATE ./)
 add_subdirectory(src/apps/MyApp)
 ```
 
-## CMake Functions Reference
+## Справка за CMake функциите
 
-### Component Templates (ComponentTemplates.cmake)
+### Шаблони за компоненти (ComponentTemplates.cmake)
 
 #### `create_application(COMPONENT_NAME SOURCES ... REQUIRES_LIBRARIES ...)`
 Създава executable application.
@@ -627,7 +627,7 @@ create_internal_library(frame_work
 )
 ```
 
-### Dependency Management (PluginDependencyManager.cmake)
+### Управление на зависимости (PluginDependencyManager.cmake)
 
 #### `register_component(COMPONENT_NAME REQUIRES_LIBRARIES ...)`
 Регистрира компонент и проверява dependencies.
@@ -667,7 +667,7 @@ create_external_library(qtrest_lib)  # добавя src/external_libs/qtrest_lib
 #### `print_build_configuration_summary()`
 Показва обща информация за build конфигурацията.
 
-## Build System Variables
+## Променливи на build системата
 
 ### CMake Options (команден ред)
 
@@ -703,7 +703,7 @@ cmake -S . -B build \
 
 - `EXTERNAL_LIB_${NAME}_AVAILABLE` - Дали external библиотеката е налична
 
-## Benefits
+## Предимства
 
 1. **Опростена структура**
    - Всеки компонент е self-contained
@@ -735,7 +735,7 @@ cmake -S . -B build \
    - Separation of concerns
    - Self-documenting code
 
-## Troubleshooting
+## Отстраняване на проблеми
 
 ### Plugin не се намира при runtime
 
@@ -854,7 +854,7 @@ set_target_properties(${COMPONENT_NAME} PROPERTIES
 )
 ```
 
-## Best Practices
+## Добри практики
 
 1. **Използвайте `Qt${QT_VERSION_MAJOR}::` за всички Qt dependencies**
    ```cmake
@@ -927,7 +927,7 @@ set_target_properties(${COMPONENT_NAME} PROPERTIES
    add_subdirectory(src/apps/Daqster)
    ```
 
-## Migration Guide
+## Ръководство за миграция
 
 ### От старата система към новата
 
@@ -947,7 +947,7 @@ target_link_libraries(MyPlugin Qt5::Network)
 install(TARGETS MyPlugin ...)
 ```
 
-#### След (Template-based стил):
+#### След (шаблонен стил):
 ```cmake
 # src/plugins/my_plugin/CMakeLists.txt
 create_plugin(MyPlugin
@@ -973,9 +973,9 @@ add_subdirectory(src/plugins/my_plugin)
 4. Dependencies са в един `REQUIRES_LIBRARIES` списък
 5. Автоматично линкване, не е нужно `link_plugin_dependencies()`
 
-## Best Practices Summary
+## Обобщение на добрите практики
 
-### ✅ Използвайте новите параметри на create_plugin()
+### Използвайте новите параметри на create_plugin()
 
 **Добре:** Всичко е декларирано в `create_plugin()` извикването
 ```cmake
@@ -1005,14 +1005,14 @@ if(COMPONENT_ENABLED)
 endif()
 ```
 
-### ✅ Предимства на новия подход
+### Предимства на новия подход
 
 1. **Чист и декларативен синтаксис** - всичко е на едно място
 2. **Автоматично управление** - template функцията се грижи за всичко
 3. **Няма грешки за missing targets** - допълнителните настройки се прилагат само ако компонентът е enabled
 4. **По-лесна поддръжка** - ясно и кратко
 
-### ✅ Dependency Checking Flow
+### Поток на проверка на зависимостите
 
 ```
 create_plugin(MyPlugin ...)
@@ -1021,39 +1021,39 @@ register_component(MyPlugin) - проверява dependencies
     ↓
 get_property(COMPONENT_ENABLED)
     ↓
-if (NOT ENABLED) → return()  ← НЕ се вика add_library()!
+if (NOT ENABLED) -> return()  <- НЕ се вика add_library()!
     ↓
-if (ENABLED) → add_library(MyPlugin ...)
-             → target_include_directories() (ако INCLUDE_DIRECTORIES е зададен)
-             → target_compile_definitions() (ако COMPILE_DEFINITIONS е зададен)
-             → target_link_libraries() (автоматично + LINK_LIBRARIES)
-             → install()
-             → set_target_properties()
+if (ENABLED) -> add_library(MyPlugin ...)
+             -> target_include_directories() (ако INCLUDE_DIRECTORIES е зададен)
+             -> target_compile_definitions() (ако COMPILE_DEFINITIONS е зададен)
+             -> target_link_libraries() (автоматично + LINK_LIBRARIES)
+             -> install()
+             -> set_target_properties()
 ```
 
-## Version History
+## История на версиите
 
-### Version 2.1 (Current - October 2025)
+### Версия 2.1 (текуща - October 2025)
 - **Елегантни template параметри**: `INCLUDE_DIRECTORIES`, `COMPILE_DEFINITIONS`, `LINK_LIBRARIES`, `INSTALL_RPATH`
 - **Early return при липсващи dependencies**: Няма опити за създаване на targets с неизпълнени dependencies
 - **Автоматично прилагане на настройки**: Допълнителните target команди се извикват само ако компонентът е enabled
 - **Премахнати ръчни проверки**: Няма нужда от `get_property(COMPONENT_ENABLED)` в plugin CMakeLists.txt
 - **Improved error messages**: Ясни съобщения за disabled компоненти с причини
 
-### Version 2.0 (2024)
+### Версия 2.0 (2024)
 - Template-based component creation
 - Self-contained components
 - Dynamic Qt module discovery
 - Simplified architecture
 - Removed centralized plugin registration
 
-### Version 1.0 (Legacy)
+### Версия 1.0 (стара система)
 - Centralized plugin registration
 - Separate dependency types (QT_MODULES, EXTERNAL_LIBS, PACKAGES)
 - Manual linking with `link_plugin_dependencies()`
 - Pre-discovery of all Qt modules
 
-## See Also
+## Вижте също
 
 - `cmake/ComponentTemplates.cmake` - Template function implementations
 - `cmake/PluginDependencyManager.cmake` - Dependency checking logic

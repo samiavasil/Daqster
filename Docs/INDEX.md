@@ -1,26 +1,26 @@
 [Български](./INDEX.md) | [English](./INDEX.en.md)
 
-# Documentation Index
+# Индекс на документацията
 
-Welcome to Daqster documentation. Quick navigation:
+Добре дошли в документацията на Daqster. Бърза навигация:
 
-## Main Documentation
+## Основна документация
 
-- [📘 Project README](../README.md) - Project overview, build instructions, structure
-- [📘 README (English)](../README.en.md) - English version
+- [Project README](../README.md) - общ преглед на проекта, инструкции за build и структура
+- [README (English)](../README.en.md) - английска версия
 
-## Technical Documentation
+## Техническа документация
 
 - [Framework API Reference](./FrameworkAPI.md)
 - [Architecture Overview](./Architecture.md)
 - [Developer Guide](./DeveloperGuide.md)
-- [Plugin Dependency Management](./BuildSystemArchitecture.md)
+- [Build System Architecture](./BuildSystemArchitecture.md)
 - [Build Helper Scripts](./BuildHelpers.md)
 - [HowToDebugAppImage](./HowToDebugAppImage.md)
 
-## Diagrams
+## Диаграми
 
-Diagrams (PlantUML sources in `Docs/diagrams/`, pre-rendered SVGs if generated):
+Диаграми (PlantUML източници в `Docs/diagrams/`, предварително генерирани SVG файлове при нужда):
 
-- `Docs/diagrams/architecture.puml` → `Docs/diagrams/architecture.svg` (optional)
-- `Docs/diagrams/startup_sequence.puml` → `Docs/diagrams/startup_sequence.svg` (optional)
+- `Docs/diagrams/architecture.puml` -> `Docs/diagrams/architecture.svg` (по избор)
+- `Docs/diagrams/startup_sequence.puml` -> `Docs/diagrams/startup_sequence.svg` (по избор)

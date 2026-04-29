@@ -251,10 +251,10 @@ BOOL WINAPI WindowsShutdownHandler::consoleCtrlHandler(DWORD signal)
 ## Thread Safety
 
 ### Unix
-✅ **Thread-safe**: Pipe + socket notifier pattern е async-signal-safe
+**Thread-safe**: Pipe + socket notifier pattern е async-signal-safe
 
 ### Windows
-✅ **Thread-safe**: Windows console handler може да emit Qt signals
+**Thread-safe**: Windows console handler може да emit Qt signals
 
 ## Error Handling
 

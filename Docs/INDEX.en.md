@@ -6,8 +6,8 @@ Welcome to Daqster documentation. Quick navigation:
 
 ## Main Documentation
 
-- [📘 Project README](../README.en.md) - Project overview, build instructions, structure
-- [📘 README (Български)](../README.md) - Bulgarian version
+- [Project README](../README.en.md) - Project overview, build instructions, structure
+- [README (Български)](../README.md) - Bulgarian version
 
 ## Technical Documentation
 
@@ -22,5 +22,5 @@ Welcome to Daqster documentation. Quick navigation:
 
 Diagrams (PlantUML sources in `Docs/diagrams/`, pre-rendered SVGs if generated):
 
-- `Docs/diagrams/architecture.puml` → `Docs/diagrams/architecture.svg` (optional)
-- `Docs/diagrams/startup_sequence.puml` → `Docs/diagrams/startup_sequence.svg` (optional)
+- `Docs/diagrams/architecture.puml` -> `Docs/diagrams/architecture.svg` (optional)
+- `Docs/diagrams/startup_sequence.puml` -> `Docs/diagrams/startup_sequence.svg` (optional)

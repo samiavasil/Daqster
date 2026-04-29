@@ -67,7 +67,7 @@ NODEEDITOR_UPSTREAM=https://github.com/my-fork/nodeeditor.git \
 
 Controls `kernel.yama.ptrace_scope` to allow GDB remote attach to processes (required for debugging plugins in Daqster).
 
-> **⚠️ Requires `sudo`.** The change is temporary (until reboot) unless saved to `/etc/sysctl.d/`.
+> Requires `sudo`. The change is temporary (until reboot) unless saved to `/etc/sysctl.d/`.
 
 **Usage:**
 ```bash
@@ -131,7 +131,7 @@ QT5_PREFIX=/usr/lib/qt5 ./tools/build_helpers/test_qt_versions.sh
 
 Tests a Qt6 build and verifies whether `qtrest_lib` artifacts have been produced. Useful after changes to QtRest for Qt6 compatibility.
 
-> **⚠️ Status:** QtRest still has Qt6 compatibility issues. This script is for tracking progress.
+> Status: QtRest still has Qt6 compatibility issues. This script is for tracking progress.
 
 **Usage:**
 ```bash
