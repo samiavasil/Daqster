@@ -1,5 +1,7 @@
 # ShutdownHandler
 
+Родител: [Framework Subsystem](./README.md) | [Architecture Overview](../README.md)
+
 **Class**: `ShutdownHandler` (abstract base)  
 **Inherits**: `QObject`  
 **Header**: `src/frame_work/base/src/platform/ShutdownHandler.h`

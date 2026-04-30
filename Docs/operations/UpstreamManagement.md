@@ -1,5 +1,7 @@
 # Upstream Management Guide
 
+Родител: [Operations Topics](./README.md) | [Documentation Index](../INDEX.md)
+
 Този документ описва как да управлявате upstream tracking за external библиотеките в Daqster проекта.
 
 ## 📚 **External Libraries**

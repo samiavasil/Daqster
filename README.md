@@ -1,182 +1,148 @@
-# Daqster 
+# Daqster
 [Български](./README.md) | [English](./README.en.md)
 
-Daqster е рамка (Qt5) за създаване и зареждане на плъгини, с хост приложение и примерни плъгини.
+Документация индекс: [Docs/INDEX.md](./Docs/INDEX.md)
+
+Daqster е Qt-базирана платформа за модулна разработка и управление на приложения. Позволява създаване на различни типове приложения чрез плъгин архитектура с graceful shutdown, process управление и auto plugin discovery.
 
 Сайт: https://samiavasil.github.io/Daqster/
 
-## Plugin Dependency Management
-
-Daqster включва опростена автоматична система за управление на plugin dependencies:
-
-- **Автоматично откриване**: Проверява наличните Qt модули, external библиотеки и packages
-- **Условно компилиране**: Plugins се компилират само ако всички dependencies са налични
-- **Debug информация**: Подробна информация защо plugins са включени/изключени
-- **Гъвкавост**: Лесно добавяне на нови plugins с различни dependencies
-- **Простота**: Опростена архитектура с по-малко custom функции
-- **Самостоятелност**: External библиотеките сами си проверяват dependencies-ите
-- **Няма дублиране**: Dependencies се декларират само веднъж
-- **Независими test plugins**: Всеки test plugin може да се изключи отделно
-
-За повече информация вижте [Plugin Dependency Management](./Docs/PluginDependencyManagement.md).
-
-## Бърз старт (CMake)
+## Бърз старт
 
 ### 1) Клониране
 ```bash
- git clone https://github.com/samiavasil/Daqster.git
- cd Daqster
- git submodule update --init --recursive
+git clone https://github.com/samiavasil/Daqster.git
+cd Daqster
+git submodule update --init --recursive
 ```
 
 ### 2) Конфигуриране и билд
 
-#### Избор на Qt версия
+**Qt5 (по подразбиране):**
 ```bash
-# За Qt5 (по подразбиране)
 cmake -S . -B build -DUSE_QT6=OFF
-
-# За Qt6
-cmake -S . -B build -DUSE_QT6=ON
-
-# Автоматично откриване от CMAKE_PREFIX_PATH
-cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/qt5
+cmake --build build -j
 ```
 
-#### Debug Build (препоръчително за разработка)
+**Qt6:**
+```bash
+cmake -S . -B build -DUSE_QT6=ON
+cmake --build build -j
+```
+
+**С конкретен Qt път:**
+```bash
+cmake -S . -B build \
+  -DUSE_QT6=OFF \
+  -DCMAKE_PREFIX_PATH=/path/to/Qt/5.15.2/gcc_64
+cmake --build build -j
+```
+
+**Debug Build (препоръчено за разработка):**
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j
 ```
 
-#### Release Build (за production)
+**Release Build:**
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
-### 3) Стартиране от build
+За повече информация вижте [DeveloperGuide.md](./Docs/development/DeveloperGuide.md).
+
+### 3) Стартиране
 ```bash
-cd build/bin
-./Daqster 
-```
-
-### 4) Създаване на AppImage (локално)
-
-#### Използване на универсалния скрипт
-```bash
-# Локален режим (по подразбиране)
-./tools/create_appimage.sh
-
-# С custom параметри
-./tools/create_appimage.sh --qt-dir /path/to/qt --source-dir /path/to/build
-
-# Помощ
-./tools/create_appimage.sh --help
-```
-
-#### Ръчно създаване на AppImage
-```bash
-# 1. Инсталирай в staging директория
-cmake --install build --prefix ./stage
-
-# 2. Създай AppImage
-./tools/create_appimage.sh --mode ci --source-dir ./stage
-```
-
-**Резултат:** `Daqster-x86_64.AppImage` в project root директорията
-
-## Инсталация и стартиране
-
-### Инсталация
-```bash
-# Инсталирай в custom директория
-cmake --install build --prefix ./install_dir
-
-# Или в системна директория
-sudo cmake --install build --prefix /usr/local
-```
-
-### Стартиране
-```bash
-# От install директория
-./install_dir/bin/Daqster
-
-# Или от build директория (за разработка)
 cd build/bin
 ./Daqster
 ```
 
-### Framework Architecture
+## Framework архитектура
 
-Daqster използва модулна framework архитектура, която позволява създаване на различни типове приложения:
+Daqster използва модулна архитектура с три ключови слоя:
 
-#### Platform Abstraction Layer
-- **ShutdownHandler** - базов клас за graceful shutdown:
-  - Cross-platform signal handling (Ctrl+C, SIGTERM)
-  - Виртуален интерфейс за лесно разширяване
-  - Unix: SIGINT/SIGTERM signal handlers чрез self-pipe + QSocketNotifier
-  - Windows: Console event handlers (SetConsoleCtrlHandler)
-  - StdinShutdownHandler: опционални quit/exit команди от stdin (и на двете платформи)
+- **ShutdownHandler** - graceful shutdown с cross-platform signal handling (Ctrl+C, SIGTERM)
+- **QProcessManager** - generic управление на child процеси с виртуални hooks
+- **ApplicationsManager** - Daqster-специфична реализация с environment setup и plugin management
 
-#### Process Management Layer
-- **QProcessManager** - generic базов клас за управление на child процеси:
-  - Handle-based process tracking
-  - Graceful terminate (10s timeout) + force kill fallback
-  - Virtual hooks за customization:
-    - `setupProcessEnvironment()` - custom environment setup
-    - `onAllProcessesFinished()` - cleanup при завършване на всички процеси
-  - ProcessEvent signals за state changes
+За подробности вижте [Framework](./Docs/Architecture/framework/README.md) и [ApplicationsManager](./Docs/Architecture/apps/ApplicationsManager.md).
 
-#### Application Layer
-- **ApplicationsManager** - Daqster-specific implementation:
-  - Наследява `QProcessManager`
-  - Backward compatibility (AppHndl_t, AppEvent_t, AppDescriptor_t)
-  - Daqster environment setup:
-    - AppImage detection и path configuration
-    - DAQSTER_PLUGIN_* environment variables
-    - XDG directories (config, data, cache)
-  - Headless mode support
-  - Signal forwarding към GUI компоненти
+## Plugin Discovery System
 
-### Plugin Discovery System
+Плъгините се търсят в следния ред по приоритет:
 
-Плъгините се търсят в следния ред (по приоритет):
+1. Build директория - `./plugins` и `../lib/daqster/plugins` (за дебъг)
+2. Environment variables - `DAQSTER_PLUGIN_DIR` и `DAQSTER_PLUGIN_PATH`
+3. User плъгини - `~/.local/share/daqster/plugins`
+4. System плъгини - `/usr/lib/daqster/plugins` и `/usr/local/lib/daqster/plugins`
 
-1. **Build директория** - `./plugins` и `../lib/daqster/plugins` (за дебъг)
-2. **Environment variables** - `DAQSTER_PLUGIN_DIR` и `DAQSTER_PLUGIN_PATH`
-3. **User plugins** - `~/.local/share/daqster/plugins`
-4. **System plugins** - `/usr/lib/daqster/plugins` и `/usr/local/lib/daqster/plugins`
+Вижте [BuildSystemArchitecture](./Docs/Architecture/BuildSystemArchitecture.md) за детайли.
 
-### Environment Variables
+## Environment Variables
 
-#### Plugin Discovery
-- `DAQSTER_PLUGIN_DIR` - задава една директория за плъгини
-- `DAQSTER_PLUGIN_PATH` - задава множество директории разделени с `:` (като PATH)
+**Plugin Discovery:**
+- `DAQSTER_PLUGIN_DIR` - една директория за плъгини
+- `DAQSTER_PLUGIN_PATH` - множество директории разделени с `:` (като PATH)
 
-#### Qt Environment (за AppImage)
+**Qt (за AppImage):**
 - `LD_LIBRARY_PATH` - пътища към споделени библиотеки
-- `QML2_IMPORT_PATH` - пътища към QML модули
 - `QT_PLUGIN_PATH` - пътища към Qt плъгини
-- `QT_QPA_PLATFORM_PLUGIN_PATH` - пътища към platform плъгини
+- `QML2_IMPORT_PATH` - пътища към QML модули
 
-#### XDG Directories (за AppImage)
+**XDG Directories (за AppImage):**
 - `XDG_CONFIG_HOME` - конфигурационни файлове (по подразбиране: `~/.config/daqster`)
 - `XDG_DATA_HOME` - данни (по подразбиране: `~/.local/share/daqster`)
 - `XDG_CACHE_HOME` - кеш (по подразбиране: `~/.cache/daqster`)
 
-#### Debug Environment
-- `QT_DEBUG_PLUGINS=1` - включва debug информация за Qt плъгини
-- `QT_LOGGING_RULES="*=true"` - включва всички Qt debug съобщения
-- `DAQSTER_DEBUG=1` - включва Daqster-специфични debug съобщения
+За полен списък вижте [HowToDebugAppImage](./Docs/development/HowToDebugAppImage.md).
 
-**Примери за използване:**
+## AppImage
+
+**Локално създаване:**
 ```bash
-# Една директория за плъгини
-DAQSTER_PLUGIN_DIR=/path/to/plugins ./Daqster
+./tools/create_appimage.sh
+```
 
-# Множество директории за плъгини
-DAQSTER_PLUGIN_PATH="/path1:/path2:/path3" ./Daqster
+**С допълнителни опции:**
+```bash
+./tools/create_appimage.sh --help
+```
+
+За подробности вижте [tools/create_appimage.sh](./tools/create_appimage.sh).
+
+## Документация
+
+- [Документация индекс](./Docs/INDEX.md)
+- [Architecture Overview](./Docs/Architecture/README.md)
+- [Development Topics](./Docs/development/README.md)
+- [Operations Topics](./Docs/operations/README.md)
+- [Porting Topics](./Docs/porting/README.md)
+- [Framework Subsystem](./Docs/Architecture/framework/README.md)
+- [Build System Architecture](./Docs/Architecture/BuildSystemArchitecture.md)
+
+## Структура на проекта
+
+- `src/frame_work` - framework ядро (ShutdownHandler, QProcessManager)
+- `src/apps/Daqster` - хост приложение с ApplicationsManager
+- `src/plugins` - runtime плъгини и тестови плъгини
+- `src/external_libs` - външни библиотеки
+- `tools` - скриптове за build и AppImage
+- `Docs` - архитектура, разработка, операции, портинг и диаграми
+
+## Debug и диагностика
+
+**Полезни променливи:**
+
+- `QT_DEBUG_PLUGINS=1` - debug информация за Qt плъгини
+- `QT_LOGGING_RULES="*=true"` - всички Qt debug съобщения
+- `DAQSTER_PLUGIN_DIR` - пътека де плъгини (за тестване)
+- `DAQSTER_PLUGIN_PATH` - множество пътеки за плъгини
+
+**Примери:**
+```bash
+# Един директория за плъгини
+DAQSTER_PLUGIN_DIR=/path/to/plugins ./Daqster
 
 # Debug режим
 QT_DEBUG_PLUGINS=1 QT_LOGGING_RULES="*=true" ./Daqster
@@ -185,105 +151,4 @@ QT_DEBUG_PLUGINS=1 QT_LOGGING_RULES="*=true" ./Daqster
 LD_LIBRARY_PATH="/custom/lib:$LD_LIBRARY_PATH" ./Daqster-x86_64.AppImage
 ```
 
-## Структура на проекта
-- `src/frame_work` — framework ядро за създаване на Qt приложения
-  - `base/src/` — базови компоненти:
-    - `platform/` — platform abstraction (ShutdownHandler за Windows/Unix)
-    - `process/` — process management (QProcessManager)
-    - `include/` — plugin система (QPluginManager, QPluginInterface)
-- `src/apps/Daqster` — хост приложение (наследява framework компонентите)
-- `src/plugins` — плъгини (NodeEditor, QtCoinTrader, примери/тестове)
-- `src/external_libs` — външни зависимости (nodeeditor, qtrest_lib)
-- `tools/` — инструменти за билд и пакетиране
-  - `create_appimage.sh` — универсален скрипт за създаване на AppImage
-  - `Build_AppImage/` — директория за локални AppImage билдове
-- `Docs/` — документация
-  - `Architecture.md` — архитектура на проекта
-  - `HowToDebugAppImage.md` — ръководство за дебъгване на AppImage
-  - `FrameworkAPI.md` — API Reference for framework components
-  - `Architecture.md` — архитектура на проекта (diagrams in `Docs/diagrams/`)
-  - `DeveloperGuide.md` — developer getting-started & contribution guide
-  - `HowToDebugAppImage.md` — ръководство за дебъгване на AppImage
-  - `PluginDependencyManagement.md` — plugin dependency система
-
-### Quick Links
-
-- [Framework API Reference](./Docs/FrameworkAPI.md)
-- [Architecture Overview](./Docs/Architecture.md)
-- [Developer Guide](./Docs/DeveloperGuide.md)
-- [Plugin Dependency Management](./Docs/PluginDependencyManagement.md)
-
-## Build Types
-
-### Debug Build
-- **Цел:** Разработка и дебъгване
-- **Особености:** Debug символи, оптимизации изключени, подробни логове
-- **Команда:** `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug`
-
-### Release Build
-- **Цел:** Production и performance
-- **Особености:** Оптимизации включени, debug символи изключени
-- **Команда:** `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release`
-
-## AppImage Support
-
-### Локално създаване
-```bash
-# Автоматично (препоръчително)
-./tools/create_appimage.sh
-
-# С custom параметри
-./tools/create_appimage.sh --qt-dir /path/to/qt --source-dir /path/to/build
-```
-
-### CI/CD
-AppImage се създава автоматично при всеки push/PR в GitHub Actions:
-- **Release AppImage** - оптимизиран за разпространение
-- **Debug AppImage** - с debug символи за дебъгване
-
-### Използване на AppImage
-```bash
-# Стартиране
-./Daqster-x86_64.AppImage
-
-# С аргументи (за стартиране на конкретен plugin)
-./Daqster-x86_64.AppImage QtCoinTrader
-
-# Debug режим
-QT_DEBUG_PLUGINS=1 ./Daqster-x86_64.AppImage
-```
-
-## Dependency Management
-
-Проектът поддържа условно компилиране на компоненти според наличните Qt модули:
-
-### Qt5 Support
-- **Пълна поддръжка** - всички plugins и external библиотеки (ако са налични нужните Qt модули)
-- **NodeEditor plugin** - изисква `QtMultimedia` + NodeEditor библиотека
-- **QtCoinTrader plugin** - изисква `QtQuickControls2` + QtRest библиотека
-- **Test plugins** - винаги включени (основни Qt dependencies)
-
-### Qt6 Support
-- **Ограничена поддръжка** - само test plugins (external библиотеки изключени заради compatibility)
-- **Автоматично откриване** - системата автоматично избира подходящите компоненти
-
-### Debug Information
-CMake показва ясна информация за кои компоненти са включени/изключени и защо:
-```
-=== External Libraries Status ===
-NodeEditor library enabled for Qt5 (Multimedia available)
-QtRest library disabled for Qt5 (QuickControls2 not available)
-
-=== Plugins Status ===
-NodeEditor plugin enabled for Qt5 (Multimedia + NodeEditor library available)
-QtCoinTrader plugin disabled for Qt5 (QuickControls2 not available)
-Test plugins enabled for Qt5 (plugin_fancy_test, plugin_main_test, ...)
-```
-
-## Бележки
-- **Build система:** CMake 3.16+
-- **Qt версии:** Qt5.15.2+ (пълна поддръжка), Qt6.x (ограничена поддръжка)
-- **AppImage:** Универсален Linux пакет, работи на всички дистрибуции
-- **Plugin система:** Динамично зареждане с автоматично откриване
-- **Dependency Management:** Условно компилиране според наличните Qt модули
-
+За подробно ръководство вижте [How To Debug AppImage](./Docs/development/HowToDebugAppImage.md).

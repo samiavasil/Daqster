@@ -1,5 +1,7 @@
 # Plugin Development
 
+Родител: [Plugins Subsystem](./README.md) | [Architecture Overview](../README.md)
+
 Стъпки за създаване на нов плъгин за Daqster.
 
 ## 1. Създай скеле

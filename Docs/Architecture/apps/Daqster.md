@@ -1,5 +1,7 @@
 # Daqster Application
 
+Родител: [Applications Subsystem](./README.md) | [Architecture Overview](../README.md)
+
 **Executable**: `Daqster`  
 **Location**: `src/apps/Daqster/`  
 **Type**: Qt Widgets Application
@@ -81,7 +83,7 @@ cmake --build . --target Daqster
 8. Event loop (exec())
 ```
 
-Виж [startup sequence diagram](../diagrams/startup_sequence.svg) за визуализация.
+Виж [startup sequence diagram](../../diagrams/startup_sequence.svg) за визуализация.
 
 ## Configuration
 
@@ -118,7 +120,7 @@ QT_DEBUG_PLUGINS=1 ./Daqster
 
 ## Debugging
 
-Виж [HowToDebugAppImage.md](../HowToDebugAppImage.md) за debugging на AppImage версията.
+Виж [HowToDebugAppImage.md](../../development/HowToDebugAppImage.md) за debugging на AppImage версията.
 
 ### Enable Plugin Debug
 ```bash
@@ -158,4 +160,4 @@ Daqster Application
 - [ApplicationsManager API](./ApplicationsManager.md)
 - [Framework Overview](../framework/README.md)
 - [Plugin Development](../plugins/PluginDevelopment.md)
-- [Architecture Diagram](../diagrams/architecture.svg)
+- [Architecture Diagram](../../diagrams/architecture.svg)

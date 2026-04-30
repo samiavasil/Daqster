@@ -1,5 +1,7 @@
 # ApplicationsManager
 
+Родител: [Applications Subsystem](./README.md) | [Architecture Overview](../README.md)
+
 **Class**: `ApplicationsManager`  
 **Inherits**: `QProcessManager`  
 **Pattern**: Singleton  
@@ -117,5 +119,5 @@ manager.SetHeadlessMode(true);
 ## See Also
 
 - [QProcessManager](../framework/QProcessManager.md) - Base class
-- [Plugin System](../framework/PluginSystem.md) - Plugin loading mechanism
+- [Plugins Overview](../plugins/README.md) - Plugin loading mechanism
 - [Daqster Application](./Daqster.md) - Main application

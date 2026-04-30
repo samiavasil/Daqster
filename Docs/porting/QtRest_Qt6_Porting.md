@@ -1,5 +1,7 @@
 # QtRest Qt6 Porting Guide
 
+Родител: [Porting Topics](./README.md) | [Documentation Index](../INDEX.md)
+
 Този документ описва процеса на портиране на QtRest библиотеката за Qt6 support в Daqster проекта.
 
 ## **Анализ на QtRest за Qt6**

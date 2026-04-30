@@ -1,5 +1,7 @@
 # QPluginManager
 
+Родител: [Framework Subsystem](./README.md) | [Architecture Overview](../README.md)
+
 **Class**: `QPluginManager`  
 **Location**: `src/frame_work/base/src/QPluginManager.cpp`
 
@@ -84,6 +86,6 @@ if (plugin) {
 
 ## See Also
 
-- [Plugin System](./PluginSystem.md)
+- [Plugins Overview](../plugins/README.md)
 - [ApplicationsManager](../apps/ApplicationsManager.md)
 - [Framework Overview](./README.md)

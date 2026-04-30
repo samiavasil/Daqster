@@ -1,5 +1,7 @@
 # QProcessManager
 
+Родител: [Framework Subsystem](./README.md) | [Architecture Overview](../README.md)
+
 **Class**: `Daqster::QProcessManager`  
 **Inherits**: `QObject`  
 **Header**: `src/frame_work/base/src/process/QProcessManager.h`  

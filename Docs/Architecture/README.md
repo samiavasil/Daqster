@@ -1,6 +1,19 @@
 # Архитектура на Daqster
 
-[Български](./Architecture.md) | [English](./Architecture.en.md)
+[Български](./README.md) | [English](./README.en.md)
+
+Родител: [Documentation Index](../INDEX.md)
+
+## Архитектурен хъб
+
+- [BuildSystemArchitecture.md](./BuildSystemArchitecture.md) - build архитектура и зависимости
+- [apps/README.md](./apps/README.md) - application подсистема
+- [framework/README.md](./framework/README.md) - framework подсистема
+- [plugins/README.md](./plugins/README.md) - plugin подсистема
+
+## Свързани секции
+
+- [Development Topics](../development/README.md) - workflow за разработка и дебъг материали
 
 ## Общ преглед
 
@@ -28,9 +41,22 @@ Daqster/
 │   ├── create_appimage.sh        # AppImage създаване
 │   └── Build_AppImage/           # Локални AppImage билдове
 ├── Docs/                         # Документация
-│   ├── Architecture.md           # Тази документация
-│   ├── Architecture.en.md        # English версия
-│   └── HowToDebugAppImage.md     # Debug ръководство
+│   ├── Architecture/             # Архитектурна документация
+│   │   ├── README.md             # Тази документация
+│   │   ├── README.en.md          # English версия
+│   │   ├── BuildSystemArchitecture.md
+│   │   ├── apps/
+│   │   ├── framework/
+│   │   └── plugins/
+│   ├── development/              # Разработка и дебъг
+│   │   ├── README.md
+│   │   ├── DeveloperGuide.md
+│   │   └── HowToDebugAppImage.md
+│   ├── operations/               # Оперативни и build теми
+│   │   ├── BuildHelpers.md
+│   │   └── UpstreamManagement.md
+│   └── porting/                  # Портинг и миграции
+│       └── QtRest_Qt6_Porting.md
 ├── .github/workflows/            # CI/CD
 │   ├── ci.yml                    # Continuous Integration
 │   └── release.yml               # Release workflow
@@ -403,76 +429,39 @@ end note
 @enduml
 ```
 
-## 10. AppImage Structure Diagram
+## 10. AppImage Structure
 
-```plantuml
-@startuml
-!theme plain
-skinparam backgroundColor #FFFFFF
-skinparam packageStyle rectangle
-
-package "Daqster-x86_64.AppImage" {
-    package "AppRun" {
-        [AppRun Script] as AppRun
-    }
-    
-    package "usr/" {
-        package "bin/" {
-            [Daqster Executable] as Executable
-        }
-        
-        package "lib/" {
-            package "plugins/" {
-                [Qt Plugins] as QtPlugins
-                [Platform Plugins] as PlatformPlugins
-            }
-            
-            package "qml/" {
-                [QML Modules] as QMLModules
-            }
-            
-            package "daqster/plugins/" {
-                [Daqster Plugins] as DaqsterPlugins
-            }
-            
-            [Qt Libraries] as QtLibs
-            [ICU Libraries] as ICULibs
-        }
-    }
-    
-    package "usr/share/" {
-        package "applications/" {
-            [Desktop File] as DesktopFile
-        }
-        
-        package "icons/" {
-            [App Icon] as AppIcon
-        }
-    }
-    
-    [daqster.desktop] as DesktopFile2
-    [daqster.png] as AppIcon2
-}
-
-AppRun --> Executable : Launches
-AppRun --> QtLibs : Sets LD_LIBRARY_PATH
-AppRun --> QtPlugins : Sets QT_PLUGIN_PATH
-AppRun --> QMLModules : Sets QML2_IMPORT_PATH
-AppRun --> DaqsterPlugins : Sets DAQSTER_PLUGIN_DIR
-Executable --> DaqsterPlugins : Loads plugins
-Executable --> QtPlugins : Uses Qt plugins
-Executable --> QMLModules : Uses QML modules
-
-note right of AppRun
-  Environment Setup:
-  - LD_LIBRARY_PATH
-  - QT_PLUGIN_PATH
-  - QML2_IMPORT_PATH
-  - DAQSTER_PLUGIN_DIR
-  - XDG directories
-end note
-@enduml
 ```
+Daqster-x86_64.AppImage
+├── AppRun                          ← startup script
+├── daqster.desktop
+├── daqster.png
+└── usr/
+    ├── bin/
+    │   └── Daqster                 ← главен изпълним файл
+    ├── lib/
+    │   ├── libQt*.so.*             ← Qt библиотеки
+    │   ├── libicu*.so.*            ← ICU библиотеки
+    │   ├── plugins/                ← Qt плъгини
+    │   ├── qml/                    ← QML модули
+    │   └── daqster/
+    │       └── plugins/            ← Daqster плъгини
+    └── share/
+        ├── applications/           ← .desktop файл
+        └── icons/                  ← икона
+```
+
+**AppRun настройва environment при стартиране:**
+
+| Променлива | Стойност |
+|---|---|
+| `LD_LIBRARY_PATH` | `usr/lib/` |
+| `QT_PLUGIN_PATH` | `usr/lib/plugins/` |
+| `QML2_IMPORT_PATH` | `usr/lib/qml/` |
+| `DAQSTER_PLUGIN_DIR` | `usr/lib/daqster/plugins/` |
+| `XDG_CONFIG_HOME` | `~/.config/daqster` |
+
+
 
 ## 11. Future Enhancements
 

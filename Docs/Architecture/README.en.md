@@ -1,5 +1,20 @@
 # Daqster Architecture
 
+[Български](./README.md) | [English](./README.en.md)
+
+Parent: [Documentation Index](../INDEX.en.md)
+
+## Architecture Hub
+
+- [BuildSystemArchitecture.en.md](./BuildSystemArchitecture.en.md) - build architecture and dependency model
+- [apps/README.md](./apps/README.md) - applications subsystem
+- [framework/README.md](./framework/README.md) - framework subsystem
+- [plugins/README.md](./plugins/README.md) - plugins subsystem
+
+## Related Sections
+
+- [Development Topics](../development/README.md) - contributor workflow and debugging topics
+
 This document describes the architecture of Daqster, its main components, data flow, and working principles.
 
 ## 1. Overview
@@ -78,9 +93,17 @@ Directory containing scripts and helper files for build and packaging.
 ### 2.6. Docs (`Docs/`)
 Directory for documentation.
 
-*   **`HowToDebugAppImage.md`**:
+*   **`development/HowToDebugAppImage.md`**:
     *   Guide for debugging AppImage applications.
-*   **`Architecture.md`**:
+*   **`development/DeveloperGuide.md`**:
+    *   Contributor workflow and development notes.
+*   **`operations/BuildHelpers.en.md`**:
+    *   Helper scripts for build and maintenance tasks.
+*   **`operations/UpstreamManagement.md`**:
+    *   Guide for synchronizing and maintaining upstream dependencies.
+*   **`porting/QtRest_Qt6_Porting.md`**:
+    *   Notes and decisions related to Qt6 porting of QtRest.
+*   **`Architecture/README.en.md`**:
     *   This document.
 
 ## 3. Key Architectural Principles

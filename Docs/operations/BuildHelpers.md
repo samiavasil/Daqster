@@ -1,5 +1,7 @@
 [Български](./BuildHelpers.md) | [English](./BuildHelpers.en.md)
 
+Родител: [Operations Topics](./README.md) | [Documentation Index](../INDEX.md)
+
 # Помощни build скриптове
 
 Скриптовете в `tools/build_helpers/` са помощни инструменти за разработка, тестване на build конфигурации и управление на външни submodule-и.

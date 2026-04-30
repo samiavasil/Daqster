@@ -1,5 +1,9 @@
 # Applications Subsystem
 
+Родител: [Architecture Overview](../README.md) | [Documentation Index](../../INDEX.md)
+
+Съседни подсистеми: [Framework](../framework/README.md) | [Plugins](../plugins/README.md)
+
 Подсистемата `apps` съдържа изпълними приложения построени върху Daqster framework-а.
 
 ## Структура
@@ -31,4 +35,9 @@ src/apps/
 
 - [Framework Documentation](../framework/README.md) - Framework API
 - [Plugin Development](../plugins/PluginDevelopment.md) - Как да създадеш plugin
-- [Architecture Overview](../Architecture.md) - Обща архитектура
+- [Architecture Overview](../README.md) - Обща архитектура
+
+## Детайлни документи
+
+- [Daqster Application](./Daqster.md)
+- [ApplicationsManager](./ApplicationsManager.md)

@@ -1,5 +1,9 @@
 # Plugins
 
+Родител: [Architecture Overview](../README.md) | [Documentation Index](../../INDEX.md)
+
+Съседни подсистеми: [Applications](../apps/README.md) | [Framework](../framework/README.md)
+
 Плъгините добавят функционалности към Daqster приложението. Зареждат се динамично и комуникират чрез дефинирани интерфейси.
 
 ## Available Plugins
@@ -17,6 +21,10 @@
 ## Development Guide
 
 Виж [PluginDevelopment.md](./PluginDevelopment.md) за стъпки как да създадеш нов плъгин.
+
+## Детайлни документи
+
+- [Plugin Development](./PluginDevelopment.md)
 
 ## Plugin Paths
 

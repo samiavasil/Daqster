@@ -1,5 +1,9 @@
 # Daqster Framework
 
+Родител: [Architecture Overview](../README.md) | [Documentation Index](../../INDEX.md)
+
+Съседни подсистеми: [Applications](../apps/README.md) | [Plugins](../plugins/README.md)
+
 Framework подсистемата предоставя основните building blocks за приложения и плъгини.
 
 ## Структура
@@ -48,8 +52,47 @@ Plugin система:
 - Plugin lifecycle
 - Interface negotiation
 
-### [Plugin System](./PluginSystem.md)
-Общ преглед как работи plugin системата.
+### Plugin System
+Общ преглед на plugin системата има в [plugins/README.md](../plugins/README.md).
+
+## API Overview
+
+Този subsystem е основният API слой, върху който стъпват приложенията и plugin-ите.
+Детайлните описания са в отделните документи, а тук е краткият practically useful обзор.
+
+### QProcessManager
+
+- Стартира и следи child processes чрез handle-based API
+- Излъчва `ProcessEvent` при start/stop на процесите
+- Позволява override на `setupProcessEnvironment()` за custom environment
+- Позволява override на `onAllProcessesFinished()` за поведение при приключване на всички процеси
+
+Типични entry points:
+- `StartProcess(...)`
+- `KillAll()`
+- `GetProcessDescriptor(...)`
+
+### ShutdownHandler
+
+- Дава общ интерфейс за graceful shutdown при OS сигнали и console events
+- Има platform-specific реализации за Unix и Windows
+- В проекта се използва и `StdinShutdownHandler` за `quit` / `exit` команди от терминал
+- Основният integration point е сигналът `shutdownRequested()`
+
+### QPluginManager
+
+- Отговаря за plugin discovery, loading и interface access
+- Търси plugins в build/install paths, environment variables и user/system директории
+- Работи с `QPluginInterface` и GUI слоя `QPluginManagerGui`
+- Използва metadata и dependency checks при зареждане
+
+Типичен usage flow:
+
+```cpp
+QPluginManager manager;
+manager.addSearchPath("plugins/Daqster");
+manager.loadAll();
+```
 
 ## Design Patterns
 
@@ -101,6 +144,12 @@ make
 ```
 
 Framework се билдва като library (`libframe_work.so` или `.dll`).
+
+## Детайлни документи
+
+- [QPluginManager](./QPluginManager.md)
+- [QProcessManager](./QProcessManager.md)
+- [ShutdownHandler](./ShutdownHandler.md)
 
 ## Usage in Applications
 
@@ -158,6 +207,6 @@ protected:
 - [QProcessManager API](./QProcessManager.md)
 - [ShutdownHandler API](./ShutdownHandler.md)
 - [QPluginManager API](./QPluginManager.md)
-- [Plugin System Overview](./PluginSystem.md)
+- [Plugins](../plugins/README.md) - Plugin подсистемата
 - [Applications](../apps/README.md) - Използване на framework
-- [Architecture Diagram](../diagrams/architecture.svg)
+- [Architecture Diagram](../../diagrams/architecture.svg)

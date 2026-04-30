@@ -1,5 +1,7 @@
 [Български](./BuildHelpers.md) | [English](./BuildHelpers.en.md)
 
+Parent: [Operations Topics](./README.md) | [Documentation Index](../INDEX.en.md)
+
 # Build Helper Scripts
 
 The scripts in `tools/build_helpers/` are development utilities for testing build configurations and managing external submodules.
