@@ -134,6 +134,9 @@ bool QtCoinTraderPluginObject::Initialize()
     
     QQmlApplicationEngine* engine = new QQmlApplicationEngine(m_Win);
     
+    // Add QML import path for QRC resources so QML files can find each other
+    engine->addImportPath("qrc:/qml");
+    
     //engine.rootContext()->setContextProperty("awesome", awesome);
     //engine->rootContext()->setContextProperty("dataFromCpp", new RandData());
     

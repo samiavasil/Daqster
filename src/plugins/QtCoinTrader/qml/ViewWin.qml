@@ -51,8 +51,8 @@ Item {
 
             baseUrl: "https://bittrex.com/api"
 
-            authTokenHeader: "Authorization"
-            authToken: "Bearer 8aef452ee3b32466209535b96d456b06"
+            //authTokenHeader: "Authorization"
+            //authToken: "Bearer 8aef452ee3b32466209535b96d456b06"
 
             Component.onCompleted: console.log("completed!");
         }
