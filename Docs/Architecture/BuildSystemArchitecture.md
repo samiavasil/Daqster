@@ -130,11 +130,14 @@ create_internal_library(frame_work
 - Добавя copy wrapper target за копиране на артефакти в `build/lib/`
 
 ```cmake
-# В root CMakeLists.txt — само за Qt5 (Qt6 compat issues)
+# В root CMakeLists.txt
+# NodeEditor остава Qt5-only
 if(QT_VERSION_MAJOR EQUAL 5)
     create_external_library(nodeeditor)   # target: nodes
-    create_external_library(qtrest_lib)   # target: qtrest_lib
 endif()
+
+# QtRest e Qt5/Qt6 compatible
+create_external_library(qtrest_lib)       # target: qtrest_lib
 ```
 
 **Важно:** Параметърът на `create_external_library()` е името на директорията под `src/external_libs/`, но реалният CMake target може да е различен (например `nodeeditor` -> target `nodes`).
@@ -353,13 +356,14 @@ include(ComponentTemplates)
 # 2. Core framework (no external dependencies)
 add_subdirectory(src/frame_work)
 
-# 3. External libraries — само Qt5 (Qt6 compat issues)
+# 3. External libraries
+# NodeEditor е Qt5-only
 if(QT_VERSION_MAJOR EQUAL 5)
     create_external_library(nodeeditor)   # -> target: nodes
-    create_external_library(qtrest_lib)   # -> target: qtrest_lib
-else()
-    message(STATUS "External libraries disabled for Qt6 (compatibility issues)")
 endif()
+
+# QtRest работи на Qt5/Qt6
+create_external_library(qtrest_lib)       # -> target: qtrest_lib
 
 # 4. Plugins — всички се добавят; dependency системата ги изключва автоматично
 add_subdirectory(src/plugins/node_editor)        # Qt5-only (изисква nodes)
@@ -384,10 +388,10 @@ print_build_configuration_summary()
 
 ```
 Qt5 build:  NodeEditorPlugin включен, QtCoinTraderPlugin включен, test plugins включени
-Qt6 build:  NodeEditorPlugin изключен, QtCoinTraderPlugin изключен, test plugins включени
+Qt6 build:  NodeEditorPlugin изключен, QtCoinTraderPlugin включен, test plugins включени
 ```
 
-> Qt6 ограничение: `NodeEditorPlugin` и `QtCoinTraderPlugin` не се компилират при Qt6, защото външните библиотеки `nodeeditor` и `qtrest_lib` имат проблеми със съвместимостта с Qt6 и са изключени. Само test плъгините (`plugin_main_test`, `plugin_fancy_test`, `plugin_uggly_test`, `plugin_template_test`) работят с Qt6.
+> Qt6 ограничение: `NodeEditorPlugin` не се компилира при Qt6 (външната библиотека `nodeeditor` все още е Qt5-only). `QtCoinTraderPlugin` се компилира при Qt6, защото `qtrest_lib` вече е портната за Qt6.
 
 ### Според зависимости (автоматично)
 Компонентът се изключва автоматично ако dependencies липсват:

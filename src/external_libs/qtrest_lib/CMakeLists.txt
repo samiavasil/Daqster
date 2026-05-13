@@ -6,9 +6,14 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_AUTOMOC ON)
 
-# qtrest upstream CMake supports Qt5 only. This wrapper is currently used only
-# in Qt5 builds in the parent project.
-find_package(Qt5 5.3 COMPONENTS Core Network Qml REQUIRED)
+# qtrest supports both Qt5 and Qt6 using a unified target prefix.
+if(NOT DEFINED QT_VERSION_MAJOR)
+  find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Network Qml)
+endif()
+
+find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Network Qml REQUIRED)
+set(QT_PREFIX Qt${QT_VERSION_MAJOR})
+message(STATUS "QtRest library: Qt${QT_VERSION_MAJOR} detected - using Qt${QT_VERSION_MAJOR} components")
 
 # Configure and include upstream qtrest build.
 set(BUILD_TYPE SHARED CACHE STRING "qtrest build type" FORCE)
@@ -47,7 +52,7 @@ target_include_directories(qtrest_lib
 target_link_libraries(qtrest_lib
   PUBLIC
     qtrest
-    Qt5::Qml
+    ${QT_PREFIX}::Qml
 )
 
 #target_compile_definitions(nodes

@@ -59,19 +59,13 @@ find_package(OpenSSL)
 # Other modules will be found dynamically by PluginDependencyManager
 find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS Core Gui Widgets)
 
-# Add external libraries using templates
+# NodeEditor - Qt5 only (requires porting for Qt6)
 if(QT_VERSION_MAJOR EQUAL 5)
-    # NodeEditor library - will check its own dependencies in its CMakeLists.txt
     create_external_library(nodeeditor)
-    
-    # QtRest library - will check its own dependencies in its CMakeLists.txt
-    create_external_library(qtrest_lib)
-    
-else()
-    message(STATUS "External libraries disabled for Qt6 (compatibility issues)")
-    message(STATUS "  - NodeEditor: Qt6 compatibility issues")
-    message(STATUS "  - QtRest: Qt6 compatibility issues")
 endif()
+
+# QtRest library - compatible with Qt5 and Qt6
+create_external_library(qtrest_lib)
 
 # Plugins - dependency система автоматично изключва неподдържани
 add_subdirectory(src/plugins/node_editor)

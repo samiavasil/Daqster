@@ -2,6 +2,7 @@
 # Launch QtCoinTrader plugin with WSL-optimized software rendering (fallback)
 
 # Set up environment for stable rendering in WSL/Corporate environments
+export QT_QPA_PLATFORM=xcb
 export QT_XCB_FORCE_SOFTWARE_OPENGL=1
 export LD_LIBRARY_PATH="$HOME/bin/openssl11/pkg/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
 

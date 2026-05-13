@@ -1,7 +1,6 @@
 import QtQuick 2.6
 
 import QtQuick 2.5
-import QtQuick.Dialogs 1.2
 import QtQuick.Layouts 1.3
 import QtQuick.Controls 2.3
 //import QtQuick.Controls.Material 2.1
@@ -60,7 +59,7 @@ Rectangle {
             layoutDirection: Qt.LeftToRight
             delegate: SideBarDelegate{
                 id: sideBarDelegate
-                width: parent.width
+                width: parent ? parent.width : 100
                 height: (3*width)/4
                 value: model.title
                 imgSource: model.imgSource

@@ -133,7 +133,7 @@ QT5_PREFIX=/usr/lib/qt5 ./tools/build_helpers/test_qt_versions.sh
 
 Tests a Qt6 build and verifies whether `qtrest_lib` artifacts have been produced. Useful after changes to QtRest for Qt6 compatibility.
 
-> Status: QtRest still has Qt6 compatibility issues. This script is for tracking progress.
+> Status: QtRest is ported to Qt6 and `qtrest_lib` builds correctly on both Qt5 and Qt6.
 
 **Usage:**
 ```bash
