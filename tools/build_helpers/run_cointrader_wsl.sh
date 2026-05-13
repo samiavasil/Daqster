@@ -1,5 +1,5 @@
 #!/bin/bash
-# Launch QtCoinTrader plugin with WSL-optimized rendering
+# Launch QtCoinTrader plugin with WSL-optimized software rendering (fallback)
 
 # Set up environment for stable rendering in WSL/Corporate environments
 export QT_XCB_FORCE_SOFTWARE_OPENGL=1
