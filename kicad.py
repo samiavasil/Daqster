@@ -1,0 +1,57 @@
+import textwrap
+
+def generate_kicad_schematic():
+    # KiCad 6.0 schematic file header
+    content = textwrap.dedent("""\
+        (kicad_sch (version 20211123) (generator eeschema)
+          (uuid "56447834-1234-4321-8765-abcdef123456")
+          (paper "A4")
+          
+          (title_block
+            (title "ESP32 RC Car with MX1515")
+            (company "DIY Project")
+            (comment 1 "Replacing RX-2B with ESP32")
+          )
+
+          (lib_symbols
+            (symbol "ESP32_DevKit_V1" (in_bom yes) (on_board yes)
+              (property "Reference" "U" (id 0) (at -5.08 17.78 0))
+              (property "Value" "ESP32" (id 1) (at -5.08 15.24 0))
+              (rectangle (start -7.62 12.7) (end 7.62 -12.7) (stroke (width 0.254)))
+              (pin power_in line (at -10.16 10.16 0) (length 2.54) (name "VIN" (effects (font (size 1.27 1.27)))))
+              (pin power_in line (at -10.16 -10.16 0) (length 2.54) (name "GND" (effects (font (size 1.27 1.27)))))
+              (pin output line (at 10.16 7.62 180) (length 2.54) (name "GPIO12" (effects (font (size 1.27 1.27)))))
+              (pin output line (at 10.16 5.08 180) (length 2.54) (name "GPIO13" (effects (font (size 1.27 1.27)))))
+              (pin output line (at 10.16 2.54 180) (length 2.54) (name "GPIO14" (effects (font (size 1.27 1.27)))))
+              (pin output line (at 10.16 0 180) (length 2.54) (name "GPIO27" (effects (font (size 1.27 1.27)))))
+            )
+            (symbol "MX1515_DIP16" (in_bom yes) (on_board yes)
+              (property "Reference" "U" (id 0) (at 0 20.32 0))
+              (property "Value" "MX1515" (id 1) (at 0 17.78 0))
+              (rectangle (start -10.16 15.24) (end 10.16 -17.78) (stroke (width 0.254)))
+              (pin input line (at -12.7 12.7 0) (length 2.54) (name "IN1A_P1" (effects (font (size 1.27 1.27)))))
+              (pin input line (at -12.7 10.16 0) (length 2.54) (name "IN1B_P2" (effects (font (size 1.27 1.27)))))
+              (pin power_in line (at 0 17.78 270) (length 2.54) (name "VCC_P4_8" (effects (font (size 1.27 1.27)))))
+              (pin power_in line (at 0 -20.32 90) (length 2.54) (name "GND_P10_15" (effects (font (size 1.27 1.27)))))
+            )
+          )
+
+          (symbol (lib_id "ESP32_DevKit_V1") (at 50.8 76.2 0) (unit 1)
+            (uuid "a1b2c3d4-e5f6-4a5b-9c8d-7e6f5a4b3c2d")
+          )
+          
+          (symbol (lib_id "MX1515_DIP16") (at 127 76.2 0) (unit 1)
+            (uuid "f1e2d3c4-b5a6-4d5c-8b7a-6e5f4d3c2b1a")
+          )
+
+          (wire (pts (xy 60.96 83.82) (xy 114.3 88.9)) (stroke (width 0)) (uuid "c1")) ; GPIO12 to IN1A
+          (wire (pts (xy 60.96 81.28) (xy 114.3 86.36)) (stroke (width 0)) (uuid "c2")) ; GPIO13 to IN1B
+          (text "Connect Battery 3.7V to ESP32 VIN and MX1515 VCC" (at 100 40 0) (effects (font (size 1.5 1.5))))
+        )
+    """)
+    
+    with open("esp32_mx1515_rc_car.kicad_sch", "w") as f:
+        f.write(content)
+    print("Файлът 'esp32_mx1515_rc_car.kicad_sch' е генериран успешно!")
+
+generate_kicad_schematic()
