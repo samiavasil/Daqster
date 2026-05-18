@@ -8,7 +8,8 @@
 
 - [BuildHelpers.md](./BuildHelpers.md) - помощни скриптове за build и тестове
 - [BuildHelpers.en.md](./BuildHelpers.en.md) - английска версия
-- [UpstreamManagement.md](./UpstreamManagement.md) - управление на външни upstream зависимости
+- [UpstreamManagement.md](./UpstreamManagement.md) - управление на външни upstream зависимости (BG)
+- [UpstreamManagement.en.md](./UpstreamManagement.en.md) - upstream management guide (EN)
 
 ## Свързани теми
 

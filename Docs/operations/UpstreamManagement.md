@@ -4,19 +4,61 @@
 
 Този документ описва как да управлявате upstream tracking за external библиотеките в Daqster проекта.
 
-## 📚 **External Libraries**
+## External Libraries
 
 ### **NodeEditor**
 - **Upstream Repository:** https://github.com/paceholder/nodeeditor
 - **Your Fork:** https://github.com/samiavasil/nodeeditor
-- **Current Status:** 182 commits behind upstream, 4 commits ahead
-- **Branch:** `node_editor_plugin` (custom branch with your modifications)
+- **Working branch:** `feature/deembed-hover-fronting-wm`
+- **Integration in Daqster:** submodule under `src/external_libs/nodeeditor`
 
 ### **QtRest**
 - **Upstream Repository:** https://github.com/kafeg/qtrest
 - **Your Fork:** https://github.com/samiavasil/qtrest
-- **Current Status:** 27 commits behind upstream, 0 commits ahead
-- **Branch:** `master` (tracking upstream)
+- **Working branch:** `feature/qt6-port-cmake-unified`
+- **Integration in Daqster:** submodule under `src/external_libs/qtrest_lib/qtrest`
+
+## Fork Delta (спрямо upstream)
+
+Този раздел описва целевите промени във fork-овете, които са специфични за Daqster.
+
+### NodeEditor: какво е променено и защо
+
+- Добавен embed/de-embed lifecycle за node widget-и в Daqster интеграцията.
+Причина: Daqster използва node model-и с по-богати QWidget UI панели и е нужен контрол дали widget-ът да е вграден в сцената или отделен top-level прозорец.
+
+- Добавен hover fronting behavior за detached widget прозорци.
+Причина: при припокриване на прозорци и scene items потребителят трябва бързо да изкарва активния node панел отпред без ръчно window management.
+
+- Добавени guard и lightweight fronting механизми за избягване на излишно reposition/flag churn.
+Причина: upstream-неутралното поведение не покриваше специфични WM edge-case-и при Daqster workflow (hover, focus-shift, stacked detached windows).
+
+### QtRest: какво е променено и защо
+
+- CMake standard е уеднаквен към C++17.
+Причина: Daqster и останалите плъгини са на C++17 и унифицираният стандарт елиминира несъвместимости при mixed-target build.
+
+- Qt5/Qt6 dual-major линкване и dependency gating в Daqster build graph.
+Причина: проектът трябва да се компилира и в Qt5, и в Qt6 без разклоняване на отделни кодови линии.
+
+- Уточнени условия за включване на QtCoinTrader/qtrest в зависимост от наличните Qt компоненти.
+Причина: да се избегнат false-positive target-и и частични конфигурации при липсващи Qt модули.
+
+## Как да провериш текущата разлика спрямо upstream
+
+Използвай тези команди вместо статични числа в документацията:
+
+```bash
+# NodeEditor
+cd src/external_libs/nodeeditor
+git fetch upstream
+git rev-list --left-right --count HEAD...upstream/master
+
+# QtRest
+cd src/external_libs/qtrest_lib/qtrest
+git fetch upstream
+git rev-list --left-right --count HEAD...upstream/master
+```
 
 ## **Upstream Management Script**
 
@@ -146,7 +188,7 @@ git merge upstream/master
 0 0 1 * * /path/to/Daqster/tools/build_helpers/manage_upstream.sh check
 ```
 
-## 🚨 **Troubleshooting**
+## Troubleshooting
 
 ### **Merge conflicts:**
 ```bash
@@ -179,7 +221,7 @@ git remote -v
 git remote add upstream <upstream-url>
 ```
 
-## 📝 **Best Practices**
+## Best Practices
 
 1. **Редовни проверки** - поне веднъж месечно
 2. **Тестване** - винаги тествайте след updates

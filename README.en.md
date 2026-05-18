@@ -58,6 +58,13 @@ cd build/bin
 ./Daqster
 ```
 
+## Qt5/Qt6 Status
+
+- Full builds are validated for both Qt5 and Qt6.
+- All current plugins in this repository compile in both versions.
+- NodeEditorPlugin is enabled for Qt6 through a QtCharts/QtMultimedia compatibility layer.
+- When keeping parallel Qt5/Qt6 build trees, use isolated plugin paths to avoid mixed-runtime plugin loading.
+
 ## Framework Architecture
 
 Daqster uses a modular architecture with three key layers:

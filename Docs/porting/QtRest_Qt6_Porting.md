@@ -4,6 +4,18 @@
 
 Този документ описва процеса на портиране на QtRest библиотеката за Qt6 support в Daqster проекта.
 
+## **Актуален статус (май 2026)**
+
+- Пълен build за Qt5 и Qt6 е валидиран.
+- Всички текущи плъгини в репото се компилират и за двете версии.
+- NodeEditor плъгинът е портнат за Qt6 чрез compatibility слой за QtCharts/QtMultimedia.
+- QtRest и QtCoinTrader работят в dual-mode (Qt5/Qt6).
+
+## **Fork бележки (спрямо оригиналните репозитории)**
+
+- Подробен преглед на fork разликите за NodeEditor и QtRest е описан в [UpstreamManagement.md](../operations/UpstreamManagement.md).
+- Обобщение: промените са насочени към стабилен dual-build (Qt5/Qt6), C++17 уеднаквяване и UI поведение, специфично за Daqster.
+
 ## **Анализ на QtRest за Qt6**
 
 ### **Използвани Qt модули:**
@@ -104,7 +116,7 @@ endif()
 - **Пълна функционалност** - всички features налични
 
 ### **NodeEditor:**
-- **Qt6** - изключен заради compatibility проблеми
+- **Qt6** - пълна поддръжка (чрез compatibility слой)
 - **Qt5** - пълна поддръжка
 
 ## **Тестване**
@@ -131,7 +143,7 @@ ls -la build_qt6/bin/plugins/libQtCoinTraderPlugin.so
 |-----------|-----|-----|-----------|
 | **QtRest Library** | QuickControls2 required | QML required | Qt6 е по-лесен |
 | **QtCoinTrader Plugin** | QuickControls2 + QtRest | QML + QtRest | Qt6 е по-лесен |
-| **NodeEditor Plugin** | Пълна поддръжка | Изключен | Compatibility проблеми |
+| **NodeEditor Plugin** | Пълна поддръжка | Пълна поддръжка | QtCharts/QtMultimedia compatibility слой |
 | **Test Plugins** | Всички | Всички | Без промени |
 
 ## **Upstream Updates**
@@ -152,10 +164,9 @@ ls -la build_qt6/bin/plugins/libQtCoinTraderPlugin.so
 
 ## **Следващи стъпки**
 
-1. **Тестване** - проверете Qt6 build в Qt Creator
-2. **Upstream merge** - обновете до latest upstream version
-3. **CI integration** - добавете Qt6 + QtRest в CI matrix
-4. **Documentation** - обновете README с Qt6 QtRest support
+1. **CI integration** - добавете редовен Qt5/Qt6 matrix build.
+2. **Runtime hygiene** - пазете отделни plugin директории за Qt5 и Qt6 build-ове.
+3. **Regression tests** - добавете smoke test за зареждане на всички плъгини.
 
 ## **Предимства на Qt6 портирането**
 
@@ -166,10 +177,10 @@ ls -la build_qt6/bin/plugins/libQtCoinTraderPlugin.so
 
 ## **Важни забележки**
 
-1. **NodeEditor** остава изключен за Qt6 заради compatibility проблеми
-2. **QtRest** работи отлично с Qt6
-3. **QtCoinTrader** работи с Qt6 ако има QtRest
-4. **Test plugins** работят с двете версии
+1. **NodeEditor** вече е активен и за Qt6.
+2. **QtRest** работи отлично с Qt6.
+3. **QtCoinTrader** работи с Qt6 при наличен QtRest.
+4. **Test plugins** работят с двете версии.
 
 ## **Полезни линкове**
 
