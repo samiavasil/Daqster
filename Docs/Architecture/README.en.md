@@ -154,136 +154,21 @@ AppToolbar/ApplicationsManager
 
 ## Architecture Diagram
 
-```plantuml
-@startuml
-!theme plain
-skinparam backgroundColor #FFFFFF
-skinparam componentStyle rectangle
+![Architecture Diagram](../diagrams/architecture.svg)
 
-package "Daqster Application" {
-    component [main.cpp] as Main
-    component [AppToolbar] as Toolbar
-    component [ApplicationsManager] as AppMgr
-}
-
-package "QPluginManager (Core)" {
-    component [Plugin Discovery] as Discovery
-    component [Plugin Loading] as Loading
-    component [Plugin Filter] as Filter
-}
-
-package "Plugin System" {
-    component [NodeEditor] as NodeEditor
-    component [QtCoinTrader] as CoinTrader
-    component [Test Plugins] as TestPlugins
-}
-
-package "External Libraries" {
-    component [nodeeditor] as NodeLib
-    component [qtrest_lib] as RestLib
-}
-
-Main --> Toolbar : GUI Events
-Main --> AppMgr : Plugin Launch
-Toolbar --> AppMgr : Launch Request
-AppMgr --> Discovery : Find Plugin
-Discovery --> Loading : Load .so files
-Loading --> Filter : Filter by type
-Filter --> NodeEditor : APPLICATION_PLUGIN
-Filter --> CoinTrader : APPLICATION_PLUGIN
-Filter --> TestPlugins : APPLICATION_PLUGIN
-NodeEditor --> NodeLib : Uses
-CoinTrader --> RestLib : Uses
-
-note right of Main
-  - QApplication init
-  - QPluginManager init
-  - Command line args
-  - AppImage detection
-end note
-
-note right of AppMgr
-  - QProcess management
-  - Environment variables
-  - Child process launch
-end note
-
-note right of Discovery
-  - Build directories
-  - Environment variables
-  - User plugins
-  - System plugins
-end note
-@enduml
-```
+[PlantUML source](../diagrams/architecture.puml)
 
 ## Plugin Discovery Flow
 
-```plantuml
-@startuml
-!theme plain
-skinparam backgroundColor #FFFFFF
-skinparam activityStyle rectangle
+![Plugin Discovery Flow](../diagrams/startup_sequence.svg)
 
-start
-:Application Startup;
-:QPluginManager Constructor;
-:Scan Build Directory;
-:Scan Environment Variables;
-:Scan User Directory;
-:Load .so files;
-:Validate plugins;
-:Initialize QPluginInterface;
-:Add to Active Plugins List;
-stop
-
-note right
-  Plugin Discovery Paths:
-  1. Build Directory (./plugins, ../lib/plugins)
-  2. Environment Variables (DAQSTER_*)
-  3. User Directory (~/.local/share/daqster/plugins)
-  4. System Directory (/usr/lib/daqster/plugins)
-end note
-@enduml
-```
+[PlantUML source](../diagrams/startup_sequence.puml)
 
 ## Build System Flow
 
-```plantuml
-@startuml
-!theme plain
-skinparam backgroundColor #FFFFFF
-skinparam activityStyle rectangle
+![Build System Components](../diagrams/framework_components.svg)
 
-start
-:Source Code (src/);
-:CMake Configure;
-note right
-  - Qt5 detection
-  - Dependencies
-  - Build type
-end note
-:CMake Build;
-note right
-  - Compile
-  - Link
-  - Install
-end note
-:AppImage Create;
-note right
-  - Copy files
-  - Set paths
-  - Package
-end note
-:Distribution;
-note right
-  - GitHub CI
-  - Artifacts
-  - Releases
-end note
-stop
-@enduml
-```
+[PlantUML source](../diagrams/framework_components.puml)
 
 ## 4. Build System
 
@@ -343,118 +228,30 @@ stop
 
 ## 9. Plugin Lifecycle Diagram
 
-```plantuml
-@startuml
-!theme plain
-skinparam backgroundColor #FFFFFF
-skinparam stateStyle rectangle
+![Plugin Lifecycle](../diagrams/plugin_lifecycle.svg)
 
-[*] --> PluginDiscovery : Application Start
-PluginDiscovery --> PluginLoading : Found .so files
-PluginLoading --> PluginValidation : Loaded successfully
-PluginValidation --> PluginInitialization : Valid plugin
-PluginValidation --> [*] : Invalid plugin
-PluginInitialization --> PluginActive : Initialized
-PluginActive --> PluginRunning : Launch request
-PluginRunning --> PluginStopped : Stop request
-PluginStopped --> PluginActive : Ready for restart
-PluginActive --> PluginCleanup : Application shutdown
-PluginCleanup --> [*] : Cleanup complete
-
-note right of PluginDiscovery
-  Scan directories:
-  - Build dirs
-  - Environment vars
-  - User plugins
-  - System plugins
-end note
-
-note right of PluginValidation
-  Check:
-  - QPluginInterface implementation
-  - Plugin metadata
-  - Dependencies
-  - Type filtering
-end note
-
-note right of PluginRunning
-  Process isolation:
-  - Separate QProcess
-  - Environment setup
-  - Resource management
-end note
-@enduml
-```
+[PlantUML source](../diagrams/plugin_lifecycle.puml)
 
 ## 10. AppImage Structure Diagram
 
-```plantuml
-@startuml
-!theme plain
-skinparam backgroundColor #FFFFFF
-skinparam packageStyle rectangle
-
-package "Daqster-x86_64.AppImage" {
-    package "AppRun" {
-        [AppRun Script] as AppRun
-    }
-    
-    package "usr/" {
-        package "bin/" {
-            [Daqster Executable] as Executable
-        }
-        
-        package "lib/" {
-            package "plugins/" {
-                [Qt Plugins] as QtPlugins
-                [Platform Plugins] as PlatformPlugins
-            }
-            
-            package "qml/" {
-                [QML Modules] as QMLModules
-            }
-            
-            package "daqster/plugins/" {
-                [Daqster Plugins] as DaqsterPlugins
-            }
-            
-            [Qt Libraries] as QtLibs
-            [ICU Libraries] as ICULibs
-        }
-    }
-    
-    package "usr/share/" {
-        package "applications/" {
-            [Desktop File] as DesktopFile
-        }
-        
-        package "icons/" {
-            [App Icon] as AppIcon
-        }
-    }
-    
-    [daqster.desktop] as DesktopFile2
-    [daqster.png] as AppIcon2
-}
-
-AppRun --> Executable : Launches
-AppRun --> QtLibs : Sets LD_LIBRARY_PATH
-AppRun --> QtPlugins : Sets QT_PLUGIN_PATH
-AppRun --> QMLModules : Sets QML2_IMPORT_PATH
-AppRun --> DaqsterPlugins : Sets DAQSTER_PLUGIN_DIR
-Executable --> DaqsterPlugins : Loads plugins
-Executable --> QtPlugins : Uses Qt plugins
-Executable --> QMLModules : Uses QML modules
-
-note right of AppRun
-  Environment Setup:
-  - LD_LIBRARY_PATH
-  - QT_PLUGIN_PATH
-  - QML2_IMPORT_PATH
-  - DAQSTER_PLUGIN_DIR
-  - XDG directories
-end note
-@enduml
+```text
+Daqster-x86_64.AppImage
+|-- AppRun                          <- startup script
+|-- daqster.desktop
+|-- daqster.png
+`-- usr/
+    |-- bin/
+    |   `-- Daqster                 <- main executable
+    |-- lib/
+    |   |-- libQt*.so.*             <- Qt libraries
+    |   |-- libicu*.so.*            <- ICU libraries
+    |   |-- plugins/                <- Qt plugins
+    |   |-- qml/                    <- QML modules
+    |   `-- daqster/
+    |       `-- plugins/            <- Daqster plugins
+    `-- share/
+        |-- applications/           <- desktop file
+        `-- icons/                  <- app icon
 ```
 
 ## 11. Future Enhancements

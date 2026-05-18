@@ -171,136 +171,21 @@ AppToolbar/ApplicationsManager
 
 ## Архитектурна диаграма
 
-```plantuml
-@startuml
-!theme plain
-skinparam backgroundColor #FFFFFF
-skinparam componentStyle rectangle
+![Architecture Diagram](../diagrams/architecture.svg)
 
-package "Daqster Application" {
-    component [main.cpp] as Main
-    component [AppToolbar] as Toolbar
-    component [ApplicationsManager] as AppMgr
-}
-
-package "QPluginManager (Core)" {
-    component [Plugin Discovery] as Discovery
-    component [Plugin Loading] as Loading
-    component [Plugin Filter] as Filter
-}
-
-package "Plugin System" {
-    component [NodeEditor] as NodeEditor
-    component [QtCoinTrader] as CoinTrader
-    component [Test Plugins] as TestPlugins
-}
-
-package "External Libraries" {
-    component [nodeeditor] as NodeLib
-    component [qtrest_lib] as RestLib
-}
-
-Main --> Toolbar : GUI Events
-Main --> AppMgr : Plugin Launch
-Toolbar --> AppMgr : Launch Request
-AppMgr --> Discovery : Find Plugin
-Discovery --> Loading : Load .so files
-Loading --> Filter : Filter by type
-Filter --> NodeEditor : APPLICATION_PLUGIN
-Filter --> CoinTrader : APPLICATION_PLUGIN
-Filter --> TestPlugins : APPLICATION_PLUGIN
-NodeEditor --> NodeLib : Uses
-CoinTrader --> RestLib : Uses
-
-note right of Main
-  - QApplication init
-  - QPluginManager init
-  - Command line args
-  - AppImage detection
-end note
-
-note right of AppMgr
-  - QProcess management
-  - Environment variables
-  - Child process launch
-end note
-
-note right of Discovery
-  - Build directories
-  - Environment variables
-  - User plugins
-  - System plugins
-end note
-@enduml
-```
+[PlantUML източник](../diagrams/architecture.puml)
 
 ## Plugin Discovery Flow
 
-```plantuml
-@startuml
-!theme plain
-skinparam backgroundColor #FFFFFF
-skinparam activityStyle rectangle
+![Plugin Discovery Flow](../diagrams/startup_sequence.svg)
 
-start
-:Application Startup;
-:QPluginManager Constructor;
-:Scan Build Directory;
-:Scan Environment Variables;
-:Scan User Directory;
-:Load .so files;
-:Validate plugins;
-:Initialize QPluginInterface;
-:Add to Active Plugins List;
-stop
-
-note right
-  Plugin Discovery Paths:
-  1. Build Directory (./plugins, ../lib/plugins)
-  2. Environment Variables (DAQSTER_*)
-  3. User Directory (~/.local/share/daqster/plugins)
-  4. System Directory (/usr/lib/daqster/plugins)
-end note
-@enduml
-```
+[PlantUML източник](../diagrams/startup_sequence.puml)
 
 ## Build System Flow
 
-```plantuml
-@startuml
-!theme plain
-skinparam backgroundColor #FFFFFF
-skinparam activityStyle rectangle
+![Build System Components](../diagrams/framework_components.svg)
 
-start
-:Source Code (src/);
-:CMake Configure;
-note right
-  - Qt5 detection
-  - Dependencies
-  - Build type
-end note
-:CMake Build;
-note right
-  - Compile
-  - Link
-  - Install
-end note
-:AppImage Create;
-note right
-  - Copy files
-  - Set paths
-  - Package
-end note
-:Distribution;
-note right
-  - GitHub CI
-  - Artifacts
-  - Releases
-end note
-stop
-@enduml
-```
+[PlantUML източник](../diagrams/framework_components.puml)
 
 ## Build System
 
@@ -386,48 +271,9 @@ stop
 
 ## 9. Plugin Lifecycle Diagram
 
-```plantuml
-@startuml
-!theme plain
-skinparam backgroundColor #FFFFFF
-skinparam stateStyle rectangle
+![Plugin Lifecycle](../diagrams/plugin_lifecycle.svg)
 
-[*] --> PluginDiscovery : Application Start
-PluginDiscovery --> PluginLoading : Found .so files
-PluginLoading --> PluginValidation : Loaded successfully
-PluginValidation --> PluginInitialization : Valid plugin
-PluginValidation --> [*] : Invalid plugin
-PluginInitialization --> PluginActive : Initialized
-PluginActive --> PluginRunning : Launch request
-PluginRunning --> PluginStopped : Stop request
-PluginStopped --> PluginActive : Ready for restart
-PluginActive --> PluginCleanup : Application shutdown
-PluginCleanup --> [*] : Cleanup complete
-
-note right of PluginDiscovery
-  Scan directories:
-  - Build dirs
-  - Environment vars
-  - User plugins
-  - System plugins
-end note
-
-note right of PluginValidation
-  Check:
-  - QPluginInterface implementation
-  - Plugin metadata
-  - Dependencies
-  - Type filtering
-end note
-
-note right of PluginRunning
-  Process isolation:
-  - Separate QProcess
-  - Environment setup
-  - Resource management
-end note
-@enduml
-```
+[PlantUML източник](../diagrams/plugin_lifecycle.puml)
 
 ## 10. AppImage Structure
 

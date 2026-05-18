@@ -44,65 +44,6 @@
 
 #### Documentation Hierarchy — структура на Docs/ папката
 
-```plantuml
-@startuml
-!theme plain
-top to bottom direction
-skinparam packageStyle rectangle
-skinparam padding 4
-skinparam fontSize 9
-skinparam maxMessageSize 100
-
-together {
-  package "Ниво 1: Входни точки" {
-    [INDEX]
-    [Architecture]
-    [Operations]
-    [Porting]
-    [Development]
-  }
-
-  package "Ниво 2: Архитект. хъб" {
-    [BuildSystem]
-    [Apps]
-    [Framework]
-    [Plugins]
-  }
-
-  package "Ниво 2: Разработка" {
-    [DeveloperGuide]
-    [Debug]
-  }
-}
-
-package "Ниво 3: Детайли" {
-  [Daqster.md]
-  [ApplicationsManager.md]
-  [QProcessManager.md]
-  [ShutdownHandler.md]
-  [PluginDevelopment.md]
-}
-
-INDEX --> Architecture
-INDEX --> Development
-INDEX --> Operations
-INDEX --> Porting
-
-Architecture --> BuildSystem
-Architecture --> Apps
-Architecture --> Framework
-Architecture --> Plugins
-
-Development --> DeveloperGuide
-Development --> Debug
-
-Apps --> Daqster.md
-Apps --> ApplicationsManager.md
-Framework --> QProcessManager.md
-Framework --> ShutdownHandler.md
-Plugins --> PluginDevelopment.md
-
-@enduml
-```
+![Documentation Hierarchy](./diagrams/documentation_hierarchy.svg)
 
 [PlantUML източник](./diagrams/documentation_hierarchy.puml)

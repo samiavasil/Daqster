@@ -44,65 +44,6 @@ Visual overviews of architecture and processes (PlantUML sources and generated S
 
 #### Documentation Hierarchy — Docs/ folder structure
 
-```plantuml
-@startuml
-!theme plain
-top to bottom direction
-skinparam packageStyle rectangle
-skinparam padding 4
-skinparam fontSize 9
-skinparam maxMessageSize 100
-
-together {
-  package "Level 1: Entry Points" {
-    [INDEX]
-    [Architecture]
-    [Operations]
-    [Porting]
-    [Development]
-  }
-
-  package "Level 2: Architecture Hub" {
-    [BuildSystem]
-    [Apps]
-    [Framework]
-    [Plugins]
-  }
-
-  package "Level 2: Development" {
-    [DeveloperGuide]
-    [Debug]
-  }
-}
-
-package "Level 3: Details" {
-  [Daqster.md]
-  [ApplicationsManager.md]
-  [QProcessManager.md]
-  [ShutdownHandler.md]
-  [PluginDevelopment.md]
-}
-
-INDEX --> Architecture
-INDEX --> Development
-INDEX --> Operations
-INDEX --> Porting
-
-Architecture --> BuildSystem
-Architecture --> Apps
-Architecture --> Framework
-Architecture --> Plugins
-
-Development --> DeveloperGuide
-Development --> Debug
-
-Apps --> Daqster.md
-Apps --> ApplicationsManager.md
-Framework --> QProcessManager.md
-Framework --> ShutdownHandler.md
-Plugins --> PluginDevelopment.md
-
-@enduml
-```
+![Documentation Hierarchy](./diagrams/documentation_hierarchy.svg)
 
 [PlantUML source](./diagrams/documentation_hierarchy.puml)
