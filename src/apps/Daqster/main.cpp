@@ -70,7 +70,9 @@ int main(int argc, char *argv[]) {
 #else
   //   qInstallMessageHandler(m.myMessageOutput);
 #endif
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#endif
   //  // detach from the current console window
   //   // if launched from a console window, that will still run waiting for the
   //   new console (below) to close

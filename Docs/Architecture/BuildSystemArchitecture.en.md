@@ -265,6 +265,26 @@ add_library(${COMPONENT_NAME} SHARED ${PLUGIN_SOURCES})
 - Clean and clear output for disabled components
 - Additional settings (INCLUDE_DIRECTORIES, COMPILE_DEFINITIONS) only apply if the component is enabled
 
+## Build System Flow
+
+![Build System Components](../diagrams/framework_components.svg)
+
+[PlantUML source](../diagrams/framework_components.puml)
+
+## Build System
+
+### CMake Configuration
+- **Minimum version:** 3.16
+- **Qt version:** 5.15.2
+- **Build types:** Debug, Release
+- **Install targets:** bin, lib, plugins
+
+### AppImage Creation
+- **Unified script:** `tools/create_appimage.sh`
+- **Local mode:** Uses the local Qt installation
+- **CI mode:** Uses system Qt libraries
+- **Output:** `Daqster-x86_64.AppImage`
+
 ## Qt Version Detection
 
 ### FindQtVersion.cmake

@@ -164,27 +164,6 @@ AppToolbar/ApplicationsManager
 
 [PlantUML source](../diagrams/startup_sequence.puml)
 
-## Build System Flow
-
-![Build System Components](../diagrams/framework_components.svg)
-
-[PlantUML source](../diagrams/framework_components.puml)
-
-## 4. Build System
-
-### CMake Configuration
-- **Minimum version:** 3.16
-- **Qt5 modules:** Core, Widgets, Gui, QML, QuickControls2, Charts, Network, Multimedia, OpenGL.
-- **External dependencies:** `nodeeditor`, `qtrest_lib`.
-- **Build types:** Debug (for development) and Release (for production).
-- **RPATH:** Configured for automatic finding of shared libraries.
-
-### AppImage Creation
-- **Unified script:** `tools/create_appimage.sh` automates the entire process.
-- **Self-contained:** All necessary Qt libraries, plugins, and QML modules are copied into the AppImage.
-- **Environment variables:** The `AppRun` script in the AppImage sets up `LD_LIBRARY_PATH`, `QT_PLUGIN_PATH`, `QML2_IMPORT_PATH`, `DAQSTER_PLUGIN_DIR`, `DAQSTER_PLUGIN_PATH`, and XDG variables.
-- **Debug/Release:** Supports creating both Debug and Release AppImage.
-
 ## 5. Environment Variables
 
 ### Plugin Discovery

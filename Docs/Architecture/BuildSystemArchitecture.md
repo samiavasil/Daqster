@@ -265,6 +265,26 @@ add_library(${COMPONENT_NAME} SHARED ${PLUGIN_SOURCES})
 - Чист и ясен output за disabled компоненти
 - Допълнителните настройки (INCLUDE_DIRECTORIES, COMPILE_DEFINITIONS) се прилагат само ако компонентът е enabled
 
+## Build System Flow
+
+![Build System Components](../diagrams/framework_components.svg)
+
+[PlantUML източник](../diagrams/framework_components.puml)
+
+## Build System
+
+### CMake Configuration
+- **Minimum version:** 3.16
+- **Qt version:** 5.15.2
+- **Build types:** Debug, Release
+- **Install targets:** bin, lib, plugins
+
+### AppImage Creation
+- **Unified script:** `tools/create_appimage.sh`
+- **Local mode:** Използва локална Qt инсталация
+- **CI mode:** Използва системни Qt библиотеки
+- **Output:** `Daqster-x86_64.AppImage`
+
 ## Qt Version Detection
 
 ### FindQtVersion.cmake
