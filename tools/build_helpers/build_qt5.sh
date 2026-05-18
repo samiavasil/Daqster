@@ -49,12 +49,12 @@ if [ "$CLEAN" -eq 1 ]; then
 fi
 
 echo "Configuring with CMake..."
-CMAKE_ARGS="-DCMAKE_PREFIX_PATH=$QT_PREFIX"
+CMAKE_ARGS=("-DCMAKE_PREFIX_PATH=$QT_PREFIX")
 if [ "$VERBOSE" -eq 1 ]; then
-    CMAKE_ARGS="$CMAKE_ARGS -DDAQSTER_VERBOSE_DEPENDENCIES=ON"
+    CMAKE_ARGS+=("-DDAQSTER_VERBOSE_DEPENDENCIES=ON")
 fi
 
-cmake -S . -B "$BUILD_DIR" $CMAKE_ARGS
+cmake -S . -B "$BUILD_DIR" "${CMAKE_ARGS[@]}"
 
 echo "Building..."
 NUM_JOBS=$(nproc || echo 4)

@@ -16,8 +16,11 @@ typedef int pack_id_t;
 typedef int msg_id_t;
 #define  PACK_ID_TYPE_BIT_SIZE  (sizeof(pack_id_t)*8)
 #define  MSG_ID_TYPE_BIT_SIZE    (sizeof(msg_id_t)*8)
-#define  PKT_ID_INVALID     ((pack_id_t)(  (  (1<<(PACK_ID_TYPE_BIT_SIZE-1) ) -  ((unsigned int) 1) )|(PACK_ID_TYPE_BIT_SIZE-1) ))
-#define  MSG_ID_INVALID     ((msg_id_t)(  (  (1<<(MSG_ID_TYPE_BIT_SIZE-1) )  - ((unsigned int) 1)  )|(MSG_ID_TYPE_BIT_SIZE-1)   ))
+/* Maximum positive value of the underlying signed integer type (INT_MAX equivalent).
+ * NOTE: pack_id_t / msg_id_t MUST be a signed integer scalar (int, int32_t, int64_t …).
+ *       These macros are NOT valid if the typedef is changed to a struct or unsigned type. */
+#define  PKT_ID_INVALID     ((pack_id_t)(~((pack_id_t)1 << (PACK_ID_TYPE_BIT_SIZE - 1))))
+#define  MSG_ID_INVALID     ((msg_id_t)(~((msg_id_t)1 << (MSG_ID_TYPE_BIT_SIZE - 1))))
 
 
 /* Calculate number of bytes needed for X bits */

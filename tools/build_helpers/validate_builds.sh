@@ -51,9 +51,9 @@ echo "=========================================="
 
 # Function to test build
 test_build() {
-    local name=$1
-    local prefix=$2
-    local build_dir=$3
+    local name="$1"
+    local prefix="$2"
+    local build_dir="$3"
     
     echo ""
     echo "--- Testing $name ---"
@@ -76,14 +76,14 @@ test_build() {
     echo "✓ Qt installation found"
     
     # Run build
-    CMAKE_ARGS="-DCMAKE_PREFIX_PATH=$prefix"
+    CMAKE_ARGS=("-DCMAKE_PREFIX_PATH=$prefix")
     if [ "$VERBOSE" -eq 1 ]; then
-        CMAKE_ARGS="$CMAKE_ARGS -DDAQSTER_VERBOSE_DEPENDENCIES=ON"
+        CMAKE_ARGS+=("-DDAQSTER_VERBOSE_DEPENDENCIES=ON")
     fi
-    
+
     rm -rf "$build_dir"
-    
-    if ! cmake -S . -B "$build_dir" $CMAKE_ARGS > /dev/null 2>&1; then
+
+    if ! cmake -S . -B "$build_dir" "${CMAKE_ARGS[@]}" > /dev/null 2>&1; then
         echo "❌ CMake configure failed for $name"
         echo "FAILED: $name - cmake configure" >> "$RESULTS_FILE"
         return 1
