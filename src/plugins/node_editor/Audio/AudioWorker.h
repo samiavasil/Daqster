@@ -1,13 +1,12 @@
 #ifndef AUDIOWORKER_H
 #define AUDIOWORKER_H
 
+#include "AudioCompat.h"
+
 #include<EventThreadPull.h>
 
 #include<QSharedPointer>
-#include <QAudioInput>
 #include <AudioSourceDataModel.h>
-
-class QAudioInput;
 
 class AudioWorker : public InEventLoopWorker
 {
@@ -28,9 +27,9 @@ signals:
     void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
 private:
 
-    std::shared_ptr<QAudioInput> m_audio_src;
+    std::shared_ptr<AudioCompat::AudioInput> m_audio_src;
     std::shared_ptr<QIODevice> m_devio;
-    QAudioInput* m_audio;
+    AudioCompat::AudioInput* m_audio;
 };
 
 #endif // AUDIOWORKER_H

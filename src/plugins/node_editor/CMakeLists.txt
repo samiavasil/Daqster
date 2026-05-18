@@ -55,7 +55,7 @@ create_plugin(NodeEditorPlugin
         Qt${QT_VERSION_MAJOR}::Multimedia
         Qt${QT_VERSION_MAJOR}::Charts
         Qt${QT_VERSION_MAJOR}::OpenGL
-        nodes
+        QtNodes
         frame_work
     INCLUDE_DIRECTORIES
         ../../external_libs/nodeeditor/include

@@ -16,8 +16,8 @@ AudioWorker::~AudioWorker(){
 void AudioWorker::DoWork() {
     QString result;
     disconnect(sender() ,SIGNAL(operate()), this, SLOT(DoWork()));
-    QAudioDeviceInfo m_DevInfo = QAudioDeviceInfo::defaultInputDevice();
-    QAudioFormat  m_FormatAudio = m_DevInfo.preferredFormat();
+    QAudioDeviceInfo m_DevInfo = AudioCompat::defaultInputDevice();
+    QAudioFormat  m_FormatAudio = AudioCompat::preferredFormat(m_DevInfo);
 
     UpdateAudioDevice(m_DevInfo, m_FormatAudio);
     emit resultReady(result);
@@ -53,10 +53,10 @@ void AudioWorker::UpdateAudioDevice(QAudioDeviceInfo devInfo, QAudioFormat forma
             was_started = true;
         }
     }
-    m_audio_src  = std::make_shared<QAudioInput>(devInfo, formatAudio);
+    m_audio_src  = std::make_shared<AudioCompat::AudioInput>(devInfo, formatAudio);
     m_audio_src->setBufferSize(1000);
     qDebug() << m_audio_src->bufferSize();
-    m_audio_src->setObjectName(QString("AudioInput: %1").arg(devInfo.deviceName()));
+    m_audio_src->setObjectName(QString("AudioInput: %1").arg(AudioCompat::deviceName(devInfo)));
     connect(m_audio_src.get(),SIGNAL(stateChanged(QAudio::State)), this, SIGNAL(stateChanged(QAudio::State)) );
     if(was_started) {
         Start(AudioSourceDataModel::ASDM_RELOAD);

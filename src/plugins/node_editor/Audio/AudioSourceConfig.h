@@ -1,8 +1,9 @@
 #ifndef AUDIOSOURCECONFIG_H
 #define AUDIOSOURCECONFIG_H
 
+#include "AudioCompat.h"
+
 #include <QWidget>
-#include <QtMultimedia/QAudioDeviceInfo>
 #include "AudioComboModel.h"
 
 namespace Ui {
@@ -14,7 +15,7 @@ class AudioSourceConfig : public QWidget
     Q_OBJECT
 
 public:
-    explicit AudioSourceConfig(QAudio::Mode mode,
+    explicit AudioSourceConfig(AudioCompat::Mode mode,
                                QAudioDeviceInfo &devInfo,
                                QAudioFormat &formatAudio,
                                QWidget *parent = 0);
@@ -44,7 +45,7 @@ private:
     QList<QAudioDeviceInfo> m_Devs;
     QAudioDeviceInfo* m_DevInfo    = nullptr;   // non-owning: externally managed
     QAudioFormat*     m_FormatAudio = nullptr;  // non-owning: externally managed
-    QAudio::Mode      m_Mode;
+    AudioCompat::Mode m_Mode;
 
     // One model per combo-box; owned by this widget (parent = this)
     QAudioComboModel* m_ChannelModel    = nullptr;

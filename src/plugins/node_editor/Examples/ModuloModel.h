@@ -7,16 +7,16 @@
 #include <QtCore/QObject>
 #include <QtWidgets/QLineEdit>
 
-#include <nodes/NodeDataModel>
+#include <QtNodes/NodeDelegateModel>
 
 #include <iostream>
-#include<QComboBox>
+#include <QComboBox>
 
 using QtNodes::PortType;
 using QtNodes::PortIndex;
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
-using QtNodes::NodeDataModel;
+using QtNodes::NodeDelegateModel;
 using QtNodes::NodeValidationState;
 
 class IntegerData;
@@ -24,7 +24,7 @@ class IntegerData;
 
 template<typename ValueType>
 class ModuloModel
-        : public NodeDataModel
+        : public NodeDelegateModel
 {
 
 public:
@@ -87,10 +87,10 @@ public:
     dataType(PortType portType, PortIndex portIndex) const override;
 
     std::shared_ptr<NodeData>
-    outData(PortIndex port) override;
+    outData(PortIndex const port) override;
 
     void
-    setInData(std::shared_ptr<NodeData>, int) override;
+    setInData(std::shared_ptr<NodeData> nodeData, PortIndex const portIndex) override;
 
     QWidget *
     embeddedWidget() override {
@@ -98,10 +98,7 @@ public:
     }
 
     NodeValidationState
-    validationState() const override;
-
-    QString
-    validationMessage() const override;
+    validationState() const override { return modelValidationState; }
 
 private:
 
@@ -111,7 +108,7 @@ private:
     std::shared_ptr<NumericType<ValueType>> _result;
 
 
-    NodeValidationState modelValidationState = NodeValidationState::Warning;
+    NodeValidationState modelValidationState;
     QString modelValidationError = QString("Missing or incorrect inputs");
     QComboBox* m_w;
 };

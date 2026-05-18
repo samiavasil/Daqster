@@ -26,9 +26,7 @@ NumberSourceDataModel()
 }
 
 NumberSourceDataModel::~NumberSourceDataModel() {
-    if((!m_wembed) && m_ui){
-        m_ui->deleteLater();
-    }
+    // widget lifetime owned by proxy - do not delete here
 }
 
 
@@ -43,7 +41,7 @@ QJsonObject
 NumberSourceDataModel::
 save() const
 {
-    QJsonObject modelJson = NodeDataModel::save();
+    QJsonObject modelJson = NodeDelegateModel::save();
 
     if (_number)
         modelJson["number"] = QString::number(_number->number());
@@ -54,7 +52,7 @@ save() const
 
 void
 NumberSourceDataModel::
-restore(QJsonObject const &p)
+load(QJsonObject const &p)
 {
     QJsonValue v = p["number"];
 
@@ -151,7 +149,7 @@ embeddedWidget()
 
 std::shared_ptr<NodeData>
 NumberSourceDataModel::
-outData(PortIndex)
+outData(PortIndex const)
 {
     QTimer::singleShot( m_time,  Qt::PreciseTimer, this, [this](){
         QLineEdit& edit =  this->m_ui->lineEdit();
@@ -160,7 +158,7 @@ outData(PortIndex)
     return _number;
 }
 
-void NumberSourceDataModel::setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex port)
+void NumberSourceDataModel::setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex const port)
 {
     auto numberData = std::dynamic_pointer_cast<NumericType<int>>(data);
 

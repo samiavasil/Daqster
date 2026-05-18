@@ -3,7 +3,8 @@
         "iostream": "cpp",
         "array": "cpp",
         "system_error": "cpp",
-        "algorithm": "cpp"
+        "algorithm": "cpp",
+        "type_traits": "cpp"
     },
     "idf.pythonInstallPath": "/home/vav3sf/.platformio/penv/bin/python"
 }

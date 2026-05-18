@@ -1,6 +1,6 @@
 #include <NodeDataModelToQIODeviceConnector.h>
 
-NodeDataModelToQIODeviceConnector::NodeDataModelToQIODeviceConnector(QtNodes::NodeDataModel *model):
+NodeDataModelToQIODeviceConnector::NodeDataModelToQIODeviceConnector(QtNodes::NodeDelegateModel *model):
     m_src_model(model)
 {
 

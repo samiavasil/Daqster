@@ -16,9 +16,7 @@ ModuloModel<ValueType>::ModuloModel(){
 template<typename ValueType>
 ModuloModel<ValueType>::~ModuloModel()
 {
-    if((!m_wembed) && m_w){
-        m_w->deleteLater();
-    }
+    // widget lifetime owned by proxy - do not delete here
 }
 
 template<typename ValueType>
@@ -107,39 +105,28 @@ setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
 
         if (n2 && (n2->number() == 0))
         {
-            modelValidationState = NodeValidationState::Error;
-            modelValidationError = QStringLiteral("Division by zero error");
+            NodeValidationState s;
+            s._state = NodeValidationState::State::Error;
+            s._stateMessage = QStringLiteral("Division by zero error");
+            setValidationState(s);
             _result.reset();
         }
         else if (n1 && n2)
         {
-            modelValidationState = NodeValidationState::Valid;
-            modelValidationError = QString();
+            NodeValidationState s;
+            s._state = NodeValidationState::State::Valid;
+            setValidationState(s);
             _result = std::make_shared<NumericType<ValueType>>(mod(n1->number(), n2->number()));
         }
         else
         {
-            modelValidationState = NodeValidationState::Warning;
-            modelValidationError = QStringLiteral("Missing or incorrect inputs");
+            NodeValidationState s;
+            s._state = NodeValidationState::State::Warning;
+            s._stateMessage = QStringLiteral("Missing or incorrect inputs");
+            setValidationState(s);
             _result.reset();
         }
 
         Q_EMIT dataUpdated(outPortIndex);
     }
-}
-
-template<typename ValueType>
-NodeValidationState
-ModuloModel<ValueType>::
-validationState() const
-{
-    return modelValidationState;
-}
-
-template<typename ValueType>
-QString
-ModuloModel<ValueType>::
-validationMessage() const
-{
-    return modelValidationError;
 }

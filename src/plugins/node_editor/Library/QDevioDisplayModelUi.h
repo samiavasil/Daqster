@@ -1,20 +1,15 @@
 #ifndef QDEVIODISPLAYMODELUI_H
 #define QDEVIODISPLAYMODELUI_H
 
+#include "QtChartsCompat.h"
+
 #include <QWidget>
-#include <QtCharts/QChartGlobal>
 #include <QMap>
 #include <QVector>
 
 namespace Ui {
 class QDevioDisplayModelUi;
 }
-
-
-QT_CHARTS_BEGIN_NAMESPACE
-class QLineSeries;
-class QChartView;
-QT_CHARTS_END_NAMESPACE
 
 class QDevioDisplayModelUi : public QWidget
 {
@@ -38,9 +33,9 @@ protected:
     void updateGrid();
 private:
     Ui::QDevioDisplayModelUi *ui;
-/*    QVector<QtCharts::QLineSeries*> m_series;*/
-    QMap<disp_hndl_t, QVector<QtCharts::QLineSeries*>*> m_SeriesMap;
-    QMap<disp_hndl_t, QtCharts::QChartView*> m_ChartMap;
+/*    QVector<QtChartsCompat::LineSeries*> m_series;*/
+    QMap<disp_hndl_t, QVector<QtChartsCompat::LineSeries*>*> m_SeriesMap;
+    QMap<disp_hndl_t, QtChartsCompat::ChartView*> m_ChartMap;
 //    QChart* m_chart;
     disp_hndl_t m_NextHndl;
     int m_ColCount;

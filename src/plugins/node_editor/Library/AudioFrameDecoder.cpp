@@ -1,5 +1,7 @@
 #include "AudioFrameDecoder.h"
 
+#include "AudioCompat.h"
+
 #include <QtCore/QString>
 #include <cstring>
 
@@ -173,21 +175,21 @@ bool AudioFrameDecoder::configure(const QAudioFormat &format)
 {
     m_decoder = nullptr;
     m_channels = qMax(1, format.channelCount());
-    m_bytesPerSample = qMax(1, format.sampleSize() / 8);
+    m_bytesPerSample = qMax(1, AudioCompat::sampleSize(format) / 8);
 
     if (m_bytesPerSample > 4) {
         return false;
     }
 
-    if (!format.codec().isEmpty() && format.codec() != QStringLiteral("audio/pcm")) {
+    if (!AudioCompat::codec(format).isEmpty() && AudioCompat::codec(format) != QStringLiteral("audio/pcm")) {
         return false;
     }
 
-    const bool isBig = format.byteOrder() == QAudioFormat::BigEndian;
+    const bool isBig = AudioCompat::byteOrder(format) == AudioCompat::BigEndian;
 
-    switch (format.sampleType()) {
-    case QAudioFormat::SignedInt:
-        switch (format.sampleSize()) {
+    switch (AudioCompat::sampleType(format)) {
+    case AudioCompat::SignedInt:
+        switch (AudioCompat::sampleSize(format)) {
         case 8:  m_decoder = decodeS8; break;
         case 16: m_decoder = isBig ? decodeS16BE : decodeS16LE; break;
         case 24: m_decoder = isBig ? decodeS24BE : decodeS24LE; break;
@@ -195,8 +197,8 @@ bool AudioFrameDecoder::configure(const QAudioFormat &format)
         default: break;
         }
         break;
-    case QAudioFormat::UnSignedInt:
-        switch (format.sampleSize()) {
+    case AudioCompat::UnSignedInt:
+        switch (AudioCompat::sampleSize(format)) {
         case 8:  m_decoder = decodeU8; break;
         case 16: m_decoder = isBig ? decodeU16BE : decodeU16LE; break;
         case 24: m_decoder = isBig ? decodeU24BE : decodeU24LE; break;
@@ -204,8 +206,8 @@ bool AudioFrameDecoder::configure(const QAudioFormat &format)
         default: break;
         }
         break;
-    case QAudioFormat::Float:
-        if (format.sampleSize() == 32) {
+    case AudioCompat::Float:
+        if (AudioCompat::sampleSize(format) == 32) {
             m_decoder = isBig ? decodeF32BE : decodeF32LE;
         }
         break;

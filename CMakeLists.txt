@@ -29,7 +29,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY  ${PROJECT_BINARY_DIR}/bin)
 #set_target_properties(Daqster PROPERTIES LIBRARY_OUTPUT_DIRECTORY $<1:${PROJECT_SOURCE_DIR}/lib>)
 #set_target_properties(Daqster PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<1:${PROJECT_SOURCE_DIR}/bin>)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_AUTOMOC ON)
@@ -59,10 +59,8 @@ find_package(OpenSSL)
 # Other modules will be found dynamically by PluginDependencyManager
 find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS Core Gui Widgets)
 
-# NodeEditor - Qt5 only (requires porting for Qt6)
-if(QT_VERSION_MAJOR EQUAL 5)
-    create_external_library(nodeeditor)
-endif()
+# NodeEditor - enable for both Qt5 and Qt6 to validate Qt6 build status
+create_external_library(nodeeditor)
 
 # QtRest library - compatible with Qt5 and Qt6
 create_external_library(qtrest_lib)

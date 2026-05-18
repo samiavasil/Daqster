@@ -8,8 +8,6 @@
 #include <QTimer>
 #include<QMenu>
 
-QT_CHARTS_USE_NAMESPACE
-
 QDevioDisplayModelUi::QDevioDisplayModelUi(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::QDevioDisplayModelUi),
@@ -79,7 +77,7 @@ QDevioDisplayModelUi::~QDevioDisplayModelUi()
 QDevioDisplayModelUi::disp_hndl_t QDevioDisplayModelUi::AddChart()
 {
     disp_hndl_t hndl = m_NextHndl;
-    m_ChartMap[hndl] = new QChartView(new QChart);
+    m_ChartMap[hndl] = new QtChartsCompat::ChartView(new QtChartsCompat::Chart);
     m_ChartMap[hndl]->setMinimumSize(400, 200);
     ui->gridLayout->addWidget(m_ChartMap[hndl]);
     m_NextHndl++;
@@ -99,46 +97,46 @@ void QDevioDisplayModelUi::RemoveChart(QDevioDisplayModelUi::disp_hndl_t hndl)
 #endif
 }
 
-void RemoveSeriesFromVector(QVector<QLineSeries*>& series) {
+void RemoveSeriesFromVector(QVector<QtChartsCompat::LineSeries*>& series) {
     /*while(series.count()) {
         m_chart->removeSeries(series[0]);
         delete series[0];
         series.removeFirst();
-    }*/ QValueAxis *axisX = new QValueAxis;
+    }*/ QtChartsCompat::ValueAxis *axisX = new QtChartsCompat::ValueAxis;
 }
 
 void QDevioDisplayModelUi::updateUI()
 {
-    QChart::ChartTheme theme = static_cast<QChart::ChartTheme>(
-                ui->theme->itemData(ui->theme->currentIndex()).toInt());
+    QtChartsCompat::Chart::ChartTheme theme = static_cast<QtChartsCompat::Chart::ChartTheme>(
+        ui->theme->itemData(ui->theme->currentIndex()).toInt());
 
     if (!m_ChartMap.isEmpty() && m_ChartMap.first()->chart()->theme() != theme) {
-        for (QChartView *chartView : m_ChartMap) {
+        for (QtChartsCompat::ChartView *chartView : m_ChartMap) {
             chartView->chart()->setTheme(theme);
         }
 
         // Set palette colors based on selected theme
         QPalette pal = window()->palette();
-        if (theme == QChart::ChartThemeLight) {
+        if (theme == QtChartsCompat::Chart::ChartThemeLight) {
             pal.setColor(QPalette::Window, QRgb(0xf0f0f0));
             pal.setColor(QPalette::WindowText, QRgb(0x404044));
             //![8]
-        } else if (theme == QChart::ChartThemeDark) {
+        } else if (theme == QtChartsCompat::Chart::ChartThemeDark) {
             pal.setColor(QPalette::Window, QRgb(0x121218));
             pal.setColor(QPalette::WindowText, QRgb(0xd6d6d6));
-        } else if (theme == QChart::ChartThemeBlueCerulean) {
+        } else if (theme == QtChartsCompat::Chart::ChartThemeBlueCerulean) {
             pal.setColor(QPalette::Window, QRgb(0x40434a));
             pal.setColor(QPalette::WindowText, QRgb(0xd6d6d6));
-        } else if (theme == QChart::ChartThemeBrownSand) {
+        } else if (theme == QtChartsCompat::Chart::ChartThemeBrownSand) {
             pal.setColor(QPalette::Window, QRgb(0x9e8965));
             pal.setColor(QPalette::WindowText, QRgb(0x404044));
-        } else if (theme == QChart::ChartThemeBlueNcs) {
+        } else if (theme == QtChartsCompat::Chart::ChartThemeBlueNcs) {
             pal.setColor(QPalette::Window, QRgb(0x018bba));
             pal.setColor(QPalette::WindowText, QRgb(0x404044));
-        } else if (theme == QChart::ChartThemeHighContrast) {
+        } else if (theme == QtChartsCompat::Chart::ChartThemeHighContrast) {
             pal.setColor(QPalette::Window, QRgb(0xffab03));
             pal.setColor(QPalette::WindowText, QRgb(0x181818));
-        } else if (theme == QChart::ChartThemeBlueIcy) {
+        } else if (theme == QtChartsCompat::Chart::ChartThemeBlueIcy) {
             pal.setColor(QPalette::Window, QRgb(0xcee7f0));
             pal.setColor(QPalette::WindowText, QRgb(0x404044));
         } else {
@@ -150,14 +148,14 @@ void QDevioDisplayModelUi::updateUI()
 
     // Update antialiasing
     bool checked = ui->antialiasing->isChecked();
-    for (QChartView *chart : m_ChartMap)
+    for (QtChartsCompat::ChartView *chart : m_ChartMap)
         chart->setRenderHint(QPainter::Antialiasing, checked);
 
     // Update animation options
-    QChart::AnimationOptions options(
-                ui->animation->itemData(ui->animation->currentIndex()).toInt());
+    QtChartsCompat::Chart::AnimationOptions options(
+        ui->animation->itemData(ui->animation->currentIndex()).toInt());
     if (!m_ChartMap.isEmpty() && m_ChartMap.first()->chart()->animationOptions() != options) {
-        for (QChartView *chartView : m_ChartMap)
+        for (QtChartsCompat::ChartView *chartView : m_ChartMap)
             chartView->chart()->setAnimationOptions(options);
     }
 
@@ -166,10 +164,10 @@ void QDevioDisplayModelUi::updateUI()
                 ui->legend->itemData(ui->legend->currentIndex()).toInt());
 
     if (!alignment) {
-        for (QChartView *chartView : m_ChartMap)
+        for (QtChartsCompat::ChartView *chartView : m_ChartMap)
             chartView->chart()->legend()->hide();
     } else {
-        for (QChartView *chartView : m_ChartMap) {
+        for (QtChartsCompat::ChartView *chartView : m_ChartMap) {
             chartView->chart()->legend()->setAlignment(alignment);
             chartView->chart()->legend()->show();
         }
@@ -180,23 +178,23 @@ void QDevioDisplayModelUi::updateUI()
 void QDevioDisplayModelUi::populateThemeBox()
 {
     // add items to theme combobox
-    ui->theme->addItem("Light", QChart::ChartThemeLight);
-    ui->theme->addItem("Blue Cerulean", QChart::ChartThemeBlueCerulean);
-    ui->theme->addItem("Dark", QChart::ChartThemeDark);
-    ui->theme->addItem("Brown Sand", QChart::ChartThemeBrownSand);
-    ui->theme->addItem("Blue NCS", QChart::ChartThemeBlueNcs);
-    ui->theme->addItem("High Contrast", QChart::ChartThemeHighContrast);
-    ui->theme->addItem("Blue Icy", QChart::ChartThemeBlueIcy);
-    ui->theme->addItem("Qt", QChart::ChartThemeQt);
+    ui->theme->addItem("Light", QtChartsCompat::Chart::ChartThemeLight);
+    ui->theme->addItem("Blue Cerulean", QtChartsCompat::Chart::ChartThemeBlueCerulean);
+    ui->theme->addItem("Dark", QtChartsCompat::Chart::ChartThemeDark);
+    ui->theme->addItem("Brown Sand", QtChartsCompat::Chart::ChartThemeBrownSand);
+    ui->theme->addItem("Blue NCS", QtChartsCompat::Chart::ChartThemeBlueNcs);
+    ui->theme->addItem("High Contrast", QtChartsCompat::Chart::ChartThemeHighContrast);
+    ui->theme->addItem("Blue Icy", QtChartsCompat::Chart::ChartThemeBlueIcy);
+    ui->theme->addItem("Qt", QtChartsCompat::Chart::ChartThemeQt);
 }
 
 void QDevioDisplayModelUi::populateAnimationBox()
 {
     // add items to animation combobox
-    ui->animation->addItem("No Animations", QChart::NoAnimation);
-    ui->animation->addItem("GridAxis Animations", QChart::GridAxisAnimations);
-    ui->animation->addItem("Series Animations", QChart::SeriesAnimations);
-    ui->animation->addItem("All Animations", QChart::AllAnimations);
+    ui->animation->addItem("No Animations", QtChartsCompat::Chart::NoAnimation);
+    ui->animation->addItem("GridAxis Animations", QtChartsCompat::Chart::GridAxisAnimations);
+    ui->animation->addItem("Series Animations", QtChartsCompat::Chart::SeriesAnimations);
+    ui->animation->addItem("All Animations", QtChartsCompat::Chart::AllAnimations);
 }
 
 void QDevioDisplayModelUi::populateLegendBox()
@@ -219,7 +217,7 @@ void QDevioDisplayModelUi::updateGrid() {
     qDebug() << "Col count: " << ui->gridLayout->columnCount();
 
     int i = 0;
-    for (QChartView *chartView : m_ChartMap) {
+    for (QtChartsCompat::ChartView *chartView : m_ChartMap) {
         ui->gridLayout->addWidget(chartView, i/m_ColCount, i%m_ColCount);
         i++;
     }
@@ -249,20 +247,20 @@ int QDevioDisplayModelUi::SetSeries(QDevioDisplayModelUi::disp_hndl_t hndl, int 
                 series->removeFirst();
             }
         }else {
-            series = new QVector<QLineSeries*>;
+            series = new QVector<QtChartsCompat::LineSeries*>;
             m_SeriesMap[hndl] = series;
         }
-        QValueAxis *axisX = new QValueAxis;
+        QtChartsCompat::ValueAxis *axisX = new QtChartsCompat::ValueAxis;
         axisX->setRange(0, 8000);
         axisX->setLabelFormat("%g");
         axisX->setTitleText("Samples");
-        QValueAxis *axisY = new QValueAxis;
+        QtChartsCompat::ValueAxis *axisY = new QtChartsCompat::ValueAxis;
 
 
         axisY->setRange(-3, 3);
         axisY->setTitleText("Audio level");
         for(int j = 0; j < num; j++) {
-            auto seria = new QLineSeries;
+            auto seria = new QtChartsCompat::LineSeries;
             seria->setName(QString("Seria %1").arg(j));
 
             series->append(seria);
@@ -270,12 +268,14 @@ int QDevioDisplayModelUi::SetSeries(QDevioDisplayModelUi::disp_hndl_t hndl, int 
                 series->value(j)->append(i, -1 + 0.5*j);
             }
             chart->addSeries(series->value(j));
-
-            //     chart->setAxisX(axisX, series->value(j));
-            //       chart->setAxisY(axisY, series->value(j));
         }
 
-        chart->createDefaultAxes();
+        chart->addAxis(axisX, Qt::AlignBottom);
+        chart->addAxis(axisY, Qt::AlignLeft);
+        for (auto *lineSeries : *series) {
+            lineSeries->attachAxis(axisX);
+            lineSeries->attachAxis(axisY);
+        }
 
         //chart->legend()->hide();
         chart->setTitle("Data from the microphone");
@@ -283,15 +283,15 @@ int QDevioDisplayModelUi::SetSeries(QDevioDisplayModelUi::disp_hndl_t hndl, int 
         // Update legend alignment
         Qt::Alignment alignment(
                     ui->legend->itemData(ui->legend->currentIndex()).toInt());
-        chart->axisX()->setRange(0, 8000);
-        chart->axisY() ->setRange(-3, 3);
+        axisX->setRange(0, 8000);
+        axisY->setRange(-3, 3);
         chart->legend()->setAlignment(Qt::AlignLeft);
 
         if (!alignment) {
-            for (QChartView *chartView : m_ChartMap)
+            for (QtChartsCompat::ChartView *chartView : m_ChartMap)
                 chartView->chart()->legend()->hide();
         } else {
-            for (QChartView *chartView : m_ChartMap) {
+            for (QtChartsCompat::ChartView *chartView : m_ChartMap) {
                 chartView->chart()->legend()->setAlignment(alignment);
                 chartView->chart()->legend()->show();
             }
@@ -305,7 +305,30 @@ int QDevioDisplayModelUi::SetSeries(QDevioDisplayModelUi::disp_hndl_t hndl, int 
 
 int QDevioDisplayModelUi::RemoveSeries()
 {
+    int removed = 0;
 
+    for (auto *chartView : m_ChartMap) {
+        if (!chartView || !chartView->chart()) {
+            continue;
+        }
+
+        auto *chart = chartView->chart();
+        auto *series = m_SeriesMap.value(m_ChartMap.key(chartView), nullptr);
+
+        if (!series) {
+            continue;
+        }
+
+        while (!series->isEmpty()) {
+            auto *first = series->first();
+            chart->removeSeries(first);
+            delete first;
+            series->removeFirst();
+            ++removed;
+        }
+    }
+
+    return removed;
 }
 
 void QDevioDisplayModelUi::contextMenuEvent(QContextMenuEvent *event)

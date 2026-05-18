@@ -270,6 +270,11 @@ PluginDescription QPluginManager::GetPluginDescriptionByHash(const QString &Hash
  */
 Daqster::QPluginListView*  QPluginManager::CreatePluginListView (QWidget* Parrent, PluginFilter *Filter )
 {
+    if (Filter != nullptr) {
+        return new QPluginListView(Parrent, *Filter);
+    }
+
+    return new QPluginListView(Parrent, PluginFilter());
 }
 
 

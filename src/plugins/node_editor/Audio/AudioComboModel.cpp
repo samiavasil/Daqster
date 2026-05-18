@@ -1,18 +1,20 @@
 #include "AudioComboModel.h"
 
+#include "AudioCompat.h"
+
 #include <QMap>
 
 // Display strings for enum types
-static const QMap<QAudioFormat::SampleType, QString> kTypeMap{
-    {QAudioFormat::Unknown,     "Unknown"},
-    {QAudioFormat::SignedInt,   "SignedInt"},
-    {QAudioFormat::UnSignedInt, "UnSignedInt"},
-    {QAudioFormat::Float,       "Float"}
+static const QMap<AudioCompat::SampleType, QString> kTypeMap{
+    {AudioCompat::Unknown,     "Unknown"},
+    {AudioCompat::SignedInt,   "SignedInt"},
+    {AudioCompat::UnSignedInt, "UnSignedInt"},
+    {AudioCompat::Float,       "Float"}
 };
 
-static const QMap<QAudioFormat::Endian, QString> kEndianMap{
-    {QAudioFormat::LittleEndian, "LittleEndian"},
-    {QAudioFormat::BigEndian,    "BigEndian"},
+static const QMap<AudioCompat::Endian, QString> kEndianMap{
+    {AudioCompat::LittleEndian, "LittleEndian"},
+    {AudioCompat::BigEndian,    "BigEndian"},
 };
 
 // ---------------------------------------------------------------------------
@@ -53,11 +55,11 @@ QVariant QAudioComboModel::data(const QModelIndex& index, int role) const
         switch (m_Type) {
         case BYTES_ORDER:
             return kEndianMap.value(
-                static_cast<QAudioFormat::Endian>(m_Data[index.row()].toInt()),
+                static_cast<AudioCompat::Endian>(m_Data[index.row()].toInt()),
                 "Unknown");
         case SAMPLE_TYPE:
             return kTypeMap.value(
-                static_cast<QAudioFormat::SampleType>(m_Data[index.row()].toInt()),
+                static_cast<AudioCompat::SampleType>(m_Data[index.row()].toInt()),
                 "Unknown");
         default:
             return m_Data[index.row()];
@@ -96,19 +98,19 @@ QAudioFormat QAudioComboModel::makeTestFormat(int row) const
         f.setChannelCount(m_Data[row].toInt());
         break;
     case CODEC:
-        f.setCodec(m_Data[row].toString());
+        AudioCompat::setCodec(f, m_Data[row].toString());
         break;
     case BYTES_ORDER:
-        f.setByteOrder(static_cast<QAudioFormat::Endian>(m_Data[row].toInt()));
+        AudioCompat::setByteOrder(f, static_cast<AudioCompat::Endian>(m_Data[row].toInt()));
         break;
     case SAMPLE_RATE:
         f.setSampleRate(m_Data[row].toInt());
         break;
     case SAMPLE_SIZE:
-        f.setSampleSize(m_Data[row].toInt());
+        AudioCompat::setSampleSize(f, m_Data[row].toInt());
         break;
     case SAMPLE_TYPE:
-        f.setSampleType(static_cast<QAudioFormat::SampleType>(m_Data[row].toInt()));
+        AudioCompat::setSampleType(f, static_cast<AudioCompat::SampleType>(m_Data[row].toInt()));
         break;
     }
 

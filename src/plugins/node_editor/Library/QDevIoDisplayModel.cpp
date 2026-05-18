@@ -1,11 +1,9 @@
 #include <NodeDataModelToQIODeviceConnector.h>
 #include <XYSeriesIODevice.h>
+#include <AudioCompat.h>
 #include <QDevIoDisplayModel.h>
 #include <QDevioDisplayModelUi.h>
-#include <QtCharts/QLineSeries>
 #include <QDebug>
-
-QT_CHARTS_USE_NAMESPACE
 
 QDevIoDisplayModel::QDevIoDisplayModel():m_connector(nullptr)
 {
@@ -55,24 +53,26 @@ std::shared_ptr<NodeData> QDevIoDisplayModel::outData(PortIndex port)
     return nullptr;
 }
 
-void QDevIoDisplayModel::setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
+void QDevIoDisplayModel::setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex)
 {
     auto conData = std::dynamic_pointer_cast<NodeDataModelToQIODeviceConnector> (data);
 
     if (portIndex == 0)
     {
-
         if (conData)
         {
-            modelValidationState = NodeValidationState::Valid;
-            modelValidationError = QString();
+            NodeValidationState s;
+            s._state = NodeValidationState::State::Valid;
+            setValidationState(s);
             m_connector = conData;
             m_connector->ConnectModels(this);
         }
         else
         {
-            modelValidationState = NodeValidationState::Warning;
-            modelValidationError = QStringLiteral("Missing or incorrect inputs");
+            NodeValidationState s;
+            s._state = NodeValidationState::State::Warning;
+            s._stateMessage = QStringLiteral("Missing or incorrect inputs");
+            setValidationState(s);
             if(m_connector) {
                 m_connector.reset();
             }
@@ -85,28 +85,18 @@ QWidget *QDevIoDisplayModel::embeddedWidget()
     return m_widget;
 }
 
-QtNodes::NodeValidationState QDevIoDisplayModel::validationState() const
-{
-    return modelValidationState;
-}
-
-QString QDevIoDisplayModel::validationMessage() const
-{
-    return modelValidationError;
-}
-
 void QDevIoDisplayModel::ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio)
 {
     std::shared_ptr<XYSeriesIODevice> device = std::dynamic_pointer_cast<XYSeriesIODevice>(m_device);
     QDevioDisplayModelUi *displayUi = dynamic_cast<QDevioDisplayModelUi*>(m_widget);
 
-    qDebug() <<   "Changed: " << formatAudio << devInfo.deviceName();
+    qDebug() <<   "Changed: " << formatAudio << AudioCompat::deviceName(devInfo);
 
     // Audio backends may report an invalid/unknown format when no input device
     // is available. Avoid forwarding invalid channel/sample values to chart UI.
     const bool validChannels = formatAudio.channelCount() > 0;
-    const bool validSampleSize = formatAudio.sampleSize() > 0;
-    const bool knownSampleType = formatAudio.sampleType() != QAudioFormat::Unknown;
+    const bool validSampleSize = AudioCompat::sampleSize(formatAudio) > 0;
+    const bool knownSampleType = AudioCompat::sampleType(formatAudio) != AudioCompat::Unknown;
     if (!device.get() || displayUi == nullptr || !validChannels || !validSampleSize || !knownSampleType) {
         qWarning() << "Ignore invalid audio format update:" << formatAudio;
         return;

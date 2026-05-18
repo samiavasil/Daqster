@@ -2,8 +2,6 @@
 #include <AudioNodeQdevIoConnector.h>
 #include <AudioSourceDataModel.h>
 #include <AudioSourceDataModelUI.h>
-#include <nodes/internal/Connection.hpp>
-#include <QtMultimedia/QAudioInput>
 #include <EventThreadPull.h>
 #include <AudioWorker.h>
 #include <QDebug>
@@ -12,13 +10,17 @@ AudioSourceDataModel::AudioSourceDataModel()
 {
     qRegisterMetaType<AudioSourceDataModel::StartStop>("AudioSourceDataModel::StartStop");
     
-    m_DevInfo = QAudioDeviceInfo::defaultInputDevice();
-    m_FormatAudio = m_DevInfo.preferredFormat();
+    m_DevInfo = AudioCompat::defaultInputDevice();
+    m_FormatAudio = AudioCompat::preferredFormat(m_DevInfo);
     
     m_connector = std::make_shared<AudioNodeQdevIoConnector>(this);
     m_Widget = new AudioSourceDataModelUI(&m_DevInfo, &m_FormatAudio);
-    m_Widget->setWindowFlags(Qt::Dialog);
-    m_Widget->setWindowModality(Qt::WindowModal);
+    m_Widget->setWindowFlags(Qt::Window
+                             | Qt::WindowTitleHint
+                             | Qt::WindowSystemMenuHint
+                             | Qt::WindowMinMaxButtonsHint
+                             | Qt::WindowCloseButtonHint);
+    m_Widget->setWindowModality(Qt::NonModal);
     connect(m_Widget,SIGNAL(Start(AudioSourceDataModel::StartStop)),SIGNAL(StartAudio(AudioSourceDataModel::StartStop)));
 }
 
@@ -61,12 +63,12 @@ QtNodes::NodeDataType AudioSourceDataModel::dataType(QtNodes::PortType portType,
     return NodeDataType {"QDevIO", "IO"};
 }
 
-std::shared_ptr<QtNodes::NodeData> AudioSourceDataModel::outData(QtNodes::PortIndex port)
+std::shared_ptr<QtNodes::NodeData> AudioSourceDataModel::outData(QtNodes::PortIndex const port)
 {
     return m_connector;
 }
 
-void AudioSourceDataModel::setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex port)
+void AudioSourceDataModel::setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex const port)
 {
     Q_UNUSED(data);
     Q_UNUSED(port);
@@ -101,9 +103,9 @@ void AudioSourceDataModel::IO_connect(std::shared_ptr<QIODevice> io)
     emit StartAudio(ASDM_START);
 }
 
-void AudioSourceDataModel::outputConnectionDeleted(const QtNodes::Connection &con)
+void AudioSourceDataModel::outputConnectionDeleted(QtNodes::ConnectionId const &conId)
 {
-    qDebug() << "Disconnected: " << con.getPortIndex(QtNodes::PortType::Out);
+    qDebug() << "Disconnected port:" << conId.outPortIndex;
     emit disconnected();
 }
 
