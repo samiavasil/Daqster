@@ -14,31 +14,8 @@
 
 ## Диаграми
 
-Визуални преглади на архитектурата и процесите (PlantUML източници и генерирани SVG):
-
-### Архитектура
-
-#### Architecture Diagram — обща система архитектура
-![Architecture](./diagrams/architecture.svg)
-[Източник: architecture.puml](./diagrams/architecture.puml)
-
-#### Framework Components — framework слојеви и класи
-![Framework Components](./diagrams/framework_components.svg)
-[Източник: framework_components.puml](./diagrams/framework_components.puml)
-
-#### Applications Manager — приложение слој
-![Apps Architecture](./diagrams/apps_architecture.svg)
-[Източник: apps_architecture.puml](./diagrams/apps_architecture.puml)
-
-### Процеси
-
-#### Startup Sequence — инициализация на Daqster
-![Startup Sequence](./diagrams/startup_sequence.svg)
-[Източник: startup_sequence.puml](./diagrams/startup_sequence.puml)
-
-#### Plugin Lifecycle — жизнен цикъл на плъгини
-![Plugin Lifecycle](./diagrams/plugin_lifecycle.svg)
-[Източник: plugin_lifecycle.puml](./diagrams/plugin_lifecycle.puml)
+Архитектурните и процесните диаграми са в архитектурния хъб:
+- [Architecture](./Architecture/README.md)
 
 ### Документация
 

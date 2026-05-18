@@ -31,6 +31,12 @@ src/apps/
 4. **Process Management**: Стартира и управлява процеси чрез `QProcessManager`
 5. **UI**: Показва главния прозорец с toolbar и plugin виджети
 
+## Диаграма на подсистемата
+
+![Apps Architecture](../../diagrams/apps_architecture.svg)
+
+[Източник: apps_architecture.puml](../../diagrams/apps_architecture.puml)
+
 ## Връзки
 
 - [Framework Documentation](../framework/README.md) - Framework API
