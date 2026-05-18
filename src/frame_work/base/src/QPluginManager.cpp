@@ -33,6 +33,8 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include <QStandardPaths>
 #include<QCryptographicHash>
 #include<QFile>
+#include <QFileInfo>
+#include <QLibrary>
 #include<QMessageBox>
 #include<QThread>
 
@@ -55,13 +57,14 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     // Plugin directories - подредени по приоритет
     
     // 1. Build директория (най-висок приоритет за дебъг)
+    m_DirList.append( qApp->applicationDirPath() );  // Търси в bin/ директорията
     m_DirList.append( qApp->applicationDirPath()+QString("/plugins") );
     m_DirList.append(QDir(qApp->applicationDirPath()+"/../lib/daqster/plugins").absolutePath());
     
     // 2. Environment variable override (най-висок приоритет)
     const QString envDir = qgetenv("DAQSTER_PLUGIN_DIR");
     if (!envDir.isEmpty()) {
-        m_DirList.append(envDir);
+        m_DirList.append(QDir(envDir).absolutePath());
     }
     
     // 2.1. Additional environment variable for multiple directories
@@ -69,17 +72,19 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     if (!additionalDirs.isEmpty()) {
         QStringList dirs = additionalDirs.split(":", Qt::SkipEmptyParts);
         foreach(const QString& dir, dirs) {
-            m_DirList.append(dir);
+            m_DirList.append(QDir(dir).absolutePath());
         }
     }
     
     // 3. User plugins directory
     QString userPluginDir = QDir::homePath() + "/.local/share/daqster/plugins";
-    m_DirList.append(userPluginDir);
+    m_DirList.append(QDir(userPluginDir).absolutePath());
     
     // 4. System plugins directories (най-нисък приоритет)
     m_DirList.append("/usr/lib/daqster/plugins");
     m_DirList.append("/usr/local/lib/daqster/plugins");
+
+    m_DirList.removeDuplicates();
     
     // Debug: Print all plugin search paths
     qDebug() << "=== Plugin Search Paths ===";
@@ -269,6 +274,11 @@ PluginDescription QPluginManager::GetPluginDescriptionByHash(const QString &Hash
  */
 Daqster::QPluginListView*  QPluginManager::CreatePluginListView (QWidget* Parrent, PluginFilter *Filter )
 {
+    if (Filter != nullptr) {
+        return new QPluginListView(Parrent, *Filter);
+    }
+
+    return new QPluginListView(Parrent, PluginFilter());
 }
 
 
@@ -311,6 +321,10 @@ void QPluginManager::SearchForPlugins ()
         {
             foreach (  QString fileName, PluginsDir.entryList(QDir::Files)) {
                 fileName = PluginsDir.absoluteFilePath( fileName );
+                if( !IsCandidatePluginFile(fileName) )
+                {
+                    continue;
+                }
                 QString Hash;
                 FileHash( fileName,  Hash  );
                 if( !m_PluginsHashDescMap.contains(Hash) )
@@ -429,10 +443,13 @@ void QPluginManager::LoadPluginsInfoFromPersistency()
             settings.beginGroup( Name );
             Desk.GetPluginParamsFromPersistency( settings );
             PersHash = Desk.GetProperty( PLUGIN_HASH ).toString();
+            const QString persistedLocation = Desk.GetProperty(PLUGIN_LOCATION).toString();
             if( !m_PluginsHashDescMap.contains( PersHash ) )
             {
-                /*Check is this plugin file still exist*/
-                if( (!PersHash.isEmpty()) && true == FileHash( Desk.GetProperty( PLUGIN_LOCATION ).toString(),  Hash  ) )
+                /*Check is this plugin file still exist (AppImage paths may differ
+                  between runs, so we check only hash/existence, not search path membership)*/
+                if( (!PersHash.isEmpty())
+                    && true == FileHash( persistedLocation,  Hash  ) )
                 {
                     if( 0 == Hash.compare(PersHash) )
                     {
@@ -532,6 +549,34 @@ bool QPluginManager::LoadPluginInterfaceObject( const QString& PluginFileName, c
         DEBUG << pluginLoader->errorString();
     }
     return ret;
+}
+
+bool QPluginManager::IsCandidatePluginFile(const QString& filePath) const
+{
+    const QFileInfo info(filePath);
+    if (!info.exists() || !info.isFile()) {
+        return false;
+    }
+
+    if (!QLibrary::isLibrary(filePath)) {
+        return false;
+    }
+
+    const QString baseName = info.fileName().toLower();
+    return baseName.contains("plugin");
+}
+
+bool QPluginManager::IsInSearchPath(const QString& filePath) const
+{
+    const QString absFile = QFileInfo(filePath).absoluteFilePath();
+    for (const QString& dirPath : m_DirList) {
+        const QDir dir(dirPath);
+        const QString absDir = dir.absolutePath();
+        if (absFile.startsWith(absDir + QDir::separator()) || absFile == absDir) {
+            return true;
+        }
+    }
+    return false;
 }
 
 }//End of Daqster namespace

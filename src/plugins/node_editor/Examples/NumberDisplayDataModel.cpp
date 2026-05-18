@@ -1,9 +1,6 @@
 #include "NumberDisplayDataModel.h"
 
 #include "NumericType.h"
-#include <QtCharts>
-
-using namespace QtCharts;
 NumberDisplayDataModel::
 NumberDisplayDataModel()
     : _label(new QLabel())
@@ -54,38 +51,25 @@ outData(PortIndex)
 
 void
 NumberDisplayDataModel::
-setInData(std::shared_ptr<NodeData> data, int)  // skipcq: CXX-W2009
+setInData(std::shared_ptr<NodeData> data, PortIndex const)
 {
     auto numberData = std::dynamic_pointer_cast<NumericType<double>>(data);
 
     if (numberData)
     {
-        modelValidationState = NodeValidationState::Valid;
-        modelValidationError = QString();
+        NodeValidationState s;
+        s._state = NodeValidationState::State::Valid;
+        setValidationState(s);
         _label->setText(numberData->numberAsText());
     }
     else
     {
-        modelValidationState = NodeValidationState::Warning;
-        modelValidationError = QStringLiteral("Missing or incorrect inputs");
+        NodeValidationState s;
+        s._state = NodeValidationState::State::Warning;
+        s._stateMessage = QStringLiteral("Missing or incorrect inputs");
+        setValidationState(s);
         _label->clear();
     }
 
     _label->adjustSize();
-}
-
-
-NodeValidationState
-NumberDisplayDataModel::
-validationState() const
-{
-    return modelValidationState;
-}
-
-
-QString
-NumberDisplayDataModel::
-validationMessage() const
-{
-    return modelValidationError;
 }

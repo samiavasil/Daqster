@@ -3,7 +3,7 @@
 #include <QtCore/QObject>
 #include <QtWidgets/QLabel>
 
-#include <nodes/NodeDataModel>
+#include <QtNodes/NodeDelegateModel>
 
 #include <iostream>
 
@@ -11,12 +11,12 @@ using QtNodes::PortType;
 using QtNodes::PortIndex;
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
-using QtNodes::NodeDataModel;
+using QtNodes::NodeDelegateModel;
 using QtNodes::NodeValidationState;
 
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
-class NumberDisplayDataModel : public NodeDataModel
+class NumberDisplayDataModel : public NodeDelegateModel
 {
     Q_OBJECT
 
@@ -50,23 +50,20 @@ public:
              PortIndex portIndex) const override;
 
     std::shared_ptr<NodeData>
-    outData(PortIndex port) override;
+    outData(PortIndex const port) override;
 
     void
-    setInData(std::shared_ptr<NodeData> data, int) override;
+    setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override;
 
     QWidget *
     embeddedWidget() override { return _label; }
 
     NodeValidationState
-    validationState() const override;
-
-    QString
-    validationMessage() const override;
+    validationState() const override { return modelValidationState; }
 
 private:
 
-    NodeValidationState modelValidationState = NodeValidationState::Warning;
+    NodeValidationState modelValidationState;
     QString modelValidationError = QStringLiteral("Missing or incorrect inputs");
 
     QLabel * _label;

@@ -1,23 +1,26 @@
-# Documentation Index
+[Български](./INDEX.md) | [English](./INDEX.en.md)
 
-Welcome to Daqster documentation. Quick navigation:
+# Индекс на документацията
 
-## Main Documentation
+Това е главната навигационна страница. Тук стоят само най-горните входни точки.
 
-- [📘 Project README](../README.md) - Project overview, build instructions, structure
-- [📘 README (English)](../README.en.md) - English version
+## Основни входни точки
 
-## Technical Documentation
+- [Project README](../README.md) - общ преглед на проекта, инструкции за build и структура
+- [Architecture](./Architecture/README.md) - архитектурен хъб и връзки към подсистемите
+- [Development Topics](./development/README.md) - разработка, дебъг и workflow за contributors
+- [Operations Topics](./operations/README.md) - build, поддръжка и operational теми
+- [Porting Topics](./porting/README.md) - пренасяне и съвместимост между версии
 
-- [Framework API Reference](./FrameworkAPI.md)
-- [Architecture Overview](./Architecture.md)
-- [Developer Guide](./DeveloperGuide.md)
-- [Plugin Dependency Management](./PluginDependencyManagement.md)
-- [HowToDebugAppImage](./HowToDebugAppImage.md)
+## Диаграми
 
-## Diagrams
+Архитектурните и процесните диаграми са в архитектурния хъб:
+- [Architecture](./Architecture/README.md)
 
-Diagrams (PlantUML sources in `Docs/diagrams/`, pre-rendered SVGs if generated):
+### Документация
 
-- `Docs/diagrams/architecture.puml` → `Docs/diagrams/architecture.svg` (optional)
-- `Docs/diagrams/startup_sequence.puml` → `Docs/diagrams/startup_sequence.svg` (optional)
+#### Documentation Hierarchy — структура на Docs/ папката
+
+![Documentation Hierarchy](./diagrams/documentation_hierarchy.svg)
+
+[PlantUML източник](./diagrams/documentation_hierarchy.puml)

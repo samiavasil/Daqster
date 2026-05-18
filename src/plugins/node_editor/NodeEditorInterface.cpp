@@ -35,8 +35,4 @@ Daqster::QBasePluginObject *NodeEditorInterface::CreatePluginInternal(QObject *P
     return Obj;
 }
 
-#if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
-Q_EXPORT_PLUGIN2(NodeEditor, NodeEditorInterface)
-#endif
-
 

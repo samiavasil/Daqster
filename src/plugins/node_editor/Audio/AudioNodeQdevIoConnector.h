@@ -5,9 +5,9 @@
 #include <NodeDataModelToQIODeviceConnector.h>
 #include <QSharedPointer>
 
-#include<nodes/NodeDataModel>
+#include <QtNodes/NodeDelegateModel>
 
-using QtNodes::NodeDataModel;
+using QtNodes::NodeDelegateModel;
 
 class QIODevice;
 
@@ -16,14 +16,14 @@ class AudioNodeQdevIoConnector : public NodeDataModelToQIODeviceConnector
 
 public:
 
-    explicit AudioNodeQdevIoConnector( NodeDataModel* model);
+    explicit AudioNodeQdevIoConnector( NodeDelegateModel* model);
 
     virtual NodeDataType type() const //TODO : TBD ???
     {
         return NodeDataType { "AudioNodeQdevIoConnector",
             "AudioNodeQdevIoConnector"};
     }
-    virtual void ConnectModels(NodeDataModel* dst_model);
+    virtual void ConnectModels(NodeDelegateModel* dst_model);
 };
 
 #endif // AUDIONODEQDEVIOCONNECTOR_H

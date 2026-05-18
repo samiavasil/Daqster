@@ -28,6 +28,7 @@
 ****************************************************************************/
 
 #include "XYSeriesIODevice.h"
+#include "AudioCompat.h"
 #include<QTimer>
 #include<QDebug>
 #include<QMutexLocker>
@@ -49,11 +50,11 @@ XYSeriesIODevice::XYSeriesIODevice(QDevIoDisplayModel *model, QObject *parent) :
     QMutexLocker locker(&m_lock);
 
     QAudioFormat defaultFormat;
-    defaultFormat.setCodec(QStringLiteral("audio/pcm"));
+    AudioCompat::setCodec(defaultFormat, QStringLiteral("audio/pcm"));
     defaultFormat.setChannelCount(2);
-    defaultFormat.setSampleSize(16);
-    defaultFormat.setSampleType(QAudioFormat::SignedInt);
-    defaultFormat.setByteOrder(QAudioFormat::LittleEndian);
+    AudioCompat::setSampleSize(defaultFormat, 16);
+    AudioCompat::setSampleType(defaultFormat, AudioCompat::SignedInt);
+    AudioCompat::setByteOrder(defaultFormat, AudioCompat::LittleEndian);
     m_decoder.configure(defaultFormat);
 
     m_resolution = m_decoder.bytesPerSample();

@@ -5,10 +5,10 @@
 
 #include <QDebug>
 
-AudioNodeQdevIoConnector::AudioNodeQdevIoConnector(NodeDataModel* model) : NodeDataModelToQIODeviceConnector(model) {
+AudioNodeQdevIoConnector::AudioNodeQdevIoConnector(QtNodes::NodeDelegateModel* model) : NodeDataModelToQIODeviceConnector(model) {
 }
 
-void AudioNodeQdevIoConnector::ConnectModels(QtNodes::NodeDataModel* dst_model) {
+void AudioNodeQdevIoConnector::ConnectModels(QtNodes::NodeDelegateModel* dst_model) {
   AudioSourceDataModel* model_src = dynamic_cast<AudioSourceDataModel*>(m_src_model);
   QDevIoDisplayModel* model_dst = dynamic_cast<QDevIoDisplayModel*>(dst_model);
 

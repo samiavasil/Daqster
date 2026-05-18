@@ -1,5 +1,6 @@
 import QtQuick 2.0
 import QtQuick.Controls 2.3
+import QtQuick.Controls 2.15
 import QtCharts 2.9
 
 import com.github.samiavasil.cointrader.exchangeapi 1.0
@@ -8,7 +9,6 @@ import com.github.samiavasil.cointrader.exchange 1.0
 //import com.github.qtrest.pagination 1.0
 import com.github.samiavasil.cointrader.randdata 1.0
 import QtQuick.Layouts 1.3
-import QtQuick.Controls 1.4
 
 Item {
     property alias text: txt.text
@@ -51,8 +51,8 @@ Item {
 
             baseUrl: "https://bittrex.com/api"
 
-            authTokenHeader: "Authorization"
-            authToken: "Bearer 8aef452ee3b32466209535b96d456b06"
+            //authTokenHeader: "Authorization"
+            //authToken: "Bearer 8aef452ee3b32466209535b96d456b06"
 
             Component.onCompleted: console.log("completed!");
         }
@@ -71,7 +71,6 @@ Item {
             //sort: ['categoryName']
             sort: ['MarketCurrency']
             pagination {
-                policy: Pagination.PageNumber
                 perPage: 20
                 currentPageHeader: "X-Pagination-Current-Page"
                 totalCountHeader: "X-Pagination-Total-Count"

@@ -15,7 +15,7 @@ public:
     explicit ExchangeModel(QObject *parent = 0);
 
     static void declareQML() {
-        AbstractJsonRestListModel::declareQML();
+        JsonRestListModel::declareQML();
         qmlRegisterType<ExchangeModel>("com.github.samiavasil.cointrader.exchange", 1, 0, "ExchangeModel");
     }
 

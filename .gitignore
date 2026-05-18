@@ -1,5 +1,8 @@
 /bin/
-/*CMakeLists.txt.user
+# Qt Creator per-user project settings (all locations)
+CMakeLists.txt.user
+CMakeLists.txt.user.*
+**/.qtcreator/CMakeLists.txt.user
 /build*/
 /tools/Build*
 /.fuse_hidden001190e600000eeb

@@ -2,23 +2,21 @@
 #include "QPluginManager.h"
 #include "debug.h"
 #include <QMainWindow>
-#include<QLabel>
-#include<QLayout>
-#include<QPushButton>
+#include <QLabel>
+#include <QLayout>
+#include <QPushButton>
 
-
-
-#include <nodes/NodeData>
-#include <nodes/FlowScene>
-#include <nodes/FlowView>
-#include <nodes/ConnectionStyle>
-#include <nodes/TypeConverter>
+#include <QtNodes/NodeData>
+#include <QtNodes/BasicGraphicsScene>
+#include <QtNodes/DataFlowGraphicsScene>
+#include <QtNodes/GraphicsView>
+#include <QtNodes/ConnectionStyle>
+#include <QtNodes/DataFlowGraphModel>
+#include <QtNodes/NodeDelegateModelRegistry>
 
 #include <QtWidgets/QApplication>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QMenuBar>
-
-#include <nodes/DataModelRegistry>
 
 #include "ModuloModel.h"
 #include "NumberSourceDataModel.h"
@@ -27,76 +25,30 @@
 #include "QDevIoDisplayModel.h"
 #include "Converters.h"
 
-using QtNodes::DataModelRegistry;
-using QtNodes::FlowScene;
-
-using QtNodes::FlowView;
+using QtNodes::NodeDelegateModelRegistry;
+using QtNodes::BasicGraphicsScene;
+using QtNodes::DataFlowGraphModel;
+using QtNodes::DataFlowGraphicsScene;
+using QtNodes::GraphicsView;
 using QtNodes::ConnectionStyle;
-using QtNodes::TypeConverter;
-using QtNodes::TypeConverterId;
 
-static std::shared_ptr<DataModelRegistry>
+static std::shared_ptr<NodeDelegateModelRegistry>
 registerDataModels()
 {
-    auto ret = std::make_shared<DataModelRegistry>();
-
+    auto ret = std::make_shared<NodeDelegateModelRegistry>();
 
     ret->registerModel<NumberSourceDataModel>("Sources");
     ret->registerModel<AudioSourceDataModel>("Sources");
 
     ret->registerModel<NumberDisplayDataModel>("Displays");
     ret->registerModel<QDevIoDisplayModel>("Displays");
-    //  ret->registerModel<AdditionModel>("Operators");
-
-    //  ret->registerModel<SubtractionModel>("Operators");
-
-    //  ret->registerModel<MultiplicationModel>("Operators");
-
-    //  ret->registerModel<DivisionModel>("Operators");
 
     ret->registerModel<ModuloModel<int>>("Operators");
     ret->registerModel<ModuloModel<double>>("Operators");
 
-
-
-
-    ret->registerTypeConverter(std::make_pair(NumericType<int>().type(),
-                                              NumericType<double>().type()),
-                               TypeConverter{AnyToAnyComplexIntConverter<int, double>()});
-
-    ret->registerTypeConverter(std::make_pair(NumericType<double>().type(),
-                                              NumericType<int>().type()),
-                               TypeConverter{AnyToAnyComplexIntConverter<double,int>()});
-
-    ret->registerTypeConverter(std::make_pair(NumericType<int>().type(),
-                                              DecimalData().type()),
-                               TypeConverter{ComplexIntToDecimalConverter()});
-    /*
-   *
-  ret->registerTypeConverter(std::make_pair(DecimalData().type(),
-                                            IntegerData().type()),
-                             TypeConverter{DecimalToIntegerConverter()});
-
-
-
-
-
-  ret->registerTypeConverter(std::make_pair(IntegerData().type(),
-                                            DecimalData().type()),
-                             TypeConverter{IntegerToDecimalConverter()});
-
-
-  ret->registerTypeConverter(std::make_pair(DecimalData().type(),
-                                            NumericType<int>().type()),
-                             TypeConverter{DecimalToComplexIntConverter()});
-
-
-  ret->registerTypeConverter(std::make_pair(NumericType<int>().type(),
-                                            DecimalData().type()),
-                             TypeConverter{ComplexIntToDecimalConverter()});*/
-
     return ret;
 }
+
 
 
 static
@@ -162,37 +114,41 @@ bool NodeEditorPluginObject::Initialize()
     m_Win->setCentralWidget(mainWidget);
     QVBoxLayout *l = new QVBoxLayout(mainWidget);
 
-    QLabel* label = new QLabel( );
+    QLabel* label = new QLabel();
     label->setText("Node Editor");
     QPushButton* button = new QPushButton(m_Win);
     l->addWidget(label);
     l->addWidget(button);
     setStyle();
 
-    auto scene = new FlowScene(registerDataModels(), mainWidget);
-    l->addWidget(new FlowView(scene));
+    auto graphModel = new DataFlowGraphModel(registerDataModels());
+    auto scene = new DataFlowGraphicsScene(*graphModel, mainWidget);
+    auto view   = new GraphicsView(scene, mainWidget);
+    l->addWidget(view);
     l->setContentsMargins(0, 0, 0, 0);
     l->setSpacing(0);
     m_Win->resize(1024, 768);
     m_Win->show();
     m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
-    connect(scene, SIGNAL(nodeDoubleClicked(Node&)) ,this,SLOT(nodeDoubleClicked(Node&))  );
-    connect( m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)) );
-    connect( button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()) );
+    connect(scene, &BasicGraphicsScene::nodeDoubleClicked,
+            this, &NodeEditorPluginObject::nodeDoubleClicked);
+    connect(m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)));
+    connect(button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()));
     return true;
 }
 
-void NodeEditorPluginObject::nodeDoubleClicked(Node& n)
+void NodeEditorPluginObject::nodeDoubleClicked(NodeId nodeId)
 {
+    Q_UNUSED(nodeId);
     QMenu menu;
     QAction *removeAction = menu.addAction("Laa");
     QAction *markAction = menu.addAction("Daa");
 
-    QAction *selectedAction = menu.exec( );
-    if( selectedAction == markAction){
-        qDebug()<< "Laa";
-    }else if( selectedAction == removeAction){
-        qDebug()<< "Daa";
+    QAction *selectedAction = menu.exec();
+    if (selectedAction == markAction) {
+        qDebug() << "Laa";
+    } else if (selectedAction == removeAction) {
+        qDebug() << "Daa";
     }
 }
 

@@ -172,6 +172,9 @@ protected:
    void StorePluginStateToPersistncy(const PluginDescription &Desc);
 
    void ShutdownPlugin(const QString &Hash);
+
+  bool IsCandidatePluginFile(const QString& filePath) const;
+  bool IsInSearchPath(const QString& filePath) const;
 protected:
   /*Pointer to sinleton obejct*/
   static QPluginManager* g_Instance;

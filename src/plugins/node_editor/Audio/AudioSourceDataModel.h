@@ -1,24 +1,25 @@
 #ifndef SOURCEDATAMODEL_H
 #define SOURCEDATAMODEL_H
 
+#include "AudioCompat.h"
+
 #include <QtCore/QObject>
-#include <nodes/NodeDataModel>
-#include <QtMultimedia/QAudioDeviceInfo>
+#include <QtNodes/NodeDelegateModel>
+#include <QtNodes/internal/Definitions.hpp>
 
 using QtNodes::PortType;
 using QtNodes::PortIndex;
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
-using QtNodes::NodeDataModel;
+using QtNodes::NodeDelegateModel;
 using QtNodes::NodeValidationState;
+using QtNodes::ConnectionId;
 
-
-class QAudioInput;
 class AudioNodeQdevIoConnector;
 class AudioSourceDataModelUI;
 class EventThreadPull;
 
-class AudioSourceDataModel : public NodeDataModel
+class AudioSourceDataModel : public NodeDelegateModel
 {
     Q_OBJECT
 
@@ -66,28 +67,29 @@ public:
     dataType(PortType portType, PortIndex portIndex) const override;
 
     std::shared_ptr<NodeData>
-    outData(PortIndex port) override;
+    outData(PortIndex const port) override;
 
     void
-    setInData(std::shared_ptr<NodeData> data, PortIndex port) override;
+    setInData(std::shared_ptr<NodeData> data, PortIndex const port) override;
 
     QWidget *
     embeddedWidget() override;
 
     void IO_connect(std::shared_ptr<QIODevice> io);
 
-    virtual ConnectionPolicy portOutConnectionPolicy(PortIndex) const override
+    QtNodes::ConnectionPolicy portConnectionPolicy(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
-        return ConnectionPolicy::One;
+        Q_UNUSED(portType);
+        Q_UNUSED(portIndex);
+        return QtNodes::ConnectionPolicy::One;
     }
+
+    void outputConnectionDeleted(ConnectionId const &) override;
 
 signals:
     void disconnected();
     void StartAudio(AudioSourceDataModel::StartStop start);
     void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
-
-public slots:
-    virtual void outputConnectionDeleted(QtNodes::Connection const&con) override;
 
 private slots:
     void destroyedObj(QObject *obj);

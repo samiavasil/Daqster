@@ -1,6 +1,24 @@
 # PluginDependencyManager.cmake
 # Manages plugin dependencies and conditional compilation based on external libraries
 
+# Helper: verbose status printing controlled by DAQSTER_VERBOSE_DEPENDENCIES
+if(NOT DEFINED DAQSTER_VERBOSE_DEPENDENCIES)
+    set(DAQSTER_VERBOSE_DEPENDENCIES OFF)
+endif()
+
+function(verbose_status)
+    if(DAQSTER_VERBOSE_DEPENDENCIES)
+        # join argv into single string
+        string(REPLACE ";" " " _msg "${ARGV}")
+        message(STATUS "${_msg}")
+    endif()
+endfunction()
+
+# Ensure a meta-target exists to collect external build/copy steps
+if(NOT TARGET daqster_build_externals)
+    add_custom_target(daqster_build_externals)
+endif()
+
 # Function to check if a plugin can be built based on its dependencies
 function(check_plugin_dependencies PLUGIN_NAME)
     set(PLUGIN_ENABLED TRUE)
@@ -9,41 +27,42 @@ function(check_plugin_dependencies PLUGIN_NAME)
     # Parse arguments for dependencies
     set(options)
     set(oneValueArgs)
-    set(multiValueArgs REQUIRES_QT_MODULES REQUIRES_EXTERNAL_LIBS REQUIRES_PACKAGES)
+    set(multiValueArgs REQUIRES_LIBRARIES)
     cmake_parse_arguments(PLUGIN_DEPS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
-    # Check Qt modules
-    foreach(QT_MODULE ${PLUGIN_DEPS_REQUIRES_QT_MODULES})
-        string(TOUPPER ${QT_MODULE} QT_MODULE_UPPER)
-        set(QT_MODULE_VAR "QT_${QT_MODULE_UPPER}_LIB")
-        
-        # Special handling for QuickControls2
-        if(QT_MODULE STREQUAL "QuickControls2")
-            set(QT_MODULE_VAR "QT_QUICKCONTROLS2_LIB")
-        endif()
-        
-        if(NOT ${QT_MODULE_VAR} OR "${${QT_MODULE_VAR}}" STREQUAL "")
-            set(PLUGIN_ENABLED FALSE)
-            list(APPEND REASONS "Qt${QT_VERSION_MAJOR}::${QT_MODULE} not available")
-        endif()
-    endforeach()
-    
-    # Check external libraries (targets)
-    foreach(EXT_LIB ${PLUGIN_DEPS_REQUIRES_EXTERNAL_LIBS})
-        if(NOT TARGET ${EXT_LIB})
-            set(PLUGIN_ENABLED FALSE)
-            list(APPEND REASONS "External library '${EXT_LIB}' not available")
-        endif()
-    endforeach()
-    
-    # Check packages
-    foreach(PACKAGE ${PLUGIN_DEPS_REQUIRES_PACKAGES})
-        string(TOUPPER ${PACKAGE} PACKAGE_UPPER)
-        set(PACKAGE_VAR "${PACKAGE_UPPER}_FOUND")
-        
-        if(NOT ${PACKAGE_VAR})
-            set(PLUGIN_ENABLED FALSE)
-            list(APPEND REASONS "Package '${PACKAGE}' not found")
+    # Check all libraries (Qt modules, external libs, packages)
+    foreach(LIBRARY ${PLUGIN_DEPS_REQUIRES_LIBRARIES})
+        # Check if it's a Qt module
+        if(LIBRARY MATCHES "^Qt[0-9]+::")
+            # Extract module name from Qt5::ModuleName
+            string(REGEX REPLACE "^Qt[0-9]+::" "" MODULE_NAME ${LIBRARY})
+            
+            # First try to find the module
+            find_package(Qt${QT_VERSION_MAJOR}${MODULE_NAME} QUIET)
+
+            # Check if target exists
+            if(TARGET ${LIBRARY})
+                verbose_status("Checking ${LIBRARY} - target exists: TRUE")
+            else()
+                verbose_status("Checking ${LIBRARY} - target exists: FALSE")
+                set(PLUGIN_ENABLED FALSE)
+                list(APPEND REASONS "${LIBRARY} not available")
+            endif()
+        else()
+            # External library or package - check if target exists
+            if(TARGET ${LIBRARY})
+                verbose_status("Checking ${LIBRARY} - target exists: TRUE")
+            else()
+                # Check if it's an external library that should be available
+                get_property(IS_AVAILABLE GLOBAL PROPERTY EXTERNAL_LIB_${LIBRARY}_AVAILABLE)
+                if(IS_AVAILABLE)
+                    verbose_status("Checking ${LIBRARY} - external library available: TRUE")
+                else()
+                    verbose_status("Checking ${LIBRARY} - target exists: FALSE")
+                    set(PLUGIN_ENABLED FALSE)
+                    list(APPEND REASONS "${LIBRARY} not available")
+                endif()
+            endif()
         endif()
     endforeach()
     
@@ -63,104 +82,125 @@ function(check_plugin_dependencies PLUGIN_NAME)
 endfunction()
 
 # Function to register a plugin with its dependencies
-function(register_plugin PLUGIN_NAME)
+function(register_component COMPONENT_NAME)
     set(options)
     set(oneValueArgs)
-    set(multiValueArgs REQUIRES_QT_MODULES REQUIRES_EXTERNAL_LIBS REQUIRES_PACKAGES)
+    set(multiValueArgs REQUIRES_LIBRARIES)
     cmake_parse_arguments(PLUGIN_DEPS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
     # Check dependencies
-    check_plugin_dependencies(${PLUGIN_NAME}
-        REQUIRES_QT_MODULES ${PLUGIN_DEPS_REQUIRES_QT_MODULES}
-        REQUIRES_EXTERNAL_LIBS ${PLUGIN_DEPS_REQUIRES_EXTERNAL_LIBS}
-        REQUIRES_PACKAGES ${PLUGIN_DEPS_REQUIRES_PACKAGES}
+    check_plugin_dependencies(${COMPONENT_NAME}
+        REQUIRES_LIBRARIES ${PLUGIN_DEPS_REQUIRES_LIBRARIES}
     )
     
-    # Store plugin info globally
-    set_property(GLOBAL PROPERTY PLUGIN_${PLUGIN_NAME}_ENABLED ${${PLUGIN_NAME}_ENABLED})
-    set_property(GLOBAL PROPERTY PLUGIN_${PLUGIN_NAME}_REASONS "${${PLUGIN_NAME}_REASONS}")
+    # Store component info globally
+    set_property(GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_ENABLED ${${COMPONENT_NAME}_ENABLED})
+    set_property(GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_REASONS "${${COMPONENT_NAME}_REASONS}")
     
-    # Add to global plugin list
-    get_property(PLUGIN_NAMES GLOBAL PROPERTY PLUGIN_NAMES)
-    if(NOT PLUGIN_NAMES)
-        set(PLUGIN_NAMES "")
+    # Store dependencies for automatic linking
+    set_property(GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_LIBRARIES "${PLUGIN_DEPS_REQUIRES_LIBRARIES}")
+    
+    # Add to global component list
+    get_property(COMPONENT_NAMES GLOBAL PROPERTY COMPONENT_NAMES)
+    if(NOT COMPONENT_NAMES)
+        set(COMPONENT_NAMES "")
     endif()
-    list(APPEND PLUGIN_NAMES ${PLUGIN_NAME})
-    set_property(GLOBAL PROPERTY PLUGIN_NAMES "${PLUGIN_NAMES}")
+    list(APPEND COMPONENT_NAMES ${COMPONENT_NAME})
+    set_property(GLOBAL PROPERTY COMPONENT_NAMES "${COMPONENT_NAMES}")
 endfunction()
 
-# Function to check if a plugin is enabled
-function(is_plugin_enabled PLUGIN_NAME RESULT_VAR)
-    get_property(ENABLED GLOBAL PROPERTY PLUGIN_${PLUGIN_NAME}_ENABLED)
+# Helper function to check if a component is enabled
+function(is_component_enabled COMPONENT_NAME RESULT_VAR)
+    get_property(ENABLED GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_ENABLED)
     set(${RESULT_VAR} ${ENABLED} PARENT_SCOPE)
 endfunction()
 
-# Function to get plugin disable reasons
-function(get_plugin_reasons PLUGIN_NAME REASONS_VAR)
-    get_property(REASONS GLOBAL PROPERTY PLUGIN_${PLUGIN_NAME}_REASONS)
-    set(${REASONS_VAR} "${REASONS}" PARENT_SCOPE)
-endfunction()
-
-# Function to add plugin subdirectory conditionally
-function(add_plugin_subdirectory PLUGIN_NAME PLUGIN_DIR)
-    is_plugin_enabled(${PLUGIN_NAME} ENABLED)
+# Function to add component subdirectory conditionally
+function(add_component_subdirectory COMPONENT_NAME COMPONENT_DIR)
+    is_component_enabled(${COMPONENT_NAME} ENABLED)
     
     if(ENABLED)
-        add_subdirectory(${PLUGIN_DIR})
-        message(STATUS "Adding plugin subdirectory: ${PLUGIN_DIR}")
+        add_subdirectory(${COMPONENT_DIR})
+        message(STATUS "Adding component subdirectory: ${COMPONENT_DIR}")
     else()
-        get_plugin_reasons(${PLUGIN_NAME} REASONS)
-        message(STATUS "Skipping plugin subdirectory: ${PLUGIN_DIR}")
+        get_property(REASONS GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_REASONS)
+        message(STATUS "Skipping component subdirectory: ${COMPONENT_DIR}")
         foreach(REASON ${REASONS})
             message(STATUS "  - ${REASON}")
         endforeach()
     endif()
 endfunction()
 
-# Function to check if external library can be built
-function(check_external_library_buildability LIB_NAME)
-    set(BUILDABLE TRUE)
-    set(REASONS "")
+# Function to automatically link component dependencies
+function(link_component_dependencies COMPONENT_NAME)
+    is_component_enabled(${COMPONENT_NAME} ENABLED)
     
-    # Check if library directory exists
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/external_libs/${LIB_NAME}")
-        set(BUILDABLE FALSE)
-        list(APPEND REASONS "Library directory not found: src/external_libs/${LIB_NAME}")
+    if(ENABLED)
+        # Get stored dependencies
+        get_property(LIBRARIES GLOBAL PROPERTY COMPONENT_${COMPONENT_NAME}_LIBRARIES)
+
+        if(LIBRARIES)
+            # Link each library only if available to avoid hard failures
+            foreach(LIBRARY ${LIBRARIES})
+                        if(TARGET ${LIBRARY})
+                            target_link_libraries(${COMPONENT_NAME} PRIVATE ${LIBRARY})
+                            verbose_status("Linked target ${LIBRARY} -> ${COMPONENT_NAME}")
+                        else()
+                    # Check if it's a registered external library
+                    get_property(IS_AVAILABLE GLOBAL PROPERTY EXTERNAL_LIB_${LIBRARY}_AVAILABLE)
+                    if(IS_AVAILABLE)
+                        # Attempt to link by name; the external lib may provide an imported target or name
+                                target_link_libraries(${COMPONENT_NAME} PRIVATE ${LIBRARY})
+                                verbose_status("Linked external library ${LIBRARY} -> ${COMPONENT_NAME}")
+                    else()
+                        message(WARNING "Dependency '${LIBRARY}' for component '${COMPONENT_NAME}' not available; skipping link.\n  This may cause undefined references at link time if the dependency is really required.")
+                    endif()
+                endif()
+            endforeach()
+        else()
+                    verbose_status("No automatic dependencies recorded for ${COMPONENT_NAME}")
+        endif()
+
+                verbose_status("Auto-linked dependencies processed for ${COMPONENT_NAME}")
     endif()
-    
-    # Check if CMakeLists.txt exists
-    if(BUILDABLE AND NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/external_libs/${LIB_NAME}/CMakeLists.txt")
-        set(BUILDABLE FALSE)
-        list(APPEND REASONS "CMakeLists.txt not found in library directory")
-    endif()
-    
-    # Set result variables in parent scope
-    set(${LIB_NAME}_BUILDABLE ${BUILDABLE} PARENT_SCOPE)
-    set(${LIB_NAME}_BUILD_REASONS "${REASONS}" PARENT_SCOPE)
 endfunction()
 
-# Function to print plugin status summary
-function(print_plugin_status_summary)
-    message(STATUS "=== Plugin Status Summary ===")
+# Function to register external library as available dependency
+# This allows other components to find and use external libraries
+function(register_external_library_dependency LIB_NAME)
+    # Check if the library target exists (it should be built by add_subdirectory)
+    if(TARGET ${LIB_NAME})
+        verbose_status("External library ${LIB_NAME} available as dependency")
+        # Mark as available for other components
+        set_property(GLOBAL PROPERTY EXTERNAL_LIB_${LIB_NAME}_AVAILABLE TRUE)
+    else()
+        verbose_status("External library ${LIB_NAME} not available as dependency")
+        set_property(GLOBAL PROPERTY EXTERNAL_LIB_${LIB_NAME}_AVAILABLE FALSE)
+    endif()
+endfunction()
+
+# Function to print component status summary
+function(print_component_status_summary)
+    message(STATUS "=== Component Status Summary ===")
     
-    # Get all registered plugins
-    get_property(PLUGINS GLOBAL PROPERTY PLUGIN_NAMES)
+    # Get all registered components
+    get_property(COMPONENTS GLOBAL PROPERTY COMPONENT_NAMES)
     
-    if(PLUGINS)
-        foreach(PLUGIN ${PLUGINS})
-            is_plugin_enabled(${PLUGIN} ENABLED)
-            if(ENABLED)
-                message(STATUS "✓ ${PLUGIN}: ENABLED")
+    if(COMPONENTS)
+        foreach(COMPONENT ${COMPONENTS})
+            is_component_enabled(${COMPONENT} ENABLED)
+                if(ENABLED)
+                message(STATUS "✓ ${COMPONENT}: ENABLED")
             else()
-                get_plugin_reasons(${PLUGIN} REASONS)
-                message(STATUS "✗ ${PLUGIN}: DISABLED")
+                get_property(REASONS GLOBAL PROPERTY COMPONENT_${COMPONENT}_REASONS)
+                message(STATUS "✗ ${COMPONENT}: DISABLED")
                 foreach(REASON ${REASONS})
                     message(STATUS "    - ${REASON}")
                 endforeach()
             endif()
         endforeach()
     else()
-        message(STATUS "No plugins registered")
+        message(STATUS "No components registered")
     endif()
 endfunction()
 
@@ -171,23 +211,4 @@ function(print_build_configuration_summary)
     message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
     message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
     message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
-    
-    # Check external library buildability
-    check_external_library_buildability(nodeeditor)
-    check_external_library_buildability(qtrest_lib)
-    
-    message(STATUS "External Libraries Buildability:")
-    message(STATUS "  - nodeeditor: ${nodeeditor_BUILDABLE}")
-    if(NOT nodeeditor_BUILDABLE)
-        foreach(REASON ${nodeeditor_BUILD_REASONS})
-            message(STATUS "    - ${REASON}")
-        endforeach()
-    endif()
-    
-    message(STATUS "  - qtrest_lib: ${qtrest_lib_BUILDABLE}")
-    if(NOT qtrest_lib_BUILDABLE)
-        foreach(REASON ${qtrest_lib_BUILD_REASONS})
-            message(STATUS "    - ${REASON}")
-        endforeach()
-    endif()
 endfunction()

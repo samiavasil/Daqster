@@ -89,3 +89,6 @@ endfunction()
 # add_plugin_subdirectory(Qt6SpecificPlugin src/plugins/qt6_specific)
 # add_plugin_subdirectory(DebugPlugin src/plugins/debug)
 # add_plugin_subdirectory(CustomDependencyPlugin src/plugins/custom)
+
+
+

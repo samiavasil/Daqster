@@ -1,5 +1,6 @@
 #include "QProcessManager.h"
 #include <QDebug>
+#include <QVariant>
 
 namespace Daqster {
 
@@ -45,7 +46,7 @@ void QProcessManager::StartProcess(const QString& name,
         // Store process info
         m_processMap[m_nextHandle] = newProc;
         m_processDescriptors[m_nextHandle] = desc;
-        newProc->setProperty("ProcessHandle", m_nextHandle);
+        newProc->setProperty("ProcessHandle", QVariant::fromValue(static_cast<unsigned int>(m_nextHandle)));
         
         // Connect finished signal
         connect(newProc, SIGNAL(finished(int, QProcess::ExitStatus)), 

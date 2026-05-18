@@ -1,4 +1,5 @@
 ﻿#include<QDebug>
+#include <QEnterEvent>
 #include "AudioSourceDataModelUI.h"
 #include "ui_AudioSourceDataModelUI.h"
 
@@ -10,7 +11,7 @@ AudioSourceDataModelUI::AudioSourceDataModelUI(QAudioDeviceInfo* devInfo,
     ui(new Ui::AudioSourceDataModelUI),
     m_devInfo(devInfo),
     m_formatAudio(formatAudio),
-    m_Conf(QAudio::AudioInput, *m_devInfo, *m_formatAudio)
+    m_Conf(AudioCompat::AudioInputMode, *m_devInfo, *m_formatAudio)
 {
     ui->setupUi(this);
     connect(&m_Conf, SIGNAL(ChangeAudioConnection(QAudioDeviceInfo ,QAudioFormat )),
@@ -62,12 +63,14 @@ void AudioSourceDataModelUI::ConfigAudio()
     m_Conf.raise();
 }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+void AudioSourceDataModelUI::enterEvent(QEnterEvent *event)
+#else
 void AudioSourceDataModelUI::enterEvent(QEvent *event)
+#endif
 {
-    if(QEvent::Enter == event->type()) {
-        if(m_Conf.isVisible()) {
-            m_Conf.raise();
-        }
+    if(m_Conf.isVisible()) {
+        m_Conf.raise();
     }
     QWidget::enterEvent(event);
 }

@@ -1,0 +1,62 @@
+@startuml
+!theme plain
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+package "Ниво 1: Входни точки" {
+  [INDEX.md] as IDX
+  [Architecture/README.md] as ARCH
+  [development/README.md] as DEVTOP
+  [operations/README.md] as OPS
+  [porting/README.md] as PRT
+}
+
+package "Ниво 2: Архитектурен хъб" {
+  [Architecture/BuildSystemArchitecture.md] as BSA
+  [Architecture/apps/README.md] as APPS
+  [Architecture/framework/README.md] as FW
+  [Architecture/plugins/README.md] as PLG
+}
+
+package "Ниво 2: Разработка и справка" {
+  [development/DeveloperGuide.md] as DEV
+  [development/HowToDebugAppImage.md] as DBG
+}
+
+package "Ниво 3: Детайли" {
+  [Architecture/apps/Daqster.md] as AD
+  [Architecture/apps/ApplicationsManager.md] as AAM
+  [Architecture/framework/QPluginManager.md] as FQPM
+  [Architecture/framework/QProcessManager.md] as FQPR
+  [Architecture/framework/ShutdownHandler.md] as FSH
+  [Architecture/plugins/PluginDevelopment.md] as PDEV
+}
+
+package "Странични теми" {
+  [debug/README.md] as DBG
+}
+
+IDX --> ARCH
+IDX --> DEVTOP
+IDX --> OPS
+IDX --> PRT
+
+ARCH --> BSA
+ARCH --> APPS
+ARCH --> FW
+ARCH --> PLG
+
+DEVTOP --> DEV
+DEVTOP --> DBG
+FW ..> DEV : използва се от
+
+APPS --> AD
+APPS --> AAM
+FW --> FQPM
+FW --> FQPR
+FW --> FSH
+PLG --> PDEV
+
+OPS --> DBG
+@enduml

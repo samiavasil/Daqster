@@ -1,22 +1,23 @@
 #ifndef QDEVIODISPLAY_H
 #define QDEVIODISPLAY_H
 
+#include "AudioCompat.h"
+
 #include <QtCore/QObject>
-#include <nodes/NodeDataModel>
-#include <QtMultimedia/QAudioDeviceInfo>
+#include <QtNodes/NodeDelegateModel>
 
 using QtNodes::PortType;
 using QtNodes::PortIndex;
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
-using QtNodes::NodeDataModel;
+using QtNodes::NodeDelegateModel;
 using QtNodes::NodeValidationState;
 
 class NodeDataModelToQIODeviceConnector;
 
 //TODO change QDevIoDisplayModel to QAudioDevIoDisplayModel:public QDevIoDisplayModel
 
-class QDevIoDisplayModel : public NodeDataModel
+class QDevIoDisplayModel : public NodeDelegateModel
 {
     Q_OBJECT
 
@@ -56,19 +57,13 @@ public:
     dataType(PortType portType, PortIndex portIndex) const override;
 
     std::shared_ptr<NodeData>
-    outData(PortIndex port) override;
+    outData(PortIndex const port) override;
 
     void
-    setInData(std::shared_ptr<NodeData> data, PortIndex portIndex) override;
+    setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override;
 
     QWidget *
     embeddedWidget() override;
-
-    NodeValidationState
-    validationState() const override;
-
-    QString
-    validationMessage() const override;
 
     std::shared_ptr<QIODevice> device() const;
 
@@ -77,8 +72,6 @@ public slots:
 
 protected:
      std::shared_ptr<NodeDataModelToQIODeviceConnector> m_connector;
-     NodeValidationState modelValidationState = NodeValidationState::Warning;
-     QString modelValidationError = QStringLiteral("Missing or incorrect inputs");
      QWidget* m_widget;
      std::shared_ptr<QIODevice> m_device;
      friend class AudioXYSeriesIODevice;

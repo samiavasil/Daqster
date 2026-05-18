@@ -274,5 +274,5 @@ static const char* const daqster_PluginObjectInterface_OldVersions[] = {
 };
 static const char* const daqster_PluginInterface_CurrentVersion = DAQSTER_PLUGIN_INTERFACE_VERSION_STR; //results in "Daqster.PlugIn.BaseInterface/x.x.x";
 // must be out of namespace
-Q_DECLARE_INTERFACE(Daqster::QPluginInterface , daqster_PluginInterface_CurrentVersion )
+Q_DECLARE_INTERFACE(Daqster::QPluginInterface , DAQSTER_PLUGIN_INTERFACE_VERSION_STR )
 #endif // QPLUGINBASESINTERFACE_H

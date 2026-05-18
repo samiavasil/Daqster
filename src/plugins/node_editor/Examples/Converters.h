@@ -8,7 +8,6 @@ using QtNodes::PortType;
 using QtNodes::PortIndex;
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
-using QtNodes::NodeDataModel;
 
 class DecimalData;
 class IntegerData;

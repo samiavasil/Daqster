@@ -3,10 +3,10 @@
 #include <QtCore/QObject>
 #include <QtWidgets/QLineEdit>
 
-#include <nodes/NodeDataModel>
+#include <QtNodes/NodeDelegateModel>
 
 #include <iostream>
-#include<NumericType.h>
+#include <NumericType.h>
 
 //class DecimalData;
 
@@ -14,14 +14,14 @@ using QtNodes::PortType;
 using QtNodes::PortIndex;
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
-using QtNodes::NodeDataModel;
+using QtNodes::NodeDelegateModel;
 using QtNodes::NodeValidationState;
 
 class NumberSourceDataUi;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
 class NumberSourceDataModel
-        : public NodeDataModel
+        : public NodeDelegateModel
 {
     Q_OBJECT
 
@@ -51,7 +51,7 @@ public:
     save() const override;
 
     void
-    restore(QJsonObject const &p) override;
+    load(QJsonObject const &p) override;
 
 public:
 
@@ -62,10 +62,10 @@ public:
     dataType(PortType portType, PortIndex portIndex) const override;
 
     std::shared_ptr<NodeData>
-    outData(PortIndex port) override;
+    outData(PortIndex const port) override;
 
     void
-    setInData(std::shared_ptr<NodeData> data, PortIndex port) override;
+    setInData(std::shared_ptr<NodeData> data, PortIndex const port) override;
 
     QWidget *
     embeddedWidget() override;

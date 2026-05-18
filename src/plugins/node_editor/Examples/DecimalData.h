@@ -1,6 +1,6 @@
 #pragma once
 
-#include <nodes/NodeDataModel>
+#include <QtNodes/NodeDelegateModel>
 
 using QtNodes::NodeDataType;
 using QtNodes::NodeData;

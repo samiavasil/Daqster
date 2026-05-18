@@ -1,29 +1,13 @@
-# Use Qt detection from parent scope
-
-add_library(plugin_fancy_test
-    SHARED
-    PluginFancyInterface.cpp
-    PluginFancyObject.cpp
-    PluginFancyInterface.h
-    PluginFancyObject.h
-    fancy_test.qrc
-)
-
-add_definitions(-DBUILD_AVAILABLE_PLUGIN)
-
-target_include_directories(plugin_fancy_test
-  PRIVATE
-    ./
-  )
-target_link_libraries(plugin_fancy_test frame_work Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui)
-
-# Install like other plugins
-install(TARGETS plugin_fancy_test
-    RUNTIME DESTINATION bin/plugins
-    LIBRARY DESTINATION lib/daqster/plugins
-    ARCHIVE DESTINATION lib
-)
-
-set_target_properties(plugin_fancy_test PROPERTIES
-    INSTALL_RPATH "$ORIGIN/../../lib"
+# Use template system for plugin
+create_plugin(plugin_fancy_test
+    SOURCES
+        PluginFancyInterface.cpp
+        PluginFancyObject.cpp
+        PluginFancyInterface.h
+        PluginFancyObject.h
+        fancy_test.qrc
+    REQUIRES_LIBRARIES
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Gui
+        frame_work
 )

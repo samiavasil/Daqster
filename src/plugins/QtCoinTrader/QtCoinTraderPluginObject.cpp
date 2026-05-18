@@ -32,6 +32,7 @@ void QtCoinTraderPluginObject::SetName(const QString &name)
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QGuiApplication>
+#include <QQuickWindow>
 
 #if 0
 #include <QGuiApplication>
@@ -102,7 +103,9 @@ bool QtCoinTraderPluginObject::Initialize()
     //    m_Win = new QMainWindow();
     //    m_Win->show();
     QQuickStyle::setStyle("Material");
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     QStringList lis = QQuickStyle::availableStyles();
+#endif
     
     // Register QtCharts types for QML FIRST - before loading QML files
     // Check if QtCharts namespace is already available
@@ -134,11 +137,37 @@ bool QtCoinTraderPluginObject::Initialize()
     
     QQmlApplicationEngine* engine = new QQmlApplicationEngine(m_Win);
     
+    // Add QML import path for QRC resources so QML files can find each other
+    engine->addImportPath("qrc:/qml");
+    
     //engine.rootContext()->setContextProperty("awesome", awesome);
     //engine->rootContext()->setContextProperty("dataFromCpp", new RandData());
     
     // NOW load QML file AFTER all types are registered
     engine->load(QUrl(QStringLiteral("qrc:/qml/About.qml")));
+
+    // Ensure the top-level QML window is visible and focused in desktop/WSL sessions.
+    if (!engine->rootObjects().isEmpty()) {
+        QObject *root = engine->rootObjects().first();
+        QQuickWindow *window = qobject_cast<QQuickWindow *>(root);
+        if (window) {
+            window->setFlag(Qt::WindowStaysOnTopHint, true);
+            window->setVisibility(QWindow::Windowed);
+            if (window->width() < 400 || window->height() < 300) {
+                window->resize(1280, 800);
+            }
+            if (window->x() < 0 || window->y() < 0) {
+                window->setPosition(100, 80);
+            }
+            window->showNormal();
+            window->show();
+            window->raise();
+            window->requestActivate();
+            qDebug() << "QtCoinTrader window visible=" << window->isVisible()
+                     << "active=" << window->isActive()
+                     << "geom=" << window->x() << window->y() << window->width() << window->height();
+        }
+    }
 
 
     /* m_Win = new QMainWindow();

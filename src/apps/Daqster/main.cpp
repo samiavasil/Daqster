@@ -7,17 +7,9 @@
 #include <QCommandLineParser>
 #include <QFile>
 #include <QDir>
-#include <exception>
 #include "debug.h"
+#include "QConsoleListener.h"
 #include "main.h"
-
-// Framework headers
-#ifdef Q_OS_WIN
-#include <WindowsShutdownHandler.h>
-#else
-#include <UnixShutdownHandler.h>
-#endif
-#include <StdinShutdownHandler.h>
 
 class msg {
 public:
@@ -54,28 +46,33 @@ void PluginsInit() {
   if (nullptr != PluginManager) {
     PluginManager->SearchForPlugins();
     qDebug() << "Plugin Manager: " << PluginManager;
+    //  PluginManager->SearchForPlugins();
+    // PluginManager->ShowPluginManagerGui();
     QList<Daqster::PluginDescription> PluginsList =
         PluginManager->GetPluginList();
     /*Just try to load/unload all plugins in initialization phase*/
     foreach (const Daqster::PluginDescription &Desc, PluginsList) {
-      Daqster::QBasePluginObject* obj = PluginManager->CreatePluginObject(
-          Desc.GetProperty(PLUGIN_HASH).toString(), nullptr);
-      if (obj != nullptr)
-        obj->deleteLater();
+      for (int i = 0; i < 1; i++) {
+        Daqster::QBasePluginObject* obj = PluginManager->CreatePluginObject(Desc.GetProperty(PLUGIN_HASH).toString(),nullptr);
+        if(obj != NULL)
+          obj->deleteLater();
+      }
     }
   }
 }
 
 int main(int argc, char *argv[]) {
+
   int res = 0;
-  try {
   //    msg m;
 #if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
   qInstallMsgHandler(m.myMessageOutput);
 #else
   //   qInstallMessageHandler(m.myMessageOutput);
 #endif
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#endif
   //  // detach from the current console window
   //   // if launched from a console window, that will still run waiting for the
   //   new console (below) to close
@@ -93,48 +90,6 @@ int main(int argc, char *argv[]) {
   QApplication a(argc, argv);
   QApplication::setApplicationName("Daqster");
   QApplication::setApplicationVersion("0.1");
-
-  // Setup platform-specific shutdown handler (OS signals / console events)
-#ifdef Q_OS_WIN
-  WindowsShutdownHandler *shutdownHandler = new WindowsShutdownHandler(&a);
-#else
-  UnixShutdownHandler *shutdownHandler = new UnixShutdownHandler(&a);
-#endif
-
-  if (!shutdownHandler->initialize()) {
-    qWarning() << "Failed to initialize OS shutdown handler";
-  }
-
-  // Setup stdin-based shutdown handler (quit/exit from terminal)
-  StdinShutdownHandler *stdinHandler = new StdinShutdownHandler(&a);
-  if (!stdinHandler->initialize()) {
-    qWarning() << "Failed to initialize stdin shutdown handler";
-  }
-
-  auto shutdownLambda = [&a]() {
-    // Stop all child processes gracefully
-    ApplicationsManager::Instance().KillAll();
-    // Stop the application
-    DEBUG << "Shutdown lambda invoked, quitting application";
-    a.quit();
-  };
-
-  QObject::connect(shutdownHandler, &ShutdownHandler::shutdownRequested,
-                   &a, shutdownLambda);
-  QObject::connect(stdinHandler, &ShutdownHandler::shutdownRequested,
-                   &a, shutdownLambda);
-
-  // Windows-specific diagnostic: log when the last window is closed
-#ifdef Q_OS_WIN
-  QObject::connect(&a, &QGuiApplication::lastWindowClosed, []() {
-    DEBUG << "QGuiApplication::lastWindowClosed emitted (Windows)";
-  });
-#endif
-
-  // Log when the Qt event loop is about to quit (for all platforms)
-  QObject::connect(&a, &QCoreApplication::aboutToQuit, []() {
-    DEBUG << "QCoreApplication::aboutToQuit emitted";
-  });
 
   QCommandLineParser parser;
   parser.setApplicationDescription(
@@ -166,7 +121,6 @@ int main(int argc, char *argv[]) {
   // should be called.
   if (!PluginManager->Initialize()) {
     DEBUG << "QPluginManager Initialization Error";
-    return 1;
   }
 
   DEBUG << "Show window";
@@ -198,8 +152,6 @@ int main(int argc, char *argv[]) {
 
   if (args.count() > 0) {
     if (args.count() > 1) {
-      // Multi-plugin mode: start multiple child processes
-      ApplicationsManager::Instance().SetHeadlessMode(true);
       foreach (auto Name, args) {
         // Try multiple approaches for starting the application
         QString executablePath;
@@ -224,12 +176,11 @@ int main(int argc, char *argv[]) {
         qDebug() << "Start Application: " << Name << " via " << executablePath;
       }
     } else {
-      // Single plugin mode: run plugin directly in this process
       QString Name = args[0];
       Daqster::QBasePluginObject *obj = nullptr;
       qDebug() << "\nSearch for plugin: " << Name;
       int ctr = 0;
-      foreach (const Daqster::PluginDescription &Desc, PluginsList) {
+       foreach (const Daqster::PluginDescription &Desc, PluginsList) {
         ctr++;
         qDebug() << "  Plug" << ctr << ": "
                  << Desc.GetProperty(PLUGIN_NAME).toString();
@@ -245,34 +196,27 @@ int main(int argc, char *argv[]) {
           }
         }
       }
-      
-      // Check if plugin was found
-      if (nullptr == obj) {
-        qCritical() << "Error: Plugin '" << Name << "' not found!";
-        return 1;
-      }
+      QConsoleListener *console = new QConsoleListener();
+      QObject::connect(
+          console, &QConsoleListener::newLine, [&a](const QString &strNewLine) {
+            // quit
+            if (strNewLine.trimmed().compare("quit", Qt::CaseInsensitive) == 0) {
+              qDebug() << "Goodbye";
+              a.quit();
+            }
+          });
     }
-    DEBUG << "Entering Qt event loop (plugin mode)";
     res = a.exec();
   } else {
-    // GUI mode: show AppToolbar
+
+    // MainWindow w;
+    // w.show();
     qDebug() << __BASE_FILE__ << __FILE__;
     AppToolbar AppBar;
     AppBar.show();
-    DEBUG << "Entering Qt event loop (GUI toolbar mode)";
     res = a.exec();
   }
 
   // Daqster::QPluginManager::instance()->ShutdownPluginManager();
-  DEBUG << "main() exiting with code" << res;
   return res;
-  }
-  catch (const std::exception &e) {
-    qCritical() << "Unhandled std::exception in main:" << e.what();
-    return 1;
-  }
-  catch (...) {
-    qCritical() << "Unhandled unknown exception in main";
-    return 1;
-  }
 }

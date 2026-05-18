@@ -3,7 +3,7 @@
 #include "AudioSourceConfig.h"
 #include "ui_AudioSourceConfig.h"
 
-AudioSourceConfig::AudioSourceConfig(QAudio::Mode mode,
+AudioSourceConfig::AudioSourceConfig(AudioCompat::Mode mode,
                                      QAudioDeviceInfo &devInfo,
                                      QAudioFormat &formatAudio,
                                      QWidget *parent) :
@@ -77,7 +77,7 @@ void AudioSourceConfig::ABEInitAudioParams(int idx)
     ui->SampleSize->blockSignals(true);
     ui->SampleType->blockSignals(true);
 
-    qDebug() << "NAME: " << m_DevInfo->deviceName();
+    qDebug() << "NAME: " << AudioCompat::deviceName(*m_DevInfo);
 
     // Helper: build a QList<QVariant> and find the index of the currently
     // active value so the combo can be pre-selected after populate().
@@ -86,7 +86,7 @@ void AudioSourceConfig::ABEInitAudioParams(int idx)
     {
         QList<QVariant> data;
         int sel = -1;
-        for (int ch : m_DevInfo->supportedChannelCounts()) {
+        for (int ch : AudioCompat::supportedChannelCounts(*m_DevInfo)) {
             if (m_FormatAudio->channelCount() == ch) sel = data.count();
             data << ch;
         }
@@ -101,38 +101,39 @@ void AudioSourceConfig::ABEInitAudioParams(int idx)
     {
         QList<QVariant> data;
         int sel = -1;
-        for (const QString& codec : m_DevInfo->supportedCodecs()) {
-            if (m_FormatAudio->codec() == codec) sel = data.count();
+        for (const QString& codec : AudioCompat::supportedCodecs(*m_DevInfo)) {
+            if (AudioCompat::codec(*m_FormatAudio) == codec) sel = data.count();
             data << codec;
         }
         m_CodecModel->populate(data);
         int setIdx = (sel >= 0) ? sel : 0;
         ui->Codec->setCurrentIndex(setIdx);
         if (!data.isEmpty())
-            m_FormatAudio->setCodec(data[setIdx].toString());
+            AudioCompat::setCodec(*m_FormatAudio, data[setIdx].toString());
     }
 
     // --- Byte orders ---
     {
         QList<QVariant> data;
         int sel = -1;
-        for (QAudioFormat::Endian e : m_DevInfo->supportedByteOrders()) {
-            if (m_FormatAudio->byteOrder() == e) sel = data.count();
+        for (AudioCompat::Endian e : AudioCompat::supportedByteOrders(*m_DevInfo)) {
+            if (AudioCompat::byteOrder(*m_FormatAudio) == e) sel = data.count();
             data << static_cast<int>(e);
         }
         m_ByteOrderModel->populate(data);
         int setIdx = (sel >= 0) ? sel : 0;
         ui->ByteOdrer->setCurrentIndex(setIdx);
         if (!data.isEmpty())
-            m_FormatAudio->setByteOrder(
-                static_cast<QAudioFormat::Endian>(data[setIdx].toInt()));
+            AudioCompat::setByteOrder(
+                *m_FormatAudio,
+                static_cast<AudioCompat::Endian>(data[setIdx].toInt()));
     }
 
     // --- Sample rates ---
     {
         QList<QVariant> data;
         int sel = -1;
-        for (int sr : m_DevInfo->supportedSampleRates()) {
+        for (int sr : AudioCompat::supportedSampleRates(*m_DevInfo)) {
             if (m_FormatAudio->sampleRate() == sr) sel = data.count();
             data << sr;
         }
@@ -147,31 +148,32 @@ void AudioSourceConfig::ABEInitAudioParams(int idx)
     {
         QList<QVariant> data;
         int sel = -1;
-        for (int ss : m_DevInfo->supportedSampleSizes()) {
-            if (m_FormatAudio->sampleSize() == ss) sel = data.count();
+        for (int ss : AudioCompat::supportedSampleSizes(*m_DevInfo)) {
+            if (AudioCompat::sampleSize(*m_FormatAudio) == ss) sel = data.count();
             data << ss;
         }
         m_SampleSizeModel->populate(data);
         int setIdx = (sel >= 0) ? sel : 0;
         ui->SampleSize->setCurrentIndex(setIdx);
         if (!data.isEmpty())
-            m_FormatAudio->setSampleSize(data[setIdx].toInt());
+            AudioCompat::setSampleSize(*m_FormatAudio, data[setIdx].toInt());
     }
 
     // --- Sample types ---
     {
         QList<QVariant> data;
         int sel = -1;
-        for (QAudioFormat::SampleType st : m_DevInfo->supportedSampleTypes()) {
-            if (m_FormatAudio->sampleType() == st) sel = data.count();
+        for (AudioCompat::SampleType st : AudioCompat::supportedSampleTypes(*m_DevInfo)) {
+            if (AudioCompat::sampleType(*m_FormatAudio) == st) sel = data.count();
             data << static_cast<int>(st);
         }
         m_SampleTypeModel->populate(data);
         int setIdx = (sel >= 0) ? sel : 0;
         ui->SampleType->setCurrentIndex(setIdx);
         if (!data.isEmpty())
-            m_FormatAudio->setSampleType(
-                static_cast<QAudioFormat::SampleType>(data[setIdx].toInt()));
+            AudioCompat::setSampleType(
+                *m_FormatAudio,
+                static_cast<AudioCompat::SampleType>(data[setIdx].toInt()));
     }
 
     ui->ChannelNumber->blockSignals(false);
@@ -191,7 +193,7 @@ bool AudioSourceConfig::isFormatSupported(const QAudioFormat &format) const{
     bool ret = false;
 
     if(ui->Device->currentIndex() >= 0 && m_DevInfo){
-        ret = m_Devs[ui->Device->currentIndex()].isFormatSupported(format);
+        ret = AudioCompat::isFormatSupported(m_Devs[ui->Device->currentIndex()], format);
     }
     return ret;
 }
@@ -200,14 +202,14 @@ void AudioSourceConfig::show()
 {
     qDebug() << "this: " << this << " Mode: " << m_Mode;
 
-    m_Devs = QAudioDeviceInfo::availableDevices(m_Mode);
+    m_Devs = AudioCompat::availableDevices(m_Mode);
     ui->Device->blockSignals(true);
     ui->Device->clear();
     int idx = -1;
 	if (m_Devs.isEmpty())
 	{
-	    const QAudioDeviceInfo inputDevice = QAudioDeviceInfo::defaultInputDevice();
-	    if (inputDevice.isNull()) {
+	    const QAudioDeviceInfo inputDevice = AudioCompat::defaultInputDevice();
+	    if (AudioCompat::isNull(inputDevice)) {
 	        QMessageBox::warning(nullptr, "audio",
 	                             "There is no audio input device available.");
 	        return ;
@@ -215,9 +217,9 @@ void AudioSourceConfig::show()
 	    m_Devs.append(inputDevice);
 	}
     foreach (QAudioDeviceInfo dev, m_Devs) {
-        ui->Device->addItem(dev.deviceName());
-        if(m_DevInfo && m_DevInfo->deviceName() == dev.deviceName()){
-            qDebug() << "Defaul dev name: " << m_DevInfo->deviceName() << ":" <<dev.deviceName() ;
+        ui->Device->addItem(AudioCompat::deviceName(dev));
+        if(m_DevInfo && AudioCompat::deviceName(*m_DevInfo) == AudioCompat::deviceName(dev)){
+            qDebug() << "Defaul dev name: " << AudioCompat::deviceName(*m_DevInfo) << ":" << AudioCompat::deviceName(dev) ;
             idx = ui->Device->count() - 1;
             qDebug()<<"idx: " << idx;
         }
@@ -239,7 +241,7 @@ void AudioSourceConfig::ChannelNumberChanged(int val){
 
 void AudioSourceConfig::CodecChanged(int val){
     qDebug() << "val: " << val;
-    if (m_FormatAudio) m_FormatAudio->setCodec(ui->Codec->itemData(val, Qt::DisplayRole).toString());
+    if (m_FormatAudio) AudioCompat::setCodec(*m_FormatAudio, ui->Codec->itemData(val, Qt::DisplayRole).toString());
     qDebug() << __FUNCTION__ << ui->Codec->itemData(val, Qt::DisplayRole).toString();
     if (m_DevInfo && m_FormatAudio) emit ChangeAudioConnection(*m_DevInfo, *m_FormatAudio);
 }
@@ -247,8 +249,9 @@ void AudioSourceConfig::CodecChanged(int val){
 void AudioSourceConfig::ByteOdrerChanged(int val){
     qDebug() << "val: " << val;
     if (m_FormatAudio)
-        m_FormatAudio->setByteOrder(
-            static_cast<QAudioFormat::Endian>(ui->ByteOdrer->itemData(val, Qt::UserRole).toInt()));
+        AudioCompat::setByteOrder(
+            *m_FormatAudio,
+            static_cast<AudioCompat::Endian>(ui->ByteOdrer->itemData(val, Qt::UserRole).toInt()));
     qDebug() << __FUNCTION__ << ui->ByteOdrer->itemData(val, Qt::UserRole).toInt();
     if (m_DevInfo && m_FormatAudio) emit ChangeAudioConnection(*m_DevInfo, *m_FormatAudio);
 }
@@ -262,7 +265,7 @@ void AudioSourceConfig::SampleRateChanged(int val){
 
 void AudioSourceConfig::SampleSizeChanged(int val){
     qDebug() << "val: " << val;
-    if (m_FormatAudio) m_FormatAudio->setSampleSize(ui->SampleSize->itemData(val, Qt::DisplayRole).toInt());
+    if (m_FormatAudio) AudioCompat::setSampleSize(*m_FormatAudio, ui->SampleSize->itemData(val, Qt::DisplayRole).toInt());
     qDebug() << __FUNCTION__ << ui->SampleSize->itemData(val, Qt::DisplayRole).toInt();
     if (m_DevInfo && m_FormatAudio) emit ChangeAudioConnection(*m_DevInfo, *m_FormatAudio);
 }
@@ -270,8 +273,9 @@ void AudioSourceConfig::SampleSizeChanged(int val){
 void AudioSourceConfig::SampleTypeChanged(int val){
     qDebug() << "val: " << val;
     if (m_FormatAudio)
-        m_FormatAudio->setSampleType(
-            static_cast<QAudioFormat::SampleType>(ui->SampleType->itemData(val, Qt::UserRole).toInt()));
+        AudioCompat::setSampleType(
+            *m_FormatAudio,
+            static_cast<AudioCompat::SampleType>(ui->SampleType->itemData(val, Qt::UserRole).toInt()));
     qDebug() << __FUNCTION__ << ui->SampleType->itemData(val, Qt::UserRole).toInt();
     if (m_DevInfo && m_FormatAudio) emit ChangeAudioConnection(*m_DevInfo, *m_FormatAudio);
 }

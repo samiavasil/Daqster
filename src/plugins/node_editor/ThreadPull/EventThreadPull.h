@@ -4,8 +4,6 @@
 #include <memory>
 #include<QThread>
 #include<QSharedPointer> //DELL MEEEE
-#include <QAudioInput> //DELL
-class QAudioInput; //DELL
 
 class InEventLoopWorker : public QObject
 {

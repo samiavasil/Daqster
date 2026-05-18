@@ -20,10 +20,10 @@ class ApplicationsManager : public Daqster::QProcessManager
 
 public:
     // Type aliases for backward compatibility
-    typedef ProcessEvent_t AppEvent_t;
-    typedef ProcessDescriptor_t AppDescriptor_t;
-    typedef ProcessHandle_t AppHndl_t;
-    
+    using AppEvent_t = ProcessEvent_t;
+    using AppDescriptor_t = ProcessDescriptor_t;
+    using AppHndl_t = ProcessHandle_t;
+
     // Keep original enum names for compatibility
     static constexpr ProcessEvent_t APP_NA = PROCESS_NA;
     static constexpr ProcessEvent_t APP_STARTED = PROCESS_STARTED;

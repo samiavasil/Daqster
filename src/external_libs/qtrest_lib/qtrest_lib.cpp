@@ -1,8 +1,8 @@
 #include "qtrest_lib.h"
-#include"qtrest/src/apibase.h"
-#include"qtrest/src/models/pagination.h"
-#include"qtrest/src/models/abstractjsonrestlistmodel.h"
-#include"qtrest/src/models/jsonrestlistmodel.h"
+#include "apibase.h"
+#include "pagination.h"
+#include "abstractjsonrestlistmodel.h"
+#include "jsonrestlistmodel.h"
 
 //#include "jsonrestlistmodel.h"
 #include "api/Exchange/model/ExchangeModel.h"
