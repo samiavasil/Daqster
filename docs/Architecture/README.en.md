@@ -90,7 +90,7 @@ Directory containing scripts and helper files for build and packaging.
 *   **`Build_AppImage/`**:
     *   Directory used for local AppImage builds. Contains temporary files and the final AppImage.
 
-### 2.6. Docs (`Docs/`)
+### 2.6. Docs (`docs/`)
 Directory for documentation.
 
 *   **`development/HowToDebugAppImage.md`**:

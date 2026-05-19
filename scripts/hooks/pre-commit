@@ -6,13 +6,13 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT" || exit 1
 
 # Find staged puml files
-staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^Docs/diagrams/.*\.puml$' || true)
+staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/diagrams/.*\.puml$' || true)
 if [ -z "$staged" ]; then
   exit 0
 fi
 
 # If any .puml is staged, render ALL diagrams for consistency
-all_puml=$(ls Docs/diagrams/*.puml 2>/dev/null || true)
+all_puml=$(ls docs/diagrams/*.puml 2>/dev/null || true)
 if [ -n "$all_puml" ]; then
   render_list="$all_puml"
 else
@@ -97,9 +97,9 @@ done
 
 # Stage generated files according to formats
 if echo "$formats_cfg" | grep -qw svg; then
-  git add Docs/diagrams/*.svg || true
+  git add docs/diagrams/*.svg || true
 fi
 if echo "$formats_cfg" | grep -qw png; then
-  git add Docs/diagrams/*.png || true
+  git add docs/diagrams/*.png || true
 fi
 exit 0

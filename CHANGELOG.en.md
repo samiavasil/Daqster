@@ -30,7 +30,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **PluginDependencyManager System** - automatic plugin dependency management system
   - `cmake/PluginDependencyManager.cmake` - core dependency management system
   - `cmake/PluginExamples.cmake` - usage examples for the system
-  - `Docs/PluginDependencyManagement.md` - comprehensive documentation
+  - `docs/PluginDependencyManagement.md` - comprehensive documentation
 - **Automatic Plugin Management**:
   - Automatic detection of Qt modules, external libraries and packages
   - Conditional plugin compilation based on available dependencies
@@ -52,8 +52,8 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **GitHub Actions CI/CD** - automated builds and releases with AppImage artifacts
 - **Debug AppImage support** - separate Debug and Release AppImage builds
 - **Comprehensive documentation**:
-  - `Docs/Architecture.md` and `Docs/Architecture.en.md` with PlantUML diagrams
-  - `Docs/HowToDebugAppImage.md` - guide for debugging AppImage
+  - `docs/Architecture.md` and `docs/Architecture.en.md` with PlantUML diagrams
+  - `docs/HowToDebugAppImage.md` - guide for debugging AppImage
   - Updated README files with detailed build and environment variable instructions
 - **Enhanced plugin system**:
   - Improved environment variable handling for child processes
@@ -66,7 +66,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **AppImage creation process** - automated with unified script, supports local and CI modes
 - **Plugin launching** - improved for AppImage environment with proper environment setup
 - **CI/CD workflows** - simplified and optimized for AppImage creation
-- **Documentation structure** - organized in `Docs/` directory with PlantUML diagrams
+- **Documentation structure** - organized in `docs/` directory with PlantUML diagrams
 
 ### Fixed
 - **Plugin discovery in AppImage** - fixed environment variables for child processes

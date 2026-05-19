@@ -30,7 +30,7 @@
 - **PluginDependencyManager System** - автоматична система за управление на plugin dependencies
   - `cmake/PluginDependencyManager.cmake` - основна система за dependency management
   - `cmake/PluginExamples.cmake` - примери за използване на системата
-  - `Docs/PluginDependencyManagement.md` - подробна документация
+  - `docs/PluginDependencyManagement.md` - подробна документация
 - **Automatic Plugin Management**:
   - Автоматично откриване на Qt модули, external библиотеки и packages
   - Условно компилиране на plugins според наличните dependencies
@@ -52,8 +52,8 @@
 - **GitHub Actions CI/CD** - автоматизирани билдове и releases с AppImage артефакти
 - **Debug AppImage support** - отделни Debug и Release AppImage билдове
 - **Comprehensive documentation**:
-  - `Docs/Architecture.md` и `Docs/Architecture.en.md` с PlantUML диаграми
-  - `Docs/HowToDebugAppImage.md` - ръководство за дебъгване на AppImage
+  - `docs/Architecture.md` и `docs/Architecture.en.md` с PlantUML диаграми
+  - `docs/HowToDebugAppImage.md` - ръководство за дебъгване на AppImage
   - Обновени README файлове с подробни инструкции за билдове и environment променливи
 - **Enhanced plugin system**:
   - Подобрено environment variable handling за child processes
@@ -66,7 +66,7 @@
 - **AppImage creation process** - автоматизиран с unified скрипт, поддържа local и CI режими
 - **Plugin launching** - подобрено за AppImage среда с правилно environment setup
 - **CI/CD workflows** - опростени и оптимизирани за AppImage създаване
-- **Documentation structure** - организирана в `Docs/` директория с PlantUML диаграми
+- **Documentation structure** - организирана в `docs/` директория с PlantUML диаграми
 
 ### Fixed
 - **Plugin discovery в AppImage** - поправени environment variables за child processes

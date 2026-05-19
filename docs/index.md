@@ -6,7 +6,7 @@
 
 ## Основни входни точки
 
-- [Project README](../README.md) - общ преглед на проекта, инструкции за build и структура
+- [Проект в GitHub](https://github.com/samiavasil/Daqster) - код, README и общ преглед на проекта
 - [Architecture](./Architecture/README.md) - архитектурен хъб и връзки към подсистемите
 - [Development Topics](./development/README.md) - разработка, дебъг и workflow за contributors
 - [Operations Topics](./operations/README.md) - build, поддръжка и operational теми
@@ -19,8 +19,9 @@
 
 ### Документация
 
-#### Documentation Hierarchy — структура на Docs/ папката
+#### Documentation Hierarchy — структура на docs/ папката
 
 ![Documentation Hierarchy](./diagrams/documentation_hierarchy.svg)
 
 [PlantUML източник](./diagrams/documentation_hierarchy.puml)
+

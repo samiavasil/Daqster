@@ -3,7 +3,7 @@ name: Render PlantUML Diagrams
 on:
   push:
     paths:
-      - 'Docs/diagrams/**/*.puml'
+      - 'docs/diagrams/**/*.puml'
       - '.github/workflows/render-plantuml.yml'
   workflow_dispatch: {}
 
@@ -52,7 +52,7 @@ jobs:
           PLANTUML_FORMATS: svg
         run: |
           formats="${PLANTUML_FORMATS:-svg}"
-          for file in Docs/diagrams/*.puml; do
+          for file in docs/diagrams/*.puml; do
             echo "Rendering $file"
             for fmt in $formats; do
               case "$fmt" in
@@ -71,10 +71,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # Stage only configured formats (default: svg)
           if echo "$PLANTUML_FORMATS" | grep -qw svg || [ -z "$PLANTUML_FORMATS" ]; then
-            git add Docs/diagrams/*.svg || true
+            git add docs/diagrams/*.svg || true
           fi
           if echo "$PLANTUML_FORMATS" | grep -qw png; then
-            git add Docs/diagrams/*.png || true
+            git add docs/diagrams/*.png || true
           fi
           if git diff --staged --quiet; then
             echo "No diagram changes to commit"

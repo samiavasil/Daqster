@@ -40,7 +40,7 @@ Daqster/
 ├── tools/                        # Инструменти за билд
 │   ├── create_appimage.sh        # AppImage създаване
 │   └── Build_AppImage/           # Локални AppImage билдове
-├── Docs/                         # Документация
+├── docs/                         # Документация
 │   ├── Architecture/             # Архитектурна документация
 │   │   ├── README.md             # Тази документация
 │   │   ├── README.en.md          # English версия

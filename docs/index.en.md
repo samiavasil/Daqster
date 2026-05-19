@@ -6,7 +6,7 @@ This is the main navigation page. Only top-level entry points live here.
 
 ## Main Entry Points
 
-- [Project README](../README.en.md) - Project overview, build instructions, structure
+- [Project on GitHub](https://github.com/samiavasil/Daqster) - source code, README, and project overview
 - [Architecture](./Architecture/README.en.md) - architecture hub and subsystem navigation
 - [Development Topics](./development/README.md) - development workflow and debugging topics
 - [Operations Topics](./operations/README.md) - build, maintenance, and operational topics
@@ -19,7 +19,7 @@ Architecture and process diagrams are centralized in the architecture hub:
 
 ### Documentation
 
-#### Documentation Hierarchy — Docs/ folder structure
+#### Documentation Hierarchy — docs/ folder structure
 
 ![Documentation Hierarchy](./diagrams/documentation_hierarchy.svg)
 
