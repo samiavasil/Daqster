@@ -1,6 +1,6 @@
 # Developer Guide
 
-Parent: [Documentation Index](../INDEX.md)
+Parent: [Documentation Index](../index.md)
 
 This guide helps contributors and maintainers to get started with the
 Daqster framework and develop plugins or new applications.

@@ -2,7 +2,7 @@
 
 [Български](./README.md) | [English](./README.en.md)
 
-Родител: [Documentation Index](../INDEX.md)
+Родител: [Documentation Index](../index.md)
 
 ## Архитектурен хъб
 

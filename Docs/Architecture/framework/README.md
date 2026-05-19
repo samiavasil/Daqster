@@ -1,6 +1,6 @@
 # Daqster Framework
 
-Родител: [Architecture Overview](../README.md) | [Documentation Index](../../INDEX.md)
+Родител: [Architecture Overview](../README.md) | [Documentation Index](../../index.md)
 
 Съседни подсистеми: [Applications](../apps/README.md) | [Plugins](../plugins/README.md)
 

@@ -1,6 +1,6 @@
 [Български](./BuildHelpers.md) | [English](./BuildHelpers.en.md)
 
-Родител: [Operations Topics](./README.md) | [Documentation Index](../INDEX.md)
+Родител: [Operations Topics](./README.md) | [Documentation Index](../index.md)
 
 # Помощни build скриптове
 

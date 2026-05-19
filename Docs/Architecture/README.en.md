@@ -2,7 +2,7 @@
 
 [Български](./README.md) | [English](./README.en.md)
 
-Parent: [Documentation Index](../INDEX.en.md)
+Parent: [Documentation Index](../index.en.md)
 
 ## Architecture Hub
 
