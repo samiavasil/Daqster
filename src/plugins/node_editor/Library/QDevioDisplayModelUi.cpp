@@ -6,14 +6,39 @@
 #include <QtCharts/QValueAxis>
 #include <QtWidgets/QVBoxLayout>
 #include <QTimer>
-#include<QMenu>
+#include <QMenu>
+#include <QtMath>
+#include <cmath>
+#include <algorithm>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+QT_CHARTS_USE_NAMESPACE
+
+static int largestPowerOfTwoLe(int n)
+{
+    int p = 1;
+    while (p * 2 <= n)
+        p *= 2;
+    return p;
+}
+
+static void applyHannWindow(QVector<double> &data)
+{
+    const int n = data.size();
+    if (n < 2) return;
+    for (int i = 0; i < n; ++i) {
+        const double hann = 0.5 * (1.0 - std::cos(2.0 * M_PI * i / (n - 1)));
+        data[i] *= hann;
+    }
+}
 
 QDevioDisplayModelUi::QDevioDisplayModelUi(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::QDevioDisplayModelUi),
     m_NextHndl(0)
-  /*,
-                  m_chart(new QChart)*/
 {
     m_ColCount = 1;
     ui->setupUi(this);
@@ -22,55 +47,52 @@ QDevioDisplayModelUi::QDevioDisplayModelUi(QWidget *parent) :
     populateAnimationBox();
     populateLegendBox();
     ui->antialiasing->setChecked(true);
-#if 0
-    m_series.append(new QLineSeries);
-    m_series.append(new QLineSeries);
-    QChartView *chartView = new QChartView(m_chart);
-    chartView->setMinimumSize(400, 200);
-    QValueAxis *axisX = new QValueAxis;
-    axisX->setRange(0, 8000);
-    axisX->setLabelFormat("%g");
-    axisX->setTitleText("Samples");
-    QValueAxis *axisY = new QValueAxis;
-    axisY->setRange(-1.3, 1.3);
-    axisY->setTitleText("Audio level");
-
-    for(int j = 0; j < 2; j++) {
-        for(int i=0;i<2000;i++){
-            m_series[j]->append(i,0.5*j);
-        }
-        m_chart->addSeries(m_series[j]);
-        m_chart->setAxisX(axisX, m_series[j]);
-        m_chart->setAxisY(axisY, m_series[j]);
-    }
-    m_chart->legend()->hide();
-    m_chart->setTitle("Data from the microphone");
-
-    ui->gridLayout->addWidget(chartView);
-#endif
     connect(ui->animation, SIGNAL(currentIndexChanged(int)), this, SLOT(updateUI()));
     connect(ui->legend, SIGNAL(currentIndexChanged(int)), this, SLOT(updateUI()));
     connect(ui->theme, SIGNAL(currentIndexChanged(int)), this, SLOT(updateUI()));
     connect(ui->antialiasing, SIGNAL(toggled(bool)), this, SLOT(updateUI()));
     connect(ui->gridColumns, SIGNAL(valueChanged(int)), this, SLOT(gridChanged(int)));
-    const disp_hndl_t hndl = AddChart();//TODO: Fix Me
-//    hndl = AddChart();
-//    hndl = AddChart();
 
-    //    SetSeries(hndl, 5);
+    const disp_hndl_t hndl = AddChart();
+
+    // FFT chart — hidden by default
+    m_fftHandle = AddChart();
+    auto *fftChartView = m_ChartMap[m_fftHandle];
+    auto *fftChart = fftChartView->chart();
+    fftChart->setTitle(tr("Frequency Spectrum"));
+    fftChart->legend()->hide();
+
+    auto *fftSeries = new QLineSeries();
+    fftSeries->setName(tr("Magnitude"));
+    fftChart->addSeries(fftSeries);
+
+    auto *axisX = new QValueAxis();
+    axisX->setTitleText(tr("Frequency Bin"));
+    axisX->setLabelFormat("%d");
+    axisX->setRange(0, 4096);
+
+    auto *axisY = new QValueAxis();
+    axisY->setTitleText(tr("Magnitude"));
+    axisY->setLabelFormat("%.3f");
+    axisY->setRange(0, 1);
+
+    fftChart->addAxis(axisX, Qt::AlignBottom);
+    fftChart->addAxis(axisY, Qt::AlignLeft);
+    fftSeries->attachAxis(axisX);
+    fftSeries->attachAxis(axisY);
+
+    // Make a placeholder series entry so SetSeries / RemoveSeries don't break
+    auto *seriesVec = new QVector<QLineSeries*>();
+    seriesVec->append(fftSeries);
+    m_SeriesMap[m_fftHandle] = seriesVec;
+
+    fftChartView->setVisible(false);
+
     QTimer::singleShot(100, this, SLOT(pollData()));
 }
 
 QDevioDisplayModelUi::~QDevioDisplayModelUi()
 {
-    //TBD ???Is this needed?
-#if 0
-    while( m_series.count() ) {
-        m_chart->removeSeries(m_series[0]);
-        delete m_series[0];
-        m_series.removeFirst();
-    }
-#endif
     delete ui;
 }
 
@@ -86,23 +108,10 @@ QDevioDisplayModelUi::disp_hndl_t QDevioDisplayModelUi::AddChart()
 
 void QDevioDisplayModelUi::RemoveChart(QDevioDisplayModelUi::disp_hndl_t hndl)
 {
-#if 0
-    QVector<QLineSeries*> series = m_SeriesMap.take(hndl);
-
-    while(series.count()) {
-        m_chart->removeSeries(series[0]);
-        delete series[0];
-        series.removeFirst();
-    }
-#endif
 }
 
 void RemoveSeriesFromVector(QVector<QtChartsCompat::LineSeries*>& series) {
-    /*while(series.count()) {
-        m_chart->removeSeries(series[0]);
-        delete series[0];
-        series.removeFirst();
-    }*/ QtChartsCompat::ValueAxis *axisX = new QtChartsCompat::ValueAxis;
+ QtChartsCompat::ValueAxis *axisX = new QtChartsCompat::ValueAxis;
 }
 
 void QDevioDisplayModelUi::updateUI()
@@ -270,21 +279,14 @@ int QDevioDisplayModelUi::SetSeries(QDevioDisplayModelUi::disp_hndl_t hndl, int 
             chart->addSeries(series->value(j));
         }
 
-        chart->addAxis(axisX, Qt::AlignBottom);
-        chart->addAxis(axisY, Qt::AlignLeft);
-        for (auto *lineSeries : *series) {
-            lineSeries->attachAxis(axisX);
-            lineSeries->attachAxis(axisY);
-        }
+        chart->createDefaultAxes();
 
-        //chart->legend()->hide();
         chart->setTitle("Data from the microphone");
 
-        // Update legend alignment
         Qt::Alignment alignment(
                     ui->legend->itemData(ui->legend->currentIndex()).toInt());
-        axisX->setRange(0, 8000);
-        axisY->setRange(-3, 3);
+        chart->axisX()->setRange(0, 8000);
+        chart->axisY() ->setRange(-3, 3);
         chart->legend()->setAlignment(Qt::AlignLeft);
 
         if (!alignment) {
@@ -306,7 +308,7 @@ int QDevioDisplayModelUi::SetSeries(QDevioDisplayModelUi::disp_hndl_t hndl, int 
 int QDevioDisplayModelUi::RemoveSeries()
 {
     int removed = 0;
-
+#if 0
     for (auto *chartView : m_ChartMap) {
         if (!chartView || !chartView->chart()) {
             continue;
@@ -327,7 +329,7 @@ int QDevioDisplayModelUi::RemoveSeries()
             ++removed;
         }
     }
-
+#endif
     return removed;
 }
 
@@ -338,10 +340,17 @@ void QDevioDisplayModelUi::contextMenuEvent(QContextMenuEvent *event)
     QAction *showAction    = menu.addAction("Show Chart Control");
     showAction->setCheckable(true);
     showAction->setChecked(ui->chartControl->isVisible());
+    menu.addSeparator();
+    QAction *fftAction = menu.addAction("Show FFT Spectrum");
+    fftAction->setCheckable(true);
+    fftAction->setChecked(m_ChartMap.value(m_fftHandle, nullptr) &&
+                          m_ChartMap[m_fftHandle]->isVisible());
     QAction *selectedAction = menu.exec( event->globalPos() );
 
     if(showAction == selectedAction) {
         ui->chartControl->setVisible(selectedAction->isChecked());
+    } else if (fftAction == selectedAction) {
+        showFftDialog();
     }
 
 }
@@ -352,9 +361,105 @@ void QDevioDisplayModelUi::pollData() {
 
 void QDevioDisplayModelUi::bufferReady(QVector<QPointF> &buff, int channel)
 {
-    auto series = m_SeriesMap.value(0, nullptr);//TODO Fix this 0 index
+    auto series = m_SeriesMap.value(0, nullptr);
     Q_ASSERT(series != nullptr);
     auto seria = series->value(channel);
     if(seria != nullptr)
         seria->replace(buff);
+
+    if (channel == 0 && m_ChartMap.value(m_fftHandle, nullptr) &&
+        m_ChartMap[m_fftHandle]->isVisible()) {
+        QVector<QPointF> spectrum;
+        computeFFT(buff, spectrum);
+        auto *fftSeries = m_SeriesMap.value(m_fftHandle, nullptr);
+        if (fftSeries && !fftSeries->isEmpty())
+            fftSeries->first()->replace(spectrum);
+    }
+}
+
+void QDevioDisplayModelUi::showFftDialog()
+{
+    auto *fftChartView = m_ChartMap.value(m_fftHandle, nullptr);
+    if (!fftChartView)
+        return;
+
+    fftChartView->setVisible(!fftChartView->isVisible());
+    updateGrid();
+}
+
+void QDevioDisplayModelUi::computeFFT(const QVector<QPointF> &timeDomainData,
+                                      QVector<QPointF> &spectrumOut)
+{
+    const int n = timeDomainData.size();
+    int fftSize = largestPowerOfTwoLe(n);
+    if (fftSize < 2)
+        return;
+
+    if (fftSize != m_fftSize) {
+        m_fftSize = fftSize;
+        // Precompute Hann window
+        m_fftWindow.resize(fftSize);
+        for (int i = 0; i < fftSize; ++i)
+            m_fftWindow[i] = 0.5 * (1.0 - std::cos(2.0 * M_PI * i / (fftSize - 1)));
+    }
+
+    QVector<double> re(fftSize);
+    QVector<double> im(fftSize, 0.0);
+    for (int i = 0; i < fftSize; ++i)
+        re[i] = timeDomainData[i].y() * m_fftWindow[i];
+
+    // Bit reversal
+    for (int i = 1, j = 0; i < fftSize; ++i) {
+        int bit = fftSize >> 1;
+        for (; j & bit; bit >>= 1)
+            j ^= bit;
+        j ^= bit;
+        if (i < j) {
+            std::swap(re[i], re[j]);
+            std::swap(im[i], im[j]);
+        }
+    }
+
+    // Cooley-Tukey radix-2 DIT
+    for (int len = 2; len <= fftSize; len <<= 1) {
+        const double ang = 2.0 * M_PI / len;
+        const double wRe = std::cos(ang);
+        const double wIm = -std::sin(ang);
+        for (int i = 0; i < fftSize; i += len) {
+            double curRe = 1.0, curIm = 0.0;
+            const int half = len / 2;
+            for (int j = 0; j < half; ++j) {
+                const double tRe = curRe * re[i + j + half] - curIm * im[i + j + half];
+                const double tIm = curRe * im[i + j + half] + curIm * re[i + j + half];
+                re[i + j + half] = re[i + j] - tRe;
+                im[i + j + half] = im[i + j] - tIm;
+                re[i + j] += tRe;
+                im[i + j] += tIm;
+                const double tmp = curRe * wRe - curIm * wIm;
+                curIm = curRe * wIm + curIm * wRe;
+                curRe = tmp;
+            }
+        }
+    }
+
+    const int half = fftSize / 2;
+    spectrumOut.resize(half);
+    auto *fftChartView = m_ChartMap.value(m_fftHandle, nullptr);
+    auto *axisX = fftChartView
+        ? qobject_cast<QValueAxis *>(fftChartView->chart()->axisX()) : nullptr;
+
+    double maxMag = 0.0;
+    for (int i = 0; i < half; ++i) {
+        const double mag = std::sqrt(re[i] * re[i] + im[i] * im[i]) / double(fftSize);
+        if (mag > maxMag) maxMag = mag;
+        spectrumOut[i] = QPointF(double(i), mag);
+    }
+
+    if (axisX)
+        axisX->setRange(0, half);
+
+    auto *axisY = fftChartView
+        ? qobject_cast<QValueAxis *>(fftChartView->chart()->axisY()) : nullptr;
+    if (axisY)
+        axisY->setRange(0, qMax(maxMag * 1.1, 0.001));
 }

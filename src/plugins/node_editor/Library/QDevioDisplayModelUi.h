@@ -4,6 +4,7 @@
 #include "QtChartsCompat.h"
 
 #include <QWidget>
+
 #include <QMap>
 #include <QVector>
 
@@ -39,12 +40,18 @@ private:
 //    QChart* m_chart;
     disp_hndl_t m_NextHndl;
     int m_ColCount;
+    int m_fftHandle;
+    QVector<double> m_fftWindow;
+    void computeFFT(const QVector<QPointF> &timeDomainData, QVector<QPointF> &spectrumOut);
+    int m_fftSize = 0;
 public slots:
     void bufferReady(QVector<QPointF>& buff, int channel);
 protected slots:
     void pollData();
     void updateUI();
     void gridChanged(int val);
+private slots:
+    void showFftDialog();
 };
 
 #endif // QDEVIODISPLAYMODELUI_H
