@@ -15,7 +15,6 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-QT_CHARTS_USE_NAMESPACE
 
 static int largestPowerOfTwoLe(int n)
 {

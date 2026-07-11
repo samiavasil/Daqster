@@ -24,6 +24,9 @@
 #include "AudioSourceDataModel.h"
 #include "QDevIoDisplayModel.h"
 #include "Converters.h"
+#include "LLamaModelDataModel.h"
+#include "ConsoleDataModel.h"
+#include "ChatGraphModel.h"
 
 using QtNodes::NodeDelegateModelRegistry;
 using QtNodes::BasicGraphicsScene;
@@ -45,6 +48,9 @@ registerDataModels()
 
     ret->registerModel<ModuloModel<int>>("Operators");
     ret->registerModel<ModuloModel<double>>("Operators");
+
+    ret->registerModel<LLamaModelDataModel>("LLaMA");
+    ret->registerModel<ConsoleDataModel>("LLaMA");
 
     return ret;
 }
@@ -121,7 +127,7 @@ bool NodeEditorPluginObject::Initialize()
     l->addWidget(button);
     setStyle();
 
-    auto graphModel = new DataFlowGraphModel(registerDataModels());
+    auto graphModel = new ChatGraphModel(registerDataModels());
     auto scene = new DataFlowGraphicsScene(*graphModel, mainWidget);
     auto view   = new GraphicsView(scene, mainWidget);
     l->addWidget(view);
