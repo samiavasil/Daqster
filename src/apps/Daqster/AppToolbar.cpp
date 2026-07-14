@@ -86,12 +86,9 @@ void AppToolbar::ApplicationEvent(const ApplicationsManager::AppHndl_t ApHndl, c
         m_AppMenu->addAction(actionNew);
         break;
       }
-      case ApplicationsManager::APP_STOPED: {
+      case ApplicationsManager::APP_STOPED:
+      default:
         break;
-      }
-      default: {
-        break;
-      }
     }
   } else {
     //assert(0);/*TODO: Some smislen error*/

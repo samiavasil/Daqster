@@ -20,6 +20,9 @@ create_plugin(NodeEditorPlugin
         Library/QDevioDisplayModelUi.cpp
         Library/AudioFrameDecoder.cpp
         Library/XYSeriesIODevice.cpp
+        LLama/LLamaModelDataModel.cpp
+        LLama/ConsoleDataModel.cpp
+        LLama/ChatBaseWidget.cpp
         NodeEditorInterface.h
         NodeEditorPluginObject.h
         Audio/AudioNodeQdevIoConnector.h
@@ -44,6 +47,11 @@ create_plugin(NodeEditorPlugin
         Library/QDevIoDisplayModel.h
         Library/QDevioDisplayModelUi.h
         Library/XYSeriesIODevice.h
+        LLama/TextData.h
+        LLama/LLamaModelDataModel.h
+        LLama/ConsoleDataModel.h
+        LLama/ChatBaseWidget.h
+        ChatGraphModel.h
         Audio/AudioSourceConfig.ui
         Audio/AudioSourceDataModelUI.ui
         Examples/NumberSourceDataUi.ui
@@ -52,6 +60,7 @@ create_plugin(NodeEditorPlugin
     REQUIRES_LIBRARIES
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
+        Qt${QT_VERSION_MAJOR}::Network
         Qt${QT_VERSION_MAJOR}::Multimedia
         Qt${QT_VERSION_MAJOR}::Charts
         Qt${QT_VERSION_MAJOR}::OpenGL
@@ -63,6 +72,7 @@ create_plugin(NodeEditorPlugin
         ./Library
         ./Examples
         ./ThreadPull
+        ./LLama
     COMPILE_DEFINITIONS
         NODE_EDITOR_SHARED
 )

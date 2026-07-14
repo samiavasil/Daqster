@@ -1,7 +1,7 @@
 # Daqster
 [English](./README.en.md) | [Български](./README.md)
 
-Documentation index: [docs/index.en.md](./docs/index.en.md)
+Documentation index: [Docs/INDEX.en.md](./Docs/INDEX.en.md)
 
 Daqster is a Qt-based platform for modular application development and management. It enables building various types of applications through a plugin architecture with graceful shutdown, process management, and automatic plugin discovery.
 
@@ -50,20 +50,13 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
-For more information see [DeveloperGuide.md](./docs/development/DeveloperGuide.md).
+For more information see [DeveloperGuide.md](./Docs/development/DeveloperGuide.md).
 
 ### 3) Run
 ```bash
 cd build/bin
 ./Daqster
 ```
-
-## Qt5/Qt6 Status
-
-- Full builds are validated for both Qt5 and Qt6.
-- All current plugins in this repository compile in both versions.
-- NodeEditorPlugin is enabled for Qt6 through a QtCharts/QtMultimedia compatibility layer.
-- When keeping parallel Qt5/Qt6 build trees, use isolated plugin paths to avoid mixed-runtime plugin loading.
 
 ## Framework Architecture
 
@@ -73,7 +66,7 @@ Daqster uses a modular architecture with three key layers:
 - **QProcessManager** - generic child process management with virtual hooks
 - **ApplicationsManager** - Daqster-specific implementation with environment setup and plugin management
 
-For details see [Framework](./docs/Architecture/framework/README.md) and [ApplicationsManager](./docs/Architecture/apps/ApplicationsManager.md).
+For details see [Framework](./Docs/Architecture/framework/README.md) and [ApplicationsManager](./Docs/Architecture/apps/ApplicationsManager.md).
 
 ## Plugin Discovery System
 
@@ -84,7 +77,7 @@ Plugins are searched in the following priority order:
 3. User plugins - `~/.local/share/daqster/plugins`
 4. System plugins - `/usr/lib/daqster/plugins` and `/usr/local/lib/daqster/plugins`
 
-See [BuildSystemArchitecture](./docs/Architecture/BuildSystemArchitecture.en.md) for details.
+See [BuildSystemArchitecture](./Docs/Architecture/BuildSystemArchitecture.en.md) for details.
 
 ## Environment Variables
 
@@ -102,7 +95,7 @@ See [BuildSystemArchitecture](./docs/Architecture/BuildSystemArchitecture.en.md)
 - `XDG_DATA_HOME` - user data (default: `~/.local/share/daqster`)
 - `XDG_CACHE_HOME` - cache (default: `~/.cache/daqster`)
 
-For complete list see [HowToDebugAppImage](./docs/development/HowToDebugAppImage.md).
+For complete list see [HowToDebugAppImage](./Docs/development/HowToDebugAppImage.md).
 
 ## AppImage
 
@@ -120,13 +113,13 @@ For details see [tools/create_appimage.sh](./tools/create_appimage.sh).
 
 ## Documentation
 
-- [Documentation Index](./docs/index.en.md)
-- [Architecture Overview](./docs/Architecture/README.en.md)
-- [Development Topics](./docs/development/README.md)
-- [Operations Topics](./docs/operations/README.md)
-- [Porting Topics](./docs/porting/README.md)
-- [Framework Subsystem](./docs/Architecture/framework/README.md)
-- [Build System Architecture](./docs/Architecture/BuildSystemArchitecture.en.md)
+- [Documentation Index](./Docs/INDEX.en.md)
+- [Architecture Overview](./Docs/Architecture/README.en.md)
+- [Development Topics](./Docs/development/README.md)
+- [Operations Topics](./Docs/operations/README.md)
+- [Porting Topics](./Docs/porting/README.md)
+- [Framework Subsystem](./Docs/Architecture/framework/README.md)
+- [Build System Architecture](./Docs/Architecture/BuildSystemArchitecture.en.md)
 
 ## Project Structure
 
@@ -158,4 +151,4 @@ QT_DEBUG_PLUGINS=1 QT_LOGGING_RULES="*=true" ./Daqster
 LD_LIBRARY_PATH="/custom/lib:$LD_LIBRARY_PATH" ./Daqster-x86_64.AppImage
 ```
 
-For detailed guide see [How To Debug AppImage](./docs/development/HowToDebugAppImage.md).
+For detailed guide see [How To Debug AppImage](./Docs/development/HowToDebugAppImage.md).

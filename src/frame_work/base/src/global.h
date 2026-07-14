@@ -12,8 +12,8 @@ enum{
     SOME_ERROR
 };
 
-typedef int pack_id_t;
-typedef int msg_id_t;
+using pack_id_t = int;
+using msg_id_t = int;
 #define  PACK_ID_TYPE_BIT_SIZE  (sizeof(pack_id_t)*8)
 #define  MSG_ID_TYPE_BIT_SIZE    (sizeof(msg_id_t)*8)
 /* Maximum positive value of the underlying signed integer type (INT_MAX equivalent).
