@@ -89,7 +89,7 @@ void ConsoleDataModel::onSendClicked(QString const& text, QJsonArray const& mess
 QJsonObject ConsoleDataModel::save() const
 {
     QJsonObject obj = NodeDelegateModel::save();
-    if (m_chatWidget) {
+    if (m_chatWidget != nullptr) {
         QJsonObject chatConfig = m_chatWidget->saveConfig();
         for (auto it = chatConfig.begin(); it != chatConfig.end(); ++it)
             obj[it.key()] = it.value();
@@ -99,6 +99,6 @@ QJsonObject ConsoleDataModel::save() const
 
 void ConsoleDataModel::load(QJsonObject const& p)
 {
-    if (m_chatWidget)
+    if (m_chatWidget != nullptr)
         m_chatWidget->loadConfig(p);
 }

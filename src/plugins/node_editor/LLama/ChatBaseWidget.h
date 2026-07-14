@@ -69,7 +69,7 @@ private:
     QString activeSessionName() const;
     void setActiveSessionMessages(QJsonArray const& messages);
     void appendChat(QString const& sender, QString const& text);
-    void addJsonValue(QTreeWidgetItem* item, QString const& key, QJsonValue const& value);
+    void addJsonValue(QTreeWidgetItem* const item, QString const& key, QJsonValue const& value);
 
     // Left panel
     QListWidget* m_sessionList;

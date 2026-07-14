@@ -245,7 +245,7 @@ void LLamaModelDataModel::sendToModel(QJsonArray const& messages, double tempera
             Q_EMIT dataUpdated(0);
 
             // Добавяме exchange JSON в локалния JSON tree
-            if (m_chatWidget)
+            if (m_chatWidget != nullptr)
               m_chatWidget->appendJsonToTree(exchangeObj, false);
 
             if (onResult)
@@ -495,7 +495,7 @@ QJsonObject LLamaModelDataModel::save() const {
   obj["ctxSize"] = m_ctxSizeSpin->value();
   obj["useGpu"] = m_useGpuCheck->isChecked();
 
-  if (m_chatWidget) {
+  if (m_chatWidget != nullptr) {
     QJsonObject chatConfig = m_chatWidget->saveConfig();
     // Merge chat config into root
     for (auto it = chatConfig.begin(); it != chatConfig.end(); ++it)
@@ -513,6 +513,6 @@ void LLamaModelDataModel::load(QJsonObject const& p) {
   if (p.contains("ctxSize")) m_ctxSizeSpin->setValue(p["ctxSize"].toInt());
   if (p.contains("useGpu")) m_useGpuCheck->setChecked(p["useGpu"].toBool());
 
-  if (m_chatWidget)
+  if (m_chatWidget != nullptr)
     m_chatWidget->loadConfig(p);
 }

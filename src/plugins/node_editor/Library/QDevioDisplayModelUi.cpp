@@ -61,16 +61,16 @@ QDevioDisplayModelUi::QDevioDisplayModelUi(QWidget *parent) :
     fftChart->setTitle(tr("Frequency Spectrum"));
     fftChart->legend()->hide();
 
-    auto *fftSeries = new QLineSeries();
+    auto *fftSeries = new QtChartsCompat::LineSeries();
     fftSeries->setName(tr("Magnitude"));
     fftChart->addSeries(fftSeries);
 
-    auto *axisX = new QValueAxis();
+    auto *axisX = new QtChartsCompat::ValueAxis();
     axisX->setTitleText(tr("Frequency Bin"));
     axisX->setLabelFormat("%d");
     axisX->setRange(0, 4096);
 
-    auto *axisY = new QValueAxis();
+    auto *axisY = new QtChartsCompat::ValueAxis();
     axisY->setTitleText(tr("Magnitude"));
     axisY->setLabelFormat("%.3f");
     axisY->setRange(0, 1);
@@ -81,7 +81,7 @@ QDevioDisplayModelUi::QDevioDisplayModelUi(QWidget *parent) :
     fftSeries->attachAxis(axisY);
 
     // Make a placeholder series entry so SetSeries / RemoveSeries don't break
-    auto *seriesVec = new QVector<QLineSeries*>();
+    auto *seriesVec = new QVector<QtChartsCompat::LineSeries*>();
     seriesVec->append(fftSeries);
     m_SeriesMap[m_fftHandle] = seriesVec;
 
@@ -284,8 +284,10 @@ int QDevioDisplayModelUi::SetSeries(QDevioDisplayModelUi::disp_hndl_t hndl, int 
 
         Qt::Alignment alignment(
                     ui->legend->itemData(ui->legend->currentIndex()).toInt());
-        chart->axisX()->setRange(0, 8000);
-        chart->axisY() ->setRange(-3, 3);
+        auto *axX = chart->axes(Qt::Horizontal).value(0);
+        auto *axY = chart->axes(Qt::Vertical).value(0);
+        if (axX) axX->setRange(0, 8000);
+        if (axY) axY->setRange(-3, 3);
         chart->legend()->setAlignment(Qt::AlignLeft);
 
         if (!alignment) {
@@ -410,7 +412,7 @@ void QDevioDisplayModelUi::computeFFT(const QVector<QPointF> &timeDomainData,
     // Bit reversal
     for (int i = 1, j = 0; i < fftSize; ++i) {
         int bit = fftSize >> 1;
-        for (; j & bit; bit >>= 1)
+        for (; (j & bit) != 0; bit >>= 1)
             j ^= bit;
         j ^= bit;
         if (i < j) {
@@ -445,7 +447,7 @@ void QDevioDisplayModelUi::computeFFT(const QVector<QPointF> &timeDomainData,
     spectrumOut.resize(half);
     auto *fftChartView = m_ChartMap.value(m_fftHandle, nullptr);
     auto *axisX = fftChartView
-        ? qobject_cast<QValueAxis *>(fftChartView->chart()->axisX()) : nullptr;
+        ? qobject_cast<QtChartsCompat::ValueAxis *>(fftChartView->chart()->axes(Qt::Horizontal).value(0)) : nullptr;
 
     double maxMag = 0.0;
     for (int i = 0; i < half; ++i) {
@@ -458,7 +460,7 @@ void QDevioDisplayModelUi::computeFFT(const QVector<QPointF> &timeDomainData,
         axisX->setRange(0, half);
 
     auto *axisY = fftChartView
-        ? qobject_cast<QValueAxis *>(fftChartView->chart()->axisY()) : nullptr;
+        ? qobject_cast<QtChartsCompat::ValueAxis *>(fftChartView->chart()->axes(Qt::Vertical).value(0)) : nullptr;
     if (axisY)
         axisY->setRange(0, qMax(maxMag * 1.1, 0.001));
 }

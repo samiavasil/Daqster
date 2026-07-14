@@ -30,6 +30,7 @@ jobs:
             qtmultimedia5-dev \
             libqt5charts5-dev \
             libssl-dev \
+            libqt5opengl5-dev \
             libicu70 \
             qml-module-qtcharts \
             qml-module-qtquick2 \

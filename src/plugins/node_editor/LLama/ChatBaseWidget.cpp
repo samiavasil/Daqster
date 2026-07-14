@@ -475,7 +475,7 @@ void ChatBaseWidget::appendChat(QString const& sender, QString const& text) {
 // ---------------------------------------------------------------------------
 // JSON tree helpers
 // ---------------------------------------------------------------------------
-void ChatBaseWidget::addJsonValue(QTreeWidgetItem* item, QString const& key, QJsonValue const& value) {
+void ChatBaseWidget::addJsonValue(QTreeWidgetItem* const item, QString const& key, QJsonValue const& value) {
     switch (value.type()) {
     case QJsonValue::Object: {
         QJsonObject childObj = value.toObject();

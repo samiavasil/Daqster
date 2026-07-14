@@ -14,6 +14,13 @@ option(DAQSTER_AUTO_INIT_SUBMODULES "Automatically run 'git submodule update --i
 # Detect Qt version (Qt6 preferred, Qt5 fallback)
 include(FindQtVersion)
 
+# Propagate Qt version choice to external libraries (e.g. nodeeditor)
+if(QT_VERSION_MAJOR EQUAL 6)
+    set(USE_QT6 ON CACHE BOOL "Build external libs with Qt6" FORCE)
+else()
+    set(USE_QT6 OFF CACHE BOOL "Build external libs with Qt6" FORCE)
+endif()
+
 # Include plugin dependency manager
 include(PluginDependencyManager)
 
