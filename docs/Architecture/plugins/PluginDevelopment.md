@@ -32,14 +32,30 @@ public:
 ## 3. CMake
 
 ```cmake
-add_library(MyPlugin SHARED
-    MyPlugin.cpp
-    MyPlugin.h
+create_plugin(MyPlugin
+    SOURCES
+        MyPlugin.cpp
+        MyPlugin.h
+    REQUIRES_LIBRARIES
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Widgets
+        frame_work
 )
+```
 
-target_link_libraries(MyPlugin PRIVATE Qt6::Core Qt6::Widgets)
-set_target_properties(MyPlugin PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins/Daqster
+Или за plugin с UI, използващ NodeEditorWidget:
+
+```cmake
+create_plugin(MyNodePlugin
+    SOURCES
+        MyNodePlugin.cpp
+        MyNodePlugin.h
+    REQUIRES_LIBRARIES
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Widgets
+        QtNodes
+        node_editor_widget
+        frame_work
 )
 ```
 

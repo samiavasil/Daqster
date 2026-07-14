@@ -24,19 +24,18 @@ Daqster е Qt5-базирана рамка за създаване и зареж
 ```
 Daqster/
 ├── src/                          # Source код
-│   ├── frame_work/               # Ядро на рамката
+│   ├── frame_work/               # Ядро на рамката (абстрактно, без QtNodes)
 │   │   └── base/                 # Основни класове
 │   │       ├── src/              # Implementation
 │   │       └── include/          # Headers
 │   ├── apps/                     # Приложения
 │   │   └── Daqster/              # Главно приложение
-│   ├── plugins/                  # Плъгини
-│   │   ├── NodeEditor/           # Node Editor плъгин
-│   │   ├── QtCoinTrader/         # QtCoinTrader плъгин
-│   │   └── tests/                # Тестови плъгини
-│   └── external_libs/            # Външни библиотеки
-│       ├── nodeeditor/           # Node Editor библиотека
-│       └── qtrest_lib/           # REST API библиотека
+│   └── plugins/                  # ВСИЧКО график/AI живее тук
+│       ├── external_libs/        # Git submodules (nodeeditor, qtrest_lib)
+│       ├── node_editor_widget/   # Споделен GUI Widget компонент
+│       ├── node_editor_app/      # Базов графичен плъгин
+│       ├── QtCoinTrader/         # QtCoinTrader плъгин
+│       └── tests/                # Тестови плъгини
 ├── tools/                        # Инструменти за билд
 │   ├── create_appimage.sh        # AppImage създаване
 │   └── Build_AppImage/           # Локални AppImage билдове
@@ -112,11 +111,23 @@ Daqster/
 
 ### 4. External Libraries (Външни библиотеки)
 
-**Местоположение:** `src/external_libs/`
+**Местоположение:** `src/plugins/external_libs/`
 
 **Библиотеки:**
-- **nodeeditor** - Графичен редактор за нодове
-- **qtrest_lib** - REST API клиент
+- **nodeeditor** - Графичен редактор за нодове (submodule, цели `QtNodes`)
+- **qtrest_lib** - REST API клиент (submodule + wrapper)
+
+### 5. NodeEditorWidget (Споделен GUI компонент)
+
+**Местоположение:** `src/plugins/libs/node_editor_widget/`
+
+Споделена библиотека, която предлага готово Qt Widgets GUI за node-based редактори. Всяка Daqster-базирана GUI нодова апликация да използва този компонент вместо да гради GUI от нулата.
+
+**Основни класове:**
+- `NodeEditorWidget` - Главен QWidget: `getInjectedRegistry()`, `buildCanvas()`, `setConnectionStyle()`
+- `ChatGraphModel` - Loop-enabled графичен модел с кръгови връзки
+
+**Зависимости (PUBLIC):** `QtNodes`, `Qt5::Widgets`, `Qt5::Core`, `frame_work`
 
 ## Архитектурни принципи
 
