@@ -58,10 +58,14 @@ The main application that provides user interface and manages plugin launching.
 ### 2.3. Plugin System (`src/plugins`)
 Examples of plugins that demonstrate the framework's capabilities.
 
-*   **`NodeEditor`**:
-    *   Plugin that provides a graphical interface for creating and editing nodes.
-    *   Uses `nodeeditor` external library.
-    *   Can work as a standalone application.
+*   **`node_editor_widget/`**:
+    *   Shared GUI component for node-based editors (SHARED library, not a plugin).
+    *   Uses the `nodeeditor` external library (`QtNodes` target).
+    *   Provides `NodeEditorWidget` and `ChatGraphModel`.
+*   **`node_editor_app/`**:
+    *   Basic graphical app plugin demonstrating `NodeEditorWidget` usage.
+    *   Auto-injects standard nodes and shows a full-screen canvas.
+    *   Built as an `APPLICATION_PLUGIN` using `create_plugin()` macro.
 *   **`QtCoinTrader`**:
     *   Plugin for cryptocurrency trading, using QML for user interface.
     *   Demonstrates QML and QtCharts integration.
@@ -70,17 +74,30 @@ Examples of plugins that demonstrate the framework's capabilities.
     *   Simple plugins used for testing `QPluginManager` and `QPluginInterface` functionality.
     *   Show how to implement `QPluginInterface`.
 
-### 2.4. External Libraries (`src/external_libs`)
-External libraries integrated into the project.
+### 2.4. External Libraries (`src/plugins/external_libs/`)
+External libraries integrated as git submodules under the plugins directory.
 
 *   **`nodeeditor`**:
     *   Library for creating graphical node editors.
-    *   Used by the `NodeEditor` plugin.
+    *   Produces the `QtNodes` target (pinned at commit `4709573`).
+    *   Used by the `NodeEditorWidget` and `NodeEditorApp`.
 *   **`qtrest_lib`**:
     *   Library for REST API communication.
     *   Can be used by plugins that require HTTP requests.
 
-### 2.5. Tools (`tools/`)
+### 2.5. NodeEditorWidget (Shared GUI Component)
+**Location:** `src/plugins/libs/node_editor_widget/`
+
+A shared SHARED library providing a ready-made Qt Widgets GUI for node-based editors. Any Daqster-based GUI node application should use this component instead of building GUI from scratch.
+
+*   **`NodeEditorWidget`**:
+    *   Main QWidget with `getInjectedRegistry()`, `buildCanvas()`, `setConnectionStyle()`.
+    *   Auto-injects all standard Daqster open-source nodes (Audio, Media, Graphs, AI, etc.).
+    *   Emits `nodeDoubleClicked` signal on node double-click.
+*   **`ChatGraphModel`**:
+    *   Loop-enabled graph model with circular link support.
+
+### 2.6. Tools (`tools/`)
 Directory containing scripts and helper files for build and packaging.
 
 *   **`create_appimage.sh`**:

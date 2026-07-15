@@ -7,6 +7,8 @@ create_application(Daqster
         ApplicationsManager.h
         AppToolbar.cpp
         AppToolbar.h
+        AppSelectionDialog.cpp
+        AppSelectionDialog.h
         mainwindow.ui
         icons.qrc
         QConsoleListener.cpp

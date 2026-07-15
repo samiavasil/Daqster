@@ -64,28 +64,6 @@ target_link_libraries(qtrest_lib
     ${QT_PREFIX}::Qml
 )
 
-#target_compile_definitions(nodes
-#  PUBLIC
-#    ${Qt5Widgets_DEFINITIONS}
-#    NODE_EDITOR_SHARED
-#  PRIVATE
-#    NODE_EDITOR_EXPORTS
-#    #NODE_DEBUG_DRAWING
-#    QT_NO_KEYWORDS
-#)
-
-#target_compile_options(nodes
-#  PRIVATE
-#    $<$<CXX_COMPILER_ID:MSVC>:/W4 /wd4127 /EHsc>
-#    $<$<CXX_COMPILER_ID:GNU>:-Wall -Wextra>
-#    $<$<CXX_COMPILER_ID:Clang>:-Wall -Wextra>
-#)
-
-#target_compile_features(nodes
-#  PUBLIC
-#    cxx_generic_lambdas # Require C++14
-#)
-
 set_target_properties(qtrest_lib
   PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
@@ -100,4 +78,3 @@ install(TARGETS qtrest_lib
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-

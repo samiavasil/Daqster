@@ -66,14 +66,15 @@ find_package(OpenSSL)
 # Other modules will be found dynamically by PluginDependencyManager
 find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS Core Gui Widgets)
 
-# NodeEditor - enable for both Qt5 and Qt6 to validate Qt6 build status
+# NodeEditor - Qt5/Qt6 (upstream has unified Qt${QT_VERSION_MAJOR} handling)
 create_external_library(nodeeditor)
 
-# QtRest library - compatible with Qt5 and Qt6
+# QtRest library - Qt5/Qt6 dual-mode
 create_external_library(qtrest_lib)
 
 # Plugins - dependency система автоматично изключва неподдържани
-add_subdirectory(src/plugins/node_editor)
+add_subdirectory(src/plugins/libs/node_editor_widget)
+add_subdirectory(src/plugins/node_editor_app)
 add_subdirectory(src/plugins/QtCoinTrader)
 add_subdirectory(src/plugins/tests/plugin_main_test)
 add_subdirectory(src/plugins/tests/plugin_fancy_test)

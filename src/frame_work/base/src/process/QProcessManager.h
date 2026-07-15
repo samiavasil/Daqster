@@ -76,6 +76,15 @@ public slots:
      */
     void KillAll();
 
+    /**
+     * @brief Terminate a specific managed process
+     * @param handle Handle of the process to terminate
+     *
+     * Attempts graceful termination first (10 second timeout),
+     * then forces kill if process doesn't respond.
+     */
+    void Kill(const ProcessHandle_t& handle);
+
 signals:
     /**
      * @brief Emitted when a process changes state

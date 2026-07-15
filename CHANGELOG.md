@@ -7,6 +7,29 @@
 ## [Unreleased]
 
 ### Added
+- **NodeEditorWidget Shared Component** (`src/plugins/node_editor_widget/`):
+  - `NodeEditorWidget` - споделен Qt Widgets GUI за node-based редактори
+  - `ChatGraphModel` - loop-enabled графичен модел
+  - `node_editor_widget_global.h` - export macro (`NODE_EDITOR_WIDGET_EXPORT`)
+  - Автоматична инжекция на стандартните Daqster ноди (Audio, Media, Graphs, AI, etc.)
+- **NodeEditorApp Plugin** (`src/plugins/node_editor_app/`):
+  - Базов графичен плъгин използващ `NodeEditorWidget`
+  - `APPLICATION_PLUGIN` тип с `create_plugin()` макро
+
+### Changed
+- **Directory Restructuring**:
+  - `src/external_libs/` → `src/plugins/external_libs/` (всички external libs са под plugins)
+  - `src/plugins/node_editor/` → разделяне на `node_editor_widget/` + `node_editor_app/`
+  - `.gitmodules` paths актуализирани
+- **nodeeditor target**: Променен от `nodes` на `QtNodes` (pin commit `4709573`)
+- **cmake/ComponentTemplates.cmake**: `create_external_library()` path → `src/plugins/external_libs/`
+- **CI Workflow**: Добавени Python patch стъпки за qtrest install fix (cmake_install.cmake patching)
+- **Architecture docs** актуализирани за новата структура
+
+### Removed
+- `src/plugins/node_editor/` — монолитен plugin (заменен от widget + app)
+- `src/external_libs/` — празна директория премахната
+
 - **Framework Architecture Refactoring** - голям рефакторинг за извличане на reusable компоненти:
   - **Platform Abstraction Layer** (`frame_work/base/src/platform/`):
     - `ShutdownHandler` - абстрактен базов клас за graceful shutdown

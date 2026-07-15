@@ -8,7 +8,7 @@ Parent: [Architecture Overview](./README.en.md) | [Documentation Index](../index
 
 Daqster's build system is based on CMake template functions that automatically manage dependencies and conditional compilation of components (applications, plugins, libraries) based on available Qt modules, external libraries, and packages.
 
-### Key Features (v2.1)
+### Key Features (v2.2)
 
 - **Declarative syntax**: Everything is in the `create_plugin()` call
 - **Automatic dependency checking**: Verified before compilation
@@ -133,14 +133,14 @@ External libraries are added via `create_external_library()`, which automaticall
 # In root CMakeLists.txt
 # NodeEditor remains Qt5-only
 if(QT_VERSION_MAJOR EQUAL 5)
-    create_external_library(nodeeditor)   # target: nodes
+    create_external_library(nodeeditor)   # target: QtNodes
 endif()
 
 # QtRest is Qt5/Qt6 compatible
 create_external_library(qtrest_lib)       # target: qtrest_lib
 ```
 
-**Note:** The parameter to `create_external_library()` is the directory name under `src/external_libs/`, but the actual CMake target may differ (e.g., `nodeeditor` -> target `nodes`).
+**Note:** The parameter to `create_external_library()` is the directory name under `src/plugins/external_libs/`, but the actual CMake target may differ (e.g., `nodeeditor` -> target `QtNodes`).
 
 **Meta-target:**
 ```bash
@@ -271,6 +271,12 @@ add_library(${COMPONENT_NAME} SHARED ${PLUGIN_SOURCES})
 
 [PlantUML source](../diagrams/framework_components.puml)
 
+## Plugin Component Architecture
+
+![Plugin Components](../diagrams/plugin_components.puml)
+
+[PlantUML source](../diagrams/plugin_components.puml)
+
 ## Build System
 
 ### CMake Configuration
@@ -342,15 +348,17 @@ Daqster/
 ├── src/
 │   ├── frame_work/
 │   │   └── CMakeLists.txt      # Internal library (uses create_internal_library)
-│   ├── external_libs/
-│   │   ├── nodeeditor/
-│   │   │   └── CMakeLists.txt  # External library (own build system)
-│   │   └── qtrest_lib/
-│   │       └── CMakeLists.txt  # External library (own build system)
 │   ├── plugins/
-│   │   ├── QtCoinTrader/
+│   │   ├── external_libs/      # Git submodules (nodeeditor, qtrest_lib)
+│   │   │   ├── nodeeditor/
+│   │   │   │   └── CMakeLists.txt  # External library (own build system)
+│   │   │   └── qtrest_lib/
+│   │   │       └── CMakeLists.txt  # External library (own build system)
+│   │   ├── node_editor_widget/ # Shared GUI component
+│   │   │   └── CMakeLists.txt  # SHARED library
+│   │   ├── node_editor_app/    # Basic app plugin
 │   │   │   └── CMakeLists.txt  # Plugin (uses create_plugin)
-│   │   ├── node_editor/
+│   │   ├── QtCoinTrader/
 │   │   │   └── CMakeLists.txt  # Plugin (uses create_plugin)
 │   │   └── tests/
 │   │       ├── plugin_main_test/
@@ -379,14 +387,17 @@ add_subdirectory(src/frame_work)
 # 3. External libraries
 # NodeEditor is Qt5-only
 if(QT_VERSION_MAJOR EQUAL 5)
-    create_external_library(nodeeditor)   # -> target: nodes
+    create_external_library(nodeeditor)   # -> target: QtNodes
 endif()
 
 # QtRest works on Qt5/Qt6
 create_external_library(qtrest_lib)       # -> target: qtrest_lib
 
-# 4. Plugins — all are added; the dependency system excludes them automatically
-add_subdirectory(src/plugins/node_editor)        # Qt5-only (requires nodes)
+# 4. Shared components
+add_subdirectory(src/plugins/libs/node_editor_widget)  # SHARED library
+
+# 5. Plugins — all are added; the dependency system excludes them automatically
+add_subdirectory(src/plugins/node_editor_app)     # Qt5-only (requires QtNodes + widget)
 add_subdirectory(src/plugins/QtCoinTrader)       # Qt5-only (requires qtrest_lib)
 add_subdirectory(src/plugins/tests/plugin_main_test)
 add_subdirectory(src/plugins/tests/plugin_fancy_test)
@@ -548,13 +559,12 @@ create_plugin(AdvancedPlugin
 
 ### Adding an External Library
 
-1. Place the library in `src/external_libs/mylibrary/`
+1. Place the library in `src/plugins/external_libs/mylibrary/`
 
 2. In root `CMakeLists.txt`:
 ```cmake
 # External libraries section
-add_subdirectory(src/external_libs/mylibrary)
-register_external_library_dependency(mylibrary)
+create_external_library(mylibrary)  # automatically registers dependency
 ```
 
 3. Use in a plugin:
@@ -631,9 +641,9 @@ Creates a plugin shared library.
 
 **Example:**
 ```cmake
-create_plugin(NodeEditorPlugin
+create_plugin(NodeEditorApp
     SOURCES NodeEditorInterface.cpp NodeEditorObject.cpp
-    REQUIRES_LIBRARIES Qt5::Core Qt5::Gui nodes frame_work
+    REQUIRES_LIBRARIES Qt5::Core Qt5::Gui QtNodes node_editor_widget frame_work
 )
 ```
 
@@ -677,8 +687,8 @@ Adds an external library (submodule), registers it, and sets up a copy target.
 
 **Example:**
 ```cmake
-create_external_library(nodeeditor)  # adds src/external_libs/nodeeditor
-create_external_library(qtrest_lib)  # adds src/external_libs/qtrest_lib
+create_external_library(nodeeditor)  # adds src/plugins/external_libs/nodeeditor
+create_external_library(qtrest_lib)  # adds src/plugins/external_libs/qtrest_lib
 ```
 
 #### `register_external_library_dependency(LIBRARY_NAME)`
@@ -810,10 +820,10 @@ endif()
 
 **Cause:** External library is not registered
 
-**Solution:** Add after `add_subdirectory()`:
+**Solution:** Add via `create_external_library()`:
 ```cmake
-add_subdirectory(src/external_libs/nodeeditor)
-register_external_library_dependency(nodes)  # Required!
+create_external_library(nodeeditor)
+# Automatically registers dependency
 ```
 
 ### Qt version detection error
@@ -906,16 +916,15 @@ set_target_properties(${COMPONENT_NAME} PROPERTIES
    target_link_libraries(MyPlugin Qt5::Network)
    ```
 
-3. **Register external libraries after add_subdirectory**
-   ```cmake
-   # Good
-   add_subdirectory(src/external_libs/mylibrary)
-   register_external_library_dependency(mylibrary)
-   
-   # Bad
-   register_external_library_dependency(mylibrary)
-   add_subdirectory(src/external_libs/mylibrary)
-   ```
+3. **Register external libraries via create_external_library**
+    ```cmake
+    # Good
+    create_external_library(mylibrary)
+    
+    # Bad (old way)
+    add_subdirectory(src/external_libs/mylibrary)
+    register_external_library_dependency(mylibrary)
+    ```
 
 4. **Use template functions, not manual CMake code**
    ```cmake
@@ -934,23 +943,26 @@ set_target_properties(${COMPONENT_NAME} PROPERTIES
 
 5. **Group related components**
    ```cmake
-   # Root CMakeLists.txt — clear structure
-   
-   # Framework
-   add_subdirectory(src/frame_work)
-   
-   # External libraries
-   if(QT_VERSION_MAJOR EQUAL 5)
-       add_subdirectory(src/external_libs/nodeeditor)
-       add_subdirectory(src/external_libs/qtrest_lib)
-   endif()
-   
-   # Plugins
-   add_subdirectory(src/plugins/node_editor)
-   add_subdirectory(src/plugins/QtCoinTrader)
-   
-   # Applications
-   add_subdirectory(src/apps/Daqster)
+    # Root CMakeLists.txt — clear structure
+    
+    # Framework
+    add_subdirectory(src/frame_work)
+    
+    # External libraries
+    if(QT_VERSION_MAJOR EQUAL 5)
+        create_external_library(nodeeditor)
+    endif()
+    create_external_library(qtrest_lib)
+    
+    # Shared components
+    add_subdirectory(src/plugins/libs/node_editor_widget)
+    
+    # Plugins
+    add_subdirectory(src/plugins/node_editor_app)
+    add_subdirectory(src/plugins/QtCoinTrader)
+    
+    # Applications
+    add_subdirectory(src/apps/Daqster)
    ```
 
 ## Migration Guide
@@ -1005,11 +1017,10 @@ add_subdirectory(src/plugins/my_plugin)
 
 **Good:** Everything is declared in the `create_plugin()` call
 ```cmake
-create_plugin(NodeEditorPlugin
+create_plugin(NodeEditorApp
     SOURCES ...
     REQUIRES_LIBRARIES ...
     INCLUDE_DIRECTORIES
-        ../../external_libs/nodeeditor/include
         ./Audio
     COMPILE_DEFINITIONS
         NODE_EDITOR_SHARED
@@ -1059,7 +1070,13 @@ if (ENABLED) -> add_library(MyPlugin ...)
 
 ## Version History
 
-### Version 2.1 (Current - October 2025)
+### Version 2.2 (Current - July 2026)
+- **Directory restructuring**: `src/external_libs/` → `src/plugins/external_libs/`
+- **NodeEditor split**: Monolithic `node_editor` plugin → `node_editor_widget` (SHARED) + `node_editor_app` (plugin)
+- **nodeeditor target**: Changed from `nodes` to `QtNodes` (pin commit `4709573`)
+- **CI improvements**: qtrest install fix, Python patching of cmake_install.cmake
+
+### Version 2.1 (October 2025)
 - **Elegant template parameters**: `INCLUDE_DIRECTORIES`, `COMPILE_DEFINITIONS`, `LINK_LIBRARIES`, `INSTALL_RPATH`
 - **Early return on missing dependencies**: No attempts to create targets with unmet dependencies
 - **Automatic settings application**: Additional target commands only called if component is enabled

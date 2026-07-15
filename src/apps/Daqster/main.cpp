@@ -6,8 +6,10 @@
 #include <QBasePluginObject.h>
 #include <QCommandLineParser>
 #include <QFile>
+#include <QMainWindow>
 #include <QDir>
 #include "debug.h"
+#include <QSettings>
 #include "QConsoleListener.h"
 #include "main.h"
 
@@ -90,6 +92,17 @@ int main(int argc, char *argv[]) {
   QApplication a(argc, argv);
   QApplication::setApplicationName("Daqster");
   QApplication::setApplicationVersion("0.1");
+
+  // Load theme if configured (default: system/light)
+  QSettings appSettings("Daqster", "Daqster");
+  QString theme = appSettings.value("Theme/Style", "default").toString();
+  if (theme == "dark") {
+      QFile styleFile(":/toolbar/icons/StyleFile");
+      if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
+          a.setStyleSheet(styleFile.readAll());
+          styleFile.close();
+      }
+  }
 
   QCommandLineParser parser;
   parser.setApplicationDescription(
@@ -176,19 +189,20 @@ int main(int argc, char *argv[]) {
         qDebug() << "Start Application: " << Name << " via " << executablePath;
       }
     } else {
-      QString Name = args[0];
+      QString Hash = args[0];
       Daqster::QBasePluginObject *obj = nullptr;
-      qDebug() << "\nSearch for plugin: " << Name;
+      qDebug() << "\nSearch for plugin hash: " << Hash;
       int ctr = 0;
        foreach (const Daqster::PluginDescription &Desc, PluginsList) {
         ctr++;
         qDebug() << "  Plug" << ctr << ": "
-                 << Desc.GetProperty(PLUGIN_NAME).toString();
-        if (0 == Desc.GetProperty(PLUGIN_NAME).toString().compare(Name, Qt::CaseInsensitive)) {
+                 << Desc.GetProperty(PLUGIN_NAME).toString()
+                 << " (" << Desc.GetProperty(PLUGIN_HASH).toString() << ")";
+        if (0 == Desc.GetProperty(PLUGIN_HASH).toString().compare(Hash, Qt::CaseInsensitive)) {
           obj = PluginManager->CreatePluginObject(
               Desc.GetProperty(PLUGIN_HASH).toString(), nullptr);
           if (nullptr != obj) {
-            qDebug() << "Plugin " << Name << " founded! Run it.";
+            qDebug() << "Plugin " << Desc.GetProperty(PLUGIN_NAME).toString() << " founded! Run it.";
             obj->Initialize();
             QApplication::setApplicationName(
                 Desc.GetProperty(PLUGIN_HASH).toString());
@@ -208,12 +222,14 @@ int main(int argc, char *argv[]) {
     }
     res = a.exec();
   } else {
-
-    // MainWindow w;
-    // w.show();
     qDebug() << __BASE_FILE__ << __FILE__;
-    AppToolbar AppBar;
-    AppBar.show();
+    QMainWindow mainWin;
+    mainWin.setWindowTitle("Daqster");
+    mainWin.resize(400, 60);
+    AppToolbar* AppBar = new AppToolbar(&mainWin);
+    mainWin.addToolBar(Qt::TopToolBarArea, AppBar);
+    mainWin.setCentralWidget(new QWidget(&mainWin));
+    mainWin.show();
     res = a.exec();
   }
 

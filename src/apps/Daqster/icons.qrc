@@ -10,5 +10,6 @@
         <file>icons/down.png</file>
         <file>icons/left_1.png</file>
         <file>icons/right_1.png</file>
+        <file>StyleFile</file>
     </qresource>
 </RCC>
