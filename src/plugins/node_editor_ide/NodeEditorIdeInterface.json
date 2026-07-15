@@ -1,0 +1,9 @@
+{
+    "Keys": ["Daqster.PlugIn.QPluginInterface"],
+    "MetaData": {
+        "Name": "NodeEditorIDE",
+        "Type": "APPLICATION_PLUGIN",
+        "Version": "0.2.0",
+        "Description": "Node editor IDE with built-in nodes and plugin-based node discovery."
+    }
+}

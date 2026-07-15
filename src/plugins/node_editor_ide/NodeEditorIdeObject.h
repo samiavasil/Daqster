@@ -8,12 +8,12 @@ class QMainWindow;
 
 using namespace Daqster;
 
-class NodeEditorAppObject : public QBasePluginObject
+class NodeEditorIdeObject : public QBasePluginObject
 {
     Q_OBJECT
 public:
-    NodeEditorAppObject(QObject* Parent = nullptr);
-    virtual ~NodeEditorAppObject();
+    NodeEditorIdeObject(QObject* Parent = nullptr);
+    virtual ~NodeEditorIdeObject();
     void SetName(const QString& name);
     virtual bool Initialize();
 
@@ -28,6 +28,9 @@ protected slots:
     void nodeDoubleClicked(QtNodes::NodeId nodeId);
 
 private:
+    void registerBuiltInNodes();
+    void discoverAndRegisterExternalNodes();
+
     QMainWindow* m_Win;
     NodeEditorWidget* m_Widget;
 };

@@ -6,14 +6,14 @@
 
 using namespace Daqster;
 
-class PLUGIN_EXPORT NodeEditorAppInterface : public QPluginInterface
+class PLUGIN_EXPORT DemoStandardNodesInterface : public QPluginInterface
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "Daqster.PlugIn.QPluginInterface" FILE "NodeEditorAppInterface.json")
+    Q_PLUGIN_METADATA(IID "Daqster.PlugIn.QPluginInterface" FILE "DemoStandardNodesInterface.json")
     Q_INTERFACES(Daqster::QPluginInterface)
 public:
-    NodeEditorAppInterface(QObject* parent = nullptr);
-    ~NodeEditorAppInterface();
+    DemoStandardNodesInterface(QObject* parent = nullptr);
+    ~DemoStandardNodesInterface();
 
 protected:
     virtual Daqster::QBasePluginObject* CreatePluginInternal(QObject* Parrent = nullptr);

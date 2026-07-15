@@ -1,6 +1,7 @@
-#include "NodeEditorAppObject.h"
+#include "NodeEditorIdeObject.h"
 #include "NodeEditorWidget.h"
 #include "QPluginManager.h"
+#include "INodeProvider.h"
 #include "debug.h"
 
 #include <QMainWindow>
@@ -14,31 +15,10 @@
 
 #include <QtWidgets/QVBoxLayout>
 
-#include "ModuloModel.h"
-#include "NumberSourceDataModel.h"
-#include "NumberDisplayDataModel.h"
 #include "AudioSourceDataModel.h"
 #include "QDevIoDisplayModel.h"
-#include "Converters.h"
 #include "LLamaModelDataModel.h"
 #include "ConsoleDataModel.h"
-
-static void registerDefaultNodes(NodeEditorWidget* widget)
-{
-    auto* registry = widget->getInjectedRegistry();
-
-    registry->registerModel<NumberSourceDataModel>("Sources");
-    registry->registerModel<AudioSourceDataModel>("Sources");
-
-    registry->registerModel<NumberDisplayDataModel>("Displays");
-    registry->registerModel<QDevIoDisplayModel>("Displays");
-
-    registry->registerModel<ModuloModel<int>>("Operators");
-    registry->registerModel<ModuloModel<double>>("Operators");
-
-    registry->registerModel<LLamaModelDataModel>("LLaMA");
-    registry->registerModel<ConsoleDataModel>("LLaMA");
-}
 
 static void setStyle()
 {
@@ -62,26 +42,26 @@ static void setStyle()
         )");
 }
 
-NodeEditorAppObject::NodeEditorAppObject(QObject* Parent)
+NodeEditorIdeObject::NodeEditorIdeObject(QObject* Parent)
     : QBasePluginObject(Parent)
     , m_Win(nullptr)
     , m_Widget(nullptr)
 {
 }
 
-NodeEditorAppObject::~NodeEditorAppObject()
+NodeEditorIdeObject::~NodeEditorIdeObject()
 {
     DeInitialize();
 }
 
-void NodeEditorAppObject::SetName(const QString& name)
+void NodeEditorIdeObject::SetName(const QString& name)
 {
     if (nullptr != m_Win) {
         m_Win->setWindowTitle(name);
     }
 }
 
-bool NodeEditorAppObject::Initialize()
+bool NodeEditorIdeObject::Initialize()
 {
     m_Win = new QMainWindow();
     QWidget* mainWidget = new QWidget(m_Win);
@@ -89,7 +69,7 @@ bool NodeEditorAppObject::Initialize()
     QVBoxLayout* l = new QVBoxLayout(mainWidget);
 
     QLabel* label = new QLabel();
-    label->setText("Node Editor");
+    label->setText("Node Editor IDE");
     QPushButton* button = new QPushButton(m_Win);
     l->addWidget(label);
     l->addWidget(button);
@@ -97,7 +77,14 @@ bool NodeEditorAppObject::Initialize()
     setStyle();
 
     m_Widget = new NodeEditorWidget(mainWidget);
-    registerDefaultNodes(m_Widget);
+
+    // Phase 1: Register built-in nodes (from former node_editor_app)
+    registerBuiltInNodes();
+
+    // Phase 2: Discover and register external INodeProvider plugins
+    discoverAndRegisterExternalNodes();
+
+    // Build canvas AFTER all nodes are registered
     m_Widget->buildCanvas();
 
     l->addWidget(m_Widget);
@@ -109,13 +96,44 @@ bool NodeEditorAppObject::Initialize()
     m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
 
     connect(m_Widget, &NodeEditorWidget::nodeDoubleClicked,
-            this, &NodeEditorAppObject::nodeDoubleClicked);
+            this, &NodeEditorIdeObject::nodeDoubleClicked);
     connect(m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)));
     connect(button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()));
     return true;
 }
 
-void NodeEditorAppObject::nodeDoubleClicked(QtNodes::NodeId nodeId)
+void NodeEditorIdeObject::registerBuiltInNodes()
+{
+    auto* registry = m_Widget->getInjectedRegistry();
+
+    registry->registerModel<AudioSourceDataModel>("Sources");
+
+    registry->registerModel<QDevIoDisplayModel>("Displays");
+
+    registry->registerModel<LLamaModelDataModel>("LLaMA");
+    registry->registerModel<ConsoleDataModel>("LLaMA");
+}
+
+void NodeEditorIdeObject::discoverAndRegisterExternalNodes()
+{
+    Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
+    if (!pm) return;
+
+    QObjectList providers = pm->instances(INodeProvider_IID);
+    auto* registry = m_Widget->getInjectedRegistry();
+
+    for (QObject* obj : providers) {
+        auto* provider = qobject_cast<Daqster::INodeProvider*>(obj);
+        if (!provider) continue;
+
+        QString name = obj->property("name").toString();
+        DEBUG << "Discovered INodeProvider plugin:" << name;
+
+        provider->registerNodes(*registry);
+    }
+}
+
+void NodeEditorIdeObject::nodeDoubleClicked(QtNodes::NodeId nodeId)
 {
     Q_UNUSED(nodeId);
     QMenu menu;
@@ -130,15 +148,15 @@ void NodeEditorAppObject::nodeDoubleClicked(QtNodes::NodeId nodeId)
     }
 }
 
-void NodeEditorAppObject::DeInitialize()
+void NodeEditorIdeObject::DeInitialize()
 {
     if (nullptr != m_Win) {
         m_Win->deleteLater();
     }
-    DEBUG_V << "NodeEditorAppObject destroyed";
+    DEBUG_V << "NodeEditorIdeObject destroyed";
 }
 
-void NodeEditorAppObject::MainWinDestroyed(QObject* obj)
+void NodeEditorIdeObject::MainWinDestroyed(QObject* obj)
 {
     m_Win = nullptr;
     m_Widget = nullptr;
@@ -147,7 +165,7 @@ void NodeEditorAppObject::MainWinDestroyed(QObject* obj)
         DEBUG << "Strange::!!!";
 }
 
-void NodeEditorAppObject::ShowPlugins()
+void NodeEditorIdeObject::ShowPlugins()
 {
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
     if (nullptr != pm) {

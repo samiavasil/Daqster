@@ -1,6 +1,5 @@
 #pragma once
 
-#include "NodeEditorWidget_global.h"
 #include <QWidget>
 #include <memory>
 #include <QtNodes/Definitions>
@@ -14,7 +13,7 @@ class GraphicsView;
 
 class QVBoxLayout;
 
-class NODE_EDITOR_WIDGET_EXPORT NodeEditorWidget : public QWidget
+class NodeEditorWidget : public QWidget
 {
     Q_OBJECT
 public:
