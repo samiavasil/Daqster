@@ -1,7 +1,7 @@
 # Daqster
 [Български](./README.md) | [English](./README.en.md)
 
-Документация индекс: [Docs/INDEX.md](./Docs/INDEX.md)
+Документация индекс: [Docs/INDEX.md](./docs/INDEX.md)
 
 Daqster е Qt-базирана платформа за модулна разработка и управление на приложения. Позволява създаване на различни типове приложения чрез плъгин архитектура с graceful shutdown, process управление и auto plugin discovery.
 
@@ -50,7 +50,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
-За повече информация вижте [DeveloperGuide.md](./Docs/development/DeveloperGuide.md).
+За повече информация вижте [DeveloperGuide.md](./docs/development/DeveloperGuide.md).
 
 ### 3) Стартиране
 ```bash
@@ -66,7 +66,7 @@ Daqster използва модулна архитектура с три клю�
 - **QProcessManager** - generic управление на child процеси с виртуални hooks
 - **ApplicationsManager** - Daqster-специфична реализация с environment setup и plugin management
 
-За подробности вижте [Framework](./Docs/Architecture/framework/README.md) и [ApplicationsManager](./Docs/Architecture/apps/ApplicationsManager.md).
+За подробности вижте [Framework](./docs/Architecture/framework/README.md) и [ApplicationsManager](./docs/Architecture/apps/ApplicationsManager.md).
 
 ## Plugin Discovery System
 
@@ -77,7 +77,7 @@ Daqster използва модулна архитектура с три клю�
 3. User плъгини - `~/.local/share/daqster/plugins`
 4. System плъгини - `/usr/lib/daqster/plugins` и `/usr/local/lib/daqster/plugins`
 
-Вижте [BuildSystemArchitecture](./Docs/Architecture/BuildSystemArchitecture.md) за детайли.
+Вижте [BuildSystemArchitecture](./docs/Architecture/BuildSystemArchitecture.md) за детайли.
 
 ## Environment Variables
 
@@ -95,7 +95,7 @@ Daqster използва модулна архитектура с три клю�
 - `XDG_DATA_HOME` - данни (по подразбиране: `~/.local/share/daqster`)
 - `XDG_CACHE_HOME` - кеш (по подразбиране: `~/.cache/daqster`)
 
-За полен списък вижте [HowToDebugAppImage](./Docs/development/HowToDebugAppImage.md).
+За полен списък вижте [HowToDebugAppImage](./docs/development/HowToDebugAppImage.md).
 
 ## AppImage
 
@@ -113,13 +113,13 @@ Daqster използва модулна архитектура с три клю�
 
 ## Документация
 
-- [Документация индекс](./Docs/INDEX.md)
-- [Architecture Overview](./Docs/Architecture/README.md)
-- [Development Topics](./Docs/development/README.md)
-- [Operations Topics](./Docs/operations/README.md)
-- [Porting Topics](./Docs/porting/README.md)
-- [Framework Subsystem](./Docs/Architecture/framework/README.md)
-- [Build System Architecture](./Docs/Architecture/BuildSystemArchitecture.md)
+- [Документация индекс](./docs/INDEX.md)
+- [Architecture Overview](./docs/Architecture/README.md)
+- [Development Topics](./docs/development/README.md)
+- [Operations Topics](./docs/operations/README.md)
+- [Porting Topics](./docs/porting/README.md)
+- [Framework Subsystem](./docs/Architecture/framework/README.md)
+- [Build System Architecture](./docs/Architecture/BuildSystemArchitecture.md)
 
 ## Структура на проекта
 
@@ -151,4 +151,4 @@ QT_DEBUG_PLUGINS=1 QT_LOGGING_RULES="*=true" ./Daqster
 LD_LIBRARY_PATH="/custom/lib:$LD_LIBRARY_PATH" ./Daqster-x86_64.AppImage
 ```
 
-За подробно ръководство вижте [How To Debug AppImage](./Docs/development/HowToDebugAppImage.md).
+За подробно ръководство вижте [How To Debug AppImage](./docs/development/HowToDebugAppImage.md).
