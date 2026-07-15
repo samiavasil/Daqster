@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/">
+        <file>node_editor.png</file>
+        <file>icons/pause.ico</file>
+        <file>icons/pause1.ico</file>
+        <file>icons/play.ico</file>
+    </qresource>
+</RCC>

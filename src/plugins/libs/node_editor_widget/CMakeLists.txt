@@ -24,6 +24,9 @@ create_internal_library(node_editor_widget
         Qt${QT_VERSION_MAJOR}::Widgets
 )
 
+# ── Guard: only configure if the library was actually created ────────
+if(TARGET node_editor_widget)
+
 target_compile_definitions(node_editor_widget PRIVATE NODE_EDITOR_WIDGET_LIBRARY)
 
 target_include_directories(node_editor_widget
@@ -46,3 +49,5 @@ install(FILES
     src/NodeEditorWidget_global.h
     DESTINATION include
 )
+
+endif()

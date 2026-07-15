@@ -1,6 +1,6 @@
-[submodule "src/plugins/external/nodeeditor"]
+[submodule "src/plugins/external_libs/nodeeditor"]
 	path = src/plugins/external_libs/nodeeditor
 	url = https://github.com/samiavasil/nodeeditor.git
-[submodule "src/plugins/external/qtrest_lib/qtrest"]
+[submodule "src/plugins/external_libs/qtrest_lib/qtrest"]
 	path = src/plugins/external_libs/qtrest_lib/qtrest
 	url = https://github.com/samiavasil/qtrest.git

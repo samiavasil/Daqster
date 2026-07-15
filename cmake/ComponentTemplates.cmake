@@ -163,18 +163,18 @@ function(create_external_library COMPONENT_NAME)
     cmake_parse_arguments(EXT_LIB "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
     # Ensure the external library folder exists; optionally auto-init submodule
-    set(EXTERNAL_DIR "${CMAKE_SOURCE_DIR}/src/external_libs/${COMPONENT_NAME}")
+    set(EXTERNAL_DIR "${CMAKE_SOURCE_DIR}/src/plugins/external_libs/${COMPONENT_NAME}")
     if(NOT EXISTS "${EXTERNAL_DIR}")
         if(DEFINED DAQSTER_AUTO_INIT_SUBMODULES AND DAQSTER_AUTO_INIT_SUBMODULES)
             message(STATUS "External library '${COMPONENT_NAME}' missing - attempting to initialize submodule...")
             execute_process(
-                COMMAND ${GIT_EXECUTABLE} submodule update --init -- "src/external_libs/${COMPONENT_NAME}"
+                COMMAND ${GIT_EXECUTABLE} submodule update --init -- "src/plugins/external_libs/${COMPONENT_NAME}"
                 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
                 RESULT_VARIABLE _git_res
                 OUTPUT_QUIET ERROR_QUIET
             )
             if(NOT _git_res EQUAL 0)
-                message(WARNING "Failed to init submodule for '${COMPONENT_NAME}' (git exit ${_git_res}). Please run: git submodule update --init src/external_libs/${COMPONENT_NAME}")
+                message(WARNING "Failed to init submodule for '${COMPONENT_NAME}' (git exit ${_git_res}). Please run: git submodule update --init src/plugins/external_libs/${COMPONENT_NAME}")
             endif()
         else()
             message(STATUS "External library '${COMPONENT_NAME}' not present (submodule not initialized). Skipping add_subdirectory.")
@@ -183,7 +183,7 @@ function(create_external_library COMPONENT_NAME)
 
     if(EXISTS "${EXTERNAL_DIR}")
         # Add subdirectory - external library handles its own dependencies
-        add_subdirectory(src/external_libs/${COMPONENT_NAME})
+        add_subdirectory(src/plugins/external_libs/${COMPONENT_NAME})
 
         # Register as available dependency
         register_external_library_dependency(${COMPONENT_NAME})

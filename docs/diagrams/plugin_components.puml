@@ -1,0 +1,61 @@
+@startuml
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam componentStyle uml2
+
+title Plugin Component Architecture (v2.2)
+
+package "src/plugins/external_libs/" {
+  [nodeeditor\n(QtNodes)] as NODEEDITOR
+  [qtrest_lib] as QTREST
+}
+
+package "src/plugins/node_editor_widget/" <<Rectangle>> {
+  [NodeEditorWidget] as NEW
+  [ChatGraphModel] as CGM
+}
+
+package "src/plugins/node_editor_app/" <<Rectangle>> {
+  [NodeEditorApp] as APP
+}
+
+package "src/plugins/QtCoinTrader/" <<Rectangle>> {
+  [QtCoinTraderPlugin] as QCT
+}
+
+package "src/frame_work/" <<Rectangle>> {
+  [frame_work] as FW
+  [QPluginManager] as QPM
+}
+
+package "src/apps/Daqster/" <<Rectangle>> {
+  [Daqster App] as HOST
+}
+
+' Dependencies
+NEW --> NODEEDITOR : links PUBLIC\n(QtNodes)
+APP --> NEW : links\n(node_editor_widget)
+APP --> NODEEDITOR : links PUBLIC\n(QtNodes)
+APP --> FW : links
+
+QCT --> QTREST : links
+QCT --> FW : links
+
+HOST --> QPM : uses
+QPM ..> APP : discovers
+QPM ..> QCT : discovers
+
+note right of NEW
+  SHARED library
+  Provides ready-made
+  Qt Widgets GUI for
+  node-based editors
+end note
+
+note right of APP
+  APPLICATION_PLUGIN
+  Basic graph app
+  using NodeEditorWidget
+end note
+
+@enduml

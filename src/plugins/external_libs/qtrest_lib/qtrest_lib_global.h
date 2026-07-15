@@ -1,0 +1,12 @@
+#ifndef QTREST_LIB_GLOBAL_H
+#define QTREST_LIB_GLOBAL_H
+
+#include <QtCore/qglobal.h>
+
+#if defined(QTREST_LIB_LIBRARY)
+#  define QTREST_LIBSHARED_EXPORT Q_DECL_EXPORT
+#else
+#  define QTREST_LIBSHARED_EXPORT Q_DECL_IMPORT
+#endif
+
+#endif // QTREST_LIB_GLOBAL_H
