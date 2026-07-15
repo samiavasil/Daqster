@@ -65,46 +65,58 @@ void QProcessManager::StartProcess(const QString& name,
 void QProcessManager::KillAll()
 {
     qDebug() << "QProcessManager::KillAll() called";
-    blockSignals(true);
     
-    // Create a copy of process list to avoid iterator invalidation
-    // when OnProcessFinished() is called during waitForFinished()
-    QList<QProcess*> processList = m_processMap.values();
+    // Snapshot the keys so we can iterate safely while OnProcessFinished modifies the map
+    QList<ProcessHandle_t> handles = m_processMap.keys();
     
-    for (QProcess* process : processList) {
-        if (nullptr != process) {
-            // Try graceful shutdown first
-            qDebug() << "QProcessManager: Requesting graceful shutdown for:" 
-                     << process->program();
-            process->terminate(); // Sends SIGTERM on Unix, WM_CLOSE on Windows
-            
-            if (process->waitForFinished(10000)) {
-                qDebug() << "QProcessManager: Process stopped gracefully";
-            } else {
-                qWarning() << "QProcessManager: Process did not respond, forcing kill:" 
-                          << process->program();
-                process->kill(); // Force kill with SIGKILL
-                process->waitForFinished(1000);
+    for (const ProcessHandle_t& handle : handles) {
+        if (m_processMap.contains(handle)) {
+            QProcess* process = m_processMap[handle];
+            if (nullptr != process) {
+                qDebug() << "QProcessManager: Requesting graceful shutdown for:"
+                         << process->program();
+                process->terminate();
+                
+                if (process->waitForFinished(10000)) {
+                    qDebug() << "QProcessManager: Process stopped gracefully";
+                } else {
+                    qWarning() << "QProcessManager: Process did not respond, forcing kill:"
+                              << process->program();
+                    process->kill();
+                    process->waitForFinished(1000);
+                }
             }
         }
     }
-    
-    blockSignals(false);
-    // Note: OnProcessFinished() will clean up m_processMap and m_processDescriptors
+}
+
+void QProcessManager::Kill(const ProcessHandle_t& handle)
+{
+    if (!m_processMap.contains(handle)) {
+        qWarning() << "QProcessManager::Kill(): unknown handle:" << handle;
+        return;
+    }
+
+    QProcess* process = m_processMap[handle];
+    qDebug() << "QProcessManager::Kill() handle:" << handle << "process:" << process->program();
+
+    process->terminate();
+    if (process->waitForFinished(10000)) {
+        qDebug() << "QProcessManager: Process" << handle << "stopped gracefully";
+    } else {
+        qWarning() << "QProcessManager: Process" << handle << "did not respond, forcing kill";
+        process->kill();
+        process->waitForFinished(1000);
+    }
 }
 
 void QProcessManager::OnProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
-    blockSignals(true);
-    
     QProcess *sender = dynamic_cast<QProcess*>(QObject::sender());
     if (sender) {
         ProcessHandle_t handle = (ProcessHandle_t)sender->property("ProcessHandle").toUInt();
         
         if (m_processMap.contains(handle)) {
-            // Emit event BEFORE removing descriptor so slots can access it
-            emit ProcessEvent(handle, PROCESS_STOPPED);
-            
             m_processMap[handle]->deleteLater();
             m_processMap.remove(handle);
             m_processDescriptors.remove(handle);
@@ -112,12 +124,13 @@ void QProcessManager::OnProcessFinished(int exitCode, QProcess::ExitStatus exitS
             qDebug() << "QProcessManager: Process stopped. Handle:" << handle 
                      << "ExitCode:" << exitCode 
                      << "ExitStatus:" << exitStatus;
+
+            // Emit AFTER cleanup so slots don't see stale data
+            emit ProcessEvent(handle, PROCESS_STOPPED);
         } else {
             qWarning() << "QProcessManager: Can't find process with handle:" << handle;
         }
     }
-    
-    blockSignals(false);
     
     // Check if all processes finished
     if (m_processMap.isEmpty()) {

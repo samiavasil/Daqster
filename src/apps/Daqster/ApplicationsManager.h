@@ -36,6 +36,8 @@ public:
     void SetHeadlessMode(bool enabled);
 
 public slots:
+    void KillApp(const AppHndl_t& handle);
+
     void StartApplication(const QString& Name, 
                          const QStringList& Arguments, 
                          QProcess::OpenMode Mode = QProcess::ReadWrite);

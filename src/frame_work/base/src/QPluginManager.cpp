@@ -455,6 +455,11 @@ void QPluginManager::LoadPluginsInfoFromPersistency()
                     {
                         m_PluginsHashDescMap[PersHash] = Desk;
                         added = true;
+                        if( !IsInSearchPath(persistedLocation) )
+                        {
+                            DEBUG << "Warning: Plugin '" << Desk.GetProperty(PLUGIN_NAME).toString()
+                                  << "' loaded from non-search path: " << persistedLocation;
+                        }
                     }
                 }
             }

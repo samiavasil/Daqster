@@ -40,6 +40,10 @@ bool ApplicationsManager::GetAppDescryptor(const AppHndl_t& Hndl,
     return GetProcessDescriptor(Hndl, Desc);
 }
 
+void ApplicationsManager::KillApp(const AppHndl_t& handle) {
+    Kill(handle);
+}
+
 void ApplicationsManager::StartApplication(const QString& Name, 
                                           const QStringList& Arguments, 
                                           QProcess::OpenMode Mode)
