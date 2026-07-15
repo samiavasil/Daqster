@@ -73,8 +73,8 @@ create_external_library(nodeeditor)
 create_external_library(qtrest_lib)
 
 # Plugins - dependency система автоматично изключва неподдържани
-add_subdirectory(src/plugins/libs/node_editor_widget)
-add_subdirectory(src/plugins/node_editor_app)
+add_subdirectory(src/plugins/node_editor_ide)
+add_subdirectory(src/plugins/demo_standard_nodes)
 add_subdirectory(src/plugins/QtCoinTrader)
 add_subdirectory(src/plugins/tests/plugin_main_test)
 add_subdirectory(src/plugins/tests/plugin_fancy_test)

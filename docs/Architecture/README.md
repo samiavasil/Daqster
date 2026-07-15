@@ -24,16 +24,17 @@ Daqster е Qt5-базирана рамка за създаване и зареж
 ```
 Daqster/
 ├── src/                          # Source код
-│   ├── frame_work/               # Ядро на рамката (абстрактно, без QtNodes)
-│   │   └── base/                 # Основни класове
-│   │       ├── src/              # Implementation
-│   │       └── include/          # Headers
+│   ├── frame_work/               # Ядро на рамката
+│   │   ├── base/src/             # Implementation (QPluginManager, QPluginInterface, ...)
+│   │   │   └── include/          # Headers
+│   │   └── (include/ е премахнат — няма IPluginComponent)
 │   ├── apps/                     # Приложения
 │   │   └── Daqster/              # Главно приложение
 │   └── plugins/                  # ВСИЧКО график/AI живее тук
 │       ├── external_libs/        # Git submodules (nodeeditor, qtrest_lib)
-│       ├── node_editor_widget/   # Споделен GUI Widget компонент
-│       ├── node_editor_app/      # Базов графичен плъгин
+│       ├── capabilities/         # Shared capability interfaces (INodeProvider.h)
+│       ├── node_editor_ide/      # Визуален node-based редактор + вградени нодове
+│       ├── demo_standard_nodes/  # INodeProvider — NumberSource, NumberDisplay, Modulo
 │       ├── QtCoinTrader/         # QtCoinTrader плъгин
 │       └── tests/                # Тестови плъгини
 ├── tools/                        # Инструменти за билд
@@ -47,6 +48,8 @@ Daqster/
 │   │   ├── apps/
 │   │   ├── framework/
 │   │   └── plugins/
+│   │       ├── node_editor_ide/  # Node Editor IDE plugin docs
+│   │       └── demo_standard_nodes/ # Demo Standard Nodes plugin docs
 │   ├── development/              # Разработка и дебъг
 │   │   ├── README.md
 │   │   ├── DeveloperGuide.md
@@ -100,8 +103,8 @@ Daqster/
 **Местоположение:** `src/plugins/`
 
 **Типове плъгини:**
-- **APPLICATION_PLUGIN** - Самостоятелни приложения
-- **DETECT_BY_TYPE_NAME** - Плъгини с custom тип
+- **APPLICATION_PLUGIN** — Самостоятелни приложения с GUI (node_editor_ide, QtCoinTrader)
+- **Node Provider** — Headless плъгини доставящи нодове чрез INodeProvider (demo_standard_nodes)
 
 **Plugin Discovery:**
 1. Build директория (`./plugins`, `../lib/daqster/plugins`)
@@ -109,25 +112,34 @@ Daqster/
 3. User plugins (`~/.local/share/daqster/plugins`)
 4. System plugins (`/usr/lib/daqster/plugins`)
 
+**Capability Discovery:**
+- `QPluginManager::instances(IID)` — открива плъгини по capability интерфейс
+- `INodeProvider_IID` — нод доставчици
+- Класификация идва от `PluginDescription::PLUGIN_TYPE_NAME`
+
 ### 4. External Libraries (Външни библиотеки)
 
 **Местоположение:** `src/plugins/external_libs/`
 
 **Библиотеки:**
-- **nodeeditor** - Графичен редактор за нодове (submodule, цели `QtNodes`)
-- **qtrest_lib** - REST API клиент (submodule + wrapper)
+- **nodeeditor** — Графичен редактор за нодове (submodule, `QtNodes`)
+- **qtrest_lib** — REST API клиент (submodule + wrapper)
 
-### 5. NodeEditorWidget (Споделен GUI компонент)
+### 5. Capabilities (Споделени интерфейси)
 
-**Местоположение:** `src/plugins/libs/node_editor_widget/`
+**Местоположение:** `src/plugins/capabilities/`
 
-Споделена библиотека, която предлага готово Qt Widgets GUI за node-based редактори. Всяка Daqster-базирана GUI нодова апликация да използва този компонент вместо да гради GUI от нулата.
+Header-only интерфейси, достъпни за всеки плъгин:
 
-**Основни класове:**
-- `NodeEditorWidget` - Главен QWidget: `getInjectedRegistry()`, `buildCanvas()`, `setConnectionStyle()`
-- `ChatGraphModel` - Loop-enabled графичен модел с кръгови връзки
+- **INodeProvider.h** — Standalone interface за доставка на `NodeDelegateModel` типове към node editor-а
 
-**Зависимости (PUBLIC):** `QtNodes`, `Qt5::Widgets`, `Qt5::Core`, `frame_work`
+```cpp
+class INodeProvider {
+public:
+    virtual ~INodeProvider() = default;
+    virtual void registerNodes(NodeDelegateModelRegistry& registry) const = 0;
+};
+```
 
 ## Архитектурни принципи
 

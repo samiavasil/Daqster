@@ -100,7 +100,25 @@ public:
    */
   void ShowPluginManagerGui ( QWidget *Parent = nullptr );
 
-  QBasePluginObject *CreatePluginObject(const QString &KeyHash, QObject *Parent = nullptr);
+   QBasePluginObject *CreatePluginObject(const QString &KeyHash, QObject *Parent = nullptr);
+
+   /**
+    * @brief Return all plugin instances that implement a given interface (by IID).
+    *
+    * Iterates all enabled plugins, creates instances lazily if needed,
+    * and filters by qobject_cast using the provided IID.
+    *
+    * Usage:
+    *   QObjectList providers = QPluginManager::instance()->instances(INodeProvider_IID);
+    *   for (QObject* obj : providers) {
+    *       auto* provider = qobject_cast<INodeProvider*>(obj);
+    *       // ...
+    *   }
+    *
+    * @param iid The interface ID string (from Q_DECLARE_INTERFACE)
+    * @return List of QObject pointers that implement the requested interface
+    */
+   QObjectList instances(const char* iid);
 
 public slots:
   /**

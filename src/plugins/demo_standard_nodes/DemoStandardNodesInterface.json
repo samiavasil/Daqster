@@ -1,0 +1,9 @@
+{
+    "Keys": ["Daqster.PlugIn.QPluginInterface"],
+    "MetaData": {
+        "Name": "DemoStandardNodes",
+        "Type": "NODE_PROVIDER_PLUGIN",
+        "Version": "0.1.0",
+        "Description": "Demo standard nodes: NumberSource, NumberDisplay, and Modulo."
+    }
+}

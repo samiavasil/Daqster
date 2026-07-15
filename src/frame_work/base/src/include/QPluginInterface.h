@@ -185,11 +185,18 @@ public:
    */
   QString GetAuthor() const;
 
-  /**
-   * @brief Return Plugin Descriptor
-   * @return
-   */
-  const Daqster::PluginDescription& GetPluginDescriptor() const;
+   /**
+    * @brief Return Plugin Descriptor
+    * @return
+    */
+   const Daqster::PluginDescription& GetPluginDescriptor() const;
+
+   /**
+    * @brief Return list of instantiated plugin objects.
+    * Used by QPluginManager::instances() for capability discovery.
+    * @return List of QBasePluginObject pointers
+    */
+   const QList<Daqster::QBasePluginObject*>& GetPluginInstances() const { return m_PluginInstList; }
 
   /**
    * Create  new plugin object.

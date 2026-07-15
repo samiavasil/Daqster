@@ -584,5 +584,33 @@ bool QPluginManager::IsInSearchPath(const QString& filePath) const
     return false;
 }
 
+/**
+ * Return all plugin instances that implement a given interface (by IID).
+ * Creates instances lazily for enabled plugins that have no instances yet.
+ * Each returned QObject has a dynamic property "_daqster_hash" with its plugin hash.
+ */
+QObjectList QPluginManager::instances(const char* iid)
+{
+    QObjectList result;
+    for (auto it = m_PluginMap.constBegin(); it != m_PluginMap.constEnd(); ++it) {
+        QPluginInterface* iface = it.value();
+        if (!iface || !iface->IsEnabled()) continue;
+
+        // Lazy init — create instance if none exist yet
+        if (iface->GetPluginInstances().isEmpty()) {
+            CreatePluginObject(it.key());
+        }
+
+        for (QBasePluginObject* obj : iface->GetPluginInstances()) {
+            QObject* qobj = dynamic_cast<QObject*>(obj);
+            if (qobj && qobj->qt_metacast(iid)) {
+                qobj->setProperty("_daqster_hash", it.key());
+                result.append(qobj);
+            }
+        }
+    }
+    return result;
+}
+
 }//End of Daqster namespace
 

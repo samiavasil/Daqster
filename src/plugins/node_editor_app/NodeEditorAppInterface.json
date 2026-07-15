@@ -1,9 +1,0 @@
-{
-    "Keys": ["Daqster.PlugIn.QPluginInterface"],
-    "MetaData": {
-        "Name": "NodeEditor",
-        "Type": "APPLICATION_PLUGIN",
-        "Version": "0.1.0",
-        "Description": "Node editor: Visual application factory."
-    }
-}

@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
 Initial version of this file was created on 16.03.2017 at 11:40:20
-**************************************************************************/
+************************************************************************/
 
 #include "QPluginListView.h"
 #include "debug.h"
@@ -27,16 +27,10 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include "PluginDetails.h"
 
 namespace Daqster {
-// Constructors/Destructors
-//  
 
 #define TREE_DATA_ROLE (Qt::UserRole+1)
-#define CHECK_ROOT_HELPER (TREE_DATA_ROLE+1) /*Used to mark disabled Plugin in root subgroup*/
+#define CHECK_ROOT_HELPER (TREE_DATA_ROLE+1)
 
-/**
- * Constructor
- * @param  Filter Plugin filtrato parameter
- */
 QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter& Filter ):QWidget(Parent)
 {
     m_PluginFilter = Filter;
@@ -57,10 +51,8 @@ void QPluginListView::TreeItem( QTreeWidgetItem* item, int col ){
         if( nullptr != item->parent() ){
             bool Enable = item->checkState(col) == Qt::Unchecked ? false : true;
             emit EnableDisablePlugin(  item->data( col, TREE_DATA_ROLE).toString(), Enable );
-
         }
         else{
-            /*This is a root items - check/uncheck all subitems*/
             switch ( item->checkState(col) ) {
             case Qt::Checked:{
                 for( int i = 0; i < item->childCount(); i++ ) {
@@ -99,84 +91,78 @@ QPluginListView::~QPluginListView () {
     delete ui;
 }
 
-/**
- * Set view plugin flter.
- * @param  Filter
- */
 void QPluginListView::SetPluginFilter (const PluginFilter &Filter)
 {
     m_PluginFilter = Filter;
 }
 
 /**
+ * Helper: add a plugin description as a child under a root tree item.
+ */
+static void addPluginToRoot(QTreeWidgetItem* root_it, const Daqster::PluginDescription& Desc)
+{
+    QTreeWidgetItem *it = new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr));
+    Qt::CheckState CheckState = Desc.IsEnabled() ? Qt::Checked : Qt::Unchecked;
+    Qt::CheckState RootCheckState = root_it->checkState(1);
+    int childCounter = root_it->data(0, CHECK_ROOT_HELPER).toInt();
+
+    it->setIcon(0, Desc.GetIcon());
+    it->setData(0, Qt::DisplayRole, Desc.GetProperty(PLUGIN_NAME).toString());
+    it->setCheckState(1, CheckState);
+    it->setData(1, TREE_DATA_ROLE, Desc.GetProperty(PLUGIN_HASH));
+    it->setData(2, Qt::DisplayRole, Desc.GetProperty(PLUGIN_VERSION).toString());
+    it->setData(3, Qt::DisplayRole, Desc.GetProperty(PLUGIN_AUTHOR).toString());
+    it->setData(4, Qt::DisplayRole, Desc.GetProperty(PLUGIN_DESCRIPTION).toString());
+    root_it->addChild(it);
+
+    if (childCounter == 0) {
+        RootCheckState = CheckState;
+    } else if (CheckState != RootCheckState) {
+        RootCheckState = Qt::PartiallyChecked;
+    }
+    childCounter++;
+    root_it->setData(0, CHECK_ROOT_HELPER, childCounter);
+    root_it->setCheckState(1, RootCheckState);
+}
+
+/**
  * @brief Refresh plugin list view slot
+ *
+ * Groups plugins by PLUGIN_TYPE_NAME from PluginDescription.
+ * Plugins without a type name are grouped under "Plugins".
  */
 void QPluginListView::RefreshView(){
-    QMap<PluginDescription::PluginType_t, QTreeWidgetItem *> Map;
+    QMap<QString, QTreeWidgetItem *> Map;
     QList<Daqster::PluginDescription> PlugList = QPluginManager::instance()->GetPluginList( m_PluginFilter );
-    PluginDescription::PluginType_t Type;
-    QTreeWidgetItem *root_it, *it;
     QTreeWidget *treeWidget = nullptr;
     ui->treeWidget->blockSignals(true);
 
     treeWidget = ui->treeWidget;
     treeWidget->setColumnCount(5);
     ui->treeWidget->clear();
+
     foreach ( const Daqster::PluginDescription& Desc , PlugList )
     {
-        Type = (PluginDescription::PluginType_t)Desc.GetProperty(PLUGIN_TYPE).toUInt();
-        root_it   = Map.value( Type, nullptr );
+        QString typeName = Desc.GetProperty(PLUGIN_TYPE_NAME).toString();
+        if (typeName.isEmpty()) {
+            typeName = tr("Plugins");
+        }
+
+        QTreeWidgetItem *root_it = Map.value(typeName, nullptr);
         if( nullptr == root_it ){
-            root_it = new QTreeWidgetItem((QTreeWidget*)0);
-            root_it->setData( 0,Qt::DisplayRole, tr("Plugin Type %1").arg(Type) );
-            root_it->setData( 0, TREE_DATA_ROLE, Type );
+            root_it = new QTreeWidgetItem(static_cast<QTreeWidget*>(nullptr));
+            root_it->setData( 0, Qt::DisplayRole, typeName );
             root_it->setData( 0, CHECK_ROOT_HELPER, 0 );
             root_it->setFlags(Qt::ItemIsUserTristate|Qt::ItemIsUserCheckable|Qt::ItemIsEnabled);
             root_it->setCheckState( 1, Qt::Unchecked);
-            Map[Type] = root_it;
+            Map[typeName] = root_it;
         }
-        if( root_it ){
-            it = new QTreeWidgetItem((QTreeWidget*)0);
-            if( nullptr != it ){
-                Qt::CheckState CheckState = Desc.IsEnabled() ? Qt::Checked : Qt::Unchecked;
-                Qt::CheckState RootCheckState = root_it->checkState( 1 );
-                int childCounter = root_it->data( 0, CHECK_ROOT_HELPER ).toInt();
-                it->setIcon( 0, Desc.GetIcon() );
-                it->setData( 0, Qt::DisplayRole, Desc.GetProperty(PLUGIN_NAME).toString() );
-                it->setCheckState( 1, CheckState );
-                it->setData( 1, TREE_DATA_ROLE,  Desc.GetProperty(PLUGIN_HASH) );
-                it->setData( 2, Qt::DisplayRole, Desc.GetProperty(PLUGIN_VERSION).toString() );
-                it->setData( 3, Qt::DisplayRole, Desc.GetProperty(PLUGIN_AUTHOR).toString() );
-                it->setData( 4, Qt::DisplayRole, Desc.GetProperty(PLUGIN_DESCRIPTION).toString() );
-                root_it->addChild( it );
-                if( Qt::Checked == CheckState ){
-                    if( 0 < childCounter ){
-                        if( Qt::Checked != RootCheckState ){
-                            RootCheckState = Qt::PartiallyChecked;
-                        }
-                    }else {
-                        RootCheckState = Qt::Checked;
-                    }
-                }
-                else{
-                    if( 0 < childCounter ){
-                        if( Qt::Checked == RootCheckState ){
-                            RootCheckState = Qt::PartiallyChecked;
-                        }
-                    }else {
-                        RootCheckState = Qt::Unchecked;
-                    }
 
-                }
-                childCounter++;
-                root_it->setData( 0, CHECK_ROOT_HELPER,childCounter);
-                root_it->setCheckState( 1,RootCheckState);
-            }
-        }
+        addPluginToRoot(root_it, Desc);
     }
 
     QStringList HeaderList;
-    HeaderList << "Name" << "Enable" << "Version" << "Author" << "Description"; //"Status" <<
+    HeaderList << "Name" << "Enable" << "Version" << "Author" << "Description";
     treeWidget->setHeaderLabels( HeaderList );
     treeWidget->header()->setSectionResizeMode( QHeaderView::ResizeToContents );
     treeWidget->insertTopLevelItems(0, Map.values());
