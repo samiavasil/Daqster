@@ -115,18 +115,10 @@ static void addPluginToRoot(QTreeWidgetItem* root_it, const Daqster::PluginDescr
     it->setData(4, Qt::DisplayRole, Desc.GetProperty(PLUGIN_DESCRIPTION).toString());
     root_it->addChild(it);
 
-    if (Qt::Checked == CheckState) {
-        if (0 < childCounter) {
-            if (Qt::Checked != RootCheckState) RootCheckState = Qt::PartiallyChecked;
-        } else {
-            RootCheckState = Qt::Checked;
-        }
-    } else {
-        if (0 < childCounter) {
-            if (Qt::Checked == RootCheckState) RootCheckState = Qt::PartiallyChecked;
-        } else {
-            RootCheckState = Qt::Unchecked;
-        }
+    if (childCounter == 0) {
+        RootCheckState = CheckState;
+    } else if (CheckState != RootCheckState) {
+        RootCheckState = Qt::PartiallyChecked;
     }
     childCounter++;
     root_it->setData(0, CHECK_ROOT_HELPER, childCounter);

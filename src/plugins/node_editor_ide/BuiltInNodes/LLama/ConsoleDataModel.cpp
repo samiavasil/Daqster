@@ -1,5 +1,11 @@
 #include "ConsoleDataModel.h"
 
+using QtNodes::PortType;
+using QtNodes::PortIndex;
+using QtNodes::NodeData;
+using QtNodes::NodeDataType;
+using QtNodes::NodeDelegateModel;
+
 ConsoleDataModel::ConsoleDataModel()
     : m_ui(new QWidget())
     , m_chatWidget(new ChatBaseWidget())

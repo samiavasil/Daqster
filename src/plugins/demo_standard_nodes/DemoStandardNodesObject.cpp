@@ -11,7 +11,7 @@
 #include "ModuloModel.h"
 
 DemoStandardNodesObject::DemoStandardNodesObject(QObject* Parent)
-    : QBasePluginObject(Parent)
+    : Daqster::QBasePluginObject(Parent)
     , m_Win(nullptr)
 {
 }

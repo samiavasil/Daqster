@@ -3,7 +3,7 @@
 #include "DemoStandardNodesObject.h"
 
 DemoStandardNodesInterface::DemoStandardNodesInterface(QObject* parent)
-    : QPluginInterface(parent)
+    : Daqster::QPluginInterface(parent)
 {
     DEBUG << "DemoStandardNodesInterface object create";
     m_PluginDescryptor.SetProperty(PLUGIN_NAME, "DemoStandardNodes");

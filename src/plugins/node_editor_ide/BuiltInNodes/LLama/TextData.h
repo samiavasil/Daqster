@@ -2,19 +2,16 @@
 
 #include <QtNodes/NodeDelegateModel>
 
-using QtNodes::NodeDataType;
-using QtNodes::NodeData;
-
-class TextData : public NodeData
+class TextData : public QtNodes::NodeData
 {
 public:
     TextData() : _text("") {}
 
     TextData(QString const &text) : _text(text) {}
 
-    NodeDataType type() const override
+    QtNodes::NodeDataType type() const override
     {
-        return NodeDataType {"text", "Text"};
+        return QtNodes::NodeDataType {"text", "Text"};
     }
 
     QString text() const { return _text; }

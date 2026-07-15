@@ -3,12 +3,9 @@
 
 #include <QtNodes/NodeDelegateModel>
 
-using QtNodes::NodeDataType;
-using QtNodes::NodeData;
-
 /// The class can potentially incapsulate any user data which
 /// need to be transferred within the Node Editor graph
-class IntegerData : public NodeData
+class IntegerData : public QtNodes::NodeData
 {
 public:
 
@@ -20,9 +17,9 @@ public:
     : _number(number)
   {}
 
-  NodeDataType type() const override
+  QtNodes::NodeDataType type() const override
   {
-    return NodeDataType {"integer",
+    return QtNodes::NodeDataType {"integer",
                          "Integer"};
   }
 

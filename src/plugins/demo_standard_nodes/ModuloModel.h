@@ -12,21 +12,13 @@
 #include <iostream>
 #include <QComboBox>
 
-using QtNodes::PortType;
-using QtNodes::PortIndex;
-using QtNodes::NodeData;
-using QtNodes::NodeDataType;
-using QtNodes::NodeDelegateModel;
-using QtNodes::NodeValidationState;
-
 class IntegerData;
 #include "NumericType.h"
 
 template<typename ValueType>
 class ModuloModel
-        : public NodeDelegateModel
+        : public QtNodes::NodeDelegateModel
 {
-
 public:
 
     ModuloModel();
@@ -44,15 +36,15 @@ public:
     { return true; }
 
     bool
-    portCaptionVisible(PortType, PortIndex ) const override
+    portCaptionVisible(QtNodes::PortType, QtNodes::PortIndex ) const override
     { return true; }
 
     QString
-    portCaption(PortType portType, PortIndex portIndex) const override
+    portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
         switch (portType)
         {
-        case PortType::In:
+        case QtNodes::PortType::In:
             if (portIndex == 0)
                 return QStringLiteral("Dividend");
             else if (portIndex == 1)
@@ -60,7 +52,7 @@ public:
 
             break;
 
-        case PortType::Out:
+        case QtNodes::PortType::Out:
             return QStringLiteral("Result");
 
         default:
@@ -81,23 +73,23 @@ public:
 public:
 
     unsigned int
-    nPorts(PortType portType) const override;
+    nPorts(QtNodes::PortType portType) const override;
 
-    NodeDataType
-    dataType(PortType portType, PortIndex portIndex) const override;
+    QtNodes::NodeDataType
+    dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
 
-    std::shared_ptr<NodeData>
-    outData(PortIndex const port) override;
+    std::shared_ptr<QtNodes::NodeData>
+    outData(QtNodes::PortIndex const port) override;
 
     void
-    setInData(std::shared_ptr<NodeData> nodeData, PortIndex const portIndex) override;
+    setInData(std::shared_ptr<QtNodes::NodeData> nodeData, QtNodes::PortIndex const portIndex) override;
 
     QWidget *
     embeddedWidget() override {
         return m_w;
     }
 
-    NodeValidationState
+    QtNodes::NodeValidationState
     validationState() const override { return modelValidationState; }
 
 private:
@@ -108,7 +100,7 @@ private:
     std::shared_ptr<NumericType<ValueType>> _result;
 
 
-    NodeValidationState modelValidationState;
+    QtNodes::NodeValidationState modelValidationState;
     QString modelValidationError = QString("Missing or incorrect inputs");
     QComboBox* m_w;
 };

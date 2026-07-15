@@ -18,7 +18,7 @@ public:
     explicit AudioSourceConfig(AudioCompat::Mode mode,
                                QAudioDeviceInfo &devInfo,
                                QAudioFormat &formatAudio,
-                               QWidget *parent = 0);
+                               QWidget *parent = nullptr);
     ~AudioSourceConfig();
 
 

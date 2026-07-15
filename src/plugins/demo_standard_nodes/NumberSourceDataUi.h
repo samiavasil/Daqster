@@ -13,7 +13,7 @@ class NumberSourceDataUi : public QWidget
     Q_OBJECT
 
 public:
-    explicit NumberSourceDataUi(QWidget *parent = 0);
+    explicit NumberSourceDataUi(QWidget *parent = nullptr);
     ~NumberSourceDataUi();
 
     QLineEdit &lineEdit();

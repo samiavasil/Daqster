@@ -4,6 +4,13 @@
 #include <QtGui/QDoubleValidator>
 #include "NumericType.h"
 #include <cmath>
+
+using QtNodes::PortType;
+using QtNodes::PortIndex;
+using QtNodes::NodeData;
+using QtNodes::NodeDataType;
+using QtNodes::NodeValidationState;
+
 template<typename ValueType>
 ModuloModel<ValueType>::ModuloModel(){
     m_w = new QComboBox();
@@ -46,6 +53,7 @@ nPorts(PortType portType) const
 
     case PortType::Out:
         result = 1;
+        break;
 
     default:
         break;

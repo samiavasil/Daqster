@@ -4,11 +4,6 @@
 #include "IntegerData.h"
 #include "NumericType.h"
 
-using QtNodes::PortType;
-using QtNodes::PortIndex;
-using QtNodes::NodeData;
-using QtNodes::NodeDataType;
-
 class DecimalData;
 class IntegerData;
 
@@ -18,12 +13,12 @@ class DecimalToIntegerConverter
 
 public:
 
-    std::shared_ptr<NodeData>
-    operator()(std::shared_ptr<NodeData> data);
+    std::shared_ptr<QtNodes::NodeData>
+    operator()(std::shared_ptr<QtNodes::NodeData> data);
 
 private:
 
-    std::shared_ptr<NodeData> _integer;
+    std::shared_ptr<QtNodes::NodeData> _integer;
 };
 
 
@@ -32,12 +27,12 @@ class IntegerToDecimalConverter
 
 public:
 
-    std::shared_ptr<NodeData>
-    operator()(std::shared_ptr<NodeData> data);
+    std::shared_ptr<QtNodes::NodeData>
+    operator()(std::shared_ptr<QtNodes::NodeData> data);
 
 private:
 
-    std::shared_ptr<NodeData> _decimal;
+    std::shared_ptr<QtNodes::NodeData> _decimal;
 };
 
 
@@ -46,12 +41,12 @@ class DecimalToComplexIntConverter
 
 public:
 
-    std::shared_ptr<NodeData>
-    operator()(std::shared_ptr<NodeData> data);
+    std::shared_ptr<QtNodes::NodeData>
+    operator()(std::shared_ptr<QtNodes::NodeData> data);
 
 private:
 
-    std::shared_ptr<NodeData> _complex;
+    std::shared_ptr<QtNodes::NodeData> _complex;
 };
 
 
@@ -60,12 +55,12 @@ class ComplexIntToDecimalConverter
 
 public:
 
-    std::shared_ptr<NodeData>
-    operator()(std::shared_ptr<NodeData> data);
+    std::shared_ptr<QtNodes::NodeData>
+    operator()(std::shared_ptr<QtNodes::NodeData> data);
 
 private:
 
-    std::shared_ptr<NodeData> _decimal;
+    std::shared_ptr<QtNodes::NodeData> _decimal;
 };
 
 template<typename SourceType, typename TargetType>
@@ -74,12 +69,12 @@ class AnyToAnyComplexIntConverter
 
 public:
 
-    std::shared_ptr<NodeData>
-    operator()(std::shared_ptr<NodeData> data);
+    std::shared_ptr<QtNodes::NodeData>
+    operator()(std::shared_ptr<QtNodes::NodeData> data);
 
 private:
 
-    std::shared_ptr<NodeData> _decimal;
+    std::shared_ptr<QtNodes::NodeData> _decimal;
 };
 
 

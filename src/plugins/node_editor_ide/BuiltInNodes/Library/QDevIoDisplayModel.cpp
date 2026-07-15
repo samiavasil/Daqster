@@ -5,6 +5,12 @@
 #include <QDevioDisplayModelUi.h>
 #include <QDebug>
 
+using QtNodes::PortType;
+using QtNodes::PortIndex;
+using QtNodes::NodeData;
+using QtNodes::NodeDataType;
+using QtNodes::NodeValidationState;
+
 QDevIoDisplayModel::QDevIoDisplayModel():m_connector(nullptr)
 {
     m_widget = new QDevioDisplayModelUi();

@@ -13,6 +13,12 @@
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QHBoxLayout>
 
+using QtNodes::PortType;
+using QtNodes::PortIndex;
+using QtNodes::NodeData;
+using QtNodes::NodeDataType;
+using QtNodes::NodeDelegateModel;
+
 LLamaModelDataModel::LLamaModelDataModel()
     : m_ui(nullptr), m_tabWidget(nullptr), m_chatWidget(nullptr), m_netManager(new QNetworkAccessManager(this)), m_connected(false), m_serverProcess(nullptr), m_outputText(std::make_shared<TextData>("")), m_processingInput(false) {
   buildUi();

@@ -8,6 +8,12 @@
 #include<QTimer>
 #include<QRandomGenerator>
 #include<QSlider>
+
+using QtNodes::PortType;
+using QtNodes::PortIndex;
+using QtNodes::NodeData;
+using QtNodes::NodeDataType;
+
 NumberSourceDataModel::
 NumberSourceDataModel()
     : m_ui(new NumberSourceDataUi()),m_time(0)
@@ -85,6 +91,7 @@ nPorts(PortType portType) const
 
     case PortType::Out:
         result = 1;
+        break;
 
     default:
         break;
@@ -132,6 +139,7 @@ dataType(PortType type , PortIndex ind) const
 
         case PortType::Out:
             typ =  NumericType<double>().type();
+            break;
 
         default:
             break;

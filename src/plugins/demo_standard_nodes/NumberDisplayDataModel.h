@@ -7,16 +7,9 @@
 
 #include <iostream>
 
-using QtNodes::PortType;
-using QtNodes::PortIndex;
-using QtNodes::NodeData;
-using QtNodes::NodeDataType;
-using QtNodes::NodeDelegateModel;
-using QtNodes::NodeValidationState;
-
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
-class NumberDisplayDataModel : public NodeDelegateModel
+class NumberDisplayDataModel : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
@@ -43,27 +36,27 @@ public:
 public:
 
     unsigned int
-    nPorts(PortType portType) const override;
+    nPorts(QtNodes::PortType portType) const override;
 
-    NodeDataType
-    dataType(PortType portType,
-             PortIndex portIndex) const override;
+    QtNodes::NodeDataType
+    dataType(QtNodes::PortType portType,
+             QtNodes::PortIndex portIndex) const override;
 
-    std::shared_ptr<NodeData>
-    outData(PortIndex const port) override;
+    std::shared_ptr<QtNodes::NodeData>
+    outData(QtNodes::PortIndex const port) override;
 
     void
-    setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override;
+    setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex const portIndex) override;
 
     QWidget *
     embeddedWidget() override { return _label; }
 
-    NodeValidationState
+    QtNodes::NodeValidationState
     validationState() const override { return modelValidationState; }
 
 private:
 
-    NodeValidationState modelValidationState;
+    QtNodes::NodeValidationState modelValidationState;
     QString modelValidationError = QStringLiteral("Missing or incorrect inputs");
 
     QLabel * _label;

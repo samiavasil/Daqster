@@ -216,7 +216,7 @@ void AudioSourceConfig::show()
 	    }
 	    m_Devs.append(inputDevice);
 	}
-    foreach (QAudioDeviceInfo dev, m_Devs) {
+    for (const QAudioDeviceInfo& dev : m_Devs) {
         ui->Device->addItem(AudioCompat::deviceName(dev));
         if(m_DevInfo && AudioCompat::deviceName(*m_DevInfo) == AudioCompat::deviceName(dev)){
             qDebug() << "Defaul dev name: " << AudioCompat::deviceName(*m_DevInfo) << ":" << AudioCompat::deviceName(dev) ;

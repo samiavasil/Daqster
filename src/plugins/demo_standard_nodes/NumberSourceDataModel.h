@@ -8,20 +8,11 @@
 #include <iostream>
 #include <NumericType.h>
 
-//class DecimalData;
-
-using QtNodes::PortType;
-using QtNodes::PortIndex;
-using QtNodes::NodeData;
-using QtNodes::NodeDataType;
-using QtNodes::NodeDelegateModel;
-using QtNodes::NodeValidationState;
-
 class NumberSourceDataUi;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
 class NumberSourceDataModel
-        : public NodeDelegateModel
+        : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
@@ -56,16 +47,16 @@ public:
 public:
 
     unsigned int
-    nPorts(PortType portType) const override;
+    nPorts(QtNodes::PortType portType) const override;
 
-    NodeDataType
-    dataType(PortType portType, PortIndex portIndex) const override;
+    QtNodes::NodeDataType
+    dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
 
-    std::shared_ptr<NodeData>
-    outData(PortIndex const port) override;
+    std::shared_ptr<QtNodes::NodeData>
+    outData(QtNodes::PortIndex const port) override;
 
     void
-    setInData(std::shared_ptr<NodeData> data, PortIndex const port) override;
+    setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex const port) override;
 
     QWidget *
     embeddedWidget() override;

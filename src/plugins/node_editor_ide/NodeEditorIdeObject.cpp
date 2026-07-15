@@ -43,7 +43,7 @@ static void setStyle()
 }
 
 NodeEditorIdeObject::NodeEditorIdeObject(QObject* Parent)
-    : QBasePluginObject(Parent)
+    : Daqster::QBasePluginObject(Parent)
     , m_Win(nullptr)
     , m_Widget(nullptr)
 {

@@ -204,7 +204,7 @@ void AppToolbar::onKillAllTriggered() {
 
 void AppToolbar::onKillAppTriggered() {
     QAction* action = qobject_cast<QAction*>(QObject::sender());
-    if (action) {
+    if (action != nullptr) {
         ApplicationsManager::AppHndl_t handle = action->data().value<ApplicationsManager::AppHndl_t>();
         ApplicationsManager::Instance().KillApp(handle);
     }
@@ -253,7 +253,7 @@ QList<Daqster::PluginDescription> AppToolbar::GetAppPluginList() {
 
 void AppToolbar::OnActionTrigered() {
     QAction* sender = qobject_cast<QAction*>(QObject::sender());
-    if (!sender) return;
+    if (sender == nullptr) return;
 
     QString pluginHash = sender->objectName().replace("__plugin_", "");
 

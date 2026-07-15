@@ -5,22 +5,18 @@
 #include <QtNodes/NodeData>
 #include <QtNodes/NodeDelegateModel>
 
-using QtNodes::NodeDelegateModel;
-using QtNodes::NodeDataType;
-using QtNodes::NodeData;
-
 class QIODevice;
 
-class NodeDataModelToQIODeviceConnector :   public NodeData
+class NodeDataModelToQIODeviceConnector : public QtNodes::NodeData
 {
 public:
-    NodeDataModelToQIODeviceConnector( NodeDelegateModel* model);
+    NodeDataModelToQIODeviceConnector( QtNodes::NodeDelegateModel* model);
     virtual ~NodeDataModelToQIODeviceConnector() = default;
-    virtual void ConnectModels(NodeDelegateModel* dst_model) = 0;
-    virtual NodeDataType type() const = 0;
+    virtual void ConnectModels(QtNodes::NodeDelegateModel* dst_model) = 0;
+    virtual QtNodes::NodeDataType type() const = 0;
 
 protected:
-     NodeDelegateModel* m_src_model;
+     QtNodes::NodeDelegateModel* m_src_model;
 };
 
 #endif // NODEDATAMODELTOQIODEVICECONNECTOR_H

@@ -7,9 +7,9 @@
 
 
 
-std::shared_ptr<NodeData>
+std::shared_ptr<QtNodes::NodeData>
 DecimalToIntegerConverter::
-operator()(std::shared_ptr<NodeData> data)
+operator()(std::shared_ptr<QtNodes::NodeData> data)
 {
     auto numberData =
             std::dynamic_pointer_cast<DecimalData>(data);
@@ -23,9 +23,9 @@ operator()(std::shared_ptr<NodeData> data)
 }
 
 
-std::shared_ptr<NodeData>
+std::shared_ptr<QtNodes::NodeData>
 IntegerToDecimalConverter::
-operator()(std::shared_ptr<NodeData> data)
+operator()(std::shared_ptr<QtNodes::NodeData> data)
 {
     auto numberData =
             std::dynamic_pointer_cast<IntegerData>(data);

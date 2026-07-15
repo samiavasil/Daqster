@@ -6,6 +6,8 @@
 #include <AudioWorker.h>
 #include <QDebug>
 
+using QtNodes::NodeDataType;
+
 AudioSourceDataModel::AudioSourceDataModel()
 {
     qRegisterMetaType<AudioSourceDataModel::StartStop>("AudioSourceDataModel::StartStop");
@@ -113,4 +115,3 @@ void AudioSourceDataModel::outputConnectionDeleted(QtNodes::ConnectionId const &
 void AudioSourceDataModel::destroyedObj(QObject* obj){
     qDebug() << "Destroyed: " << obj->objectName();
 }
-

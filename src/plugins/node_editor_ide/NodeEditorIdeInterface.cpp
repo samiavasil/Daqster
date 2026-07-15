@@ -3,7 +3,7 @@
 #include "NodeEditorIdeObject.h"
 
 NodeEditorIdeInterface::NodeEditorIdeInterface(QObject* parent)
-    : QPluginInterface(parent)
+    : Daqster::QPluginInterface(parent)
 {
     Q_INIT_RESOURCE(node_editor);
     DEBUG << "NodeEditorIdeInterface object create";

@@ -7,28 +7,20 @@
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/internal/Definitions.hpp>
 
-using QtNodes::PortType;
-using QtNodes::PortIndex;
-using QtNodes::NodeData;
-using QtNodes::NodeDataType;
-using QtNodes::NodeDelegateModel;
-using QtNodes::NodeValidationState;
-using QtNodes::ConnectionId;
-
 class AudioNodeQdevIoConnector;
 class AudioSourceDataModelUI;
 class EventThreadPull;
 
-class AudioSourceDataModel : public NodeDelegateModel
+class AudioSourceDataModel : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
 public:
-    typedef enum{
+    enum StartStop {
         ASDM_STOP,
         ASDM_START,
         ASDM_RELOAD,
-    } StartStop;
+    };
 
     AudioSourceDataModel();
 
@@ -61,16 +53,16 @@ restore(QJsonObject const &p) override;
 public:
 
     unsigned int
-    nPorts(PortType portType) const override;
+    nPorts(QtNodes::PortType portType) const override;
 
-    NodeDataType
-    dataType(PortType portType, PortIndex portIndex) const override;
+    QtNodes::NodeDataType
+    dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
 
-    std::shared_ptr<NodeData>
-    outData(PortIndex const port) override;
+    std::shared_ptr<QtNodes::NodeData>
+    outData(QtNodes::PortIndex const port) override;
 
     void
-    setInData(std::shared_ptr<NodeData> data, PortIndex const port) override;
+    setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex const port) override;
 
     QWidget *
     embeddedWidget() override;
@@ -84,7 +76,7 @@ public:
         return QtNodes::ConnectionPolicy::One;
     }
 
-    void outputConnectionDeleted(ConnectionId const &) override;
+    void outputConnectionDeleted(QtNodes::ConnectionId const &) override;
 
 signals:
     void disconnected();

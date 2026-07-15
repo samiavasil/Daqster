@@ -6,9 +6,7 @@
 
 class QMainWindow;
 
-using namespace Daqster;
-
-class DemoStandardNodesObject : public QBasePluginObject, public INodeProvider
+class DemoStandardNodesObject : public Daqster::QBasePluginObject, public Daqster::INodeProvider
 {
     Q_OBJECT
     Q_INTERFACES(Daqster::INodeProvider)

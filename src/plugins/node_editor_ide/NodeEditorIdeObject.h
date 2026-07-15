@@ -6,9 +6,7 @@
 class NodeEditorWidget;
 class QMainWindow;
 
-using namespace Daqster;
-
-class NodeEditorIdeObject : public QBasePluginObject
+class NodeEditorIdeObject : public Daqster::QBasePluginObject
 {
     Q_OBJECT
 public:

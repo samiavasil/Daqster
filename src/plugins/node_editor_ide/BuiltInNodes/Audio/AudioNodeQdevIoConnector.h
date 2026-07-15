@@ -7,8 +7,6 @@
 
 #include <QtNodes/NodeDelegateModel>
 
-using QtNodes::NodeDelegateModel;
-
 class QIODevice;
 
 class AudioNodeQdevIoConnector : public NodeDataModelToQIODeviceConnector
@@ -16,14 +14,14 @@ class AudioNodeQdevIoConnector : public NodeDataModelToQIODeviceConnector
 
 public:
 
-    explicit AudioNodeQdevIoConnector( NodeDelegateModel* model);
+    explicit AudioNodeQdevIoConnector( QtNodes::NodeDelegateModel* model);
 
-    virtual NodeDataType type() const //TODO : TBD ???
+    virtual QtNodes::NodeDataType type() const //TODO : TBD ???
     {
-        return NodeDataType { "AudioNodeQdevIoConnector",
+        return QtNodes::NodeDataType { "AudioNodeQdevIoConnector",
             "AudioNodeQdevIoConnector"};
     }
-    virtual void ConnectModels(NodeDelegateModel* dst_model);
+    virtual void ConnectModels(QtNodes::NodeDelegateModel* dst_model);
 };
 
 #endif // AUDIONODEQDEVIOCONNECTOR_H

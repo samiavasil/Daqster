@@ -1,6 +1,13 @@
 #include "NumberDisplayDataModel.h"
 
 #include "NumericType.h"
+
+using QtNodes::PortType;
+using QtNodes::PortIndex;
+using QtNodes::NodeData;
+using QtNodes::NodeDataType;
+using QtNodes::NodeValidationState;
+
 NumberDisplayDataModel::
 NumberDisplayDataModel()
     : _label(new QLabel())
@@ -23,6 +30,7 @@ nPorts(PortType portType) const
 
     case PortType::Out:
         result = 0;
+        break;
 
     default:
         break;

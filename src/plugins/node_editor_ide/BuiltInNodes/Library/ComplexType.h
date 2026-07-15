@@ -5,13 +5,10 @@
 
 #include <QtNodes/NodeDelegateModel>
 
-using QtNodes::NodeDataType;
-using QtNodes::NodeData;
-
 /// The class can potentially incapsulate any user data which
 /// need to be transferred within the Node Editor graph
 template<typename ValueType>
-class ComplexType : public NodeData
+class ComplexType : public QtNodes::NodeData
 {
 public:
 
@@ -20,9 +17,9 @@ public:
       _data = std::shared_ptr<ValueType>(data);
   }
 
-  NodeDataType type() const override
+  QtNodes::NodeDataType type() const override
   {
-    return NodeDataType {typeid(ValueType).name(),
+    return QtNodes::NodeDataType {typeid(ValueType).name(),
                          typeid(ValueType).name()};
   }
 
