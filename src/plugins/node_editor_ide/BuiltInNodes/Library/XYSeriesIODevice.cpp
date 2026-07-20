@@ -42,10 +42,9 @@ static inline unsigned long near_power_of_two(unsigned long x) {
     return 1 << cnt;
 }
 
-XYSeriesIODevice::XYSeriesIODevice(QDevIoDisplayModel *model, QObject *parent) :
+XYSeriesIODevice::XYSeriesIODevice(QObject *parent) :
     QIODevice(parent),
-    m_data(nullptr),
-    m_model(model)
+    m_data(nullptr)
 {
     QMutexLocker locker(&m_lock);
 
@@ -69,11 +68,6 @@ XYSeriesIODevice::XYSeriesIODevice(QDevIoDisplayModel *model, QObject *parent) :
 XYSeriesIODevice::~XYSeriesIODevice()
 {
     qDebug() << "Destroy XYSeriesIODevice" << this;
-}
-
-const QDevIoDisplayModel *XYSeriesIODevice::model() const
-{
-    return m_model;
 }
 
 void XYSeriesIODevice::ReinitDevice(const QAudioFormat &format,

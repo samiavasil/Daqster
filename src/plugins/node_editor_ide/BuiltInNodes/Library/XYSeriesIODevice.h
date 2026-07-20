@@ -37,15 +37,12 @@
 #include<QMutex>
 #include "AudioFrameDecoder.h"
 
-class QDevIoDisplayModel;
-
 class XYSeriesIODevice : public QIODevice
 {
     Q_OBJECT
 public:
-    explicit XYSeriesIODevice(QDevIoDisplayModel* model, QObject *parent = nullptr);
+    explicit XYSeriesIODevice(QObject *parent = nullptr);
     virtual ~XYSeriesIODevice() override;
-    const QDevIoDisplayModel *model() const;
     void ReinitDevice(const QAudioFormat &format,
                       int sampleCount = 8000);
 
@@ -73,7 +70,6 @@ private:
     AudioFrameDecoder m_decoder;
     quint64 m_mask;
     char *m_data;
-    const  QDevIoDisplayModel* m_model;
 };
 
 #endif // XYSERIESIODEVICE_H

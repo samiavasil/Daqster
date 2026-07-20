@@ -14,7 +14,7 @@ using QtNodes::NodeValidationState;
 QDevIoDisplayModel::QDevIoDisplayModel():m_connector(nullptr)
 {
     m_widget = new QDevioDisplayModelUi();
-    m_device = std::shared_ptr<XYSeriesIODevice>(new XYSeriesIODevice(this));
+    m_device = std::shared_ptr<XYSeriesIODevice>(new XYSeriesIODevice());
     connect(m_device.get(), SIGNAL(bufferReady(QVector<QPointF>&, int)),
             m_widget, SLOT(bufferReady(QVector<QPointF>&, int)));
 }
