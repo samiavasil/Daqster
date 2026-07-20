@@ -15,8 +15,10 @@ set(BUILTIN_NODE_SOURCES
     BuiltInNodes/Audio/AudioSourceDataModelUI.cpp
     BuiltInNodes/Audio/AudioWorker.cpp
     BuiltInNodes/Library/NodeDataModelToQIODeviceConnector.cpp
+    BuiltInNodes/Library/GenericQDevIoConnector.cpp
+    BuiltInNodes/Library/GenericNumericTypes.cpp
+    BuiltInNodes/Library/EventThreadPull.cpp
     BuiltInNodes/Examples/Converters.cpp
-    BuiltInNodes/ThreadPull/EventThreadPull.cpp
     BuiltInNodes/Library/QDevIoDisplayModel.cpp
     BuiltInNodes/Library/QDevioDisplayModelUi.cpp
     BuiltInNodes/Library/AudioFrameDecoder.cpp
@@ -31,10 +33,15 @@ set(BUILTIN_NODE_SOURCES
     BuiltInNodes/Audio/AudioSourceDataModelUI.h
     BuiltInNodes/Audio/AudioWorker.h
     BuiltInNodes/Library/NodeDataModelToQIODeviceConnector.h
+    BuiltInNodes/Library/IStreamDecoder.h
+    BuiltInNodes/Library/QDevIOStreamConfig.h
+    BuiltInNodes/Library/StreamChannel.h
+    BuiltInNodes/Library/GenericQDevIoConnector.h
+    BuiltInNodes/Library/GenericNumericTypes.h
+    BuiltInNodes/Library/EventThreadPull.h
     BuiltInNodes/Examples/Converters.h
     BuiltInNodes/Examples/DecimalData.h
     BuiltInNodes/Examples/IntegerData.h
-    BuiltInNodes/ThreadPull/EventThreadPull.h
     BuiltInNodes/Library/ComplexType.h
     BuiltInNodes/Library/AudioFrameDecoder.h
     BuiltInNodes/Library/QDevIoDisplayModel.h
