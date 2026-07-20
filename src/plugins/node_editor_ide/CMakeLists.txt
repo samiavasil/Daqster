@@ -18,7 +18,6 @@ set(BUILTIN_NODE_SOURCES
     BuiltInNodes/Library/GenericQDevIoConnector.cpp
     BuiltInNodes/Library/GenericNumericTypes.cpp
     BuiltInNodes/Library/EventThreadPull.cpp
-    BuiltInNodes/Examples/Converters.cpp
     BuiltInNodes/Library/QDevIoDisplayModel.cpp
     BuiltInNodes/Library/QDevioDisplayModelUi.cpp
     BuiltInNodes/Library/AudioFrameDecoder.cpp
@@ -39,10 +38,6 @@ set(BUILTIN_NODE_SOURCES
     BuiltInNodes/Library/GenericQDevIoConnector.h
     BuiltInNodes/Library/GenericNumericTypes.h
     BuiltInNodes/Library/EventThreadPull.h
-    BuiltInNodes/Examples/Converters.h
-    BuiltInNodes/Examples/DecimalData.h
-    BuiltInNodes/Examples/IntegerData.h
-    BuiltInNodes/Library/ComplexType.h
     BuiltInNodes/Library/AudioFrameDecoder.h
     BuiltInNodes/Library/QDevIoDisplayModel.h
     BuiltInNodes/Library/QDevioDisplayModelUi.h
@@ -86,7 +81,6 @@ create_plugin(NodeEditorIde
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Audio
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Examples
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/ThreadPull
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/LLama
         ${DAQSTER_SOURCE_DIR}/src/plugins/capabilities
