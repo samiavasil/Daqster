@@ -535,7 +535,13 @@ bool QPluginManager::LoadPluginInterfaceObject( const QString& PluginFileName, c
             ObjInterface->SetHash( Hash );
             ObjInterface->SetHealthyState(PluginDescription::IF_LOADED);
             m_PluginMap[ Hash ] = ObjInterface;
+            // Preserve the persisted enabled state when loading plugin interface
+            bool wasEnabled = m_PluginsHashDescMap.contains(Hash)
+                ? m_PluginsHashDescMap[Hash].IsEnabled()
+                : true;  // default to enabled for new plugins
             m_PluginsHashDescMap[Hash] = ObjInterface->GetPluginDescriptor();
+            m_PluginsHashDescMap[Hash].Enable(wasEnabled);
+            ObjInterface->Enable(wasEnabled);
             connect( ObjInterface, SIGNAL(AllPluginObjectsDestroyed(QString)), this, SLOT(AllPluginObjectsDestroyed(QString)) );
             ret = true;
         }

@@ -54,6 +54,7 @@ void PluginsInit() {
         PluginManager->GetPluginList();
     /*Just try to load/unload all plugins in initialization phase*/
     foreach (const Daqster::PluginDescription &Desc, PluginsList) {
+      if (!Desc.IsEnabled()) continue;  // Skip disabled plugins
       for (int i = 0; i < 1; i++) {
         Daqster::QBasePluginObject* obj = PluginManager->CreatePluginObject(Desc.GetProperty(PLUGIN_HASH).toString(),nullptr);
         if(obj != NULL)
@@ -189,25 +190,55 @@ int main(int argc, char *argv[]) {
         qDebug() << "Start Application: " << Name << " via " << executablePath;
       }
     } else {
-      QString Hash = args[0];
+      QString input = args[0];
       Daqster::QBasePluginObject *obj = nullptr;
-      qDebug() << "\nSearch for plugin hash: " << Hash;
+      qDebug() << "\nSearch for plugin: " << input;
       int ctr = 0;
-       foreach (const Daqster::PluginDescription &Desc, PluginsList) {
+      QString matchedHash;
+      QString currentDir = QCoreApplication::applicationDirPath();
+
+      // First pass: try HASH match (toolbar path)
+      foreach (const Daqster::PluginDescription &Desc, PluginsList) {
         ctr++;
         qDebug() << "  Plug" << ctr << ": "
                  << Desc.GetProperty(PLUGIN_NAME).toString()
                  << " (" << Desc.GetProperty(PLUGIN_HASH).toString() << ")";
-        if (0 == Desc.GetProperty(PLUGIN_HASH).toString().compare(Hash, Qt::CaseInsensitive)) {
-          obj = PluginManager->CreatePluginObject(
-              Desc.GetProperty(PLUGIN_HASH).toString(), nullptr);
-          if (nullptr != obj) {
-            qDebug() << "Plugin " << Desc.GetProperty(PLUGIN_NAME).toString() << " founded! Run it.";
-            obj->Initialize();
-            QApplication::setApplicationName(
-                Desc.GetProperty(PLUGIN_HASH).toString());
-            break;
+        if (0 == Desc.GetProperty(PLUGIN_HASH).toString().compare(input, Qt::CaseInsensitive)) {
+          matchedHash = Desc.GetProperty(PLUGIN_HASH).toString();
+          break;
+        }
+      }
+
+      // Second pass: try NAME match (CLI convenience)
+      // Prioritize plugins from current build directory
+      if (matchedHash.isEmpty()) {
+        QString bestMatch;
+        foreach (const Daqster::PluginDescription &Desc, PluginsList) {
+          if (0 == Desc.GetProperty(PLUGIN_NAME).toString().compare(input, Qt::CaseInsensitive)) {
+            QString location = Desc.GetProperty(PLUGIN_LOCATION).toString();
+            // Prefer plugin from current directory
+            if (location.startsWith(currentDir)) {
+              bestMatch = Desc.GetProperty(PLUGIN_HASH).toString();
+              qDebug() << "  Found by name (current dir): " << input << " -> " << bestMatch;
+              break;
+            }
+            // First match if no current dir match found
+            if (bestMatch.isEmpty()) {
+              bestMatch = Desc.GetProperty(PLUGIN_HASH).toString();
+              qDebug() << "  Found by name: " << input << " -> " << bestMatch;
+            }
           }
+        }
+        matchedHash = bestMatch;
+      }
+
+      // Create and run the plugin
+      if (!matchedHash.isEmpty()) {
+        obj = PluginManager->CreatePluginObject(matchedHash, nullptr);
+        if (nullptr != obj) {
+          qDebug() << "Plugin " << input << " founded! Run it.";
+          obj->Initialize();
+          QApplication::setApplicationName(matchedHash);
         }
       }
       QConsoleListener *console = new QConsoleListener();
