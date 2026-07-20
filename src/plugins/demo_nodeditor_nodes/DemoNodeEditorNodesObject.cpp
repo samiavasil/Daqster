@@ -9,6 +9,8 @@
 #include "NumberSourceDataModel.h"
 #include "NumberDisplayDataModel.h"
 #include "ModuloModel.h"
+#include "AudioDisplayModel.h"
+#include "GenericDisplayNode.h"
 
 DemoNodeEditorNodesObject::DemoNodeEditorNodesObject(QObject* Parent)
     : Daqster::QBasePluginObject(Parent)
@@ -35,10 +37,15 @@ bool DemoNodeEditorNodesObject::Initialize()
 
 void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
 {
+    // Original number nodes
     registry.registerModel<NumberSourceDataModel>("Sources");
     registry.registerModel<NumberDisplayDataModel>("Displays");
     registry.registerModel<ModuloModel<int>>("Operators");
     registry.registerModel<ModuloModel<double>>("Operators");
+
+    // New display nodes
+    registry.registerModel<AudioDisplayModel>("Displays");
+    registry.registerModel<GenericDisplayNode>("Displays");
 }
 
 void DemoNodeEditorNodesObject::DeInitialize()

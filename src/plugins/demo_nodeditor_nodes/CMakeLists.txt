@@ -21,10 +21,19 @@ set(NODE_SOURCES
     IntegerData.h
 )
 
+# ── Demo-specific display nodes ──────────────────────────────────────
+set(DISPLAY_NODE_SOURCES
+    AudioDisplayModel.cpp
+    AudioDisplayModel.h
+    GenericDisplayNode.cpp
+    GenericDisplayNode.h
+)
+
 # ── Use the Daqster plugin template ──────────────────────────────────
 create_plugin(DemoNodeEditorNodes
     SOURCES
         ${NODE_SOURCES}
+        ${DISPLAY_NODE_SOURCES}
         DemoNodeEditorNodesInterface.cpp
         DemoNodeEditorNodesInterface.h
         DemoNodeEditorNodesObject.cpp
@@ -32,11 +41,15 @@ create_plugin(DemoNodeEditorNodes
     REQUIRES_LIBRARIES
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
+        Qt${QT_VERSION_MAJOR}::Charts
+        Qt${QT_VERSION_MAJOR}::Multimedia
         QtNodes
         frame_work
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${DAQSTER_SOURCE_DIR}/src/plugins/capabilities
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Audio
 )
 
 # ── Output name must contain "plugin" substring ──────────────────────
