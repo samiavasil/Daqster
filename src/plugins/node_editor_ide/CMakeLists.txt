@@ -6,50 +6,76 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-# ── Built-in node model sources (moved from node_editor_app) ─────────
-set(BUILTIN_NODE_SOURCES
-    BuiltInNodes/Audio/AudioNodeQdevIoConnector.cpp
-    BuiltInNodes/Audio/AudioComboModel.cpp
-    BuiltInNodes/Audio/AudioSourceConfig.cpp
-    BuiltInNodes/Audio/AudioSourceDataModel.cpp
-    BuiltInNodes/Audio/AudioSourceDataModelUI.cpp
-    BuiltInNodes/Audio/AudioWorker.cpp
-    BuiltInNodes/Library/NodeDataModelToQIODeviceConnector.cpp
-    BuiltInNodes/Library/GenericQDevIoConnector.cpp
-    BuiltInNodes/Library/GenericNumericTypes.cpp
-    BuiltInNodes/Library/EventThreadPull.cpp
-    BuiltInNodes/Library/QDevIoDisplayModel.cpp
-    BuiltInNodes/Library/QDevioDisplayModelUi.cpp
-    BuiltInNodes/Library/AudioFrameDecoder.cpp
-    BuiltInNodes/Library/XYSeriesIODevice.cpp
-    BuiltInNodes/LLama/LLamaModelDataModel.cpp
-    BuiltInNodes/LLama/ConsoleDataModel.cpp
-    BuiltInNodes/LLama/ChatBaseWidget.cpp
+# ── Library: Core types ─────────────────────────────────────────────
+set(LIBRARY_TYPES
+    BuiltInNodes/Library/types/IStreamDecoder.h
+    BuiltInNodes/Library/types/QDevIOStreamConfig.h
+    BuiltInNodes/Library/types/StreamChannel.h
+    BuiltInNodes/Library/types/GenericNumericTypes.h
+    BuiltInNodes/Library/types/GenericNumericTypes.cpp
+)
+
+# ── Library: Connectors ─────────────────────────────────────────────
+set(LIBRARY_CONNECTORS
+    BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.h
+    BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.cpp
+    BuiltInNodes/Library/connectors/GenericQDevIoConnector.h
+    BuiltInNodes/Library/connectors/GenericQDevIoConnector.cpp
+)
+
+# ── Library: Decoders ───────────────────────────────────────────────
+set(LIBRARY_DECODERS
+    BuiltInNodes/Library/decoders/AudioFrameDecoder.h
+    BuiltInNodes/Library/decoders/AudioFrameDecoder.cpp
+)
+
+# ── Library: Display ────────────────────────────────────────────────
+set(LIBRARY_DISPLAY
+    BuiltInNodes/Library/display/QDevIoDisplayModel.h
+    BuiltInNodes/Library/display/QDevIoDisplayModel.cpp
+    BuiltInNodes/Library/display/QDevioDisplayModelUi.h
+    BuiltInNodes/Library/display/QDevioDisplayModelUi.cpp
+    BuiltInNodes/Library/display/QDevioDisplayModelUi.ui
+    BuiltInNodes/Library/display/XYSeriesIODevice.h
+    BuiltInNodes/Library/display/XYSeriesIODevice.cpp
+    BuiltInNodes/Library/display/QtChartsCompat.h
+)
+
+# ── Library: Threading ──────────────────────────────────────────────
+set(LIBRARY_THREADING
+    BuiltInNodes/Library/threading/EventThreadPull.h
+    BuiltInNodes/Library/threading/EventThreadPull.cpp
+)
+
+# ── Audio nodes (domain-specific, stays here for now) ────────────────
+set(AUDIO_NODES
     BuiltInNodes/Audio/AudioNodeQdevIoConnector.h
+    BuiltInNodes/Audio/AudioNodeQdevIoConnector.cpp
     BuiltInNodes/Audio/AudioComboModel.h
+    BuiltInNodes/Audio/AudioComboModel.cpp
     BuiltInNodes/Audio/AudioSourceConfig.h
-    BuiltInNodes/Audio/AudioSourceDataModel.h
-    BuiltInNodes/Audio/AudioSourceDataModelUI.h
-    BuiltInNodes/Audio/AudioWorker.h
-    BuiltInNodes/Library/NodeDataModelToQIODeviceConnector.h
-    BuiltInNodes/Library/IStreamDecoder.h
-    BuiltInNodes/Library/QDevIOStreamConfig.h
-    BuiltInNodes/Library/StreamChannel.h
-    BuiltInNodes/Library/GenericQDevIoConnector.h
-    BuiltInNodes/Library/GenericNumericTypes.h
-    BuiltInNodes/Library/EventThreadPull.h
-    BuiltInNodes/Library/AudioFrameDecoder.h
-    BuiltInNodes/Library/QDevIoDisplayModel.h
-    BuiltInNodes/Library/QDevioDisplayModelUi.h
-    BuiltInNodes/Library/XYSeriesIODevice.h
-    BuiltInNodes/LLama/TextData.h
-    BuiltInNodes/LLama/LLamaModelDataModel.h
-    BuiltInNodes/LLama/ConsoleDataModel.h
-    BuiltInNodes/LLama/ChatBaseWidget.h
+    BuiltInNodes/Audio/AudioSourceConfig.cpp
     BuiltInNodes/Audio/AudioSourceConfig.ui
+    BuiltInNodes/Audio/AudioSourceDataModel.h
+    BuiltInNodes/Audio/AudioSourceDataModel.cpp
+    BuiltInNodes/Audio/AudioSourceDataModelUI.h
+    BuiltInNodes/Audio/AudioSourceDataModelUI.cpp
     BuiltInNodes/Audio/AudioSourceDataModelUI.ui
-    BuiltInNodes/Library/QDevioDisplayModelUi.ui
+    BuiltInNodes/Audio/AudioWorker.h
+    BuiltInNodes/Audio/AudioWorker.cpp
+    BuiltInNodes/Audio/AudioCompat.h
     BuiltInNodes/Audio/node_editor.qrc
+)
+
+# ── LLama nodes (domain-specific, stays here for now) ───────────────
+set(LLAMA_NODES
+    BuiltInNodes/LLama/LLamaModelDataModel.h
+    BuiltInNodes/LLama/LLamaModelDataModel.cpp
+    BuiltInNodes/LLama/ConsoleDataModel.h
+    BuiltInNodes/LLama/ConsoleDataModel.cpp
+    BuiltInNodes/LLama/ChatBaseWidget.h
+    BuiltInNodes/LLama/ChatBaseWidget.cpp
+    BuiltInNodes/LLama/TextData.h
 )
 
 # ── Plugin IDE sources ───────────────────────────────────────────────
@@ -67,7 +93,13 @@ set(IDE_SOURCES
 create_plugin(NodeEditorIde
     SOURCES
         ${IDE_SOURCES}
-        ${BUILTIN_NODE_SOURCES}
+        ${LIBRARY_TYPES}
+        ${LIBRARY_CONNECTORS}
+        ${LIBRARY_DECODERS}
+        ${LIBRARY_DISPLAY}
+        ${LIBRARY_THREADING}
+        ${AUDIO_NODES}
+        ${LLAMA_NODES}
     REQUIRES_LIBRARIES
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
@@ -79,9 +111,12 @@ create_plugin(NodeEditorIde
         frame_work
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/connectors
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/decoders
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/display
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/threading
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Audio
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/ThreadPull
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/LLama
         ${DAQSTER_SOURCE_DIR}/src/plugins/capabilities
     COMPILE_DEFINITIONS

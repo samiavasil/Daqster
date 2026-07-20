@@ -6,13 +6,13 @@
 
 #include <QtNodes/NodeDelegateModelRegistry>
 
-#include "NumberSourceDataModel.h"
-#include "NumberDisplayDataModel.h"
-#include "ModuloModel.h"
-#include "AudioDisplayModel.h"
-#include "GenericDisplayNode.h"
-#include "DemuxNode.h"
-#include "MuxNode.h"
+#include "../Sources/NumberSourceDataModel.h"
+#include "../Displays/NumberDisplayDataModel.h"
+#include "../Operators/ModuloModel.h"
+#include "../Displays/AudioDisplayModel.h"
+#include "../Displays/GenericDisplayNode.h"
+#include "../Routing/DemuxNode.h"
+#include "../Routing/MuxNode.h"
 
 DemoNodeEditorNodesObject::DemoNodeEditorNodesObject(QObject* Parent)
     : Daqster::QBasePluginObject(Parent)
