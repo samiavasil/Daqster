@@ -6,8 +6,9 @@
 #include <QMap>
 
 class QStackedWidget;
-class QChartView;
-class QLineSeries;
+
+// Include full definition — ChartView inherits QWidget, needed for addWidget()
+#include "QtChartsCompat.h"
 
 /**
  * @brief Display node for generic_numeric port type.
@@ -54,10 +55,10 @@ private:
     void updateFFTChart(const QVector<QVector<double>>& channels);
 
     QStackedWidget* m_stack = nullptr;
-    QChartView* m_timeChart = nullptr;
-    QChartView* m_fftChart = nullptr;
-    QVector<QLineSeries*> m_timeSeries;
-    QVector<QLineSeries*> m_fftSeries;
+    QtChartsCompat::ChartView* m_timeChart = nullptr;
+    QtChartsCompat::ChartView* m_fftChart = nullptr;
+    QVector<QtChartsCompat::LineSeries*> m_timeSeries;
+    QVector<QtChartsCompat::LineSeries*> m_fftSeries;
     int m_configPanelIndex = -1;
     int m_timeChartIndex = -1;
     int m_fftChartIndex = -1;

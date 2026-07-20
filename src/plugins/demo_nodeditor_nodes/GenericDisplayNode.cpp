@@ -1,4 +1,5 @@
 #include "GenericDisplayNode.h"
+#include "QtChartsCompat.h"
 #include <GenericNumericTypes.h>
 #include <QDebug>
 
@@ -62,13 +63,13 @@ void GenericDisplayNode::setupUi()
     m_configPanelIndex = m_stack->addWidget(configPanel);
 
     // Page 1: Time chart
-    m_timeChart = new QChartView(new QChart());
+    m_timeChart = new QtChartsCompat::ChartView(new QtChartsCompat::Chart());
     m_timeChart->chart()->setTitle("Time Domain");
     m_timeChart->setMinimumSize(400, 200);
     m_timeChartIndex = m_stack->addWidget(m_timeChart);
 
     // Page 2: FFT chart
-    m_fftChart = new QChartView(new QChart());
+    m_fftChart = new QtChartsCompat::ChartView(new QtChartsCompat::Chart());
     m_fftChart->chart()->setTitle("Frequency Spectrum");
     m_fftChart->setMinimumSize(400, 200);
     m_fftChartIndex = m_stack->addWidget(m_fftChart);
