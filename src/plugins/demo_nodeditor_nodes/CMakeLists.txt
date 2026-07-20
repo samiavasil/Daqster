@@ -27,6 +27,10 @@ set(DISPLAY_NODE_SOURCES
     AudioDisplayModel.h
     GenericDisplayNode.cpp
     GenericDisplayNode.h
+    DemuxNode.cpp
+    DemuxNode.h
+    MuxNode.cpp
+    MuxNode.h
 )
 
 # ── Use the Daqster plugin template ──────────────────────────────────

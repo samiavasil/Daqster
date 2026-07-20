@@ -11,6 +11,8 @@
 #include "ModuloModel.h"
 #include "AudioDisplayModel.h"
 #include "GenericDisplayNode.h"
+#include "DemuxNode.h"
+#include "MuxNode.h"
 
 DemoNodeEditorNodesObject::DemoNodeEditorNodesObject(QObject* Parent)
     : Daqster::QBasePluginObject(Parent)
@@ -46,6 +48,10 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     // New display nodes
     registry.registerModel<AudioDisplayModel>("Displays");
     registry.registerModel<GenericDisplayNode>("Displays");
+
+    // Stream routing nodes
+    registry.registerModel<DemuxNode>("Routing");
+    registry.registerModel<MuxNode>("Routing");
 }
 
 void DemoNodeEditorNodesObject::DeInitialize()
