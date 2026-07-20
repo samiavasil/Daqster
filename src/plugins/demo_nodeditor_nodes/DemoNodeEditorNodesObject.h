@@ -6,13 +6,13 @@
 
 class QMainWindow;
 
-class DemoStandardNodesObject : public Daqster::QBasePluginObject, public Daqster::INodeProvider
+class DemoNodeEditorNodesObject : public Daqster::QBasePluginObject, public Daqster::INodeProvider
 {
     Q_OBJECT
     Q_INTERFACES(Daqster::INodeProvider)
 public:
-    DemoStandardNodesObject(QObject* Parent = nullptr);
-    virtual ~DemoStandardNodesObject();
+    DemoNodeEditorNodesObject(QObject* Parent = nullptr);
+    virtual ~DemoNodeEditorNodesObject();
     void SetName(const QString& name);
     virtual bool Initialize();
 

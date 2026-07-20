@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(demo_standard_nodes VERSION 0.1.0 LANGUAGES CXX)
+project(demo_nodeditor_nodes VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -22,13 +22,13 @@ set(NODE_SOURCES
 )
 
 # ── Use the Daqster plugin template ──────────────────────────────────
-create_plugin(DemoStandardNodes
+create_plugin(DemoNodeEditorNodes
     SOURCES
         ${NODE_SOURCES}
-        DemoStandardNodesInterface.cpp
-        DemoStandardNodesInterface.h
-        DemoStandardNodesObject.cpp
-        DemoStandardNodesObject.h
+        DemoNodeEditorNodesInterface.cpp
+        DemoNodeEditorNodesInterface.h
+        DemoNodeEditorNodesObject.cpp
+        DemoNodeEditorNodesObject.h
     REQUIRES_LIBRARIES
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
@@ -40,8 +40,8 @@ create_plugin(DemoStandardNodes
 )
 
 # ── Output name must contain "plugin" substring ──────────────────────
-if(TARGET DemoStandardNodes)
-    set_target_properties(DemoStandardNodes PROPERTIES
-        OUTPUT_NAME "DemoStandardNodesPlugin"
+if(TARGET DemoNodeEditorNodes)
+    set_target_properties(DemoNodeEditorNodes PROPERTIES
+        OUTPUT_NAME "DemoNodeEditorNodesPlugin"
     )
 endif()

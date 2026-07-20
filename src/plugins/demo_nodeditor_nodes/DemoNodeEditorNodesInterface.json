@@ -1,0 +1,9 @@
+{
+    "Keys": ["Daqster.PlugIn.QPluginInterface"],
+    "MetaData": {
+        "Name": "DemoNodeEditorNodes",
+        "Type": "NODE_PROVIDER_PLUGIN",
+        "Version": "0.2.0",
+        "Description": "Demo node editor nodes: NumberSource, NumberDisplay, Modulo, Audio, LLM."
+    }
+}

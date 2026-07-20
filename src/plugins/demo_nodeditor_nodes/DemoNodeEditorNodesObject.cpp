@@ -1,4 +1,4 @@
-#include "DemoStandardNodesObject.h"
+#include "DemoNodeEditorNodesObject.h"
 #include "QPluginManager.h"
 #include "debug.h"
 
@@ -10,30 +10,30 @@
 #include "NumberDisplayDataModel.h"
 #include "ModuloModel.h"
 
-DemoStandardNodesObject::DemoStandardNodesObject(QObject* Parent)
+DemoNodeEditorNodesObject::DemoNodeEditorNodesObject(QObject* Parent)
     : Daqster::QBasePluginObject(Parent)
     , m_Win(nullptr)
 {
 }
 
-DemoStandardNodesObject::~DemoStandardNodesObject()
+DemoNodeEditorNodesObject::~DemoNodeEditorNodesObject()
 {
     DeInitialize();
 }
 
-void DemoStandardNodesObject::SetName(const QString& name)
+void DemoNodeEditorNodesObject::SetName(const QString& name)
 {
     Q_UNUSED(name);
 }
 
-bool DemoStandardNodesObject::Initialize()
+bool DemoNodeEditorNodesObject::Initialize()
 {
     // This plugin has no GUI — it only provides nodes to the node editor.
     // The node_editor_ide plugin discovers us via INodeProvider and calls registerNodes().
     return true;
 }
 
-void DemoStandardNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
+void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
 {
     registry.registerModel<NumberSourceDataModel>("Sources");
     registry.registerModel<NumberDisplayDataModel>("Displays");
@@ -41,12 +41,12 @@ void DemoStandardNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry& 
     registry.registerModel<ModuloModel<double>>("Operators");
 }
 
-void DemoStandardNodesObject::DeInitialize()
+void DemoNodeEditorNodesObject::DeInitialize()
 {
-    DEBUG_V << "DemoStandardNodesObject destroyed";
+    DEBUG_V << "DemoNodeEditorNodesObject destroyed";
 }
 
-void DemoStandardNodesObject::MainWinDestroyed(QObject* obj)
+void DemoNodeEditorNodesObject::MainWinDestroyed(QObject* obj)
 {
     m_Win = nullptr;
     deleteLater();
