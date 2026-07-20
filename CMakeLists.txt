@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 
 project(Daqster VERSION 0.2.0 LANGUAGES CXX)
 
+set(DAQSTER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+
 # Add cmake modules to path
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -13,6 +15,11 @@ option(DAQSTER_AUTO_INIT_SUBMODULES "Automatically run 'git submodule update --i
 
 # Detect Qt version (Qt6 preferred, Qt5 fallback)
 include(FindQtVersion)
+
+# Propagate QT_VERSION_MAJOR to parent scope when included via add_subdirectory()
+if(CMAKE_PARENT_SCOPE)
+    set(QT_VERSION_MAJOR ${QT_VERSION_MAJOR} PARENT_SCOPE)
+endif()
 
 # Propagate Qt version choice to external libraries (e.g. nodeeditor)
 if(QT_VERSION_MAJOR EQUAL 6)
@@ -30,8 +37,11 @@ include(ComponentTemplates)
 # Try to find git for optional submodule initialization
 find_package(Git QUIET)
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY  ${PROJECT_BINARY_DIR}/bin)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY  ${PROJECT_BINARY_DIR}/bin)
+# Use CMAKE_BINARY_DIR (not PROJECT_BINARY_DIR) so outputs land in the consuming
+# project's bin/ when Daqster is included via add_subdirectory(). When building
+# standalone, CMAKE_BINARY_DIR == PROJECT_BINARY_DIR so behavior is unchanged.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY  ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY  ${CMAKE_BINARY_DIR}/bin)
 
 #set_target_properties(Daqster PROPERTIES LIBRARY_OUTPUT_DIRECTORY $<1:${PROJECT_SOURCE_DIR}/lib>)
 #set_target_properties(Daqster PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<1:${PROJECT_SOURCE_DIR}/bin>)
@@ -52,7 +62,7 @@ set(CMAKE_SKIP_BUILD_RPATH FALSE)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-set(CMAKE_BUILD_RPATH "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_BUILD_RPATH "${PROJECT_BINARY_DIR}/bin")
 
 add_subdirectory(src/frame_work)
 

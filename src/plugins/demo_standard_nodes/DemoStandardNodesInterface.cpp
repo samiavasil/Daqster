@@ -7,8 +7,8 @@ DemoStandardNodesInterface::DemoStandardNodesInterface(QObject* parent)
 {
     DEBUG << "DemoStandardNodesInterface object create";
     m_PluginDescryptor.SetProperty(PLUGIN_NAME, "DemoStandardNodes");
-    m_PluginDescryptor.SetProperty(PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN);
-    m_PluginDescryptor.SetProperty(PLUGIN_TYPE_NAME, "SOME_TYPE");
+    m_PluginDescryptor.SetProperty(PLUGIN_TYPE, Daqster::PluginDescription::USER_DEFINED_TYPE);
+    m_PluginDescryptor.SetProperty(PLUGIN_TYPE_NAME, "NODE_PROVIDER_PLUGIN");
     m_PluginDescryptor.SetProperty(PLUGIN_VERSION, "0.1.0");
     m_PluginDescryptor.SetProperty(PLUGIN_DESCRIPTION, "Demo standard nodes: NumberSource, NumberDisplay, and Modulo.");
     m_PluginDescryptor.SetProperty(PLUGIN_AUTHOR, "Vasil Vasilev");

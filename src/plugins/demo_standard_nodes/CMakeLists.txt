@@ -36,10 +36,12 @@ create_plugin(DemoStandardNodes
         frame_work
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/src/plugins/capabilities
+        ${DAQSTER_SOURCE_DIR}/src/plugins/capabilities
 )
 
 # ── Output name must contain "plugin" substring ──────────────────────
-set_target_properties(DemoStandardNodes PROPERTIES
-    OUTPUT_NAME "DemoStandardNodesPlugin"
-)
+if(TARGET DemoStandardNodes)
+    set_target_properties(DemoStandardNodes PROPERTIES
+        OUTPUT_NAME "DemoStandardNodesPlugin"
+    )
+endif()

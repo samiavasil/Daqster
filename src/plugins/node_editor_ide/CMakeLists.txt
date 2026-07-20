@@ -82,12 +82,14 @@ create_plugin(NodeEditorIde
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Examples
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/ThreadPull
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/LLama
-        ${CMAKE_SOURCE_DIR}/src/plugins/capabilities
+        ${DAQSTER_SOURCE_DIR}/src/plugins/capabilities
     COMPILE_DEFINITIONS
         NODE_EDITOR_SHARED
 )
 
 # ── Output name must contain "plugin" substring ──────────────────────
-set_target_properties(NodeEditorIde PROPERTIES
-    OUTPUT_NAME "NodeEditorPluginIde"
-)
+if(TARGET NodeEditorIde)
+    set_target_properties(NodeEditorIde PROPERTIES
+        OUTPUT_NAME "NodeEditorPluginIde"
+    )
+endif()
