@@ -6,13 +6,13 @@
 
 #include <QtNodes/NodeDelegateModelRegistry>
 
-#include "../Sources/NumberSourceDataModel.h"
-#include "../Displays/NumberDisplayDataModel.h"
-#include "../Operators/ModuloModel.h"
-#include "../Displays/AudioDisplayModel.h"
-#include "../Displays/GenericDisplayNode.h"
-#include "../Routing/DemuxNode.h"
-#include "../Routing/MuxNode.h"
+#include "Displays/GenericDisplay/GenericDisplayNode.h"
+#include "Displays/AudioDisplay/AudioDisplayModel.h"
+#include "Routing/Demux/DemuxNode.h"
+#include "Routing/Mux/MuxNode.h"
+#include "Sources/AudioSource/AudioSourceDataModel.h"
+#include "Sources/LLamaSource/LLamaModelDataModel.h"
+#include "Sources/LLamaSource/ConsoleDataModel.h"
 
 DemoNodeEditorNodesObject::DemoNodeEditorNodesObject(QObject* Parent)
     : Daqster::QBasePluginObject(Parent)
@@ -39,19 +39,18 @@ bool DemoNodeEditorNodesObject::Initialize()
 
 void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
 {
-    // Original number nodes
-    registry.registerModel<NumberSourceDataModel>("Sources");
-    registry.registerModel<NumberDisplayDataModel>("Displays");
-    registry.registerModel<ModuloModel<int>>("Operators");
-    registry.registerModel<ModuloModel<double>>("Operators");
-
-    // New display nodes
+    // Display nodes
     registry.registerModel<AudioDisplayModel>("Displays");
     registry.registerModel<GenericDisplayNode>("Displays");
 
     // Stream routing nodes
     registry.registerModel<DemuxNode>("Routing");
     registry.registerModel<MuxNode>("Routing");
+
+    // Audio source + LLama source (moved from node_editor_ide)
+    registry.registerModel<AudioSourceDataModel>("Sources");
+    registry.registerModel<LLamaModelDataModel>("LLama");
+    registry.registerModel<ConsoleDataModel>("LLama");
 }
 
 void DemoNodeEditorNodesObject::DeInitialize()

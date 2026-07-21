@@ -5,7 +5,8 @@
 ## Преглед
 
 Основният GUI плъгин за визуално node-based редактиране. Предоставя:
-- Вградени Audio и LLaMA нодове
+- Вградени числови нодове (Source, Display, Modulo, ArithmeticLogic)
+- Споделена библиотека (`NodeEditorLibrary.so`) за display, connectors, threading
 - Динамично откриване на външни INodeProvider плъгини
 - QtNodes canvas с поддръжка на кръгови връзки
 
@@ -20,13 +21,18 @@ node_editor_ide/
 ├── NodeEditorIdeInterface.json      # Plugin metadata
 ├── NodeEditorIdeObject.{h,cpp}      # QBasePluginObject — runtime
 ├── NodeEditorWidget.{h,cpp}         # Вграден QWidget (бивш node_editor_widget)
-├── ChatGraphModel.h                 # Loop-enabled DataFlowGraphModel
-└── BuiltInNodes/                    # Вградени нодове
-    ├── Audio/                       # AudioSource, AudioCombo, AudioWorker...
-    ├── Library/                     # QDevIoDisplay, XYSeries, AudioFrameDecoder...
-    ├── Examples/                    # Converters, DecimalData, IntegerData
-    ├── ThreadPull/                  # EventThreadPull
-    └── LLama/                       # LLamaModelDataModel, ConsoleDataModel, ChatBaseWidget
+├── BuiltInNodes/                    # Вградени нодове
+│   ├── Library/                     # Споделена библиотека (NodeEditorLibrary.so)
+│   │   ├── types/                   # NumericType, ChatGraphModel, IStreamDecoder...
+│   │   ├── connectors/              # GenericQDevIoConnector, NodeDataModelToQIODeviceConnector
+│   │   ├── display/                 # QDevIoDisplayModel, XYSeriesIODevice, AudioCompat
+│   │   ├── threading/               # EventThreadPull
+│   │   └── decoders/                # AudioFrameDecoder
+│   ├── Sources/NumberSource/        # Числов генератор
+│   ├── Displays/NumberDisplay/      # Числов дисплей
+│   ├── Operators/Modulo/            # Модуло операция
+│   └── Operators/ArithmeticLogic/   # Аритметичен/логичен израз (ExprParser)
+└── node_editor.qrc                  # Ресурси (икона)
 ```
 
 ## Имплементирани интерфейси
@@ -64,10 +70,10 @@ NodeEditorIdeObject **не** имплементира INodeProvider. Той е *
 
 | Категория | Нод | Описание |
 |-----------|-----|----------|
-| Sources | AudioSourceDataModel | Аудио вход |
-| Displays | QDevIoDisplayModel | Qt I/O дисплей |
-| LLaMA | LLamaModelDataModel | LLaMA AI модел |
-| LLaMA | ConsoleDataModel | Конзолен изход |
+| Sources | NumberSourceDataModel | Числов генератор (int/double, random, timer) |
+| Displays | NumberDisplayDataModel | Числов дисплей (int/double) |
+| Operators | ModuloModel | Модуло операция (int/double) |
+| Operators | ArithmeticLogicModel | Аритметичен/логичен израз (2–8 входа, C++ expression) |
 
 ## Динамично откриване на нодове
 
@@ -87,10 +93,11 @@ void NodeEditorIdeObject::discoverAndRegisterExternalNodes() {
 
 | Зависимост | Тип | Описание |
 |-----------|-----|----------|
+| NodeEditorLibrary | Shared lib | Споделена библиотека (display, connectors, threading, types) |
 | QtNodes | External lib | nodeeditor submodule — `src/plugins/external_libs/nodeeditor/` |
 | Qt::Core, Gui, Widgets | Qt | Основни Qt модули |
-| Qt::Multimedia, Charts, OpenGL | Qt | За Audio и LLaMA нодове |
-| Qt::Network | Qt | За REST/Llama通信 |
+| Qt::Multimedia, Charts, OpenGL | Qt | За display и audio нодове |
+| Qt::Network | Qt | За REST通信 |
 | frame_work | Internal | QPluginManager, QBasePluginObject, QPluginInterface |
 
 ## Свързана документация

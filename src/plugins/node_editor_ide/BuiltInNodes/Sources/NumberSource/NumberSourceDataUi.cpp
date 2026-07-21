@@ -6,7 +6,6 @@ NumberSourceDataUi::NumberSourceDataUi(QWidget *parent) :
     ui(new Ui::NumberSourceDataUi)
 {
     ui->setupUi(this);
-
 }
 
 NumberSourceDataUi::~NumberSourceDataUi()
@@ -18,6 +17,10 @@ QLineEdit& NumberSourceDataUi::lineEdit(){
     return *(ui->lineEdit);
 }
 
-QSlider& NumberSourceDataUi::timeSlider(){
-    return *(ui->timeSlider);
+QCheckBox& NumberSourceDataUi::randomEnabled(){
+    return *(ui->randomEnabled);
+}
+
+QSpinBox& NumberSourceDataUi::intervalSpin(){
+    return *(ui->intervalSpin);
 }

@@ -6,17 +6,26 @@ Shared infrastructure for the Daqster Node Editor plugin system.
 
 ```
 Library/
-├── IStreamDecoder.h              # Interface: bytes → normalized doubles
-├── QDevIOStreamConfig.h          # Stream metadata (type, sampleRate, channels)
-├── StreamChannel.h               # StreamChannel + MixedStreamPayload
-├── GenericQDevIoConnector.h/.cpp # Generic connector with metadata
-├── GenericNumericTypes.h/.cpp    # SampleType, ChannelDescriptor, GenericNumericData
-├── EventThreadPull.h/.cpp        # Background worker thread management
-├── NodeDataModelToQIODeviceConnector.h/.cpp  # Base connector class
-├── QDevIoDisplayModel.h/.cpp     # Generic display with stacked widget
-├── QDevioDisplayModelUi.h/.cpp   # Chart UI widget
-├── XYSeriesIODevice.h/.cpp       # Ring buffer device for waveform display
-└── AudioFrameDecoder.h/.cpp      # PCM sample decoder
+├── types/
+│   ├── IStreamDecoder.h              # Interface: bytes → normalized doubles
+│   ├── QDevIOStreamConfig.h          # Stream metadata (type, sampleRate, channels)
+│   ├── StreamChannel.h               # StreamChannel + MixedStreamPayload
+│   ├── GenericNumericTypes.h/.cpp    # SampleType, ChannelDescriptor, GenericNumericData
+│   ├── NumericType.h                 # Template numeric data (int/double)
+│   └── ChatGraphModel.h             # Loop-enabled DataFlowGraphModel
+├── connectors/
+│   ├── GenericQDevIoConnector.h/.cpp # Generic connector with metadata
+│   └── NodeDataModelToQIODeviceConnector.h/.cpp  # Base connector class
+├── display/
+│   ├── QDevIoDisplayModel.h/.cpp     # Generic display with stacked widget
+│   ├── QDevioDisplayModelUi.h/.cpp   # Chart UI widget
+│   ├── XYSeriesIODevice.h/.cpp       # Ring buffer device for waveform display
+│   ├── AudioCompat.h                 # Qt5/Qt6 audio compatibility
+│   └── QtChartsCompat.h              # Qt5/Qt6 charts compatibility
+├── threading/
+│   └── EventThreadPull.h/.cpp        # Background worker thread management
+└── decoders/
+    └── AudioFrameDecoder.h/.cpp      # PCM sample decoder
 ```
 
 ## Key Types

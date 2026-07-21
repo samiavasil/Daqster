@@ -8,7 +8,7 @@
 #include<QSharedPointer>
 #include <AudioSourceDataModel.h>
 
-class AudioWorker : public InEventLoopWorker
+class AudioWorker : public QObject
 {
     Q_OBJECT
 

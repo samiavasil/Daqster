@@ -1,38 +1,42 @@
 #include <EventThreadPull.h>
-#include<QThread>
-//#include <QtMultimedia/QAudioDeviceInfo>
+#include <QThread>
 #include <QDebug>
 
-EventThreadPull::EventThreadPull():m_WorkerThread(this) {
-
-    qRegisterMetaType<std::shared_ptr<QIODevice>>("std::shared_ptr<QIODevice>");
+EventThreadPull::EventThreadPull()
+    : m_WorkerThread(this)
+{
     m_WorkerThread.start();
-
 }
 
-EventThreadPull::~EventThreadPull() {
-
+EventThreadPull::~EventThreadPull()
+{
     m_WorkerThread.quit();
-    if(m_WorkerThread.wait(QDeadlineTimer(100))) {
+    if (!m_WorkerThread.wait(QDeadlineTimer(1000))) {
         m_WorkerThread.terminate();
+        m_WorkerThread.wait();
     }
 }
 
-void EventThreadPull::AddWorker(InEventLoopWorker *worker) {
+void EventThreadPull::AddWorker(QObject *worker)
+{
     worker->moveToThread(&m_WorkerThread);
-    //  connect(worker, SIGNAL(stateChanged(QAudio::State)), this, SIGNAL(stateChanged(QAudio::State)));
     connect(&m_WorkerThread, &QThread::finished, worker, &QObject::deleteLater);
-    connect(this, SIGNAL(operate()), worker, SLOT(DoWork()));
-    connect(worker, SIGNAL(destroyed(QObject*)), this, SLOT(destroyedWorker(QObject*)));
-    emit operate();
+    connect(worker, &QObject::destroyed, this, &EventThreadPull::destroyedWorker);
+    QMetaObject::invokeMethod(worker, "DoWork", Qt::QueuedConnection);
 }
 
-void EventThreadPull::stop() {
-
+void EventThreadPull::stop()
+{
+    m_WorkerThread.quit();
+    if (!m_WorkerThread.wait(QDeadlineTimer(1000))) {
+        m_WorkerThread.terminate();
+        m_WorkerThread.wait();
+    }
 }
 
-void EventThreadPull::destroyedWorker(QObject *obj){
-    qDebug() << "Destroy wirker object: " << static_cast<void*>(obj);
+void EventThreadPull::destroyedWorker(QObject *obj)
+{
+    qDebug() << "Worker destroyed:" << static_cast<void*>(obj);
 }
 
 EventThreadPull& EventThreadPull::instance()

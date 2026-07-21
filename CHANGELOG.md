@@ -7,6 +7,10 @@
 ## [Unreleased]
 
 ### Added
+- **ArithmeticLogic нод** (`BuiltInNodes/Operators/ArithmeticLogic/`):
+  - `ExprParser` — recursive descent C++ expression evaluator (всички C/C++ оператори: `+`,`-`,`*`,`/`,`%`,`&`,`|`,`^`,`~`,`<<`,`>>`,`&&`,`||`,`!`,`==`,`!=`,`<`,`>`,`<=`,`>=`,`?:`)
+  - `ArithmeticLogicModel` — конфигурируем нод: тип (int/double), 2–8 входа, expression field, optional strobe
+  - Променливи `a`–`h` отговарят на входните портове
 - **NodeEditorWidget Shared Component** (`src/plugins/node_editor_widget/`):
   - `NodeEditorWidget` - споделен Qt Widgets GUI за node-based редактори
   - `ChatGraphModel` - loop-enabled графичен модел
@@ -15,6 +19,7 @@
 - **NodeEditorApp Plugin** (`src/plugins/node_editor_app/`):
   - Базов графичен плъгин използващ `NodeEditorWidget`
   - `APPLICATION_PLUGIN` тип с `create_plugin()` макро
+- **ChatGraphModel в споделената библиотека** — преместен от `node_editor_ide/` в `BuiltInNodes/Library/types/` за generality
 
 ### Changed
 - **Directory Restructuring**:
@@ -25,6 +30,9 @@
 - **cmake/ComponentTemplates.cmake**: `create_external_library()` path → `src/plugins/external_libs/`
 - **CI Workflow**: Добавени Python patch стъпки за qtrest install fix (cmake_install.cmake patching)
 - **Architecture docs** актуализирани за новата структура
+
+### Fixed
+- **NumericType::numberAsText()** — fix за ambiguous overload при int тип: явно cast до `double` с precision 0, предотвратява показване на hex/placeholder стойности вместо числа
 
 ### Removed
 - `src/plugins/node_editor/` — монолитен plugin (заменен от widget + app)

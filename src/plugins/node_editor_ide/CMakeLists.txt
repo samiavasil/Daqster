@@ -1,36 +1,32 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(node_editor_ide VERSION 0.2.0 LANGUAGES CXX)
+project(node_editor_ide VERSION 0.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 
-# ── Library: Core types ─────────────────────────────────────────────
-set(LIBRARY_TYPES
+# ══════════════════════════════════════════════════════════════════════
+# Shared Library: NodeEditorLibrary
+# Extracted so both NodeEditorIde and DemoNodeEditorNodes plugins
+# can link against it without cross-plugin symbol resolution issues.
+# ══════════════════════════════════════════════════════════════════════
+
+set(LIB_SOURCES
+    BuiltInNodes/Library/types/GenericNumericTypes.h
+    BuiltInNodes/Library/types/GenericNumericTypes.cpp
     BuiltInNodes/Library/types/IStreamDecoder.h
     BuiltInNodes/Library/types/QDevIOStreamConfig.h
     BuiltInNodes/Library/types/StreamChannel.h
-    BuiltInNodes/Library/types/GenericNumericTypes.h
-    BuiltInNodes/Library/types/GenericNumericTypes.cpp
-)
-
-# ── Library: Connectors ─────────────────────────────────────────────
-set(LIBRARY_CONNECTORS
+    BuiltInNodes/Library/types/NumericType.h
+    BuiltInNodes/Library/types/ChatGraphModel.h
     BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.h
     BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.cpp
     BuiltInNodes/Library/connectors/GenericQDevIoConnector.h
     BuiltInNodes/Library/connectors/GenericQDevIoConnector.cpp
-)
-
-# ── Library: Decoders ───────────────────────────────────────────────
-set(LIBRARY_DECODERS
     BuiltInNodes/Library/decoders/AudioFrameDecoder.h
     BuiltInNodes/Library/decoders/AudioFrameDecoder.cpp
-)
-
-# ── Library: Display ────────────────────────────────────────────────
-set(LIBRARY_DISPLAY
     BuiltInNodes/Library/display/QDevIoDisplayModel.h
     BuiltInNodes/Library/display/QDevIoDisplayModel.cpp
     BuiltInNodes/Library/display/QDevioDisplayModelUi.h
@@ -38,47 +34,66 @@ set(LIBRARY_DISPLAY
     BuiltInNodes/Library/display/QDevioDisplayModelUi.ui
     BuiltInNodes/Library/display/XYSeriesIODevice.h
     BuiltInNodes/Library/display/XYSeriesIODevice.cpp
+    BuiltInNodes/Library/display/AudioCompat.h
     BuiltInNodes/Library/display/QtChartsCompat.h
-)
-
-# ── Library: Threading ──────────────────────────────────────────────
-set(LIBRARY_THREADING
     BuiltInNodes/Library/threading/EventThreadPull.h
     BuiltInNodes/Library/threading/EventThreadPull.cpp
 )
 
-# ── Audio nodes (domain-specific, stays here for now) ────────────────
-set(AUDIO_NODES
-    BuiltInNodes/Audio/AudioNodeQdevIoConnector.h
-    BuiltInNodes/Audio/AudioNodeQdevIoConnector.cpp
-    BuiltInNodes/Audio/AudioComboModel.h
-    BuiltInNodes/Audio/AudioComboModel.cpp
-    BuiltInNodes/Audio/AudioSourceConfig.h
-    BuiltInNodes/Audio/AudioSourceConfig.cpp
-    BuiltInNodes/Audio/AudioSourceConfig.ui
-    BuiltInNodes/Audio/AudioSourceDataModel.h
-    BuiltInNodes/Audio/AudioSourceDataModel.cpp
-    BuiltInNodes/Audio/AudioSourceDataModelUI.h
-    BuiltInNodes/Audio/AudioSourceDataModelUI.cpp
-    BuiltInNodes/Audio/AudioSourceDataModelUI.ui
-    BuiltInNodes/Audio/AudioWorker.h
-    BuiltInNodes/Audio/AudioWorker.cpp
-    BuiltInNodes/Audio/AudioCompat.h
-    BuiltInNodes/Audio/node_editor.qrc
+add_library(NodeEditorLibrary SHARED ${LIB_SOURCES})
+
+target_include_directories(NodeEditorLibrary PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
+    ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/connectors
+    ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/decoders
+    ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/display
+    ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/threading
+    ${DAQSTER_SOURCE_DIR}/src/plugins/capabilities
 )
 
-# ── LLama nodes (domain-specific, stays here for now) ───────────────
-set(LLAMA_NODES
-    BuiltInNodes/LLama/LLamaModelDataModel.h
-    BuiltInNodes/LLama/LLamaModelDataModel.cpp
-    BuiltInNodes/LLama/ConsoleDataModel.h
-    BuiltInNodes/LLama/ConsoleDataModel.cpp
-    BuiltInNodes/LLama/ChatBaseWidget.h
-    BuiltInNodes/LLama/ChatBaseWidget.cpp
-    BuiltInNodes/LLama/TextData.h
+target_link_libraries(NodeEditorLibrary PUBLIC
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Multimedia
+    Qt${QT_VERSION_MAJOR}::Charts
+    Qt${QT_VERSION_MAJOR}::OpenGL
+    QtNodes
 )
 
-# ── Plugin IDE sources ───────────────────────────────────────────────
+set_target_properties(NodeEditorLibrary PROPERTIES
+    OUTPUT_NAME "NodeEditorLibrary"
+)
+
+# ══════════════════════════════════════════════════════════════════════
+# Plugin: NodeEditorIde (IDE shell + built-in nodes)
+# ══════════════════════════════════════════════════════════════════════
+
+set(BUILTIN_SOURCE_NODES
+    BuiltInNodes/Sources/NumberSource/NumberSourceDataModel.h
+    BuiltInNodes/Sources/NumberSource/NumberSourceDataModel.cpp
+    BuiltInNodes/Sources/NumberSource/NumberSourceDataUi.h
+    BuiltInNodes/Sources/NumberSource/NumberSourceDataUi.cpp
+    BuiltInNodes/Sources/NumberSource/NumberSourceDataUi.ui
+)
+
+set(BUILTIN_DISPLAY_NODES
+    BuiltInNodes/Displays/NumberDisplay/NumberDisplayDataModel.h
+    BuiltInNodes/Displays/NumberDisplay/NumberDisplayDataModel.cpp
+)
+
+set(BUILTIN_OPERATOR_NODES
+    BuiltInNodes/Operators/Modulo/ModuloModel.h
+    BuiltInNodes/Operators/Modulo/ModuloModel.cpp
+    BuiltInNodes/Operators/ArithmeticLogic/ExprParser.h
+    BuiltInNodes/Operators/ArithmeticLogic/ExprParser.cpp
+    BuiltInNodes/Operators/ArithmeticLogic/ArithmeticLogicModel.h
+    BuiltInNodes/Operators/ArithmeticLogic/ArithmeticLogicModel.cpp
+)
+
+set(PLUGIN_RESOURCES
+    node_editor.qrc
+)
+
 set(IDE_SOURCES
     NodeEditorIdeInterface.cpp
     NodeEditorIdeInterface.h
@@ -86,21 +101,17 @@ set(IDE_SOURCES
     NodeEditorIdeObject.h
     NodeEditorWidget.cpp
     NodeEditorWidget.h
-    ChatGraphModel.h
 )
 
-# ── Use the Daqster plugin template ──────────────────────────────────
 create_plugin(NodeEditorIde
     SOURCES
         ${IDE_SOURCES}
-        ${LIBRARY_TYPES}
-        ${LIBRARY_CONNECTORS}
-        ${LIBRARY_DECODERS}
-        ${LIBRARY_DISPLAY}
-        ${LIBRARY_THREADING}
-        ${AUDIO_NODES}
-        ${LLAMA_NODES}
+        ${BUILTIN_SOURCE_NODES}
+        ${BUILTIN_DISPLAY_NODES}
+        ${BUILTIN_OPERATOR_NODES}
+        ${PLUGIN_RESOURCES}
     REQUIRES_LIBRARIES
+        NodeEditorLibrary
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
         Qt${QT_VERSION_MAJOR}::Network
@@ -111,19 +122,15 @@ create_plugin(NodeEditorIde
         frame_work
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/connectors
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/decoders
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/display
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/threading
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Audio
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/LLama
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Sources/NumberSource
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Displays/NumberDisplay
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/Modulo
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/ArithmeticLogic
         ${DAQSTER_SOURCE_DIR}/src/plugins/capabilities
     COMPILE_DEFINITIONS
         NODE_EDITOR_SHARED
 )
 
-# ── Output name must contain "plugin" substring ──────────────────────
 if(TARGET NodeEditorIde)
     set_target_properties(NodeEditorIde PROPERTIES
         OUTPUT_NAME "NodeEditorPluginIde"

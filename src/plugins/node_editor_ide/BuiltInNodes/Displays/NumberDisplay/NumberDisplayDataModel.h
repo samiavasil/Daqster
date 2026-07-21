@@ -2,18 +2,22 @@
 
 #include <QtCore/QObject>
 #include <QtWidgets/QLabel>
+#include <QtWidgets/QComboBox>
+#include <QtWidgets/QVBoxLayout>
 
 #include <QtNodes/NodeDelegateModel>
 
 #include <iostream>
+#include <memory>
+#include "NumericType.h"
 
-/// The model dictates the number of inputs and outputs for the Node.
-/// In this example it has no logic.
 class NumberDisplayDataModel : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
 public:
+    enum class DataType { Int, Double };
+
     NumberDisplayDataModel();
 
     virtual
@@ -23,7 +27,7 @@ public:
 
     QString
     caption() const override
-    { return QStringLiteral("Result"); }
+    { return QStringLiteral("NumberResult"); }
 
     bool
     captionVisible() const override
@@ -31,7 +35,7 @@ public:
 
     QString
     name() const override
-    { return QStringLiteral("Result"); }
+    { return QStringLiteral("NumberResult"); }
 
 public:
 
@@ -49,15 +53,29 @@ public:
     setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex const portIndex) override;
 
     QWidget *
-    embeddedWidget() override { return _label; }
+    embeddedWidget() override { return m_wrapper; }
+
+    QJsonObject save() const override;
+    void load(QJsonObject const &p) override;
 
     QtNodes::NodeValidationState
     validationState() const override { return modelValidationState; }
 
+private slots:
+    void onTypeChanged(int index);
+
 private:
+    void switchType(DataType newType);
+
+    DataType m_currentType = DataType::Double;
+
+    std::shared_ptr<NumericType<int>> m_result_int;
+    std::shared_ptr<NumericType<double>> m_result_dbl;
 
     QtNodes::NodeValidationState modelValidationState;
     QString modelValidationError = QStringLiteral("Missing or incorrect inputs");
 
+    QWidget* m_wrapper = nullptr;
+    QComboBox* m_typeCombo = nullptr;
     QLabel * _label;
 };

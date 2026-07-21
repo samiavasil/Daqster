@@ -1,7 +1,7 @@
 #include <AudioWorker.h>
 #include <QDebug>
 
-AudioWorker::AudioWorker(std::shared_ptr<QIODevice> devio, QObject *parent):InEventLoopWorker(parent),
+AudioWorker::AudioWorker(std::shared_ptr<QIODevice> devio, QObject *parent):QObject(parent),
     m_devio(devio)
 {
     m_devio = devio;
@@ -15,7 +15,6 @@ AudioWorker::~AudioWorker(){
 
 void AudioWorker::DoWork() {
     QString result;
-    disconnect(sender() ,SIGNAL(operate()), this, SLOT(DoWork()));
     QAudioDeviceInfo m_DevInfo = AudioCompat::defaultInputDevice();
     QAudioFormat  m_FormatAudio = AudioCompat::preferredFormat(m_DevInfo);
 

@@ -192,6 +192,11 @@ void QDevIoDisplayModel::ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioF
     m_stack->setCurrentIndex(m_audioViewIndex);
 }
 
+QWidget* QDevIoDisplayModel::embeddedWidget()
+{
+    return m_widget;
+}
+
 std::shared_ptr<QIODevice> QDevIoDisplayModel::device() const
 {
     return m_device;

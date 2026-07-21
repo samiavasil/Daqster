@@ -7,7 +7,8 @@ namespace Ui {
 class NumberSourceDataUi;
 }
 class QLineEdit;
-class QSlider;
+class QCheckBox;
+class QSpinBox;
 class NumberSourceDataUi : public QWidget
 {
     Q_OBJECT
@@ -17,7 +18,8 @@ public:
     ~NumberSourceDataUi();
 
     QLineEdit &lineEdit();
-    QSlider &timeSlider();
+    QCheckBox &randomEnabled();
+    QSpinBox &intervalSpin();
 private:
     Ui::NumberSourceDataUi *ui;
 };

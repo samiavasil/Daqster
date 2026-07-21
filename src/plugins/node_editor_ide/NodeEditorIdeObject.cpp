@@ -15,10 +15,10 @@
 
 #include <QtWidgets/QVBoxLayout>
 
-#include "AudioSourceDataModel.h"
-#include "QDevIoDisplayModel.h"
-#include "LLamaModelDataModel.h"
-#include "ConsoleDataModel.h"
+#include "NumberSourceDataModel.h"
+#include "NumberDisplayDataModel.h"
+#include "ModuloModel.h"
+#include "ArithmeticLogicModel.h"
 
 static void setStyle()
 {
@@ -106,12 +106,10 @@ void NodeEditorIdeObject::registerBuiltInNodes()
 {
     auto* registry = m_Widget->getInjectedRegistry();
 
-    registry->registerModel<AudioSourceDataModel>("Sources");
-
-    registry->registerModel<QDevIoDisplayModel>("Displays");
-
-    registry->registerModel<LLamaModelDataModel>("LLaMA");
-    registry->registerModel<ConsoleDataModel>("LLaMA");
+    registry->registerModel<NumberSourceDataModel>("Sources");
+    registry->registerModel<NumberDisplayDataModel>("Displays");
+    registry->registerModel<ModuloModel>("Operators");
+    registry->registerModel<ArithmeticLogicModel>("Operators");
 }
 
 void NodeEditorIdeObject::discoverAndRegisterExternalNodes()

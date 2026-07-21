@@ -30,20 +30,22 @@ Three-layer architecture:
 
 ```
 demo_nodeditor_nodes
-  ├── node_editor_ide/BuiltInNodes/Library/ (headers)
+  ├── NodeEditorLibrary.so (shared)
   ├── QtNodes
   └── frame_work
 
 node_editor_ide
-  ├── BuiltInNodes/Library/ (core infrastructure)
-  ├── BuiltInNodes/Audio/ (domain-specific, stays here for now)
-  ├── BuiltInNodes/LLama/ (domain-specific, stays here for now)
+  ├── NodeEditorLibrary.so (shared)
+  ├── BuiltInNodes/Sources/NumberSource/
+  ├── BuiltInNodes/Displays/NumberDisplay/
+  ├── BuiltInNodes/Operators/Modulo/
+  ├── BuiltInNodes/Operators/ArithmeticLogic/
   ├── QtNodes
   └── frame_work
 ```
 
 ## References
 - `demo_nodeditor_nodes/CMakeLists.txt` — demo plugin build
-- `node_editor_ide/CMakeLists.txt` — core plugin build
+- `node_editor_ide/CMakeLists.txt` — core plugin + shared library build
 - `AudioDisplayModel.h` — demo node using Library headers
 - `GenericDisplayNode.h` — demo node using Library types

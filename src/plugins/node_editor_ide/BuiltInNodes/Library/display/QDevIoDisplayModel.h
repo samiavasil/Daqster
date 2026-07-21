@@ -1,7 +1,7 @@
 #ifndef QDEVIODISPLAY_H
 #define QDEVIODISPLAY_H
 
-#include "../../Audio/AudioCompat.h"
+#include "AudioCompat.h"
 #include "QDevIOStreamConfig.h"
 
 #include <QtCore/QObject>

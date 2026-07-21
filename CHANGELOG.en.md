@@ -7,6 +7,10 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **ArithmeticLogic node** (`BuiltInNodes/Operators/ArithmeticLogic/`):
+  - `ExprParser` — recursive descent C++ expression evaluator (all C/C++ operators: `+`,`-`,`*`,`/`,`%`,`&`,`|`,`^`,`~`,`<<`,`>>`,`&&`,`||`,`!`,`==`,`!=`,`<`,`>`,`<=`,`>=`,`?:`)
+  - `ArithmeticLogicModel` — configurable node: type (int/double), 2–8 inputs, expression field, optional strobe
+  - Variables `a`–`h` map to input ports
 - **Framework Architecture Refactoring** - major refactoring to extract reusable components:
   - **Platform Abstraction Layer** (`frame_work/base/src/platform/`):
     - `ShutdownHandler` - abstract base class for graceful shutdown
@@ -44,6 +48,12 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Automatic dependency checking
   - Conditional plugin subdirectory inclusion
   - Build configuration and plugin status summaries
+
+### Changed
+- **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality
+
+### Fixed
+- **NumericType::numberAsText()** — fixed ambiguous overload for int type: explicit cast to `double` with precision 0, prevents displaying hex/placeholder values instead of numbers
 
 ## [0.2.0] - 2025-09-18
 

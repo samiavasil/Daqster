@@ -11,6 +11,7 @@ using QtNodes::NodeDataType;
 AudioSourceDataModel::AudioSourceDataModel()
 {
     qRegisterMetaType<AudioSourceDataModel::StartStop>("AudioSourceDataModel::StartStop");
+    qRegisterMetaType<std::shared_ptr<QIODevice>>("std::shared_ptr<QIODevice>");
     
     m_DevInfo = AudioCompat::defaultInputDevice();
     m_FormatAudio = AudioCompat::preferredFormat(m_DevInfo);
