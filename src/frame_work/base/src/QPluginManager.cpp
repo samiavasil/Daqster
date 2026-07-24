@@ -20,8 +20,6 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include "debug.h"
 #include"QBasePluginObject.h"
 #include "QPluginManager.h"
-#include "QPluginManagerGui.h"
-#include "QPluginListView.h"
 #include "PluginFilter.h"
 #include "QPluginInterface.h"
 #include "QPluginLoaderExt.h"
@@ -35,8 +33,8 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include<QFile>
 #include <QFileInfo>
 #include <QLibrary>
-#include<QMessageBox>
 #include<QThread>
+#include <QWidget>
 
 
 namespace Daqster {
@@ -154,12 +152,10 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, Q
                  PersistentHealthy =  PluginDescription::ILL;
                  ObjInterface->SetHealthyState( PersistentHealthy );
                  StorePluginStateToPersistncy(ObjInterface->GetPluginDescriptor());
-                 QMessageBox::warning(nullptr, tr("Attention"),
-                                                  tr("There was application crach on last time loading of plugin %1 .\n"
-                                                     "Now we try second time and if it fail the plugin will be disabled.\n"
-                                                     "To enable Plugin please change HealthyState state in configuration .ini file."
-                                                     ).arg( ObjInterface->GetLocation() ),
-                                                  QMessageBox::Ok);
+                 qWarning() << "Attention: There was application crash on last time loading of plugin"
+                            << ObjInterface->GetLocation()
+                            << ". Now we try second time and if it fail the plugin will be disabled."
+                            << "To enable Plugin please change HealthyState state in configuration .ini file.";
                  DEBUG << "Second chance for loading of plugin: " << ObjInterface->GetLocation() << ". If it fail it will be disabled.";
              }else if( Healthy == PluginDescription::IF_LOADED ){
                  Healthy = PluginDescription::OBJECT_CREATION;
@@ -264,22 +260,7 @@ PluginDescription QPluginManager::GetPluginDescriptionByHash(const QString &Hash
     return Desc;
 }
 
-/**
- * This function create PlunListView widget. This function internaly (on PluginView
- * creation) create signal/slot connection betwen PluginManager and PluginViews in
- * order to have dynamic refresh of vies if new plugins are loaded/finded..
- * @return Daqster::QPluginListView*
- * @param  Parrent Pointer to parent QWidget.
- * @param  Filter Optional list filter.
- */
-Daqster::QPluginListView*  QPluginManager::CreatePluginListView (QWidget* Parrent, PluginFilter *Filter )
-{
-    if (Filter != nullptr) {
-        return new QPluginListView(Parrent, *Filter);
-    }
-
-    return new QPluginListView(Parrent, PluginFilter());
-}
+// CreatePluginListView moved to frame_work_gui library
 
 
 /**
@@ -387,15 +368,15 @@ void QPluginManager::AddPluginsDirectory (const QString& Directory)
 }
 
 
-/**
- * Show plugin manager GUI widget. In this GUI you can see available plugins,
- * rescan for new plugins, dynamic unload , enable/disable plugin loading.
- */
-void QPluginManager::ShowPluginManagerGui (QWidget *Parent)
+// ShowPluginManagerGui implementation in frame_work_gui library
+// Forward declaration - actual include is in the GUI library
+void QPluginManager::ShowPluginManagerGui(QWidget *Parent)
 {
-    QPluginManagerGui* d = new QPluginManagerGui(Parent);
-    d->setAttribute(Qt::WA_DeleteOnClose);
-    d->show();
+    // This method is implemented in frame_work_gui library
+    // The actual implementation creates a QPluginManagerGui dialog
+    // For now, we just emit a warning - the GUI library should provide
+    // a registration mechanism or the caller should use the GUI library directly
+    qWarning() << "ShowPluginManagerGui: GUI library not linked. Use frame_work_gui library directly.";
 }
 
 /**

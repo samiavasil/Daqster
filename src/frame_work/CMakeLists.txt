@@ -5,23 +5,13 @@ option(FRAME_WORK_BUILD_STATIC "Build frame_work as a static library" OFF)
 set(FRAME_WORK_SOURCES
   base/src/global.h
   base/src/PluginDescription.cpp
-  base/src/PluginDetails.cpp
-  base/src/PluginDetails.h
   base/src/PluginFilter.cpp
   base/src/QBasePluginObject.cpp
   base/src/QPluginInterface.cpp
-  base/src/QPluginListView.cpp
-  base/src/QPluginListView.h
   base/src/QPluginLoaderExt.cpp
   base/src/QPluginLoaderExt.h
   base/src/QPluginManager.cpp
-  base/src/QPluginManagerGui.cpp
-  base/src/QPluginManagerGui.h
   base/src/Singleton.h
-  base/src/pluginmanagergui.ui
-  base/src/pluginlistview.ui
-  base/src/plugindetails.ui
-  framework_resources.qrc
   base/src/include/QPluginManager.h
   base/src/include/QPluginInterface.h
   base/src/include/QBasePluginObject.h
@@ -77,8 +67,8 @@ target_include_directories(frame_work
 
 target_link_libraries(frame_work 
     Qt${QT_VERSION_MAJOR}::Core
-    Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
 )
 
 # Install shared library (and headers for consumers if needed)

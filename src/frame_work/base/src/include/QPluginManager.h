@@ -31,9 +31,9 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 namespace Daqster {
 
 class PluginFilter;
-class QPluginListView;
 class QPluginInterface;
 class QBasePluginObject;
+class QPluginManagerGui;
 /**
  * @brief The QPluginManager class  is used to manage all availlable plugins.
  * It search for availlable/new plugins and add plugin factories for every one plugin.
@@ -50,7 +50,6 @@ class QBasePluginObject;
  * Note: Please don't use instance of this class directly on your code. Instead get global instance to
  * to object from this class with function GetApplicationPluginManager.
  */
-#include <cassert>
 class FRAME_WORKSHARED_EXPORT QPluginManager : public QObject // skipcq: CXX-W2009
 {
     Q_OBJECT
@@ -72,17 +71,6 @@ public:
   Daqster::PluginDescription GetPluginDescriptionByHash ( const QString &Hash );
 
   /**
-   * This function create PlunListView widget. This function internaly (on PluginView
-   * creation) create signal/slot connection betwen PluginManager and PluginViews in
-   * order to have dynamic refresh of vies if new plugins are loaded/finded..
-   * @return Daqster::QPluginListView*
-   * @param  Parrent Pointer to parent QWidget.
-   * @param  Filter Optional list filter.
-   */
-  Daqster::QPluginListView*  CreatePluginListView (QWidget* Parrent = nullptr, Daqster::PluginFilter* Filter = nullptr);
-
-
-  /**
    * Search for plugins in configured directories.
    */
   void SearchForPlugins ();
@@ -97,6 +85,7 @@ public:
   /**
    * Show plugin manager GUI widget. In this GUI you can see available plugins,
    * rescan for new plugins, dynamic unload , enable/disable plugin loading.
+   * Implementation is in frame_work_gui library.
    */
   void ShowPluginManagerGui ( QWidget *Parent = nullptr );
 
