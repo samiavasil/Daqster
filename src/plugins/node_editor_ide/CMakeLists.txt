@@ -19,7 +19,6 @@ set(LIB_SOURCES
     BuiltInNodes/Library/types/IStreamDecoder.h
     BuiltInNodes/Library/types/QDevIOStreamConfig.h
     BuiltInNodes/Library/types/StreamChannel.h
-    BuiltInNodes/Library/types/NumericType.h
     BuiltInNodes/Library/types/ChatGraphModel.h
     BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.h
     BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.cpp
@@ -122,6 +121,7 @@ create_plugin(NodeEditorIde
         frame_work
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${DAQSTER_SOURCE_DIR}/src/common
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Sources/NumberSource
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Displays/NumberDisplay
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/Modulo

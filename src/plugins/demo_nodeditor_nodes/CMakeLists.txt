@@ -41,7 +41,6 @@ set(LLAMA_SOURCE_NODES
     Sources/LLamaSource/ConsoleDataModel.cpp
     Sources/LLamaSource/ChatBaseWidget.h
     Sources/LLamaSource/ChatBaseWidget.cpp
-    Sources/LLamaSource/TextData.h
 )
 
 # ── Displays: AudioDisplay ──────────────────────────────────────────
@@ -66,8 +65,6 @@ set(ROUTING_NODES
 
 # ── Shared types ────────────────────────────────────────────────────
 set(SHARED_TYPES
-    shared/IntegerData.h
-    shared/NumericType.h
 )
 
 # ── Use the Daqster plugin template ──────────────────────────────────
@@ -92,7 +89,7 @@ create_plugin(DemoNodeEditorNodes
         frame_work
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/shared
+        ${DAQSTER_SOURCE_DIR}/src/common
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/AudioSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/AudioDisplay

@@ -9,7 +9,7 @@
 
 #include <iostream>
 #include <memory>
-#include "NumericType.h"
+#include "NodeDataTypes/NumericType.h"
 
 class NumberDisplayDataModel : public QtNodes::NodeDelegateModel
 {

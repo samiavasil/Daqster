@@ -11,7 +11,7 @@
 #include <QLabel>
 #include <memory>
 #include "ExprParser.h"
-#include "NumericType.h"
+#include "NodeDataTypes/NumericType.h"
 
 class ArithmeticLogicModel : public QtNodes::NodeDelegateModel
 {

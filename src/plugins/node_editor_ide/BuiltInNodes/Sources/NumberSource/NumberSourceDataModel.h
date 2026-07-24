@@ -6,7 +6,7 @@
 #include <QtWidgets/QVBoxLayout>
 #include <QtNodes/NodeDelegateModel>
 #include <memory>
-#include <NumericType.h>
+#include "NodeDataTypes/NumericType.h"
 
 class NumberSourceDataUi;
 class QTimer;
