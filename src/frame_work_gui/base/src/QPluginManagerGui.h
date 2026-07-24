@@ -23,6 +23,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #define QPLUGINMANAGERGUI_H
 #include "global.h"
 #include <QDialog>
+#include <memory>
 
 namespace Ui {
    class PluginManagerGui;
@@ -58,7 +59,7 @@ protected:
   // Plugn list view
   Daqster::QPluginListView*  m_PluginList;
 private:
-  Ui::PluginManagerGui* ui;
+  std::unique_ptr<Ui::PluginManagerGui> ui;
 };
 } // end of package namespace
 

@@ -34,7 +34,7 @@ namespace Daqster {
 QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter& Filter ):QWidget(Parent)
 {
     m_PluginFilter = Filter;
-    ui = new Ui::PluginListView();
+    ui = std::make_unique<Ui::PluginListView>();
     ui->setupUi( this );
     ui->treeWidget->setColumnCount( 5 );
     RefreshView();
@@ -88,7 +88,7 @@ void QPluginListView::ShowDetails()
 }
 
 QPluginListView::~QPluginListView () {
-    delete ui;
+    // ui is automatically cleaned up by std::unique_ptr
 }
 
 void QPluginListView::SetPluginFilter (const PluginFilter &Filter)
@@ -141,7 +141,7 @@ void QPluginListView::RefreshView(){
     treeWidget->setColumnCount(5);
     ui->treeWidget->clear();
 
-    foreach ( const Daqster::PluginDescription& Desc , PlugList )
+    for ( const Daqster::PluginDescription& Desc : PlugList )
     {
         QString typeName = Desc.GetProperty(PLUGIN_TYPE_NAME).toString();
         if (typeName.isEmpty()) {

@@ -27,13 +27,13 @@ namespace Daqster {
 //  
 
 QPluginManagerGui::QPluginManagerGui( QWidget* Parent ):QDialog(Parent) {
-    ui = new Ui::PluginManagerGui();
+    ui = std::make_unique<Ui::PluginManagerGui>();
     ui->setupUi(this);
     ui->horizontalLayout->insertWidget( 0, new QPluginListView(this) /**TODO Fix Me*/);
     resize(800,600);
 }
 
 QPluginManagerGui::~QPluginManagerGui () {
-    delete ui;
+    // ui is automatically cleaned up by std::unique_ptr
 }
 }

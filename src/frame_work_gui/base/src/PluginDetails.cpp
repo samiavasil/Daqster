@@ -7,14 +7,14 @@ namespace Daqster{
 
 PluginDetails::PluginDetails(QWidget *parent) :
     QDialog(parent),
-    ui(new Ui::PluginDetails)
+    ui(std::make_unique<Ui::PluginDetails>())
 {
     ui->setupUi(this);
 }
 
 PluginDetails::~PluginDetails()
 {
-    delete ui;
+    // ui is automatically cleaned up by std::unique_ptr
 }
 
 const PluginDescription &PluginDetails::PluginDescription() const

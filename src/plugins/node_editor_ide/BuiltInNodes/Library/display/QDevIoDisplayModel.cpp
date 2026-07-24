@@ -21,8 +21,7 @@ using QtNodes::NodeValidationState;
 
 QDevIoDisplayModel::QDevIoDisplayModel()
     : m_connector(nullptr)
-    , m_widget(nullptr)
-    , m_stack(new QStackedWidget())
+    , m_stack(std::make_unique<QStackedWidget>())
     , m_device(std::shared_ptr<XYSeriesIODevice>(new XYSeriesIODevice()))
 {
     // Page 0: Audio waveform view (existing UI)
@@ -52,8 +51,6 @@ QDevIoDisplayModel::QDevIoDisplayModel()
 
     // Start on config panel (no data yet)
     m_stack->setCurrentIndex(m_configPanelIndex);
-
-    m_widget = m_stack;
 }
 
 QDevIoDisplayModel::~QDevIoDisplayModel()
@@ -194,7 +191,7 @@ void QDevIoDisplayModel::ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioF
 
 QWidget* QDevIoDisplayModel::embeddedWidget()
 {
-    return m_widget;
+    return m_stack.get();
 }
 
 std::shared_ptr<QIODevice> QDevIoDisplayModel::device() const

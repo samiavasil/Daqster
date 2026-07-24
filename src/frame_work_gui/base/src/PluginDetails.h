@@ -3,6 +3,7 @@
 
 #include <QDialog>
 #include <QString>
+#include <memory>
 #include "PluginDescription.h"
 
 namespace Ui {
@@ -23,7 +24,7 @@ public:
     void setPluginDescription(const Daqster::PluginDescription &Description);
 
 private:
-    Ui::PluginDetails *ui;
+    std::unique_ptr<Ui::PluginDetails> ui;
     Daqster::PluginDescription m_Description;
 };
 }

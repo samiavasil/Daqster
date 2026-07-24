@@ -69,7 +69,7 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     const QString additionalDirs = qgetenv("DAQSTER_PLUGIN_PATH");
     if (!additionalDirs.isEmpty()) {
         QStringList dirs = additionalDirs.split(":", Qt::SkipEmptyParts);
-        foreach(const QString& dir, dirs) {
+        for(const QString& dir : dirs) {
             m_DirList.append(QDir(dir).absolutePath());
         }
     }
@@ -274,7 +274,7 @@ void QPluginManager::SearchForPlugins ()
     bool Changed = false;
     //  settings.setIniCodec("UTF-8");
     settings.beginGroup("Plugins");
-    foreach (const QString& Hash, m_PluginMap.keys()) {
+    for (const QString& Hash : m_PluginMap.keys()) {
         ObjInterface = m_PluginMap.value( Hash, nullptr );
         /*Check is this plugin file still exist*/
         if( nullptr != ObjInterface )
@@ -297,10 +297,10 @@ void QPluginManager::SearchForPlugins ()
         }
     }
 
-    foreach ( const QString& path, m_DirList ) {
+    for ( const QString& path : m_DirList ) {
         if( PluginsDir.cd( path ) )
         {
-            foreach (  QString fileName, PluginsDir.entryList(QDir::Files)) {
+            for (  QString fileName : PluginsDir.entryList(QDir::Files)) {
                 fileName = PluginsDir.absoluteFilePath( fileName );
                 if( !IsCandidatePluginFile(fileName) )
                 {
@@ -346,7 +346,7 @@ void QPluginManager::SearchForPlugins ()
     }
     DEBUG << "End m_PluginMap Hashes";
     DEBUG << "Begin m_PluginsHashDescMap Hashes";
-    foreach ( const QString& Hash, m_PluginsHashDescMap.keys()) {
+    for ( const QString& Hash : m_PluginsHashDescMap.keys()) {
         DEBUG << Hash;
     }
 
@@ -417,7 +417,7 @@ void QPluginManager::LoadPluginsInfoFromPersistency()
     {
         QString Hash;
         settings.beginGroup("Plugins");
-        foreach ( const QString& Name, settings.childGroups() ) {
+        for ( const QString& Name : settings.childGroups() ) {
             PluginDescription Desk;
             bool added = false;
             QString PersHash;
@@ -485,7 +485,7 @@ void QPluginManager::ShutdownPlugin( const QString &Hash )
 
 void QPluginManager::ShutdownPluginManager()
 {
-    foreach( const QString& Hash , m_PluginMap.keys() ) {
+    for( const QString& Hash : m_PluginMap.keys() ) {
         ShutdownPlugin( Hash );
 //        QPluginInterface* OIface = m_PluginMap.take( Hash );
 //        if( 0 != OIface ){
