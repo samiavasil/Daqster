@@ -20,6 +20,12 @@ set(FRAME_WORK_SOURCES
   base/src/platform/StdinShutdownHandler.cpp
   base/src/process/QProcessManager.h
   base/src/process/QProcessManager.cpp
+  base/src/discovery/PluginDiscovery.h
+  base/src/discovery/PluginDiscovery.cpp
+  base/src/persistence/PluginPersistence.h
+  base/src/persistence/PluginPersistence.cpp
+  base/src/registry/PluginRegistry.h
+  base/src/registry/PluginRegistry.cpp
 )
 
 if(WIN32)
@@ -63,7 +69,10 @@ target_include_directories(frame_work
     base/src/include
     base/src/platform
     base/src/process
-  )
+    base/src/discovery
+    base/src/persistence
+    base/src/registry
+)
 
 target_link_libraries(frame_work 
     Qt${QT_VERSION_MAJOR}::Core
