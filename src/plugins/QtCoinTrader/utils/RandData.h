@@ -9,9 +9,11 @@
 
 #include <QtCharts/QLineSeries>
 
-//   m_wSeries;
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+using namespace QtCharts;
+#endif
 
-class RandData : public QtCharts::QLineSeries
+class RandData : public QLineSeries
 {
     Q_OBJECT
     Q_PROPERTY(QPointF wValue READ wValue NOTIFY wValueChanged)

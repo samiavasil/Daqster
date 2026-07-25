@@ -35,6 +35,7 @@ class QPluginListView;
 
 class FRAME_WORKSHARED_EXPORT QPluginManagerGui : public QDialog // skipcq: CXX-W2009
 {
+    Q_OBJECT
 public:
 
   // Constructors/Destructors

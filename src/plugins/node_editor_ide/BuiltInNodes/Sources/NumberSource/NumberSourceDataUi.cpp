@@ -10,7 +10,6 @@ NumberSourceDataUi::NumberSourceDataUi(QWidget *parent) :
 
 NumberSourceDataUi::~NumberSourceDataUi()
 {
-    delete ui;
 }
 
 QLineEdit& NumberSourceDataUi::lineEdit(){

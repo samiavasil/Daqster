@@ -26,6 +26,16 @@ set(FRAME_WORK_SOURCES
   base/src/persistence/PluginPersistence.cpp
   base/src/registry/PluginRegistry.h
   base/src/registry/PluginRegistry.cpp
+  base/src/gui/QPluginManagerGui.h
+  base/src/gui/QPluginManagerGui.cpp
+  base/src/gui/QPluginListView.h
+  base/src/gui/QPluginListView.cpp
+  base/src/gui/PluginDetails.h
+  base/src/gui/PluginDetails.cpp
+  base/src/gui/pluginmanagergui.ui
+  base/src/gui/pluginlistview.ui
+  base/src/gui/plugindetails.ui
+  framework_resources.qrc
 )
 
 if(WIN32)
@@ -72,6 +82,9 @@ target_include_directories(frame_work
     base/src/discovery
     base/src/persistence
     base/src/registry
+    base/src/gui
+  PRIVATE
+    base/src
 )
 
 target_link_libraries(frame_work 

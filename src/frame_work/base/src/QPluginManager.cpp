@@ -23,13 +23,15 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include "PluginFilter.h"
 #include "QPluginInterface.h"
 #include "QPluginLoaderExt.h"
+#include "PluginDiscovery.h"
+#include "PluginRegistry.h"
+#include "PluginPersistence.h"
+#include "gui/QPluginManagerGui.h"
 
 #include <QDir>
 #include <QApplication>
 #include <QSharedPointer>
-#include <QSettings>
 #include <QStandardPaths>
-#include<QCryptographicHash>
 #include<QFile>
 #include <QFileInfo>
 #include <QLibrary>
@@ -44,25 +46,31 @@ namespace Daqster {
 
 QPluginManager::QPluginManager (const QString &ConfigFile ) {
     // Config file setup - използвай writable location за AppImage compatibility
+    QString resolvedConfig;
     if (ConfigFile.isEmpty() || ConfigFile == "daqster.ini") {
         QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
         QDir().mkpath(configDir);
-        m_ConfigFile = configDir + "/daqster.ini";
+        resolvedConfig = configDir + "/daqster.ini";
     } else {
-        m_ConfigFile = ConfigFile;
+        resolvedConfig = ConfigFile;
     }
+    
+    // Initialize split classes
+    m_discovery = std::make_unique<PluginDiscovery>();
+    m_persistence = std::make_unique<PluginPersistence>(resolvedConfig);
+    m_registry = std::make_unique<PluginRegistry>();
     
     // Plugin directories - подредени по приоритет
     
     // 1. Build директория (най-висок приоритет за дебъг)
-    m_DirList.append( qApp->applicationDirPath() );  // Търси в bin/ директорията
-    m_DirList.append( qApp->applicationDirPath()+QString("/plugins") );
-    m_DirList.append(QDir(qApp->applicationDirPath()+"/../lib/daqster/plugins").absolutePath());
+    m_discovery->addSearchPath( qApp->applicationDirPath() );
+    m_discovery->addSearchPath( qApp->applicationDirPath()+QString("/plugins") );
+    m_discovery->addSearchPath(QDir(qApp->applicationDirPath()+"/../lib/daqster/plugins").absolutePath());
     
     // 2. Environment variable override (най-висок приоритет)
     const QString envDir = qgetenv("DAQSTER_PLUGIN_DIR");
     if (!envDir.isEmpty()) {
-        m_DirList.append(QDir(envDir).absolutePath());
+        m_discovery->addSearchPath(QDir(envDir).absolutePath());
     }
     
     // 2.1. Additional environment variable for multiple directories
@@ -70,24 +78,23 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     if (!additionalDirs.isEmpty()) {
         QStringList dirs = additionalDirs.split(":", Qt::SkipEmptyParts);
         for(const QString& dir : dirs) {
-            m_DirList.append(QDir(dir).absolutePath());
+            m_discovery->addSearchPath(QDir(dir).absolutePath());
         }
     }
     
     // 3. User plugins directory
     QString userPluginDir = QDir::homePath() + "/.local/share/daqster/plugins";
-    m_DirList.append(QDir(userPluginDir).absolutePath());
+    m_discovery->addSearchPath(QDir(userPluginDir).absolutePath());
     
     // 4. System plugins directories (най-нисък приоритет)
-    m_DirList.append("/usr/lib/daqster/plugins");
-    m_DirList.append("/usr/local/lib/daqster/plugins");
-
-    m_DirList.removeDuplicates();
+    m_discovery->addSearchPath("/usr/lib/daqster/plugins");
+    m_discovery->addSearchPath("/usr/local/lib/daqster/plugins");
     
     // Debug: Print all plugin search paths
+    QList<QString> searchPaths = m_discovery->searchPaths();
     qDebug() << "=== Plugin Search Paths ===";
-    for (int i = 0; i < m_DirList.size(); ++i) {
-        qDebug() << QString("Path %1: %2").arg(i + 1).arg(m_DirList[i]);
+    for (int i = 0; i < searchPaths.size(); ++i) {
+        qDebug() << QString("Path %1: %2").arg(i + 1).arg(searchPaths[i]);
     }
     qDebug() << "=== End Plugin Search Paths ===";
     
@@ -122,17 +129,17 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, Q
 {
     PluginDescription::PluginHealtyState_t PersistentHealthy = PluginDescription::UNDEFINED;
     QBasePluginObject* Object = nullptr;
-    QPluginInterface* ObjInterface = m_PluginMap.value( KeyHash, nullptr );
+    QPluginInterface* ObjInterface = m_registry->plugin(KeyHash);
 
     if( nullptr == ObjInterface ){
-        if( m_PluginsHashDescMap.contains( KeyHash ) && m_PluginsHashDescMap[KeyHash].IsEnabled() ){
-            PersistentHealthy = (PluginDescription::PluginHealtyState_t) m_PluginsHashDescMap[KeyHash].GetProperty(PLUGIN_HELTHY_STATE).toUInt();
+        if( m_registry->containsDescription(KeyHash) && m_registry->pluginDescription(KeyHash).IsEnabled() ){
+            PersistentHealthy = (PluginDescription::PluginHealtyState_t) m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_HELTHY_STATE).toUInt();
             if( PluginDescription::ILL != PersistentHealthy ){
-                if( !LoadPluginInterfaceObject( m_PluginsHashDescMap[KeyHash].GetProperty(PLUGIN_LOCATION).toString(), KeyHash ) ){
-                    DEBUG << "Can't load plugin from file" << m_PluginsHashDescMap[KeyHash].GetProperty(PLUGIN_LOCATION).toString();
+                if( !LoadPluginInterfaceObject( m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_LOCATION).toString(), KeyHash ) ){
+                    DEBUG << "Can't load plugin from file" << m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_LOCATION).toString();
                 }
 
-                ObjInterface = m_PluginMap.value( KeyHash, nullptr );
+                ObjInterface = m_registry->plugin(KeyHash);
             }
         }
     }
@@ -145,10 +152,6 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, Q
         if( Healthy != PluginDescription::ILL ){
 
              if( PluginDescription::OBJECT_CREATION == PersistentHealthy ){
-                 /*Previous time application is failed on loading of this plugin.
-                   Give the second chance. If it fail -> this plugin is marked as ILL and
-                   will be disabled.
-                 */
                  PersistentHealthy =  PluginDescription::ILL;
                  ObjInterface->SetHealthyState( PersistentHealthy );
                  StorePluginStateToPersistncy(ObjInterface->GetPluginDescriptor());
@@ -160,7 +163,6 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, Q
              }else if( Healthy == PluginDescription::IF_LOADED ){
                  Healthy = PluginDescription::OBJECT_CREATION;
                  ObjInterface->SetHealthyState( Healthy );
-                 /*Store Persistent Plugin status*/
                  StorePluginStateToPersistncy(ObjInterface->GetPluginDescriptor());
              }
 
@@ -175,7 +177,6 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, Q
 
         if( ObjInterface->GetHealthyState() != Healthy ){
             ObjInterface->SetHealthyState( Healthy );
-            /*Store Persistent Plugin status*/
             StorePluginStateToPersistncy(ObjInterface->GetPluginDescriptor());
         }
     }
@@ -184,15 +185,13 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, Q
 
 void QPluginManager::EnableDisablePlugin( const QString &Hash, bool Enable )
 {
-    Daqster::PluginDescription Desc = m_PluginsHashDescMap.value( Hash, Daqster::PluginDescription() );
+    Daqster::PluginDescription Desc = m_registry->pluginDescription(Hash);
     if( !Desc.IsEmpty() ){
-       /*Hash founded*/
        if( Enable != Desc.IsEnabled() ){
           Desc.Enable( Enable );
-          m_PluginsHashDescMap[Hash] = Desc;
+          m_registry->setPluginDescription(Hash, Desc);
 
-
-          Daqster::QPluginInterface* object = m_PluginMap.value( Hash, nullptr );
+          Daqster::QPluginInterface* object = m_registry->plugin(Hash);
           if( nullptr != object ){
               object->Enable( Enable );
           }
@@ -208,17 +207,14 @@ void QPluginManager::EnableDisablePlugin( const QString &Hash, bool Enable )
 
 void QPluginManager::EnableDisablePluginList(const QList<QString> &HashList, bool Enable)
 {
-
+    for (const QString& hash : HashList) {
+        EnableDisablePlugin(hash, Enable);
+    }
 }
 
 
 void QPluginManager::StorePluginStateToPersistncy( const PluginDescription& Desc  ){
-    QSettings settings( m_ConfigFile, QSettings::IniFormat );
-    settings.beginGroup( "Plugins" );
-    settings.beginGroup( Desc.GetProperty(PLUGIN_HASH).toString() );
-    Desc.StorePluginParamsToPersistency( settings );
-    settings.endGroup();
-    settings.endGroup();
+    m_persistence->savePluginState(Desc);
 }
 
 /**
@@ -228,12 +224,7 @@ void QPluginManager::StorePluginStateToPersistncy( const PluginDescription& Desc
  */
 QList<Daqster::PluginDescription> QPluginManager::GetPluginList( const Daqster::PluginFilter& Filter )
 {
-    QList<PluginDescription> List  = m_PluginsHashDescMap.values();
-    /* Current implementation fo plugin filtration
-       TODO: TBD Maybe something as concurrent filtering will be
-             good here -> QtConcurrent::blockingFilter(fooList, bad);
-             For now just check IsFiltered.
-    */
+    QList<PluginDescription> List  = m_registry->allDescriptions().values();
     auto it = List.begin();
     while( it != List.end() ){
         if( !Filter.IsFiltered( *it ) ){
@@ -248,16 +239,7 @@ QList<Daqster::PluginDescription> QPluginManager::GetPluginList( const Daqster::
 
 PluginDescription QPluginManager::GetPluginDescriptionByHash(const QString &Hash)
 {
-    PluginDescription Desc;
-    auto it = m_PluginsHashDescMap.begin();
-    while( it != m_PluginsHashDescMap.end() ){
-        if( !it.key().compare(Hash) ){
-            Desc = it.value();
-            break;
-        }
-        it++;
-    }
-    return Desc;
+    return m_registry->pluginDescription(Hash);
 }
 
 // CreatePluginListView moved to frame_work_gui library
@@ -268,89 +250,44 @@ PluginDescription QPluginManager::GetPluginDescriptionByHash(const QString &Hash
  */
 void QPluginManager::SearchForPlugins ()
 {
-    QDir PluginsDir;
-    QSettings settings( m_ConfigFile, QSettings::IniFormat );
-    Daqster::QPluginInterface* ObjInterface = nullptr;
     bool Changed = false;
-    //  settings.setIniCodec("UTF-8");
-    settings.beginGroup("Plugins");
-    for (const QString& Hash : m_PluginMap.keys()) {
-        ObjInterface = m_PluginMap.value( Hash, nullptr );
-        /*Check is this plugin file still exist*/
-        if( nullptr != ObjInterface )
-        {
+
+    // 1. Remove stale plugins (hash mismatch)
+    QList<QString> hashes = m_registry->registeredHashes();
+    for (const QString& Hash : hashes) {
+        QPluginInterface* ObjInterface = m_registry->plugin(Hash);
+        if (nullptr != ObjInterface) {
             QString cHash;
-            FileHash( ObjInterface->GetLocation(),  cHash  );
-            {
-                if( 0 != cHash.compare( Hash ) )
-                {
-                    DEBUG << "Plugin " << ObjInterface->GetName() << "was removed from location: " << ObjInterface->GetLocation();
-                    m_PluginsHashDescMap.remove(Hash);
-                    ObjInterface = m_PluginMap.take( Hash );
-                    ObjInterface->deleteLater();
-                    settings.beginGroup( Hash );
-                    settings.remove( "" );
-                    settings.endGroup();
-                    Changed = true;
-                }
+            PluginDiscovery::computeFileHash(ObjInterface->GetLocation(), cHash);
+            if (0 != cHash.compare(Hash)) {
+                DEBUG << "Plugin " << ObjInterface->GetName() << "was removed from location: " << ObjInterface->GetLocation();
+                ObjInterface = m_registry->takePlugin(Hash);
+                m_registry->removeDescription(Hash);
+                ObjInterface->deleteLater();
+                m_persistence->removePlugin(Hash);
+                Changed = true;
             }
         }
     }
 
-    for ( const QString& path : m_DirList ) {
-        if( PluginsDir.cd( path ) )
-        {
-            for (  QString fileName : PluginsDir.entryList(QDir::Files)) {
-                fileName = PluginsDir.absoluteFilePath( fileName );
-                if( !IsCandidatePluginFile(fileName) )
-                {
-                    continue;
-                }
-                QString Hash;
-                FileHash( fileName,  Hash  );
-                if( !m_PluginsHashDescMap.contains(Hash) )
-                {
-                    settings.beginGroup( Hash );
-                    if(  false == m_PluginMap.contains( Hash ) )
-                    {
-                        if( LoadPluginInterfaceObject( fileName, Hash ) )
-                        {
-                            Changed = true;
-                        }
-                        else
-                        {
-                            DEBUG << "Can' Load plugin from file" << fileName;
-                        }
-                    }
-                    ObjInterface = m_PluginMap.value( Hash, nullptr );
-                    if( nullptr != ObjInterface )
-                    {
-                        ObjInterface->StorePluginParamsToPersistency( settings );
-                    }
-                    settings.endGroup();
-                }
-                //TODO: DELL ME
-                if( m_PluginsHashDescMap.contains( Hash ) ){
-                    qDebug() << "Plugin: " << Hash << ": " << fileName ;
-                    qDebug() << m_PluginsHashDescMap[Hash];
-                }
-            }
+    // 2. Discover new plugins
+    QMap<QString, QString> discovered = m_discovery->discoverPlugins(m_registry->allDescriptions());
+    for (auto it = discovered.constBegin(); it != discovered.constEnd(); ++it) {
+        if (LoadPluginInterfaceObject(it.value(), it.key())) {
+            Changed = true;
+        } else {
+            DEBUG << "Can't Load plugin from file" << it.value();
         }
-
-    }
-    settings.endGroup();
-    //Dump
-    DEBUG << "Begin m_PluginMap Hashes";
-    foreach ( const QString& Hash, m_PluginMap.keys()) {
-        DEBUG << Hash;
-    }
-    DEBUG << "End m_PluginMap Hashes";
-    DEBUG << "Begin m_PluginsHashDescMap Hashes";
-    for ( const QString& Hash : m_PluginsHashDescMap.keys()) {
-        DEBUG << Hash;
     }
 
-    if( true == Changed ){
+    // Debug dump
+    DEBUG << "Begin registered hashes";
+    for (const QString& Hash : m_registry->registeredHashes()) {
+        DEBUG << Hash;
+    }
+    DEBUG << "End registered hashes";
+
+    if (true == Changed) {
         emit PluginsListChangeDetected();
     }
 }
@@ -362,48 +299,16 @@ void QPluginManager::SearchForPlugins ()
  */
 void QPluginManager::AddPluginsDirectory (const QString& Directory)
 {
-    if( !m_DirList.contains(Directory) ){
-        m_DirList.append( Directory );
-    }
+    m_discovery->addSearchPath(Directory);
 }
 
 
-// ShowPluginManagerGui implementation in frame_work_gui library
-// Forward declaration - actual include is in the GUI library
+// ShowPluginManagerGui — direct instantiation (GUI is part of frame_work)
 void QPluginManager::ShowPluginManagerGui(QWidget *Parent)
 {
-    // This method is implemented in frame_work_gui library
-    // The actual implementation creates a QPluginManagerGui dialog
-    // For now, we just emit a warning - the GUI library should provide
-    // a registration mechanism or the caller should use the GUI library directly
-    qWarning() << "ShowPluginManagerGui: GUI library not linked. Use frame_work_gui library directly.";
-}
-
-/**
- * @brief FileHash calculate Hash of some file
- * @param Filename
- * @param Hash result
- * @return true on success
- *         false otherwise
- */
-bool QPluginManager::FileHash( const QString& Filename, QString& Hash  )
-{
-    bool ret = false;
-    QCryptographicHash hashMaster( QCryptographicHash::Md5 );
-    QFile file(Filename);
-    if( file.open(QIODevice::ReadOnly|QIODevice::Text ) )
-    {
-        if( hashMaster.addData( &file ) )/*File content for hash*/
-        {
-            Hash = QString(hashMaster.result().toHex().data());
-            ret = true;
-        }
-    }
-    else
-    {
-        Hash = QString();
-    }
-    return ret;
+    auto* dlg = new QPluginManagerGui(Parent);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    dlg->show();
 }
 
 /**
@@ -411,48 +316,7 @@ bool QPluginManager::FileHash( const QString& Filename, QString& Hash  )
  */
 void QPluginManager::LoadPluginsInfoFromPersistency()
 {
-    QSettings settings( m_ConfigFile, QSettings::IniFormat );
-    m_PluginsHashDescMap.clear();
-    if( settings.childGroups().contains( "Plugins" ))
-    {
-        QString Hash;
-        settings.beginGroup("Plugins");
-        for ( const QString& Name : settings.childGroups() ) {
-            PluginDescription Desk;
-            bool added = false;
-            QString PersHash;
-            settings.beginGroup( Name );
-            Desk.GetPluginParamsFromPersistency( settings );
-            PersHash = Desk.GetProperty( PLUGIN_HASH ).toString();
-            const QString persistedLocation = Desk.GetProperty(PLUGIN_LOCATION).toString();
-            if( !m_PluginsHashDescMap.contains( PersHash ) )
-            {
-                /*Check is this plugin file still exist (AppImage paths may differ
-                  between runs, so we check only hash/existence, not search path membership)*/
-                if( (!PersHash.isEmpty())
-                    && true == FileHash( persistedLocation,  Hash  ) )
-                {
-                    if( 0 == Hash.compare(PersHash) )
-                    {
-                        m_PluginsHashDescMap[PersHash] = Desk;
-                        added = true;
-                        if( !IsInSearchPath(persistedLocation) )
-                        {
-                            DEBUG << "Warning: Plugin '" << Desk.GetProperty(PLUGIN_NAME).toString()
-                                  << "' loaded from non-search path: " << persistedLocation;
-                        }
-                    }
-                }
-            }
-            if( true != added )
-            {
-                DEBUG << "Hm..Remove PluginDescription record: Hash '" << PersHash << "'.";
-                settings.remove( "" );
-            }
-            settings.endGroup();
-        }
-        settings.endGroup();
-    }
+    m_registry->setPluginDescriptions(m_persistence->loadPlugins());
 }
 
 
@@ -463,36 +327,22 @@ void QPluginManager::LoadPluginsInfoFromPersistency()
  */
 void QPluginManager::AllPluginObjectsDestroyed(const QString &Hash)
 {
-    QPluginInterface* OIface = m_PluginMap.value( Hash, nullptr );
-    if( nullptr != OIface  )
-    {   //&& ( !OIface->IsEnabled() )
-        /* Destroy Plugin Interface If Plugin is disabled and all
-         * Plugin objects instanses are destroyed */
-
-        OIface = m_PluginMap.take( Hash );
+    QPluginInterface* OIface = m_registry->plugin(Hash);
+    if( nullptr != OIface )
+    {
+        OIface = m_registry->takePlugin(Hash);
         delete OIface;
     }
 }
 
 void QPluginManager::ShutdownPlugin( const QString &Hash )
 {
-    QPluginInterface* OIface = m_PluginMap.value( Hash, nullptr );
-    if( nullptr != OIface ){
-        OIface->ShutdownAllPluginObjects();
-      //  delete OIface;
-    }
+    m_registry->shutdownPlugin(Hash);
 }
 
 void QPluginManager::ShutdownPluginManager()
 {
-    for( const QString& Hash : m_PluginMap.keys() ) {
-        ShutdownPlugin( Hash );
-//        QPluginInterface* OIface = m_PluginMap.take( Hash );
-//        if( 0 != OIface ){
-//           OIface->ShutdownAllPluginObjects();
-//           delete OIface;
-//        }
-    }
+    m_registry->shutdownAll();
 }
 
 
@@ -515,14 +365,19 @@ bool QPluginManager::LoadPluginInterfaceObject( const QString& PluginFileName, c
             ObjInterface->SetLocation( PluginFileName );
             ObjInterface->SetHash( Hash );
             ObjInterface->SetHealthyState(PluginDescription::IF_LOADED);
-            m_PluginMap[ Hash ] = ObjInterface;
-            // Preserve the persisted enabled state when loading plugin interface
-            bool wasEnabled = m_PluginsHashDescMap.contains(Hash)
-                ? m_PluginsHashDescMap[Hash].IsEnabled()
-                : true;  // default to enabled for new plugins
-            m_PluginsHashDescMap[Hash] = ObjInterface->GetPluginDescriptor();
-            m_PluginsHashDescMap[Hash].Enable(wasEnabled);
+
+            // Register in registry
+            m_registry->registerPlugin(Hash, ObjInterface);
+
+            // Preserve the persisted enabled state
+            bool wasEnabled = m_registry->containsDescription(Hash)
+                ? m_registry->pluginDescription(Hash).IsEnabled()
+                : true;
+            PluginDescription desc = ObjInterface->GetPluginDescriptor();
+            desc.Enable(wasEnabled);
+            m_registry->setPluginDescription(Hash, desc);
             ObjInterface->Enable(wasEnabled);
+
             connect( ObjInterface, SIGNAL(AllPluginObjectsDestroyed(QString)), this, SLOT(AllPluginObjectsDestroyed(QString)) );
             ret = true;
         }
@@ -543,34 +398,6 @@ bool QPluginManager::LoadPluginInterfaceObject( const QString& PluginFileName, c
     return ret;
 }
 
-bool QPluginManager::IsCandidatePluginFile(const QString& filePath) const
-{
-    const QFileInfo info(filePath);
-    if (!info.exists() || !info.isFile()) {
-        return false;
-    }
-
-    if (!QLibrary::isLibrary(filePath)) {
-        return false;
-    }
-
-    const QString baseName = info.fileName().toLower();
-    return baseName.contains("plugin");
-}
-
-bool QPluginManager::IsInSearchPath(const QString& filePath) const
-{
-    const QString absFile = QFileInfo(filePath).absoluteFilePath();
-    for (const QString& dirPath : m_DirList) {
-        const QDir dir(dirPath);
-        const QString absDir = dir.absolutePath();
-        if (absFile.startsWith(absDir + QDir::separator()) || absFile == absDir) {
-            return true;
-        }
-    }
-    return false;
-}
-
 /**
  * Return all plugin instances that implement a given interface (by IID).
  * Creates instances lazily for enabled plugins that have no instances yet.
@@ -578,25 +405,7 @@ bool QPluginManager::IsInSearchPath(const QString& filePath) const
  */
 QObjectList QPluginManager::instances(const char* iid)
 {
-    QObjectList result;
-    for (auto it = m_PluginMap.constBegin(); it != m_PluginMap.constEnd(); ++it) {
-        QPluginInterface* iface = it.value();
-        if (!iface || !iface->IsEnabled()) continue;
-
-        // Lazy init — create instance if none exist yet
-        if (iface->GetPluginInstances().isEmpty()) {
-            CreatePluginObject(it.key());
-        }
-
-        for (QBasePluginObject* obj : iface->GetPluginInstances()) {
-            QObject* qobj = dynamic_cast<QObject*>(obj);
-            if (qobj && qobj->qt_metacast(iid)) {
-                qobj->setProperty("_daqster_hash", it.key());
-                result.append(qobj);
-            }
-        }
-    }
-    return result;
+    return m_registry->instances(iid);
 }
 
 }//End of Daqster namespace

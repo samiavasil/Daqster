@@ -109,6 +109,38 @@ public:
      */
     QList<QObject*> instances(const char* iid);
 
+    // ── Additional methods for full QPluginManager delegation ─────
+
+    /**
+     * @brief Get all plugin descriptions
+     */
+    QMap<QString, PluginDescription> allDescriptions() const;
+
+    /**
+     * @brief Get a single plugin description by hash
+     */
+    PluginDescription pluginDescription(const QString& hash) const;
+
+    /**
+     * @brief Check if a description exists for a hash
+     */
+    bool containsDescription(const QString& hash) const;
+
+    /**
+     * @brief Set/update a plugin description
+     */
+    void setPluginDescription(const QString& hash, const PluginDescription& desc);
+
+    /**
+     * @brief Remove a plugin and return its interface (caller takes ownership)
+     */
+    QPluginInterface* takePlugin(const QString& hash);
+
+    /**
+     * @brief Remove a plugin description
+     */
+    void removeDescription(const QString& hash);
+
 signals:
     void pluginListChanged();
 

@@ -134,4 +134,34 @@ QList<QObject*> PluginRegistry::instances(const char* iid)
     return result;
 }
 
+QMap<QString, PluginDescription> PluginRegistry::allDescriptions() const
+{
+    return m_descriptions;
+}
+
+PluginDescription PluginRegistry::pluginDescription(const QString& hash) const
+{
+    return m_descriptions.value(hash, PluginDescription());
+}
+
+bool PluginRegistry::containsDescription(const QString& hash) const
+{
+    return m_descriptions.contains(hash);
+}
+
+void PluginRegistry::setPluginDescription(const QString& hash, const PluginDescription& desc)
+{
+    m_descriptions[hash] = desc;
+}
+
+QPluginInterface* PluginRegistry::takePlugin(const QString& hash)
+{
+    return m_pluginMap.take(hash);
+}
+
+void PluginRegistry::removeDescription(const QString& hash)
+{
+    m_descriptions.remove(hash);
+}
+
 } // namespace Daqster

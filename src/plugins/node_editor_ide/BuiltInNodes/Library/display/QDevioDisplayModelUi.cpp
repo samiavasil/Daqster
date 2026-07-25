@@ -92,7 +92,6 @@ QDevioDisplayModelUi::QDevioDisplayModelUi(QWidget *parent) :
 
 QDevioDisplayModelUi::~QDevioDisplayModelUi()
 {
-    delete ui;
 }
 
 QDevioDisplayModelUi::disp_hndl_t QDevioDisplayModelUi::AddChart()

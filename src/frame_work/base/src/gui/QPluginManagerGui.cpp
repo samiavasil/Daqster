@@ -21,8 +21,10 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include "QPluginManagerGui.h"
 #include "QPluginListView.h"
 #include "ui_pluginmanagergui.h"
-#include "QPluginListView.h"
+#include "QPluginManager.h"
+
 namespace Daqster {
+
 // Constructors/Destructors
 //  
 

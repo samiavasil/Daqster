@@ -2,6 +2,7 @@
 #define NUMBESOURCEDATAUI_H
 
 #include <QWidget>
+#include <memory>
 
 namespace Ui {
 class NumberSourceDataUi;
@@ -21,7 +22,7 @@ public:
     QCheckBox &randomEnabled();
     QSpinBox &intervalSpin();
 private:
-    Ui::NumberSourceDataUi *ui;
+    std::unique_ptr<Ui::NumberSourceDataUi> ui;
 };
 
 #endif // NUMBESOURCEDATAUI_H

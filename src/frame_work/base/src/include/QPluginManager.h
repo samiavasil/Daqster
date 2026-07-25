@@ -26,29 +26,31 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include <QList>
 #include <QMap>
 #include <QString>
+#include <memory>
 #include<QMutex>
+
+class QDialog;
 
 namespace Daqster {
 
 class PluginFilter;
 class QPluginInterface;
 class QBasePluginObject;
-class QPluginManagerGui;
+class PluginDiscovery;
+class PluginRegistry;
+class PluginPersistence;
+
 /**
- * @brief The QPluginManager class  is used to manage all availlable plugins.
- * It search for availlable/new plugins and add plugin factories for every one plugin.
- * For optimization this plugin create Qsetting based persistency store for plugins information.
- * On start it check configurable directories for plugins and compare with  persystency
- * information for new available plugins. If have a new plugin (some wich isn't stored in persistency)
- * it automatically load plugin interface object and read plugin information and update persistency.
- * QPluginManager create plugins factories only for these plugins wich are enabled.
- * By default new plugins are enabled(?) and to change to disable state you can be use PluginManagerGUI
- * wich can be called by member function of PluginManager - ShowPluginManagerGUI.
- * In order to have a good plugin files traceability plugin manager create Hash of every one plugin
- * file and when check for availability it compare and and file Hash's. Plugin files are different if
- * their Hash's are different.
- * Note: Please don't use instance of this class directly on your code. Instead get global instance to
- * to object from this class with function GetApplicationPluginManager.
+ * @brief The QPluginManager class — thin facade delegating to split classes.
+ *
+ * QPluginManager is the public API for plugin management. Internally it
+ * delegates to three focused classes:
+ *   - PluginDiscovery  — file scanning and hash computation
+ *   - PluginRegistry   — runtime registration, lifecycle, capability discovery
+ *   - PluginPersistence — QSettings-based state storage
+ *
+ * Note: Please don't use instance of this class directly on your code.
+ * Instead get global instance with QPluginManager::instance().
  */
 class FRAME_WORKSHARED_EXPORT QPluginManager : public QObject // skipcq: CXX-W2009
 {
@@ -61,6 +63,7 @@ public:
    static QPluginManager* instance();
 
    static bool Initialize();
+
   /**
    * Return list with founded plugins. Return list can be filtered by criteria
    * described in input filter parameter.
@@ -93,105 +96,41 @@ public:
 
    /**
     * @brief Return all plugin instances that implement a given interface (by IID).
-    *
-    * Iterates all enabled plugins, creates instances lazily if needed,
-    * and filters by qobject_cast using the provided IID.
-    *
-    * Usage:
-    *   QObjectList providers = QPluginManager::instance()->instances(INodeProvider_IID);
-    *   for (QObject* obj : providers) {
-    *       auto* provider = qobject_cast<INodeProvider*>(obj);
-    *       // ...
-    *   }
-    *
-    * @param iid The interface ID string (from Q_DECLARE_INTERFACE)
-    * @return List of QObject pointers that implement the requested interface
     */
    QObjectList instances(const char* iid);
 
 public slots:
-  /**
-    * @brief Slot to Enable/Disable Plugin
-    * @param Hash
-    * @param Enable
-    */
    void EnableDisablePlugin( const QString& Hash, bool Enable );
 
-   /**
-    * @brief Slot to Enable/Disable Plugin List
-    * @param HashList
-    * @param Enable
-    */
    void EnableDisablePluginList( const QList<QString>& HashList, bool Enable );
 
-   /**
-    * @brief This slot can be connected to QPluginInterface signal AllPluginObjectDestroyed in order
-    * to automaticaly unload plugin.
-    * @param Hash
-    */
    void AllPluginObjectsDestroyed( const QString& Hash );
 
    void ShutdownPluginManager();
 
 signals:
-  /**
-   * @brief QPluginManager
-   */
   void PluginsListChangeDetected();
-
-  /**
-   * @brief This signal will be emited when shutdwown All plugins after execution of ShutdownPluginManager call
-   * TBD
-   * @param Status
-   */\
   void AllPluginsShutdownFinished( bool Status );
 
 protected:
-  /**
-   * Empty Constructor
-   */
   QPluginManager ( const QString& ConfigFile = QString("daqster.ini") );
-
   QPluginManager( QPluginManager const& );
-
   QPluginManager& operator= (QPluginManager const&);
-
-  /**
-   * Empty Destructor
-   */
   virtual ~QPluginManager ();
-  /**
-   * @brief FileHash calculate Hash of some file
-   * @param Filename
-   * @param Hash result
-   * @return true on success
-   *         false otherwise
-   */
-  bool FileHash( const QString &Filename, QString& Hash );
 
-  /**
-   * @brief QPluginManager::LoadPluginsInfoFromPersistency Load plugins information from persistency
-   */
+  // ── Delegate methods (implemented via split classes) ──────────
   void LoadPluginsInfoFromPersistency();
+  bool LoadPluginInterfaceObject(const QString &PluginFileName,const QString& Hash);
+  void StorePluginStateToPersistncy(const PluginDescription &Desc);
+  void ShutdownPlugin(const QString &Hash);
 
-   bool LoadPluginInterfaceObject(const QString &PluginFileName,const QString& Hash  );
-
-   void StorePluginStateToPersistncy(const PluginDescription &Desc);
-
-   void ShutdownPlugin(const QString &Hash);
-
-  bool IsCandidatePluginFile(const QString& filePath) const;
-  bool IsInSearchPath(const QString& filePath) const;
 protected:
-  /*Pointer to sinleton obejct*/
   static QPluginManager* g_Instance;
-  // Plugins Directory list
-  QList<QString> m_DirList;
-  // Map with founded plugins: Map file Hash with PluginDescription   bb
-  QMap<QString, Daqster::PluginDescription> m_PluginsHashDescMap;
-  // Map Hash to plugin base interface object QPluginInterface.
-  QMap<QString,Daqster::QPluginInterface*> m_PluginMap;
-  QString m_ConfigFile;
+
+  // ── Split classes (owned) ─────────────────────────────────────
+  std::unique_ptr<PluginDiscovery> m_discovery;
+  std::unique_ptr<PluginRegistry> m_registry;
+  std::unique_ptr<PluginPersistence> m_persistence;
 };
 
 

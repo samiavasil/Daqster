@@ -4,6 +4,7 @@
 #include "QtChartsCompat.h"
 
 #include <QWidget>
+#include <memory>
 
 #include <QMap>
 #include <QVector>
@@ -33,7 +34,7 @@ protected:
     void populateLegendBox();
     void updateGrid();
 private:
-    Ui::QDevioDisplayModelUi *ui;
+    std::unique_ptr<Ui::QDevioDisplayModelUi> ui;
 /*    QVector<QtChartsCompat::LineSeries*> m_series;*/
     QMap<disp_hndl_t, QVector<QtChartsCompat::LineSeries*>*> m_SeriesMap;
     QMap<disp_hndl_t, QtChartsCompat::ChartView*> m_ChartMap;

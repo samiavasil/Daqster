@@ -65,7 +65,6 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 set(CMAKE_BUILD_RPATH "${PROJECT_BINARY_DIR}/bin")
 
 add_subdirectory(src/frame_work)
-add_subdirectory(src/frame_work_gui)
 
 # External libraries - conditional based on Qt version and dependencies
 message(STATUS "=== External Libraries Status ===")
