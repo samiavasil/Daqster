@@ -242,8 +242,6 @@ PluginDescription QPluginManager::GetPluginDescriptionByHash(const QString &Hash
     return m_registry->pluginDescription(Hash);
 }
 
-// CreatePluginListView moved to frame_work_gui library
-
 
 /**
  * Search for plugins in configured directories.

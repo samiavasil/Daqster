@@ -62,6 +62,8 @@ QBasePluginObject* PluginRegistry::createPluginObject(const QString& hash, QObje
         return nullptr;
     }
 
+    // Simplified creation path for internal use (lazy init via instances()).
+    // Full creation with persistence/crash-recovery: QPluginManager::CreatePluginObject().
     QBasePluginObject* obj = iface->CreatePlugin(parent);
     if (obj) {
         healthy = PluginDescription::HEALTHY;

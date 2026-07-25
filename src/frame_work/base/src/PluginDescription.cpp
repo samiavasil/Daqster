@@ -121,98 +121,35 @@ bool  PluginDescription::IsEmpty() const
 }
 
 /**
-* @brief PluginDescription::Compare - Return bitmask with difference betwen two PluginDescription objects
+* @brief PluginDescription::Compare - Return bitmask with difference between two PluginDescription objects
 * @param Object for compare
-* @return Return 0 if object Pairs are the same
-*                > 0 if this have some equal properties as b
-*                < 0 if this haven't some equal properties as b
+* @return 0 — always (not yet implemented)
 */
 int  PluginDescription::Compare( const PluginDescription &b ) const{
-    /* TODO: TBD
-     * unsigned int diff = NOTHING_OPT;
-    if( m_Location.compare(  b.m_Location ) ){
-        diff |= LOCATION_OPT;
-    }
-    if( m_Enabled !=  b.m_Enabled ){
-        diff |= ENABLE_OPT;
-    }
-    if( m_Name.compare(  b.m_Name ) ){
-        diff |= NAME_OPT;
-    }
-    if(  m_PluginType != b.m_PluginType ){
-        diff |= TYPE_OPT;
-    }
-    if( m_Author.compare(  b.m_Author ) ){
-        diff |= AUTHOR_OPT;
-    }
-    if( m_Description.compare(  b.m_Description ) ){
-        diff |= DESCRIPTION_OPT;
-    }
-    if( m_DetailDescription.compare(  b.m_DetailDescription ) ){
-        diff |= DETAIL_DESCRIPTION_OPT;
-    }
-    if( m_License.compare(  b.m_License ) ){
-        diff |= LICENSE_OPT;
-    }
-    if( m_PluginTypeName.compare(  b.m_PluginTypeName ) ){
-        diff |= PLUG_TYPE_NAME_OPT;
-    }
-    if( m_Version.compare(  b.m_Version ) ){
-        diff |= VERSION_OPT;
-    }
-    if( m_Icon.name().compare( b.m_Icon.name() ) ){
-        diff |= ICON_OPT;
-    }*/
+    Q_UNUSED(b);
     return 0;
 }
 
 /**
  * @brief Compare objects valid fields
  * @param Object for compare
- * @return true  - if object have the same valid valid fields. Doesn't check  invalid fields.
- *         false - otherwise
+ * @return true — always (not yet implemented)
  */
 bool  PluginDescription::CompareByValidFields( const PluginDescription &b ) const{
-    bool ret = true;
-     // TODO: TBD
- #if 0
-    if(  !m_Location.isEmpty() && m_Location.compare(  b.m_Name ) ){
-       ret = false;
-    }else if( m_Enabled != b.m_Enabled ){
-        ret = false;
-    }else if( !m_Name.isEmpty() && m_Name.compare(  b.m_Name ) ){
-        ret = false;
-    } else if(  m_PluginType != UNDEFINED_TYPE && m_PluginType != b.m_PluginType ){
-        ret = false;
-    }else if( !m_Author.isEmpty() && m_Author.compare(  b.m_Author ) ){
-        ret = false;
-    }else if( !m_Description.isEmpty() && m_Description.compare(  b.m_Description ) ){
-        ret = false;
-    }else if( !m_DetailDescription.isEmpty() && m_DetailDescription.compare(  b.m_DetailDescription ) ){
-        ret = false;
-    }else if( !m_License.isEmpty() && m_License.compare(  b.m_License ) ){
-        ret = false;
-    }else if( !m_PluginTypeName.isEmpty() && m_PluginTypeName.compare(  b.m_PluginTypeName ) ){
-        ret = false;
-    }else if( !m_Version.isEmpty() && m_Version.compare(  b.m_Version ) ){
-        ret = false;
-    }else if( m_Icon.isNull() && m_Icon.name().compare( b.m_Icon.name() ) ){
-        ret = false;
-    }
-#endif
-    return ret;
+    Q_UNUSED(b);
+    return true;
 }
 
 void PluginDescription::CopyDynamicProperties( const PluginDescription &b ){
     QList<QByteArray> names = m_PrivateDescription->dynamicPropertyNames();
     /*Delete old properies and copy new ones*/
     QVariant Invalid;
-    foreach( const QByteArray& name, names ){
+    for (const QByteArray& name : names) {
         m_PrivateDescription->setProperty( name,Invalid );
     }
 
     names = b.GetPropertiesNames();
-    foreach( const QByteArray& name, names ){
+    for (const QByteArray& name : names) {
         if( m_PrivateDescription->setProperty( name, b.GetProperty(name) ) ){
             DEBUG << "Strange - set of this dynamic property should return false here. Chek it - maybe it is defined with Q_PROPERTY  macro";
         }
