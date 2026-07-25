@@ -121,7 +121,6 @@ protected:
   // ── Delegate methods (implemented via split classes) ──────────
   void LoadPluginsInfoFromPersistency();
   bool LoadPluginInterfaceObject(const QString &PluginFileName,const QString& Hash);
-  void StorePluginStateToPersistncy(const PluginDescription &Desc);
   void ShutdownPlugin(const QString &Hash);
 
 protected:

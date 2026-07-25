@@ -7,6 +7,7 @@
 #include <QMap>
 #include <QString>
 #include <QList>
+#include <functional>
 
 namespace Daqster {
 
@@ -77,12 +78,22 @@ public:
     void setPluginDescriptions(const QMap<QString, PluginDescription>& descriptions);
 
     /**
-     * @brief Create a plugin object
+     * @brief Create a plugin object (single source of truth)
+     *
+     * Handles: enabled check, crash recovery, health state tracking,
+     * object creation, persistence via callback.
+     *
      * @param hash Plugin hash
      * @param parent Parent QObject
      * @return Created plugin object, or nullptr on failure
      */
     QBasePluginObject* createPluginObject(const QString& hash, QObject* parent = nullptr);
+
+    /**
+     * @brief Set callback for persisting plugin state changes
+     * @param callback Function to call when plugin state needs to be saved
+     */
+    void setPersistenceCallback(std::function<void(const PluginDescription&)> callback);
 
     /**
      * @brief Enable or disable a plugin
@@ -147,6 +158,7 @@ signals:
 private:
     QMap<QString, QPluginInterface*> m_pluginMap;
     QMap<QString, PluginDescription> m_descriptions;
+    std::function<void(const PluginDescription&)> m_persistenceCallback;
 };
 
 } // namespace Daqster

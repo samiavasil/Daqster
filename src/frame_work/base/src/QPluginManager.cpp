@@ -59,6 +59,11 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     m_discovery = std::make_unique<PluginDiscovery>();
     m_persistence = std::make_unique<PluginPersistence>(resolvedConfig);
     m_registry = std::make_unique<PluginRegistry>();
+
+    // Wire persistence callback — PluginRegistry uses this to save state
+    m_registry->setPersistenceCallback([this](const PluginDescription& desc) {
+        m_persistence->savePluginState(desc);
+    });
     
     // Plugin directories - подредени по приоритет
     
@@ -127,59 +132,31 @@ bool QPluginManager::Initialize()
 
 QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, QObject* Parent  )
 {
-    PluginDescription::PluginHealtyState_t PersistentHealthy = PluginDescription::UNDEFINED;
-    QBasePluginObject* Object = nullptr;
     QPluginInterface* ObjInterface = m_registry->plugin(KeyHash);
 
+    // If plugin not loaded yet, try to load from file
     if( nullptr == ObjInterface ){
         if( m_registry->containsDescription(KeyHash) && m_registry->pluginDescription(KeyHash).IsEnabled() ){
-            PersistentHealthy = (PluginDescription::PluginHealtyState_t) m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_HELTHY_STATE).toUInt();
+            PluginDescription::PluginHealtyState_t PersistentHealthy =
+                (PluginDescription::PluginHealtyState_t) m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_HELTHY_STATE).toUInt();
             if( PluginDescription::ILL != PersistentHealthy ){
                 if( !LoadPluginInterfaceObject( m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_LOCATION).toString(), KeyHash ) ){
                     DEBUG << "Can't load plugin from file" << m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_LOCATION).toString();
                 }
-
                 ObjInterface = m_registry->plugin(KeyHash);
             }
         }
     }
 
-    if( nullptr != ObjInterface && ObjInterface->IsEnabled() ){
-        PluginDescription::PluginHealtyState_t Healthy = ObjInterface->GetHealthyState();
-        if( PersistentHealthy == PluginDescription::UNDEFINED){
-            PersistentHealthy = Healthy;
-        }
-        if( Healthy != PluginDescription::ILL ){
+    // Delegate to PluginRegistry (single source of truth for creation)
+    QBasePluginObject* Object = m_registry->createPluginObject(KeyHash, Parent);
 
-             if( PluginDescription::OBJECT_CREATION == PersistentHealthy ){
-                 PersistentHealthy =  PluginDescription::ILL;
-                 ObjInterface->SetHealthyState( PersistentHealthy );
-                 StorePluginStateToPersistncy(ObjInterface->GetPluginDescriptor());
-                 qWarning() << "Attention: There was application crash on last time loading of plugin"
-                            << ObjInterface->GetLocation()
-                            << ". Now we try second time and if it fail the plugin will be disabled."
-                            << "To enable Plugin please change HealthyState state in configuration .ini file.";
-                 DEBUG << "Second chance for loading of plugin: " << ObjInterface->GetLocation() << ". If it fail it will be disabled.";
-             }else if( Healthy == PluginDescription::IF_LOADED ){
-                 Healthy = PluginDescription::OBJECT_CREATION;
-                 ObjInterface->SetHealthyState( Healthy );
-                 StorePluginStateToPersistncy(ObjInterface->GetPluginDescriptor());
-             }
-
-             Object = ObjInterface->CreatePlugin(Parent);
-             if( nullptr != Object ){
-                Healthy = PluginDescription::HEALTHY;
-             }
-             else{
-                Healthy = PluginDescription::ILL;
-             }
-        }
-
-        if( ObjInterface->GetHealthyState() != Healthy ){
-            ObjInterface->SetHealthyState( Healthy );
-            StorePluginStateToPersistncy(ObjInterface->GetPluginDescriptor());
-        }
+    // Connect signal for lifecycle management
+    if( Object && ObjInterface ){
+        connect( ObjInterface, SIGNAL(AllPluginObjectsDestroyed(QString)),
+                 this, SLOT(AllPluginObjectsDestroyed(QString)) );
     }
+
     return Object;
 }
 
@@ -195,7 +172,7 @@ void QPluginManager::EnableDisablePlugin( const QString &Hash, bool Enable )
           if( nullptr != object ){
               object->Enable( Enable );
           }
-          StorePluginStateToPersistncy( Desc );
+          m_persistence->savePluginState( Desc );
           if( !Enable )
           {
             ShutdownPlugin( Hash );
@@ -212,10 +189,6 @@ void QPluginManager::EnableDisablePluginList(const QList<QString> &HashList, boo
     }
 }
 
-
-void QPluginManager::StorePluginStateToPersistncy( const PluginDescription& Desc  ){
-    m_persistence->savePluginState(Desc);
-}
 
 /**
  * Return list with founded plugins. Return list can be filtered by criteria

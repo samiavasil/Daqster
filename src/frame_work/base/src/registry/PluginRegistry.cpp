@@ -15,6 +15,11 @@ PluginRegistry::~PluginRegistry()
     shutdownAll();
 }
 
+void PluginRegistry::setPersistenceCallback(std::function<void(const PluginDescription&)> callback)
+{
+    m_persistenceCallback = std::move(callback);
+}
+
 void PluginRegistry::registerPlugin(const QString& hash, QPluginInterface* iface)
 {
     m_pluginMap[hash] = iface;
@@ -62,19 +67,45 @@ QBasePluginObject* PluginRegistry::createPluginObject(const QString& hash, QObje
         return nullptr;
     }
 
-    // Simplified creation path for internal use (lazy init via instances()).
-    // Full creation with persistence/crash-recovery: QPluginManager::CreatePluginObject().
-    QBasePluginObject* obj = iface->CreatePlugin(parent);
-    if (obj) {
-        healthy = PluginDescription::HEALTHY;
-    } else {
-        healthy = PluginDescription::ILL;
-    }
-
-    if (iface->GetHealthyState() != healthy) {
-        iface->SetHealthyState(healthy);
+    // Crash recovery: if last time we crashed during OBJECT_CREATION, disable
+    if (healthy == PluginDescription::OBJECT_CREATION) {
+        iface->SetHealthyState(PluginDescription::ILL);
         if (m_descriptions.contains(hash)) {
             m_descriptions[hash] = iface->GetPluginDescriptor();
+        }
+        if (m_persistenceCallback) {
+            m_persistenceCallback(iface->GetPluginDescriptor());
+        }
+        qWarning() << "Attention: There was application crash on last time loading of plugin"
+                   << iface->GetLocation()
+                   << ". Now we try second time and if it fail the plugin will be disabled."
+                   << "To enable Plugin please change HealthyState state in configuration .ini file.";
+        DEBUG << "Second chance for loading of plugin: " << iface->GetLocation() << ". If it fail it will be disabled.";
+        return nullptr;
+    }
+
+    // Mark as OBJECT_CREATION for crash recovery
+    if (healthy == PluginDescription::IF_LOADED) {
+        iface->SetHealthyState(PluginDescription::OBJECT_CREATION);
+        if (m_descriptions.contains(hash)) {
+            m_descriptions[hash] = iface->GetPluginDescriptor();
+        }
+        if (m_persistenceCallback) {
+            m_persistenceCallback(iface->GetPluginDescriptor());
+        }
+    }
+
+    QBasePluginObject* obj = iface->CreatePlugin(parent);
+
+    // Update health state
+    PluginDescription::PluginHealtyState_t newHealthy = obj ? PluginDescription::HEALTHY : PluginDescription::ILL;
+    if (iface->GetHealthyState() != newHealthy) {
+        iface->SetHealthyState(newHealthy);
+        if (m_descriptions.contains(hash)) {
+            m_descriptions[hash] = iface->GetPluginDescriptor();
+        }
+        if (m_persistenceCallback) {
+            m_persistenceCallback(iface->GetPluginDescriptor());
         }
     }
 
