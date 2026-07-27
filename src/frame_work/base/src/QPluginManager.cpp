@@ -314,6 +314,9 @@ void QPluginManager::ShutdownPlugin( const QString &Hash )
 
 void QPluginManager::ShutdownPluginManager()
 {
+    static bool s_shutdownDone = false;
+    if (s_shutdownDone) return;
+    s_shutdownDone = true;
     QPluginLoaderExt::setShuttingDown(true);
     m_registry->shutdownAll();
 }
