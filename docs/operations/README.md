@@ -1,6 +1,6 @@
 # Operations Topics
 
-Родител: [Documentation Index](../index.md)
+Родител: [Documentation Index](../INDEX.md)
 
 Тук са събрани оперативните теми (build помощници и поддръжка на upstream зависимости).
 

@@ -1,6 +1,6 @@
 # Developer Guide
 
-Parent: [Documentation Index](../index.md)
+Parent: [Documentation Index](../INDEX.md)
 
 This guide helps contributors and maintainers to get started with the
 Daqster framework and develop plugins or new applications.
@@ -51,7 +51,7 @@ cd build/bin
 - `src/frame_work` — framework core, process management, plugin loading, shutdown handling
 - `src/apps/Daqster` — host application, toolbar, process orchestration
 - `src/plugins` — runtime plugins and plugin test targets
-- `src/external_libs` — bundled third-party libraries used by some plugins
+- `src/plugins/external_libs` — bundled third-party libraries used by some plugins
 - `cmake` — build helpers, component templates, dependency checks
 
 ## How to add a plugin

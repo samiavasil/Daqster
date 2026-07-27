@@ -37,10 +37,6 @@ Handle-ва stdin команди:
 - В `onActivated()` чете един ред с `std::getline(std::cin, ...)`, trim-ва до `QString`
 - При `"quit"` или `"exit"` (case-insensitive) emit-ва `shutdownRequested()`
 
-> Забележка: текущият Daqster код създава handler-ите директно (`new UnixShutdownHandler`,
-> `new WindowsShutdownHandler`, `new StdinShutdownHandler`) в `main.cpp`, вместо да ползва
-> обща фабрика. По желание може да се изгради фабричен метод върху този интерфейс.
-
 ## Public API
 
 ### initialize()
@@ -95,39 +91,21 @@ int main(int argc, char *argv[]) {
 
 ### Usage in Daqster (apps/Daqster/main.cpp)
 
-Daqster комбинира **OS-specific** и **stdin-based** shutdown handler-и:
+Daqster използва фабричния метод `ShutdownHandler::create()` за platform-specific shutdown handling:
 
 ```cpp
 QApplication a(argc, argv);
 
-// 1) OS-specific handler (signals / console events)
-#ifdef Q_OS_WIN
-    auto *shutdownHandler = new WindowsShutdownHandler(&a);
-#else
-    auto *shutdownHandler = new UnixShutdownHandler(&a);
-#endif
-
-    if (!shutdownHandler->initialize()) {
-        qWarning() << "Failed to initialize OS shutdown handler";
-    }
-
-// 2) Stdin-based handler (quit/exit from terminal)
-    auto *stdinHandler = new StdinShutdownHandler(&a);
-    if (!stdinHandler->initialize()) {
-        qWarning() << "Failed to initialize stdin shutdown handler";
-    }
-
-// 3) Общ shutdown flow
-    auto shutdownLambda = [&a]() {
-        ApplicationsManager::Instance().KillAll();
-        a.quit();
-    };
-
-    QObject::connect(shutdownHandler, &ShutdownHandler::shutdownRequested,
-                                     &a, shutdownLambda);
-    QObject::connect(stdinHandler, &ShutdownHandler::shutdownRequested,
-                                     &a, shutdownLambda);
+// Factory pattern — auto-selects UnixShutdownHandler or WindowsShutdownHandler
+auto *shutdownHandler = ShutdownHandler::create(&a);
+shutdownHandler->initialize();
+QObject::connect(shutdownHandler, &ShutdownHandler::shutdownRequested,
+                 &a, &QCoreApplication::quit);
 ```
+
+> Забележка: Фабричният метод `ShutdownHandler::create()` автоматично избира правилния
+> handler спрямо платформата (Unix/Windows). Потребителят не трябва да се грижи за
+> `#ifdef Q_OS_WIN` проверки.
 
 ### With Graceful Cleanup
 ```cpp

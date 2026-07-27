@@ -12,7 +12,7 @@
 
 ### Node Provider — Headless плъгин доставящ нодове
 Имплементира `INodeProvider` и доставя `NodeDelegateModel` типове към node editor-а.
-Пример: `demo_standard_nodes`
+Пример: `demo_nodeditor_nodes`
 
 ## 2. Създай скеле
 

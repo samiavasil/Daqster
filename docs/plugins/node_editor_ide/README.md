@@ -87,7 +87,7 @@ void NodeEditorIdeObject::discoverAndRegisterExternalNodes() {
 }
 ```
 
-Външните INodeProvider плъгини (напр. `demo_standard_nodes`) се откриват автоматично чрез `QPluginManager::instances(INodeProvider_IID)` и техните нодове се добавят към registry-я преди `buildCanvas()`.
+Външните INodeProvider плъгини (напр. `demo_nodeditor_nodes`) се откриват автоматично чрез `QPluginManager::instances(INodeProvider_IID)` и техните нодове се добавят към registry-я преди `buildCanvas()`.
 
 ## Известни зависимости
 

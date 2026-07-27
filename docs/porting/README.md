@@ -1,6 +1,6 @@
 # Porting Topics
 
-Родител: [Documentation Index](../index.md)
+Родител: [Documentation Index](../INDEX.md)
 
 Тук са събрани темите за пренасяне и съвместимост между версии.
 

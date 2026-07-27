@@ -1,6 +1,6 @@
 # Как да дебъгваме Daqster AppImage
 
-Родител: [Development Topics](./README.md) | [Documentation Index](../index.md)
+Родител: [Development Topics](./README.md) | [Documentation Index](../INDEX.md)
 
 Този документ описва различните начини за дебъгване на Daqster приложението, когато то е пакетирано като AppImage.
 

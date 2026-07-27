@@ -1,6 +1,6 @@
 # QtRest Qt6 Porting Guide
 
-Родител: [Porting Topics](./README.md) | [Documentation Index](../index.md)
+Родител: [Porting Topics](./README.md) | [Documentation Index](../INDEX.md)
 
 Този документ описва процеса на портиране на QtRest библиотеката за Qt6 support в Daqster проекта.
 
@@ -69,7 +69,7 @@ target_link_libraries(qtrest_lib
 if(QT_VERSION_MAJOR EQUAL 5)
     # Qt5 - изисква QuickControls2 за QtRest
     if(QT_QUICKCONTROLS2_LIB AND NOT "${QT_QUICKCONTROLS2_LIB}" STREQUAL "")
-        add_subdirectory(src/external_libs/qtrest_lib)
+        add_subdirectory(src/plugins/external_libs/qtrest_lib)
         message(STATUS "QtRest library enabled for Qt5 (QuickControls2 available)")
     else()
         message(STATUS "QtRest library disabled for Qt5 (QuickControls2 not available)")
@@ -77,7 +77,7 @@ if(QT_VERSION_MAJOR EQUAL 5)
 else()
     # Qt6 - изисква само QML за QtRest
     if(QT_QML_LIB AND NOT "${QT_QML_LIB}" STREQUAL "")
-        add_subdirectory(src/external_libs/qtrest_lib)
+        add_subdirectory(src/plugins/external_libs/qtrest_lib)
         message(STATUS "QtRest library enabled for Qt6 (QML available)")
     else()
         message(STATUS "QtRest library disabled for Qt6 (QML not available)")

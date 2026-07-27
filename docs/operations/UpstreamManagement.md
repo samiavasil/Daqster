@@ -1,6 +1,6 @@
 # Upstream Management Guide
 
-Родител: [Operations Topics](./README.md) | [Documentation Index](../index.md)
+Родител: [Operations Topics](./README.md) | [Documentation Index](../INDEX.md)
 
 Този документ описва как да управлявате upstream tracking за external библиотеките в Daqster проекта.
 
@@ -10,13 +10,13 @@
 - **Upstream Repository:** https://github.com/paceholder/nodeeditor
 - **Your Fork:** https://github.com/samiavasil/nodeeditor
 - **Working branch:** `feature/deembed-hover-fronting-wm`
-- **Integration in Daqster:** submodule under `src/external_libs/nodeeditor`
+- **Integration in Daqster:** submodule under `src/plugins/external_libs/nodeeditor`
 
 ### **QtRest**
 - **Upstream Repository:** https://github.com/kafeg/qtrest
 - **Your Fork:** https://github.com/samiavasil/qtrest
 - **Working branch:** `feature/qt6-port-cmake-unified`
-- **Integration in Daqster:** submodule under `src/external_libs/qtrest_lib/qtrest`
+- **Integration in Daqster:** submodule under `src/plugins/external_libs/qtrest_lib/qtrest`
 
 ## Fork Delta (спрямо upstream)
 
@@ -50,12 +50,12 @@
 
 ```bash
 # NodeEditor
-cd src/external_libs/nodeeditor
+cd src/plugins/external_libs/nodeeditor
 git fetch upstream
 git rev-list --left-right --count HEAD...upstream/master
 
 # QtRest
-cd src/external_libs/qtrest_lib/qtrest
+cd src/plugins/external_libs/qtrest_lib/qtrest
 git fetch upstream
 git rev-list --left-right --count HEAD...upstream/master
 ```
@@ -99,12 +99,12 @@ git rev-list --left-right --count HEAD...upstream/master
 ### **2. Анализ на промените:**
 ```bash
 # Виж детайлно какво е ново в NodeEditor
-cd src/external_libs/nodeeditor
+cd src/plugins/external_libs/nodeeditor
 git log HEAD..upstream/master --oneline -10
 git diff HEAD..upstream/master --stat
 
 # Виж детайлно какво е ново в QtRest
-cd src/external_libs/qtrest_lib/qtrest
+cd src/plugins/external_libs/qtrest_lib/qtrest
 git log HEAD..upstream/master --oneline -10
 git diff HEAD..upstream/master --stat
 ```
@@ -127,7 +127,7 @@ git diff HEAD..upstream/master --stat
 #### **C. Създаване на integration branch:**
 ```bash
 # За големи updates, създай отделен branch
-cd src/external_libs/nodeeditor
+cd src/plugins/external_libs/nodeeditor
 git checkout -b integration-upstream-$(date +%Y%m%d)
 git merge upstream/master
 # Разреши конфликтите и тествай
@@ -152,11 +152,11 @@ git merge upstream/master
 ### **Добавяне на upstream remote:**
 ```bash
 # NodeEditor
-cd src/external_libs/nodeeditor
+cd src/plugins/external_libs/nodeeditor
 git remote add upstream https://github.com/paceholder/nodeeditor.git
 
 # QtRest
-cd src/external_libs/qtrest_lib/qtrest
+cd src/plugins/external_libs/qtrest_lib/qtrest
 git remote add upstream https://github.com/kafeg/qtrest.git
 ```
 

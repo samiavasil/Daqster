@@ -1,6 +1,6 @@
 [Български](./BuildSystemArchitecture.md) | [English](./BuildSystemArchitecture.en.md)
 
-Parent: [Architecture Overview](./README.en.md) | [Documentation Index](../index.en.md)
+Parent: [Architecture Overview](./README.en.md) | [Documentation Index](../INDEX.en.md)
 
 # Daqster Build System Architecture
 
@@ -354,9 +354,7 @@ Daqster/
 │   │   │   │   └── CMakeLists.txt  # External library (own build system)
 │   │   │   └── qtrest_lib/
 │   │   │       └── CMakeLists.txt  # External library (own build system)
-│   │   ├── node_editor_widget/ # Shared GUI component
-│   │   │   └── CMakeLists.txt  # SHARED library
-│   │   ├── node_editor_app/    # Basic app plugin
+│   │   ├── node_editor_ide/      # Visual node-based editor (plugin)
 │   │   │   └── CMakeLists.txt  # Plugin (uses create_plugin)
 │   │   ├── QtCoinTrader/
 │   │   │   └── CMakeLists.txt  # Plugin (uses create_plugin)
@@ -393,11 +391,8 @@ endif()
 # QtRest works on Qt5/Qt6
 create_external_library(qtrest_lib)       # -> target: qtrest_lib
 
-# 4. Shared components
-add_subdirectory(src/plugins/libs/node_editor_widget)  # SHARED library
-
-# 5. Plugins — all are added; the dependency system excludes them automatically
-add_subdirectory(src/plugins/node_editor_app)     # Qt5-only (requires QtNodes + widget)
+# 4. Plugins — all are added; the dependency system excludes them automatically
+add_subdirectory(src/plugins/node_editor_ide)     # Visual node-based editor (plugin)
 add_subdirectory(src/plugins/QtCoinTrader)       # Qt5-only (requires qtrest_lib)
 add_subdirectory(src/plugins/tests/plugin_main_test)
 add_subdirectory(src/plugins/tests/plugin_fancy_test)
@@ -643,7 +638,7 @@ Creates a plugin shared library.
 ```cmake
 create_plugin(NodeEditorApp
     SOURCES NodeEditorInterface.cpp NodeEditorObject.cpp
-    REQUIRES_LIBRARIES Qt5::Core Qt5::Gui QtNodes node_editor_widget frame_work
+    REQUIRES_LIBRARIES Qt5::Core Qt5::Gui QtNodes node_editor_ide frame_work
 )
 ```
 
@@ -922,7 +917,7 @@ set_target_properties(${COMPONENT_NAME} PROPERTIES
     create_external_library(mylibrary)
     
     # Bad (old way)
-    add_subdirectory(src/external_libs/mylibrary)
+    add_subdirectory(src/plugins/external_libs/mylibrary)
     register_external_library_dependency(mylibrary)
     ```
 
@@ -954,11 +949,8 @@ set_target_properties(${COMPONENT_NAME} PROPERTIES
     endif()
     create_external_library(qtrest_lib)
     
-    # Shared components
-    add_subdirectory(src/plugins/libs/node_editor_widget)
-    
     # Plugins
-    add_subdirectory(src/plugins/node_editor_app)
+    add_subdirectory(src/plugins/node_editor_ide)
     add_subdirectory(src/plugins/QtCoinTrader)
     
     # Applications
