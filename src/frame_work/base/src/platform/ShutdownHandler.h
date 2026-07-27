@@ -25,6 +25,14 @@ public:
      */
     virtual bool initialize() = 0;
 
+    /**
+     * @brief Factory method — returns the platform-appropriate handler.
+     *
+     * On Unix/Linux returns UnixShutdownHandler (self-pipe + signals).
+     * On Windows returns WindowsShutdownHandler (SetConsoleCtrlHandler).
+     */
+    static ShutdownHandler* create(QObject *parent = nullptr);
+
 Q_SIGNALS:
     /**
      * @brief Emitted when shutdown is requested

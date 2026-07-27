@@ -1,4 +1,5 @@
 #include "StdinShutdownHandler.h"
+#include "debug.h"
 
 #include <QDebug>
 
@@ -23,7 +24,7 @@ bool StdinShutdownHandler::initialize()
                      this, &StdinShutdownHandler::onActivated);
 #endif
 
-    qDebug() << "Stdin shutdown handler initialized (quit/exit commands)";
+    DEBUG << "Stdin shutdown handler initialized (quit/exit commands)";
     return true;
 }
 
@@ -38,7 +39,7 @@ void StdinShutdownHandler::onActivated()
 
     if (cmd.compare("quit", Qt::CaseInsensitive) == 0 ||
         cmd.compare("exit", Qt::CaseInsensitive) == 0) {
-        qDebug() << "Received stdin shutdown command:" << cmd;
+        DEBUG << "Received stdin shutdown command:" << cmd;
         Q_EMIT shutdownRequested();
     }
 }

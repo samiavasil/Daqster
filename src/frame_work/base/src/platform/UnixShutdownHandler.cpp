@@ -1,4 +1,5 @@
 ﻿#include "UnixShutdownHandler.h"
+#include "debug.h"
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -48,7 +49,7 @@ bool UnixShutdownHandler::initialize()
     connect(notifier, &QSocketNotifier::activated,
             this, &UnixShutdownHandler::onSignalActivated);
 
-    qDebug() << "Unix shutdown handler initialized (SIGINT, SIGTERM)";
+    DEBUG << "Unix shutdown handler initialized (SIGINT, SIGTERM)";
     return true;
 }
 
@@ -73,6 +74,6 @@ void UnixShutdownHandler::onSignalActivated(int fd)
     char ch;
     ::read(s_sigPipe[0], &ch, sizeof(ch));
 
-    qDebug() << "UnixShutdownHandler: shutdown signal received, emitting shutdownRequested()";
+    DEBUG << "UnixShutdownHandler: shutdown signal received, emitting shutdownRequested()";
     Q_EMIT shutdownRequested();
 }

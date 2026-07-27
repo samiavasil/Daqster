@@ -1,4 +1,5 @@
 #include "QProcessManager.h"
+#include "debug.h"
 #include <QDebug>
 #include <QVariant>
 
@@ -12,7 +13,7 @@ QProcessManager::QProcessManager(QObject *parent)
 
 QProcessManager::~QProcessManager()
 {
-    qDebug() << "QProcessManager destructor: invoking KillAll()";
+    DEBUG << "QProcessManager destructor: invoking KillAll()";
     KillAll();
 }
 
@@ -33,7 +34,7 @@ void QProcessManager::StartProcess(const QString& name,
     QProcess *newProc = new QProcess(this);
     if (newProc) {
         ProcessDescriptor_t desc = {name, arguments, mode};
-        qDebug() << "QProcessManager: Starting process:" << name << "Args:" << arguments;
+        DEBUG << "QProcessManager: Starting process:" << name << "Args:" << arguments;
         
         newProc->setInputChannelMode(QProcess::ManagedInputChannel);
         
@@ -52,8 +53,10 @@ void QProcessManager::StartProcess(const QString& name,
         connect(newProc, SIGNAL(finished(int, QProcess::ExitStatus)), 
                 this, SLOT(OnProcessFinished(int, QProcess::ExitStatus)));
         
-        qDebug() << "QProcessManager: Process started with handle:" << m_nextHandle;
-        newProc->waitForStarted();
+        DEBUG << "QProcessManager: Process started with handle:" << m_nextHandle;
+        if (!newProc->waitForStarted(5000)) {
+            qWarning() << "QProcessManager: Process failed to start within 5s:" << name;
+        }
 
         emit ProcessEvent(m_nextHandle, PROCESS_STARTED);
         m_nextHandle++;
@@ -64,7 +67,7 @@ void QProcessManager::StartProcess(const QString& name,
 
 void QProcessManager::KillAll()
 {
-    qDebug() << "QProcessManager::KillAll() called";
+    DEBUG << "QProcessManager::KillAll() called";
     
     // Snapshot the keys so we can iterate safely while OnProcessFinished modifies the map
     QList<ProcessHandle_t> handles = m_processMap.keys();
@@ -73,12 +76,12 @@ void QProcessManager::KillAll()
         if (m_processMap.contains(handle)) {
             QProcess* process = m_processMap[handle];
             if (nullptr != process) {
-                qDebug() << "QProcessManager: Requesting graceful shutdown for:"
+                DEBUG << "QProcessManager: Requesting graceful shutdown for:"
                          << process->program();
                 process->terminate();
                 
                 if (process->waitForFinished(10000)) {
-                    qDebug() << "QProcessManager: Process stopped gracefully";
+                    DEBUG << "QProcessManager: Process stopped gracefully";
                 } else {
                     qWarning() << "QProcessManager: Process did not respond, forcing kill:"
                               << process->program();
@@ -98,11 +101,11 @@ void QProcessManager::Kill(const ProcessHandle_t& handle)
     }
 
     QProcess* process = m_processMap[handle];
-    qDebug() << "QProcessManager::Kill() handle:" << handle << "process:" << process->program();
+    DEBUG << "QProcessManager::Kill() handle:" << handle << "process:" << process->program();
 
     process->terminate();
     if (process->waitForFinished(10000)) {
-        qDebug() << "QProcessManager: Process" << handle << "stopped gracefully";
+        DEBUG << "QProcessManager: Process" << handle << "stopped gracefully";
     } else {
         qWarning() << "QProcessManager: Process" << handle << "did not respond, forcing kill";
         process->kill();
@@ -112,16 +115,16 @@ void QProcessManager::Kill(const ProcessHandle_t& handle)
 
 void QProcessManager::OnProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
-    QProcess *sender = dynamic_cast<QProcess*>(QObject::sender());
-    if (sender) {
-        ProcessHandle_t handle = (ProcessHandle_t)sender->property("ProcessHandle").toUInt();
+    QProcess *proc = dynamic_cast<QProcess*>(QObject::sender());
+    if (proc) {
+        ProcessHandle_t handle = static_cast<ProcessHandle_t>(proc->property("ProcessHandle").toUInt());
         
         if (m_processMap.contains(handle)) {
             m_processMap[handle]->deleteLater();
             m_processMap.remove(handle);
             m_processDescriptors.remove(handle);
             
-            qDebug() << "QProcessManager: Process stopped. Handle:" << handle 
+            DEBUG << "QProcessManager: Process stopped. Handle:" << handle 
                      << "ExitCode:" << exitCode 
                      << "ExitStatus:" << exitStatus;
 
@@ -134,7 +137,7 @@ void QProcessManager::OnProcessFinished(int exitCode, QProcess::ExitStatus exitS
     
     // Check if all processes finished
     if (m_processMap.isEmpty()) {
-        qDebug() << "QProcessManager: All processes finished";
+        DEBUG << "QProcessManager: All processes finished";
         onAllProcessesFinished();
     }
 }

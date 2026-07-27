@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QPluginManager.cpp.cpp - Copyright
+                        Daqster/QPluginManager.cpp - Copyright
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -40,12 +40,9 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 
 
 namespace Daqster {
-// Constructors/Destructors
-//
- QPluginManager* QPluginManager::g_Instance =  nullptr;
 
 QPluginManager::QPluginManager (const QString &ConfigFile ) {
-    // Config file setup - използвай writable location за AppImage compatibility
+    // Config file setup — use writable location for AppImage compatibility
     QString resolvedConfig;
     if (ConfigFile.isEmpty() || ConfigFile == "daqster.ini") {
         QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
@@ -65,14 +62,14 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
         m_persistence->savePluginState(desc);
     });
     
-    // Plugin directories - подредени по приоритет
+    // Plugin directories — ordered by priority
     
-    // 1. Build директория (най-висок приоритет за дебъг)
+    // 1. Build directory (highest priority for debug)
     m_discovery->addSearchPath( qApp->applicationDirPath() );
     m_discovery->addSearchPath( qApp->applicationDirPath()+QString("/plugins") );
     m_discovery->addSearchPath(QDir(qApp->applicationDirPath()+"/../lib/daqster/plugins").absolutePath());
     
-    // 2. Environment variable override (най-висок приоритет)
+    // 2. Environment variable override
     const QString envDir = qgetenv("DAQSTER_PLUGIN_DIR");
     if (!envDir.isEmpty()) {
         m_discovery->addSearchPath(QDir(envDir).absolutePath());
@@ -81,27 +78,34 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     // 2.1. Additional environment variable for multiple directories
     const QString additionalDirs = qgetenv("DAQSTER_PLUGIN_PATH");
     if (!additionalDirs.isEmpty()) {
-        QStringList dirs = additionalDirs.split(":", Qt::SkipEmptyParts);
+        QStringList dirs = additionalDirs.split(QDir::listSeparator(), Qt::SkipEmptyParts);
         for(const QString& dir : dirs) {
             m_discovery->addSearchPath(QDir(dir).absolutePath());
         }
     }
     
-    // 3. User plugins directory
+    // 3. User plugins directory (platform-specific)
+#ifdef Q_OS_WIN
+    QString userPluginDir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+                            + "/Daqster/plugins";
+    m_discovery->addSearchPath(QDir(userPluginDir).absolutePath());
+    // 4. System plugins directory (Windows)
+    m_discovery->addSearchPath("C:/Program Files/Daqster/plugins");
+#else
     QString userPluginDir = QDir::homePath() + "/.local/share/daqster/plugins";
     m_discovery->addSearchPath(QDir(userPluginDir).absolutePath());
-    
-    // 4. System plugins directories (най-нисък приоритет)
+    // 4. System plugins directories (Unix, lowest priority)
     m_discovery->addSearchPath("/usr/lib/daqster/plugins");
     m_discovery->addSearchPath("/usr/local/lib/daqster/plugins");
+#endif
     
     // Debug: Print all plugin search paths
     QList<QString> searchPaths = m_discovery->searchPaths();
-    qDebug() << "=== Plugin Search Paths ===";
+    DEBUG << "=== Plugin Search Paths ===";
     for (int i = 0; i < searchPaths.size(); ++i) {
-        qDebug() << QString("Path %1: %2").arg(i + 1).arg(searchPaths[i]);
+        DEBUG << QString("Path %1: %2").arg(i + 1).arg(searchPaths[i]);
     }
-    qDebug() << "=== End Plugin Search Paths ===";
+    DEBUG << "=== End Plugin Search Paths ===";
     
     LoadPluginsInfoFromPersistency();
 }
@@ -116,12 +120,9 @@ QPluginManager::~QPluginManager () {
  */
 QPluginManager *QPluginManager::instance()
 {
-    assert( QApplication::instance()->thread() == QThread::currentThread() );
-    if(  nullptr == g_Instance ){
-        g_Instance = new QPluginManager();
-    }
-    assert( g_Instance != nullptr );
-    return g_Instance;
+    Q_ASSERT( QApplication::instance()->thread() == QThread::currentThread() );
+    static QPluginManager instance;
+    return &instance;
 }
 
 bool QPluginManager::Initialize()
@@ -137,8 +138,8 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, Q
     // If plugin not loaded yet, try to load from file
     if( nullptr == ObjInterface ){
         if( m_registry->containsDescription(KeyHash) && m_registry->pluginDescription(KeyHash).IsEnabled() ){
-            PluginDescription::PluginHealtyState_t PersistentHealthy =
-                (PluginDescription::PluginHealtyState_t) m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_HELTHY_STATE).toUInt();
+            PluginDescription::PluginHealthyState_t PersistentHealthy =
+                static_cast<PluginDescription::PluginHealthyState_t>( m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_HELTHY_STATE).toUInt() );
             if( PluginDescription::ILL != PersistentHealthy ){
                 if( !LoadPluginInterfaceObject( m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_LOCATION).toString(), KeyHash ) ){
                     DEBUG << "Can't load plugin from file" << m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_LOCATION).toString();
@@ -258,7 +259,7 @@ void QPluginManager::SearchForPlugins ()
     }
     DEBUG << "End registered hashes";
 
-    if (true == Changed) {
+    if (Changed) {
         emit PluginsListChangeDetected();
     }
 }
@@ -302,7 +303,7 @@ void QPluginManager::AllPluginObjectsDestroyed(const QString &Hash)
     if( nullptr != OIface )
     {
         OIface = m_registry->takePlugin(Hash);
-        delete OIface;
+        OIface->deleteLater();
     }
 }
 
@@ -313,6 +314,7 @@ void QPluginManager::ShutdownPlugin( const QString &Hash )
 
 void QPluginManager::ShutdownPluginManager()
 {
+    QPluginLoaderExt::setShuttingDown(true);
     m_registry->shutdownAll();
 }
 
@@ -326,7 +328,7 @@ bool QPluginManager::LoadPluginInterfaceObject( const QString& PluginFileName, c
     /*All symbols are resolved in load time*/
     pluginLoader->setLoadHints( QLibrary::ResolveAllSymbolsHint );
     QObject* Inst = pluginLoader->instance();
-    qDebug() << "PLUGIN METADATA: \n\t" << pluginLoader->metaData();
+    DEBUG << "PLUGIN METADATA: \n\t" << pluginLoader->metaData();
     if( nullptr != Inst )
     {
         ObjInterface = dynamic_cast<Daqster::QPluginInterface*>(Inst);

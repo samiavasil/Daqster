@@ -36,7 +36,7 @@ bool PluginDiscovery::computeFileHash(const QString& filePath, QString& hash)
     bool ret = false;
     QCryptographicHash hashMaster(QCryptographicHash::Md5);
     QFile file(filePath);
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    if (file.open(QIODevice::ReadOnly)) {
         if (hashMaster.addData(&file)) {
             hash = QString(hashMaster.result().toHex().data());
             ret = true;
@@ -83,7 +83,7 @@ QMap<QString, QString> PluginDiscovery::discoverPlugins(
 
     for (const QString& path : m_searchPaths) {
         if (pluginsDir.cd(path)) {
-            foreach (QString fileName, pluginsDir.entryList(QDir::Files)) {
+            for (QString fileName : pluginsDir.entryList(QDir::Files)) {
                 fileName = pluginsDir.absoluteFilePath(fileName);
                 if (!isCandidatePluginFile(fileName)) {
                     continue;

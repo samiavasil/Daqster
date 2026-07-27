@@ -27,7 +27,7 @@ QMap<QString, PluginDescription> PluginPersistence::loadPlugins()
     }
 
     settings.beginGroup("Plugins");
-    foreach (const QString& name, settings.childGroups()) {
+    for (const QString& name : settings.childGroups()) {
         PluginDescription desc;
         settings.beginGroup(name);
         desc.GetPluginParamsFromPersistency(settings);

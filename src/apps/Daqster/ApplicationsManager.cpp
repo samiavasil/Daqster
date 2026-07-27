@@ -58,32 +58,32 @@ void ApplicationsManager::setupProcessEnvironment(QProcess* process,
     Q_UNUSED(name);
     Q_UNUSED(arguments);
     
-    // Set environment variables for child process
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    QString basePath = qApp->applicationDirPath();
     
-    // Check if we're in Daqster AppImage environment
-    QString appImageEnv = env.value("APPIMAGE");
-    QString basePath;
-    
-    qDebug() << "APPIMAGE env var:" << appImageEnv;
     qDebug() << "Current working directory:" << QDir::currentPath();
-    qDebug() << "Application directory:" << qApp->applicationDirPath();
+    qDebug() << "Application directory:" << basePath;
     
-    // Check if we're in Daqster AppImage (not just any AppImage like Cursor IDE)
+#ifdef Q_OS_WIN
+    // Windows: add plugin/lib dirs to PATH for DLL search
+    QString pluginDir = basePath + "/plugins";
+    QString libDir = basePath + "/../lib";
+    env.insert("PATH", pluginDir + ";" + libDir + ";" + env.value("PATH"));
+    
+    // User data dirs via %APPDATA%
+    QString appData = QDir::homePath() + "/AppData/Roaming/Daqster";
+    env.insert("DAQSTER_PLUGIN_DIR", pluginDir);
+    env.insert("DAQSTER_PLUGIN_PATH", pluginDir + ";" + libDir);
+    
+    QDir().mkpath(appData + "/config");
+    QDir().mkpath(appData + "/data");
+    QDir().mkpath(appData + "/cache");
+#else
+    // Linux: AppImage detection
+    QString appImageEnv = env.value("APPIMAGE");
     bool isDaqsterAppImage = !appImageEnv.isEmpty() && appImageEnv.contains("Daqster");
+    qDebug() << "APPIMAGE env var:" << appImageEnv;
     
-    if (isDaqsterAppImage) {
-      // We're in Daqster AppImage - use AppImage internal paths
-      // In AppImage, applicationDirPath() should be the mounted AppImage path
-      basePath = qApp->applicationDirPath();
-      qDebug() << "Daqster AppImage environment detected, base path:" << basePath;
-    } else {
-      // We're in regular build - use application directory
-      basePath = qApp->applicationDirPath();
-      qDebug() << "Regular build environment, base path:" << basePath;
-    }
-    
-    // Set library paths
     if (isDaqsterAppImage) {
       // AppImage structure
       env.insert("LD_LIBRARY_PATH", basePath + "/usr/lib:" + env.value("LD_LIBRARY_PATH"));
@@ -102,29 +102,27 @@ void ApplicationsManager::setupProcessEnvironment(QProcess* process,
       env.insert("DAQSTER_PLUGIN_PATH", basePath + "/plugins:" + QDir::homePath() + "/.local/share/daqster/plugins");
     }
     
-    // Set writable directories
+    // XDG dirs (Linux only)
     env.insert("XDG_CONFIG_HOME", QDir::homePath() + "/.config/daqster");
     env.insert("XDG_DATA_HOME", QDir::homePath() + "/.local/share/daqster");
     env.insert("XDG_CACHE_HOME", QDir::homePath() + "/.cache/daqster");
     
-    // Create directories
     QDir().mkpath(env.value("XDG_CONFIG_HOME"));
     QDir().mkpath(env.value("XDG_DATA_HOME"));
     QDir().mkpath(env.value("XDG_CACHE_HOME"));
+#endif
     
     process->setProcessEnvironment(env);
     
-    // Debug: Print environment variables
+    // Debug output
     qDebug() << "=== Environment Variables for Child Process ===";
-    qDebug() << "LD_LIBRARY_PATH:" << env.value("LD_LIBRARY_PATH");
-    qDebug() << "QML2_IMPORT_PATH:" << env.value("QML2_IMPORT_PATH");
-    qDebug() << "QT_PLUGIN_PATH:" << env.value("QT_PLUGIN_PATH");
-    qDebug() << "QT_QPA_PLATFORM_PLUGIN_PATH:" << env.value("QT_QPA_PLATFORM_PLUGIN_PATH");
     qDebug() << "DAQSTER_PLUGIN_DIR:" << env.value("DAQSTER_PLUGIN_DIR");
-    qDebug() << "DAQSTER_PLUGIN_PATH:" << env.value("DAQSTER_PLUGIN_PATH");
+#ifdef Q_OS_WIN
+    qDebug() << "PATH (first 200 chars):" << env.value("PATH").left(200);
+#else
+    qDebug() << "LD_LIBRARY_PATH:" << env.value("LD_LIBRARY_PATH");
     qDebug() << "XDG_CONFIG_HOME:" << env.value("XDG_CONFIG_HOME");
-    qDebug() << "XDG_DATA_HOME:" << env.value("XDG_DATA_HOME");
-    qDebug() << "XDG_CACHE_HOME:" << env.value("XDG_CACHE_HOME");
+#endif
     qDebug() << "=== End Environment Variables ===";
 }
 

@@ -7,19 +7,19 @@ PluginMainInterface::PluginMainInterface(QObject* parent ):QPluginInterface(pare
     Q_INIT_RESOURCE(main_test);
     DEBUG << "PluginMainInterface object create";
     QIcon icon( QString::fromUtf8(":/main.png") );
-    m_PluginDescryptor.SetIcon( icon );
-    m_PluginDescryptor.SetProperty( PLUGIN_NAME, "PluginMainTest" );
-    m_PluginDescryptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN );
-    m_PluginDescryptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
-    m_PluginDescryptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
-    m_PluginDescryptor.SetProperty( PLUGIN_DESCRIPTION, "Plugin Main Test" );
+    m_PluginDescriptor.SetIcon( icon );
+    m_PluginDescriptor.SetProperty( PLUGIN_NAME, "PluginMainTest" );
+    m_PluginDescriptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN );
+    m_PluginDescriptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
+    m_PluginDescriptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
+    m_PluginDescriptor.SetProperty( PLUGIN_DESCRIPTION, "Plugin Main Test" );
     char docstr[] = \
     "PluginMainTest is a basic Daqster plugin test. \n\
     \n\
     Here you can add detailed description of the plugin...";
-    m_PluginDescryptor.SetProperty( PLUGIN_DETAIL_DESCRIPTION, QObject::tr( docstr ) );
-    m_PluginDescryptor.SetProperty( PLUGIN_LICENSE, QObject::tr( "The plugin's license have to be....." ) );
-    m_PluginDescryptor.SetProperty( PLUGIN_AUTHOR, "Vasil Vasilev" );
+    m_PluginDescriptor.SetProperty( PLUGIN_DETAIL_DESCRIPTION, QObject::tr( docstr ) );
+    m_PluginDescriptor.SetProperty( PLUGIN_LICENSE, QObject::tr( "The plugin's license have to be....." ) );
+    m_PluginDescriptor.SetProperty( PLUGIN_AUTHOR, "Vasil Vasilev" );
 }
 
 PluginMainInterface::~PluginMainInterface(  )
@@ -31,7 +31,7 @@ Daqster::QBasePluginObject *PluginMainInterface::CreatePluginInternal(QObject *P
 {
     PluginMainObject* Obj = new PluginMainObject(Parrent);
     if( nullptr != Obj ){
-        Obj->SetName( m_PluginDescryptor.GetProperty(PLUGIN_NAME).toString() );
+        Obj->SetName( m_PluginDescriptor.GetProperty(PLUGIN_NAME).toString() );
     }
     return Obj;
 }

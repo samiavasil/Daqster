@@ -25,7 +25,6 @@ public:
 
 private:
 #ifdef Q_OS_WIN
-    QWinEventNotifier *m_notifier; // reserved for potential future use
     static BOOL WINAPI consoleCtrlHandler(DWORD signal);
     static WindowsShutdownHandler* s_instance; // skipcq: CXX-W2009
 #endif

@@ -12,7 +12,9 @@ PluginRegistry::PluginRegistry(QObject* parent)
 
 PluginRegistry::~PluginRegistry()
 {
-    shutdownAll();
+    // shutdownAll() is called explicitly via QPluginManager::ShutdownPluginManager()
+    // which is connected to QApplication::aboutToQuit. Do NOT call it here —
+    // objects may be in partially-destroyed state during destructor chain.
 }
 
 void PluginRegistry::setPersistenceCallback(std::function<void(const PluginDescription&)> callback)
@@ -62,7 +64,7 @@ QBasePluginObject* PluginRegistry::createPluginObject(const QString& hash, QObje
         return nullptr;
     }
 
-    PluginDescription::PluginHealtyState_t healthy = iface->GetHealthyState();
+    PluginDescription::PluginHealthyState_t healthy = iface->GetHealthyState();
     if (healthy == PluginDescription::ILL) {
         return nullptr;
     }
@@ -98,7 +100,7 @@ QBasePluginObject* PluginRegistry::createPluginObject(const QString& hash, QObje
     QBasePluginObject* obj = iface->CreatePlugin(parent);
 
     // Update health state
-    PluginDescription::PluginHealtyState_t newHealthy = obj ? PluginDescription::HEALTHY : PluginDescription::ILL;
+    PluginDescription::PluginHealthyState_t newHealthy = obj ? PluginDescription::HEALTHY : PluginDescription::ILL;
     if (iface->GetHealthyState() != newHealthy) {
         iface->SetHealthyState(newHealthy);
         if (m_descriptions.contains(hash)) {
@@ -156,10 +158,9 @@ QList<QObject*> PluginRegistry::instances(const char* iid)
         }
 
         for (QBasePluginObject* obj : iface->GetPluginInstances()) {
-            QObject* qobj = dynamic_cast<QObject*>(obj);
-            if (qobj && qobj->qt_metacast(iid)) {
-                qobj->setProperty("_daqster_hash", it.key());
-                result.append(qobj);
+            if (obj && obj->qt_metacast(iid)) {
+                obj->setProperty("_daqster_hash", it.key());
+                result.append(obj);
             }
         }
     }

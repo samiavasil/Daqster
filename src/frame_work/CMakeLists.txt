@@ -11,11 +11,12 @@ set(FRAME_WORK_SOURCES
   base/src/QPluginLoaderExt.cpp
   base/src/QPluginLoaderExt.h
   base/src/QPluginManager.cpp
-  base/src/Singleton.h
+
   base/src/include/QPluginManager.h
   base/src/include/QPluginInterface.h
   base/src/include/QBasePluginObject.h
   base/src/platform/ShutdownHandler.h
+  base/src/platform/ShutdownHandlerFactory.cpp
   base/src/platform/StdinShutdownHandler.h
   base/src/platform/StdinShutdownHandler.cpp
   base/src/process/QProcessManager.h

@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QPluginManager.h.h - Copyright 
+                        Daqster/QPluginManager.h - Copyright
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -27,7 +27,6 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include <QMap>
 #include <QString>
 #include <memory>
-#include<QMutex>
 
 class QDialog;
 
@@ -122,9 +121,6 @@ protected:
   void LoadPluginsInfoFromPersistency();
   bool LoadPluginInterfaceObject(const QString &PluginFileName,const QString& Hash);
   void ShutdownPlugin(const QString &Hash);
-
-protected:
-  static QPluginManager* g_Instance;
 
   // ── Split classes (owned) ─────────────────────────────────────
   std::unique_ptr<PluginDiscovery> m_discovery;

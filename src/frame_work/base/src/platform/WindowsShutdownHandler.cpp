@@ -33,9 +33,9 @@ bool WindowsShutdownHandler::initialize()
         qWarning() << "Failed to set console control handler";
         return false;
     }
-    qDebug() << "Windows shutdown handler initialized (Console Ctrl events)";
+    DEBUG << "Windows shutdown handler initialized (Console Ctrl events)";
 #else
-    qDebug() << "WindowsShutdownHandler is a no-op on non-Windows platforms";
+    DEBUG << "WindowsShutdownHandler is a no-op on non-Windows platforms";
 #endif
 
     return true;
@@ -66,7 +66,7 @@ BOOL WINAPI WindowsShutdownHandler::consoleCtrlHandler(DWORD signal)
                 signalName = QString("Unknown(%1)").arg(signal);
         }
 
-        qDebug() << "\nReceived Windows console event:" << signalName;
+        DEBUG << "\nReceived Windows console event:" << signalName;
         DEBUG << "Emitting shutdownRequested() from WindowsShutdownHandler";
         QMetaObject::invokeMethod(s_instance, "shutdownRequested", Qt::QueuedConnection);
         return TRUE;

@@ -1,5 +1,6 @@
 #include "ApplicationsManager.h"
 #include "QPluginManager.h"
+#include "ShutdownHandler.h"
 
 #include <AppToolbar.h>
 #include <QApplication>
@@ -94,6 +95,10 @@ int main(int argc, char *argv[]) {
   QApplication::setApplicationName("Daqster");
   QApplication::setApplicationVersion("0.1");
 
+  auto *shutdownHandler = ShutdownHandler::create(&a);
+  shutdownHandler->initialize();
+  QObject::connect(shutdownHandler, &ShutdownHandler::shutdownRequested, &a, &QCoreApplication::quit);
+
   // Load theme if configured (default: system/light)
   QSettings appSettings("Daqster", "Daqster");
   QString theme = appSettings.value("Theme/Style", "default").toString();
@@ -140,14 +145,7 @@ int main(int argc, char *argv[]) {
   DEBUG << "Show window";
   PluginsInit();
   qDebug() << "ARGS: " << args;
-  
-  // Debug: Print current environment and paths
-  qDebug() << "=== Application Environment Debug ===";
-  qDebug() << "APPIMAGE env var:" << qgetenv("APPIMAGE");
-  qDebug() << "Current working directory:" << QDir::currentPath();
-  qDebug() << "Application directory:" << qApp->applicationDirPath();
-  qDebug() << "=== End Application Environment Debug ===";
-  
+
   // Define Filter outside if/else scope so it can be used in both sections
   Daqster::PluginFilter Filter;
   Filter.AddFilter(
@@ -264,6 +262,6 @@ int main(int argc, char *argv[]) {
     res = a.exec();
   }
 
-  // Daqster::QPluginManager::instance()->ShutdownPluginManager();
+  Daqster::QPluginManager::instance()->ShutdownPluginManager();
   return res;
 }

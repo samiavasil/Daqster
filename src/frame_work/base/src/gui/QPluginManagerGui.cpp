@@ -1,5 +1,5 @@
 ﻿/************************************************************************
-                        Daqster/QPluginManagerGui.cpp.cpp - Copyright 
+                        Daqster/QPluginManagerGui.cpp - Copyright
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -31,7 +31,7 @@ namespace Daqster {
 QPluginManagerGui::QPluginManagerGui( QWidget* Parent ):QDialog(Parent) {
     ui = std::make_unique<Ui::PluginManagerGui>();
     ui->setupUi(this);
-    ui->horizontalLayout->insertWidget( 0, new QPluginListView(this) /**TODO Fix Me*/);
+    ui->horizontalLayout->insertWidget( 0, new QPluginListView(this));
     resize(800,600);
 }
 

@@ -8,6 +8,11 @@ class QPluginLoaderExt:public QPluginLoader
 public:
     explicit QPluginLoaderExt( const QString &fileName, QObject *parent = Q_NULLPTR );
     ~QPluginLoaderExt();
+
+    static void setShuttingDown(bool v);
+
+private:
+    static bool s_isShuttingDown;
 };
 
 #endif // QPLUGINLOADEREXT_H
