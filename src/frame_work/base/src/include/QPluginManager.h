@@ -84,11 +84,11 @@ public:
    */
   void AddPluginsDirectory (const QString& Directory);
 
-  /**
-   * Show plugin manager GUI widget. In this GUI you can see available plugins,
-   * rescan for new plugins, dynamic unload , enable/disable plugin loading.
-   * Implementation is in frame_work_gui library.
-   */
+   /**
+    * Show plugin manager GUI widget. In this GUI you can see available plugins,
+    * rescan for new plugins, dynamic unload , enable/disable plugin loading.
+    * Implementation is in frame_work library.
+    */
   void ShowPluginManagerGui ( QWidget *Parent = nullptr );
 
    QBasePluginObject *CreatePluginObject(const QString &KeyHash, QObject *Parent = nullptr);
@@ -112,6 +112,8 @@ signals:
   void AllPluginsShutdownFinished( bool Status );
 
 protected:
+  // NOTE: When using the default "daqster.ini", the implementation resolves
+  // to "daqster_qt5.ini" or "daqster_qt6.ini" based on the Qt version.
   QPluginManager ( const QString& ConfigFile = QString("daqster.ini") );
   QPluginManager( QPluginManager const& );
   QPluginManager& operator= (QPluginManager const&);

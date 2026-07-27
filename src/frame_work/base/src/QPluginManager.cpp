@@ -42,12 +42,18 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 namespace Daqster {
 
 QPluginManager::QPluginManager (const QString &ConfigFile ) {
-    // Config file setup — use writable location for AppImage compatibility
+    // Config file setup — use writable location for AppImage compatibility.
+    // Qt5 and Qt6 must use separate config files to avoid corruption when
+    // both run simultaneously on the same machine.
     QString resolvedConfig;
     if (ConfigFile.isEmpty() || ConfigFile == "daqster.ini") {
         QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
         QDir().mkpath(configDir);
-        resolvedConfig = configDir + "/daqster.ini";
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        resolvedConfig = configDir + "/daqster_qt6.ini";
+#else
+        resolvedConfig = configDir + "/daqster_qt5.ini";
+#endif
     } else {
         resolvedConfig = ConfigFile;
     }
