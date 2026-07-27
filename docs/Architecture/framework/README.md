@@ -76,7 +76,7 @@ Plugin система:
 
 - Дава общ интерфейс за graceful shutdown при OS сигнали и console events
 - Има platform-specific реализации за Unix и Windows
-- В проекта се използва и `StdinShutdownHandler` за `quit` / `exit` команди от терминал
+- Stdin/terminal quit handling (`quit` / `exit` команди от терминал) се извършва от `QConsoleListener` в Daqster приложението, не в framework слоя
 - Основният integration point е сигналът `shutdownRequested()`
 
 ### QPluginManager

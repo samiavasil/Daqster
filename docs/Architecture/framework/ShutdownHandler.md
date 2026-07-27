@@ -21,21 +21,16 @@ Platform-independent interface за graceful application shutdown. Handle-ва O
 - Използва `QMetaObject::invokeMethod(..., "shutdownRequested", Qt::QueuedConnection)`
     към активния `WindowsShutdownHandler`, за да emit-не сигнала в Qt нишката
 
-### StdinShutdownHandler
-**Files**: `StdinShutdownHandler.{h,cpp}`
+### Йерархия
+```
+ShutdownHandler (абстрактен базов клас)
+├── UnixShutdownHandler    (POSIX: self-pipe + QSocketNotifier)
+└── WindowsShutdownHandler (Win32: SetConsoleCtrlHandler + QMetaObject::invokeMethod)
+```
 
-Cross-platform handler за команден ред, който слуша standard input за текстови
-команди и ги преобразува в `shutdownRequested()` събития.
-
-Handle-ва stdin команди:
-- `quit`
-- `exit`
-
-**Implementation**:
-- На Windows: `QWinEventNotifier` върху `GetStdHandle(STD_INPUT_HANDLE)`
-- На Unix: `QSocketNotifier` върху `fileno(stdin)`
-- В `onActivated()` чете един ред с `std::getline(std::cin, ...)`, trim-ва до `QString`
-- При `"quit"` или `"exit"` (case-insensitive) emit-ва `shutdownRequested()`
+> **Забележка**: Stdin/terminal input handling (quit/exit команди) се извършва от `QConsoleListener`
+> в Daqster приложението (`apps/Daqster/`), а не в framework слоя. `QConsoleListener` е
+> крос-платформен компонент, който слуша standard input за текстови команди.
 
 ## Public API
 

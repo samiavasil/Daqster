@@ -17,8 +17,6 @@ set(FRAME_WORK_SOURCES
   base/src/include/QBasePluginObject.h
   base/src/platform/ShutdownHandler.h
   base/src/platform/ShutdownHandlerFactory.cpp
-  base/src/platform/StdinShutdownHandler.h
-  base/src/platform/StdinShutdownHandler.cpp
   base/src/process/QProcessManager.h
   base/src/process/QProcessManager.cpp
   base/src/discovery/PluginDiscovery.h
