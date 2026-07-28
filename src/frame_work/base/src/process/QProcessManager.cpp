@@ -47,6 +47,11 @@ void QProcessManager::StartProcess(const QString& name,
         if (parentLog) {
             args << "--log-console-enabled" << (parentLog->isConsoleEnabled() ? "1" : "0");
             args << "--log-level" << parentLog->consoleLogLevelName();
+            // Forward current filter rules so child categories match parent's settings
+            QString rules = parentLog->filterRules();
+            if (!rules.isEmpty()) {
+                args << "--log-rules" << rules;
+            }
         }
 
         ProcessDescriptor_t desc = {name, args, mode};

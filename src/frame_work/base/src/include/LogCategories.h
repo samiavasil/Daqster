@@ -30,8 +30,13 @@ Q_DECLARE_LOGGING_CATEGORY(lcLlama)
 Q_DECLARE_LOGGING_CATEGORY(lcCoinTrader)
 
 // ═══════════════════════════════════════════════════════════
-// Helper: get all category names for UI/debug console
+// Automatic Category Registry
 // ═══════════════════════════════════════════════════════════
+// Categories defined with DAQSTER_LOGGING_CATEGORY macro
+// are automatically registered at static init time.
+// DebugConsoleWidget reads from this registry dynamically.
+// ═══════════════════════════════════════════════════════════
+
 namespace Daqster {
 namespace Log {
 
@@ -40,8 +45,27 @@ struct CategoryInfo {
     const char *description;
 };
 
-// Returns array of all registered categories with descriptions
-// Used by DebugConsoleWidget to populate checkboxes
+/// Singleton registry collecting all DAQSTER_LOGGING_CATEGORY entries.
+/// Thread-safe after static init (read-only during runtime).
+class CategoryRegistry {
+public:
+    static CategoryRegistry &instance();
+    void registerCategory(const char *name, const char *description);
+    QVector<CategoryInfo> all() const;
+
+private:
+    CategoryRegistry() = default;
+    QVector<CategoryInfo> m_categories;
+};
+
+/// Static helper — one instance per DAQSTER_LOGGING_CATEGORY per translation unit.
+struct StaticRegistrar {
+    StaticRegistrar(const char *name, const char *desc) {
+        CategoryRegistry::instance().registerCategory(name, desc);
+    }
+};
+
+// Returns all registered categories (from the global registry)
 QVector<CategoryInfo> allCategories();
 
 // Default filter rules (all OFF)
@@ -49,5 +73,12 @@ QString defaultFilterRules();
 
 } // namespace Log
 } // namespace Daqster
+
+/// Define a logging category AND auto-register it in the global registry.
+/// Use in .cpp files instead of Q_LOGGING_CATEGORY.
+/// Example: DAQSTER_LOGGING_CATEGORY(lcMyPlugin, "daqster.plugin.myplugin", "My Plugin")
+#define DAQSTER_LOGGING_CATEGORY(name, nameStr, desc) \
+    Q_LOGGING_CATEGORY(name, nameStr) \
+    static const ::Daqster::Log::StaticRegistrar DAQSTER_CAT_AUTO_##name(nameStr, desc);
 
 #endif // LOGCATEGORIES_H

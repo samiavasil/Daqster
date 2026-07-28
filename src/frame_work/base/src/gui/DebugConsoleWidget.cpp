@@ -12,6 +12,7 @@
 #include <QLabel>
 #include <QFileDialog>
 #include <QMap>
+#include <QList>
 #include <QPair>
 #include <QScrollArea>
 #include <QFrame>
@@ -65,42 +66,59 @@ void DebugConsoleWidget::setupUi()
     scrollLayout->setContentsMargins(0, 0, 0, 0);
     scrollLayout->setSpacing(8);
 
-    // ── Category groups ────────────────────────────────
-    struct GroupDef {
-        const char *title;
-        QList<QPair<const char *, const char *>> categories;
-    };
+    // ── Category groups (built dynamically from Log::allCategories()) ──
+    QVector<Log::CategoryInfo> allCats = Log::allCategories();
 
-    const QVector<GroupDef> groups = {
-        {QT_TR_NOOP("Framework"), {
-            {"daqster.framework",              QT_TR_NOOP("daqster.framework")},
-            {"daqster.framework.registry",     QT_TR_NOOP("daqster.framework.registry")},
-            {"daqster.framework.discovery",    QT_TR_NOOP("daqster.framework.discovery")},
-            {"daqster.framework.persistence",  QT_TR_NOOP("daqster.framework.persistence")},
-            {"daqster.framework.shutdown",     QT_TR_NOOP("daqster.framework.shutdown")},
-            {"daqster.framework.process",      QT_TR_NOOP("daqster.framework.process")},
-        }},
-        {QT_TR_NOOP("Application"), {
-            {"daqster.app",                    QT_TR_NOOP("daqster.app")},
-        }},
-        {QT_TR_NOOP("Plugins"), {
-            {"daqster.plugin.nodeeditor",      QT_TR_NOOP("daqster.plugin.nodeeditor")},
-            {"daqster.plugin.demo",            QT_TR_NOOP("daqster.plugin.demo")},
-            {"daqster.plugin.aistudio",        QT_TR_NOOP("daqster.plugin.aistudio")},
-            {"daqster.plugin.aistudio.llama",  QT_TR_NOOP("daqster.plugin.aistudio.llama")},
-            {"daqster.plugin.cointrader",      QT_TR_NOOP("daqster.plugin.cointrader")},
-        }},
-    };
+    // Group by top-level prefix (e.g., "daqster.framework", "daqster.plugin")
+    // Key: group prefix (e.g., "daqster.framework") -> list of (name, description)
+    QMap<QString, QList<QPair<QString, QString>>> groups;
+    for (const auto &cat : allCats) {
+        QString name = QString::fromUtf8(cat.name);
+        QString desc = QString::fromUtf8(cat.description);
 
-    for (const GroupDef &group : groups) {
-        auto *groupBox = new QGroupBox(tr(group.title), scrollWidget);
+        // Derive group name from prefix (first 2 segments)
+        // e.g., "daqster.framework.registry" -> "Framework"
+        //        "daqster.app"                 -> "Application"
+        //        "daqster.plugin.aistudio"     -> "Plugins"
+        QStringList parts = name.split('.');
+        QString groupKey;
+        if (parts.size() >= 3) {
+            groupKey = parts.mid(0, 2).join('.');
+        } else if (parts.size() >= 2) {
+            groupKey = parts.mid(0, 2).join('.');
+        } else {
+            groupKey = name;
+        }
+        groups[groupKey].append({name, desc});
+    }
+
+    // Create group boxes in order
+    // Sort by group key to ensure consistent order
+    QStringList sortedGroups = groups.keys();
+    sortedGroups.sort();
+
+    for (const QString &groupKey : sortedGroups) {
+        // Human-readable group title
+        QStringList keyParts = groupKey.split('.');
+        QString groupTitle;
+        if (keyParts.size() >= 2) {
+            // Capitalize second part: "daqster.framework" -> "Framework"
+            groupTitle = keyParts[1];
+            groupTitle[0] = groupTitle[0].toUpper();
+        } else {
+            groupTitle = groupKey;
+        }
+
+        auto *groupBox = new QGroupBox(groupTitle, scrollWidget);
         auto *groupLayout = new QVBoxLayout(groupBox);
         groupLayout->setContentsMargins(12, 8, 12, 8);
         groupLayout->setSpacing(4);
 
-        for (const auto &cat : group.categories) {
-            auto *cb = new QCheckBox(tr(cat.second), groupBox);
-            d->categoryCheckBoxes.insert(QString(cat.first), cb);
+        const auto &catList = groups[groupKey];
+        for (const auto &cat : catList) {
+            auto *cb = new QCheckBox(cat.second, groupBox);  // Use description as label
+            cb->setToolTip(cat.first);  // Full category name as tooltip
+            d->categoryCheckBoxes.insert(cat.first, cb);
             groupLayout->addWidget(cb);
         }
 

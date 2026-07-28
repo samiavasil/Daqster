@@ -116,8 +116,10 @@ LogManager *LogManager::instance()
 
 struct LogManager::Private {
     QStringList enabledCategories;
+    QStringList disabledCategories;  // categories explicitly disabled while master is on
     QString logFilePath;
     LogLevel logLevel = LogLevel::Warning;  // Default: WRN and above
+    bool masterEnabled = false;     // true when "Enable All" is active
 };
 
 LogManager::LogManager(QObject *parent)
@@ -156,32 +158,37 @@ void LogManager::shutdown()
 
 void LogManager::enableCategory(const QString &category)
 {
-    if (!d->enabledCategories.contains(category)) {
-        d->enabledCategories.append(category);
+    if (d->masterEnabled) {
+        // Master is on — just remove from disabled list
+        d->disabledCategories.removeAll(category);
+    } else {
+        // Master is off — add to enabled list
+        if (!d->enabledCategories.contains(category)) {
+            d->enabledCategories.append(category);
+        }
     }
-    // Apply to Qt logging system
-    QStringList rules;
-    for (const QString &cat : d->enabledCategories) {
-        rules << cat + "=true";
-    }
-    QLoggingCategory::setFilterRules(rules.join("\n"));
-    emit filterRulesChanged(filterRules());
+    applyFilterRules();
 }
 
 void LogManager::disableCategory(const QString &category)
 {
-    d->enabledCategories.removeAll(category);
-    QStringList rules;
-    for (const QString &cat : d->enabledCategories) {
-        rules << cat + "=true";
+    if (d->masterEnabled) {
+        // Master is on — add to disabled list
+        if (!d->disabledCategories.contains(category)) {
+            d->disabledCategories.append(category);
+        }
+    } else {
+        // Master is off — remove from enabled list
+        d->enabledCategories.removeAll(category);
     }
-    QLoggingCategory::setFilterRules(rules.join("\n"));
-    emit filterRulesChanged(filterRules());
+    applyFilterRules();
 }
 
 void LogManager::enableAll()
 {
+    d->masterEnabled = true;
     d->enabledCategories.clear();
+    d->disabledCategories.clear();
     for (const auto &info : Log::allCategories()) {
         d->enabledCategories.append(info.name);
     }
@@ -191,18 +198,51 @@ void LogManager::enableAll()
 
 void LogManager::disableAll()
 {
+    d->masterEnabled = false;
     d->enabledCategories.clear();
+    d->disabledCategories.clear();
     QLoggingCategory::setFilterRules(QString());
     emit filterRulesChanged(filterRules());
 }
 
 bool LogManager::isCategoryEnabled(const QString &category) const
 {
+    if (d->masterEnabled) {
+        return !d->disabledCategories.contains(category);
+    }
     return d->enabledCategories.contains(category);
+}
+
+void LogManager::applyFilterRules()
+{
+    if (d->masterEnabled) {
+        // Build: "*.debug=true" + per-category disabled rules
+        QStringList rules;
+        rules << "*.debug=true";
+        for (const QString &cat : d->disabledCategories) {
+            rules << cat + ".debug=false";
+        }
+        QLoggingCategory::setFilterRules(rules.join("\n"));
+    } else {
+        QStringList rules;
+        for (const QString &cat : d->enabledCategories) {
+            rules << cat + "=true";
+        }
+        QLoggingCategory::setFilterRules(rules.join("\n"));
+    }
+    emit filterRulesChanged(filterRules());
 }
 
 QString LogManager::filterRules() const
 {
+    if (d->masterEnabled) {
+        QStringList rules;
+        rules << "*.debug=true";
+        for (const QString &cat : d->disabledCategories) {
+            rules << cat + ".debug=false";
+        }
+        return rules.join("\n");
+    }
     QStringList rules;
     for (const QString &cat : d->enabledCategories) {
         rules << cat + "=true";

@@ -1,0 +1,1 @@
+../src/frame_work/base/src/include/LoggingSystem.md

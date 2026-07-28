@@ -74,6 +74,8 @@ private:
     LogManager(QObject *parent = nullptr);
     ~LogManager();
 
+    void applyFilterRules();
+
     static LogManager *s_instance;
 
     struct Private;

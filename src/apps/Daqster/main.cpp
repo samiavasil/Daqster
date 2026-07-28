@@ -12,6 +12,7 @@
 #include <QDir>
 #include "LogCategories.h"
 #include <QSettings>
+#include <QLoggingCategory>
 #include "QConsoleListener.h"
 #include "main.h"
 
@@ -116,6 +117,12 @@ int main(int argc, char *argv[]) {
       "level");
   parser.addOption(logLevelOption);
 
+  QCommandLineOption logRulesOption(
+      QStringList() << "log-rules",
+      "Qt logging category rules (internal)",
+      "rules");
+  parser.addOption(logRulesOption);
+
   // Process the actual command line arguments given by the user
   parser.process(a);
 
@@ -137,6 +144,10 @@ int main(int argc, char *argv[]) {
       else if (levelName == "Critical") level = Daqster::LogLevel::Critical;
       else if (levelName == "Fatal") level = Daqster::LogLevel::Fatal;
       Daqster::LogManager::instance()->setConsoleLogLevel(level);
+  }
+
+  if (parser.isSet(logRulesOption)) {
+      QLoggingCategory::setFilterRules(parser.value(logRulesOption));
   }
 
   const QStringList args = parser.positionalArguments();
