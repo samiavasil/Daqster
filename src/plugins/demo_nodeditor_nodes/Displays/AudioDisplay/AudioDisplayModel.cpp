@@ -3,6 +3,7 @@
 #include <QDevioDisplayModelUi.h>
 #include <XYSeriesIODevice.h>
 #include <QDebug>
+#include "LogCategories.h"
 
 AudioDisplayModel::AudioDisplayModel()
     : QDevIoDisplayModel()
@@ -34,5 +35,5 @@ void AudioDisplayModel::configureAudioView(int channels, int sampleRate)
     Q_UNUSED(sampleRate);
     // The audio view (QDevioDisplayModelUi) is already set up by the base class.
     // For mixed streams, we'd extract the audio channel here.
-    qDebug() << "AudioDisplayModel: configure for" << channels << "channels";
+    qCInfo(lcDemoNodes) << "AudioDisplayModel: configure for" << channels << "channels";
 }

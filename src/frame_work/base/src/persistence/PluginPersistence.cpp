@@ -1,6 +1,6 @@
 #include "PluginPersistence.h"
 #include "PluginDescription.h"
-#include "debug.h"
+#include "LogCategories.h"
 
 #include <QSettings>
 #include <QDir>

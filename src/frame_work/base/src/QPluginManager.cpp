@@ -17,7 +17,7 @@ General Public Licence for more details.
 
 Initial version of this file was created on 16.03.2017 at 11:40:20
 **************************************************************************/
-#include "debug.h"
+#include "LogCategories.h"
 #include"QBasePluginObject.h"
 #include "QPluginManager.h"
 #include "PluginFilter.h"
@@ -107,11 +107,11 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     
     // Debug: Print all plugin search paths
     QList<QString> searchPaths = m_discovery->searchPaths();
-    DEBUG << "=== Plugin Search Paths ===";
+    qCDebug(lcFramework) << "=== Plugin Search Paths ===";
     for (int i = 0; i < searchPaths.size(); ++i) {
-        DEBUG << QString("Path %1: %2").arg(i + 1).arg(searchPaths[i]);
+        qCDebug(lcFramework) << QString("Path %1: %2").arg(i + 1).arg(searchPaths[i]);
     }
-    DEBUG << "=== End Plugin Search Paths ===";
+    qCDebug(lcFramework) << "=== End Plugin Search Paths ===";
     
     LoadPluginsInfoFromPersistency();
 }
@@ -148,7 +148,7 @@ QBasePluginObject* QPluginManager::CreatePluginObject( const QString& KeyHash, Q
                 static_cast<PluginDescription::PluginHealthyState_t>( m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_HELTHY_STATE).toUInt() );
             if( PluginDescription::ILL != PersistentHealthy ){
                 if( !LoadPluginInterfaceObject( m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_LOCATION).toString(), KeyHash ) ){
-                    DEBUG << "Can't load plugin from file" << m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_LOCATION).toString();
+                    qCDebug(lcFramework) << "Can't load plugin from file" << m_registry->pluginDescription(KeyHash).GetProperty(PLUGIN_LOCATION).toString();
                 }
                 ObjInterface = m_registry->plugin(KeyHash);
             }
@@ -238,7 +238,7 @@ void QPluginManager::SearchForPlugins ()
             QString cHash;
             PluginDiscovery::computeFileHash(ObjInterface->GetLocation(), cHash);
             if (0 != cHash.compare(Hash)) {
-                DEBUG << "Plugin " << ObjInterface->GetName() << "was removed from location: " << ObjInterface->GetLocation();
+                qCDebug(lcFramework) << "Plugin " << ObjInterface->GetName() << "was removed from location: " << ObjInterface->GetLocation();
                 ObjInterface = m_registry->takePlugin(Hash);
                 m_registry->removeDescription(Hash);
                 ObjInterface->deleteLater();
@@ -254,16 +254,16 @@ void QPluginManager::SearchForPlugins ()
         if (LoadPluginInterfaceObject(it.value(), it.key())) {
             Changed = true;
         } else {
-            DEBUG << "Can't Load plugin from file" << it.value();
+            qCDebug(lcFramework) << "Can't Load plugin from file" << it.value();
         }
     }
 
     // Debug dump
-    DEBUG << "Begin registered hashes";
+    qCDebug(lcFramework) << "Begin registered hashes";
     for (const QString& Hash : m_registry->registeredHashes()) {
-        DEBUG << Hash;
+        qCDebug(lcFramework) << Hash;
     }
-    DEBUG << "End registered hashes";
+    qCDebug(lcFramework) << "End registered hashes";
 
     if (Changed) {
         emit PluginsListChangeDetected();
@@ -337,7 +337,7 @@ bool QPluginManager::LoadPluginInterfaceObject( const QString& PluginFileName, c
     /*All symbols are resolved in load time*/
     pluginLoader->setLoadHints( QLibrary::ResolveAllSymbolsHint );
     QObject* Inst = pluginLoader->instance();
-    DEBUG << "PLUGIN METADATA: \n\t" << pluginLoader->metaData();
+    qCDebug(lcFramework) << "PLUGIN METADATA: \n\t" << pluginLoader->metaData();
     if( nullptr != Inst )
     {
         ObjInterface = dynamic_cast<Daqster::QPluginInterface*>(Inst);
@@ -364,18 +364,18 @@ bool QPluginManager::LoadPluginInterfaceObject( const QString& PluginFileName, c
             ret = true;
         }
         else{
-            DEBUG << "Bad Plugin '" << PluginFileName << "'Try to unload resources";
+            qCDebug(lcFramework) << "Bad Plugin '" << PluginFileName << "'Try to unload resources";
             if( pluginLoader->unload() ){
-                DEBUG << "Bad Plugin '" << PluginFileName << "' Unloaded successfully";
+                qCDebug(lcFramework) << "Bad Plugin '" << PluginFileName << "' Unloaded successfully";
             }
             else{
-                DEBUG << "Bad Plugin '" << PluginFileName << "' Can't unload !!??";
+                qCDebug(lcFramework) << "Bad Plugin '" << PluginFileName << "' Can't unload !!??";
             }
         }
     }
     else{
-        DEBUG << "Bad Plugin '" << PluginFileName << "' Can't be loaded ";
-        DEBUG << pluginLoader->errorString();
+        qCDebug(lcFramework) << "Bad Plugin '" << PluginFileName << "' Can't be loaded ";
+        qCDebug(lcFramework) << pluginLoader->errorString();
     }
     return ret;
 }

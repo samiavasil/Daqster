@@ -1,6 +1,6 @@
 #include "PluginDiscovery.h"
 #include "PluginDescription.h"
-#include "debug.h"
+#include "LogCategories.h"
 
 #include <QDir>
 #include <QFileInfo>

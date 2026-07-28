@@ -1,5 +1,6 @@
 #include <AudioWorker.h>
 #include <QDebug>
+#include "LogCategories.h"
 
 AudioWorker::AudioWorker(std::shared_ptr<QIODevice> devio, QObject *parent):QObject(parent),
     m_devio(devio)
@@ -54,7 +55,7 @@ void AudioWorker::UpdateAudioDevice(QAudioDeviceInfo devInfo, QAudioFormat forma
     }
     m_audio_src  = std::make_shared<AudioCompat::AudioInput>(devInfo, formatAudio);
     m_audio_src->setBufferSize(1000);
-    qDebug() << m_audio_src->bufferSize();
+    qCDebug(lcDemoNodes) << m_audio_src->bufferSize();
     m_audio_src->setObjectName(QString("AudioInput: %1").arg(AudioCompat::deviceName(devInfo)));
     connect(m_audio_src.get(),SIGNAL(stateChanged(QAudio::State)), this, SIGNAL(stateChanged(QAudio::State)) );
     if(was_started) {

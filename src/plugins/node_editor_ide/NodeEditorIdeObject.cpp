@@ -3,6 +3,7 @@
 #include "QPluginManager.h"
 #include "INodeProvider.h"
 #include "debug.h"
+#include "LogCategories.h"
 
 #include <QMainWindow>
 #include <QLabel>
@@ -140,9 +141,9 @@ void NodeEditorIdeObject::nodeDoubleClicked(QtNodes::NodeId nodeId)
 
     QAction* selectedAction = menu.exec();
     if (selectedAction == markAction) {
-        qDebug() << "Laa";
+        qCDebug(lcNodeEditor) << "Laa";
     } else if (selectedAction == removeAction) {
-        qDebug() << "Daa";
+        qCDebug(lcNodeEditor) << "Daa";
     }
 }
 

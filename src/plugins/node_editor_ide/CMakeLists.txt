@@ -48,6 +48,7 @@ target_include_directories(NodeEditorLibrary PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/display
     ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/threading
     ${DAQSTER_SOURCE_DIR}/src/plugins/capabilities
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
 )
 
 target_link_libraries(NodeEditorLibrary PUBLIC

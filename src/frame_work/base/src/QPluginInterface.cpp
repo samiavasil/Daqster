@@ -21,7 +21,7 @@ Initial version of this file was created on 12.03.2017 at 20:54:50
 #include "QPluginInterface.h"
 #include "QBasePluginObject.h"
 #include "QPluginLoaderExt.h"
-#include "debug.h"
+#include "LogCategories.h"
 #include <QPointer>
 
 namespace Daqster {

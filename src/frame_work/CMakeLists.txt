@@ -8,6 +8,8 @@ set(FRAME_WORK_SOURCES
   base/src/PluginFilter.cpp
   base/src/QBasePluginObject.cpp
   base/src/QPluginInterface.cpp
+  base/src/LogCategories.cpp
+  base/src/LogManager.cpp
   base/src/QPluginLoaderExt.cpp
   base/src/QPluginLoaderExt.h
   base/src/QPluginManager.cpp
@@ -15,6 +17,8 @@ set(FRAME_WORK_SOURCES
   base/src/include/QPluginManager.h
   base/src/include/QPluginInterface.h
   base/src/include/QBasePluginObject.h
+  base/src/include/LogCategories.h
+  base/src/include/LogManager.h
   base/src/platform/ShutdownHandler.h
   base/src/platform/ShutdownHandlerFactory.cpp
   base/src/process/QProcessManager.h
@@ -31,6 +35,8 @@ set(FRAME_WORK_SOURCES
   base/src/gui/QPluginListView.cpp
   base/src/gui/PluginDetails.h
   base/src/gui/PluginDetails.cpp
+  base/src/gui/DebugConsoleWidget.cpp
+  base/src/gui/DebugConsoleWidget.h
   base/src/gui/pluginmanagergui.ui
   base/src/gui/pluginlistview.ui
   base/src/gui/plugindetails.ui

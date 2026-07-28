@@ -1,5 +1,5 @@
 #include "QPluginLoaderExt.h"
-#include "debug.h"
+#include "LogCategories.h"
 
 bool QPluginLoaderExt::s_isShuttingDown = false;
 
@@ -18,14 +18,14 @@ QPluginLoaderExt::~QPluginLoaderExt(){
     }
 
     if (s_isShuttingDown) {
-        DEBUG_V << "Skipping unload Plugin library during shutdown '" << fileName() << "'";
+        qCDebug(lcFramework) << "Skipping unload Plugin library during shutdown '" << fileName() << "'";
         return;
     }
 
     if (!unload()) {
-        DEBUG << "Failed to unload Plugin library '" << fileName() << "'";
+        qCDebug(lcFramework) << "Failed to unload Plugin library '" << fileName() << "'";
         return;
     }
 
-    DEBUG_V << "Success unload Plugin library '" << fileName() << "'";
+    qCDebug(lcFramework) << "Success unload Plugin library '" << fileName() << "'";
 }

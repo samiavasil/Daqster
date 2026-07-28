@@ -1,6 +1,7 @@
 #include <EventThreadPull.h>
 #include <QThread>
 #include <QDebug>
+#include "LogCategories.h"
 
 EventThreadPull::EventThreadPull()
     : m_WorkerThread(this)
@@ -36,7 +37,7 @@ void EventThreadPull::stop()
 
 void EventThreadPull::destroyedWorker(QObject *obj)
 {
-    qDebug() << "Worker destroyed:" << static_cast<void*>(obj);
+    qCDebug(lcNodeEditor) << "Worker destroyed:" << static_cast<void*>(obj);
 }
 
 EventThreadPull& EventThreadPull::instance()

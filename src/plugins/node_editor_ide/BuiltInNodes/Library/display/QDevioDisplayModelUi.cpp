@@ -215,13 +215,14 @@ void QDevioDisplayModelUi::populateLegendBox()
     ui->legend->setCurrentIndex(0);
 }
 #include<QDebug>
+#include "LogCategories.h"
 void QDevioDisplayModelUi::updateGrid() {
 
     while(auto item = ui->gridLayout->itemAt(0)) {
         ui->gridLayout->removeItem(item);
         delete item;
     }
-    qDebug() << "Col count: " << ui->gridLayout->columnCount();
+    qCDebug(lcNodeEditor) << "Col count: " << ui->gridLayout->columnCount();
 
     int i = 0;
     for (QtChartsCompat::ChartView *chartView : m_ChartMap) {

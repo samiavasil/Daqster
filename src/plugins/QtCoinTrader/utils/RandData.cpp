@@ -1,5 +1,6 @@
 #include "RandData.h"
 #include <QDebug>
+#include "LogCategories.h"
 #include <cmath>
 
 void RandData::wTimeout(){
@@ -53,7 +54,7 @@ RandData::RandData(QObject *parent):QLineSeries(parent),m_wValue(0,0),m_Phase(0)
         m_wValue.setY(100*sin( ((2*3.14* i)/Pnum) ));
         append(m_wValue);
     }
-    qDebug() << "Points: " << points();
+    qCDebug(lcCoinTrader) << "Points: " << points();
     connect(m_wTimer, &QTimer::timeout, this, &RandData::wTimeout);
     m_wTimer->start();
 

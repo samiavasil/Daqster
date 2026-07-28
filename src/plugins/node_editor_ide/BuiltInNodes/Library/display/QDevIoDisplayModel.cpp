@@ -5,6 +5,7 @@
 #include <QDevIoDisplayModel.h>
 #include <QDevioDisplayModelUi.h>
 #include <QDebug>
+#include "LogCategories.h"
 
 #include <QStackedWidget>
 #include <QVBoxLayout>
@@ -172,13 +173,13 @@ void QDevIoDisplayModel::ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioF
     std::shared_ptr<XYSeriesIODevice> device = std::dynamic_pointer_cast<XYSeriesIODevice>(m_device);
     QDevioDisplayModelUi *displayUi = dynamic_cast<QDevioDisplayModelUi*>(m_stack->widget(m_audioViewIndex));
 
-    qDebug() << "Changed: " << formatAudio << AudioCompat::deviceName(devInfo);
+    qCInfo(lcNodeEditor) << "Changed: " << formatAudio << AudioCompat::deviceName(devInfo);
 
     const bool validChannels = formatAudio.channelCount() > 0;
     const bool validSampleSize = AudioCompat::sampleSize(formatAudio) > 0;
     const bool knownSampleType = AudioCompat::sampleType(formatAudio) != AudioCompat::Unknown;
     if (!device.get() || displayUi == nullptr || !validChannels || !validSampleSize || !knownSampleType) {
-        qWarning() << "Ignore invalid audio format update:" << formatAudio;
+        qCWarning(lcNodeEditor) << "Ignore invalid audio format update:" << formatAudio;
         return;
     }
 

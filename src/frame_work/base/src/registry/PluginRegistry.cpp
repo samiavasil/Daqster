@@ -1,7 +1,7 @@
 #include "PluginRegistry.h"
 #include "QPluginInterface.h"
 #include "QBasePluginObject.h"
-#include "debug.h"
+#include "LogCategories.h"
 
 namespace Daqster {
 
@@ -25,6 +25,9 @@ void PluginRegistry::setPersistenceCallback(std::function<void(const PluginDescr
 void PluginRegistry::registerPlugin(const QString& hash, QPluginInterface* iface)
 {
     m_pluginMap[hash] = iface;
+    QObject::connect(iface, &QObject::destroyed, this, [this, hash]() {
+        m_pluginMap.remove(hash);
+    });
 }
 
 QPluginInterface* PluginRegistry::unregisterPlugin(const QString& hash)
@@ -78,11 +81,11 @@ QBasePluginObject* PluginRegistry::createPluginObject(const QString& hash, QObje
         if (m_persistenceCallback) {
             m_persistenceCallback(iface->GetPluginDescriptor());
         }
-        qWarning() << "Attention: There was application crash on last time loading of plugin"
+        qCWarning(lcRegistry) << "Attention: There was application crash on last time loading of plugin"
                    << iface->GetLocation()
                    << ". Now we try second time and if it fail the plugin will be disabled."
                    << "To enable Plugin please change HealthyState state in configuration .ini file.";
-        DEBUG << "Second chance for loading of plugin: " << iface->GetLocation() << ". If it fail it will be disabled.";
+        qCDebug(lcRegistry) << "Second chance for loading of plugin: " << iface->GetLocation() << ". If it fail it will be disabled.";
         return nullptr;
     }
 
@@ -135,7 +138,8 @@ void PluginRegistry::shutdownPlugin(const QString& hash)
 
 void PluginRegistry::shutdownAll()
 {
-    for (auto it = m_pluginMap.begin(); it != m_pluginMap.end(); ++it) {
+    auto snapshot = m_pluginMap;
+    for (auto it = snapshot.begin(); it != snapshot.end(); ++it) {
         if (it.value()) {
             it.value()->ShutdownAllPluginObjects();
         }

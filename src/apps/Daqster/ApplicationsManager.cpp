@@ -1,4 +1,5 @@
 #include "ApplicationsManager.h"
+#include "LogCategories.h"
 #include <QProcessManager.h>
 #include <QDebug>
 #include <QDir>
@@ -21,7 +22,7 @@ ApplicationsManager::ApplicationsManager()
 
 ApplicationsManager::~ApplicationsManager() 
 {
-  qDebug() << "ApplicationsManager destructor: invoking KillAll()";
+  qCDebug(lcApp) << "ApplicationsManager destructor: invoking KillAll()";
   KillAll();
 }
 
@@ -61,8 +62,8 @@ void ApplicationsManager::setupProcessEnvironment(QProcess* process,
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     QString basePath = qApp->applicationDirPath();
     
-    qDebug() << "Current working directory:" << QDir::currentPath();
-    qDebug() << "Application directory:" << basePath;
+    qCDebug(lcApp) << "Current working directory:" << QDir::currentPath();
+    qCDebug(lcApp) << "Application directory:" << basePath;
     
 #ifdef Q_OS_WIN
     // Windows: add plugin/lib dirs to PATH for DLL search
@@ -82,7 +83,7 @@ void ApplicationsManager::setupProcessEnvironment(QProcess* process,
     // Linux: AppImage detection
     QString appImageEnv = env.value("APPIMAGE");
     bool isDaqsterAppImage = !appImageEnv.isEmpty() && appImageEnv.contains("Daqster");
-    qDebug() << "APPIMAGE env var:" << appImageEnv;
+    qCDebug(lcApp) << "APPIMAGE env var:" << appImageEnv;
     
     if (isDaqsterAppImage) {
       // AppImage structure
@@ -115,15 +116,15 @@ void ApplicationsManager::setupProcessEnvironment(QProcess* process,
     process->setProcessEnvironment(env);
     
     // Debug output
-    qDebug() << "=== Environment Variables for Child Process ===";
-    qDebug() << "DAQSTER_PLUGIN_DIR:" << env.value("DAQSTER_PLUGIN_DIR");
+    qCDebug(lcApp) << "=== Environment Variables for Child Process ===";
+    qCDebug(lcApp) << "DAQSTER_PLUGIN_DIR:" << env.value("DAQSTER_PLUGIN_DIR");
 #ifdef Q_OS_WIN
-    qDebug() << "PATH (first 200 chars):" << env.value("PATH").left(200);
+    qCDebug(lcApp) << "PATH (first 200 chars):" << env.value("PATH").left(200);
 #else
-    qDebug() << "LD_LIBRARY_PATH:" << env.value("LD_LIBRARY_PATH");
-    qDebug() << "XDG_CONFIG_HOME:" << env.value("XDG_CONFIG_HOME");
+    qCDebug(lcApp) << "LD_LIBRARY_PATH:" << env.value("LD_LIBRARY_PATH");
+    qCDebug(lcApp) << "XDG_CONFIG_HOME:" << env.value("XDG_CONFIG_HOME");
 #endif
-    qDebug() << "=== End Environment Variables ===";
+    qCDebug(lcApp) << "=== End Environment Variables ===";
 }
 
 // Override base class method to forward events with ApplicationsManager signature
@@ -138,7 +139,7 @@ void ApplicationsManager::OnProcessFinished(int exitCode, QProcess::ExitStatus e
 // Override to implement headless mode quit logic
 void ApplicationsManager::onAllProcessesFinished() {
   if (m_headlessMode) {
-    qDebug() << "ApplicationsManager::onAllProcessesFinished(): all child processes finished in headless mode, calling qApp->quit()";
+    qCDebug(lcApp) << "ApplicationsManager::onAllProcessesFinished(): all child processes finished in headless mode, calling qApp->quit()";
     qApp->quit();
   }
 }

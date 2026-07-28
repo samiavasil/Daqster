@@ -1,5 +1,5 @@
 ﻿#include "UnixShutdownHandler.h"
-#include "debug.h"
+#include "LogCategories.h"
 
 #include <QCoreApplication>
 #include <QDebug>
@@ -26,7 +26,7 @@ bool UnixShutdownHandler::initialize()
 {
     // Enforce single instance semantics per process
     if (s_instance != nullptr && s_instance != this) {
-        qWarning() << "UnixShutdownHandler: multiple instances are not supported";
+        qCWarning(lcShutdown) << "UnixShutdownHandler: multiple instances are not supported";
         return false;
     }
 
@@ -35,7 +35,7 @@ bool UnixShutdownHandler::initialize()
     // Create self-pipe once
     if (s_sigPipe[0] == -1 && s_sigPipe[1] == -1) {
         if (::pipe(s_sigPipe.data()) != 0) {
-            qWarning() << "UnixShutdownHandler: failed to create signal pipe";
+            qCWarning(lcShutdown) << "UnixShutdownHandler: failed to create signal pipe";
             return false;
         }
     }
@@ -49,7 +49,7 @@ bool UnixShutdownHandler::initialize()
     connect(notifier, &QSocketNotifier::activated,
             this, &UnixShutdownHandler::onSignalActivated);
 
-    DEBUG << "Unix shutdown handler initialized (SIGINT, SIGTERM)";
+    qCDebug(lcShutdown) << "Unix shutdown handler initialized (SIGINT, SIGTERM)";
     return true;
 }
 
@@ -74,6 +74,6 @@ void UnixShutdownHandler::onSignalActivated(int fd)
     char ch;
     ::read(s_sigPipe[0], &ch, sizeof(ch));
 
-    DEBUG << "UnixShutdownHandler: shutdown signal received, emitting shutdownRequested()";
+    qCDebug(lcShutdown) << "UnixShutdownHandler: shutdown signal received, emitting shutdownRequested()";
     Q_EMIT shutdownRequested();
 }

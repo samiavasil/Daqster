@@ -1,6 +1,7 @@
 #include "QtCoinTraderPluginObject.h"
 #include "QPluginManager.h"
 #include "debug.h"
+#include "LogCategories.h"
 #include<QMainWindow>
 #include <QtCharts/QChartView>
 #include <QtCharts/QChart>
@@ -62,8 +63,8 @@ int main(int argc, char *argv[])
 
     QTranslator qtTranslator;
     if ( !qtTranslator.load(fileName, ":/i18n/") ){
-        qDebug() << "Translation file not loaded:" << fileName;
-        qDebug() << "Language " << languageCode << " not supported yet";
+        qCWarning(lcCoinTrader) << "Translation file not loaded:" << fileName;
+        qCWarning(lcCoinTrader) << "Language " << languageCode << " not supported yet";
     }
     app.installTranslator(&qtTranslator);
 
@@ -117,15 +118,15 @@ bool QtCoinTraderPluginObject::Initialize()
         // qmlRegisterType<QPieSeries>("QtCharts", 2, 0, "PieSeries");
         // qmlRegisterType<QValueAxis>("QtCharts", 2, 0, "ValueAxis");
         // qmlRegisterType<QPieSlice>("QtCharts", 2, 0, "PieSlice");
-        qDebug() << "QtCharts types registered for QML";
+        qCInfo(lcCoinTrader) << "QtCharts types registered for QML";
     } else {
-        qDebug() << "QtCharts types already available, skipping registration";
+        qCInfo(lcCoinTrader) << "QtCharts types already available, skipping registration";
     }
     
     // Register custom QML components FIRST - before loading QML files
     // For QRC resources, we need to create proper C++ classes or use qmlRegisterType with QObject
     qmlRegisterModule("com.github.samiavasil.cointrader", 1, 0);
-    qDebug() << "Custom QML module registered";
+    qCInfo(lcCoinTrader) << "Custom QML module registered";
     
     // Register custom components as QObject types - this allows QML to find them
     qmlRegisterType<QObject>("com.github.samiavasil.cointrader", 1, 0, "MdiArrea");
@@ -133,7 +134,7 @@ bool QtCoinTraderPluginObject::Initialize()
     qmlRegisterType<QObject>("com.github.samiavasil.cointrader", 1, 0, "SideBar");
     qmlRegisterType<QObject>("com.github.samiavasil.cointrader", 1, 0, "ViewModel");
     qmlRegisterType<QObject>("com.github.samiavasil.cointrader", 1, 0, "SideBarDelegate");
-    qDebug() << "Custom QML components registered";
+    qCInfo(lcCoinTrader) << "Custom QML components registered";
     
     QQmlApplicationEngine* engine = new QQmlApplicationEngine(m_Win);
     
@@ -163,7 +164,7 @@ bool QtCoinTraderPluginObject::Initialize()
             window->show();
             window->raise();
             window->requestActivate();
-            qDebug() << "QtCoinTrader window visible=" << window->isVisible()
+            qCInfo(lcCoinTrader) << "QtCoinTrader window visible=" << window->isVisible()
                      << "active=" << window->isActive()
                      << "geom=" << window->x() << window->y() << window->width() << window->height();
         }

@@ -5,6 +5,7 @@
 #include <EventThreadPull.h>
 #include <AudioWorker.h>
 #include <QDebug>
+#include "LogCategories.h"
 
 using QtNodes::NodeDataType;
 
@@ -108,11 +109,11 @@ void AudioSourceDataModel::IO_connect(std::shared_ptr<QIODevice> io)
 
 void AudioSourceDataModel::outputConnectionDeleted(QtNodes::ConnectionId const &conId)
 {
-    qDebug() << "Disconnected port:" << conId.outPortIndex;
+    qCInfo(lcDemoNodes) << "Disconnected port:" << conId.outPortIndex;
     emit disconnected();
 }
 
 
 void AudioSourceDataModel::destroyedObj(QObject* obj){
-    qDebug() << "Destroyed: " << obj->objectName();
+    qCDebug(lcDemoNodes) << "Destroyed: " << obj->objectName();
 }

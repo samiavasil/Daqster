@@ -19,7 +19,7 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 **************************************************************************/
 
 #include "PluginDescription.h"
-#include "debug.h"
+#include "LogCategories.h"
 #include<QObject>
 #include<QSettings>
 #include<QMetaProperty>
@@ -132,7 +132,7 @@ void PluginDescription::CopyDynamicProperties( const PluginDescription &b ){
     names = b.GetPropertiesNames();
     for (const QByteArray& name : names) {
         if( m_PrivateDescription->setProperty( name, b.GetProperty(name) ) ){
-            DEBUG << "Strange - set of this dynamic property should return false here. Chek it - maybe it is defined with Q_PROPERTY  macro";
+            qCDebug(lcFramework) << "Strange - set of this dynamic property should return false here. Chek it - maybe it is defined with Q_PROPERTY  macro";
         }
     }
 }
@@ -224,7 +224,7 @@ bool PluginDescription::GetPluginParamsFromPersistency( QSettings &Store )
     QStringList list = Store.childKeys();
     for (const QString& name : list) {
         if( m_PrivateDescription->setProperty( name.toUtf8().data(), Store.value(name, "" ) ) ){
-            DEBUG << "Strange - set of this dynamic property should return false here. Chek it - maybe it is defined with Q_PROPERTY  macro";
+            qCDebug(lcFramework) << "Strange - set of this dynamic property should return false here. Chek it - maybe it is defined with Q_PROPERTY  macro";
         }
     }
     m_Enabled = Store.value( "Enabled", false ).toBool();

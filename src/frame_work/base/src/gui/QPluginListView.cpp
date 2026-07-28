@@ -19,7 +19,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 ************************************************************************/
 
 #include "QPluginListView.h"
-#include "debug.h"
+#include "LogCategories.h"
 #include "ui_pluginlistview.h"
 #include "QPluginManager.h"
 #include <QMap>
@@ -47,7 +47,7 @@ QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter&
 
 void QPluginListView::TreeItem( QTreeWidgetItem* item, int col ){
     if( nullptr != item && col == 1){
-        DEBUG << "Plugin " << item->data( col, TREE_DATA_ROLE).toString() << ": " << item->checkState(col);
+        qCDebug(lcFramework) << "Plugin " << item->data( col, TREE_DATA_ROLE).toString() << ": " << item->checkState(col);
         if( nullptr != item->parent() ){
             bool Enable = item->checkState(col) == Qt::Unchecked ? false : true;
             emit EnableDisablePlugin(  item->data( col, TREE_DATA_ROLE).toString(), Enable );

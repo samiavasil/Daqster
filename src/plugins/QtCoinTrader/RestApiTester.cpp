@@ -1,6 +1,7 @@
 #include "RestApiTester.h"
 #include "ui_restapitester.h"
 #include "RestApi.h"
+#include "LogCategories.h"
 #include<QNetworkReply>
 #include<QWebEngineView>
 
@@ -45,7 +46,7 @@ uploadProgress(qint64 bytesSent, qint64 bytesTotal)
 #endif
 
 void RestApiTester::redirected(const QUrl &url){
-    qDebug() << "Redirection To:" << url.toString();
+    qCDebug(lcCoinTrader) << "Redirection To:" << url.toString();
 }
 
 

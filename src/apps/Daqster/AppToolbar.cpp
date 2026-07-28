@@ -1,5 +1,6 @@
 #include "AppToolbar.h"
 #include "AppSelectionDialog.h"
+#include "DebugConsoleWidget.h"
 
 #include <QAction>
 #include <QIcon>
@@ -15,7 +16,7 @@
 #include <QWidget>
 #include <QHBoxLayout>
 #include "ApplicationsManager.h"
-#include "debug.h"
+#include "LogCategories.h"
 
 AppToolbar::AppToolbar(QWidget* parent)
     : QToolBar(parent)
@@ -24,7 +25,7 @@ AppToolbar::AppToolbar(QWidget* parent)
     , m_killMenu(nullptr)
     , m_menuBtn(nullptr)
 {
-    DEBUG << "AppToolbar constructed";
+    qCDebug(lcApp) << "AppToolbar constructed";
 
     setObjectName("DaqsterToolbar");
     setWindowTitle("Daqster");
@@ -42,6 +43,12 @@ AppToolbar::AppToolbar(QWidget* parent)
     menuBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_menuBtn = new QMenu();
     m_menuBtn->addAction("Setup", this, SLOT(configureAppSelection()));
+    m_menuBtn->addSeparator();
+    m_menuBtn->addAction("Debug Console", this, [this]() {
+        auto *w = new Daqster::DebugConsoleWidget();
+        w->setAttribute(Qt::WA_DeleteOnClose);
+        w->show();
+    });
     m_menuBtn->addSeparator();
     m_menuBtn->addAction("Quit", this, SLOT(onQuitTriggered()));
     menuBtn->setMenu(m_menuBtn);
@@ -97,7 +104,7 @@ AppToolbar::AppToolbar(QWidget* parent)
 }
 
 AppToolbar::~AppToolbar() {
-    DEBUG << "AppToolbar destroyed";
+    qCDebug(lcApp) << "AppToolbar destroyed";
 }
 
 void AppToolbar::showEvent(QShowEvent* e) {
