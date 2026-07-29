@@ -4,30 +4,31 @@
 #include <QLoggingCategory>
 #include <QString>
 #include <QVector>
+#include "build_cfg.h"
 
 // ═══════════════════════════════════════════════════════════
 // Framework core categories
 // ═══════════════════════════════════════════════════════════
-Q_DECLARE_LOGGING_CATEGORY(lcFramework)
-Q_DECLARE_LOGGING_CATEGORY(lcRegistry)
-Q_DECLARE_LOGGING_CATEGORY(lcDiscovery)
-Q_DECLARE_LOGGING_CATEGORY(lcPersistence)
-Q_DECLARE_LOGGING_CATEGORY(lcShutdown)
-Q_DECLARE_LOGGING_CATEGORY(lcProcess)
+FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcFramework();
+FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcRegistry();
+FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcDiscovery();
+FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcPersistence();
+FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcShutdown();
+FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcProcess();
 
 // ═══════════════════════════════════════════════════════════
 // Application categories
 // ═══════════════════════════════════════════════════════════
-Q_DECLARE_LOGGING_CATEGORY(lcApp)
+FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcApp();
 
 // ═══════════════════════════════════════════════════════════
 // Plugin categories (add new plugins here)
 // ═══════════════════════════════════════════════════════════
-Q_DECLARE_LOGGING_CATEGORY(lcNodeEditor)
-Q_DECLARE_LOGGING_CATEGORY(lcDemoNodes)
-Q_DECLARE_LOGGING_CATEGORY(lcAiStudio)
-Q_DECLARE_LOGGING_CATEGORY(lcLlama)
-Q_DECLARE_LOGGING_CATEGORY(lcCoinTrader)
+FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcNodeEditor();
+FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcDemoNodes();
+FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcAiStudio();
+FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcLlama();
+FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcCoinTrader();
 
 // ═══════════════════════════════════════════════════════════
 // Automatic Category Registry
@@ -47,7 +48,7 @@ struct CategoryInfo {
 
 /// Singleton registry collecting all DAQSTER_LOGGING_CATEGORY entries.
 /// Thread-safe after static init (read-only during runtime).
-class CategoryRegistry {
+class FRAME_WORKSHARED_EXPORT CategoryRegistry {
 public:
     static CategoryRegistry &instance();
     void registerCategory(const char *name, const char *description);
@@ -59,17 +60,17 @@ private:
 };
 
 /// Static helper — one instance per DAQSTER_LOGGING_CATEGORY per translation unit.
-struct StaticRegistrar {
+struct FRAME_WORKSHARED_EXPORT StaticRegistrar {
     StaticRegistrar(const char *name, const char *desc) {
         CategoryRegistry::instance().registerCategory(name, desc);
     }
 };
 
 // Returns all registered categories (from the global registry)
-QVector<CategoryInfo> allCategories();
+FRAME_WORKSHARED_EXPORT QVector<CategoryInfo> allCategories();
 
 // Default filter rules (all OFF)
-QString defaultFilterRules();
+FRAME_WORKSHARED_EXPORT QString defaultFilterRules();
 
 } // namespace Log
 } // namespace Daqster
