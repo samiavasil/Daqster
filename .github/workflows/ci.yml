@@ -88,6 +88,10 @@ jobs:
       
       - name: Install to staging (Release)
         run: |
+          case "$LINUX_INSTALL_PREFIX" in
+            /*) ;;
+            *) echo "LINUX_INSTALL_PREFIX must be absolute: $LINUX_INSTALL_PREFIX" >&2; exit 1 ;;
+          esac
           install_root="$PWD/stage-root$LINUX_INSTALL_PREFIX"
           rm -rf "$PWD/stage-root" "$PWD/stage"
           DESTDIR="$PWD/stage-root" cmake --install build
@@ -98,6 +102,10 @@ jobs:
           
       - name: Install to staging (Debug)
         run: |
+          case "$LINUX_INSTALL_PREFIX" in
+            /*) ;;
+            *) echo "LINUX_INSTALL_PREFIX must be absolute: $LINUX_INSTALL_PREFIX" >&2; exit 1 ;;
+          esac
           install_root="$PWD/stage-debug-root$LINUX_INSTALL_PREFIX"
           rm -rf "$PWD/stage-debug-root" "$PWD/stage-debug"
           DESTDIR="$PWD/stage-debug-root" cmake --install build-debug
