@@ -44,13 +44,14 @@ unset(CMAKE_LIBRARY_OUTPUT_DIRECTORY)
 add_subdirectory(qtrest)
 
 # Restore project-wide output directory settings for subsequent targets.
-# Use unset() if the original variable was not set (avoids setting to empty string).
-if(_qtrest_saved_runtime)
+# Use DEFINED check (not truthiness) so an empty-string saved value is
+# restored as "" rather than incorrectly triggering unset().
+if(DEFINED _qtrest_saved_runtime)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${_qtrest_saved_runtime}")
 else()
   unset(CMAKE_RUNTIME_OUTPUT_DIRECTORY)
 endif()
-if(_qtrest_saved_library)
+if(DEFINED _qtrest_saved_library)
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${_qtrest_saved_library}")
 else()
   unset(CMAKE_LIBRARY_OUTPUT_DIRECTORY)
