@@ -24,7 +24,7 @@ message(STATUS "QtRest library: Qt${QT_VERSION_MAJOR} detected - using Qt${QT_VE
 # a relative prefix in this directory scope so the generated install rules stay
 # relative and still honor `cmake --install --prefix ...` in CI.
 set(_qtrest_saved_install_prefix "${CMAKE_INSTALL_PREFIX}")
-set(CMAKE_INSTALL_PREFIX ".")
+set(CMAKE_INSTALL_PREFIX "." CACHE PATH "Install prefix while configuring qtrest" FORCE)
 
 # Configure upstream qtrest build options.
 set(BUILD_TYPE SHARED CACHE STRING "qtrest build type" FORCE)
@@ -49,7 +49,7 @@ unset(CMAKE_LIBRARY_OUTPUT_DIRECTORY)
 add_subdirectory(qtrest)
 
 # Restore the project-wide install prefix for the remainder of this build.
-set(CMAKE_INSTALL_PREFIX "${_qtrest_saved_install_prefix}")
+set(CMAKE_INSTALL_PREFIX "${_qtrest_saved_install_prefix}" CACHE PATH "Install prefix" FORCE)
 
 # Restore project-wide output directory settings for subsequent targets.
 # If the save variable is defined the original had a value; otherwise leave unset.
