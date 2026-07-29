@@ -77,7 +77,7 @@ jobs:
           # and fix the header install to use CMAKE_INSTALL_PREFIX.
           python3 << 'PYEOF'
           import re
-          path = "build/src/external_libs/qtrest_lib/qtrest/core/cmake_install.cmake"
+          path = "build/src/plugins/external_libs/qtrest_lib/qtrest/core/cmake_install.cmake"
           with open(path) as f:
               lines = f.readlines()
           output = []
@@ -117,7 +117,7 @@ jobs:
         run: |
           python3 << 'PYEOF'
           import re
-          path = "build-debug/src/external_libs/qtrest_lib/qtrest/core/cmake_install.cmake"
+          path = "build-debug/src/plugins/external_libs/qtrest_lib/qtrest/core/cmake_install.cmake"
           with open(path) as f:
               lines = f.readlines()
           output = []
