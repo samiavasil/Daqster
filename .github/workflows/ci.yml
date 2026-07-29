@@ -84,16 +84,24 @@ jobs:
       
       - name: Install to staging (Release)
         run: |
+          install_prefix=/usr/local
+          install_root="$PWD/stage-root${install_prefix}"
           rm -rf "$PWD/stage-root" "$PWD/stage"
           DESTDIR="$PWD/stage-root" cmake --install build
-          mv "$PWD/stage-root/usr/local" "$PWD/stage"
+          test -d "$install_root"
+          mkdir -p "$PWD/stage"
+          cp -a "$install_root/." "$PWD/stage/"
           rm -rf "$PWD/stage-root"
           
       - name: Install to staging (Debug)
         run: |
+          install_prefix=/usr/local
+          install_root="$PWD/stage-debug-root${install_prefix}"
           rm -rf "$PWD/stage-debug-root" "$PWD/stage-debug"
           DESTDIR="$PWD/stage-debug-root" cmake --install build-debug
-          mv "$PWD/stage-debug-root/usr/local" "$PWD/stage-debug"
+          test -d "$install_root"
+          mkdir -p "$PWD/stage-debug"
+          cp -a "$install_root/." "$PWD/stage-debug/"
           rm -rf "$PWD/stage-debug-root"
       
       - name: Create Release AppImage
