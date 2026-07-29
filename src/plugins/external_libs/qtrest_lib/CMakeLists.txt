@@ -21,15 +21,6 @@ set(WITH_QML_SUPPORT 1 CACHE STRING "qtrest qml support" FORCE)
 set(BUILD_EXAMPLE 0 CACHE STRING "qtrest example build" FORCE)
 add_subdirectory(qtrest)
 
-# Cross-platform install fix: upstream qtrest only has Windows .dll/.lib rules
-if(NOT WIN32 AND "${BUILD_TYPE}" STREQUAL "SHARED")
-  # Create empty files so upstream file(INSTALL) commands don't abort
-  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/qtrest/core/qtrest.dll" "")
-  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/qtrest/core/qtrest.lib" "")
-  # Install the actual Linux shared library
-  install(TARGETS qtrest LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
-endif()
-
 set(CPP_LIB_WRAPPER_SOURCE_FILES
   qtrest_lib.cpp
   api/Exchange/ExchangeApi.cpp
