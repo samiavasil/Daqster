@@ -19,14 +19,6 @@ find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Network Qml REQUIRED)
 set(QT_PREFIX Qt${QT_VERSION_MAJOR})
 message(STATUS "QtRest library: Qt${QT_VERSION_MAJOR} detected - using Qt${QT_VERSION_MAJOR} components")
 
-# Override upstream qtrest install destination variables with relative paths so
-# that cmake_install.cmake evaluates ${CMAKE_INSTALL_PREFIX} at install time
-# instead of hardcoding the configure-time default (/usr/local or
-# C:/Program Files/...).
-set(QTREST_INSTALL_BIN_DIR     "${CMAKE_INSTALL_BINDIR}")
-set(QTREST_INSTALL_LIB_DIR     "${CMAKE_INSTALL_LIBDIR}")
-set(QTREST_INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_INCLUDEDIR}/qtrest")
-
 # Configure upstream qtrest build options.
 set(BUILD_TYPE SHARED CACHE STRING "qtrest build type" FORCE)
 set(WITH_QML_SUPPORT 1 CACHE STRING "qtrest qml support" FORCE)
