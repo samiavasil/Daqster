@@ -84,11 +84,15 @@ jobs:
       
       - name: Install to staging (Release)
         run: |
-          cmake --install build --prefix "$PWD/stage"
+          rm -rf "$PWD/stage-root" "$PWD/stage"
+          DESTDIR="$PWD/stage-root" cmake --install build
+          mv "$PWD/stage-root/usr/local" "$PWD/stage"
           
       - name: Install to staging (Debug)
         run: |
-          cmake --install build-debug --prefix "$PWD/stage-debug"
+          rm -rf "$PWD/stage-debug-root" "$PWD/stage-debug"
+          DESTDIR="$PWD/stage-debug-root" cmake --install build-debug
+          mv "$PWD/stage-debug-root/usr/local" "$PWD/stage-debug"
       
       - name: Create Release AppImage
         run: |

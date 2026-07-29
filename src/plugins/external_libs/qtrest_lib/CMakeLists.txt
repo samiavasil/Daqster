@@ -7,7 +7,7 @@ set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_AUTOMOC ON)
 
 # Bring in standard install directory variables (CMAKE_INSTALL_BINDIR, etc.)
-# early so they are available for the install rules we add in this wrapper.
+# early so they are available when we set QTREST_INSTALL_* below.
 include(GNUInstallDirs)
 
 # qtrest supports both Qt5 and Qt6 using a unified target prefix.
@@ -19,13 +19,13 @@ find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Network Qml REQUIRED)
 set(QT_PREFIX Qt${QT_VERSION_MAJOR})
 message(STATUS "QtRest library: Qt${QT_VERSION_MAJOR} detected - using Qt${QT_VERSION_MAJOR} components")
 
-# The upstream qtrest project derives QTREST_INSTALL_* from CMAKE_INSTALL_PREFIX
-# in its own CMakeLists.txt before adding the core subdirectory. Temporarily use
-# a relative prefix in this directory scope so the generated install rules stay
-# relative and still honor `cmake --install --prefix ...` in CI. add_subdirectory
-# inherits this normal variable value without overwriting the user's cache entry.
-set(_qtrest_saved_install_prefix "${CMAKE_INSTALL_PREFIX}")
-set(CMAKE_INSTALL_PREFIX ".")
+# Override upstream qtrest install destination variables with relative paths so
+# that cmake_install.cmake evaluates ${CMAKE_INSTALL_PREFIX} at install time
+# instead of hardcoding the configure-time default (/usr/local or
+# C:/Program Files/...).
+set(QTREST_INSTALL_BIN_DIR     "${CMAKE_INSTALL_BINDIR}")
+set(QTREST_INSTALL_LIB_DIR     "${CMAKE_INSTALL_LIBDIR}")
+set(QTREST_INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_INCLUDEDIR}/qtrest")
 
 # Configure upstream qtrest build options.
 set(BUILD_TYPE SHARED CACHE STRING "qtrest build type" FORCE)
@@ -48,9 +48,6 @@ unset(CMAKE_RUNTIME_OUTPUT_DIRECTORY)
 unset(CMAKE_LIBRARY_OUTPUT_DIRECTORY)
 
 add_subdirectory(qtrest)
-
-# Restore the project-wide install prefix for the remainder of this build.
-set(CMAKE_INSTALL_PREFIX "${_qtrest_saved_install_prefix}")
 
 # Restore project-wide output directory settings for subsequent targets.
 # If the save variable is defined the original had a value; otherwise leave unset.
