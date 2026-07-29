@@ -28,7 +28,7 @@ enum class LogLevel {
  *
  * Debug is OFF by default. User enables via DebugConsoleWidget.
  */
-class LogManager : public QObject
+class FRAME_WORKSHARED_EXPORT LogManager : public QObject
 {
     Q_OBJECT
 

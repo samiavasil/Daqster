@@ -2,10 +2,11 @@
 #define DEBUGCONSOLEWIDGET_H
 
 #include <QWidget>
+#include "build_cfg.h"
 
 namespace Daqster {
 
-class DebugConsoleWidget : public QWidget
+class FRAME_WORKSHARED_EXPORT DebugConsoleWidget : public QWidget
 {
     Q_OBJECT
 
