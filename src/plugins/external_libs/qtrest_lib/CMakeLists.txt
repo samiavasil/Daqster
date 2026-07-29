@@ -36,25 +36,26 @@ set(BUILD_EXAMPLE 0 CACHE STRING "qtrest example build" FORCE)
 # upstream qtrest target places its shared library in its own CMake binary
 # directory (build/.../qtrest/core/). The upstream cmake_install.cmake
 # references exactly that path for qtrest.dll / libqtrest.so.
-set(_qtrest_saved_runtime "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-set(_qtrest_saved_library "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+# Only save the variable when it is defined so the DEFINED check on restore
+# correctly distinguishes "was originally unset" from "was set to empty string".
+if(DEFINED CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+  set(_qtrest_saved_runtime "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+endif()
+if(DEFINED CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+  set(_qtrest_saved_library "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+endif()
 unset(CMAKE_RUNTIME_OUTPUT_DIRECTORY)
 unset(CMAKE_LIBRARY_OUTPUT_DIRECTORY)
 
 add_subdirectory(qtrest)
 
 # Restore project-wide output directory settings for subsequent targets.
-# Use DEFINED check (not truthiness) so an empty-string saved value is
-# restored as "" rather than incorrectly triggering unset().
+# If the save variable is defined the original had a value; otherwise leave unset.
 if(DEFINED _qtrest_saved_runtime)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${_qtrest_saved_runtime}")
-else()
-  unset(CMAKE_RUNTIME_OUTPUT_DIRECTORY)
 endif()
 if(DEFINED _qtrest_saved_library)
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${_qtrest_saved_library}")
-else()
-  unset(CMAKE_LIBRARY_OUTPUT_DIRECTORY)
 endif()
 
 # On Windows with MinGW the shared library is created as libqtrest.dll (MinGW
