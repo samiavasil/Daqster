@@ -9,6 +9,8 @@ on:
 jobs:
   build-linux:
     runs-on: ubuntu-22.04
+    env:
+      LINUX_INSTALL_PREFIX: /usr/local
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,7 +70,7 @@ jobs:
       
       - name: Configure (Release)
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=/usr/local
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX="$LINUX_INSTALL_PREFIX"
       
       - name: Build (Release)
         run: |
@@ -76,7 +78,7 @@ jobs:
           
       - name: Configure (Debug)
         run: |
-          cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=/usr/local
+          cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX="$LINUX_INSTALL_PREFIX"
       
       - name: Build (Debug)
         run: |
@@ -84,7 +86,7 @@ jobs:
       
       - name: Install to staging (Release)
         run: |
-          install_prefix=/usr/local
+          install_prefix="$LINUX_INSTALL_PREFIX"
           install_root="$PWD/stage-root${install_prefix}"
           rm -rf "$PWD/stage-root" "$PWD/stage"
           DESTDIR="$PWD/stage-root" cmake --install build
@@ -95,7 +97,7 @@ jobs:
           
       - name: Install to staging (Debug)
         run: |
-          install_prefix=/usr/local
+          install_prefix="$LINUX_INSTALL_PREFIX"
           install_root="$PWD/stage-debug-root${install_prefix}"
           rm -rf "$PWD/stage-debug-root" "$PWD/stage-debug"
           DESTDIR="$PWD/stage-debug-root" cmake --install build-debug
