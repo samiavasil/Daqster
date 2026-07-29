@@ -10,6 +10,8 @@ jobs:
   build-linux:
     runs-on: ubuntu-22.04
     env:
+      # Keep this in sync with the configure steps below and the DESTDIR staging
+      # logic that flattens $stage-root$LINUX_INSTALL_PREFIX back to ./stage.
       LINUX_INSTALL_PREFIX: /usr/local
     steps:
       - uses: actions/checkout@v4
@@ -86,8 +88,7 @@ jobs:
       
       - name: Install to staging (Release)
         run: |
-          install_prefix="$LINUX_INSTALL_PREFIX"
-          install_root="$PWD/stage-root${install_prefix}"
+          install_root="$PWD/stage-root$LINUX_INSTALL_PREFIX"
           rm -rf "$PWD/stage-root" "$PWD/stage"
           DESTDIR="$PWD/stage-root" cmake --install build
           test -d "$install_root"
@@ -97,8 +98,7 @@ jobs:
           
       - name: Install to staging (Debug)
         run: |
-          install_prefix="$LINUX_INSTALL_PREFIX"
-          install_root="$PWD/stage-debug-root${install_prefix}"
+          install_root="$PWD/stage-debug-root$LINUX_INSTALL_PREFIX"
           rm -rf "$PWD/stage-debug-root" "$PWD/stage-debug"
           DESTDIR="$PWD/stage-debug-root" cmake --install build-debug
           test -d "$install_root"
