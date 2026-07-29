@@ -263,7 +263,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Qt (5.15.2)
-        uses: jurplel/install-qt-action@v3
+        uses: jurplel/install-qt-action@v4
         with:
           version: '5.15.2'
           host: 'windows'
