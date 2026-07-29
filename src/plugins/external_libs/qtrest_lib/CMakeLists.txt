@@ -72,6 +72,9 @@ endif()
 #   - qtrest.dll: overwritten by the real DLL on Windows; remains empty on Linux/macOS
 #   - qtrest.lib: overwritten on MSVC; MinGW uses .dll.a so it stays empty there too
 # Use if(NOT EXISTS) to avoid zeroing out files already produced by a prior build.
+# Ensure the directory exists at configure time (add_subdirectory creates it but
+# a file(MAKE_DIRECTORY) guard makes the dependency explicit and safe).
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/qtrest/core")
 if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/qtrest/core/qtrest.dll")
   file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/qtrest/core/qtrest.dll" "")
 endif()
