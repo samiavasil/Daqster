@@ -70,41 +70,6 @@ jobs:
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       
-      - name: Fix qtrest install for staging
-        run: |
-          # Upstream qtrest hardcodes Windows-only .dll/.lib install rules
-          # with absolute DESTINATION paths. Remove those blocks entirely
-          # and fix the header install to use CMAKE_INSTALL_PREFIX.
-          python3 << 'PYEOF'
-import re
-path = "build/src/external_libs/qtrest_lib/qtrest/core/cmake_install.cmake"
-with open(path) as f:
-    lines = f.readlines()
-output = []
-skip_until = -1
-for i, line in enumerate(lines):
-    if i < skip_until:
-        continue
-    if re.search(r'\bif\s*\(', line):
-        block = ''
-        endif_idx = -1
-        depth = 0
-        for j in range(i, len(lines)):
-            block += lines[j]
-            depth += len(re.findall(r'(?<!e)\bif\s*\(', lines[j])) - lines[j].count('endif()')
-            if 'endif()' in lines[j] and depth <= 0:
-                endif_idx = j
-                break
-        if endif_idx >= 0 and ('qtrest.dll' in block or 'qtrest.lib' in block):
-            skip_until = endif_idx + 1
-            continue
-    line = line.replace('"/usr/local/include/qtrest"', '"${CMAKE_INSTALL_PREFIX}/include/qtrest"')
-    output.append(line)
-with open(path, 'w') as f:
-    f.writelines(output)
-print("Patched:", path)
-PYEOF
-      
       - name: Build (Release)
         run: |
           cmake --build build -j
@@ -112,38 +77,6 @@ PYEOF
       - name: Configure (Debug)
         run: |
           cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug
-      
-      - name: Fix qtrest install for staging (Debug)
-        run: |
-          python3 << 'PYEOF'
-import re
-path = "build-debug/src/external_libs/qtrest_lib/qtrest/core/cmake_install.cmake"
-with open(path) as f:
-    lines = f.readlines()
-output = []
-skip_until = -1
-for i, line in enumerate(lines):
-    if i < skip_until:
-        continue
-    if re.search(r'\bif\s*\(', line):
-        block = ''
-        endif_idx = -1
-        depth = 0
-        for j in range(i, len(lines)):
-            block += lines[j]
-            depth += len(re.findall(r'(?<!e)\bif\s*\(', lines[j])) - lines[j].count('endif()')
-            if 'endif()' in lines[j] and depth <= 0:
-                endif_idx = j
-                break
-        if endif_idx >= 0 and ('qtrest.dll' in block or 'qtrest.lib' in block):
-            skip_until = endif_idx + 1
-            continue
-    line = line.replace('"/usr/local/include/qtrest"', '"${CMAKE_INSTALL_PREFIX}/include/qtrest"')
-    output.append(line)
-with open(path, 'w') as f:
-    f.writelines(output)
-print("Patched:", path)
-PYEOF
       
       - name: Build (Debug)
         run: |
