@@ -81,61 +81,14 @@ jobs:
       - name: Build (Debug)
         run: |
           cmake --build build-debug -j
-
-      - name: Stage to staging (Release)
+      
+      - name: Install to staging (Release)
         run: |
-          set -euxo pipefail
-          mkdir -p stage/bin stage/lib stage/plugins
-
-          # App binary
-          cp build/src/app/Daqster stage/bin/ || cp build/Daqster stage/bin/ || cp build/bin/Daqster stage/bin/
-
-          # Project plugins (.so)
-          if [ -d build/src/plugins ]; then
-            find build/src/plugins -type f -name "*.so" -exec cp {} stage/plugins/ \;
-          fi
-          if [ -d build/plugins ]; then
-            find build/plugins -type f -name "*.so" -exec cp {} stage/plugins/ \;
-          fi
-
-          # Runtime deps from app + plugins
-          copy_deps() {
-            local f="$1"
-            ldd "$f" | awk '/=> \// {print $3}' | while read -r dep; do
-              [ -f "$dep" ] && cp -n "$dep" stage/lib/ || true
-            done
-          }
-
-          copy_deps stage/bin/Daqster || true
-          find stage/plugins -type f -name "*.so" -print0 | while IFS= read -r -d '' so; do
-            copy_deps "$so"
-          done
-
-      - name: Stage to staging (Debug)
+          sudo cmake --install build --prefix "$PWD/stage"
+          
+      - name: Install to staging (Debug)
         run: |
-          set -euxo pipefail
-          mkdir -p stage-debug/bin stage-debug/lib stage-debug/plugins
-
-          cp build-debug/src/app/Daqster stage-debug/bin/ || cp build-debug/Daqster stage-debug/bin/ || cp build-debug/bin/Daqster stage-debug/bin/
-
-          if [ -d build-debug/src/plugins ]; then
-            find build-debug/src/plugins -type f -name "*.so" -exec cp {} stage-debug/plugins/ \;
-          fi
-          if [ -d build-debug/plugins ]; then
-            find build-debug/plugins -type f -name "*.so" -exec cp {} stage-debug/plugins/ \;
-          fi
-
-          copy_deps() {
-            local f="$1"
-            ldd "$f" | awk '/=> \// {print $3}' | while read -r dep; do
-              [ -f "$dep" ] && cp -n "$dep" stage-debug/lib/ || true
-            done
-          }
-
-          copy_deps stage-debug/bin/Daqster || true
-          find stage-debug/plugins -type f -name "*.so" -print0 | while IFS= read -r -d '' so; do
-            copy_deps "$so"
-          done
+          sudo cmake --install build-debug --prefix "$PWD/stage-debug"
       
       - name: Create Release AppImage
         run: |
@@ -167,7 +120,7 @@ jobs:
           cp /usr/lib/x86_64-linux-gnu/libicu*.so.* Daqster-Debug.AppDir/usr/lib/ || true
           
           # Create debug icon
-          convert -size 256x256 xc:lightblue -pointsize 20 -fill black -gravity center -annotate +0+0 "Daqster\nDebug" Daqster-Debug.AppDir/daqster.png || echo "Icon creation failed, continuing without custom icon"
+          convert -size 256x256 xc:lightblue -pointsize 20 -fill black -gravity center -annotate +0+0 "Daqster\nDebug" Daqster-Debug.AppDir/daqster.png || echo "Icon creation failed, continuing without icon"
           cp Daqster-Debug.AppDir/daqster.png Daqster-Debug.AppDir/usr/share/icons/hicolor/256x256/apps/
           
           # Create desktop file
@@ -243,7 +196,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Qt (5.15.2)
-        uses: jurplel/install-qt-action@v4
+        uses: jurplel/install-qt-action@v3
         with:
           version: '5.15.2'
           host: 'windows'

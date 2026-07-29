@@ -44,6 +44,9 @@ Reason: keep one code line that builds in both Qt5 and Qt6.
 - Refined conditional inclusion of QtCoinTrader and qtrest targets based on available Qt modules.
 Reason: avoid partial or false-positive target enablement when required Qt modules are missing.
 
+- Fixed cross-platform install rules in qtrest/core/CMakeLists.txt (2026-07-30).
+Reason: Upstream used `install(FILES qtrest.dll qtrest.lib)` with hardcoded Windows extensions that failed on Linux. Replaced with proper `install(TARGETS qtrest RUNTIME/LIBRARY/ARCHIVE)` commands for cross-platform compatibility. This eliminates the need for the patch_qtrest_install.py workaround script.
+
 ## Check current divergence from upstream
 
 Use live git commands instead of static ahead/behind numbers:

@@ -44,6 +44,9 @@
 - Уточнени условия за включване на QtCoinTrader/qtrest в зависимост от наличните Qt компоненти.
 Причина: да се избегнат false-positive target-и и частични конфигурации при липсващи Qt модули.
 
+- Поправени cross-platform install правила в qtrest/core/CMakeLists.txt (2026-07-30).
+Причина: Upstream използваше `install(FILES qtrest.dll qtrest.lib)` с hardcoded Windows разширения, които липсваха на Linux. Заменено с правилни `install(TARGETS qtrest RUNTIME/LIBRARY/ARCHIVE)` команди за cross-platform съвместимост. Това елиминира нуждата от patch_qtrest_install.py workaround скрипта.
+
 ## Как да провериш текущата разлика спрямо upstream
 
 Използвай тези команди вместо статични числа в документацията:

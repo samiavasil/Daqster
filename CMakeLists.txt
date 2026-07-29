@@ -4,6 +4,8 @@ project(Daqster VERSION 0.2.0 LANGUAGES CXX)
 
 set(DAQSTER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
+include(GNUInstallDirs)
+
 # Add cmake modules to path
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 

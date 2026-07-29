@@ -33,7 +33,7 @@ function(create_application COMPONENT_NAME)
     
     # Install executable
     install(TARGETS ${COMPONENT_NAME}
-        RUNTIME DESTINATION bin
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
     
     message(STATUS "Created application: ${COMPONENT_NAME}")
@@ -71,9 +71,9 @@ function(create_internal_library COMPONENT_NAME)
     
     # Install library
     install(TARGETS ${COMPONENT_NAME}
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
     
     message(STATUS "Created internal library: ${COMPONENT_NAME}")
@@ -136,9 +136,9 @@ function(create_plugin COMPONENT_NAME)
     
     # Install plugin
     install(TARGETS ${COMPONENT_NAME}
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION bin
-        ARCHIVE DESTINATION lib
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
     
     # Set RPATH for plugins (use custom or default)
@@ -228,4 +228,3 @@ else()
     # Target will be created later when externals are registered
     # (we can't create an empty target with no deps here)
 endif()
-
