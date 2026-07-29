@@ -44,8 +44,17 @@ unset(CMAKE_LIBRARY_OUTPUT_DIRECTORY)
 add_subdirectory(qtrest)
 
 # Restore project-wide output directory settings for subsequent targets.
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${_qtrest_saved_runtime}")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${_qtrest_saved_library}")
+# Use unset() if the original variable was not set (avoids setting to empty string).
+if(_qtrest_saved_runtime)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${_qtrest_saved_runtime}")
+else()
+  unset(CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+endif()
+if(_qtrest_saved_library)
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${_qtrest_saved_library}")
+else()
+  unset(CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+endif()
 
 # On Windows with MinGW the shared library is created as libqtrest.dll (MinGW
 # prefix convention) but the upstream cmake_install.cmake expects qtrest.dll.
@@ -54,10 +63,12 @@ if(WIN32)
   set_target_properties(qtrest PROPERTIES PREFIX "")
 endif()
 
-# Create empty placeholder files for the artifacts referenced by the upstream
-# cmake_install.cmake install(FILES) rules:
-#   - qtrest.dll: overwritten by the real DLL on Windows; empty placeholder on Linux
-#   - qtrest.lib: overwritten on MSVC; MinGW uses .dll.a so it stays as placeholder
+# Create empty placeholder files for the Windows-only artifacts referenced by
+# the upstream cmake_install.cmake install(FILES) rules. The upstream adds these
+# rules unconditionally (no platform guard), so they run on Linux/macOS too.
+# Without the placeholders, cmake --install aborts with "file INSTALL cannot find".
+#   - qtrest.dll: overwritten by the real DLL on Windows; remains empty on Linux/macOS
+#   - qtrest.lib: overwritten on MSVC; MinGW uses .dll.a so it stays empty there too
 # Use if(NOT EXISTS) to avoid zeroing out files already produced by a prior build.
 if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/qtrest/core/qtrest.dll")
   file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/qtrest/core/qtrest.dll" "")
