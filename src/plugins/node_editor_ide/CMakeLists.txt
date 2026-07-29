@@ -58,6 +58,7 @@ target_link_libraries(NodeEditorLibrary PUBLIC
     Qt${QT_VERSION_MAJOR}::Charts
     Qt${QT_VERSION_MAJOR}::OpenGL
     QtNodes
+    frame_work
 )
 
 set_target_properties(NodeEditorLibrary PROPERTIES
