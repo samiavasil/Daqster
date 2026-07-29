@@ -9,9 +9,6 @@ WindowsShutdownHandler* WindowsShutdownHandler::s_instance = nullptr; // skipcq:
 
 WindowsShutdownHandler::WindowsShutdownHandler(QObject *parent)
     : ShutdownHandler(parent)
-#ifdef Q_OS_WIN
-    , m_notifier(nullptr)
-#endif
 {
 #ifdef Q_OS_WIN
     s_instance = this;
