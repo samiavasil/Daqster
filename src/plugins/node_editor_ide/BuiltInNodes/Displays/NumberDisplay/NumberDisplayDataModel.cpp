@@ -1,6 +1,6 @@
 #include "NumberDisplayDataModel.h"
 
-#include "NumericType.h"
+#include "NodeDataTypes/NumericType.h"
 
 using QtNodes::PortType;
 using QtNodes::PortIndex;

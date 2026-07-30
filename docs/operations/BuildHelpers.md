@@ -1,6 +1,6 @@
 [Български](./BuildHelpers.md) | [English](./BuildHelpers.en.md)
 
-Родител: [Operations Topics](./README.md) | [Documentation Index](../index.md)
+Родител: [Operations Topics](./README.md) | [Documentation Index](../INDEX.md)
 
 # Помощни build скриптове
 
@@ -12,8 +12,8 @@
 |---|---|
 | `manage_upstream.sh` | Управление на upstream remote за външни библиотеки |
 | `debug_control.sh` | Контрол на ptrace за GDB attach |
-| `test_qt_versions.sh` | Автоматичен тест на Qt5/Qt6 detection |
-| `test_qt6_qtrest.sh` | Тест на Qt6 build с QtRest |
+| `test_qt_versions.sh` | Автоматичен тест на Qt5/Qt6 detection *(deprecated — използвайте `validate_builds.sh`)* |
+| `test_qt6_qtrest.sh` | Тест на Qt6 build с QtRest *(deprecated — използвайте `validate_builds.sh`)* |
 
 ---
 

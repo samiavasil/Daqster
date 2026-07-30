@@ -1,20 +1,31 @@
 #include "QPluginLoaderExt.h"
-#include "debug.h"
+#include "LogCategories.h"
+
+bool QPluginLoaderExt::s_isShuttingDown = false;
+
+void QPluginLoaderExt::setShuttingDown(bool v)
+{
+    s_isShuttingDown = v;
+}
+
 QPluginLoaderExt::QPluginLoaderExt(const QString &fileName, QObject *parent):QPluginLoader( fileName, parent ){
 
 }
 
 QPluginLoaderExt::~QPluginLoaderExt(){
-    DEBUG_V << "Try to destroy QPluginLoaderExt '" << fileName() << "'";
     if (!isLoaded()) {
-        DEBUG_V << "Success unload Plugin library [was not loaded] '" << fileName() << "'";
+        return;
+    }
+
+    if (s_isShuttingDown) {
+        qCDebug(lcFramework) << "Skipping unload Plugin library during shutdown '" << fileName() << "'";
         return;
     }
 
     if (!unload()) {
-        DEBUG << "Failed to unload Plugin library '" << fileName() << "'";
+        qCDebug(lcFramework) << "Failed to unload Plugin library '" << fileName() << "'";
         return;
     }
 
-    DEBUG_V << "Success unload Plugin library '" << fileName() << "'";
+    qCDebug(lcFramework) << "Success unload Plugin library '" << fileName() << "'";
 }

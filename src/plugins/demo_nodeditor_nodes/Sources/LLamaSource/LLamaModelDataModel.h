@@ -22,7 +22,7 @@
 #include <memory>
 #include <functional>
 
-#include "TextData.h"
+#include "NodeDataTypes/TextData.h"
 #include "ChatBaseWidget.h"
 
 class LLamaModelDataModel : public QtNodes::NodeDelegateModel {

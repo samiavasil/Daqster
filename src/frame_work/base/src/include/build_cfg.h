@@ -1,23 +1,10 @@
 #ifndef BUILD_CFG_H
 #define BUILD_CFG_H
 
-#define QT_FW_ENABLED/*TOODO:Move this hard coded configuration in some appropriatary place*/
+#define QT_FW_ENABLED
 
 #if defined( QT_FW_ENABLED )
 
-/*Define basic types*/
-#include <cstdint>
-using int8  = int8_t;
-using int16 = int16_t;
-using int32 = int32_t;
-using int64 = int64_t;
-using u8    = uint8_t;
-using u16   = uint16_t;
-using u32   = uint32_t;
-using u64   = uint64_t;
-
-/*Configure dynamic library export macro*/
-/*Include Qt headers - try Qt6 first, fallback to Qt5*/
 #include <QtCore/qglobal.h>
 
 // When building/using frame_work as a static library (e.g. on

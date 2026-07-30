@@ -5,31 +5,42 @@ option(FRAME_WORK_BUILD_STATIC "Build frame_work as a static library" OFF)
 set(FRAME_WORK_SOURCES
   base/src/global.h
   base/src/PluginDescription.cpp
-  base/src/PluginDetails.cpp
-  base/src/PluginDetails.h
   base/src/PluginFilter.cpp
   base/src/QBasePluginObject.cpp
   base/src/QPluginInterface.cpp
-  base/src/QPluginListView.cpp
-  base/src/QPluginListView.h
+  base/src/LogCategories.cpp
+  base/src/LogManager.cpp
   base/src/QPluginLoaderExt.cpp
   base/src/QPluginLoaderExt.h
   base/src/QPluginManager.cpp
-  base/src/QPluginManagerGui.cpp
-  base/src/QPluginManagerGui.h
-  base/src/Singleton.h
-  base/src/pluginmanagergui.ui
-  base/src/pluginlistview.ui
-  base/src/plugindetails.ui
-  framework_resources.qrc
+
   base/src/include/QPluginManager.h
   base/src/include/QPluginInterface.h
   base/src/include/QBasePluginObject.h
+  base/src/include/LogCategories.h
+  base/src/include/LogManager.h
   base/src/platform/ShutdownHandler.h
-  base/src/platform/StdinShutdownHandler.h
-  base/src/platform/StdinShutdownHandler.cpp
+  base/src/platform/ShutdownHandlerFactory.cpp
   base/src/process/QProcessManager.h
   base/src/process/QProcessManager.cpp
+  base/src/discovery/PluginDiscovery.h
+  base/src/discovery/PluginDiscovery.cpp
+  base/src/persistence/PluginPersistence.h
+  base/src/persistence/PluginPersistence.cpp
+  base/src/registry/PluginRegistry.h
+  base/src/registry/PluginRegistry.cpp
+  base/src/gui/QPluginManagerGui.h
+  base/src/gui/QPluginManagerGui.cpp
+  base/src/gui/QPluginListView.h
+  base/src/gui/QPluginListView.cpp
+  base/src/gui/PluginDetails.h
+  base/src/gui/PluginDetails.cpp
+  base/src/gui/DebugConsoleWidget.cpp
+  base/src/gui/DebugConsoleWidget.h
+  base/src/gui/pluginmanagergui.ui
+  base/src/gui/pluginlistview.ui
+  base/src/gui/plugindetails.ui
+  framework_resources.qrc
 )
 
 if(WIN32)
@@ -73,17 +84,23 @@ target_include_directories(frame_work
     base/src/include
     base/src/platform
     base/src/process
-  )
+    base/src/discovery
+    base/src/persistence
+    base/src/registry
+    base/src/gui
+  PRIVATE
+    base/src
+)
 
 target_link_libraries(frame_work 
     Qt${QT_VERSION_MAJOR}::Core
-    Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
 )
 
 # Install shared library (and headers for consumers if needed)
 install(TARGETS frame_work
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )

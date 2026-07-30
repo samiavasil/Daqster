@@ -7,6 +7,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QMap>
 #include <QtNodes/NodeDelegateModel>
+#include <memory>
 
 class NodeDataModelToQIODeviceConnector;
 class GenericQDevIoConnector;
@@ -81,17 +82,14 @@ protected:
     void showConfigPanel();
 
     std::shared_ptr<NodeDataModelToQIODeviceConnector> m_connector;
-    QWidget* m_widget;              // QStackedWidget (the embedded widget)
     std::shared_ptr<QIODevice> m_device;
     QDevIOStreamConfig m_currentConfig;
 
     // ── Stacked Widget Pages ───────────────────────────────────
-    QStackedWidget* m_stack = nullptr;
+    std::unique_ptr<QStackedWidget> m_stack;
     QMap<QString, int> m_typeToWidget;  // "audio"→0, "video"→1, etc.
     int m_configPanelIndex = -1;        // index of manual config panel
     int m_audioViewIndex = -1;          // index of audio waveform view
-
-    friend class AudioXYSeriesIODevice;
 };
 
 #endif // QDEVIODISPLAY_H

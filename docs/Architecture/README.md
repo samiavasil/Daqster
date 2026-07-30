@@ -2,7 +2,7 @@
 
 [Български](./README.md) | [English](./README.en.md)
 
-Родител: [Documentation Index](../index.md)
+Родител: [Documentation Index](../INDEX.md)
 
 ## Архитектурен хъб
 
@@ -34,7 +34,7 @@ Daqster/
 │       ├── external_libs/        # Git submodules (nodeeditor, qtrest_lib)
 │       ├── capabilities/         # Shared capability interfaces (INodeProvider.h)
 │       ├── node_editor_ide/      # Визуален node-based редактор + вградени нодове
-│       ├── demo_standard_nodes/  # INodeProvider — NumberSource, NumberDisplay, Modulo
+│       ├── demo_nodeditor_nodes/  # INodeProvider — AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux
 │       ├── QtCoinTrader/         # QtCoinTrader плъгин
 │       └── tests/                # Тестови плъгини
 ├── tools/                        # Инструменти за билд
@@ -49,7 +49,7 @@ Daqster/
 │   │   ├── framework/
 │   │   └── plugins/
 │   │       ├── node_editor_ide/  # Node Editor IDE plugin docs
-│   │       └── demo_standard_nodes/ # Demo Standard Nodes plugin docs
+│       │       └── demo_nodeditor_nodes/ # Demo NodeEditor Nodes plugin docs
 │   ├── development/              # Разработка и дебъг
 │   │   ├── README.md
 │   │   ├── DeveloperGuide.md
@@ -104,7 +104,7 @@ Daqster/
 
 **Типове плъгини:**
 - **APPLICATION_PLUGIN** — Самостоятелни приложения с GUI (node_editor_ide, QtCoinTrader)
-- **Node Provider** — Headless плъгини доставящи нодове чрез INodeProvider (demo_standard_nodes)
+- **Node Provider** — Headless плъгини доставящи нодове чрез INodeProvider (demo_nodeditor_nodes)
 
 **Plugin Discovery:**
 1. Build директория (`./plugins`, `../lib/daqster/plugins`)

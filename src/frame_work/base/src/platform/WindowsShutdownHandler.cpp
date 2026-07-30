@@ -1,7 +1,7 @@
 #include "WindowsShutdownHandler.h"
 
 #include <QDebug>
-#include "debug.h"
+#include "LogCategories.h"
 
 #ifdef Q_OS_WIN
 WindowsShutdownHandler* WindowsShutdownHandler::s_instance = nullptr; // skipcq: CXX-W2009
@@ -9,9 +9,6 @@ WindowsShutdownHandler* WindowsShutdownHandler::s_instance = nullptr; // skipcq:
 
 WindowsShutdownHandler::WindowsShutdownHandler(QObject *parent)
     : ShutdownHandler(parent)
-#ifdef Q_OS_WIN
-    , m_notifier(nullptr)
-#endif
 {
 #ifdef Q_OS_WIN
     s_instance = this;
@@ -30,12 +27,12 @@ bool WindowsShutdownHandler::initialize()
 #ifdef Q_OS_WIN
     // Setup Windows console control handler
     if (!SetConsoleCtrlHandler(consoleCtrlHandler, TRUE)) {
-        qWarning() << "Failed to set console control handler";
+        qCWarning(lcShutdown) << "Failed to set console control handler";
         return false;
     }
-    qDebug() << "Windows shutdown handler initialized (Console Ctrl events)";
+    qCDebug(lcShutdown) << "Windows shutdown handler initialized (Console Ctrl events)";
 #else
-    qDebug() << "WindowsShutdownHandler is a no-op on non-Windows platforms";
+    qCDebug(lcShutdown) << "WindowsShutdownHandler is a no-op on non-Windows platforms";
 #endif
 
     return true;
@@ -66,8 +63,8 @@ BOOL WINAPI WindowsShutdownHandler::consoleCtrlHandler(DWORD signal)
                 signalName = QString("Unknown(%1)").arg(signal);
         }
 
-        qDebug() << "\nReceived Windows console event:" << signalName;
-        DEBUG << "Emitting shutdownRequested() from WindowsShutdownHandler";
+        qCDebug(lcShutdown) << "\nReceived Windows console event:" << signalName;
+        qCDebug(lcShutdown) << "Emitting shutdownRequested() from WindowsShutdownHandler";
         QMetaObject::invokeMethod(s_instance, "shutdownRequested", Qt::QueuedConnection);
         return TRUE;
     }

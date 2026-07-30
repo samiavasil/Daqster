@@ -1,6 +1,6 @@
 # Plugins
 
-Родител: [Architecture Overview](../README.md) | [Documentation Index](../../index.md)
+Родител: [Architecture Overview](../README.md) | [Documentation Index](../../INDEX.md)
 
 Съседни подсистеми: [Applications](../apps/README.md) | [Framework](../framework/README.md)
 
@@ -11,7 +11,7 @@
 | Plugin | Локация | Тип | Описание |
 |--------|---------|-----|----------|
 | **Node Editor IDE** | `src/plugins/node_editor_ide/` | APPLICATION_PLUGIN | Визуален node-based редактор с вградени Audio/LLaMA нодове |
-| **Demo Standard Nodes** | `src/plugins/demo_standard_nodes/` | Node Provider | INodeProvider — доставя NumberSource, NumberDisplay, Modulo нодове |
+| **Demo NodeEditor Nodes** | `src/plugins/demo_nodeditor_nodes/` | Node Provider | INodeProvider — доставя AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux нодове |
 | **QtCoinTrader** | `src/plugins/QtCoinTrader/` | APPLICATION_PLUGIN | Cryptocurrency trading plugin |
 
 ### Plugin документация
@@ -19,7 +19,7 @@
 Всяка основна плъгин компонента има своя документация:
 
 - [Node Editor IDE](./node_editor_ide/README.md) — архитектура, вградени нодове, INodeProvider discovery
-- [Demo Standard Nodes](./demo_standard_nodes/README.md) — INodeProvider пример, доставени нодове
+- [Demo NodeEditor Nodes](./demo_nodeditor_nodes/README.md) — INodeProvider пример, доставени нодове
 
 ## Shared Components
 
@@ -111,4 +111,4 @@ Environment variables:
 
 - [Plugin Development](./PluginDevelopment.md)
 - [Node Editor IDE](./node_editor_ide/README.md)
-- [Demo Standard Nodes](./demo_standard_nodes/README.md)
+- [Demo NodeEditor Nodes](./demo_nodeditor_nodes/README.md)

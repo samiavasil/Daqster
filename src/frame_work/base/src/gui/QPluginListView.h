@@ -23,6 +23,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #define QPLUGINLISTVIEW_H
 #include "global.h"
 #include <QWidget>
+#include <memory>
 #include "PluginFilter.h"
 
 namespace Ui {
@@ -84,7 +85,7 @@ protected:
     Daqster::PluginFilter m_PluginFilter;
 
 private:
-  Ui::PluginListView* ui;
+  std::unique_ptr<Ui::PluginListView> ui;
 };
 } // end of package namespace
 

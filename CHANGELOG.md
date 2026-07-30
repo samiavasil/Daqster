@@ -43,7 +43,7 @@
     - `ShutdownHandler` - абстрактен базов клас за graceful shutdown
     - `UnixShutdownHandler` - SIGINT/SIGTERM signal handling за Unix/Linux (self-pipe)
     - `WindowsShutdownHandler` - Windows console events (SetConsoleCtrlHandler)
-    - `StdinShutdownHandler` - stdin-базиран quit/exit handler (cross-platform)
+    - `QConsoleListener` - stdin-базиран quit/exit handler (крос-платформен, в Daqster приложението)
   - **Process Management Layer** (`frame_work/base/src/process/`):
     - `QProcessManager` - generic базов клас за управление на child процеси
     - Handle-based process tracking

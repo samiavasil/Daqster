@@ -3,8 +3,7 @@
 #include "QBasePluginObject.h"
 class QMainWindow;
 
-using namespace Daqster;
-class PluginMainObject: public QBasePluginObject{
+class PluginMainObject: public Daqster::QBasePluginObject{
     Q_OBJECT
 public:
     PluginMainObject(QObject* Parent = nullptr);

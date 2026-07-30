@@ -41,10 +41,10 @@ class QBasePluginObject;
 /**
   * class QPluginInterface
   * @brief This is a base plugin interface class.
-  * All plugins should inherite this plugin interface in oreder to create plugin  objects.
+  * All plugins should inherite this plugin interface in order to create plugin  objects.
   * QPluginLoaderExt class instantiate objects from this class. Object from this class contains
-  * pointer associasion to coresponding QPluginLoaderExt object wich load it.
-  * QPluginInterface objects can save it member parametters in persistent QSettings store.
+  * pointer associasion to corresponding QPluginLoaderExt object which load it.
+  * QPluginInterface objects can save it member parameters in persistent QSettings store.
   */
 
 class FRAME_WORKSHARED_EXPORT QPluginInterface : public QObject // skipcq: CXX-W2009
@@ -108,9 +108,9 @@ public:
     *           UNDEFINED -  Not defined state
     * @param State
     */
-   void SetHealthyState(const PluginDescription::PluginHealtyState_t& State );
+   void SetHealthyState(const PluginDescription::PluginHealthyState_t& State );
 
-   PluginDescription::PluginHealtyState_t GetHealthyState();
+   PluginDescription::PluginHealthyState_t GetHealthyState();
 
    /**
     * @brief Return is plugin enabled
@@ -209,7 +209,7 @@ public:
    * @brief Store Plugin Parameters to persistent settings store.
    * The main idea is when some plugin is loaded one time information for plugin is saved
    * on store and in feature this plugin information is used without loading of plugin.
-   * Plugin will be loaded just if it is explicitly used esle just the persistent information is used.
+   * Plugin will be loaded just if it is explicitly used else just the persistent information is used.
    * @param Store
    * @return
    */
@@ -238,7 +238,7 @@ protected slots:
   void pluginInstanceDestroyed( QObject* obj );
 
 protected:
-  Daqster::PluginDescription m_PluginDescryptor;
+  Daqster::PluginDescription m_PluginDescriptor;
   // Plugin loader
   QSharedPointer<QPluginLoaderExt> m_PluginLoader;
   // Plugin Object Pool - List  with currently instantiated plugins
@@ -248,7 +248,7 @@ protected:
 
 
 
-/*Next declarations insired fom itom project :)*/
+/*Next declarations inspired fom itom project :)*/
 #define IID_DAQSTER_PLUGIN_INTERFACE   "Daqster.PlugIn.QPluginInterface"
 #define CREATE_PLUGIN_INTERFACE_VERSION_STR(major,minor,patch) IID_DAQSTER_PLUGIN_INTERFACE"/"#major"."#minor"."#patch
 #define CREATE_PLUGIN_INTERFACE_VERSION(major,minor,patch) ((major<<16)|(minor<<8)|(patch))
@@ -267,19 +267,6 @@ protected:
 //
 // To add a new version, do the following steps
 //
-// 1. append the string behind the variable daqster_PluginInterface_CurrentVersion (e.g. CREATE_PLUGIN_INTERFACE_VERSION_STR(0,0,0)) to the array daqster_PluginInterface_OldVersions
-// 2. change the version number in the string daqster_PluginInterface_CurrentVersion (e.g. CREATE_PLUGIN_INTERFACE_VERSION_STR(0,0,1))
-// TODO: DELL ME 3. if the QPluginInterface version number is incremented, the ito.AbstractItomDesignerPlugin number in AbstractItomDesignerPlugin.h must be incremented as well.
-//
-//
-// This helps, that deprecated or "future" plugins, which fit not to the current implementation of the interface will not be loaded
-// but a sophisticated error message is shown.
-/*TODO: Plugin Version control should be implemented*/
-static const char* const daqster_PluginObjectInterface_OldVersions[] = {
-     CREATE_PLUGIN_INTERFACE_VERSION_STR(-1,-1,-1),//version TODO: DELL ME not real version in moment
-     nullptr
-};
-static const char* const daqster_PluginInterface_CurrentVersion = DAQSTER_PLUGIN_INTERFACE_VERSION_STR; //results in "Daqster.PlugIn.BaseInterface/x.x.x";
 // must be out of namespace
 Q_DECLARE_INTERFACE(Daqster::QPluginInterface , DAQSTER_PLUGIN_INTERFACE_VERSION_STR )
 #endif // QPLUGINBASESINTERFACE_H

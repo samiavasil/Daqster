@@ -19,7 +19,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 ************************************************************************/
 
 #include "QPluginListView.h"
-#include "debug.h"
+#include "LogCategories.h"
 #include "ui_pluginlistview.h"
 #include "QPluginManager.h"
 #include <QMap>
@@ -34,7 +34,7 @@ namespace Daqster {
 QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter& Filter ):QWidget(Parent)
 {
     m_PluginFilter = Filter;
-    ui = new Ui::PluginListView();
+    ui = std::make_unique<Ui::PluginListView>();
     ui->setupUi( this );
     ui->treeWidget->setColumnCount( 5 );
     RefreshView();
@@ -47,7 +47,7 @@ QPluginListView::QPluginListView ( QWidget* Parent ,const Daqster::PluginFilter&
 
 void QPluginListView::TreeItem( QTreeWidgetItem* item, int col ){
     if( nullptr != item && col == 1){
-        DEBUG << "Plugin " << item->data( col, TREE_DATA_ROLE).toString() << ": " << item->checkState(col);
+        qCDebug(lcFramework) << "Plugin " << item->data( col, TREE_DATA_ROLE).toString() << ": " << item->checkState(col);
         if( nullptr != item->parent() ){
             bool Enable = item->checkState(col) == Qt::Unchecked ? false : true;
             emit EnableDisablePlugin(  item->data( col, TREE_DATA_ROLE).toString(), Enable );
@@ -88,7 +88,7 @@ void QPluginListView::ShowDetails()
 }
 
 QPluginListView::~QPluginListView () {
-    delete ui;
+    // ui is automatically cleaned up by std::unique_ptr
 }
 
 void QPluginListView::SetPluginFilter (const PluginFilter &Filter)
@@ -141,7 +141,7 @@ void QPluginListView::RefreshView(){
     treeWidget->setColumnCount(5);
     ui->treeWidget->clear();
 
-    foreach ( const Daqster::PluginDescription& Desc , PlugList )
+    for ( const Daqster::PluginDescription& Desc : PlugList )
     {
         QString typeName = Desc.GetProperty(PLUGIN_TYPE_NAME).toString();
         if (typeName.isEmpty()) {

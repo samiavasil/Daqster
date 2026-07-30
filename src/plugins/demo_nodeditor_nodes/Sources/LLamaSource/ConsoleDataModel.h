@@ -12,7 +12,7 @@
 
 #include <memory>
 
-#include "TextData.h"
+#include "NodeDataTypes/TextData.h"
 #include "ChatBaseWidget.h"
 
 class ConsoleDataModel : public QtNodes::NodeDelegateModel

@@ -1,6 +1,6 @@
 # Upstream Management Guide
 
-Parent: [Operations Topics](./README.md) | [Documentation Index](../index.en.md)
+Parent: [Operations Topics](./README.md) | [Documentation Index](../INDEX.en.md)
 
 This guide describes how to manage upstream tracking for external libraries used by Daqster.
 
@@ -10,13 +10,13 @@ This guide describes how to manage upstream tracking for external libraries used
 - Upstream repository: https://github.com/paceholder/nodeeditor
 - Your fork: https://github.com/samiavasil/nodeeditor
 - Working branch: feature/deembed-hover-fronting-wm
-- Integration in Daqster: submodule under src/external_libs/nodeeditor
+- Integration in Daqster: submodule under src/plugins/external_libs/nodeeditor
 
 ### QtRest
 - Upstream repository: https://github.com/kafeg/qtrest
 - Your fork: https://github.com/samiavasil/qtrest
 - Working branch: feature/qt6-port-cmake-unified
-- Integration in Daqster: submodule under src/external_libs/qtrest_lib/qtrest
+- Integration in Daqster: submodule under src/plugins/external_libs/qtrest_lib/qtrest
 
 ## Fork Delta (compared to upstream)
 
@@ -44,18 +44,21 @@ Reason: keep one code line that builds in both Qt5 and Qt6.
 - Refined conditional inclusion of QtCoinTrader and qtrest targets based on available Qt modules.
 Reason: avoid partial or false-positive target enablement when required Qt modules are missing.
 
+- Fixed cross-platform install rules in qtrest/core/CMakeLists.txt (2026-07-30).
+Reason: Upstream used `install(FILES qtrest.dll qtrest.lib)` with hardcoded Windows extensions that failed on Linux. Replaced with proper `install(TARGETS qtrest RUNTIME/LIBRARY/ARCHIVE)` commands for cross-platform compatibility. This eliminates the need for the patch_qtrest_install.py workaround script.
+
 ## Check current divergence from upstream
 
 Use live git commands instead of static ahead/behind numbers:
 
 ```bash
 # NodeEditor
-cd src/external_libs/nodeeditor
+cd src/plugins/external_libs/nodeeditor
 git fetch upstream
 git rev-list --left-right --count HEAD...upstream/master
 
 # QtRest
-cd src/external_libs/qtrest_lib/qtrest
+cd src/plugins/external_libs/qtrest_lib/qtrest
 git fetch upstream
 git rev-list --left-right --count HEAD...upstream/master
 ```
@@ -94,12 +97,12 @@ Use tools/build_helpers/manage_upstream.sh for common operations:
 ### 2. Analyze incoming changes
 ```bash
 # NodeEditor
-cd src/external_libs/nodeeditor
+cd src/plugins/external_libs/nodeeditor
 git log HEAD..upstream/master --oneline -10
 git diff HEAD..upstream/master --stat
 
 # QtRest
-cd src/external_libs/qtrest_lib/qtrest
+cd src/plugins/external_libs/qtrest_lib/qtrest
 git log HEAD..upstream/master --oneline -10
 git diff HEAD..upstream/master --stat
 ```
@@ -118,7 +121,7 @@ git diff HEAD..upstream/master --stat
 
 #### C. Integration branch for larger updates
 ```bash
-cd src/external_libs/nodeeditor
+cd src/plugins/external_libs/nodeeditor
 git checkout -b integration-upstream-$(date +%Y%m%d)
 git merge upstream/master
 ```

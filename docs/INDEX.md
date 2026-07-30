@@ -1,4 +1,4 @@
-[Български](./index.md) | [English](./index.en.md)
+[Български](./INDEX.md) | [English](./INDEX.en.md)
 
 # Индекс на документацията
 

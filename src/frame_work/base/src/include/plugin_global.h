@@ -9,5 +9,5 @@
 #  define PLUGIN_EXPORT Q_DECL_IMPORT
 #endif
 
-#endif // FRAME_WORK_GLOBAL_H
+#endif // FRA_PLUGIN_GLOBAL_H
 

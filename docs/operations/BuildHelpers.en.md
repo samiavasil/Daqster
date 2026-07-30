@@ -1,6 +1,6 @@
 [Български](./BuildHelpers.md) | [English](./BuildHelpers.en.md)
 
-Parent: [Operations Topics](./README.md) | [Documentation Index](../index.en.md)
+Parent: [Operations Topics](./README.md) | [Documentation Index](../INDEX.en.md)
 
 # Build Helper Scripts
 
@@ -12,8 +12,8 @@ The scripts in `tools/build_helpers/` are development utilities for testing buil
 |---|---|
 | `manage_upstream.sh` | Manage upstream remote for external libs |
 | `debug_control.sh` | Control ptrace for GDB attach |
-| `test_qt_versions.sh` | Automated Qt5/Qt6 detection test |
-| `test_qt6_qtrest.sh` | Qt6 build test with QtRest |
+| `test_qt_versions.sh` | Automated Qt5/Qt6 detection test *(deprecated — use `validate_builds.sh` instead)* |
+| `test_qt6_qtrest.sh` | Qt6 build test with QtRest *(deprecated — use `validate_builds.sh` instead)* |
 
 ---
 

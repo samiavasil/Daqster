@@ -6,6 +6,7 @@
 
 
 #include<QDebug>
+#include "LogCategories.h"
 #define TIMER_MS 10000
 
 #define DEBUG  DBB("//")
@@ -55,7 +56,7 @@ RequestForm::~RequestForm()
 
 
 void RequestForm::redirected(const QUrl& url ){
-    qDebug() << "Redirected to:" << url.toString();
+    qCDebug(lcCoinTrader) << "Redirected to:" << url.toString();
 }
 
 void RequestForm::activateRequest(bool activate )

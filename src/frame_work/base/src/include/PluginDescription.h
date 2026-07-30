@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/PluginDescription.h.h - Copyright 
+                        Daqster/PluginDescription.h - Copyright
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -38,7 +38,8 @@ Initial version of this file was created on 16.03.2017 at 12:33:53
 #define PLUGIN_TYPE_NAME              "TypeName"
 #define PLUGIN_VERSION                "Version"
 #define PLUGIN_HASH                   "Hash"
-#define PLUGIN_HELTHY_STATE           "HealthyState"
+#define PLUGIN_HEALTHY_STATE          "HealthyState"
+#define PLUGIN_HELTHY_STATE           PLUGIN_HEALTHY_STATE  // deprecated — use PLUGIN_HEALTHY_STATE
 
 class QSettings;
 
@@ -74,7 +75,8 @@ public:
         HEALTHY ,  /*Founded, loaded and one or more plugins objects are successfully created */
         ILL ,      /*Founded but exception occured when tryed to load  */
         UNDEFINED  /*Not defined state                                 */
-    } PluginHealtyState_t;
+    } PluginHealtyState_t; // deprecated — use PluginHealthyState_t
+    using PluginHealthyState_t = PluginHealtyState_t;
 
     typedef enum{
       NOTHING_OPT              = 0,
@@ -138,28 +140,11 @@ public:
    bool IsEmpty() const;
 
    /**
-   * @brief PluginDescription::Compare - Return bitmask with difference betwen two PluginDescription objects
-   * @param Object for compare
-   * @return Return 0 if object Pairs are the same
-   *                > 0 if this have some equal properties as b
-   *                < 0 if this haven't some equal properties as b
-   */
-   int Compare(const PluginDescription &b) const;
-
-   /**
-    * @brief Compare objects valid fields
-    * @param Object for compare
-    * @return true  - if object have the same valid valid fields. Doesn't check  invalid fields.
-    *         false - otherwise
-    */
-   bool CompareByValidFields(const PluginDescription &b) const;
-
-   /**
-    * @brief Overoading operator ==
+    * @brief Overloading operator ==
     * @param PluginDescription object
     * @return true if objects are equal
     */
-   bool operator ==(const PluginDescription &b);
+   bool operator ==(const PluginDescription &b) const;
 
    /**
     * @brief Overloading Equal operator

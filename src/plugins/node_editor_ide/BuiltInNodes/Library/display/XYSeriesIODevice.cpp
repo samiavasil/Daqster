@@ -31,6 +31,7 @@
 #include "AudioCompat.h"
 #include<QTimer>
 #include<QDebug>
+#include "LogCategories.h"
 #include<QMutexLocker>
 
 static inline unsigned long near_power_of_two(unsigned long x) {
@@ -67,7 +68,7 @@ XYSeriesIODevice::XYSeriesIODevice(QObject *parent) :
 
 XYSeriesIODevice::~XYSeriesIODevice()
 {
-    qDebug() << "Destroy XYSeriesIODevice" << this;
+    qCDebug(lcNodeEditor) << "Destroy XYSeriesIODevice" << this;
 }
 
 void XYSeriesIODevice::ReinitDevice(const QAudioFormat &format,
@@ -76,7 +77,7 @@ void XYSeriesIODevice::ReinitDevice(const QAudioFormat &format,
     QMutexLocker locker(&m_lock);
 
     if (!m_decoder.configure(format)) {
-        qWarning() << "Unsupported audio format for waveform decoder:" << format;
+        qCWarning(lcNodeEditor) << "Unsupported audio format for waveform decoder:" << format;
         return;
     }
 
@@ -122,7 +123,7 @@ void XYSeriesIODevice::pollData(){
         }
 
         if(m_read_idx!=m_write_idx){
-            qDebug() << "Possible Issue R " << m_read_idx <<  "W " << m_write_idx;
+            qCDebug(lcNodeEditor) << "Possible Issue R " << m_read_idx <<  "W " << m_write_idx;
             m_read_idx=m_write_idx;
         }
 
@@ -156,7 +157,7 @@ qint64 XYSeriesIODevice::writeData(const char *data, qint64 max)
     }
 
     if(overrun) {
-        qDebug() << "Ring buffer overrun";
+        qCWarning(lcNodeEditor) << "Ring buffer overrun";
         m_read_idx = (m_write_idx-maxSize)&m_mask;
     }
     return static_cast<qint64>(maxSize);

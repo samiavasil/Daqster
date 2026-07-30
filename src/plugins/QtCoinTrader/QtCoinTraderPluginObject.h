@@ -3,8 +3,7 @@
 #include "QBasePluginObject.h"
 class QMainWindow;
 
-using namespace Daqster;
-class QtCoinTraderPluginObject: public QBasePluginObject{
+class QtCoinTraderPluginObject: public Daqster::QBasePluginObject{
     Q_OBJECT
 public:
     QtCoinTraderPluginObject(QObject* Parent = NULL);

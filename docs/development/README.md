@@ -1,6 +1,6 @@
 # Development Topics
 
-Родител: [Documentation Index](../index.md)
+Родител: [Documentation Index](../INDEX.md)
 
 Тук са събрани материалите за разработка, contributor workflow и дебъг.
 

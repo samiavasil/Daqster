@@ -5,7 +5,7 @@
 #include <QtNodes/NodeDelegateModel>
 #include <QComboBox>
 #include <memory>
-#include "NumericType.h"
+#include "NodeDataTypes/NumericType.h"
 
 class ModuloModel : public QtNodes::NodeDelegateModel
 {

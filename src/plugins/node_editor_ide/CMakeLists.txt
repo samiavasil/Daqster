@@ -11,58 +11,79 @@ set(CMAKE_AUTORCC ON)
 # Shared Library: NodeEditorLibrary
 # Extracted so both NodeEditorIde and DemoNodeEditorNodes plugins
 # can link against it without cross-plugin symbol resolution issues.
+# Conditional on required Qt modules being available.
 # ══════════════════════════════════════════════════════════════════════
 
-set(LIB_SOURCES
-    BuiltInNodes/Library/types/GenericNumericTypes.h
-    BuiltInNodes/Library/types/GenericNumericTypes.cpp
-    BuiltInNodes/Library/types/IStreamDecoder.h
-    BuiltInNodes/Library/types/QDevIOStreamConfig.h
-    BuiltInNodes/Library/types/StreamChannel.h
-    BuiltInNodes/Library/types/NumericType.h
-    BuiltInNodes/Library/types/ChatGraphModel.h
-    BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.h
-    BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.cpp
-    BuiltInNodes/Library/connectors/GenericQDevIoConnector.h
-    BuiltInNodes/Library/connectors/GenericQDevIoConnector.cpp
-    BuiltInNodes/Library/decoders/AudioFrameDecoder.h
-    BuiltInNodes/Library/decoders/AudioFrameDecoder.cpp
-    BuiltInNodes/Library/display/QDevIoDisplayModel.h
-    BuiltInNodes/Library/display/QDevIoDisplayModel.cpp
-    BuiltInNodes/Library/display/QDevioDisplayModelUi.h
-    BuiltInNodes/Library/display/QDevioDisplayModelUi.cpp
-    BuiltInNodes/Library/display/QDevioDisplayModelUi.ui
-    BuiltInNodes/Library/display/XYSeriesIODevice.h
-    BuiltInNodes/Library/display/XYSeriesIODevice.cpp
-    BuiltInNodes/Library/display/AudioCompat.h
-    BuiltInNodes/Library/display/QtChartsCompat.h
-    BuiltInNodes/Library/threading/EventThreadPull.h
-    BuiltInNodes/Library/threading/EventThreadPull.cpp
+register_component(NodeEditorLibrary
+    REQUIRES_LIBRARIES
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Gui
+        Qt${QT_VERSION_MAJOR}::Multimedia
+        Qt${QT_VERSION_MAJOR}::Charts
+        QtNodes
+        frame_work
 )
 
-add_library(NodeEditorLibrary SHARED ${LIB_SOURCES})
+get_property(NODE_EDITOR_LIB_ENABLED GLOBAL PROPERTY COMPONENT_NodeEditorLibrary_ENABLED)
 
-target_include_directories(NodeEditorLibrary PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
-    ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/connectors
-    ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/decoders
-    ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/display
-    ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/threading
-    ${DAQSTER_SOURCE_DIR}/src/plugins/capabilities
-)
+if(NODE_EDITOR_LIB_ENABLED)
+    set(LIB_SOURCES
+        BuiltInNodes/Library/types/GenericNumericTypes.h
+        BuiltInNodes/Library/types/GenericNumericTypes.cpp
+        BuiltInNodes/Library/types/IStreamDecoder.h
+        BuiltInNodes/Library/types/QDevIOStreamConfig.h
+        BuiltInNodes/Library/types/StreamChannel.h
+        BuiltInNodes/Library/types/ChatGraphModel.h
+        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.h
+        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.cpp
+        BuiltInNodes/Library/connectors/GenericQDevIoConnector.h
+        BuiltInNodes/Library/connectors/GenericQDevIoConnector.cpp
+        BuiltInNodes/Library/decoders/AudioFrameDecoder.h
+        BuiltInNodes/Library/decoders/AudioFrameDecoder.cpp
+        BuiltInNodes/Library/display/QDevIoDisplayModel.h
+        BuiltInNodes/Library/display/QDevIoDisplayModel.cpp
+        BuiltInNodes/Library/display/QDevioDisplayModelUi.h
+        BuiltInNodes/Library/display/QDevioDisplayModelUi.cpp
+        BuiltInNodes/Library/display/QDevioDisplayModelUi.ui
+        BuiltInNodes/Library/display/XYSeriesIODevice.h
+        BuiltInNodes/Library/display/XYSeriesIODevice.cpp
+        BuiltInNodes/Library/display/AudioCompat.h
+        BuiltInNodes/Library/display/QtChartsCompat.h
+        BuiltInNodes/Library/threading/EventThreadPull.h
+        BuiltInNodes/Library/threading/EventThreadPull.cpp
+    )
 
-target_link_libraries(NodeEditorLibrary PUBLIC
-    Qt${QT_VERSION_MAJOR}::Core
-    Qt${QT_VERSION_MAJOR}::Gui
-    Qt${QT_VERSION_MAJOR}::Multimedia
-    Qt${QT_VERSION_MAJOR}::Charts
-    Qt${QT_VERSION_MAJOR}::OpenGL
-    QtNodes
-)
+    add_library(NodeEditorLibrary SHARED ${LIB_SOURCES})
 
-set_target_properties(NodeEditorLibrary PROPERTIES
-    OUTPUT_NAME "NodeEditorLibrary"
-)
+    target_include_directories(NodeEditorLibrary PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/connectors
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/decoders
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/display
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/threading
+        ${DAQSTER_SOURCE_DIR}/src/plugins/capabilities
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+    )
+
+    link_component_dependencies(NodeEditorLibrary)
+
+    # QtOpenGL is optional — link if available
+    if(TARGET Qt${QT_VERSION_MAJOR}::OpenGL)
+        target_link_libraries(NodeEditorLibrary PUBLIC Qt${QT_VERSION_MAJOR}::OpenGL)
+    endif()
+
+    set_target_properties(NodeEditorLibrary PROPERTIES
+        OUTPUT_NAME "NodeEditorLibrary"
+    )
+
+    message(STATUS "Created internal library: NodeEditorLibrary")
+else()
+    get_property(REASONS GLOBAL PROPERTY COMPONENT_NodeEditorLibrary_REASONS)
+    message(STATUS "Skipping library NodeEditorLibrary - dependencies not met:")
+    foreach(REASON ${REASONS})
+        message(STATUS "  - ${REASON}")
+    endforeach()
+endif()
 
 # ══════════════════════════════════════════════════════════════════════
 # Plugin: NodeEditorIde (IDE shell + built-in nodes)
@@ -122,6 +143,7 @@ create_plugin(NodeEditorIde
         frame_work
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${DAQSTER_SOURCE_DIR}/src/common
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Sources/NumberSource
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Displays/NumberDisplay
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/Modulo

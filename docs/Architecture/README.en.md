@@ -2,7 +2,7 @@
 
 [Български](./README.md) | [English](./README.en.md)
 
-Parent: [Documentation Index](../index.en.md)
+Parent: [Documentation Index](../INDEX.en.md)
 
 ## Architecture Hub
 
@@ -58,7 +58,7 @@ The main application that provides user interface and manages plugin launching.
 ### 2.3. Plugin System (`src/plugins`)
 Examples of plugins that demonstrate the framework's capabilities.
 
-*   **`node_editor_widget/`**:
+*   **`node_editor_ide/`**:
     *   Shared GUI component for node-based editors (SHARED library, not a plugin).
     *   Uses the `nodeeditor` external library (`QtNodes` target).
     *   Provides `NodeEditorWidget` and `ChatGraphModel`.
@@ -80,13 +80,13 @@ External libraries integrated as git submodules under the plugins directory.
 *   **`nodeeditor`**:
     *   Library for creating graphical node editors.
     *   Produces the `QtNodes` target (pinned at commit `4709573`).
-    *   Used by the `NodeEditorWidget` and `NodeEditorApp`.
+    *   Used by the `NodeEditorWidget` and `NodeEditorIde`.
 *   **`qtrest_lib`**:
     *   Library for REST API communication.
     *   Can be used by plugins that require HTTP requests.
 
 ### 2.5. NodeEditorWidget (Shared GUI Component)
-**Location:** `src/plugins/libs/node_editor_widget/`
+**Location:** `src/plugins/libs/node_editor_ide/`
 
 A shared SHARED library providing a ready-made Qt Widgets GUI for node-based editors. Any Daqster-based GUI node application should use this component instead of building GUI from scratch.
 
