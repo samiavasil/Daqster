@@ -21,9 +21,16 @@ PluginDiscovery::~PluginDiscovery()
 
 void PluginDiscovery::addSearchPath(const QString& directory)
 {
-    if (!m_searchPaths.contains(directory)) {
-        m_searchPaths.append(directory);
+    if (m_searchPaths.contains(directory))
+        return;
+
+    QDir dir(directory);
+    if (!dir.exists()) {
+        qCDebug(lcFramework) << "PluginDiscovery: skipping non-existent search path:" << directory;
+        return;
     }
+
+    m_searchPaths.append(dir.absolutePath());
 }
 
 QList<QString> PluginDiscovery::searchPaths() const
