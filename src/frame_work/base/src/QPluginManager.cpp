@@ -71,8 +71,8 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     // Plugin directories — ordered by priority
     
     // 1. Build directory (highest priority for debug)
-    m_discovery->addSearchPath( qApp->applicationDirPath() );
-    m_discovery->addSearchPath( qApp->applicationDirPath()+QString("/plugins") );
+    m_discovery->addSearchPath(QDir(qApp->applicationDirPath()).absolutePath());
+    m_discovery->addSearchPath(QDir(qApp->applicationDirPath()+"/plugins").absolutePath());
     m_discovery->addSearchPath(QDir(qApp->applicationDirPath()+"/../lib/daqster/plugins").absolutePath());
     
     // 2. Environment variable override
