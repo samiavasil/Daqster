@@ -15,6 +15,15 @@ find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Network Qml REQUIRED)
 set(QT_PREFIX Qt${QT_VERSION_MAJOR})
 message(STATUS "QtRest library: Qt${QT_VERSION_MAJOR} detected - using Qt${QT_VERSION_MAJOR} components")
 
+# Include GNUInstallDirs BEFORE the qtrest submodule so install paths
+# use CMAKE_INSTALL_LIBDIR/BINDIR (relative) instead of hardcoded prefix.
+include(GNUInstallDirs)
+
+# Override qtrest submodule's install variables to use relative paths
+# so cmake --install --prefix <dir> works correctly.
+set(QTREST_INSTALL_LIB_DIR ${CMAKE_INSTALL_LIBDIR} CACHE STRING "qtrest lib install dir")
+set(QTREST_INSTALL_BIN_DIR ${CMAKE_INSTALL_BINDIR} CACHE STRING "qtrest bin install dir")
+
 # Configure and include upstream qtrest build.
 set(BUILD_TYPE SHARED CACHE STRING "qtrest build type" FORCE)
 set(WITH_QML_SUPPORT 1 CACHE STRING "qtrest qml support" FORCE)
@@ -29,15 +38,6 @@ if(TARGET qtrest)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
 endif()
-
-include(GNUInstallDirs)
-
-# Unified install rule for the upstream qtrest runtime artifact.
-install(TARGETS qtrest
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
 
 set(CPP_LIB_WRAPPER_SOURCE_FILES
   qtrest_lib.cpp
@@ -79,8 +79,6 @@ set_target_properties(qtrest_lib
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
-
-include(GNUInstallDirs)
 
 install(TARGETS qtrest_lib
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
