@@ -89,11 +89,10 @@ create_plugin(DemoNodeEditorNodes
         frame_work
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${DAQSTER_SOURCE_DIR}/src/common
+        ${DAQSTER_SOURCE_DIR}/src/plugins/common
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/AudioSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/AudioDisplay
-        ${DAQSTER_SOURCE_DIR}/src/plugins/capabilities
 )
 
 # ── Output name must contain "plugin" substring ──────────────────────

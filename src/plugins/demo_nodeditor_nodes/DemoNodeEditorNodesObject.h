@@ -1,7 +1,7 @@
 #pragma once
 
 #include "QBasePluginObject.h"
-#include "INodeProvider.h"
+#include "capabilities/INodeProvider.h"
 #include <QtNodes/Definitions>
 
 class QMainWindow;

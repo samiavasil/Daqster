@@ -1,7 +1,7 @@
 #include "NodeEditorIdeObject.h"
 #include "NodeEditorWidget.h"
 #include "QPluginManager.h"
-#include "INodeProvider.h"
+#include "capabilities/INodeProvider.h"
 #include "debug.h"
 #include "LogCategories.h"
 

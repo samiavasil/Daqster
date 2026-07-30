@@ -61,7 +61,7 @@ if(NODE_EDITOR_LIB_ENABLED)
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/decoders
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/display
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/threading
-        ${DAQSTER_SOURCE_DIR}/src/plugins/capabilities
+        ${DAQSTER_SOURCE_DIR}/src/plugins/common
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
     )
 
@@ -143,12 +143,11 @@ create_plugin(NodeEditorIde
         frame_work
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${DAQSTER_SOURCE_DIR}/src/common
+        ${DAQSTER_SOURCE_DIR}/src/plugins/common
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Sources/NumberSource
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Displays/NumberDisplay
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/Modulo
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/ArithmeticLogic
-        ${DAQSTER_SOURCE_DIR}/src/plugins/capabilities
     COMPILE_DEFINITIONS
         NODE_EDITOR_SHARED
 )
