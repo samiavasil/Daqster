@@ -108,8 +108,7 @@ jobs:
           # Copy libraries
           cp -r stage-debug/lib/* Daqster-Debug.AppDir/usr/lib/
           
-          # Copy plugins to correct location
-          cp -r stage-debug/bin/plugins/* Daqster-Debug.AppDir/usr/lib/daqster/plugins/ || true
+          # Plugins already included in lib/* copy above (lib/daqster/plugins/)
           
           # Copy Qt libraries and modules from system
           cp -r /usr/lib/x86_64-linux-gnu/libQt5* Daqster-Debug.AppDir/usr/lib/ || true

@@ -76,6 +76,13 @@ if(NODE_EDITOR_LIB_ENABLED)
         OUTPUT_NAME "NodeEditorLibrary"
     )
 
+    # Install library (dependency for NodeEditorPluginIde)
+    install(TARGETS NodeEditorLibrary
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+
     message(STATUS "Created internal library: NodeEditorLibrary")
 else()
     get_property(REASONS GLOBAL PROPERTY COMPONENT_NodeEditorLibrary_REASONS)
