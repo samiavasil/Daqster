@@ -97,6 +97,16 @@ add_subdirectory(src/plugins/tests/template_plugin_daqster)
 # Apps - after plugins are processed (frame_work is built in plugins)
 add_subdirectory(src/apps/Daqster)
 
+# Unit tests - gated behind their own option (default OFF).
+# We intentionally do NOT set BUILD_TESTING / include(CTest) here: nodeeditor
+# defines its own BUILD_TESTING option and enabling it would pull in its
+# Catch2 dependency download.
+option(DAQSTER_BUILD_TESTS "Build unit tests" OFF)
+if(DAQSTER_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
 # Print final build configuration summary
 print_build_configuration_summary()
 
