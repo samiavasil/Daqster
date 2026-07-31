@@ -430,7 +430,7 @@ void RequirementsWidget::onAnchorClicked(const QUrl &link)
 {
     if (link.scheme() != QStringLiteral("req"))
         return;
-    navigateToId(link.host());
+    navigateToId(link.path());
 }
 
 void RequirementsWidget::onViewModeChanged(int index)
@@ -468,7 +468,7 @@ void RequirementsWidget::showPreview()
 
 QString RequirementsWidget::linkFor(const QString &id) const
 {
-    return QStringLiteral("<a href=\"req://%1\">%1</a>").arg(id);
+    return QStringLiteral("<a href=\"req:%1\">%1</a>").arg(id);
 }
 
 void RequirementsWidget::updatePreviewText(const Requirement &req)
