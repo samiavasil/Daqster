@@ -2,6 +2,9 @@
 
 #include "RequirementsModel.h"
 #include "RequirementsParser.h"
+#include "NewRequirementDialog.h"
+#include "ValidationDialog.h"
+#include "HelpDialog.h"
 #include "LogCategories.h"
 
 #include <QTreeView>
@@ -17,6 +20,9 @@
 #include <QMessageBox>
 #include <QItemSelectionModel>
 #include <QListWidgetItem>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QColor>
 
 namespace Daqster {
 
@@ -26,6 +32,10 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
 {
     m_model = new RequirementsModel(this);
 
+    m_viewModeCombo = new QComboBox(this);
+    m_viewModeCombo->addItem(tr("By Section"));
+    m_viewModeCombo->addItem(tr("By Hierarchy"));
+
     m_treeView = new QTreeView(this);
     m_treeView->setModel(m_model);
     m_treeView->setRootIsDecorated(true);
@@ -33,34 +43,64 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
 
     m_preview = new QTextBrowser(this);
     m_preview->setReadOnly(true);
+    m_preview->setOpenLinks(false); // handle navigation ourselves
 
     m_editor = new QPlainTextEdit(this);
     m_editor->setVisible(false);
 
     m_fileLabel = new QLabel(this);
+    m_validationLabel = new QLabel(this);
+    m_validationLabel->setTextFormat(Qt::RichText);
+    m_validationLabel->setTextInteractionFlags(Qt::LinksAccessibleByMouse
+                                               | Qt::LinksAccessibleByKeyboard);
+    m_validationLabel->setVisible(false);
 
     m_editButton = new QPushButton(tr("Edit"), this);
     m_saveButton = new QPushButton(tr("Save"), this);
     m_cancelButton = new QPushButton(tr("Cancel"), this);
     m_browseButton = new QPushButton(tr("Open requirements folder..."), this);
+    m_newButton = new QPushButton(tr("New Requirement..."), this);
+    m_doneButton = new QPushButton(tr("Mark Done & Archive"), this);
+    m_reopenButton = new QPushButton(tr("Reopen"), this);
+    m_depsButton = new QPushButton(tr("Edit deps..."), this);
+    m_validateButton = new QPushButton(tr("Validate"), this);
+    m_helpButton = new QPushButton(tr("Help / Format"), this);
 
     m_saveButton->setEnabled(false);
     m_cancelButton->setEnabled(false);
+    m_doneButton->setEnabled(false);
+    m_reopenButton->setEnabled(false);
+    m_depsButton->setEnabled(false);
+    m_editButton->setEnabled(false);
 
     m_criteriaList = new QListWidget(this);
     m_criteriaList->setVisible(false);
 
+    QVBoxLayout *treeLayout = new QVBoxLayout;
+    treeLayout->addWidget(m_viewModeCombo);
+    treeLayout->addWidget(m_treeView);
+
+    QWidget *treePanel = new QWidget(this);
+    treePanel->setLayout(treeLayout);
+
     QVBoxLayout *fileLayout = new QVBoxLayout;
     fileLayout->addWidget(m_fileLabel);
 
-    QHBoxLayout *buttonLayout = new QHBoxLayout;
-    buttonLayout->addWidget(m_editButton);
-    buttonLayout->addWidget(m_saveButton);
-    buttonLayout->addWidget(m_cancelButton);
-    buttonLayout->addStretch();
-    buttonLayout->addWidget(m_browseButton);
-    fileLayout->addLayout(buttonLayout);
+    QHBoxLayout *actionLayout = new QHBoxLayout;
+    actionLayout->addWidget(m_newButton);
+    actionLayout->addWidget(m_editButton);
+    actionLayout->addWidget(m_saveButton);
+    actionLayout->addWidget(m_cancelButton);
+    actionLayout->addWidget(m_depsButton);
+    actionLayout->addWidget(m_doneButton);
+    actionLayout->addWidget(m_reopenButton);
+    actionLayout->addWidget(m_validateButton);
+    actionLayout->addWidget(m_helpButton);
+    actionLayout->addStretch();
+    actionLayout->addWidget(m_browseButton);
+    fileLayout->addLayout(actionLayout);
 
+    fileLayout->addWidget(m_validationLabel);
     fileLayout->addWidget(m_preview);
     fileLayout->addWidget(m_editor);
     fileLayout->addWidget(m_criteriaList);
@@ -69,7 +109,7 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     detailsPanel->setLayout(fileLayout);
 
     m_splitter = new QSplitter(this);
-    m_splitter->addWidget(m_treeView);
+    m_splitter->addWidget(treePanel);
     m_splitter->addWidget(detailsPanel);
     m_splitter->setStretchFactor(0, 1);
     m_splitter->setStretchFactor(1, 3);
@@ -86,6 +126,18 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     connect(m_saveButton, &QPushButton::clicked, this, &RequirementsWidget::onSave);
     connect(m_cancelButton, &QPushButton::clicked, this, &RequirementsWidget::onCancel);
     connect(m_browseButton, &QPushButton::clicked, this, &RequirementsWidget::onBrowseDirectory);
+    connect(m_newButton, &QPushButton::clicked, this, &RequirementsWidget::onNewRequirement);
+    connect(m_doneButton, &QPushButton::clicked, this, &RequirementsWidget::onMarkDoneAndArchive);
+    connect(m_reopenButton, &QPushButton::clicked, this, &RequirementsWidget::onReopen);
+    connect(m_depsButton, &QPushButton::clicked, this, &RequirementsWidget::onEditDependencies);
+    connect(m_validateButton, &QPushButton::clicked, this, &RequirementsWidget::onValidate);
+    connect(m_helpButton, &QPushButton::clicked, this, &RequirementsWidget::onShowHelp);
+    connect(m_preview, &QTextBrowser::anchorClicked,
+            this, &RequirementsWidget::onAnchorClicked);
+    connect(m_validationLabel, &QLabel::linkActivated,
+            this, [this](const QString &) { onValidate(); });
+    connect(m_viewModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &RequirementsWidget::onViewModeChanged);
     connect(m_criteriaList, &QListWidget::itemChanged, this, [this](QListWidgetItem *item) {
         const int index = item->data(Qt::UserRole).toInt();
         onCriterionToggled(index, item->checkState() == Qt::Checked);
@@ -98,6 +150,7 @@ void RequirementsWidget::openDirectory(const QString &baseDir)
 {
     m_baseDir = baseDir;
     reload();
+    qCInfo(lcFramework) << "RequirementsManager: opened requirements directory" << m_baseDir;
 }
 
 QString RequirementsWidget::baseDirectory() const
@@ -115,6 +168,10 @@ void RequirementsWidget::reload()
     m_fileLabel->clear();
     m_criteriaList->clear();
     m_treeView->expandAll();
+
+    m_validationIssues = RequirementsValidator::validate(m_requirements);
+    updateValidationStatus();
+    refreshActionState();
 }
 
 void RequirementsWidget::onSelectionChanged()
@@ -127,6 +184,7 @@ void RequirementsWidget::onSelectionChanged()
         m_editor->clear();
         m_fileLabel->clear();
         m_criteriaList->clear();
+        refreshActionState();
         return;
     }
 
@@ -141,6 +199,7 @@ void RequirementsWidget::onSelectionChanged()
         m_editor->setPlainText(m_requirements.at(m_currentIndex).rawContent);
     }
     showPreview();
+    refreshActionState();
 }
 
 void RequirementsWidget::onEditToggled(bool edit)
@@ -211,6 +270,178 @@ void RequirementsWidget::onBrowseDirectory()
     openDirectory(dir);
 }
 
+void RequirementsWidget::onNewRequirement()
+{
+    NewRequirementDialog dialog(m_baseDir, this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    const QString createdPath = dialog.createdFilePath();
+    reload();
+    for (const Requirement &req : m_requirements) {
+        if (req.filePath == createdPath) {
+            navigateToId(req.id);
+            break;
+        }
+    }
+}
+
+void RequirementsWidget::onMarkDoneAndArchive()
+{
+    if (m_currentIndex < 0)
+        return;
+
+    Requirement &req = m_requirements[m_currentIndex];
+    if (req.section != QStringLiteral("active"))
+        return;
+
+    QStringList unfinished;
+    for (const QString &dep : req.dependencies) {
+        const Requirement *target = nullptr;
+        for (const Requirement &candidate : m_requirements) {
+            if (candidate.id == dep) {
+                target = &candidate;
+                break;
+            }
+        }
+        if (!target) {
+            unfinished.append(QStringLiteral("%1 (missing)").arg(dep));
+        } else if (target->status != QStringLiteral("DONE")) {
+            unfinished.append(QStringLiteral("%1 (%2)").arg(dep, target->status));
+        }
+    }
+
+    if (!unfinished.isEmpty()) {
+        QMessageBox::warning(
+            this, tr("Cannot Archive"),
+            tr("Requirement %1 has unfinished dependencies:\n%2\n\n"
+               "Finish or resolve them before archiving.")
+                .arg(req.id, unfinished.join(QStringLiteral("\n"))));
+        return;
+    }
+
+    RequirementsParser::setStatusLine(req, QStringLiteral("DONE"));
+    if (!RequirementsParser::writeRequirement(req)) {
+        QMessageBox::warning(this, tr("Requirements"),
+                             tr("Failed to write requirement file:\n%1").arg(req.filePath));
+        return;
+    }
+    if (!RequirementsParser::moveToArchive(req.filePath)) {
+        QMessageBox::warning(this, tr("Requirements"),
+                             tr("Failed to move file to archive:\n%1").arg(req.filePath));
+        return;
+    }
+    reload();
+}
+
+void RequirementsWidget::onReopen()
+{
+    if (m_currentIndex < 0)
+        return;
+
+    Requirement &req = m_requirements[m_currentIndex];
+    if (req.section != QStringLiteral("archive"))
+        return;
+
+    RequirementsParser::setStatusLine(req, QStringLiteral("ACTIVE"));
+    if (!RequirementsParser::writeRequirement(req)) {
+        QMessageBox::warning(this, tr("Requirements"),
+                             tr("Failed to write requirement file:\n%1").arg(req.filePath));
+        return;
+    }
+    if (!RequirementsParser::moveToActive(req.filePath)) {
+        QMessageBox::warning(this, tr("Requirements"),
+                             tr("Failed to move file to active:\n%1").arg(req.filePath));
+        return;
+    }
+    reload();
+}
+
+void RequirementsWidget::onEditDependencies()
+{
+    if (m_currentIndex < 0)
+        return;
+
+    const Requirement &req = m_requirements.at(m_currentIndex);
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Edit dependencies — %1").arg(req.id));
+    dialog.resize(460, 380);
+
+    QListWidget *list = new QListWidget(&dialog);
+    for (const Requirement &other : m_requirements) {
+        if (other.id == req.id)
+            continue;
+        QListWidgetItem *item = new QListWidgetItem(
+            QStringLiteral("%1  %2").arg(other.id, other.title), list);
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        item->setCheckState(req.dependencies.contains(other.id)
+                                ? Qt::Checked
+                                : Qt::Unchecked);
+        item->setData(Qt::UserRole, other.id);
+    }
+
+    QDialogButtonBox *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    buttons->button(QDialogButtonBox::Save)->setText(tr("Save"));
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    QVBoxLayout *layout = new QVBoxLayout(&dialog);
+    layout->addWidget(list);
+    layout->addWidget(buttons);
+    dialog.setLayout(layout);
+
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    QStringList dependencies;
+    for (int i = 0; i < list->count(); ++i) {
+        QListWidgetItem *item = list->item(i);
+        if (item->checkState() == Qt::Checked)
+            dependencies.append(item->data(Qt::UserRole).toString());
+    }
+
+    Requirement &mut = m_requirements[m_currentIndex];
+    RequirementsParser::setDependenciesLine(mut, dependencies);
+    if (!RequirementsParser::writeRequirement(mut)) {
+        QMessageBox::warning(this, tr("Requirements"),
+                             tr("Failed to write requirement file:\n%1").arg(mut.filePath));
+        return;
+    }
+    reload();
+}
+
+void RequirementsWidget::onValidate()
+{
+    ValidationDialog dialog(m_validationIssues, this);
+    connect(&dialog, &ValidationDialog::navigateRequested,
+            this, &RequirementsWidget::navigateToId);
+    dialog.exec();
+}
+
+void RequirementsWidget::onShowHelp()
+{
+    HelpDialog dialog(this);
+    dialog.exec();
+}
+
+void RequirementsWidget::onAnchorClicked(const QUrl &link)
+{
+    if (link.scheme() != QStringLiteral("req"))
+        return;
+    navigateToId(link.host());
+}
+
+void RequirementsWidget::onViewModeChanged(int index)
+{
+    const RequirementsModel::ViewMode mode =
+        (index == 1) ? RequirementsModel::ViewMode::Hierarchy
+                     : RequirementsModel::ViewMode::Sections;
+    m_model->setViewMode(mode);
+    m_treeView->expandAll();
+}
+
 void RequirementsWidget::showPreview()
 {
     m_editor->setVisible(false);
@@ -235,16 +466,129 @@ void RequirementsWidget::showPreview()
     m_criteriaList->blockSignals(false);
 }
 
+QString RequirementsWidget::linkFor(const QString &id) const
+{
+    return QStringLiteral("<a href=\"req://%1\">%1</a>").arg(id);
+}
+
 void RequirementsWidget::updatePreviewText(const Requirement &req)
 {
     QString text;
     text += QStringLiteral("<h2>%1: %2</h2>").arg(req.id.toHtmlEscaped(), req.title.toHtmlEscaped());
-    text += QStringLiteral("<p><b>Status:</b> %1 &nbsp; <b>Priority:</b> %2 &nbsp; <b>Assignee:</b> %3</p>")
-                .arg(req.status.toHtmlEscaped(), req.priority.toHtmlEscaped(), req.assignee.toHtmlEscaped());
+    text += QStringLiteral("<p><b>Status:</b> %1 &nbsp; <b>Priority:</b> %2 &nbsp; <b>Assignee:</b> %3 &nbsp; <b>Date:</b> %4</p>")
+                .arg(req.status.toHtmlEscaped(), req.priority.toHtmlEscaped(),
+                     req.assignee.toHtmlEscaped(), req.date.toHtmlEscaped());
+
+    // Relationship axes: Родител / Деца / Зависи от / Зависими от
+    text += QStringLiteral("<p><b>Родител:</b> ");
+    if (req.parentId.trimmed().isEmpty())
+        text += QStringLiteral("—");
+    else
+        text += linkFor(req.parentId);
+    text += QStringLiteral("</p>");
+
+    QStringList childrenIds;
+    for (const Requirement &other : m_requirements) {
+        if (other.parentId == req.id)
+            childrenIds.append(other.id);
+    }
+    text += QStringLiteral("<p><b>Деца:</b> ");
+    if (childrenIds.isEmpty())
+        text += QStringLiteral("—");
+    else {
+        QStringList links;
+        for (const QString &child : childrenIds)
+            links.append(linkFor(child));
+        text += links.join(QStringLiteral(", "));
+    }
+    text += QStringLiteral("</p>");
+
+    text += QStringLiteral("<p><b>Зависи от:</b> ");
+    if (req.dependencies.isEmpty())
+        text += QStringLiteral("—");
+    else {
+        QStringList links;
+        for (const QString &dep : req.dependencies)
+            links.append(linkFor(dep));
+        text += links.join(QStringLiteral(", "));
+    }
+    text += QStringLiteral("</p>");
+
+    QStringList reverseIds;
+    for (const Requirement &other : m_requirements) {
+        if (other.dependencies.contains(req.id))
+            reverseIds.append(other.id);
+    }
+    text += QStringLiteral("<p><b>Зависими от:</b> ");
+    if (reverseIds.isEmpty())
+        text += QStringLiteral("—");
+    else {
+        QStringList links;
+        for (const QString &other : reverseIds)
+            links.append(linkFor(other));
+        text += links.join(QStringLiteral(", "));
+    }
+    text += QStringLiteral("</p>");
+
+    text += QStringLiteral("<h3>Описание</h3>");
     text += QStringLiteral("<p>%1</p>").arg(req.description.toHtmlEscaped().replace(QStringLiteral("\n"),
                                                                                     QStringLiteral("<br/>")));
 
     m_preview->setHtml(text);
+}
+
+void RequirementsWidget::navigateToId(const QString &id)
+{
+    const QModelIndex index = m_model->indexForId(id);
+    if (!index.isValid()) {
+        QMessageBox::information(this, tr("Requirements"),
+                                 tr("Requirement '%1' not found in the current view.").arg(id));
+        return;
+    }
+    m_treeView->expandAll();
+    m_treeView->scrollTo(index);
+    m_treeView->setCurrentIndex(index);
+    m_treeView->selectionModel()->select(
+        index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+}
+
+void RequirementsWidget::updateValidationStatus()
+{
+    const int errors = RequirementsValidator::countSeverity(
+        m_validationIssues, RequirementsValidator::Severity::Error);
+    const int warnings = RequirementsValidator::countSeverity(
+        m_validationIssues, RequirementsValidator::Severity::Warning);
+
+    QString text;
+    if (errors == 0 && warnings == 0) {
+        text = QStringLiteral("<span style=\"color:green;\">&#10003; Validation: OK</span>");
+    } else if (errors == 0) {
+        text = QStringLiteral("<span style=\"color:#C07A00;\">Validation: %1 warning(s)"
+                              " &mdash; <a href=\"validate\">view report</a></span>")
+                   .arg(warnings);
+    } else {
+        text = QStringLiteral("<span style=\"color:red;\">Validation: %1 error(s), %2 warning(s)"
+                              " &mdash; <a href=\"validate\">view report</a></span>")
+                   .arg(errors)
+                   .arg(warnings);
+    }
+    m_validationLabel->setText(text);
+    m_validationLabel->setVisible(true);
+}
+
+void RequirementsWidget::refreshActionState()
+{
+    const bool valid = m_currentIndex >= 0
+                       && m_currentIndex < m_requirements.size();
+    const bool active = valid && m_requirements.at(m_currentIndex).section
+                                       == QStringLiteral("active");
+    const bool archived = valid && m_requirements.at(m_currentIndex).section
+                                       == QStringLiteral("archive");
+
+    m_editButton->setEnabled(valid);
+    m_depsButton->setEnabled(valid);
+    m_doneButton->setEnabled(active);
+    m_reopenButton->setEnabled(archived);
 }
 
 } // namespace Daqster

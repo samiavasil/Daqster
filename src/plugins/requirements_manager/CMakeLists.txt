@@ -17,6 +17,14 @@ set(PLUGIN_SOURCES
     RequirementsModel.h
     RequirementsWidget.cpp
     RequirementsWidget.h
+    RequirementsValidator.cpp
+    RequirementsValidator.h
+    NewRequirementDialog.cpp
+    NewRequirementDialog.h
+    ValidationDialog.cpp
+    ValidationDialog.h
+    HelpDialog.cpp
+    HelpDialog.h
 )
 
 create_plugin(RequirementsManager
