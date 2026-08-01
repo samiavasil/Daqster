@@ -1,13 +1,14 @@
 # Unit tests for the Requirements Manager plugin logic.
 #
 # The plugin logic under test (RequirementsParser/RequirementsModel/
-# RequirementsValidator) is compiled directly into the test binary instead of
-# linking the plugin .so - the model classes are QtCore-only, so the tests run
-# headless (no QApplication, no GUI).
+# RequirementsValidator/DependencyGraphData) is compiled directly into the test
+# binary instead of linking the plugin .so - the model classes are QtCore-only,
+# so the tests run headless (no QApplication, no GUI).
 #
-# The three test classes (TestParser/TestModel/TestValidator) are declared in
-# headers and share a single binary whose main() lives in test_main.cpp. Each
-# class is run through QTest::qExec there, mirroring QTEST_GUILESS_MAIN.
+# The four test classes (TestParser/TestModel/TestValidator/TestGraph) are
+# declared in headers and share a single binary whose main() lives in
+# test_main.cpp. Each class is run through QTest::qExec there, mirroring
+# QTEST_GUILESS_MAIN.
 
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Test REQUIRED)
 
@@ -21,13 +22,16 @@ set(TEST_SOURCES
     test_parser.cpp
     test_model.cpp
     test_validator.cpp
+    test_graph.cpp
     test_parser.h
     test_model.h
     test_validator.h
+    test_graph.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsValidator.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphData.cpp
 )
 
 add_executable(requirements_manager_tests ${TEST_SOURCES})

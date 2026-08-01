@@ -2,6 +2,7 @@
 
 #include "RequirementsModel.h"
 #include "RequirementsParser.h"
+#include "DependencyGraphWidget.h"
 #include "NewRequirementDialog.h"
 #include "ValidationDialog.h"
 #include "HelpDialog.h"
@@ -14,6 +15,7 @@
 #include <QPushButton>
 #include <QListWidget>
 #include <QSplitter>
+#include <QTabWidget>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFileDialog>
@@ -115,8 +117,14 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_splitter->setStretchFactor(1, 3);
     m_splitter->setChildrenCollapsible(false);
 
+    m_graphWidget = new DependencyGraphWidget(this);
+
+    m_tabs = new QTabWidget(this);
+    m_tabs->addTab(m_splitter, tr("Requirements"));
+    m_tabs->addTab(m_graphWidget, tr("Dependency Graph"));
+
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->addWidget(m_splitter);
+    mainLayout->addWidget(m_tabs);
     setLayout(mainLayout);
 
     connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged,
@@ -138,6 +146,8 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
             this, [this](const QString &) { onValidate(); });
     connect(m_viewModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &RequirementsWidget::onViewModeChanged);
+    connect(m_graphWidget, &DependencyGraphWidget::navigateRequested,
+            this, &RequirementsWidget::onGraphNavigateRequested);
     connect(m_criteriaList, &QListWidget::itemChanged, this, [this](QListWidgetItem *item) {
         const int index = item->data(Qt::UserRole).toInt();
         onCriterionToggled(index, item->checkState() == Qt::Checked);
@@ -170,6 +180,7 @@ void RequirementsWidget::reload()
     m_treeView->expandAll();
 
     m_validationIssues = RequirementsValidator::validate(m_requirements);
+    m_graphWidget->setRequirements(m_requirements, m_validationIssues);
     updateValidationStatus();
     refreshActionState();
 }
@@ -440,6 +451,13 @@ void RequirementsWidget::onViewModeChanged(int index)
                      : RequirementsModel::ViewMode::Sections;
     m_model->setViewMode(mode);
     m_treeView->expandAll();
+}
+
+void RequirementsWidget::onGraphNavigateRequested(const QString &id)
+{
+    // Jump back to the tree tab and select the requirement there.
+    m_tabs->setCurrentIndex(0);
+    navigateToId(id);
 }
 
 void RequirementsWidget::showPreview()

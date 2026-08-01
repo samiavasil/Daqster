@@ -19,6 +19,10 @@ set(PLUGIN_SOURCES
     RequirementsWidget.h
     RequirementsValidator.cpp
     RequirementsValidator.h
+    DependencyGraphData.cpp
+    DependencyGraphData.h
+    DependencyGraphWidget.cpp
+    DependencyGraphWidget.h
     NewRequirementDialog.cpp
     NewRequirementDialog.h
     ValidationDialog.cpp

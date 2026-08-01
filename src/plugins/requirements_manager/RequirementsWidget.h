@@ -13,11 +13,13 @@ class QPushButton;
 class QListWidget;
 class QSplitter;
 class QComboBox;
+class QTabWidget;
 class QUrl;
 
 namespace Daqster {
 
 class RequirementsModel;
+class DependencyGraphWidget;
 
 /**
  * @brief Requirements Viewer/Editor widget.
@@ -64,6 +66,7 @@ private slots:
     void onShowHelp();
     void onAnchorClicked(const QUrl &link);
     void onViewModeChanged(int index);
+    void onGraphNavigateRequested(const QString &id);
 
 private:
     void reload();
@@ -93,6 +96,8 @@ private:
     QPushButton *m_helpButton;
     QListWidget *m_criteriaList;
     QSplitter *m_splitter;
+    QTabWidget *m_tabs;
+    DependencyGraphWidget *m_graphWidget;
 
     QString m_baseDir;
     QVector<Requirement> m_requirements;
