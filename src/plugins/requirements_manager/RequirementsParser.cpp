@@ -15,10 +15,10 @@ QString sectionOf(const QString &baseDir, const QString &absolutePath)
 {
     const QString dir = QDir(baseDir).absolutePath();
     const QString sep = QDir::separator();
-    // baseDir may point at the repo root (contains requirements/) or at the
-    // requirements/ directory itself.
+    // baseDir may point at the repo root (contains DevelopmentProcess/
+    // requirements) or at the DevelopmentProcess/requirements/ directory itself.
     const QStringList candidates = {
-        dir + sep + QStringLiteral("requirements"),
+        dir + sep + QString::fromUtf8(kRequirementsSubdir),
         dir
     };
     for (const QString &candidate : candidates) {
@@ -188,7 +188,8 @@ QString RequirementsParser::generateNextId(const QString &baseDir, const QString
 
 QString RequirementsParser::activeDirectory(const QString &baseDir)
 {
-    const QString reqDir = QDir(baseDir).absoluteFilePath(QStringLiteral("requirements"));
+    const QString reqDir =
+        QDir(baseDir).absoluteFilePath(QString::fromUtf8(kRequirementsSubdir));
     if (QDir(reqDir).exists())
         return QDir(reqDir).filePath(QStringLiteral("active"));
     return QDir(baseDir).filePath(QStringLiteral("active"));
@@ -196,7 +197,8 @@ QString RequirementsParser::activeDirectory(const QString &baseDir)
 
 QString RequirementsParser::archiveDirectory(const QString &baseDir)
 {
-    const QString reqDir = QDir(baseDir).absoluteFilePath(QStringLiteral("requirements"));
+    const QString reqDir =
+        QDir(baseDir).absoluteFilePath(QString::fromUtf8(kRequirementsSubdir));
     if (QDir(reqDir).exists())
         return QDir(reqDir).filePath(QStringLiteral("archive"));
     return QDir(baseDir).filePath(QStringLiteral("archive"));

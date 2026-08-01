@@ -8,6 +8,11 @@
 
 namespace Daqster {
 
+// Subdirectory (relative to a repo root) that contains the requirements tree.
+// Formerly the top-level requirements/ dir; moved under DevelopmentProcess/ so
+// all process knowledge lives in one tracked, tool-agnostic directory.
+inline constexpr char kRequirementsSubdir[] = "DevelopmentProcess/requirements";
+
 /**
  * @brief Structured representation of a single Markdown requirement file.
  *
@@ -50,10 +55,10 @@ struct Requirement
  * @brief Parses requirement Markdown files from a base requirements directory.
  *
  * Expected layout:
- *   <baseDir>/requirements/README.md
- *   <baseDir>/requirements/traceability-matrix.md
- *   <baseDir>/requirements/active/*.md
- *   <baseDir>/requirements/archive/*.md
+ *   <baseDir>/DevelopmentProcess/requirements/README.md
+ *   <baseDir>/DevelopmentProcess/requirements/traceability-matrix.md
+ *   <baseDir>/DevelopmentProcess/requirements/active/*.md
+ *   <baseDir>/DevelopmentProcess/requirements/archive/*.md
  */
 class RequirementsParser
 {
@@ -106,15 +111,17 @@ public:
 
     /**
      * @brief Returns the "active" requirements directory for a base directory.
-     *        Accepts either the repo root (containing requirements/) or the
-     *        requirements/ directory itself.
+     *        Accepts either the repo root (containing DevelopmentProcess/
+     *        requirements) or the DevelopmentProcess/requirements/ directory
+     *        itself.
      */
     static QString activeDirectory(const QString &baseDir);
 
     /**
      * @brief Returns the "archive" requirements directory for a base directory.
-     *        Accepts either the repo root (containing requirements/) or the
-     *        requirements/ directory itself.
+     *        Accepts either the repo root (containing DevelopmentProcess/
+     *        requirements) or the DevelopmentProcess/requirements/ directory
+     *        itself.
      */
     static QString archiveDirectory(const QString &baseDir);
 

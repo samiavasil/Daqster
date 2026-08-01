@@ -16,7 +16,7 @@ QString documentationHtml()
 
 <h3>1. RDD (Requirements Driven Development) Process</h3>
 <p>Every change in the project starts as a <b>requirement</b> (REQ) stored as a
-Markdown file in <code>requirements/active/</code>. The multi-agent workflow is:</p>
+Markdown file in <code>DevelopmentProcess/requirements/active/</code>. The multi-agent workflow is:</p>
 <table border="1" cellspacing="0" cellpadding="4">
 <tr><th>Step</th><th>Role</th><th>Responsibility</th></tr>
 <tr><td>1</td><td>PM Agent</td><td>Defines the REQ + Acceptance Criteria</td></tr>
@@ -24,7 +24,7 @@ Markdown file in <code>requirements/active/</code>. The multi-agent workflow is:
 <tr><td>3</td><td>Implementation Agent</td><td>Codes and links the commit to the REQ ID</td></tr>
 <tr><td>4</td><td>QA Agent</td><td>Writes tests against the Acceptance Criteria and verifies</td></tr>
 </table>
-<p>Finished requirements are moved to <code>requirements/archive/</code> via
+<p>Finished requirements are moved to <code>DevelopmentProcess/requirements/archive/</code> via
 <b>Mark Done &amp; Archive</b>; archived ones can be reopened with <b>Reopen</b>.</p>
 
 <h3>2. Requirement File Template</h3>

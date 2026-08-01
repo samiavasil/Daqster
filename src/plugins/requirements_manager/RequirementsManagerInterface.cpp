@@ -13,8 +13,9 @@ RequirementsManagerInterface::RequirementsManagerInterface(QObject* parent)
     m_PluginDescriptor.SetProperty(PLUGIN_DESCRIPTION, "Requirements Viewer/Editor tool for Markdown-based traceable requirements.");
     char docstr[] =
         "Requirements Manager plugin.\n\n"
-        "Opens a requirements/ directory and provides a tree view of active and "
-        "archived requirements with a read-only preview and a raw Markdown editor.\n"
+        "Opens a DevelopmentProcess/requirements/ directory and provides a tree "
+        "view of active and archived requirements with a read-only preview and a "
+        "raw Markdown editor.\n"
         "Acceptance criteria checkboxes are written back to the .md files.";
     m_PluginDescriptor.SetProperty(PLUGIN_DETAIL_DESCRIPTION, QObject::tr(docstr));
     m_PluginDescriptor.SetProperty(PLUGIN_LICENSE, QObject::tr("GNU LGPL v2+"));

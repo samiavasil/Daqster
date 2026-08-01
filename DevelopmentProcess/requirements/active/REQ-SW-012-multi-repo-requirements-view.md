@@ -10,8 +10,8 @@
 ## Описание
 
 Requirements Manager трябва да приема **ДВЕ директории с изисквания** — публичната
-(`../daqster/requirements/` в публичното repo) и частната
-(`./requirements/` в DaqsterAiStudio) — и да представя **обединен (merged) изглед**:
+(`../daqster/DevelopmentProcess/requirements/` в публичното repo) и частната
+(`./DevelopmentProcess/requirements/` в DaqsterAiStudio) — и да представя **обединен (merged) изглед**:
 
 - Единно дърво/модел на изискванията с колона **"Repo"** (или секции, групирани по
   repo), указваща от коя директория идва всяко изискване.

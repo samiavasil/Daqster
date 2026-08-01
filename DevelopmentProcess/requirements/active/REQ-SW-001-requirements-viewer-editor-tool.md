@@ -9,7 +9,7 @@
 
 ## Описание
 
-Общ GUI инструмент, реализиран като **отделен application plugin** в Daqster (`src/plugins/requirements_manager/`), който визуализира и редактира Markdown-базирани trackable requirements от `requirements/` директории. Инструментът е независим от конкретен repository и позволява избор на работна директория.
+Общ GUI инструмент, реализиран като **отделен application plugin** в Daqster (`src/plugins/requirements_manager/`), който визуализира и редактира Markdown-базирани trackable requirements от `DevelopmentProcess/requirements/` директории. Инструментът е независим от конкретен repository и позволява избор на работна директория.
 
 ## Acceptance Criteria
 

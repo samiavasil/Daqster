@@ -130,8 +130,8 @@ void TestParser::parseDirectory_fullMetadata()
     QVERIFY(temp.isValid());
     const QString baseDir = temp.path();
 
-    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("requirements/active"));
-    const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("requirements/archive"));
+    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/archive"));
 
     writeFixture(activeDir, QStringLiteral("REQ-SW-001-requirements-viewer-editor-tool.md"),
                  fullMetadataContent());
@@ -178,7 +178,7 @@ void TestParser::parseDirectory_minimalAndDashFields()
     QTemporaryDir temp;
     QVERIFY(temp.isValid());
     const QString baseDir = temp.path();
-    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("requirements/active"));
+    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
 
     writeFixture(activeDir, QStringLiteral("REQ-SW-003-minimal.md"), minimalContent());
 
@@ -205,7 +205,7 @@ void TestParser::parseDirectory_emptyDir()
 {
     // Non-existent directory -> empty result, no crash.
     const QVector<Requirement> none = RequirementsParser::parseDirectory(
-        QStringLiteral("/nonexistent/definitely/missing/requirements"));
+        QStringLiteral("/nonexistent/definitely/missing/DevelopmentProcess/requirements"));
     QVERIFY(none.isEmpty());
 
     // Existing but empty directory -> empty result, no crash.
@@ -227,8 +227,8 @@ void TestParser::generateNextId_scansActiveAndArchive()
     QTemporaryDir temp;
     QVERIFY(temp.isValid());
     const QString baseDir = temp.path();
-    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("requirements/active"));
-    const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("requirements/archive"));
+    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/archive"));
 
     writeFixture(activeDir, QStringLiteral("REQ-SW-001.md"),
                  requirementContent(QStringLiteral("REQ-SW-001"),
@@ -266,7 +266,7 @@ void TestParser::moveToArchive_movesFile()
     QTemporaryDir temp;
     QVERIFY(temp.isValid());
     const QString baseDir = temp.path();
-    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("requirements/active"));
+    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
 
     writeFixture(activeDir, QStringLiteral("REQ-SW-001.md"),
                  requirementContent(QStringLiteral("REQ-SW-001"),
@@ -280,7 +280,7 @@ void TestParser::moveToArchive_movesFile()
     QVERIFY(RequirementsParser::moveToArchive(before.first().filePath));
 
     QVERIFY(!QFile::exists(before.first().filePath));
-    const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("requirements/archive"));
+    const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/archive"));
     QVERIFY(QFile::exists(QDir(archiveDir).filePath(QStringLiteral("REQ-SW-001.md"))));
 
     const QVector<Requirement> after = RequirementsParser::parseDirectory(baseDir);
@@ -294,7 +294,7 @@ void TestParser::moveToActive_movesFile()
     QTemporaryDir temp;
     QVERIFY(temp.isValid());
     const QString baseDir = temp.path();
-    const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("requirements/archive"));
+    const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/archive"));
 
     writeFixture(archiveDir, QStringLiteral("REQ-SW-001.md"),
                  requirementContent(QStringLiteral("REQ-SW-001"),
@@ -308,7 +308,7 @@ void TestParser::moveToActive_movesFile()
     QVERIFY(RequirementsParser::moveToActive(before.first().filePath));
 
     QVERIFY(!QFile::exists(before.first().filePath));
-    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("requirements/active"));
+    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
     QVERIFY(QFile::exists(QDir(activeDir).filePath(QStringLiteral("REQ-SW-001.md"))));
 
     const QVector<Requirement> after = RequirementsParser::parseDirectory(baseDir);
@@ -321,8 +321,8 @@ void TestParser::moveRejectsWrongSection()
     QTemporaryDir temp;
     QVERIFY(temp.isValid());
     const QString baseDir = temp.path();
-    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("requirements/active"));
-    const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("requirements/archive"));
+    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/archive"));
 
     writeFixture(activeDir, QStringLiteral("REQ-SW-001.md"),
                  requirementContent(QStringLiteral("REQ-SW-001"),
@@ -360,7 +360,7 @@ void TestParser::writeRequirement_roundTrip()
     QTemporaryDir temp;
     QVERIFY(temp.isValid());
     const QString baseDir = temp.path();
-    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("requirements/active"));
+    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
 
     writeFixture(activeDir, QStringLiteral("REQ-SW-001.md"),
                  requirementContent(QStringLiteral("REQ-SW-001"),

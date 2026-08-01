@@ -6,7 +6,7 @@ frame_work** и приложенията в публичното Daqster repo, �
 ## Структура
 
 ```
-requirements/
+DevelopmentProcess/requirements/
 ├── README.md              # Този файл
 ├── traceability-matrix.md # Матрица за проследимост (REQ ⟷ Коммит ⟷ Тест)
 ├── active/                # Активни (незавършени) изисквания
@@ -31,9 +31,9 @@ requirements/
 
 ## Многоагентен работен процес
 
-| Стъпка | Роля | Отговорност |
-|--------|------|-------------|
-| 1 | PM Agent | Дефинира REQ + Acceptance Criteria |
-| 2 | Architect Agent | Проверява архитектурната съвместимост |
-| 3 | Implementation Agent | Кодира и линква коммита към REQ ID |
-| 4 | QA Agent | Пише тестове по Acceptance Criteria и верифицира |
+| Роля | Какво прави |
+|------|-------------|
+| Oscar | Оркестрира, делегира и синтезира |
+| Scout | Проучване (research) + планиране |
+| Ivan | Имплементация + git |
+| Jester | Reality-check / критика |
