@@ -19,6 +19,8 @@ requirements/
 |---------|--------|
 | `REQ-SW-` | Requirements Manager & Framework Tools (SoftWare / System Requirements) |
 | `REQ-PLG-` | Plugin framework (откриване, зареждане, сигурност) |
+| `REQ-AI-` | AI Studio плъгин (Llama, inference, нодове) |
+| `REQ-SEC-` | Сигурност и верификация на плъгини |
 | `REQ-DOC-` | Документация и процеси |
 
 ## Връзки и Проследимост (Relationship Axes)
