@@ -218,7 +218,7 @@ QModelIndex RequirementsModel::parent(const QModelIndex &child) const
             return QModelIndex();
         return createIndex(sectionRow, 0, RootItemInternal);
     }
-    const int row = siblingRow(reqIndex, parentIdx);
+    const int row = siblingRow(parentIdx, m_hierarchyParent.at(parentIdx));
     if (row < 0)
         return QModelIndex();
     return createIndex(row, 0, RequirementInternalBase + parentIdx);
