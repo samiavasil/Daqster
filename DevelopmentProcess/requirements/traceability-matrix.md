@@ -17,6 +17,7 @@
 | `REQ-SW-009` | Interactive Dependency Graph Viewer | ACTIVE | `REQ-SW-001` | `REQ-SW-007`, `REQ-SW-008` | — | `src/plugins/requirements_manager/` | Qt5/Qt6 builds |
 | `REQ-SW-010` | Traceability Matrix View & Export | ACTIVE | `REQ-SW-001` | `REQ-SW-002`, `REQ-SW-008` | — | `src/plugins/requirements_manager/` | Qt5/Qt6 builds |
 | `REQ-SW-011` | Requirements Search Engine (Backlog) | BACKLOG | `REQ-SW-001` | `REQ-SW-002` | — | `src/plugins/requirements_manager/` | — |
+| `REQ-SW-012` | Multi-Repository Requirements View (Merge) | BACKLOG | `REQ-SW-001` | `REQ-SW-002`, `REQ-SW-006`, `REQ-SW-010` | — | `src/plugins/requirements_manager/` | — |
 
 ## Plugin Framework (за справка — пълен trace в DaqsterAiStudio)
 
