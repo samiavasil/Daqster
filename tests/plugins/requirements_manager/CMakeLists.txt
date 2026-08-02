@@ -15,6 +15,10 @@
 # (test_matrix.cpp / test_exporter.cpp define their own main), so each gets its
 # own binary: requirements_manager_matrix_tests and
 # requirements_manager_exporter_tests.
+#
+# The interactive graph (DependencyGraphWidget) is GUI-only and lives in its
+# own binary (requirements_manager_gui_tests) that runs under QApplication
+# (QTEST_MAIN) with the offscreen platform plugin; see the target below.
 
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Test REQUIRED)
 
@@ -105,3 +109,39 @@ target_link_libraries(requirements_manager_exporter_tests PRIVATE
 )
 
 add_test(NAME requirements_manager_exporter_tests COMMAND $<TARGET_FILE:requirements_manager_exporter_tests>)
+
+# GUI tests for the interactive dependency graph (Bug A: edges follow nodes on
+# drag; Bug B: viewport fit on resize/show). DependencyGraphWidget and its
+# dependency closure are compiled directly into the binary. QTEST_MAIN in
+# test_graph_widget.cpp provides a QApplication main; the offscreen platform
+# plugin keeps the tests headless on CI/dev boxes without a display.
+set(GUI_TEST_SOURCES
+    test_graph_widget.cpp
+    test_graph_widget.h
+    # plugin logic under test (compiled directly into the test binary):
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphWidget.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphData.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsValidator.cpp
+)
+
+add_executable(requirements_manager_gui_tests ${GUI_TEST_SOURCES})
+
+target_include_directories(requirements_manager_gui_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include   # for LogCategories.h
+)
+
+target_link_libraries(requirements_manager_gui_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    frame_work
+)
+
+add_test(NAME requirements_manager_gui_tests
+         COMMAND $<TARGET_FILE:requirements_manager_gui_tests>)
+set_tests_properties(requirements_manager_gui_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

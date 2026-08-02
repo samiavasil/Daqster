@@ -5,6 +5,8 @@
 #include <QLabel>
 #include <QPainter>
 #include <QPen>
+#include <QResizeEvent>
+#include <QShowEvent>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
@@ -12,16 +14,43 @@ namespace Daqster {
 
 namespace {
 
+// Distance from the center of an axis-aligned rect to the rect boundary along
+// the unit direction pointing from center toward otherCenter. Uses the actual
+// per-node half-sizes (halfW/halfH) so arrowheads land on the node outline
+// instead of a hardcoded radius.
+qreal halfSizeAlongDirection(const QRectF &rect, const QPointF &center,
+                             const QPointF &otherCenter)
+{
+    const QLineF line(center, otherCenter);
+    const qreal length = line.length();
+    if (length <= 0.0)
+        return 0.0;
+    const qreal ux = line.dx() / length;
+    const qreal uy = line.dy() / length;
+    const qreal halfW = rect.width() / 2.0;
+    const qreal halfH = rect.height() / 2.0;
+    const qreal ax = qAbs(ux);
+    const qreal ay = qAbs(uy);
+    if (ax < 1e-9)
+        return (ay < 1e-9) ? 0.0 : halfH / ay;
+    if (ay < 1e-9)
+        return halfW / ax;
+    return qMin(halfW / ax, halfH / ay);
+}
+
 // Builds the edge path (main line + filled arrowhead) between two node
-// centers, shortened at both ends so the arrow is not hidden under the nodes.
-QPainterPath makeEdgePath(const QPointF &fromCenter, const QPointF &toCenter)
+// centers, shortened at both ends by the nodes' own half-sizes so the arrow
+// is not hidden under the nodes.
+QPainterPath makeEdgePath(const QRectF &fromRect, const QRectF &toRect,
+                          const QPointF &fromCenter, const QPointF &toCenter)
 {
     QLineF line(fromCenter, toCenter);
     const qreal length = line.length();
-    const qreal fromRadius = 60.0; //!< half of a typical node width
     const qreal arrowSize = 12.0;
-    const qreal startT = (length <= 0.0) ? 0.0 : qMin(0.45, fromRadius / length);
-    const qreal endT = (length <= 0.0) ? 0.0 : qMin(0.55, (fromRadius + arrowSize) / length);
+    const qreal fromDist = halfSizeAlongDirection(fromRect, fromCenter, toCenter);
+    const qreal toDist = halfSizeAlongDirection(toRect, toCenter, fromCenter);
+    const qreal startT = (length <= 0.0) ? 0.0 : qMin(0.45, fromDist / length);
+    const qreal endT = (length <= 0.0) ? 0.0 : qMin(0.55, (toDist + arrowSize) / length);
     const QPointF start = line.pointAt(startT);
     const QPointF end = line.pointAt(1.0 - endT);
 
@@ -63,6 +92,8 @@ void DependencyGraphScene::setRequirements(const QVector<Requirement> &requireme
 
     m_data = DependencyGraphData::build(requirements);
 
+    // Build + position every node first, then connect signals only after the
+    // initial layout is complete so no positionChanged fires during the loop.
     for (const GraphNode &node : m_data.nodes()) {
         auto *item = new DependencyGraphNodeItem(node);
         item->setPos(node.pos.x() - item->boundingRect().width() / 2.0,
@@ -73,11 +104,14 @@ void DependencyGraphScene::setRequirements(const QVector<Requirement> &requireme
                 this, &DependencyGraphScene::navigateRequested);
     }
 
+    // Edges are live items holding their endpoint nodes. Each endpoint's
+    // positionChanged drives updateGeometry() so the edge follows a drag in
+    // real time. The same signal refreshes the scene rect so the view can
+    // scroll to moved nodes (cheap at requirement scale).
     for (const GraphEdge &edge : m_data.edges()) {
-        const QPointF fromPos = m_data.positionFor(edge.from);
-        const QPointF toPos = m_data.positionFor(edge.to);
-        QPainterPath path = makeEdgePath(fromPos, toPos);
-        auto *item = new QGraphicsPathItem(path);
+        DependencyGraphNodeItem *from = m_nodeItems.at(edge.from);
+        DependencyGraphNodeItem *to = m_nodeItems.at(edge.to);
+        auto *item = new DependencyGraphEdgeItem(from, to);
 
         const QColor color = (edge.kind == GraphEdge::Parent)
             ? QColor(0x90A4AE) // blue-gray 400
@@ -89,9 +123,35 @@ void DependencyGraphScene::setRequirements(const QVector<Requirement> &requireme
         item->setZValue(-1.0); // edges behind nodes
         addItem(item);
         m_edgeItems.append(item);
+
+        connect(from, &DependencyGraphNodeItem::positionChanged,
+                this, [item] { item->updateGeometry(); });
+        connect(to, &DependencyGraphNodeItem::positionChanged,
+                this, [item] { item->updateGeometry(); });
+        item->updateGeometry(); // initial path for the current layout
+    }
+
+    // Refresh the scene rect after a drag so the view can scroll to moved
+    // nodes (cheap at requirement scale). Connected LAST so the scene rect is
+    // recomputed after the incident edges' updateGeometry() above on the same
+    // positionChanged emission; connected after the initial setPos loop, so no
+    // positionChanged fires during the initial layout.
+    for (DependencyGraphNodeItem *item : m_nodeItems) {
+        connect(item, &DependencyGraphNodeItem::positionChanged, this, [this] {
+            setSceneRect(itemsBoundingRect().adjusted(-60, -60, 60, 60));
+        });
     }
 
     setSceneRect(itemsBoundingRect().adjusted(-60, -60, 60, 60));
+}
+
+DependencyGraphNodeItem *DependencyGraphScene::nodeItemForId(const QString &id) const
+{
+    for (DependencyGraphNodeItem *item : m_nodeItems) {
+        if (item->requirementId() == id)
+            return item;
+    }
+    return nullptr;
 }
 
 QColor DependencyGraphScene::borderColorForStatus(const QString &status)
@@ -131,6 +191,37 @@ DependencyGraphNodeItem::DependencyGraphNodeItem(const GraphNode &node, QGraphic
 QRectF DependencyGraphNodeItem::boundingRect() const
 {
     return m_rect;
+}
+
+QVariant DependencyGraphNodeItem::itemChange(GraphicsItemChange change,
+                                             const QVariant &value)
+{
+    // ItemSendsGeometryChanges is set in the constructor; this override makes
+    // it real. Emitting from itemChange is safe here because the connected
+    // slots only touch other items' paths (no geometry recursion).
+    if (change == ItemPositionHasChanged)
+        emit positionChanged();
+    return QGraphicsObject::itemChange(change, value);
+}
+
+DependencyGraphEdgeItem::DependencyGraphEdgeItem(DependencyGraphNodeItem *from,
+                                                 DependencyGraphNodeItem *to)
+    : QGraphicsPathItem()
+    , m_from(from)
+    , m_to(to)
+{
+}
+
+void DependencyGraphEdgeItem::updateGeometry()
+{
+    if (!m_from || !m_to)
+        return;
+    // Endpoints are computed in SCENE coordinates from the live items — never
+    // from the stale layout data (pos() of a parented item, m_data, etc.).
+    const QPointF fromCenter = m_from->scenePos() + m_from->boundingRect().center();
+    const QPointF toCenter = m_to->scenePos() + m_to->boundingRect().center();
+    setPath(makeEdgePath(m_from->boundingRect(), m_to->boundingRect(),
+                         fromCenter, toCenter));
 }
 
 void DependencyGraphNodeItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
@@ -178,12 +269,59 @@ DependencyGraphView::DependencyGraphView(QWidget *parent)
 {
 }
 
+void DependencyGraphView::setAutoFit(bool enabled)
+{
+    m_autoFit = enabled;
+}
+
+void DependencyGraphView::maybeFitToScene()
+{
+    if (!m_autoFit)
+        return;
+    if (!scene() || scene()->sceneRect().isEmpty())
+        return;
+    fitInView(scene()->sceneRect(), Qt::KeepAspectRatio);
+}
+
+void DependencyGraphView::resizeEvent(QResizeEvent *event)
+{
+    QGraphicsView::resizeEvent(event);
+    // The graph may have been populated before the window was resized/shown
+    // (RequirementsManagerObject::Initialize), so refit while auto-fit is on.
+    maybeFitToScene();
+}
+
+void DependencyGraphView::showEvent(QShowEvent *event)
+{
+    QGraphicsView::showEvent(event);
+    maybeFitToScene();
+}
+
 void DependencyGraphView::wheelEvent(QWheelEvent *event)
 {
+    // User zoom takes over: stop refitting so later resizes do not clobber it.
+    m_autoFit = false;
     const qreal factor = 1.15;
     const qreal zoom = (event->angleDelta().y() > 0) ? factor : 1.0 / factor;
     scale(zoom, zoom);
     event->accept();
+}
+
+void DependencyGraphView::mousePressEvent(QMouseEvent *event)
+{
+    // ScrollHandDrag scrolls the canvas on any drag, which would swallow node
+    // drags (the node's ItemIsMovable flag would be dead). When the press lands
+    // on a movable item, temporarily switch to NoDrag so the item receives the
+    // move events and moves; presses on empty space / non-movable items keep
+    // the scroll-hand pan behaviour.
+    QGraphicsItem *item = itemAt(event->pos());
+    if (item && (item->flags() & QGraphicsItem::ItemIsMovable)) {
+        setDragMode(QGraphicsView::NoDrag);
+        QGraphicsView::mousePressEvent(event);
+        setDragMode(QGraphicsView::ScrollHandDrag);
+    } else {
+        QGraphicsView::mousePressEvent(event);
+    }
 }
 
 DependencyGraphWidget::DependencyGraphWidget(QWidget *parent)
@@ -239,6 +377,7 @@ void DependencyGraphWidget::setRequirements(const QVector<Requirement> &requirem
         m_warningLabel->setVisible(false);
     }
 
+    m_view->setAutoFit(true);
     if (!m_scene->sceneRect().isEmpty())
         m_view->fitInView(m_scene->sceneRect(), Qt::KeepAspectRatio);
 }
