@@ -9,3 +9,8 @@ CMakeLists.txt.user.*
 /Daqster-x86_64.AppImage
 /test_build/
 .aider*
+# AppImage packaging artifacts (untracked local build output)
+/Daqster.AppDir/
+/appimagetool-x86_64.AppImage
+/stage/
+*.so
