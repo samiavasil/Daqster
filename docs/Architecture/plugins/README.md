@@ -45,8 +45,25 @@ requirements viewer/editor. Изгледите са организирани в 
     (High по-тъмен / Medium среден / Low по-светъл). Легенда и warning label
     при dangling references.
 
+  - **Ребрата следват възлите при влачене (2026-08-02):** ребрата са
+    `DependencyGraphEdgeItem` (държат `from`/`to`), преизчислявани от
+    `updateGeometry()` по текущите `scenePos()` + `boundingRect().center()` на
+    възлите с реални половин-размери (`halfSizeAlongDirection`), вместо
+    статичните пътища с твърд `fromRadius = 60.0`. `DependencyGraphNodeItem`
+    вече има `itemChange()` override → `positionChanged` сигнал, свързан към
+    `updateGeometry()`. `DependencyGraphView::mousePressEvent` превключва към
+    `NoDrag` само при натискане върху движим елемент — плъзгането на възел
+    работи с мишката, а празното място запазва scroll-hand панорамирането.
+    Изгледът се пре-фитва върху сцената при `resizeEvent`/`showEvent`
+    (auto-fit, изключван от wheel zoom), вместо да остава с размер от
+    пре-resize viewport-а; `setSceneRect` се преизчислява след движение.
+
   Тестове: `tests/plugins/requirements_manager/test_graph.{h,cpp}` — TestGraph
-  (6 теста) в shared binary `requirements_manager_tests` (34/34 green на Qt5/Qt6).
+  (6 теста) в shared binary `requirements_manager_tests` (34/34 green на Qt5/Qt6);
+  `tests/plugins/requirements_manager/test_graph_widget.{h,cpp}` — GUI binary
+  `requirements_manager_gui_tests` (2 регресионни слота: `edgeFollowsNodeMove`,
+  `fitsViewportAfterResize`; 4/4 green с init/cleanup, offscreen) —
+  35/35 + 4/4 green на Qt5/Qt6.
 
 ## Shared Components
 

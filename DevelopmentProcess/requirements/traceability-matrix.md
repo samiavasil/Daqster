@@ -14,8 +14,8 @@
 | `REQ-SW-006` | Hierarchy Tree View | ACTIVE | `REQ-SW-001` | `REQ-SW-002` | — | `src/plugins/requirements_manager/` | Qt5/Qt6 builds |
 | `REQ-SW-007` | Dependency Link Management & Navigation | ACTIVE | `REQ-SW-001` | `REQ-SW-002` | — | `src/plugins/requirements_manager/` | Qt5/Qt6 builds |
 | `REQ-SW-008` | Requirements Validation & Consistency Engine | ACTIVE | `REQ-SW-001` | `REQ-SW-006`, `REQ-SW-007` | — | `src/plugins/requirements_manager/` | Qt5/Qt6 builds |
-| `REQ-SW-009` | Interactive Dependency Graph Viewer | DONE | `REQ-SW-001` | `REQ-SW-007`, `REQ-SW-008` | `cf94e9e` | `src/plugins/requirements_manager/` | Qt5/Qt6 builds + `test_graph.*` (34 tests) |
-| `REQ-SW-010` | Traceability Matrix View & Export | ACTIVE | `REQ-SW-001` | `REQ-SW-002`, `REQ-SW-008` | — | `src/plugins/requirements_manager/` | Qt5/Qt6 builds |
+| `REQ-SW-009` | Interactive Dependency Graph Viewer | DONE | `REQ-SW-001` | `REQ-SW-007`, `REQ-SW-008` | `cf94e9e` (feat), `17ed818` (fix: edges follow nodes + viewport fit) | `src/plugins/requirements_manager/` | Qt5/Qt6 builds + `test_graph.*` (34 tests) + `test_graph_widget.*` (GUI, 4/4 green) |
+| `REQ-SW-010` | Traceability Matrix View & Export | DONE | `REQ-SW-001` | `REQ-SW-002`, `REQ-SW-008` | `a26b603` (feat) | `src/plugins/requirements_manager/` | Qt5/Qt6 builds + `test_matrix.cpp` (7/7) + `test_exporter.cpp` (7/7) |
 | `REQ-SW-011` | Requirements Search Engine (Backlog) | BACKLOG | `REQ-SW-001` | `REQ-SW-002` | — | `src/plugins/requirements_manager/` | — |
 | `REQ-SW-012` | Multi-Repository Requirements View (Merge) | BACKLOG | `REQ-SW-001` | `REQ-SW-002`, `REQ-SW-006`, `REQ-SW-010` | — | `src/plugins/requirements_manager/` | — |
 

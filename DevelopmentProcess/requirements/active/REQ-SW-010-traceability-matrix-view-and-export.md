@@ -1,6 +1,6 @@
 # REQ-SW-010: Traceability Matrix View & Export
 
-- **Статус:** ACTIVE
+- **Статус:** DONE
 - **Приоритет:** Medium
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-07-31
@@ -13,15 +13,15 @@
 
 ## Acceptance Criteria
 
-- [ ] 1. Вграден "Traceability" таб/панел в UI, показващ матрицата на живо (всички изисквания, статуси, връзки, проследимост).
-- [ ] 2. Филтриране на матрицата по статус (ACTIVE/DONE) и по домейн префикс.
-- [ ] 3. Експорт: Export to Markdown Report, Export to CSV Traceability Matrix, Export to JSON.
-- [ ] 4. Генериране на обобщен доклад с метрики за завършеност, статус и зависимости.
-- [ ] 5. Диалог за избор на файл и успешно записване на експортираните данни на диск.
+- [x] 1. Вграден "Traceability" таб/панел в UI, показващ матрицата на живо (всички изисквания, статуси, връзки, проследимост).
+- [x] 2. Филтриране на матрицата по статус (ACTIVE/DONE) и по домейн префикс.
+- [x] 3. Експорт: Export to Markdown Report, Export to CSV Traceability Matrix, Export to JSON.
+- [x] 4. Генериране на обобщен доклад с метрики за завършеност, статус и зависимости.
+- [x] 5. Диалог за избор на файл и успешно записване на експортираните данни на диск.
 
 ## Проследимост
 
-- **Коммити:** —
+- **Коммити:** `a26b603` (feat) — branch `feat/phase3-graph-matrix`
 - **Код:** `src/plugins/requirements_manager/`
 - **Документация:** `docs/Architecture/plugins/`
-- **Тестове:** Qt5 + Qt6 builds
+- **Тестове:** Qt5 + Qt6 builds; `tests/plugins/requirements_manager/test_matrix.{h,cpp}` + `test_exporter.cpp` — 7/7 + 7/7 green (Qt5 + Qt6)
