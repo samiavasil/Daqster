@@ -12,6 +12,7 @@ class TestParser : public QObject
 private slots:
     void parseDirectory_fullMetadata();
     void parseDirectory_minimalAndDashFields();
+    void parseDirectory_traceabilityFields();
     void parseDirectory_emptyDir();
     void generateNextId_scansActiveAndArchive();
     void moveToArchive_movesFile();

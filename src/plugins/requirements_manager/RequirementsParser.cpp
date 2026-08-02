@@ -316,6 +316,15 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
                 }
             } else {
                 handled = false; // unknown metadata (e.g. under Проследимост)
+                // Traceability keys are captured into structured fields BUT
+                // deliberately left with handled == false: their lines must
+                // also stay part of the raw traceability text below.
+                if (key == QStringLiteral("Коммити"))
+                    out.commits = value;
+                else if (key == QStringLiteral("Код"))
+                    out.code = value;
+                else if (key == QStringLiteral("Тестове"))
+                    out.tests = value;
             }
             if (handled)
                 continue;

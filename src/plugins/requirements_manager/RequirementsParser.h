@@ -43,6 +43,9 @@ struct Requirement
     QStringList dependencies;      //!< requirement IDs this depends on ("Зависи от:")
     QString description;           //!< free text under "## Описание"
     QString traceability;          //!< free text under "## Проследимост"
+    QString commits;               //!< "- **Коммити:**" under Проследимост (commit hash list)
+    QString code;                  //!< "- **Код:**" under Проследимост (code location)
+    QString tests;                 //!< "- **Тестове:**" under Проследимост (test description)
     QStringList acceptanceCriteria; //!< criterion text (without [ ] / [x] marker)
     QVector<bool> criteriaDone;    //!< parallel to acceptanceCriteria
     QString filePath;              //!< absolute path of the .md file

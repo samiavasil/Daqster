@@ -20,6 +20,7 @@ namespace Daqster {
 
 class RequirementsModel;
 class DependencyGraphWidget;
+class TraceabilityMatrixWidget;
 
 /**
  * @brief Requirements Viewer/Editor widget.
@@ -98,6 +99,7 @@ private:
     QSplitter *m_splitter;
     QTabWidget *m_tabs;
     DependencyGraphWidget *m_graphWidget;
+    TraceabilityMatrixWidget *m_matrixWidget;
 
     QString m_baseDir;
     QVector<Requirement> m_requirements;

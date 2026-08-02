@@ -3,6 +3,7 @@
 #include "RequirementsModel.h"
 #include "RequirementsParser.h"
 #include "DependencyGraphWidget.h"
+#include "TraceabilityMatrixWidget.h"
 #include "NewRequirementDialog.h"
 #include "ValidationDialog.h"
 #include "HelpDialog.h"
@@ -118,10 +119,12 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_splitter->setChildrenCollapsible(false);
 
     m_graphWidget = new DependencyGraphWidget(this);
+    m_matrixWidget = new TraceabilityMatrixWidget(this);
 
     m_tabs = new QTabWidget(this);
     m_tabs->addTab(m_splitter, tr("Requirements"));
     m_tabs->addTab(m_graphWidget, tr("Dependency Graph"));
+    m_tabs->addTab(m_matrixWidget, tr("Traceability"));
 
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->addWidget(m_tabs);
@@ -172,6 +175,7 @@ void RequirementsWidget::reload()
 {
     m_requirements = RequirementsParser::parseDirectory(m_baseDir);
     m_model->setRequirements(m_requirements);
+    m_matrixWidget->setRequirements(m_requirements);
     m_currentIndex = -1;
     m_preview->clear();
     m_editor->clear();

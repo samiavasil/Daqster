@@ -29,6 +29,12 @@ set(PLUGIN_SOURCES
     ValidationDialog.h
     HelpDialog.cpp
     HelpDialog.h
+    MatrixExporter.cpp
+    MatrixExporter.h
+    TraceabilityMatrixModel.cpp
+    TraceabilityMatrixModel.h
+    TraceabilityMatrixWidget.cpp
+    TraceabilityMatrixWidget.h
 )
 
 create_plugin(RequirementsManager

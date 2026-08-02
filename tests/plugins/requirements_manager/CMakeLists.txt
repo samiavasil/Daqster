@@ -1,14 +1,20 @@
 # Unit tests for the Requirements Manager plugin logic.
 #
 # The plugin logic under test (RequirementsParser/RequirementsModel/
-# RequirementsValidator/DependencyGraphData) is compiled directly into the test
-# binary instead of linking the plugin .so - the model classes are QtCore-only,
-# so the tests run headless (no QApplication, no GUI).
+# RequirementsValidator/DependencyGraphData/TraceabilityMatrixModel/
+# MatrixExporter) is compiled directly into the test binaries instead of
+# linking the plugin .so - the model classes are QtCore-only, so the tests run
+# headless (no QApplication, no GUI).
 #
-# The four test classes (TestParser/TestModel/TestValidator/TestGraph) are
-# declared in headers and share a single binary whose main() lives in
-# test_main.cpp. Each class is run through QTest::qExec there, mirroring
-# QTEST_GUILESS_MAIN.
+# The headless test classes (TestParser/TestModel/TestValidator/TestGraph) are
+# declared in headers and share a single binary (requirements_manager_tests)
+# whose main() lives in test_main.cpp. Each class is run through QTest::qExec
+# there, mirroring QTEST_GUILESS_MAIN.
+#
+# The REQ-SW-010 traceability tests are self-contained QTEST_MAIN executables
+# (test_matrix.cpp / test_exporter.cpp define their own main), so each gets its
+# own binary: requirements_manager_matrix_tests and
+# requirements_manager_exporter_tests.
 
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Test REQUIRED)
 
@@ -49,3 +55,53 @@ target_link_libraries(requirements_manager_tests PRIVATE
 )
 
 add_test(NAME requirements_manager_tests COMMAND $<TARGET_FILE:requirements_manager_tests>)
+
+# REQ-SW-010 traceability tests. The traceability model/exporter classes are
+# QtCore-only, and each test file is self-contained (QTEST_MAIN in the .cpp
+# provides its own main), so each gets its own headless executable.
+set(MATRIX_TEST_SOURCES
+    test_matrix.cpp
+    # plugin logic under test (compiled directly into the test binary):
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/TraceabilityMatrixModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/MatrixExporter.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
+)
+
+add_executable(requirements_manager_matrix_tests ${MATRIX_TEST_SOURCES})
+
+target_include_directories(requirements_manager_matrix_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include   # for LogCategories.h
+)
+
+target_link_libraries(requirements_manager_matrix_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    frame_work
+)
+
+add_test(NAME requirements_manager_matrix_tests COMMAND $<TARGET_FILE:requirements_manager_matrix_tests>)
+
+set(EXPORTER_TEST_SOURCES
+    test_exporter.cpp
+    # plugin logic under test (compiled directly into the test binary):
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/MatrixExporter.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
+)
+
+add_executable(requirements_manager_exporter_tests ${EXPORTER_TEST_SOURCES})
+
+target_include_directories(requirements_manager_exporter_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include   # for LogCategories.h
+)
+
+target_link_libraries(requirements_manager_exporter_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    frame_work
+)
+
+add_test(NAME requirements_manager_exporter_tests COMMAND $<TARGET_FILE:requirements_manager_exporter_tests>)

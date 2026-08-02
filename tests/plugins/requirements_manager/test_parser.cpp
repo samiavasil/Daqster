@@ -201,6 +201,77 @@ void TestParser::parseDirectory_minimalAndDashFields()
     QCOMPARE(req->section, QStringLiteral("active"));
 }
 
+void TestParser::parseDirectory_traceabilityFields()
+{
+    // "- **Коммити:**" / "- **Код:**" / "- **Тестове:**" lines must populate
+    // the structured fields AND still land in the raw traceability text
+    // (fall-through, preserving the "traceability.contains(commit)" contract).
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString baseDir = temp.path();
+    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    writeFixture(activeDir, QStringLiteral("REQ-SW-010-traceability-fields.md"),
+                 QStringLiteral(
+                     "# REQ-SW-010: Traceability Fields\n"
+                     "\n"
+                     "- **Статус:** ACTIVE\n"
+                     "- **Приоритет:** Medium\n"
+                     "- **Отговорник (роля):** Implementation\n"
+                     "- **Дата:** 2026-07-31\n"
+                     "- **Родител:** —\n"
+                     "- **Зависи от:** —\n"
+                     "\n"
+                     "## Описание\n"
+                     "\n"
+                     "Тест на проследимост полетата.\n"
+                     "\n"
+                     "## Acceptance Criteria\n"
+                     "\n"
+                     "- [ ] 1. Критерий.\n"
+                     "\n"
+                     "## Проследимост\n"
+                     "\n"
+                     "- **Коммити:** abc123, def456\n"
+                     "- **Код:** src/plugins/requirements_manager/\n"
+                     "- **Тестове:** Qt5/Qt6 builds + unit tests\n"));
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(baseDir);
+    QCOMPARE(requirements.size(), 1);
+
+    const Requirement *req = findRequirement(requirements, QStringLiteral("REQ-SW-010"));
+    QVERIFY2(req, "REQ-SW-010 should be parsed");
+    QCOMPARE(req->commits, QStringLiteral("abc123, def456"));
+    QCOMPARE(req->code, QStringLiteral("src/plugins/requirements_manager/"));
+    QCOMPARE(req->tests, QStringLiteral("Qt5/Qt6 builds + unit tests"));
+
+    // The raw traceability text must still contain the same content.
+    QVERIFY(req->traceability.contains(QStringLiteral("abc123")));
+    QVERIFY(req->traceability.contains(QStringLiteral("def456")));
+    QVERIFY(req->traceability.contains(QStringLiteral("src/plugins/requirements_manager/")));
+    QVERIFY(req->traceability.contains(QStringLiteral("Qt5/Qt6 builds + unit tests")));
+
+    // A requirement without a Тестове line keeps the field empty.
+    writeFixture(activeDir, QStringLiteral("REQ-SW-011-no-tests.md"),
+                 QStringLiteral(
+                     "# REQ-SW-011: No Tests\n"
+                     "\n"
+                     "## Описание\n"
+                     "\n"
+                     "Без тестове.\n"
+                     "\n"
+                     "## Проследимост\n"
+                     "\n"
+                     "- **Коммити:** deadbeef\n"));
+    const QVector<Requirement> two = RequirementsParser::parseDirectory(baseDir);
+    QCOMPARE(two.size(), 2);
+    const Requirement *req11 = findRequirement(two, QStringLiteral("REQ-SW-011"));
+    QVERIFY2(req11, "REQ-SW-011 should be parsed");
+    QCOMPARE(req11->commits, QStringLiteral("deadbeef"));
+    QVERIFY(req11->tests.isEmpty());
+    QVERIFY(req11->traceability.contains(QStringLiteral("deadbeef")));
+}
+
 void TestParser::parseDirectory_emptyDir()
 {
     // Non-existent directory -> empty result, no crash.
