@@ -1,15 +1,15 @@
-# REQ-SW-005: Built-in Help & Documentation Tab / Dialog
+# REQ-SW-PL-005: Built-in Help & Documentation Tab / Dialog
 
 - **Статус:** ACTIVE
 - **Приоритет:** Low
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-07-31
-- **Родител:** REQ-SW-001
-- **Зависи от:** REQ-SW-001
+- **Родител:** REQ-SW-PL-001
+- **Зависи от:** REQ-SW-PL-001
 
 ## Описание
 
-Вграден помощен панел / таб или диалогов прозорец с пълна документация за използване на Requirements Manager, правила за именуване (`REQ-SW-`), синтаксис на Markdown шаблоните и работния процес.
+Вграден помощен панел / таб или диалогов прозорец с пълна документация за използване на Requirements Manager, правила за именуване (`REQ-SW-<TYPE>-NNN`), синтаксис на Markdown шаблоните и работния процес.
 
 ## Acceptance Criteria
 

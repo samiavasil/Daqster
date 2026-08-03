@@ -1,11 +1,11 @@
-# REQ-SW-012: Multi-Repository Requirements View (Merge)
+# REQ-SW-PL-012: Multi-Repository Requirements View (Merge)
 
 - **Статус:** BACKLOG
 - **Приоритет:** Low
 - **Отговорник (роля):** Architect + Implementation
 - **Дата:** 2026-08-01
-- **Родител:** REQ-SW-001
-- **Зависи от:** REQ-SW-002, REQ-SW-006, REQ-SW-010
+- **Родител:** REQ-SW-PL-001
+- **Зависи от:** REQ-SW-PL-002, REQ-SW-PL-006, REQ-SW-PL-010
 
 ## Описание
 
@@ -31,7 +31,7 @@ Requirements Manager трябва да приема **ДВЕ директори�
 - [ ] 1. Input: конфигурируеми ДВЕ директории с изисквания (public + private), всяка парсвана от `RequirementsParser`.
 - [ ] 2. Merged model: обединен модел/дърво, всяко изискване носи repo идентификатор (колона/група "Repo" в UI).
 - [ ] 3. Cross-repo референции (`Родител:`/`Зависи от:` към другото repo) се валидират коректно — не се отчитат като dangling.
-- [ ] 4. Traceability matrix обхваща и двете дървета (REQ-SW-* + REQ-AI/PLG/SEC).
+- [ ] 4. Traceability matrix обхваща и двете дървета (REQ-SW-PL/FW/APP/BLD-* + REQ-AI/PLG/SEC).
 - [ ] 5. Няма регресия на съществуващото single-directory поведение (Phase 1&2 функционалност).
 - [ ] 6. Покрито от unit тестове (парсване на две директории, merged model, cross-repo валидация).
 

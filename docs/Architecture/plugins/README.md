@@ -13,7 +13,7 @@
 | **Node Editor IDE** | `src/plugins/node_editor_ide/` | APPLICATION_PLUGIN | Визуален node-based редактор с вградени Audio/LLaMA нодове |
 | **Demo NodeEditor Nodes** | `src/plugins/demo_nodeditor_nodes/` | Node Provider | INodeProvider — доставя AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux нодове |
 | **QtCoinTrader** | `src/plugins/QtCoinTrader/` | APPLICATION_PLUGIN | Cryptocurrency trading plugin |
-| **Requirements Manager** | `src/plugins/requirements_manager/` | APPLICATION_PLUGIN | Markdown-based traceable requirements viewer/editor (REQ-SW-*) |
+| **Requirements Manager** | `src/plugins/requirements_manager/` | APPLICATION_PLUGIN | Markdown-based traceable requirements viewer/editor (REQ-SW-PL-*) |
 
 ### Plugin документация
 
@@ -22,7 +22,7 @@
 - [Node Editor IDE](./node_editor_ide/README.md) — архитектура, вградени нодове, INodeProvider discovery
 - [Demo NodeEditor Nodes](./demo_nodeditor_nodes/README.md) — INodeProvider пример, доставени нодове
 
-### Requirements Manager (REQ-SW-009 — Interactive Dependency Graph Viewer)
+### Requirements Manager (REQ-SW-PL-009 — Interactive Dependency Graph Viewer)
 
 Плъгинът `requirements_manager` (`src/plugins/requirements_manager/`) е Markdown-based
 requirements viewer/editor. Изгледите са организирани в `QTabWidget`:

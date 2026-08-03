@@ -1,11 +1,11 @@
-# REQ-SW-022: QtCoinTrader Demo Plugin
+# REQ-SW-PL-015: QtCoinTrader Demo Plugin
 
 - **Статус:** DONE
 - **Приоритет:** P2
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-08-02
 - **Родител:** —
-- **Зависи от:** REQ-SW-013
+- **Зависи от:** REQ-SW-FW-001
 
 ## Описание
 

@@ -1,4 +1,4 @@
-# REQ-SW-014: Plugin Discovery, Persistence & Registry
+# REQ-SW-FW-002: Plugin Discovery, Persistence & Registry
 
 - **Статус:** DONE
 - **Приоритет:** P1

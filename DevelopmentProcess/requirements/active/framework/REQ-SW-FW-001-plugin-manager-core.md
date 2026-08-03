@@ -1,11 +1,11 @@
-# REQ-SW-013: Plugin Manager Core
+# REQ-SW-FW-001: Plugin Manager Core
 
 - **Статус:** DONE
 - **Приоритет:** P1
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-08-02
 - **Родител:** —
-- **Зависи от:** REQ-SW-014
+- **Зависи от:** REQ-SW-FW-002
 
 ## Описание
 

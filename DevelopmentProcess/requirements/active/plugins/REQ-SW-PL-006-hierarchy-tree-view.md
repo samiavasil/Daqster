@@ -1,11 +1,11 @@
-# REQ-SW-006: Hierarchy Tree View
+# REQ-SW-PL-006: Hierarchy Tree View
 
 - **Статус:** ACTIVE
 - **Приоритет:** High
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-07-31
-- **Родител:** REQ-SW-001
-- **Зависи от:** REQ-SW-002
+- **Родител:** REQ-SW-PL-001
+- **Зависи от:** REQ-SW-PL-002
 
 ## Описание
 

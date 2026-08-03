@@ -1,11 +1,11 @@
-# REQ-SW-021: Node Editor IDE & Demo Nodes
+# REQ-SW-PL-014: Node Editor IDE & Demo Nodes
 
 - **Статус:** DONE
 - **Приоритет:** P2
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-08-02
 - **Родител:** —
-- **Зависи от:** REQ-SW-020
+- **Зависи от:** REQ-SW-PL-013
 
 ## Описание
 

@@ -1,4 +1,4 @@
-# REQ-SW-020: Shared Node API (Capabilities & NodeDataTypes)
+# REQ-SW-PL-013: Shared Node API (Capabilities & NodeDataTypes)
 
 - **Статус:** DONE
 - **Приоритет:** P1

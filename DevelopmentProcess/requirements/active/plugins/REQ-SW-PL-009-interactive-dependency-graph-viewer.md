@@ -1,11 +1,11 @@
-# REQ-SW-009: Interactive Dependency Graph Viewer
+# REQ-SW-PL-009: Interactive Dependency Graph Viewer
 
 - **Статус:** DONE
 - **Приоритет:** Medium
 - **Отговорник (роля):** Ivan (Implementation)
 - **Дата:** 2026-07-31
-- **Родител:** REQ-SW-001
-- **Зависи от:** REQ-SW-007, REQ-SW-008
+- **Родител:** REQ-SW-PL-001
+- **Зависи от:** REQ-SW-PL-007, REQ-SW-PL-008
 
 ## Описание
 

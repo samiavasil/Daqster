@@ -1,4 +1,4 @@
-# REQ-SW-001: Requirements Viewer/Editor Tool (Base)
+# REQ-SW-PL-001: Requirements Viewer/Editor Tool (Base)
 
 - **Статус:** ACTIVE
 - **Приоритет:** High

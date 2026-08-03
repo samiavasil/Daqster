@@ -1,11 +1,11 @@
-# REQ-SW-015: Plugin GUI & Debug Console
+# REQ-SW-FW-003: Plugin GUI & Debug Console
 
 - **Статус:** DONE
 - **Приоритет:** P2
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-08-02
 - **Родител:** —
-- **Зависи от:** REQ-SW-013
+- **Зависи от:** REQ-SW-FW-001
 
 ## Описание
 

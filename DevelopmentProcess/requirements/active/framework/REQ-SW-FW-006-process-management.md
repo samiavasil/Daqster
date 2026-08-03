@@ -1,11 +1,11 @@
-# REQ-SW-018: Process Management
+# REQ-SW-FW-006: Process Management
 
 - **Статус:** DONE
 - **Приоритет:** P2
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-08-02
 - **Родител:** —
-- **Зависи от:** REQ-SW-017
+- **Зависи от:** REQ-SW-FW-005
 
 ## Описание
 

@@ -1,4 +1,4 @@
-# REQ-SW-023: CMake Plugin Build Infrastructure
+# REQ-SW-BLD-001: CMake Plugin Build Infrastructure
 
 - **Статус:** DONE
 - **Приоритет:** P1

@@ -1,11 +1,11 @@
-# REQ-SW-024: Unit Test Infrastructure
+# REQ-SW-BLD-002: Unit Test Infrastructure
 
 - **Статус:** DONE
 - **Приоритет:** P2
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-08-02
 - **Родител:** —
-- **Зависи от:** REQ-SW-023
+- **Зависи от:** REQ-SW-BLD-001
 
 ## Описание
 

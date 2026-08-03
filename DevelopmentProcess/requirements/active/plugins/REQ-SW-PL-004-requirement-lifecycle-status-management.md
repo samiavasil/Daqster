@@ -1,11 +1,11 @@
-# REQ-SW-004: Requirement Lifecycle & Status Management
+# REQ-SW-PL-004: Requirement Lifecycle & Status Management
 
 - **Статус:** ACTIVE
 - **Приоритет:** Medium
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-07-31
-- **Родител:** REQ-SW-001
-- **Зависи от:** REQ-SW-002
+- **Родител:** REQ-SW-PL-001
+- **Зависи от:** REQ-SW-PL-002
 
 ## Описание
 

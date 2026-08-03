@@ -1,4 +1,4 @@
-# REQ-SW-016: Platform Shutdown Handler
+# REQ-SW-FW-004: Platform Shutdown Handler
 
 - **Статус:** DONE
 - **Приоритет:** P1

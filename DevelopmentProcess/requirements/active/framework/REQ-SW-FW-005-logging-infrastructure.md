@@ -1,4 +1,4 @@
-# REQ-SW-017: Logging Infrastructure
+# REQ-SW-FW-005: Logging Infrastructure
 
 - **Статус:** DONE
 - **Приоритет:** P1

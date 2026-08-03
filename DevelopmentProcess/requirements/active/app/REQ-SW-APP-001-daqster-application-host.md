@@ -1,11 +1,11 @@
-# REQ-SW-019: Daqster Application Host
+# REQ-SW-APP-001: Daqster Application Host
 
 - **Статус:** DONE
 - **Приоритет:** P1
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-08-02
 - **Родител:** —
-- **Зависи от:** REQ-SW-013, REQ-SW-016, REQ-SW-017
+- **Зависи от:** REQ-SW-FW-001, REQ-SW-FW-004, REQ-SW-FW-005
 
 ## Описание
 

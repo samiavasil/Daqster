@@ -1,11 +1,11 @@
-# REQ-SW-011: Requirements Search Engine (Future/Backlog)
+# REQ-SW-PL-011: Requirements Search Engine (Future/Backlog)
 
 - **Статус:** BACKLOG
 - **Приоритет:** Low
 - **Отговорник (роля):** Architect + Implementation
 - **Дата:** 2026-07-31
-- **Родител:** REQ-SW-001
-- **Зависи от:** REQ-SW-002
+- **Родител:** REQ-SW-PL-001
+- **Зависи от:** REQ-SW-PL-002
 
 ## Описание
 

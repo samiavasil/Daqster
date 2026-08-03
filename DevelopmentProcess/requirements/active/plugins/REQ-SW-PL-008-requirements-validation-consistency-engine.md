@@ -1,11 +1,11 @@
-# REQ-SW-008: Requirements Validation & Consistency Engine
+# REQ-SW-PL-008: Requirements Validation & Consistency Engine
 
 - **Статус:** ACTIVE
 - **Приоритет:** High
 - **Отговорник (роля):** Implementation + QA
 - **Дата:** 2026-07-31
-- **Родител:** REQ-SW-001
-- **Зависи от:** REQ-SW-006, REQ-SW-007
+- **Родител:** REQ-SW-PL-001
+- **Зависи от:** REQ-SW-PL-006, REQ-SW-PL-007
 
 ## Описание
 

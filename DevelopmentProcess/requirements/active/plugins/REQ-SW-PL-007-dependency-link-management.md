@@ -1,11 +1,11 @@
-# REQ-SW-007: Dependency Link Management & Navigation
+# REQ-SW-PL-007: Dependency Link Management & Navigation
 
 - **Статус:** ACTIVE
 - **Приоритет:** High
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-07-31
-- **Родител:** REQ-SW-001
-- **Зависи от:** REQ-SW-002
+- **Родител:** REQ-SW-PL-001
+- **Зависи от:** REQ-SW-PL-002
 
 ## Описание
 

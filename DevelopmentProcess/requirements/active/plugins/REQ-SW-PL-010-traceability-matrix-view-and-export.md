@@ -1,11 +1,11 @@
-# REQ-SW-010: Traceability Matrix View & Export
+# REQ-SW-PL-010: Traceability Matrix View & Export
 
 - **Статус:** DONE
 - **Приоритет:** Medium
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-07-31
-- **Родител:** REQ-SW-001
-- **Зависи от:** REQ-SW-002, REQ-SW-008
+- **Родител:** REQ-SW-PL-001
+- **Зависи от:** REQ-SW-PL-002, REQ-SW-PL-008
 
 ## Описание
 
