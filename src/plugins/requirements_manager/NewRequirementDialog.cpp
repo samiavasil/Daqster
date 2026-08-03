@@ -27,9 +27,13 @@ NewRequirementDialog::NewRequirementDialog(const QString &baseDir, QWidget *pare
     setWindowTitle(tr("New Requirement"));
 
     m_prefixCombo = new QComboBox(this);
-    m_prefixCombo->addItems({QStringLiteral("SW"), QStringLiteral("PLG"),
-                             QStringLiteral("AI"), QStringLiteral("SEC"),
-                             QStringLiteral("DOC")});
+    // Public requirements use the typed scheme REQ-SW-<TYPE>-<NN>
+    // (SW-PL plugins, SW-FW framework, SW-APP app, SW-BLD build & tooling);
+    // private ones keep the 3-segment REQ-<PREFIX>-<NN> form.
+    m_prefixCombo->addItems({QStringLiteral("SW-PL"), QStringLiteral("SW-FW"),
+                             QStringLiteral("SW-APP"), QStringLiteral("SW-BLD"),
+                             QStringLiteral("PLG"), QStringLiteral("AI"),
+                             QStringLiteral("SEC"), QStringLiteral("DOC")});
 
     m_idLabel = new QLabel(this);
 

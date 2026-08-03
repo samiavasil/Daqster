@@ -9,7 +9,7 @@ class QIODevice;
 namespace Daqster {
 
 /**
- * @brief Exports the Traceability Matrix in Markdown / CSV / JSON (REQ-SW-010).
+ * @brief Exports the Traceability Matrix in Markdown / CSV / JSON (REQ-SW-PL-010).
  *
  * Every exporter is a pure static function that writes to a caller-provided
  * QIODevice (testable via QBuffer, used by the widget with a real QFile).

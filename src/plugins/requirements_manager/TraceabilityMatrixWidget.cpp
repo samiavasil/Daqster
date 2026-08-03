@@ -106,7 +106,13 @@ void TraceabilityMatrixWidget::refreshDomainCombo()
         const int second = id.indexOf(QLatin1Char('-'), first + 1);
         if (second < 0)
             continue;
-        const QString prefix = id.left(second + 1); // e.g. "REQ-SW-"
+        // Extract the domain prefix up to the THIRD dash when present so the
+        // typed scheme gets distinct filters: "REQ-SW-PL-", "REQ-SW-FW-",
+        // "REQ-SW-APP-", "REQ-SW-BLD-". 3-segment IDs ("REQ-PLG-001") fall
+        // back to the second dash: "REQ-PLG-".
+        const int third = id.indexOf(QLatin1Char('-'), second + 1);
+        const QString prefix =
+            (third >= 0) ? id.left(third + 1) : id.left(second + 1);
         if (!prefixes.contains(prefix))
             prefixes.append(prefix);
     }

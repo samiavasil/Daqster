@@ -28,7 +28,7 @@ QString writeFixture(const QString &dirPath, const QString &fileName,
 QString fullMetadataContent()
 {
     return QStringLiteral(
-        "# REQ-SW-001: Requirements Viewer/Editor Tool\n"
+        "# REQ-SW-PL-001: Requirements Viewer/Editor Tool\n"
         "\n"
         "- **Статус:** ACTIVE\n"
         "- **Приоритет:** High\n"
@@ -56,14 +56,14 @@ QString fullMetadataContent()
 QString childMetadataContent()
 {
     return QStringLiteral(
-        "# REQ-SW-002: Data Model Parsing Extensions\n"
+        "# REQ-SW-PL-002: Data Model Parsing Extensions\n"
         "\n"
         "- **Статус:** DONE\n"
         "- **Приоритет:** Medium\n"
         "- **Отговорник (роля):** Implementation\n"
         "- **Дата:** 2026-07-20\n"
-        "- **Родител:** REQ-SW-001\n"
-        "- **Зависи от:** REQ-SW-001, REQ-SW-003\n"
+        "- **Родител:** REQ-SW-PL-001\n"
+        "- **Зависи от:** REQ-SW-PL-001, REQ-SW-PL-003\n"
         "\n"
         "## Описание\n"
         "\n"
@@ -82,7 +82,7 @@ QString childMetadataContent()
 QString minimalContent()
 {
     return QStringLiteral(
-        "# REQ-SW-003: Minimal\n"
+        "# REQ-SW-PL-003: Minimal\n"
         "\n"
         "## Описание\n"
         "\n"
@@ -133,16 +133,16 @@ void TestParser::parseDirectory_fullMetadata()
     const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
     const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/archive"));
 
-    writeFixture(activeDir, QStringLiteral("REQ-SW-001-requirements-viewer-editor-tool.md"),
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-001-requirements-viewer-editor-tool.md"),
                  fullMetadataContent());
-    writeFixture(archiveDir, QStringLiteral("REQ-SW-002-archived.md"), childMetadataContent());
+    writeFixture(archiveDir, QStringLiteral("REQ-SW-PL-002-archived.md"), childMetadataContent());
 
     const QVector<Requirement> requirements = RequirementsParser::parseDirectory(baseDir);
 
     QCOMPARE(requirements.size(), 2);
 
-    const Requirement *req1 = findRequirement(requirements, QStringLiteral("REQ-SW-001"));
-    QVERIFY2(req1, "REQ-SW-001 should be parsed");
+    const Requirement *req1 = findRequirement(requirements, QStringLiteral("REQ-SW-PL-001"));
+    QVERIFY2(req1, "REQ-SW-PL-001 should be parsed");
     QCOMPARE(req1->title, QStringLiteral("Requirements Viewer/Editor Tool"));
     QCOMPARE(req1->status, QStringLiteral("ACTIVE"));
     QCOMPARE(req1->priority, QStringLiteral("High"));
@@ -159,15 +159,15 @@ void TestParser::parseDirectory_fullMetadata()
     QVERIFY(req1->criteriaDone.at(0));
     QVERIFY(!req1->criteriaDone.at(1));
     QCOMPARE(req1->section, QStringLiteral("active"));
-    QVERIFY(req1->filePath.endsWith(QStringLiteral("REQ-SW-001-requirements-viewer-editor-tool.md")));
-    QCOMPARE(req1->fileName, QStringLiteral("REQ-SW-001-requirements-viewer-editor-tool.md"));
+    QVERIFY(req1->filePath.endsWith(QStringLiteral("REQ-SW-PL-001-requirements-viewer-editor-tool.md")));
+    QCOMPARE(req1->fileName, QStringLiteral("REQ-SW-PL-001-requirements-viewer-editor-tool.md"));
 
-    const Requirement *req2 = findRequirement(requirements, QStringLiteral("REQ-SW-002"));
-    QVERIFY2(req2, "REQ-SW-002 should be parsed");
-    QCOMPARE(req2->parentId, QStringLiteral("REQ-SW-001"));
+    const Requirement *req2 = findRequirement(requirements, QStringLiteral("REQ-SW-PL-002"));
+    QVERIFY2(req2, "REQ-SW-PL-002 should be parsed");
+    QCOMPARE(req2->parentId, QStringLiteral("REQ-SW-PL-001"));
     QCOMPARE(req2->dependencies.size(), 2);
-    QCOMPARE(req2->dependencies.at(0), QStringLiteral("REQ-SW-001"));
-    QCOMPARE(req2->dependencies.at(1), QStringLiteral("REQ-SW-003"));
+    QCOMPARE(req2->dependencies.at(0), QStringLiteral("REQ-SW-PL-001"));
+    QCOMPARE(req2->dependencies.at(1), QStringLiteral("REQ-SW-PL-003"));
     QCOMPARE(req2->section, QStringLiteral("archive"));
     QCOMPARE(req2->criteriaDone.size(), 1);
     QVERIFY(!req2->criteriaDone.at(0));
@@ -180,14 +180,14 @@ void TestParser::parseDirectory_minimalAndDashFields()
     const QString baseDir = temp.path();
     const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
 
-    writeFixture(activeDir, QStringLiteral("REQ-SW-003-minimal.md"), minimalContent());
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-003-minimal.md"), minimalContent());
 
     const QVector<Requirement> requirements = RequirementsParser::parseDirectory(baseDir);
 
     QCOMPARE(requirements.size(), 1);
 
-    const Requirement *req = findRequirement(requirements, QStringLiteral("REQ-SW-003"));
-    QVERIFY2(req, "REQ-SW-003 should be parsed");
+    const Requirement *req = findRequirement(requirements, QStringLiteral("REQ-SW-PL-003"));
+    QVERIFY2(req, "REQ-SW-PL-003 should be parsed");
     QCOMPARE(req->title, QStringLiteral("Minimal"));
     QVERIFY(req->status.isEmpty());
     QVERIFY(req->priority.isEmpty());
@@ -201,6 +201,56 @@ void TestParser::parseDirectory_minimalAndDashFields()
     QCOMPARE(req->section, QStringLiteral("active"));
 }
 
+void TestParser::parseDirectory_typedId()
+{
+    // Typed 4-segment scheme: "REQ-SW-<TYPE>-<NN>" (types FW/APP/PL/BLD)
+    // must parse into id / title / section exactly like the 3-segment form.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString baseDir = temp.path();
+    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-001-some-title.md"),
+                 requirementContent(QStringLiteral("REQ-SW-PL-001"),
+                                    QStringLiteral("Some Title"), QStringLiteral("ACTIVE"),
+                                    QStringLiteral("—"), QStringLiteral("—")));
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(baseDir);
+
+    QCOMPARE(requirements.size(), 1);
+
+    const Requirement *req = findRequirement(requirements, QStringLiteral("REQ-SW-PL-001"));
+    QVERIFY2(req, "REQ-SW-PL-001 should be parsed");
+    QCOMPARE(req->id, QStringLiteral("REQ-SW-PL-001"));
+    QCOMPARE(req->title, QStringLiteral("Some Title"));
+    QCOMPARE(req->section, QStringLiteral("active"));
+}
+
+void TestParser::parseDirectory_nestedSubdirSection()
+{
+    // A requirement nested below active/ (e.g. active/framework/) still
+    // belongs to the "active" section - the section is derived from the
+    // active|archive directory segment, not from the leaf subdirectory.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString baseDir = temp.path();
+    const QString nestedDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active/framework"));
+
+    writeFixture(nestedDir, QStringLiteral("REQ-SW-FW-001-some-framework.md"),
+                 requirementContent(QStringLiteral("REQ-SW-FW-001"),
+                                    QStringLiteral("Some Framework"), QStringLiteral("ACTIVE"),
+                                    QStringLiteral("—"), QStringLiteral("—")));
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(baseDir);
+
+    QCOMPARE(requirements.size(), 1);
+
+    const Requirement *req = findRequirement(requirements, QStringLiteral("REQ-SW-FW-001"));
+    QVERIFY2(req, "REQ-SW-FW-001 should be parsed");
+    QCOMPARE(req->id, QStringLiteral("REQ-SW-FW-001"));
+    QCOMPARE(req->section, QStringLiteral("active"));
+}
+
 void TestParser::parseDirectory_traceabilityFields()
 {
     // "- **Коммити:**" / "- **Код:**" / "- **Тестове:**" lines must populate
@@ -211,9 +261,9 @@ void TestParser::parseDirectory_traceabilityFields()
     const QString baseDir = temp.path();
     const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
 
-    writeFixture(activeDir, QStringLiteral("REQ-SW-010-traceability-fields.md"),
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-010-traceability-fields.md"),
                  QStringLiteral(
-                     "# REQ-SW-010: Traceability Fields\n"
+                     "# REQ-SW-PL-010: Traceability Fields\n"
                      "\n"
                      "- **Статус:** ACTIVE\n"
                      "- **Приоритет:** Medium\n"
@@ -239,8 +289,8 @@ void TestParser::parseDirectory_traceabilityFields()
     const QVector<Requirement> requirements = RequirementsParser::parseDirectory(baseDir);
     QCOMPARE(requirements.size(), 1);
 
-    const Requirement *req = findRequirement(requirements, QStringLiteral("REQ-SW-010"));
-    QVERIFY2(req, "REQ-SW-010 should be parsed");
+    const Requirement *req = findRequirement(requirements, QStringLiteral("REQ-SW-PL-010"));
+    QVERIFY2(req, "REQ-SW-PL-010 should be parsed");
     QCOMPARE(req->commits, QStringLiteral("abc123, def456"));
     QCOMPARE(req->code, QStringLiteral("src/plugins/requirements_manager/"));
     QCOMPARE(req->tests, QStringLiteral("Qt5/Qt6 builds + unit tests"));
@@ -252,9 +302,9 @@ void TestParser::parseDirectory_traceabilityFields()
     QVERIFY(req->traceability.contains(QStringLiteral("Qt5/Qt6 builds + unit tests")));
 
     // A requirement without a Тестове line keeps the field empty.
-    writeFixture(activeDir, QStringLiteral("REQ-SW-011-no-tests.md"),
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-011-no-tests.md"),
                  QStringLiteral(
-                     "# REQ-SW-011: No Tests\n"
+                     "# REQ-SW-PL-011: No Tests\n"
                      "\n"
                      "## Описание\n"
                      "\n"
@@ -265,8 +315,8 @@ void TestParser::parseDirectory_traceabilityFields()
                      "- **Коммити:** deadbeef\n"));
     const QVector<Requirement> two = RequirementsParser::parseDirectory(baseDir);
     QCOMPARE(two.size(), 2);
-    const Requirement *req11 = findRequirement(two, QStringLiteral("REQ-SW-011"));
-    QVERIFY2(req11, "REQ-SW-011 should be parsed");
+    const Requirement *req11 = findRequirement(two, QStringLiteral("REQ-SW-PL-011"));
+    QVERIFY2(req11, "REQ-SW-PL-011 should be parsed");
     QCOMPARE(req11->commits, QStringLiteral("deadbeef"));
     QVERIFY(req11->tests.isEmpty());
     QVERIFY(req11->traceability.contains(QStringLiteral("deadbeef")));
@@ -301,16 +351,16 @@ void TestParser::generateNextId_scansActiveAndArchive()
     const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
     const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/archive"));
 
-    writeFixture(activeDir, QStringLiteral("REQ-SW-001.md"),
-                 requirementContent(QStringLiteral("REQ-SW-001"),
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-001.md"),
+                 requirementContent(QStringLiteral("REQ-SW-PL-001"),
                                     QStringLiteral("One"), QStringLiteral("ACTIVE"),
                                     QStringLiteral("—"), QStringLiteral("—")));
-    writeFixture(activeDir, QStringLiteral("REQ-SW-002.md"),
-                 requirementContent(QStringLiteral("REQ-SW-002"),
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-002.md"),
+                 requirementContent(QStringLiteral("REQ-SW-PL-002"),
                                     QStringLiteral("Two"), QStringLiteral("ACTIVE"),
                                     QStringLiteral("—"), QStringLiteral("—")));
-    writeFixture(activeDir, QStringLiteral("REQ-SW-003.md"),
-                 requirementContent(QStringLiteral("REQ-SW-003"),
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-003.md"),
+                 requirementContent(QStringLiteral("REQ-SW-PL-003"),
                                     QStringLiteral("Three"), QStringLiteral("ACTIVE"),
                                     QStringLiteral("—"), QStringLiteral("—")));
     writeFixture(activeDir, QStringLiteral("REQ-PLG-005.md"),
@@ -318,18 +368,57 @@ void TestParser::generateNextId_scansActiveAndArchive()
                                     QStringLiteral("Plugin Five"), QStringLiteral("ACTIVE"),
                                     QStringLiteral("—"), QStringLiteral("—")));
 
-    QCOMPARE(RequirementsParser::generateNextId(baseDir, QStringLiteral("SW")),
-             QStringLiteral("REQ-SW-004"));
+    QCOMPARE(RequirementsParser::generateNextId(baseDir, QStringLiteral("SW-PL")),
+             QStringLiteral("REQ-SW-PL-004"));
     QCOMPARE(RequirementsParser::generateNextId(baseDir, QStringLiteral("PLG")),
              QStringLiteral("REQ-PLG-006"));
 
     // A requirement in archive/ must also be considered (active AND archive).
-    writeFixture(archiveDir, QStringLiteral("REQ-SW-010-archived.md"),
-                 requirementContent(QStringLiteral("REQ-SW-010"),
+    writeFixture(archiveDir, QStringLiteral("REQ-SW-PL-010-archived.md"),
+                 requirementContent(QStringLiteral("REQ-SW-PL-010"),
                                     QStringLiteral("Ten"), QStringLiteral("DONE"),
                                     QStringLiteral("—"), QStringLiteral("—")));
-    QCOMPARE(RequirementsParser::generateNextId(baseDir, QStringLiteral("SW")),
-             QStringLiteral("REQ-SW-011"));
+    QCOMPARE(RequirementsParser::generateNextId(baseDir, QStringLiteral("SW-PL")),
+             QStringLiteral("REQ-SW-PL-011"));
+}
+
+void TestParser::generateNextId_typedIsolation()
+{
+    // Typed families must be isolated: the max+1 scan for "SW-PL" may only
+    // count REQ-SW-PL-* and must ignore REQ-SW-FW-*/REQ-SW-APP-*/REQ-SW-BLD-*.
+    // 3-segment private families (REQ-PLG-*) stay fully separate as well.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString baseDir = temp.path();
+    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    const auto write = [&](const QString &id) {
+        writeFixture(activeDir, id + QStringLiteral(".md"),
+                     requirementContent(id, id, QStringLiteral("ACTIVE"),
+                                        QStringLiteral("—"), QStringLiteral("—")));
+    };
+
+    write(QStringLiteral("REQ-SW-PL-001"));
+    write(QStringLiteral("REQ-SW-PL-005"));
+    write(QStringLiteral("REQ-SW-FW-003"));
+    write(QStringLiteral("REQ-SW-APP-001"));
+    write(QStringLiteral("REQ-SW-BLD-002"));
+    // 3-segment compatibility family (private prefix).
+    write(QStringLiteral("REQ-PLG-001"));
+    write(QStringLiteral("REQ-PLG-002"));
+
+    QCOMPARE(RequirementsParser::generateNextId(baseDir, QStringLiteral("SW-PL")),
+             QStringLiteral("REQ-SW-PL-006"));
+    QCOMPARE(RequirementsParser::generateNextId(baseDir, QStringLiteral("SW-FW")),
+             QStringLiteral("REQ-SW-FW-004"));
+    QCOMPARE(RequirementsParser::generateNextId(baseDir, QStringLiteral("SW-APP")),
+             QStringLiteral("REQ-SW-APP-002"));
+    QCOMPARE(RequirementsParser::generateNextId(baseDir, QStringLiteral("SW-BLD")),
+             QStringLiteral("REQ-SW-BLD-003"));
+    // 3-segment private family: still works and is not polluted by the typed
+    // REQ-SW-* families (and vice versa).
+    QCOMPARE(RequirementsParser::generateNextId(baseDir, QStringLiteral("PLG")),
+             QStringLiteral("REQ-PLG-003"));
 }
 
 void TestParser::moveToArchive_movesFile()
@@ -339,8 +428,8 @@ void TestParser::moveToArchive_movesFile()
     const QString baseDir = temp.path();
     const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
 
-    writeFixture(activeDir, QStringLiteral("REQ-SW-001.md"),
-                 requirementContent(QStringLiteral("REQ-SW-001"),
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-001.md"),
+                 requirementContent(QStringLiteral("REQ-SW-PL-001"),
                                     QStringLiteral("One"), QStringLiteral("ACTIVE"),
                                     QStringLiteral("—"), QStringLiteral("—")));
 
@@ -352,7 +441,7 @@ void TestParser::moveToArchive_movesFile()
 
     QVERIFY(!QFile::exists(before.first().filePath));
     const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/archive"));
-    QVERIFY(QFile::exists(QDir(archiveDir).filePath(QStringLiteral("REQ-SW-001.md"))));
+    QVERIFY(QFile::exists(QDir(archiveDir).filePath(QStringLiteral("REQ-SW-PL-001.md"))));
 
     const QVector<Requirement> after = RequirementsParser::parseDirectory(baseDir);
     QCOMPARE(after.size(), 1);
@@ -367,8 +456,8 @@ void TestParser::moveToActive_movesFile()
     const QString baseDir = temp.path();
     const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/archive"));
 
-    writeFixture(archiveDir, QStringLiteral("REQ-SW-001.md"),
-                 requirementContent(QStringLiteral("REQ-SW-001"),
+    writeFixture(archiveDir, QStringLiteral("REQ-SW-PL-001.md"),
+                 requirementContent(QStringLiteral("REQ-SW-PL-001"),
                                     QStringLiteral("One"), QStringLiteral("DONE"),
                                     QStringLiteral("—"), QStringLiteral("—")));
 
@@ -380,11 +469,53 @@ void TestParser::moveToActive_movesFile()
 
     QVERIFY(!QFile::exists(before.first().filePath));
     const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
-    QVERIFY(QFile::exists(QDir(activeDir).filePath(QStringLiteral("REQ-SW-001.md"))));
+    QVERIFY(QFile::exists(QDir(activeDir).filePath(QStringLiteral("REQ-SW-PL-001.md"))));
 
     const QVector<Requirement> after = RequirementsParser::parseDirectory(baseDir);
     QCOMPARE(after.size(), 1);
     QCOMPARE(after.first().section, QStringLiteral("active"));
+}
+
+void TestParser::moveToArchive_nestedSubdir()
+{
+    // Archiving a requirement that lives below active/<subdir>/ must preserve
+    // the subdirectory: active/framework/ -> archive/framework/. The section
+    // follows the move in both directions.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString baseDir = temp.path();
+    const QString nestedActive = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active/framework"));
+
+    writeFixture(nestedActive, QStringLiteral("REQ-SW-FW-001-some-framework.md"),
+                 requirementContent(QStringLiteral("REQ-SW-FW-001"),
+                                    QStringLiteral("Some Framework"), QStringLiteral("ACTIVE"),
+                                    QStringLiteral("—"), QStringLiteral("—")));
+
+    const QVector<Requirement> before = RequirementsParser::parseDirectory(baseDir);
+    QCOMPARE(before.size(), 1);
+    QCOMPARE(before.first().section, QStringLiteral("active"));
+    QVERIFY(before.first().filePath.contains(QStringLiteral("/active/framework/")));
+
+    QVERIFY(RequirementsParser::moveToArchive(before.first().filePath));
+    QVERIFY(!QFile::exists(before.first().filePath));
+    const QString archivedPath = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/archive/framework/REQ-SW-FW-001-some-framework.md"));
+    QVERIFY(QFile::exists(archivedPath));
+
+    const QVector<Requirement> archived = RequirementsParser::parseDirectory(baseDir);
+    QCOMPARE(archived.size(), 1);
+    QCOMPARE(archived.first().section, QStringLiteral("archive"));
+    QVERIFY(archived.first().filePath.contains(QStringLiteral("/archive/framework/")));
+
+    // Reopen: archive/framework/ -> active/framework/, section becomes active.
+    QVERIFY(RequirementsParser::moveToActive(archived.first().filePath));
+    const QString reopenedPath = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active/framework/REQ-SW-FW-001-some-framework.md"));
+    QVERIFY(QFile::exists(reopenedPath));
+    QVERIFY(!QFile::exists(archivedPath));
+
+    const QVector<Requirement> reopened = RequirementsParser::parseDirectory(baseDir);
+    QCOMPARE(reopened.size(), 1);
+    QCOMPARE(reopened.first().section, QStringLiteral("active"));
+    QVERIFY(reopened.first().filePath.contains(QStringLiteral("/active/framework/")));
 }
 
 void TestParser::moveRejectsWrongSection()
@@ -395,16 +526,16 @@ void TestParser::moveRejectsWrongSection()
     const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
     const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/archive"));
 
-    writeFixture(activeDir, QStringLiteral("REQ-SW-001.md"),
-                 requirementContent(QStringLiteral("REQ-SW-001"),
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-001.md"),
+                 requirementContent(QStringLiteral("REQ-SW-PL-001"),
                                     QStringLiteral("One"), QStringLiteral("ACTIVE"),
                                     QStringLiteral("—"), QStringLiteral("—")));
-    writeFixture(archiveDir, QStringLiteral("REQ-SW-002.md"),
-                 requirementContent(QStringLiteral("REQ-SW-002"),
+    writeFixture(archiveDir, QStringLiteral("REQ-SW-PL-002.md"),
+                 requirementContent(QStringLiteral("REQ-SW-PL-002"),
                                     QStringLiteral("Two"), QStringLiteral("DONE"),
                                     QStringLiteral("—"), QStringLiteral("—")));
     writeFixture(temp.path(), QStringLiteral("loose.md"),
-                 requirementContent(QStringLiteral("REQ-SW-003"),
+                 requirementContent(QStringLiteral("REQ-SW-PL-003"),
                                     QStringLiteral("Three"), QStringLiteral("ACTIVE"),
                                     QStringLiteral("—"), QStringLiteral("—")));
 
@@ -412,8 +543,8 @@ void TestParser::moveRejectsWrongSection()
 
     // Moving an active file to archive is valid, moving an archive file to
     // archive again is not.
-    const Requirement *req1 = findRequirement(requirements, QStringLiteral("REQ-SW-001"));
-    const Requirement *req2 = findRequirement(requirements, QStringLiteral("REQ-SW-002"));
+    const Requirement *req1 = findRequirement(requirements, QStringLiteral("REQ-SW-PL-001"));
+    const Requirement *req2 = findRequirement(requirements, QStringLiteral("REQ-SW-PL-002"));
     QVERIFY(req1);
     QVERIFY(req2);
 
@@ -433,8 +564,8 @@ void TestParser::writeRequirement_roundTrip()
     const QString baseDir = temp.path();
     const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
 
-    writeFixture(activeDir, QStringLiteral("REQ-SW-001.md"),
-                 requirementContent(QStringLiteral("REQ-SW-001"),
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-001.md"),
+                 requirementContent(QStringLiteral("REQ-SW-PL-001"),
                                     QStringLiteral("One"), QStringLiteral("ACTIVE"),
                                     QStringLiteral("—"), QStringLiteral("—")));
 
@@ -465,15 +596,15 @@ void TestParser::writeRequirement_roundTrip()
 
     // 3. Dependency list round-trip.
     req = reparsed.first();
-    RequirementsParser::setDependenciesLine(req, {QStringLiteral("REQ-SW-002"),
-                                                  QStringLiteral("REQ-SW-003")});
+    RequirementsParser::setDependenciesLine(req, {QStringLiteral("REQ-SW-PL-002"),
+                                                  QStringLiteral("REQ-SW-PL-003")});
     QVERIFY(RequirementsParser::writeRequirement(req));
 
     reparsed = RequirementsParser::parseDirectory(baseDir);
     QCOMPARE(reparsed.size(), 1);
     QCOMPARE(reparsed.first().dependencies.size(), 2);
-    QCOMPARE(reparsed.first().dependencies.at(0), QStringLiteral("REQ-SW-002"));
-    QCOMPARE(reparsed.first().dependencies.at(1), QStringLiteral("REQ-SW-003"));
+    QCOMPARE(reparsed.first().dependencies.at(0), QStringLiteral("REQ-SW-PL-002"));
+    QCOMPARE(reparsed.first().dependencies.at(1), QStringLiteral("REQ-SW-PL-003"));
 
     // 4. Clearing the dependency list writes "—".
     req = reparsed.first();

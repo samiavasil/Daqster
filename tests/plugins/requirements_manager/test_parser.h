@@ -12,11 +12,15 @@ class TestParser : public QObject
 private slots:
     void parseDirectory_fullMetadata();
     void parseDirectory_minimalAndDashFields();
+    void parseDirectory_typedId();
+    void parseDirectory_nestedSubdirSection();
     void parseDirectory_traceabilityFields();
     void parseDirectory_emptyDir();
     void generateNextId_scansActiveAndArchive();
+    void generateNextId_typedIsolation();
     void moveToArchive_movesFile();
     void moveToActive_movesFile();
+    void moveToArchive_nestedSubdir();
     void moveRejectsWrongSection();
     void writeRequirement_roundTrip();
 };

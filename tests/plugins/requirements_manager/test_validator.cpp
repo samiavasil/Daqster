@@ -31,8 +31,8 @@ Requirement makeRequirement(const QString &id, const QString &section,
 void TestValidator::cleanFixture_noIssues()
 {
     QVector<Requirement> reqs;
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-001"), QStringLiteral("active"), QString()));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-002"), QStringLiteral("active"), QStringLiteral("REQ-SW-001")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("active"), QString()));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"), QStringLiteral("active"), QStringLiteral("REQ-SW-PL-001")));
 
     const QVector<RequirementsValidator::Issue> issues = RequirementsValidator::validate(reqs);
 
@@ -42,8 +42,8 @@ void TestValidator::cleanFixture_noIssues()
 void TestValidator::danglingParent_error()
 {
     QVector<Requirement> reqs;
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-001"), QStringLiteral("active"), QString()));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-002"), QStringLiteral("active"), QStringLiteral("REQ-SW-999")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("active"), QString()));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"), QStringLiteral("active"), QStringLiteral("REQ-SW-PL-999")));
 
     const QVector<RequirementsValidator::Issue> issues = RequirementsValidator::validate(reqs);
 
@@ -56,9 +56,9 @@ void TestValidator::danglingParent_error()
 void TestValidator::danglingDependency_error()
 {
     QVector<Requirement> reqs;
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-001"), QStringLiteral("active"), QString()));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-002"), QStringLiteral("active"), QString(),
-                                {QStringLiteral("REQ-SW-999")}));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("active"), QString()));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"), QStringLiteral("active"), QString(),
+                                {QStringLiteral("REQ-SW-PL-999")}));
 
     const QVector<RequirementsValidator::Issue> issues = RequirementsValidator::validate(reqs);
 
@@ -71,15 +71,15 @@ void TestValidator::danglingDependency_error()
 void TestValidator::cycle_detection()
 {
     QVector<Requirement> reqs;
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-001"), QStringLiteral("active"),
-                                QStringLiteral("REQ-SW-002")));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-002"), QStringLiteral("active"),
-                                QStringLiteral("REQ-SW-001")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("active"),
+                                QStringLiteral("REQ-SW-PL-002")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"), QStringLiteral("active"),
+                                QStringLiteral("REQ-SW-PL-001")));
 
     const QVector<RequirementsValidator::Issue> issues = RequirementsValidator::validate(reqs);
 
     // A 2-node parent cycle produces exactly one reported chain
-    // (REQ-SW-001 -> REQ-SW-002 -> REQ-SW-001).
+    // (REQ-SW-PL-001 -> REQ-SW-PL-002 -> REQ-SW-PL-001).
     QCOMPARE(issues.size(), 1);
     QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
     QCOMPARE(issues.at(0).field, QStringLiteral("parentId"));
@@ -90,7 +90,7 @@ void TestValidator::missingFields_warnings()
 {
     QVector<Requirement> reqs;
     Requirement req;
-    req.id = QStringLiteral("REQ-SW-001");
+    req.id = QStringLiteral("REQ-SW-PL-001");
     req.section = QStringLiteral("active");
     // Leave all fields empty except id and section
 
@@ -111,8 +111,8 @@ void TestValidator::missingFields_warnings()
 void TestValidator::selfReference_error()
 {
     QVector<Requirement> reqs;
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-001"), QStringLiteral("active"), QString(),
-                                {QStringLiteral("REQ-SW-001")}));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("active"), QString(),
+                                {QStringLiteral("REQ-SW-PL-001")}));
 
     const QVector<RequirementsValidator::Issue> issues = RequirementsValidator::validate(reqs);
 
@@ -129,9 +129,9 @@ void TestValidator::archivedDependency_warning()
     // ("depends on archived requirement"). The original fixture had the
     // sections inverted (archive depending on active), which correctly
     // produced no issue.
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-001"), QStringLiteral("archive"), QString()));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-002"), QStringLiteral("active"), QString(),
-                                {QStringLiteral("REQ-SW-001")}));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("archive"), QString()));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"), QStringLiteral("active"), QString(),
+                                {QStringLiteral("REQ-SW-PL-001")}));
 
     const QVector<RequirementsValidator::Issue> issues = RequirementsValidator::validate(reqs);
 
@@ -139,6 +139,54 @@ void TestValidator::archivedDependency_warning()
     QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Warning);
     QCOMPARE(issues.at(0).field, QStringLiteral("dependencies"));
     QVERIFY(issues.at(0).message.contains(QStringLiteral("archived requirement")));
+}
+
+void TestValidator::typedIdFormat_validAndMalformed()
+{
+    // A valid typed 4-segment ID (and the 3-segment private form) pass the
+    // ID format check without any Warning.
+    QVector<Requirement> valid;
+    valid.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("active"), QString()));
+    valid.append(makeRequirement(QStringLiteral("REQ-PLG-001"), QStringLiteral("active"), QString()));
+    const QVector<RequirementsValidator::Issue> validIssues =
+        RequirementsValidator::validate(valid);
+    QCOMPARE(validIssues.size(), 0);
+
+    // Malformed IDs produce a format Warning on the "id" field with the
+    // "не следва схемата" message.
+    QVector<Requirement> malformed;
+    malformed.append(makeRequirement(QStringLiteral("BOGUS"), QStringLiteral("active"), QString()));
+    malformed.append(makeRequirement(QStringLiteral("REQ-SW-001-extra"), QStringLiteral("active"), QString()));
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(malformed);
+
+    QCOMPARE(issues.size(), 2);
+    for (const auto &issue : issues) {
+        QCOMPARE(issue.severity, RequirementsValidator::Severity::Warning);
+        QCOMPARE(issue.field, QStringLiteral("id"));
+        QVERIFY2(issue.message.contains(QStringLiteral("не следва схемата")),
+                 qPrintable(issue.message));
+    }
+}
+
+void TestValidator::twoDigitId_warning()
+{
+    // The typed scheme requires a zero-padded three-digit number: 4-segment
+    // "REQ-SW-PL-001" and 3-segment "REQ-PLG-001" pass, but 2-digit forms such
+    // as "REQ-SW-12" / "REQ-PLG-01" are rejected with an ID format Warning.
+    QVector<Requirement> twoDigit;
+    twoDigit.append(makeRequirement(QStringLiteral("REQ-SW-12"), QStringLiteral("active"), QString()));
+    twoDigit.append(makeRequirement(QStringLiteral("REQ-PLG-01"), QStringLiteral("active"), QString()));
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(twoDigit);
+
+    QCOMPARE(issues.size(), 2);
+    for (const auto &issue : issues) {
+        QCOMPARE(issue.severity, RequirementsValidator::Severity::Warning);
+        QCOMPARE(issue.field, QStringLiteral("id"));
+        QVERIFY2(issue.message.contains(QStringLiteral("не следва схемата")),
+                 qPrintable(issue.message));
+    }
 }
 
 // No QTEST_GUILESS_MAIN here: the three test classes share one binary whose

@@ -29,7 +29,7 @@ Markdown file in <code>DevelopmentProcess/requirements/active/</code>. The multi
 
 <h3>2. Requirement File Template</h3>
 <pre>
-# REQ-SW-XXX: Short Descriptive Title
+# REQ-SW-PL-001: Short Descriptive Title
 
 - **Статус:** ACTIVE
 - **Приоритет:** High | Medium | Low
@@ -56,16 +56,24 @@ Free-text description of the requirement.
 </pre>
 
 <h3>3. ID Naming &amp; Prefixes</h3>
-<p>IDs use the form <code>REQ-&lt;PREFIX&gt;-&lt;NNN&gt;</code> with a zero-padded
-three-digit number. <code>generateNextId()</code> automatically computes the next
-free number when creating a new requirement.</p>
+<p>Public requirements use the <b>typed</b> scheme
+<code>REQ-SW-&lt;TYPE&gt;-&lt;NN&gt;</code> with a zero-padded three-digit number.
+Private requirements keep the 3-segment form
+<code>REQ-&lt;PREFIX&gt;-&lt;NN&gt;</code>. <code>generateNextId()</code>
+automatically computes the next free number per type (max+1) when creating a
+new requirement — e.g. next after <code>REQ-SW-PL-015</code> is
+<code>REQ-SW-PL-016</code>, next after <code>REQ-SW-FW-006</code> is
+<code>REQ-SW-FW-007</code>.</p>
 <table border="1" cellspacing="0" cellpadding="4">
 <tr><th>Prefix</th><th>Area</th></tr>
-<tr><td>SW</td><td>Requirements Manager &amp; Framework Tools</td></tr>
-<tr><td>PLG</td><td>Plugin framework (discovery, loading, security)</td></tr>
-<tr><td>AI</td><td>AI Studio features</td></tr>
-<tr><td>SEC</td><td>Security</td></tr>
-<tr><td>DOC</td><td>Documentation and processes</td></tr>
+<tr><td>REQ-SW-FW-</td><td>Framework (frame_work core: plugin manager, discovery, logging, process, shutdown)</td></tr>
+<tr><td>REQ-SW-APP-</td><td>App (application host, apps)</td></tr>
+<tr><td>REQ-SW-PL-</td><td>Plugins (requirements manager, node editor, demo plugins)</td></tr>
+<tr><td>REQ-SW-BLD-</td><td>Build &amp; tooling (CMake infrastructure, unit test infra)</td></tr>
+<tr><td>REQ-PLG-</td><td>Plugin framework (discovery, loading, security)</td></tr>
+<tr><td>REQ-AI-</td><td>AI Studio features</td></tr>
+<tr><td>REQ-SEC-</td><td>Security</td></tr>
+<tr><td>REQ-DOC-</td><td>Documentation and processes</td></tr>
 </table>
 
 <h3>4. Relationship Axes</h3>

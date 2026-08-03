@@ -24,57 +24,57 @@ Requirement makeRequirement(const QString &id, const QString &section,
 }
 
 // Acyclic-dependency fixture (mirrors test_model.cpp's shape plus deps):
-//   REQ-SW-001            root (parentless)
-//   REQ-SW-002 .. 011     10 children of REQ-SW-001
-//   REQ-SW-021            child of REQ-SW-002, depends on SW-002 + SW-001
-//   REQ-SW-031            child of REQ-SW-021, depends on SW-021
-//   REQ-SW-040            second root, depends on SW-001
-//   REQ-SW-050            dangling parentId (REQ-SW-999 does not exist)
-//   REQ-SW-060 <-> 061    parent cycle (dependency graph stays acyclic)
-//   REQ-SW-080            root in archive section
+//   REQ-SW-PL-001            root (parentless)
+//   REQ-SW-PL-002 .. 011     10 children of REQ-SW-PL-001
+//   REQ-SW-PL-014            child of REQ-SW-PL-002, depends on PL-002 + PL-001
+//   REQ-SW-PL-031            child of REQ-SW-PL-014, depends on PL-014
+//   REQ-SW-PL-040            second root, depends on PL-001
+//   REQ-SW-PL-050            dangling parentId (REQ-SW-PL-999 does not exist)
+//   REQ-SW-PL-060 <-> REQ-SW-PL-061    parent cycle (dependency graph stays acyclic)
+//   REQ-SW-PL-080            root in archive section
 QVector<Requirement> makeFixture()
 {
     QVector<Requirement> reqs;
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-001"), QStringLiteral("active"),
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("active"),
                                 QString()));
     for (int i = 2; i <= 11; ++i) {
         reqs.append(makeRequirement(
-            QStringLiteral("REQ-SW-%1").arg(i, 3, 10, QLatin1Char('0')),
-            QStringLiteral("active"), QStringLiteral("REQ-SW-001")));
+            QStringLiteral("REQ-SW-PL-%1").arg(i, 3, 10, QLatin1Char('0')),
+            QStringLiteral("active"), QStringLiteral("REQ-SW-PL-001")));
     }
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-021"), QStringLiteral("active"),
-                                QStringLiteral("REQ-SW-002"),
-                                QStringList() << QStringLiteral("REQ-SW-002")
-                                              << QStringLiteral("REQ-SW-001")));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-031"), QStringLiteral("active"),
-                                QStringLiteral("REQ-SW-021"),
-                                QStringList() << QStringLiteral("REQ-SW-021")));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-040"), QStringLiteral("active"),
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-014"), QStringLiteral("active"),
+                                QStringLiteral("REQ-SW-PL-002"),
+                                QStringList() << QStringLiteral("REQ-SW-PL-002")
+                                              << QStringLiteral("REQ-SW-PL-001")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-031"), QStringLiteral("active"),
+                                QStringLiteral("REQ-SW-PL-014"),
+                                QStringList() << QStringLiteral("REQ-SW-PL-014")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-040"), QStringLiteral("active"),
                                 QString(),
-                                QStringList() << QStringLiteral("REQ-SW-001")));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-050"), QStringLiteral("active"),
-                                QStringLiteral("REQ-SW-999")));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-060"), QStringLiteral("active"),
-                                QStringLiteral("REQ-SW-061")));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-061"), QStringLiteral("active"),
-                                QStringLiteral("REQ-SW-060")));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-080"), QStringLiteral("archive"),
+                                QStringList() << QStringLiteral("REQ-SW-PL-001")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-050"), QStringLiteral("active"),
+                                QStringLiteral("REQ-SW-PL-999")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-060"), QStringLiteral("active"),
+                                QStringLiteral("REQ-SW-PL-061")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-061"), QStringLiteral("active"),
+                                QStringLiteral("REQ-SW-PL-060")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-080"), QStringLiteral("archive"),
                                 QString()));
     return reqs;
 }
 
-// Dependency-cycle fixture: REQ-SW-040 and REQ-SW-041 depend on each other.
+// Dependency-cycle fixture: REQ-SW-PL-040 and REQ-SW-PL-041 depend on each other.
 QVector<Requirement> makeCycleFixture()
 {
     QVector<Requirement> reqs;
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-001"), QStringLiteral("active"),
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("active"),
                                 QString()));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-040"), QStringLiteral("active"),
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-040"), QStringLiteral("active"),
                                 QString(),
-                                QStringList() << QStringLiteral("REQ-SW-041")));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-041"), QStringLiteral("active"),
+                                QStringList() << QStringLiteral("REQ-SW-PL-041")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-041"), QStringLiteral("active"),
                                 QString(),
-                                QStringList() << QStringLiteral("REQ-SW-040")));
+                                QStringList() << QStringLiteral("REQ-SW-PL-040")));
     return reqs;
 }
 
@@ -89,9 +89,9 @@ void TestGraph::nodeAndEdgeCounts()
     QCOMPARE(data.nodes().size(), fixture.size());
     QVERIFY(!data.hasCycle()); // only a parent cycle exists, not a dep cycle
 
-    // Parent edges: SW-002..011 (10) -> SW-001, SW-021 -> SW-002,
-    // SW-031 -> SW-021, SW-060 <-> SW-061 (2) = 14. SW-040/SW-080 have no
-    // parent; SW-050's parent is dangling and must not become an edge.
+    // Parent edges: PL-002..011 (10) -> PL-001, PL-014 -> PL-002,
+    // PL-031 -> PL-014, PL-060 <-> PL-061 (2) = 14. PL-040/PL-080 have no
+    // parent; PL-050's parent is dangling and must not become an edge.
     int parentEdges = 0;
     int dependencyEdges = 0;
     for (const GraphEdge &edge : data.edges()) {
@@ -102,11 +102,11 @@ void TestGraph::nodeAndEdgeCounts()
     }
     QCOMPARE(parentEdges, 14);
 
-    // Dependency edges: SW-021->SW-002, SW-021->SW-001, SW-031->SW-021,
-    // SW-040->SW-001 = 4.
+    // Dependency edges: PL-014->PL-002, PL-014->PL-001, PL-031->PL-014,
+    // PL-040->PL-001 = 4.
     QCOMPARE(dependencyEdges, 4);
 
-    // Only SW-050's parent reference is dangling.
+    // Only PL-050's parent reference is dangling.
     QCOMPARE(data.danglingCount(), 1);
 }
 
@@ -115,7 +115,7 @@ void TestGraph::danglingRecordedNotRendered()
     const DependencyGraphData data = DependencyGraphData::build(makeFixture());
 
     QVERIFY(data.danglingCount() > 0);
-    QVERIFY2(data.danglingIds().contains(QStringLiteral("REQ-SW-999")),
+    QVERIFY2(data.danglingIds().contains(QStringLiteral("REQ-SW-PL-999")),
              "unresolvable parentId must be recorded as dangling");
 
     // Dangling references must never become rendered edges.
@@ -124,8 +124,8 @@ void TestGraph::danglingRecordedNotRendered()
                  "stored edges must never carry a danglingId");
         QVERIFY2(edge.from >= 0 && edge.to >= 0,
                  "stored edges must have resolved endpoints");
-        QVERIFY2(data.nodes().at(edge.from).id != QStringLiteral("REQ-SW-050"),
-                 "dangling parent must not render an edge from SW-050");
+        QVERIFY2(data.nodes().at(edge.from).id != QStringLiteral("REQ-SW-PL-050"),
+                 "dangling parent must not render an edge from PL-050");
     }
 }
 
@@ -143,7 +143,7 @@ void TestGraph::cycleInputTerminates()
         QVERIFY2(data.layerFor(node.reqIndex) >= 0,
                  "every node must be assigned to a layer");
 
-    // REQ-SW-001 (index 0) is acyclic -> layer 0; the cycle pair (indexes 1,2)
+    // REQ-SW-PL-001 (index 0) is acyclic -> layer 0; the cycle pair (indexes 1,2)
     // is pushed to the residual layer.
     QCOMPARE(data.layerFor(0), 0);
     QCOMPARE(data.layerFor(1), 1);

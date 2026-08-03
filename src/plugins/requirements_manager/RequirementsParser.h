@@ -33,8 +33,8 @@ inline constexpr char kRequirementsSubdir[] = "DevelopmentProcess/requirements";
  */
 struct Requirement
 {
-    QString id;                    //!< e.g. "REQ-SW-001"
-    QString title;                 //!< e.g. "General Requirements Viewer/Editor Tool"
+    QString id;                    //!< e.g. "REQ-SW-PL-001" (typed) or "REQ-PLG-001"
+    QString title;                 //!< e.g. "Requirements Viewer/Editor Tool"
     QString status;                //!< ACTIVE | DONE | CANCELLED
     QString priority;              //!< High | Medium | Low
     QString assignee;              //!< PM | Architect | Implementation | QA
@@ -49,7 +49,7 @@ struct Requirement
     QStringList acceptanceCriteria; //!< criterion text (without [ ] / [x] marker)
     QVector<bool> criteriaDone;    //!< parallel to acceptanceCriteria
     QString filePath;              //!< absolute path of the .md file
-    QString fileName;              //!< base name, e.g. "REQ-SW-001-....md"
+    QString fileName;              //!< base name, e.g. "REQ-SW-PL-001-....md"
     QString section;               //!< "active" | "archive"
     QString rawContent;            //!< original file content (for round-trip edit)
 };
@@ -94,7 +94,7 @@ public:
     /**
      * @brief Scans all parsed requirements in active/ and archive/ under baseDir
      *        for the given prefix and returns the next free ID as "REQ-<P>-<NNN>"
-     *        (zero-padded to 3 digits). E.g. generateNextId(dir, "SW") -> "REQ-SW-012".
+     *        (zero-padded to 3 digits). E.g. generateNextId(dir, "SW-PL") -> "REQ-SW-PL-016".
      */
     static QString generateNextId(const QString &baseDir, const QString &prefix);
 

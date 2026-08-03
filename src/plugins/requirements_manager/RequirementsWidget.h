@@ -34,9 +34,9 @@ class TraceabilityMatrixWidget;
  *   - Edit Mode: raw Markdown editor (QPlainTextEdit) with Save/Cancel.
  *
  * Additional actions: create new requirements (NewRequirementDialog),
- * mark done & archive / reopen (REQ-SW-004), dependency editing
- * (REQ-SW-007), validation report (REQ-SW-008) and built-in help
- * (REQ-SW-005).
+ * mark done & archive / reopen (REQ-SW-PL-004), dependency editing
+ * (REQ-SW-PL-007), validation report (REQ-SW-PL-008) and built-in help
+ * (REQ-SW-PL-005).
  *
  * Changes are written back to the .md files (bidirectional sync).
  */

@@ -109,9 +109,9 @@ bool MatrixExporter::exportMarkdown(const QVector<Requirement> &requirements,
     // which would mangle the Cyrillic/em-dash text before toUtf8().
     out << QStringLiteral("# Traceability Matrix — Requirements Manager & Framework Tools\n")
         << QStringLiteral("\n")
-        << QStringLiteral("Матрица за проследимост на изискванията за **Requirements Manager** инструмент (`REQ-SW-*`).\n")
+        << QStringLiteral("Матрица за проследимост на изискванията за **Requirements Manager** инструмент (`REQ-SW-<TYPE>-*`).\n")
         << QStringLiteral("\n")
-        << QStringLiteral("## Изисквания (`REQ-SW-*`)\n")
+        << QStringLiteral("## Изисквания (`REQ-SW-<TYPE>-*`)\n")
         << QStringLiteral("\n")
         << QStringLiteral("| REQ ID | Заглавие | Статус | Родител | Зависи от | Коммит(и) | Код | Тестове |\n")
         << QStringLiteral("|--------|----------|--------|---------|-----------|-----------|-----|---------|\n");

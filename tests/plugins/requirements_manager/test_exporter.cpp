@@ -18,12 +18,12 @@ private slots:
     {
         QVector<Requirement> reqs;
         Requirement req;
-        req.id = "REQ-SW-001";
+        req.id = "REQ-SW-PL-001";
         req.title = "Test Requirement";
         req.status = "ACTIVE";
         req.priority = "High";
-        req.parentId = "REQ-SW-000";
-        req.dependencies = QStringList() << "REQ-SW-002";
+        req.parentId = "REQ-SW-PL-000";
+        req.dependencies = QStringList() << "REQ-SW-PL-002";
         req.commits = "abc123";
         req.code = "src/test.cpp";
         req.tests = "unit tests";
@@ -37,11 +37,11 @@ private slots:
         QString content = buffer.readAll();
 
         QVERIFY(content.contains("# Traceability Matrix — Requirements Manager & Framework Tools"));
-        QVERIFY(content.contains("REQ-SW-001"));
+        QVERIFY(content.contains("REQ-SW-PL-001"));
         QVERIFY(content.contains("Test Requirement"));
         QVERIFY(content.contains("ACTIVE"));
-        QVERIFY(content.contains("REQ-SW-000"));
-        QVERIFY(content.contains("REQ-SW-002"));
+        QVERIFY(content.contains("REQ-SW-PL-000"));
+        QVERIFY(content.contains("REQ-SW-PL-002"));
         QVERIFY(content.contains("abc123"));
         QVERIFY(content.contains("src/test.cpp"));
         QVERIFY(content.contains("unit tests"));
@@ -51,12 +51,12 @@ private slots:
     {
         QVector<Requirement> reqs;
         Requirement req;
-        req.id = "REQ-SW-001";
+        req.id = "REQ-SW-PL-001";
         req.title = "Test, Requirement";
         req.status = "ACTIVE";
         req.priority = "High";
-        req.parentId = "REQ-SW-000";
-        req.dependencies = QStringList() << "REQ-SW-002";
+        req.parentId = "REQ-SW-PL-000";
+        req.dependencies = QStringList() << "REQ-SW-PL-002";
         req.commits = "abc\"123";
         req.code = "src/test.cpp";
         req.tests = "unit\nnewline";
@@ -70,10 +70,10 @@ private slots:
         QString content = buffer.readAll();
 
         QVERIFY(content.contains("ID,Title,Status,Priority,Parent,Dependencies,Commits,Code,Tests,Section"));
-        QVERIFY(content.contains("REQ-SW-001"));
+        QVERIFY(content.contains("REQ-SW-PL-001"));
         QVERIFY(content.contains("Test, Requirement"));
-        QVERIFY(content.contains("REQ-SW-000"));
-        QVERIFY(content.contains("REQ-SW-002"));
+        QVERIFY(content.contains("REQ-SW-PL-000"));
+        QVERIFY(content.contains("REQ-SW-PL-002"));
         QVERIFY(content.contains("abc\"\"123"));
         QVERIFY(content.contains("src/test.cpp"));
         QVERIFY(content.contains(QStringLiteral("unit\nnewline")));
@@ -83,20 +83,20 @@ private slots:
     {
         QVector<Requirement> reqs;
         Requirement req;
-        req.id = "REQ-SW-001";
+        req.id = "REQ-SW-PL-001";
         req.title = "Test Requirement";
         req.status = "ACTIVE";
         req.priority = "High";
         req.assignee = "Implementation";
         req.date = "2026-07-31";
-        req.parentId = "REQ-SW-000";
-        req.dependencies = QStringList() << "REQ-SW-002";
+        req.parentId = "REQ-SW-PL-000";
+        req.dependencies = QStringList() << "REQ-SW-PL-002";
         req.description = "Test description";
         req.traceability = "Test traceability";
         req.commits = "abc123";
         req.code = "src/test.cpp";
         req.tests = "unit tests";
-        req.fileName = "REQ-SW-001-test.md";
+        req.fileName = "REQ-SW-PL-001-test.md";
         req.section = "active";
         req.acceptanceCriteria = QStringList() << "Criterion 1" << "Criterion 2";
         req.criteriaDone = QVector<bool>() << true << false;
@@ -114,21 +114,21 @@ private slots:
         QCOMPARE(array.size(), 1);
 
         QJsonObject obj = array[0].toObject();
-        QCOMPARE(obj["id"].toString(), "REQ-SW-001");
+        QCOMPARE(obj["id"].toString(), "REQ-SW-PL-001");
         QCOMPARE(obj["title"].toString(), "Test Requirement");
         QCOMPARE(obj["status"].toString(), "ACTIVE");
         QCOMPARE(obj["priority"].toString(), "High");
         QCOMPARE(obj["assignee"].toString(), "Implementation");
         QCOMPARE(obj["date"].toString(), "2026-07-31");
-        QCOMPARE(obj["parentId"].toString(), "REQ-SW-000");
+        QCOMPARE(obj["parentId"].toString(), "REQ-SW-PL-000");
         QCOMPARE(obj["dependencies"].toArray().size(), 1);
-        QCOMPARE(obj["dependencies"].toArray()[0].toString(), "REQ-SW-002");
+        QCOMPARE(obj["dependencies"].toArray()[0].toString(), "REQ-SW-PL-002");
         QCOMPARE(obj["description"].toString(), "Test description");
         QCOMPARE(obj["traceability"].toString(), "Test traceability");
         QCOMPARE(obj["commits"].toString(), "abc123");
         QCOMPARE(obj["code"].toString(), "src/test.cpp");
         QCOMPARE(obj["tests"].toString(), "unit tests");
-        QCOMPARE(obj["fileName"].toString(), "REQ-SW-001-test.md");
+        QCOMPARE(obj["fileName"].toString(), "REQ-SW-PL-001-test.md");
         QCOMPARE(obj["section"].toString(), "active");
         QCOMPARE(obj["acceptanceCriteria"].toArray().size(), 2);
         QCOMPARE(obj["acceptanceCriteria"].toArray()[0].toString(), "Criterion 1");
@@ -141,22 +141,22 @@ private slots:
     {
         QVector<Requirement> reqs;
         Requirement req1;
-        req1.id = "REQ-SW-001";
+        req1.id = "REQ-SW-PL-001";
         req1.status = "ACTIVE";
         req1.acceptanceCriteria = QStringList() << "Criterion 1" << "Criterion 2";
         req1.criteriaDone = QVector<bool>() << true << false;
-        req1.dependencies = QStringList() << "REQ-SW-002";
+        req1.dependencies = QStringList() << "REQ-SW-PL-002";
         reqs.append(req1);
 
         Requirement req2;
-        req2.id = "REQ-SW-002";
+        req2.id = "REQ-SW-PL-002";
         req2.status = "DONE";
         req2.acceptanceCriteria = QStringList() << "Criterion 1";
         req2.criteriaDone = QVector<bool>() << true;
         reqs.append(req2);
 
         Requirement req3;
-        req3.id = "REQ-SW-003";
+        req3.id = "REQ-SW-PL-003";
         req3.status = "CANCELLED";
         req3.acceptanceCriteria.clear();
         req3.criteriaDone.clear();

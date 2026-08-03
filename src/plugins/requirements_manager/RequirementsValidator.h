@@ -15,7 +15,7 @@ namespace Daqster {
  *
  * The validator only consumes the structured, normalized Requirement
  * records produced by RequirementsParser — it never re-parses raw
- * Markdown (see REQ-SW-002 AC6-7 / REQ-SW-011).
+ * Markdown (see REQ-SW-PL-002 AC6-7 / REQ-SW-PL-011).
  */
 class RequirementsValidator
 {

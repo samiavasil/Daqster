@@ -7,7 +7,7 @@
 namespace Daqster {
 
 /**
- * @brief Flat table model for the Traceability Matrix view (REQ-SW-010).
+ * @brief Flat table model for the Traceability Matrix view (REQ-SW-PL-010).
  *
  * Shows one row per parsed requirement with the columns that make up the
  * traceability matrix: ID, Title, Status, Priority, Parent, Dependencies,

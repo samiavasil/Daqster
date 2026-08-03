@@ -23,38 +23,38 @@ Requirement makeRequirement(const QString &id, const QString &section,
     return req;
 }
 
-// Fixture shape (mirrors the real data: REQ-SW-001 has 10 children):
-//   REQ-SW-001            root (parentless)
-//   REQ-SW-002 .. 011     10 children of REQ-SW-001
-//   REQ-SW-021            child of REQ-SW-002 (3rd level)
-//   REQ-SW-031            child of REQ-SW-021 (4th level)
-//   REQ-SW-040            second root
-//   REQ-SW-050            dangling parentId (REQ-SW-999 does not exist)
-//   REQ-SW-060 <-> 061    parent cycle (broken gracefully)
-//   REQ-SW-080            root in archive section
+// Fixture shape (mirrors the real data: REQ-SW-PL-001 has 10 children):
+//   REQ-SW-PL-001            root (parentless)
+//   REQ-SW-PL-002 .. 011     10 children of REQ-SW-PL-001
+//   REQ-SW-PL-014            child of REQ-SW-PL-002 (3rd level)
+//   REQ-SW-PL-031            child of REQ-SW-PL-014 (4th level)
+//   REQ-SW-PL-040            second root
+//   REQ-SW-PL-050            dangling parentId (REQ-SW-PL-999 does not exist)
+//   REQ-SW-PL-060 <-> REQ-SW-PL-061    parent cycle (broken gracefully)
+//   REQ-SW-PL-080            root in archive section
 QVector<Requirement> makeFixture()
 {
     QVector<Requirement> reqs;
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-001"), QStringLiteral("active"),
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("active"),
                                 QString()));
     for (int i = 2; i <= 11; ++i) {
         reqs.append(makeRequirement(
-            QStringLiteral("REQ-SW-%1").arg(i, 3, 10, QLatin1Char('0')),
-            QStringLiteral("active"), QStringLiteral("REQ-SW-001")));
+            QStringLiteral("REQ-SW-PL-%1").arg(i, 3, 10, QLatin1Char('0')),
+            QStringLiteral("active"), QStringLiteral("REQ-SW-PL-001")));
     }
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-021"), QStringLiteral("active"),
-                                QStringLiteral("REQ-SW-002")));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-031"), QStringLiteral("active"),
-                                QStringLiteral("REQ-SW-021")));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-040"), QStringLiteral("active"),
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-014"), QStringLiteral("active"),
+                                QStringLiteral("REQ-SW-PL-002")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-031"), QStringLiteral("active"),
+                                QStringLiteral("REQ-SW-PL-014")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-040"), QStringLiteral("active"),
                                 QString()));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-050"), QStringLiteral("active"),
-                                QStringLiteral("REQ-SW-999")));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-060"), QStringLiteral("active"),
-                                QStringLiteral("REQ-SW-061")));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-061"), QStringLiteral("active"),
-                                QStringLiteral("REQ-SW-060")));
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-080"), QStringLiteral("archive"),
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-050"), QStringLiteral("active"),
+                                QStringLiteral("REQ-SW-PL-999")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-060"), QStringLiteral("active"),
+                                QStringLiteral("REQ-SW-PL-061")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-061"), QStringLiteral("active"),
+                                QStringLiteral("REQ-SW-PL-060")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-080"), QStringLiteral("archive"),
                                 QString()));
     return reqs;
 }
@@ -157,28 +157,28 @@ void TestModel::hierarchy_shape()
 
     // Hierarchy mode nests by parentId: top-level nodes per section.
     model.setViewMode(RequirementsModel::ViewMode::Hierarchy);
-    QCOMPARE(model.rowCount(activeSection), 5); // SW-001, SW-040, SW-050, SW-060, SW-061
-    QCOMPARE(model.rowCount(archiveSection), 1); // SW-080
+    QCOMPARE(model.rowCount(activeSection), 5); // PL-001, PL-040, PL-050, PL-060, PL-061
+    QCOMPARE(model.rowCount(archiveSection), 1); // PL-080
 
-    // REQ-SW-001 has its 10 children.
-    const QModelIndex root = model.indexForId(QStringLiteral("REQ-SW-001"));
+    // REQ-SW-PL-001 has its 10 children.
+    const QModelIndex root = model.indexForId(QStringLiteral("REQ-SW-PL-001"));
     QVERIFY(root.isValid());
     QCOMPARE(model.rowCount(root), 10);
 
     // Nested levels.
-    const QModelIndex sw002 = model.indexForId(QStringLiteral("REQ-SW-002"));
+    const QModelIndex sw002 = model.indexForId(QStringLiteral("REQ-SW-PL-002"));
     QVERIFY(sw002.isValid());
-    QCOMPARE(model.rowCount(sw002), 1); // REQ-SW-021
+    QCOMPARE(model.rowCount(sw002), 1); // REQ-SW-PL-014
 
-    const QModelIndex sw021 = model.indexForId(QStringLiteral("REQ-SW-021"));
+    const QModelIndex sw021 = model.indexForId(QStringLiteral("REQ-SW-PL-014"));
     QVERIFY(sw021.isValid());
-    QCOMPARE(model.rowCount(sw021), 1); // REQ-SW-031
+    QCOMPARE(model.rowCount(sw021), 1); // REQ-SW-PL-031
 
-    const QModelIndex sw031 = model.indexForId(QStringLiteral("REQ-SW-031"));
+    const QModelIndex sw031 = model.indexForId(QStringLiteral("REQ-SW-PL-031"));
     QVERIFY(sw031.isValid());
     QCOMPARE(model.rowCount(sw031), 0);
 
-    const QModelIndex sw040 = model.indexForId(QStringLiteral("REQ-SW-040"));
+    const QModelIndex sw040 = model.indexForId(QStringLiteral("REQ-SW-PL-040"));
     QVERIFY(sw040.isValid());
     QCOMPARE(model.rowCount(sw040), 0);
 }
@@ -191,23 +191,23 @@ void TestModel::hierarchy_nesting()
 
     const QModelIndex activeSection = model.index(0, 0, QModelIndex());
 
-    // Direct parent chain: SW-031 -> SW-021 -> SW-002 -> active section.
-    const QModelIndex sw031 = model.indexForId(QStringLiteral("REQ-SW-031"));
-    const QModelIndex sw021 = model.indexForId(QStringLiteral("REQ-SW-021"));
-    const QModelIndex sw002 = model.indexForId(QStringLiteral("REQ-SW-002"));
-    const QModelIndex sw001 = model.indexForId(QStringLiteral("REQ-SW-001"));
+    // Direct parent chain: PL-031 -> PL-014 -> PL-002 -> active section.
+    const QModelIndex sw031 = model.indexForId(QStringLiteral("REQ-SW-PL-031"));
+    const QModelIndex sw021 = model.indexForId(QStringLiteral("REQ-SW-PL-014"));
+    const QModelIndex sw002 = model.indexForId(QStringLiteral("REQ-SW-PL-002"));
+    const QModelIndex sw001 = model.indexForId(QStringLiteral("REQ-SW-PL-001"));
     QVERIFY(sw031.isValid());
     QVERIFY(sw021.isValid());
     QVERIFY(sw002.isValid());
     QVERIFY(sw001.isValid());
 
-    QVERIFY2(model.parent(sw031) == sw021, "SW-031 parent must be SW-021");
-    QVERIFY2(model.parent(sw021) == sw002, "SW-021 parent must be SW-002");
-    QVERIFY2(model.parent(sw002) == sw001, "SW-002 parent must be SW-001");
+    QVERIFY2(model.parent(sw031) == sw021, "PL-031 parent must be PL-014");
+    QVERIFY2(model.parent(sw021) == sw002, "PL-014 parent must be PL-002");
+    QVERIFY2(model.parent(sw002) == sw001, "PL-002 parent must be PL-001");
     QVERIFY2(model.parent(sw001) == activeSection,
-             "SW-001 (root) parent must be the active section");
+             "PL-001 (root) parent must be the active section");
 
-    // The 10 children of SW-001 are exactly SW-002 .. SW-011.
+    // The 10 children of PL-001 are exactly PL-002 .. PL-011.
     QSet<QString> childIds;
     for (int r = 0; r < model.rowCount(sw001); ++r) {
         const QModelIndex child = model.index(r, 0, sw001);
@@ -219,9 +219,9 @@ void TestModel::hierarchy_nesting()
     QCOMPARE(childIds.size(), 10);
     for (int i = 2; i <= 11; ++i) {
         const QString id =
-            QStringLiteral("REQ-SW-%1").arg(i, 3, 10, QLatin1Char('0'));
+            QStringLiteral("REQ-SW-PL-%1").arg(i, 3, 10, QLatin1Char('0'));
         QVERIFY2(childIds.contains(id),
-                 qPrintable(QStringLiteral("REQ-SW-001 must have child %1").arg(id)));
+                 qPrintable(QStringLiteral("REQ-SW-PL-001 must have child %1").arg(id)));
     }
 }
 
@@ -254,9 +254,9 @@ void TestModel::indexForId_behaviour()
         QVERIFY(!model.indexForId(QStringLiteral("REQ-UNKNOWN-999")).isValid());
 
         // Case-insensitive lookup.
-        const QModelIndex lower = model.indexForId(QStringLiteral("req-sw-040"));
+        const QModelIndex lower = model.indexForId(QStringLiteral("req-sw-pl-040"));
         QVERIFY(lower.isValid());
-        QCOMPARE(model.requirementAt(lower)->id, QStringLiteral("REQ-SW-040"));
+        QCOMPARE(model.requirementAt(lower)->id, QStringLiteral("REQ-SW-PL-040"));
     }
 }
 
@@ -267,7 +267,7 @@ void TestModel::danglingParent_isTopLevel()
     model.setViewMode(RequirementsModel::ViewMode::Hierarchy);
 
     const QModelIndex activeSection = model.index(0, 0, QModelIndex());
-    const QModelIndex sw050 = model.indexForId(QStringLiteral("REQ-SW-050"));
+    const QModelIndex sw050 = model.indexForId(QStringLiteral("REQ-SW-PL-050"));
     QVERIFY(sw050.isValid());
 
     // Dangling parentId must not crash the model: the requirement stays a
@@ -285,16 +285,16 @@ void TestModel::cycle_safe()
 
     const QModelIndex activeSection = model.index(0, 0, QModelIndex());
 
-    // Parent cycle SW-060 <-> SW-061 must not hang or crash the model. The
+    // Parent cycle PL-060 <-> PL-061 must not hang or crash the model. The
     // cycle is broken: both requirements render as top-level nodes with no
     // children.
-    const QModelIndex sw060 = model.indexForId(QStringLiteral("REQ-SW-060"));
-    const QModelIndex sw061 = model.indexForId(QStringLiteral("REQ-SW-061"));
+    const QModelIndex sw060 = model.indexForId(QStringLiteral("REQ-SW-PL-060"));
+    const QModelIndex sw061 = model.indexForId(QStringLiteral("REQ-SW-PL-061"));
     QVERIFY(sw060.isValid());
     QVERIFY(sw061.isValid());
 
-    QVERIFY2(model.parent(sw060) == activeSection, "cycle node SW-060 must be top-level");
-    QVERIFY2(model.parent(sw061) == activeSection, "cycle node SW-061 must be top-level");
+    QVERIFY2(model.parent(sw060) == activeSection, "cycle node PL-060 must be top-level");
+    QVERIFY2(model.parent(sw061) == activeSection, "cycle node PL-061 must be top-level");
     QCOMPARE(model.rowCount(sw060), 0);
     QCOMPARE(model.rowCount(sw061), 0);
 
@@ -314,13 +314,13 @@ void TestModel::requirementRole_data()
     RequirementsModel model;
     model.setRequirements(makeFixture());
 
-    const QModelIndex idx = model.indexForId(QStringLiteral("REQ-SW-040"));
+    const QModelIndex idx = model.indexForId(QStringLiteral("REQ-SW-PL-040"));
     QVERIFY(idx.isValid());
 
     const QVariant value = model.data(idx, RequirementsModel::RequirementRole);
     QVERIFY(value.isValid());
     const Requirement req = value.value<Requirement>();
-    QCOMPARE(req.id, QStringLiteral("REQ-SW-040"));
+    QCOMPARE(req.id, QStringLiteral("REQ-SW-PL-040"));
     QCOMPARE(req.section, QStringLiteral("active"));
 }
 

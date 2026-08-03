@@ -1,6 +1,7 @@
 #include "RequirementsValidator.h"
 
 #include <QHash>
+#include <QRegularExpression>
 #include <QSet>
 
 #include <functional>
@@ -75,6 +76,22 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
             return nullptr;
         return &requirements.at(it.value());
     };
+
+    // --- ID format (typed scheme) -----------------------------------------
+    // The ID is a validated format-model, not semantics: public requirements
+    // follow "REQ-SW-<TYPE>-<NN>" (FW/APP/PL/BLD), private ones follow
+    // "REQ-<PREFIX>-<NN>" (PLG/AI/SEC/DOC). Anything else gets a Warning so
+    // malformed IDs stay visible without breaking the tree.
+    const QRegularExpression idFormatRe(
+        QStringLiteral("^REQ-[A-Z]+(-[A-Z]+)?-\\d{3}$"));
+    for (const Requirement &req : requirements) {
+        if (!idFormatRe.match(req.id).hasMatch()) {
+            issues.append({req.id, QStringLiteral("id"),
+                           QStringLiteral("ID '%1' не следва схемата REQ-<PREFIX>-<NN>")
+                               .arg(req.id),
+                           Severity::Warning});
+        }
+    }
 
     // --- Missing / incomplete fields --------------------------------------
     for (const Requirement &req : requirements) {

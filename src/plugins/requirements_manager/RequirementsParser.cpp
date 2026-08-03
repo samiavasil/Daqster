@@ -11,6 +11,21 @@ namespace Daqster {
 
 namespace {
 
+// True when every character of s is a digit (and s is non-empty). Used by
+// generateNextId() to enforce an exact prefix-family match: the remainder
+// after "REQ-<PREFIX>-" must be a pure number so typed families (REQ-SW-PL-*,
+// REQ-SW-FW-*, ...) never pollute each other's max+1 scan.
+bool numberStrIsDigits(const QString &s)
+{
+    if (s.isEmpty())
+        return false;
+    for (const QChar &c : s) {
+        if (!c.isDigit())
+            return false;
+    }
+    return true;
+}
+
 QString sectionOf(const QString &baseDir, const QString &absolutePath)
 {
     const QString dir = QDir(baseDir).absolutePath();
@@ -177,6 +192,12 @@ QString RequirementsParser::generateNextId(const QString &baseDir, const QString
         if (!req.id.startsWith(prefixStr))
             continue;
         const QString numberStr = req.id.mid(prefixStr.length());
+        // Exact prefix-family match: the remainder after "REQ-<PREFIX>-" must
+        // be a pure number. This keeps typed families isolated — e.g. a query
+        // for "SW-PL" counts "REQ-SW-PL-001" but never "REQ-SW-FW-001", and a
+        // query for "SW" never counts "REQ-SW-PL-001".
+        if (numberStr.isEmpty() || !numberStrIsDigits(numberStr))
+            continue;
         bool ok = false;
         const int number = numberStr.toInt(&ok);
         if (ok && number > maxNumber)
@@ -207,14 +228,16 @@ QString RequirementsParser::archiveDirectory(const QString &baseDir)
 bool RequirementsParser::moveToArchive(const QString &filePath)
 {
     const QFileInfo info(filePath);
-    const QString dir = info.absolutePath();
-    const QString sep = QDir::separator();
-    if (!dir.endsWith(sep + QStringLiteral("active")))
-        return false;
+    const QStringList dirParts = info.absolutePath().split(QDir::separator());
+    const int activeIndex = dirParts.lastIndexOf(QStringLiteral("active"));
+    if (activeIndex < 0)
+        return false; // file is not inside an active/ directory
 
-    const QString archiveDir =
-        dir.left(dir.length() - QStringLiteral("active").length())
-        + QStringLiteral("archive");
+    // Replace the "active" path segment with "archive", preserving any nested
+    // subdirectory: <...>/active/framework/ -> <...>/archive/framework/.
+    QStringList targetParts = dirParts;
+    targetParts[activeIndex] = QStringLiteral("archive");
+    const QString archiveDir = targetParts.join(QDir::separator());
     QDir().mkpath(archiveDir);
     const QString target = QDir(archiveDir).filePath(info.fileName());
     if (target == filePath)
@@ -227,14 +250,16 @@ bool RequirementsParser::moveToArchive(const QString &filePath)
 bool RequirementsParser::moveToActive(const QString &filePath)
 {
     const QFileInfo info(filePath);
-    const QString dir = info.absolutePath();
-    const QString sep = QDir::separator();
-    if (!dir.endsWith(sep + QStringLiteral("archive")))
-        return false;
+    const QStringList dirParts = info.absolutePath().split(QDir::separator());
+    const int archiveIndex = dirParts.lastIndexOf(QStringLiteral("archive"));
+    if (archiveIndex < 0)
+        return false; // file is not inside an archive/ directory
 
-    const QString activeDir =
-        dir.left(dir.length() - QStringLiteral("archive").length())
-        + QStringLiteral("active");
+    // Replace the "archive" path segment with "active", preserving any nested
+    // subdirectory: <...>/archive/framework/ -> <...>/active/framework/.
+    QStringList targetParts = dirParts;
+    targetParts[archiveIndex] = QStringLiteral("active");
+    const QString activeDir = targetParts.join(QDir::separator());
     QDir().mkpath(activeDir);
     const QString target = QDir(activeDir).filePath(info.fileName());
     if (target == filePath)
@@ -261,8 +286,11 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
 
     const QStringList lines = out.rawContent.split(QStringLiteral("\n"));
 
-    // Title: "# REQ-FW-001: Some Title"
-    const QRegularExpression titleRe(QStringLiteral("^#\\s+(REQ-[A-Z]+-\\d+)\\s*:\\s*(.*)$"));
+    // Title: "# REQ-FW-001: Some Title" (3-segment) or
+    //        "# REQ-SW-PL-001: Some Title" (typed, 4-segment)
+    // Capture groups: 1 = full ID, 2 = optional type segment, 3 = title.
+    const QRegularExpression titleRe(
+        QStringLiteral("^#\\s+(REQ-[A-Z]+(-[A-Z]+)?-\\d{3})\\s*:\\s*(.*)$"));
     // Metadata: "- **Статус:** ACTIVE" (bold wraps "Ключ:" together)
     const QRegularExpression metaRe(QStringLiteral("^\\s*-\\s*\\*\\*([^*]+):\\*\\*\\s*(.*)$"));
     // Acceptance criterion: "- [ ] text" / "- [x] text"
@@ -286,7 +314,7 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
         const QRegularExpressionMatch titleMatch = titleRe.match(line);
         if (titleMatch.hasMatch()) {
             out.id = titleMatch.captured(1);
-            out.title = titleMatch.captured(2).trimmed();
+            out.title = titleMatch.captured(3).trimmed(); // group 2 = optional type
             continue;
         }
 

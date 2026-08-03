@@ -17,7 +17,7 @@ namespace Daqster {
 struct GraphNode
 {
     int reqIndex = -1; //!< index into the source QVector<Requirement>
-    QString id;        //!< e.g. "REQ-SW-001"
+    QString id;        //!< e.g. "REQ-SW-PL-001"
     QString title;
     QString status;    //!< ACTIVE | DONE | CANCELLED
     QString priority;  //!< High | Medium | Low

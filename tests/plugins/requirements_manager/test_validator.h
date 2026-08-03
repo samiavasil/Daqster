@@ -17,4 +17,6 @@ private slots:
     void missingFields_warnings();
     void selfReference_error();
     void archivedDependency_warning();
+    void typedIdFormat_validAndMalformed();
+    void twoDigitId_warning();
 };

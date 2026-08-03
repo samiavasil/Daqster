@@ -15,7 +15,7 @@ namespace Daqster {
 class TraceabilityMatrixModel;
 
 /**
- * @brief Traceability Matrix view + export (REQ-SW-010).
+ * @brief Traceability Matrix view + export (REQ-SW-PL-010).
  *
  * Shows every requirement in a flat table (ID, Title, Status, Priority,
  * Parent, Dependencies, Commits, Code, Tests, Section) with live filtering by

@@ -11,7 +11,7 @@
 # whose main() lives in test_main.cpp. Each class is run through QTest::qExec
 # there, mirroring QTEST_GUILESS_MAIN.
 #
-# The REQ-SW-010 traceability tests are self-contained QTEST_MAIN executables
+# The REQ-SW-PL-010 traceability tests are self-contained QTEST_MAIN executables
 # (test_matrix.cpp / test_exporter.cpp define their own main), so each gets its
 # own binary: requirements_manager_matrix_tests and
 # requirements_manager_exporter_tests.
@@ -60,7 +60,7 @@ target_link_libraries(requirements_manager_tests PRIVATE
 
 add_test(NAME requirements_manager_tests COMMAND $<TARGET_FILE:requirements_manager_tests>)
 
-# REQ-SW-010 traceability tests. The traceability model/exporter classes are
+# REQ-SW-PL-010 traceability tests. The traceability model/exporter classes are
 # QtCore-only, and each test file is self-contained (QTEST_MAIN in the .cpp
 # provides its own main), so each gets its own headless executable.
 set(MATRIX_TEST_SOURCES
