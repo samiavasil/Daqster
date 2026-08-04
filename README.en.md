@@ -126,7 +126,7 @@ For details see [tools/create_appimage.sh](./tools/create_appimage.sh).
 - `src/frame_work` - framework core (ShutdownHandler, QProcessManager)
 - `src/apps/Daqster` - host application with ApplicationsManager
 - `src/plugins` - runtime and test plugins
-- `src/external_libs` - external libraries
+- `src/plugins/external_libs` - external libraries
 - `tools` - build and AppImage scripts
 - `Docs` - architecture, development, operations, porting and diagrams
 

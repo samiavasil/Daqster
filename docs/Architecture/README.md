@@ -27,12 +27,14 @@ Daqster/
 │   ├── frame_work/               # Ядро на рамката
 │   │   ├── base/src/             # Implementation (QPluginManager, QPluginInterface, ...)
 │   │   │   └── include/          # Headers
-│   │   └── (include/ е премахнат — няма IPluginComponent)
+│   │   └── (IPluginComponent е премахнат — headers остават в base/src/include/)
 │   ├── apps/                     # Приложения
 │   │   └── Daqster/              # Главно приложение
 │   └── plugins/                  # ВСИЧКО график/AI живее тук
 │       ├── external_libs/        # Git submodules (nodeeditor, qtrest_lib)
-│       ├── capabilities/         # Shared capability interfaces (INodeProvider.h)
+│       ├── common/               # Споделени типове + capability интерфейси
+│       │   ├── capabilities/     # INodeProvider.h
+│       │   └── NodeDataTypes/    # TextData, FloatData, EmbeddingData, ...
 │       ├── node_editor_ide/      # Визуален node-based редактор + вградени нодове
 │       ├── demo_nodeditor_nodes/  # INodeProvider — AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux
 │       ├── QtCoinTrader/         # QtCoinTrader плъгин
@@ -127,7 +129,7 @@ Daqster/
 
 ### 5. Capabilities (Споделени интерфейси)
 
-**Местоположение:** `src/plugins/capabilities/`
+**Местоположение:** `src/plugins/common/capabilities/`
 
 Header-only интерфейси, достъпни за всеки плъгин:
 

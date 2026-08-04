@@ -88,7 +88,7 @@ Metadata-та се съхранява в `PluginDescription` — property bag с
 ```
 1. QPluginManager::SearchForPlugins()
    → сканира m_searchPaths за .so/.dll файлове (нормализирани с QDir::absolutePath())
-   → IsCandidatePluginFile() проверява дали файлът съдържа "g "plugin" в името, има companion .json файл или Qt plugin metadata
+   → PluginDiscovery::isCandidatePluginFile() проверява дали файлът е библиотека, съдържа "plugin" в името, има companion .json файл или Qt plugin metadata
    → LoadPluginsInfoFromPersistency() валидира дали файловете реално съществуват на диска (QFileInfo::exists) и чисти stale записи
    → GetPluginList() гарантира дедупликация по PLUGIN_LOCATION (фаилов път)
 
@@ -147,7 +147,7 @@ protected:
 };
 ```
 
-### INodeProvider ( capabilities/ )
+### INodeProvider ( src/plugins/common/capabilities/ )
 Standalone capability interface за доставка на нодове.
 
 ```cpp
