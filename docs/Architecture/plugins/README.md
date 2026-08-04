@@ -30,11 +30,30 @@ requirements viewer/editor. Изгледите са организирани в 
 - **Requirements** — дърво + детайли (предишен Phase 1&2 UI).
 - **Dependency Graph** — интерактивна визуализация на зависимостите:
 
-  - `DependencyGraphData` (QtCore-only) — граф + слоест layout: един възел на
-    изискване, ребра `Родител:` и `Зависи от:` (case-insensitive resolution),
-    Kahn's algorithm върху dependency ребрата с cycle-safe residual слой и
-    `seen-set` guard (винаги терминира). Нерesolv-нати референции се записват
-    като `danglingIds()` и НЕ стават ребра.
+  - `DependencyGraphData` (QtCore-only) — граф + **Sugiyama слоест layout**:
+    един възел на изискване, ребра `Родител:` и `Зависи от:` (case-insensitive
+    resolution), Kahn's algorithm върху dependency ребрата (фаза 1) с
+    cycle-safe residual слой и `seen-set` guard (винаги терминира).
+    Нерesolv-нати референции се записват като `danglingIds()` и НЕ стават
+    ребра. Позициите се изчисляват от `DependencyGraphLayout` (фази 2 & 3).
+  - `DependencyGraphLayout` (QtCore-only) — **Sugiyama фази 2 & 3** върху
+    layering-а от `DependencyGraphData`:
+    - **Фаза 2 — минимизация на кръстосванията (barycenter):**
+      `orderLayers()` започва от ID-сортиран ред във всеки слой и прави
+      4–6 sweep-а ляво→дясно / дясно→ляво, пренареждайки всеки слой по
+      средната позиция на съседите в съседния слой; запазва се редът с
+      най-малко кръстосвания (`crossingCount()` — двунивов брояч с инверсии).
+      В ordering-а участват **всички** ребра (Parent + Dependency); цикличните
+      ребра живеят в residual слоя (same-layer) и не дават междуслойни
+      кръстосвания.
+    - **Фаза 3 — координати:** `assignCoordinates()` разпределя слоевете по X
+      (`x = layer * 260`, разширено при широки заглавия — размерът на възела
+      се носи от `GraphNode::width`) и редовете по Y
+      (`y = row * 110`) с вертикално центриране на всеки слой спрямо
+      най-високия (offset = `(maxLayerHeight - layerHeight) / 2` — винаги
+      неотрицателен).
+    - Детерминизъм: tie-break-ът е case-insensitive ID + req index; два
+      `build()`-а на едни и същи данни дават идентични позиции.
   - `DependencyGraphWidget`/`DependencyGraphScene` (QtWidgets) — `QGraphicsScene`
     с movable rounded-rect възли (ID + title), `QGraphicsPathItem` ребра със
     стрелки (dashed = Parent, solid = Dependency), wheel zoom върху
@@ -59,11 +78,15 @@ requirements viewer/editor. Изгледите са организирани в 
     пре-resize viewport-а; `setSceneRect` се преизчислява след движение.
 
   Тестове: `tests/plugins/requirements_manager/test_graph.{h,cpp}` — TestGraph
-  (6 теста) в shared binary `requirements_manager_tests` (34/34 green на Qt5/Qt6);
+  (6 теста) + `tests/plugins/requirements_manager/test_graph_layout.{h,cpp}` —
+  **TestGraphLayout (6 теста, Sugiyama фази 2 & 3**: `layersPreserved`,
+  `crossingsReduced`, `deterministic`, `alignedAndCentered`,
+  `cycleResidualLayerStable`, `parentEdgesDoNotBreakLayering`) в shared binary
+  `requirements_manager_tests` (49/49 PASS на Qt5/Qt6);
   `tests/plugins/requirements_manager/test_graph_widget.{h,cpp}` — GUI binary
   `requirements_manager_gui_tests` (2 регресионни слота: `edgeFollowsNodeMove`,
   `fitsViewportAfterResize`; 4/4 green с init/cleanup, offscreen) —
-  35/35 + 4/4 green на Qt5/Qt6.
+  общо 68/68 PASS на Qt5/Qt6 (requirements_manager suite).
 
 ## Shared Components
 

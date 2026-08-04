@@ -23,6 +23,7 @@ struct GraphNode
     QString priority;  //!< High | Medium | Low
     QString section;   //!< "active" | "archive"
     QPointF pos;       //!< computed scene position of the node
+    qreal width = 120.0; //!< visual width in px (same formula as the widget)
 };
 
 /**

@@ -33,15 +33,18 @@ set(TEST_SOURCES
     test_model.cpp
     test_validator.cpp
     test_graph.cpp
+    test_graph_layout.cpp
     test_parser.h
     test_model.h
     test_validator.h
     test_graph.h
+    test_graph_layout.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsValidator.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphData.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphLayout.cpp
 )
 
 add_executable(requirements_manager_tests ${TEST_SOURCES})
@@ -121,6 +124,7 @@ set(GUI_TEST_SOURCES
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphWidget.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphData.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphLayout.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsValidator.cpp
 )

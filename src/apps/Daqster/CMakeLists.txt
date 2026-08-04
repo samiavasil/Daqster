@@ -1,4 +1,4 @@
-# Use template system for application
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            # Use template system for application
 create_application(Daqster
     SOURCES
         main.cpp

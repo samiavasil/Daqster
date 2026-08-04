@@ -5,6 +5,7 @@
 #include "test_model.h"
 #include "test_validator.h"
 #include "test_graph.h"
+#include "test_graph_layout.h"
 
 // Shared main for the four Requirements Manager test classes. Each class is
 // declared in its own header so a single binary can run all of them through
@@ -31,6 +32,10 @@ int main(int argc, char *argv[])
     {
         TestGraph graph;
         status |= QTest::qExec(&graph, argc, argv);
+    }
+    {
+        TestGraphLayout graphLayout;
+        status |= QTest::qExec(&graphLayout, argc, argv);
     }
     return status;
 }

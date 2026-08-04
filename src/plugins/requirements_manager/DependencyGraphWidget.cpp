@@ -181,7 +181,9 @@ DependencyGraphNodeItem::DependencyGraphNodeItem(const GraphNode &node, QGraphic
     , m_status(node.status)
     , m_priority(node.priority)
 {
-    const qreal width = qMax<qreal>(120.0, 36.0 + m_title.size() * 6.5);
+    // Visual width is computed once in DependencyGraphData::build() so the
+    // headless layout and the GUI widget always agree (height stays fixed).
+    const qreal width = node.width;
     const qreal height = 48.0;
     m_rect = QRectF(0, 0, width, height);
     setFlags(ItemIsMovable | ItemSendsGeometryChanges);

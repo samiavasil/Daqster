@@ -1,15 +1,8 @@
 #include "DependencyGraphData.h"
 
-#include <algorithm>
+#include "DependencyGraphLayout.h"
 
 namespace Daqster {
-
-namespace {
-
-constexpr int kHorizontalSpacing = 260; //!< px between adjacent layers
-constexpr int kVerticalSpacing = 110;   //!< px between nodes within a layer
-
-} // namespace
 
 DependencyGraphData DependencyGraphData::build(const QVector<Requirement> &requirements)
 {
@@ -29,6 +22,7 @@ DependencyGraphData DependencyGraphData::build(const QVector<Requirement> &requi
         node.status = req.status;
         node.priority = req.priority;
         node.section = req.section;
+        node.width = qMax(120.0, 36.0 + req.title.size() * 6.5);
         data.m_nodes.append(node);
     }
 
@@ -121,27 +115,26 @@ DependencyGraphData DependencyGraphData::build(const QVector<Requirement> &requi
         ++nextLayer;
     }
 
-    // Assign positions: x by layer, y by id-sorted row within the layer so the
-    // residual (cycle) layer is keyed deterministically by id too.
-    QVector<QVector<int>> byLayer(nextLayer);
-    for (int i = 0; i < n; ++i) {
-        const int layer = data.m_layer.at(i);
-        if (layer >= 0 && layer < byLayer.size())
-            byLayer[layer].append(i);
-    }
-    for (QVector<int> &members : byLayer) {
-        std::sort(members.begin(), members.end(), [&requirements](int a, int b) {
-            return QString::compare(requirements.at(a).id, requirements.at(b).id,
-                                    Qt::CaseInsensitive) < 0;
-        });
-    }
-    for (int layer = 0; layer < byLayer.size(); ++layer) {
-        for (int row = 0; row < byLayer.at(layer).size(); ++row) {
-            const int reqIndex = byLayer.at(layer).at(row);
-            data.m_nodes[reqIndex].pos =
-                QPointF(layer * kHorizontalSpacing, row * kVerticalSpacing);
-        }
-    }
+    // Sugiyama phases 2 & 3 (layout): barycenter crossing minimization (all
+    // edges — Parent AND Dependency — take part in the ordering) and
+    // coordinate assignment with size-aware horizontal spacing and vertically
+    // centred layers. Phase 1 (Kahn + residual layer, above) is untouched, so
+    // layerFor() values are identical to the pre-Sugiyama layout.
+    QStringList ids;
+    for (const GraphNode &node : data.m_nodes)
+        ids.append(node.id);
+
+    const QVector<QVector<int>> orderedLayers =
+        DependencyGraphLayout::orderLayers(n, data.m_edges, data.m_layer, ids);
+
+    QVector<qreal> nodeWidths(n, 0.0);
+    for (int i = 0; i < n; ++i)
+        nodeWidths[i] = data.m_nodes.at(i).width;
+
+    QVector<QPointF> positions(n);
+    DependencyGraphLayout::assignCoordinates(orderedLayers, nodeWidths, ids, &positions);
+    for (int i = 0; i < n; ++i)
+        data.m_nodes[i].pos = positions.at(i);
 
     return data;
 }
