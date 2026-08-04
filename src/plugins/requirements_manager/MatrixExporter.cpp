@@ -113,11 +113,11 @@ bool MatrixExporter::exportMarkdown(const QVector<Requirement> &requirements,
         << QStringLiteral("\n")
         << QStringLiteral("## Изисквания (`REQ-SW-<TYPE>-*`)\n")
         << QStringLiteral("\n")
-        << QStringLiteral("| REQ ID | Заглавие | Статус | Родител | Зависи от | Коммит(и) | Код | Тестове |\n")
-        << QStringLiteral("|--------|----------|--------|---------|-----------|-----------|-----|---------|\n");
+        << QStringLiteral("| REQ ID | Repo | Заглавие | Статус | Родител | Зависи от | Коммит(и) | Код | Тестове |\n")
+        << QStringLiteral("|--------|------|----------|--------|---------|-----------|-----------|-----|---------|\n");
 
     for (const Requirement &req : requirements) {
-        out << "| `" << req.id << "` | " << req.title << " | " << req.status
+        out << "| `" << req.id << "` | " << cell(req.repo) << " | " << req.title << " | " << req.status
             << " | " << cell(req.parentId) << " | "
             << cell(req.dependencies.join(QStringLiteral(", "))) << " | "
             << backticked(req.commits) << " | " << backticked(req.code)
@@ -133,11 +133,12 @@ bool MatrixExporter::exportCsv(const QVector<Requirement> &requirements,
     QTextStream out(&content);
 
     const QStringList headers = {
-        QStringLiteral("ID"),          QStringLiteral("Title"),
-        QStringLiteral("Status"),      QStringLiteral("Priority"),
-        QStringLiteral("Parent"),      QStringLiteral("Dependencies"),
-        QStringLiteral("Commits"),     QStringLiteral("Code"),
-        QStringLiteral("Tests"),       QStringLiteral("Section")
+        QStringLiteral("ID"),          QStringLiteral("Repo"),
+        QStringLiteral("Title"),       QStringLiteral("Status"),
+        QStringLiteral("Priority"),    QStringLiteral("Parent"),
+        QStringLiteral("Dependencies"), QStringLiteral("Commits"),
+        QStringLiteral("Code"),        QStringLiteral("Tests"),
+        QStringLiteral("Section")
     };
 
     QStringList escapedHeaders;
@@ -148,6 +149,7 @@ bool MatrixExporter::exportCsv(const QVector<Requirement> &requirements,
     for (const Requirement &req : requirements) {
         const QStringList fields = {
             req.id,
+            req.repo,
             req.title,
             req.status,
             req.priority,
@@ -185,6 +187,7 @@ bool MatrixExporter::exportJson(const QVector<Requirement> &requirements,
 
         QJsonObject object;
         object.insert(QStringLiteral("id"), req.id);
+        object.insert(QStringLiteral("repo"), req.repo);
         object.insert(QStringLiteral("title"), req.title);
         object.insert(QStringLiteral("status"), req.status);
         object.insert(QStringLiteral("priority"), req.priority);

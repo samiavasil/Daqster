@@ -1,7 +1,9 @@
 #include "RequirementsParser.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QRegularExpression>
+#include <QSet>
 #include <QTextStream>
 #include <QFile>
 
@@ -24,6 +26,49 @@ bool numberStrIsDigits(const QString &s)
             return false;
     }
     return true;
+}
+
+// Matches a reference with a trailing parenthesized annotation, e.g.
+//   "REQ-SW-PL-013 (публично)"  ->  bare "REQ-SW-PL-013", hint "публично"
+// Group 1 = bare ID (no spaces), group 2 = annotation text.
+const QRegularExpression &annotationRe()
+{
+    static const QRegularExpression re(
+        QStringLiteral("^([^\\s(]+)\\s*\\(([^()]*)\\)$"));
+    return re;
+}
+
+// Splits one "Родител:" / "Зависи от:" item into a bare ID and (when present)
+// its annotation text. The bare ID is what references are resolved by; the
+// annotation is preserved in Requirement::dependencyHints for repo checks.
+QString bareReferenceId(const QString &item, QString *hintOut)
+{
+    const QRegularExpressionMatch match = annotationRe().match(item.trimmed());
+    if (!match.hasMatch()) {
+        if (hintOut)
+            hintOut->clear();
+        return item.trimmed();
+    }
+    if (hintOut)
+        *hintOut = match.captured(2).trimmed();
+    return match.captured(1).trimmed();
+}
+
+// Appends a reference to a list of bare IDs and, when an annotation was
+// present, records the hint keyed by the bare ID.
+void appendReference(const QString &item, QStringList &bareIds,
+                     QHash<QString, QString> &hints)
+{
+    const QString trimmed = item.trimmed();
+    if (trimmed.isEmpty() || trimmed == QStringLiteral("—"))
+        return;
+    QString hint;
+    const QString bare = bareReferenceId(trimmed, &hint);
+    if (bare.isEmpty() || bare == QStringLiteral("—"))
+        return;
+    if (!hint.isEmpty() && !hints.contains(bare))
+        hints.insert(bare, hint);
+    bareIds.append(bare);
 }
 
 QString sectionOf(const QString &baseDir, const QString &absolutePath)
@@ -83,6 +128,84 @@ QVector<Requirement> RequirementsParser::parseDirectory(const QString &baseDir)
               });
 
     return result;
+}
+
+QString RequirementsParser::repoForId(const QString &id)
+{
+    // The typed public scheme is REQ-SW-<TYPE>-<NN>; everything else under
+    // REQ-<PREFIX>-<NN> is treated as private (PLG/AI/SEC/DOC...).
+    if (id.startsWith(QStringLiteral("REQ-SW-"), Qt::CaseInsensitive))
+        return QStringLiteral("public");
+    if (id.startsWith(QStringLiteral("REQ-"), Qt::CaseInsensitive))
+        return QStringLiteral("private");
+    return QStringLiteral("other");
+}
+
+QVector<Requirement> RequirementsParser::parseDirectories(const QVector<RequirementRoot> &roots)
+{
+    QVector<Requirement> result;
+    for (const RequirementRoot &root : roots) {
+        QVector<Requirement> parsed = parseDirectory(root.repoRoot);
+        for (Requirement &req : parsed)
+            req.repo = repoForId(req.id);
+        result += parsed;
+    }
+
+    // Stable sort so ties inside one ID family keep their per-root order
+    // (parseDirectory already sorts by ID within a root).
+    std::stable_sort(result.begin(), result.end(),
+                     [](const Requirement &a, const Requirement &b) {
+                         const int byId = QString::compare(a.id, b.id, Qt::CaseInsensitive);
+                         if (byId != 0)
+                             return byId < 0;
+                         return QString::compare(a.repo, b.repo, Qt::CaseInsensitive) < 0;
+                     });
+    return result;
+}
+
+QStringList RequirementsParser::discoverRepoRoots()
+{
+    QStringList roots;
+
+    // 1. Walk up from the application binary to the primary root (the first
+    //    directory containing DevelopmentProcess/requirements) — the
+    //    historical single-root discovery.
+    QDir dir(QCoreApplication::applicationDirPath());
+    while (!QDir(dir.filePath(QString::fromUtf8(kRequirementsSubdir))).exists()
+           && dir.cdUp()) {
+    }
+    const QString primary =
+        QDir(dir.filePath(QString::fromUtf8(kRequirementsSubdir))).exists()
+        ? dir.absolutePath()
+        : QCoreApplication::applicationDirPath();
+    roots.append(primary);
+
+    // 2. Scan the parent directory of the primary root for SIBLING
+    //    directories that also contain DevelopmentProcess/requirements.
+    QDir parent(primary);
+    if (parent.cdUp()) {
+        const QFileInfoList entries =
+            parent.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        for (const QFileInfo &entry : entries) {
+            if (QDir(entry.absoluteFilePath())
+                    .exists(QString::fromUtf8(kRequirementsSubdir))) {
+                roots.append(entry.absoluteFilePath());
+            }
+        }
+    }
+
+    // 3. Deduplicate canonical absolute paths and sort.
+    QStringList canonical;
+    QSet<QString> seen;
+    for (const QString &root : roots) {
+        const QString canon = QDir(root).canonicalPath();
+        if (canon.isEmpty() || seen.contains(canon))
+            continue;
+        seen.insert(canon);
+        canonical.append(canon);
+    }
+    std::sort(canonical.begin(), canonical.end());
+    return canonical;
 }
 
 bool RequirementsParser::writeRequirement(const Requirement &req)
@@ -331,17 +454,18 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
                 out.assignee = value;
             else if (key == QStringLiteral("Дата"))
                 out.date = value;
-            else if (key == QStringLiteral("Родител"))
-                out.parentId = (value == QStringLiteral("—")) ? QString() : value;
+            else if (key == QStringLiteral("Родител")) {
+                QString hint;
+                const QString bare = bareReferenceId(value, &hint);
+                out.parentId = (bare == QStringLiteral("—")) ? QString() : bare;
+                if (!bare.isEmpty() && bare != QStringLiteral("—") && !hint.isEmpty())
+                    out.dependencyHints.insert(bare, hint);
+            }
             else if (key == QStringLiteral("Зависи от")) {
                 out.dependencies.clear();
                 const QStringList parts = value.split(QLatin1Char(','));
-                for (const QString &part : parts) {
-                    const QString dep = part.trimmed();
-                    if (dep.isEmpty() || dep == QStringLiteral("—"))
-                        continue;
-                    out.dependencies.append(dep);
-                }
+                for (const QString &part : parts)
+                    appendReference(part, out.dependencies, out.dependencyHints);
             } else {
                 handled = false; // unknown metadata (e.g. under Проследимост)
                 // Traceability keys are captured into structured fields BUT

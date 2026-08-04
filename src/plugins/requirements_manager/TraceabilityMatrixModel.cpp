@@ -129,6 +129,7 @@ QVariant TraceabilityMatrixModel::data(const QModelIndex &index, int role) const
     case CodeColumn:        return matrixCell(req->code);
     case TestsColumn:       return matrixCell(req->tests);
     case SectionColumn:     return req->section;
+    case RepoColumn:        return req->repo;
     default:                return QVariant();
     }
 }
@@ -150,6 +151,7 @@ QVariant TraceabilityMatrixModel::headerData(int section, Qt::Orientation orient
     case CodeColumn:        return QStringLiteral("Code");
     case TestsColumn:       return QStringLiteral("Tests");
     case SectionColumn:     return QStringLiteral("Section");
+    case RepoColumn:        return QStringLiteral("Repo");
     default:                return QVariant();
     }
 }

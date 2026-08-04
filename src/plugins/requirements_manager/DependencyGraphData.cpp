@@ -18,6 +18,7 @@ DependencyGraphData DependencyGraphData::build(const QVector<Requirement> &requi
         GraphNode node;
         node.reqIndex = i;
         node.id = req.id;
+        node.repo = req.repo;
         node.title = req.title;
         node.status = req.status;
         node.priority = req.priority;
@@ -28,14 +29,31 @@ DependencyGraphData DependencyGraphData::build(const QVector<Requirement> &requi
 
     // Resolve a reference to a requirement index (case-insensitive, mirrors
     // RequirementsModel::indexOfId) or record it as dangling when it does not
-    // exist in the current set.
-    auto resolve = [&data](const QString &ref) -> int {
+    // exist in the current set. With a merged multi-repo vector a bare ID can
+    // resolve to several requirements (duplicate IDs across repos are flagged
+    // as Errors by the validator); when that happens the reference coming from
+    // the same repo wins, so cross-tree edges still resolve deterministically.
+    auto resolve = [&data](const QString &ref, const QString &fromRepo) -> int {
         if (ref.trimmed().isEmpty())
             return -1;
+        int firstMatch = -1;
+        int sameRepoMatch = -1;
         for (int i = 0; i < data.m_requirements.size(); ++i) {
-            if (QString::compare(data.m_requirements.at(i).id, ref, Qt::CaseInsensitive) == 0)
-                return i;
+            const Requirement &req = data.m_requirements.at(i);
+            if (QString::compare(req.id, ref, Qt::CaseInsensitive) != 0)
+                continue;
+            if (firstMatch < 0)
+                firstMatch = i;
+            if (!fromRepo.isEmpty()
+                && QString::compare(req.repo, fromRepo, Qt::CaseInsensitive) == 0) {
+                sameRepoMatch = i;
+                break;
+            }
         }
+        if (sameRepoMatch >= 0)
+            return sameRepoMatch;
+        if (firstMatch >= 0)
+            return firstMatch;
         data.m_danglingIds.append(ref);
         return -1;
     };
@@ -44,7 +62,7 @@ DependencyGraphData DependencyGraphData::build(const QVector<Requirement> &requi
     for (int i = 0; i < n; ++i) {
         const Requirement &req = requirements.at(i);
 
-        const int parentIdx = resolve(req.parentId);
+        const int parentIdx = resolve(req.parentId, req.repo);
         if (parentIdx >= 0 && parentIdx != i) {
             GraphEdge edge;
             edge.from = i;
@@ -54,7 +72,7 @@ DependencyGraphData DependencyGraphData::build(const QVector<Requirement> &requi
         }
 
         for (const QString &dep : req.dependencies) {
-            const int depIdx = resolve(dep);
+            const int depIdx = resolve(dep, req.repo);
             if (depIdx >= 0 && depIdx != i) {
                 GraphEdge edge;
                 edge.from = i;

@@ -49,8 +49,18 @@ public:
     ~RequirementsWidget() override;
 
     void openDirectory(const QString &baseDir);
+    void openDirectories(const QStringList &baseDirs);
 
     QString baseDirectory() const;
+
+    /**
+     * @brief Returns the requirements whose repo matches @p repo
+     *        (case-insensitive). An empty/blank @p repo (or "All") returns
+     *        the full set. Static so it is directly unit-testable
+     *        (REQ-SW-PL-012 shared repo filter).
+     */
+    static QVector<Requirement> filterRequirementsByRepo(
+        const QVector<Requirement> &requirements, const QString &repo);
 
 private slots:
     void onSelectionChanged();
@@ -68,6 +78,7 @@ private slots:
     void onAnchorClicked(const QUrl &link);
     void onViewModeChanged(int index);
     void onGraphNavigateRequested(const QString &id);
+    void onRepoFilterChanged(int index);
 
 private:
     void reload();
@@ -76,15 +87,18 @@ private:
     void navigateToId(const QString &id);
     void updateValidationStatus();
     void refreshActionState();
+    void refreshRepoFilterCombo();
     QString linkFor(const QString &id) const;
 
     RequirementsModel *m_model;
     QTreeView *m_treeView;
     QComboBox *m_viewModeCombo;
+    QComboBox *m_repoFilterCombo;
     QTextBrowser *m_preview;
     QPlainTextEdit *m_editor;
     QLabel *m_fileLabel;
     QLabel *m_validationLabel;
+    QLabel *m_rootStatusLabel;
     QPushButton *m_editButton;
     QPushButton *m_saveButton;
     QPushButton *m_cancelButton;
@@ -102,7 +116,9 @@ private:
     TraceabilityMatrixWidget *m_matrixWidget;
 
     QString m_baseDir;
-    QVector<Requirement> m_requirements;
+    QStringList m_roots;                 //!< merged tree roots currently loaded
+    QVector<Requirement> m_requirements; //!< FULL parsed set (validation/preview/actions)
+    QVector<Requirement> m_filtered;     //!< subset feeding model/graph/matrix
     QVector<RequirementsValidator::Issue> m_validationIssues;
     int m_currentIndex; //!< index into m_requirements; -1 when none selected
 };

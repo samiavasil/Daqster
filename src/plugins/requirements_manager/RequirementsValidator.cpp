@@ -66,12 +66,37 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
 {
     QVector<Issue> issues;
 
+    // --- Duplicate IDs across repos (REQ-SW-PL-012) ----------------------
+    // With a merged multi-repo vector, the same bare ID can appear twice (e.g.
+    // a public REQ-SW-PL-013 and a private duplicate). The old silent
+    // last-wins lookup hid this; now every duplicate occurrence is an Error.
     QHash<QString, int> idToIndex;
-    for (int i = 0; i < requirements.size(); ++i)
-        idToIndex.insert(requirements.at(i).id, i);
+    QHash<QString, QStringList> idOwners; // lowercase ID -> repos seen so far
+    for (int i = 0; i < requirements.size(); ++i) {
+        const Requirement &req = requirements.at(i);
+        const QString key = req.id.toLower();
+        if (idToIndex.contains(key)) {
+            QStringList repos = idOwners.value(key);
+            const QString repoLabel = req.repo.trimmed().isEmpty()
+                ? QStringLiteral("(unknown)")
+                : req.repo;
+            if (!repos.contains(repoLabel))
+                repos.append(repoLabel);
+            idOwners.insert(key, repos);
+            issues.append({req.id, QStringLiteral("id"),
+                           QStringLiteral("duplicate requirement ID '%1' — shared by %2")
+                               .arg(req.id, repos.join(QStringLiteral(", "))),
+                           Severity::Error});
+        } else {
+            idToIndex.insert(key, i);
+            idOwners.insert(key, {req.repo.trimmed().isEmpty()
+                                      ? QStringLiteral("(unknown)")
+                                      : req.repo});
+        }
+    }
 
     const auto findById = [&](const QString &id) -> const Requirement * {
-        const auto it = idToIndex.constFind(id);
+        const auto it = idToIndex.constFind(id.toLower());
         if (it == idToIndex.constEnd())
             return nullptr;
         return &requirements.at(it.value());
@@ -165,12 +190,55 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
         }
     }
 
+    // --- Cross-repo annotation hints (REQ-SW-PL-012) ---------------------
+    // An annotation like "REQ-SW-PL-013 (частно)" claims the referenced
+    // requirement lives in the private repo. When the hint's implied repo does
+    // not match the resolved requirement's actual repo, flag a Warning (the
+    // reference still resolves; only the annotation is wrong).
+    const auto impliedRepo = [](const QString &hint) -> QString {
+        if (hint.contains(QStringLiteral("публично"), Qt::CaseInsensitive))
+            return QStringLiteral("public");
+        if (hint.contains(QStringLiteral("частно"), Qt::CaseInsensitive))
+            return QStringLiteral("private");
+        return QString();
+    };
+
+    auto checkHintRepo = [&](const Requirement &req, const QString &field,
+                             const QString &bareId, const QString &hint,
+                             const Requirement *target) {
+        if (!target || hint.trimmed().isEmpty())
+            return;
+        const QString implied = impliedRepo(hint);
+        if (implied.isEmpty())
+            return;
+        const QString actual = target->repo.trimmed().isEmpty()
+            ? QStringLiteral("(unknown)")
+            : target->repo;
+        if (QString::compare(implied, actual, Qt::CaseInsensitive) != 0) {
+            issues.append({req.id, field,
+                           QStringLiteral("reference '%1' is annotated as %2 but resolves to "
+                                          "a %3 requirement")
+                               .arg(bareId, hint.trimmed(), actual),
+                           Severity::Warning});
+        }
+    };
+
+    for (const Requirement &req : requirements) {
+        for (auto it = req.dependencyHints.constBegin();
+             it != req.dependencyHints.constEnd(); ++it) {
+            const QString field = (it.key() == req.parentId)
+                ? QStringLiteral("parentId")
+                : QStringLiteral("dependencies");
+            checkHintRepo(req, field, it.key(), it.value(), findById(it.key()));
+        }
+    }
+
     // --- Cycles in the dependency graph (DFS back-edge detection) ---------
     const int n = requirements.size();
     QVector<QVector<int>> depAdjacency(n);
     for (int u = 0; u < n; ++u) {
         for (const QString &dep : requirements.at(u).dependencies) {
-            const auto it = idToIndex.constFind(dep);
+            const auto it = idToIndex.constFind(dep.toLower());
             if (it == idToIndex.constEnd() || it.value() == u)
                 continue; // dangling / self references are reported above
             depAdjacency[u].append(it.value());
@@ -184,7 +252,7 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
     for (int u = 0; u < n; ++u) {
         if (requirements.at(u).parentId.trimmed().isEmpty())
             continue;
-        const auto it = idToIndex.constFind(requirements.at(u).parentId);
+        const auto it = idToIndex.constFind(requirements.at(u).parentId.toLower());
         if (it == idToIndex.constEnd() || it.value() == u)
             continue;
         parentAdjacency[u].append(it.value());

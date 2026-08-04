@@ -26,6 +26,7 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QColor>
+#include <QDir>
 
 namespace Daqster {
 
@@ -38,6 +39,11 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_viewModeCombo = new QComboBox(this);
     m_viewModeCombo->addItem(tr("By Section"));
     m_viewModeCombo->addItem(tr("By Hierarchy"));
+
+    m_repoFilterCombo = new QComboBox(this);
+    m_repoFilterCombo->addItem(tr("All repos"), QString());
+    m_repoFilterCombo->addItem(QStringLiteral("public"), QStringLiteral("public"));
+    m_repoFilterCombo->addItem(QStringLiteral("private"), QStringLiteral("private"));
 
     m_treeView = new QTreeView(this);
     m_treeView->setModel(m_model);
@@ -57,11 +63,12 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_validationLabel->setTextInteractionFlags(Qt::LinksAccessibleByMouse
                                                | Qt::LinksAccessibleByKeyboard);
     m_validationLabel->setVisible(false);
+    m_rootStatusLabel = new QLabel(this);
 
     m_editButton = new QPushButton(tr("Edit"), this);
     m_saveButton = new QPushButton(tr("Save"), this);
     m_cancelButton = new QPushButton(tr("Cancel"), this);
-    m_browseButton = new QPushButton(tr("Open requirements folder..."), this);
+    m_browseButton = new QPushButton(tr("Add requirements folder..."), this);
     m_newButton = new QPushButton(tr("New Requirement..."), this);
     m_doneButton = new QPushButton(tr("Mark Done & Archive"), this);
     m_reopenButton = new QPushButton(tr("Reopen"), this);
@@ -79,8 +86,15 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_criteriaList = new QListWidget(this);
     m_criteriaList->setVisible(false);
 
+    QHBoxLayout *treeControlsLayout = new QHBoxLayout;
+    treeControlsLayout->addWidget(new QLabel(tr("View:"), this));
+    treeControlsLayout->addWidget(m_viewModeCombo);
+    treeControlsLayout->addWidget(new QLabel(tr("Repo:"), this));
+    treeControlsLayout->addWidget(m_repoFilterCombo);
+    treeControlsLayout->addStretch();
+
     QVBoxLayout *treeLayout = new QVBoxLayout;
-    treeLayout->addWidget(m_viewModeCombo);
+    treeLayout->addLayout(treeControlsLayout);
     treeLayout->addWidget(m_treeView);
 
     QWidget *treePanel = new QWidget(this);
@@ -88,6 +102,7 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
 
     QVBoxLayout *fileLayout = new QVBoxLayout;
     fileLayout->addWidget(m_fileLabel);
+    fileLayout->addWidget(m_rootStatusLabel);
 
     QHBoxLayout *actionLayout = new QHBoxLayout;
     actionLayout->addWidget(m_newButton);
@@ -149,6 +164,8 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
             this, [this](const QString &) { onValidate(); });
     connect(m_viewModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &RequirementsWidget::onViewModeChanged);
+    connect(m_repoFilterCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &RequirementsWidget::onRepoFilterChanged);
     connect(m_graphWidget, &DependencyGraphWidget::navigateRequested,
             this, &RequirementsWidget::onGraphNavigateRequested);
     connect(m_criteriaList, &QListWidget::itemChanged, this, [this](QListWidgetItem *item) {
@@ -161,9 +178,25 @@ RequirementsWidget::~RequirementsWidget() = default;
 
 void RequirementsWidget::openDirectory(const QString &baseDir)
 {
-    m_baseDir = baseDir;
+    openDirectories({baseDir});
+}
+
+void RequirementsWidget::openDirectories(const QStringList &baseDirs)
+{
+    // APPEND roots (never replace): the browse button keeps adding folders.
+    for (const QString &dir : baseDirs) {
+        const QString canonical = QDir(dir).canonicalPath();
+        if (canonical.isEmpty() || m_roots.contains(canonical))
+            continue;
+        m_roots.append(canonical);
+    }
+    std::sort(m_roots.begin(), m_roots.end());
+
+    if (!m_roots.isEmpty())
+        m_baseDir = m_roots.first();
     reload();
-    qCInfo(lcFramework) << "RequirementsManager: opened requirements directory" << m_baseDir;
+    qCInfo(lcFramework) << "RequirementsManager: opened requirements roots"
+                        << m_roots;
 }
 
 QString RequirementsWidget::baseDirectory() const
@@ -171,11 +204,60 @@ QString RequirementsWidget::baseDirectory() const
     return m_baseDir;
 }
 
+QVector<Requirement> RequirementsWidget::filterRequirementsByRepo(
+    const QVector<Requirement> &requirements, const QString &repo)
+{
+    const QString trimmed = repo.trimmed();
+    if (trimmed.isEmpty() || trimmed == QStringLiteral("All"))
+        return requirements;
+
+    QVector<Requirement> filtered;
+    for (const Requirement &req : requirements) {
+        if (QString::compare(req.repo, trimmed, Qt::CaseInsensitive) == 0)
+            filtered.append(req);
+    }
+    return filtered;
+}
+
+void RequirementsWidget::refreshRepoFilterCombo()
+{
+    // "All repos" + "public" + "private" + one entry per discovered root when
+    // its label differs from the generic repo labels.
+    const QString previous = m_repoFilterCombo->currentData().toString();
+    QStringList usedLabels;
+    usedLabels << QStringLiteral("public") << QStringLiteral("private");
+
+    m_repoFilterCombo->blockSignals(true);
+    m_repoFilterCombo->clear();
+    m_repoFilterCombo->addItem(tr("All repos"), QString());
+    m_repoFilterCombo->addItem(QStringLiteral("public"), QStringLiteral("public"));
+    m_repoFilterCombo->addItem(QStringLiteral("private"), QStringLiteral("private"));
+
+    for (const QString &root : m_roots) {
+        const QString label = QDir(root).dirName();
+        if (label.isEmpty() || usedLabels.contains(label, Qt::CaseInsensitive))
+            continue;
+        usedLabels.append(label);
+        // Data = the root path; onRepoFilterChanged treats root entries as
+        // filePath-prefix filters.
+        m_repoFilterCombo->addItem(label, root);
+    }
+
+    const int restore = m_repoFilterCombo->findData(previous);
+    m_repoFilterCombo->setCurrentIndex(restore >= 0 ? restore : 0);
+    m_repoFilterCombo->blockSignals(false);
+}
+
 void RequirementsWidget::reload()
 {
-    m_requirements = RequirementsParser::parseDirectory(m_baseDir);
-    m_model->setRequirements(m_requirements);
-    m_matrixWidget->setRequirements(m_requirements);
+    QVector<RequirementRoot> roots;
+    for (const QString &root : m_roots)
+        roots.append(RequirementRoot{root});
+    m_requirements = RequirementsParser::parseDirectories(roots);
+
+    refreshRepoFilterCombo();
+    onRepoFilterChanged(m_repoFilterCombo->currentIndex());
+
     m_currentIndex = -1;
     m_preview->clear();
     m_editor->clear();
@@ -184,7 +266,11 @@ void RequirementsWidget::reload()
     m_treeView->expandAll();
 
     m_validationIssues = RequirementsValidator::validate(m_requirements);
-    m_graphWidget->setRequirements(m_requirements, m_validationIssues);
+    m_rootStatusLabel->setText(
+        tr("Roots loaded: %1  |  Requirements: %2")
+            .arg(m_roots.size())
+            .arg(m_requirements.size()));
+    m_graphWidget->setRequirements(m_filtered, m_validationIssues);
     updateValidationStatus();
     refreshActionState();
 }
@@ -279,10 +365,10 @@ void RequirementsWidget::onCriterionToggled(int index, bool done)
 void RequirementsWidget::onBrowseDirectory()
 {
     const QString dir = QFileDialog::getExistingDirectory(
-        this, tr("Select requirements directory"), m_baseDir);
+        this, tr("Add requirements folder"), m_baseDir);
     if (dir.isEmpty())
         return;
-    openDirectory(dir);
+    openDirectories({dir});
 }
 
 void RequirementsWidget::onNewRequirement()
@@ -457,6 +543,36 @@ void RequirementsWidget::onViewModeChanged(int index)
     m_treeView->expandAll();
 }
 
+void RequirementsWidget::onRepoFilterChanged(int index)
+{
+    const QString value = m_repoFilterCombo->itemData(index).toString();
+
+    if (m_roots.contains(value)) {
+        // A discovered-root entry filters by the root's file path prefix.
+        m_filtered.clear();
+        for (const Requirement &req : m_requirements) {
+            if (req.filePath.startsWith(value))
+                m_filtered.append(req);
+        }
+    } else {
+        // Generic repo entry ("public"/"private") or "All repos" (empty).
+        m_filtered = filterRequirementsByRepo(m_requirements, value);
+    }
+
+    // The FILTERED subset feeds model/graph/matrix; the FULL set stays for
+    // validation, preview and edit actions.
+    m_model->setRequirements(m_filtered);
+    m_matrixWidget->setRequirements(m_filtered);
+    m_graphWidget->setRequirements(m_filtered, m_validationIssues);
+    m_currentIndex = -1;
+    m_preview->clear();
+    m_editor->clear();
+    m_fileLabel->clear();
+    m_criteriaList->clear();
+    m_treeView->expandAll();
+    refreshActionState();
+}
+
 void RequirementsWidget::onGraphNavigateRequested(const QString &id)
 {
     // Jump back to the tree tab and select the requirement there.
@@ -500,6 +616,11 @@ void RequirementsWidget::updatePreviewText(const Requirement &req)
     text += QStringLiteral("<p><b>Status:</b> %1 &nbsp; <b>Priority:</b> %2 &nbsp; <b>Assignee:</b> %3 &nbsp; <b>Date:</b> %4</p>")
                 .arg(req.status.toHtmlEscaped(), req.priority.toHtmlEscaped(),
                      req.assignee.toHtmlEscaped(), req.date.toHtmlEscaped());
+
+    // Repo badge (REQ-SW-PL-012): which requirements tree this requirement
+    // comes from in the merged view.
+    text += QStringLiteral("<p><b>Repo:</b> %1</p>")
+                .arg(req.repo.isEmpty() ? QStringLiteral("—") : req.repo.toHtmlEscaped());
 
     // Relationship axes: Родител / Деца / Зависи от / Зависими от
     text += QStringLiteral("<p><b>Родител:</b> ");

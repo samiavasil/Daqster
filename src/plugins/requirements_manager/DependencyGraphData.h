@@ -18,6 +18,7 @@ struct GraphNode
 {
     int reqIndex = -1; //!< index into the source QVector<Requirement>
     QString id;        //!< e.g. "REQ-SW-PL-001"
+    QString repo;      //!< "public" | "private" | "other" (REQ-SW-PL-012)
     QString title;
     QString status;    //!< ACTIVE | DONE | CANCELLED
     QString priority;  //!< High | Medium | Low

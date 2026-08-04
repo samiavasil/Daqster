@@ -7,9 +7,6 @@
 #include <QMainWindow>
 #include <QVBoxLayout>
 
-#include <QCoreApplication>
-#include <QDir>
-
 RequirementsManagerObject::RequirementsManagerObject(QObject* Parent)
     : Daqster::QBasePluginObject(Parent)
     , m_Win(nullptr)
@@ -37,16 +34,11 @@ bool RequirementsManagerObject::Initialize()
     m_Win->setCentralWidget(widget);
 
     // Dev builds put the binary inside the build tree (e.g. build_qt5/bin);
-    // search upward for a repo root that contains the requirements tree so the
-    // plugin opens the real documents instead of an empty directory.
-    QDir dir(QCoreApplication::applicationDirPath());
-    while (!QDir(dir.filePath(QString::fromUtf8(Daqster::kRequirementsSubdir))).exists() && dir.cdUp()) {
-    }
-    const QString baseDir =
-        QDir(dir.filePath(QString::fromUtf8(Daqster::kRequirementsSubdir))).exists()
-        ? dir.absolutePath()
-        : QCoreApplication::applicationDirPath();
-    widget->openDirectory(baseDir);
+    // discoverRepoRoots() walks up to the first repo root that contains the
+    // requirements tree and then merges any sibling repo roots found next to
+    // it (public + private requirement trees, REQ-SW-PL-012).
+    const QStringList roots = Daqster::RequirementsParser::discoverRepoRoots();
+    widget->openDirectories(roots);
 
     m_Win->resize(1100, 700);
     m_Win->show();

@@ -30,6 +30,7 @@ public:
         StatusColumn,
         PriorityColumn,
         AssigneeColumn,
+        RepoColumn,
         ColumnCount
     };
 

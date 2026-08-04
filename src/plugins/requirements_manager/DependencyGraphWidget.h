@@ -48,7 +48,12 @@ public:
     int danglingCount() const { return m_data.danglingCount(); }
 
     /** @brief Scene node with the given requirement ID, or nullptr. */
-    DependencyGraphNodeItem *nodeItemForId(const QString &id) const;
+    /**
+     * @brief Find a node item by (id, repo) composite key. When repo is empty
+     *        only the id is compared (backwards compatible).
+     */
+    DependencyGraphNodeItem *nodeItemForId(const QString &id,
+                                           const QString &repo = QString()) const;
 
     /** @brief Scene edges (a DependencyGraphEdgeItem per GraphEdge). */
     const QVector<DependencyGraphEdgeItem *> &edgeItems() const { return m_edgeItems; }
@@ -89,6 +94,7 @@ public:
     QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
 
     QString requirementId() const { return m_id; }
+    QString repo() const { return m_repo; }
 
 signals:
     void clicked(const QString &id);
@@ -105,6 +111,7 @@ protected:
 
 private:
     QString m_id;
+    QString m_repo;
     QString m_title;
     QString m_status;
     QString m_priority;

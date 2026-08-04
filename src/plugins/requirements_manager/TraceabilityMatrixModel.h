@@ -38,6 +38,7 @@ public:
         CodeColumn,
         TestsColumn,
         SectionColumn,
+        RepoColumn,
         ColumnCount
     };
 

@@ -93,6 +93,10 @@ int RequirementsModel::immediateParentIndex(int reqIndex) const
     // Only nest within the same section; cross-section parents stay top-level.
     if (m_requirements.at(reqIndex).section != m_requirements.at(parentIdx).section)
         return -1;
+    // Only nest within the same repo (REQ-SW-PL-012): cross-repo parents stay
+    // top-level — the links remain visible in preview and graph.
+    if (m_requirements.at(reqIndex).repo != m_requirements.at(parentIdx).repo)
+        return -1;
     return parentIdx;
 }
 
@@ -293,6 +297,7 @@ QVariant RequirementsModel::data(const QModelIndex &index, int role) const
     case StatusColumn:    return req->status;
     case PriorityColumn:  return req->priority;
     case AssigneeColumn:  return req->assignee;
+    case RepoColumn:      return req->repo;
     default:              return QVariant();
     }
 }
@@ -309,6 +314,7 @@ QVariant RequirementsModel::headerData(int section, Qt::Orientation orientation,
     case StatusColumn:   return QStringLiteral("Status");
     case PriorityColumn: return QStringLiteral("Priority");
     case AssigneeColumn: return QStringLiteral("Assignee");
+    case RepoColumn:     return QStringLiteral("Repo");
     default:             return QVariant();
     }
 }

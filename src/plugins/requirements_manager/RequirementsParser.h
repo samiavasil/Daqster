@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QHash>
 #include <QString>
 #include <QStringList>
 #include <QVector>
@@ -51,7 +52,31 @@ struct Requirement
     QString filePath;              //!< absolute path of the .md file
     QString fileName;              //!< base name, e.g. "REQ-SW-PL-001-....md"
     QString section;               //!< "active" | "archive"
+    QString repo;                  //!< "public" | "private" | "other" (derived from the ID
+                                   //!< prefix in parseDirectories; empty when parsed via
+                                   //!< parseDirectory alone, keeping single-root callers
+                                   //!< compile- and behavior-compatible)
     QString rawContent;            //!< original file content (for round-trip edit)
+
+    /**
+     * @brief Cross-repo annotations preserved from "Родител:" / "Зависи от:".
+     *
+     * Keys are BARE IDs (annotation stripped for resolution); values are the
+     * raw annotation text (e.g. "публично", "частно"). Only entries that
+     * carried an annotation are present. Same key scheme for parents and
+     * dependencies so the validator can check the implied repo against the
+     * resolved requirement's repo.
+     */
+    QHash<QString, QString> dependencyHints;
+};
+
+/**
+ * @brief One requirements tree root (a repo root containing
+ *        DevelopmentProcess/requirements) for the merged multi-repo parse.
+ */
+struct RequirementRoot
+{
+    QString repoRoot; //!< absolute path of a repo root directory
 };
 
 /**
@@ -67,6 +92,35 @@ class RequirementsParser
 {
 public:
     static QVector<Requirement> parseDirectory(const QString &baseDir);
+
+    /**
+     * @brief Parses several requirements tree roots and merges them into one
+     *        vector (REQ-SW-PL-012).
+     *
+     * Each root is parsed with parseDirectory(); every resulting requirement
+     * is stamped with @c repo derived from its ID prefix (REQ-SW-* -> "public",
+     * other REQ-* -> "private", anything else -> "other"). The merged vector
+     * is stable-sorted by (id, repo) case-insensitively.
+     */
+    static QVector<Requirement> parseDirectories(const QVector<RequirementRoot> &roots);
+
+    /**
+     * @brief Discovers the requirements tree roots to load (REQ-SW-PL-012).
+     *
+     * Walks up from the application binary directory to find the primary root
+     * (the first directory containing DevelopmentProcess/requirements — the
+     * historical single-root behaviour), then scans the parent directory for
+     * SIBLING directories that also contain DevelopmentProcess/requirements.
+     * Returns canonical absolute paths, deduplicated and sorted.
+     */
+    static QStringList discoverRepoRoots();
+
+    /**
+     * @brief Derives the repo label from a requirement ID prefix.
+     *        "REQ-SW-*" -> "public", any other "REQ-*" -> "private",
+     *        anything else -> "other".
+     */
+    static QString repoForId(const QString &id);
 
     /**
      * @brief Persists a requirement back to its .md file.

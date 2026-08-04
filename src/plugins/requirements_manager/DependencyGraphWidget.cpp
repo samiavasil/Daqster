@@ -145,11 +145,17 @@ void DependencyGraphScene::setRequirements(const QVector<Requirement> &requireme
     setSceneRect(itemsBoundingRect().adjusted(-60, -60, 60, 60));
 }
 
-DependencyGraphNodeItem *DependencyGraphScene::nodeItemForId(const QString &id) const
+DependencyGraphNodeItem *DependencyGraphScene::nodeItemForId(const QString &id,
+                                                             const QString &repo) const
 {
     for (DependencyGraphNodeItem *item : m_nodeItems) {
-        if (item->requirementId() == id)
-            return item;
+        if (item->requirementId() != id)
+            continue;
+        // With duplicate IDs across repos (REQ-SW-PL-012), an explicit repo
+        // disambiguates; empty repo keeps the old first-match behaviour.
+        if (!repo.isEmpty() && item->repo() != repo)
+            continue;
+        return item;
     }
     return nullptr;
 }
@@ -177,6 +183,7 @@ QColor DependencyGraphScene::fillColorForPriority(const QString &priority)
 DependencyGraphNodeItem::DependencyGraphNodeItem(const GraphNode &node, QGraphicsItem *parent)
     : QGraphicsObject(parent)
     , m_id(node.id)
+    , m_repo(node.repo)
     , m_title(node.title)
     , m_status(node.status)
     , m_priority(node.priority)
@@ -187,7 +194,8 @@ DependencyGraphNodeItem::DependencyGraphNodeItem(const GraphNode &node, QGraphic
     const qreal height = 48.0;
     m_rect = QRectF(0, 0, width, height);
     setFlags(ItemIsMovable | ItemSendsGeometryChanges);
-    setToolTip(m_id);
+    setToolTip(m_repo.isEmpty() ? m_id
+                                : QStringLiteral("%1 (%2)").arg(m_id, m_repo));
 }
 
 QRectF DependencyGraphNodeItem::boundingRect() const
