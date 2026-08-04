@@ -122,6 +122,35 @@ requirements viewer/editor. Изгледите са организирани в 
   **отложени по решение на потребителя** (съществуващите тестове продължават
   да се компилират; AC не са mark-нати като verified).
 
+#### Requirements Search Engine (REQ-SW-PL-011)
+
+От 2026-08-04 Requirements Manager има full-text search над изискванията:
+
+- **Клас:** `RequirementsSearchEngine.{h,cpp}` (QtCore-only, без `Q_OBJECT` —
+  същия стил като `RequirementsValidator`, директно unit-testable).
+  `filter()` приема структурираните `Requirement` записи и връща
+  case-insensitive multi-term (AND) подмножество; `normalizedText()` изгражда
+  lowercased searchable blob (id, title, description, acceptance criteria,
+  traceability, commits, code, tests, parentId, dependencies, status, priority,
+  assignee, repo, section, fileName, date) — **НЕ индексира** `rawContent` и
+  `dependencyHints` (архитектурното правило: search консумира структурирания
+  data source, никога не парсва markdown наново).
+- **Field prefixes:** `id:`, `status:`, `priority:`, `assignee:`, `repo:`,
+  `section:` — split на ПЪРВИЯ colon; непознат key (напр. `http://`) се третира
+  като full-text term.
+- **UI:** `QLineEdit` с clear button + debounce `QTimer` (~150 ms) в
+  `RequirementsWidget`; `applyViewFilters()` композира repo филтъра
+  (`filterRequirementsByRepo` / root-path prefix) със search-а
+  (`RequirementsSearchEngine::filter`). И трите изгледа — tree/model, graph и
+  matrix — консумират ЕДНО и също филтрирано подмножество; FULL set остава за
+  validation/preview/edit/save/archive (еднаква архитектура като PL-012).
+- **Relations search:** тъй като `parentId` и `dependencies` са част от
+  normalized blob-а, въвеждането на родител/dependency ID намира свързаните
+  изисквания (AC3).
+- **Верификация:** Qt5/Qt6 builds + offscreen smoke (search сужава tree rows;
+  `status:DONE`; clear възстановява full set; repo filter + search combined).
+  Unit тестове са **отложени по решение на потребителя**.
+
 ## Shared Components
 
 - **NodeEditorWidget** — вграден в `node_editor_ide/NodeEditorWidget.{h,cpp}` (вече НЕ е отделна библиотека)
