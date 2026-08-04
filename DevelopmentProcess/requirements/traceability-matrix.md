@@ -30,7 +30,7 @@
 | `REQ-SW-BLD-001` | CMake Plugin Build Infrastructure | DONE | — | — | `e0f1395`, `1fec530`, `4cede60` | `cmake/ComponentTemplates.cmake`, `PluginDependencyManager.cmake`, `FindQtVersion.cmake` | Qt5/Qt6 builds на всички плъгини |
 | `REQ-SW-BLD-002` | Unit Test Infrastructure | DONE | — | `REQ-SW-BLD-001` | `4825bfe`, `a26b603`, `17ed818` | `src/plugins/tests/`, `tests/plugins/requirements_manager/` | Qt5/Qt6 builds, 53 теста (requirements manager suite) |
 | `REQ-SW-PL-011` | Requirements Search Engine (Backlog) | BACKLOG | `REQ-SW-PL-001` | `REQ-SW-PL-002` | — | `src/plugins/requirements_manager/` | — |
-| `REQ-SW-PL-012` | Multi-Repository Requirements View (Merge) | BACKLOG | `REQ-SW-PL-001` | `REQ-SW-PL-002`, `REQ-SW-PL-006`, `REQ-SW-PL-010` | — | `src/plugins/requirements_manager/` | — |
+| `REQ-SW-PL-012` | Multi-Repository Requirements View (Merge) | IN-PROGRESS (impl done, unit tests deferred by user decision) | `REQ-SW-PL-001` | `REQ-SW-PL-002`, `REQ-SW-PL-006`, `REQ-SW-PL-010` | `c3d4e5c` | `src/plugins/requirements_manager/` (RequirementsParser, RequirementsWidget, RequirementsValidator, RequirementsModel, DependencyGraphData, TraceabilityMatrixModel, MatrixExporter) | Qt5/Qt6 builds + offscreen smoke (35 merged requirements, both roots) |
 
 ## Plugin Framework (за справка — пълен trace в DaqsterAiStudio)
 

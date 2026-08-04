@@ -88,6 +88,40 @@ requirements viewer/editor. Изгледите са организирани в 
   `fitsViewportAfterResize`; 4/4 green с init/cleanup, offscreen) —
   общо 68/68 PASS на Qt5/Qt6 (requirements_manager suite).
 
+#### Multi-Repository Requirements View (REQ-SW-PL-012 — merged view)
+
+От 2026-08-04 плъгинът може да показва requirements от НЯКОЛКО repo-та наведнъж:
+
+- **Discovery:** `RequirementsParser::discoverRepoRoots()` — върви нагоре от
+  директорията на бинарния файл до първия repo root (съдържащ
+  `DevelopmentProcess/requirements`), после сканира ПАРЕНТ директорията за
+  съседни директории със същата структура. Връща canonical absolute paths,
+  дедуплицирани и сортирани. Никъде в кода НЕ са захардкодени пътища.
+- **Merge:** `RequirementsParser::parseDirectories(QVector<RequirementRoot>)` —
+  всеки root се парсва с `parseDirectory()`, всяко изискване получава
+  `Requirement::repo` (от ID префикса: `REQ-SW-*` → `public`, друг `REQ-*` →
+  `private`, останалите → `other`), резултатът се stable-sort-ва по
+  (id, repo). Бутонът става "Add requirements folder…" (APPEND root, не
+  replace); статус линия "N roots loaded".
+- **Анотации:** референции като `REQ-SW-PL-013 (публично)` / `(частно)` се
+  нормализират до bare ID за resolution, но оригиналният текст се пази в
+  `Requirement::dependencyHints` — валидаторът предупреждава (Warning) при
+  несъответствие между анотацията и реалния repo на target-а.
+- **Shared repo filter:** един `QComboBox` ("All repos" + "public" + "private"
+  + по един entry на root при различен label). Widget-ът пази ПЪЛНИЯ набор за
+  валидация/preview/actions; ФИЛТРИРАНИЯТ поднабор захранва tree/model, graph
+  и matrix. Матрицата НЯМА собствен repo combo.
+- **Repo column:** в дървото и traceability matrix-а; "Repo:" линия в preview.
+- **Graph:** `GraphNode.repo`; resolution-ът в `DependencyGraphData::build()` е
+  repo-aware (same-repo match печели, fallback към първия match) — cross-tree
+  ребрата се резолват детерминистично. Дублиран ID в два repo-та е валидатор
+  **Error**.
+- **Верификация:** Qt5/Qt6 builds + offscreen smoke — приложение с
+  RequirementsManager показва 35 merged requirements от двата repo-та
+  (`DaqsterAiStudio` + `daqster`). Unit тестове за новите пътища са
+  **отложени по решение на потребителя** (съществуващите тестове продължават
+  да се компилират; AC не са mark-нати като verified).
+
 ## Shared Components
 
 - **NodeEditorWidget** — вграден в `node_editor_ide/NodeEditorWidget.{h,cpp}` (вече НЕ е отделна библиотека)
