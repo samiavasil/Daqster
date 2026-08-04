@@ -88,6 +88,10 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_depsButton = new QPushButton(tr("Edit deps..."), this);
     m_validateButton = new QPushButton(tr("Validate"), this);
     m_helpButton = new QPushButton(tr("Help / Format"), this);
+    m_backButton = new QPushButton(tr("Back"), this);
+    m_forwardButton = new QPushButton(tr("Forward"), this);
+    m_backButton->setEnabled(false);
+    m_forwardButton->setEnabled(false);
 
     m_saveButton->setEnabled(false);
     m_cancelButton->setEnabled(false);
@@ -121,6 +125,8 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     fileLayout->addWidget(m_rootStatusLabel);
 
     QHBoxLayout *actionLayout = new QHBoxLayout;
+    actionLayout->addWidget(m_backButton);
+    actionLayout->addWidget(m_forwardButton);
     actionLayout->addWidget(m_newButton);
     actionLayout->addWidget(m_editButton);
     actionLayout->addWidget(m_saveButton);
@@ -169,6 +175,8 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     connect(m_cancelButton, &QPushButton::clicked, this, &RequirementsWidget::onCancel);
     connect(m_browseButton, &QPushButton::clicked, this, &RequirementsWidget::onBrowseDirectory);
     connect(m_newButton, &QPushButton::clicked, this, &RequirementsWidget::onNewRequirement);
+    connect(m_backButton, &QPushButton::clicked, this, &RequirementsWidget::onNavBack);
+    connect(m_forwardButton, &QPushButton::clicked, this, &RequirementsWidget::onNavForward);
     connect(m_doneButton, &QPushButton::clicked, this, &RequirementsWidget::onMarkDoneAndArchive);
     connect(m_reopenButton, &QPushButton::clicked, this, &RequirementsWidget::onReopen);
     connect(m_depsButton, &QPushButton::clicked, this, &RequirementsWidget::onEditDependencies);
@@ -536,7 +544,7 @@ void RequirementsWidget::onValidate()
 {
     ValidationDialog dialog(m_validationIssues, this);
     connect(&dialog, &ValidationDialog::navigateRequested,
-            this, &RequirementsWidget::navigateToId);
+            this, [this](const QString &id) { navigateToId(id); });
     dialog.exec();
 }
 
@@ -722,12 +730,28 @@ void RequirementsWidget::updatePreviewText(const Requirement &req)
     m_preview->setHtml(text);
 }
 
-void RequirementsWidget::navigateToId(const QString &id)
+void RequirementsWidget::navigateToId(const QString &id, bool addToHistory)
 {
     const QModelIndex index = m_model->indexForId(id);
     if (!index.isValid()) {
+        if (!m_searchQuery.isEmpty()) {
+            m_searchQuery.clear();
+            m_searchEdit->clear();
+            applyViewFilters();
+            const QModelIndex retryIndex = m_model->indexForId(id);
+            if (retryIndex.isValid()) {
+                m_treeView->expandAll();
+                m_treeView->scrollTo(retryIndex);
+                m_treeView->setCurrentIndex(retryIndex);
+                m_treeView->selectionModel()->select(
+                    retryIndex, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                if (addToHistory)
+                    pushNavHistory(id);
+                return;
+            }
+        }
         QMessageBox::information(this, tr("Requirements"),
-                                 tr("Requirement '%1' not found in the current view.").arg(id));
+                                 tr("Requirement '%1' not found.").arg(id));
         return;
     }
     m_treeView->expandAll();
@@ -735,6 +759,8 @@ void RequirementsWidget::navigateToId(const QString &id)
     m_treeView->setCurrentIndex(index);
     m_treeView->selectionModel()->select(
         index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    if (addToHistory)
+        pushNavHistory(id);
 }
 
 void RequirementsWidget::updateValidationStatus()
@@ -766,14 +792,54 @@ void RequirementsWidget::refreshActionState()
     const bool valid = m_currentIndex >= 0
                        && m_currentIndex < m_requirements.size();
     const bool active = valid && m_requirements.at(m_currentIndex).section
-                                       == QStringLiteral("active");
+                                        == QStringLiteral("active");
     const bool archived = valid && m_requirements.at(m_currentIndex).section
-                                       == QStringLiteral("archive");
+                                        == QStringLiteral("archive");
 
     m_editButton->setEnabled(valid);
     m_depsButton->setEnabled(valid);
     m_doneButton->setEnabled(active);
     m_reopenButton->setEnabled(archived);
+    updateNavButtons();
+}
+
+void RequirementsWidget::pushNavHistory(const QString &id)
+{
+    // Truncate any forward history if we're not at the end.
+    if (m_navHistoryPos < m_navHistory.size() - 1)
+        m_navHistory.resize(m_navHistoryPos + 1);
+
+    // Don't add duplicate if same as current position.
+    if (m_navHistoryPos >= 0 && m_navHistory.at(m_navHistoryPos) == id)
+        return;
+
+    m_navHistory.append(id);
+    m_navHistoryPos = m_navHistory.size() - 1;
+    updateNavButtons();
+}
+
+void RequirementsWidget::onNavBack()
+{
+    if (m_navHistoryPos > 0) {
+        --m_navHistoryPos;
+        navigateToId(m_navHistory.at(m_navHistoryPos), false);
+        updateNavButtons();
+    }
+}
+
+void RequirementsWidget::onNavForward()
+{
+    if (m_navHistoryPos < m_navHistory.size() - 1) {
+        ++m_navHistoryPos;
+        navigateToId(m_navHistory.at(m_navHistoryPos), false);
+        updateNavButtons();
+    }
+}
+
+void RequirementsWidget::updateNavButtons()
+{
+    m_backButton->setEnabled(m_navHistoryPos > 0);
+    m_forwardButton->setEnabled(m_navHistoryPos < m_navHistory.size() - 1);
 }
 
 } // namespace Daqster

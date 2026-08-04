@@ -82,16 +82,20 @@ private slots:
     void onGraphNavigateRequested(const QString &id);
     void onRepoFilterChanged(int index);
     void onSearchTextChanged(const QString &text);
+    void onNavBack();
+    void onNavForward();
 
 private:
     void reload();
     void showPreview();
     void updatePreviewText(const Requirement &req);
-    void navigateToId(const QString &id);
+    void navigateToId(const QString &id, bool addToHistory = true);
     void updateValidationStatus();
     void refreshActionState();
     void refreshRepoFilterCombo();
     void applyViewFilters();
+    void updateNavButtons();
+    void pushNavHistory(const QString &id);
     QString linkFor(const QString &id) const;
 
     RequirementsModel *m_model;
@@ -129,6 +133,10 @@ private:
     QVector<Requirement> m_filtered;     //!< subset feeding model/graph/matrix
     QVector<RequirementsValidator::Issue> m_validationIssues;
     int m_currentIndex; //!< index into m_requirements; -1 when none selected
+    QPushButton *m_backButton = nullptr;
+    QPushButton *m_forwardButton = nullptr;
+    QVector<QString> m_navHistory;
+    int m_navHistoryPos = -1;
 };
 
 } // namespace Daqster
