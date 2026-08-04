@@ -19,6 +19,8 @@ set(PLUGIN_SOURCES
     RequirementsWidget.h
     RequirementsValidator.cpp
     RequirementsValidator.h
+    RequirementsSearchEngine.cpp
+    RequirementsSearchEngine.h
     DependencyGraphData.cpp
     DependencyGraphData.h
     DependencyGraphLayout.cpp

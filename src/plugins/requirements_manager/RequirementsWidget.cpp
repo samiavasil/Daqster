@@ -2,6 +2,7 @@
 
 #include "RequirementsModel.h"
 #include "RequirementsParser.h"
+#include "RequirementsSearchEngine.h"
 #include "DependencyGraphWidget.h"
 #include "TraceabilityMatrixWidget.h"
 #include "NewRequirementDialog.h"
@@ -13,6 +14,8 @@
 #include <QTextBrowser>
 #include <QPlainTextEdit>
 #include <QLabel>
+#include <QLineEdit>
+#include <QTimer>
 #include <QPushButton>
 #include <QListWidget>
 #include <QSplitter>
@@ -44,6 +47,16 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_repoFilterCombo->addItem(tr("All repos"), QString());
     m_repoFilterCombo->addItem(QStringLiteral("public"), QStringLiteral("public"));
     m_repoFilterCombo->addItem(QStringLiteral("private"), QStringLiteral("private"));
+
+    m_searchEdit = new QLineEdit(this);
+    m_searchEdit->setClearButtonEnabled(true);
+    m_searchEdit->setPlaceholderText(tr("Search requirements…"));
+    m_matchLabel = new QLabel(this);
+    m_matchLabel->setVisible(false);
+
+    m_searchTimer = new QTimer(this);
+    m_searchTimer->setSingleShot(true);
+    m_searchTimer->setInterval(150);
 
     m_treeView = new QTreeView(this);
     m_treeView->setModel(m_model);
@@ -91,6 +104,9 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     treeControlsLayout->addWidget(m_viewModeCombo);
     treeControlsLayout->addWidget(new QLabel(tr("Repo:"), this));
     treeControlsLayout->addWidget(m_repoFilterCombo);
+    treeControlsLayout->addWidget(new QLabel(tr("Search:"), this));
+    treeControlsLayout->addWidget(m_searchEdit, 1);
+    treeControlsLayout->addWidget(m_matchLabel);
     treeControlsLayout->addStretch();
 
     QVBoxLayout *treeLayout = new QVBoxLayout;
@@ -166,6 +182,9 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
             this, &RequirementsWidget::onViewModeChanged);
     connect(m_repoFilterCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &RequirementsWidget::onRepoFilterChanged);
+    connect(m_searchEdit, &QLineEdit::textChanged,
+            this, &RequirementsWidget::onSearchTextChanged);
+    connect(m_searchTimer, &QTimer::timeout, this, [this]() { applyViewFilters(); });
     connect(m_graphWidget, &DependencyGraphWidget::navigateRequested,
             this, &RequirementsWidget::onGraphNavigateRequested);
     connect(m_criteriaList, &QListWidget::itemChanged, this, [this](QListWidgetItem *item) {
@@ -543,27 +562,39 @@ void RequirementsWidget::onViewModeChanged(int index)
     m_treeView->expandAll();
 }
 
-void RequirementsWidget::onRepoFilterChanged(int index)
+void RequirementsWidget::onSearchTextChanged(const QString &text)
 {
-    const QString value = m_repoFilterCombo->itemData(index).toString();
+    m_searchQuery = text.trimmed();
+    m_searchTimer->start();
+}
 
+void RequirementsWidget::applyViewFilters()
+{
+    const QString value = m_repoFilterCombo->itemData(
+        m_repoFilterCombo->currentIndex()).toString();
+
+    QVector<Requirement> repoFiltered;
     if (m_roots.contains(value)) {
         // A discovered-root entry filters by the root's file path prefix.
-        m_filtered.clear();
         for (const Requirement &req : m_requirements) {
             if (req.filePath.startsWith(value))
-                m_filtered.append(req);
+                repoFiltered.append(req);
         }
     } else {
         // Generic repo entry ("public"/"private") or "All repos" (empty).
-        m_filtered = filterRequirementsByRepo(m_requirements, value);
+        repoFiltered = filterRequirementsByRepo(m_requirements, value);
     }
 
-    // The FILTERED subset feeds model/graph/matrix; the FULL set stays for
+    // The search narrows the repo-filtered subset (REQ-SW-PL-011). The
+    // FILTERED subset feeds model/graph/matrix; the FULL set stays for
     // validation, preview and edit actions.
+    m_filtered = RequirementsSearchEngine::filter(repoFiltered, m_searchQuery);
     m_model->setRequirements(m_filtered);
     m_matrixWidget->setRequirements(m_filtered);
     m_graphWidget->setRequirements(m_filtered, m_validationIssues);
+
+    // Clear any stale selection: m_currentIndex indexes into the FULL set and
+    // could point at a row filtered out of the current view.
     m_currentIndex = -1;
     m_preview->clear();
     m_editor->clear();
@@ -571,6 +602,17 @@ void RequirementsWidget::onRepoFilterChanged(int index)
     m_criteriaList->clear();
     m_treeView->expandAll();
     refreshActionState();
+
+    m_matchLabel->setText(m_filtered.size() == 1
+                              ? tr("%1 match").arg(m_filtered.size())
+                              : tr("%1 matches").arg(m_filtered.size()));
+    m_matchLabel->setVisible(!m_searchQuery.isEmpty());
+}
+
+void RequirementsWidget::onRepoFilterChanged(int index)
+{
+    Q_UNUSED(index);
+    applyViewFilters();
 }
 
 void RequirementsWidget::onGraphNavigateRequested(const QString &id)

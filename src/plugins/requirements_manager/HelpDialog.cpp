@@ -86,6 +86,24 @@ new requirement — e.g. next after <code>REQ-SW-PL-015</code> is
 </table>
 <p>Click any link in the details panel to jump to the referenced requirement.
 Run <b>Validate</b> to detect dangling references, dependency cycles and missing fields.</p>
+
+<h3>5. Search (REQ-SW-PL-011)</h3>
+<p>The search box above the tree filters the current view in real time
+(debounced ~150 ms). Matching is <b>case-insensitive</b> and multiple
+whitespace-separated terms are combined with <b>AND</b> semantics — every term
+must match.</p>
+<ul>
+<li><b>Full-text:</b> terms are matched against ID, title, description,
+acceptance criteria, traceability, commits, code, tests, parent, dependencies,
+status, priority, assignee, repo, section, file name and date.</li>
+<li><b>Field prefixes:</b> a term can be restricted to a single field with
+<code>id:</code>, <code>status:</code>, <code>priority:</code>,
+<code>assignee:</code>, <code>repo:</code> or <code>section:</code> — e.g.
+<code>status:DONE</code> or <code>repo:private</code>.</li>
+<li><b>Relations:</b> type a parent or dependency ID (e.g.
+<code>REQ-SW-PL-009</code>) to find the requirements linked to it.</li>
+<li><b>Empty query:</b> no filter — the full (repo-filtered) set is shown.</li>
+</ul>
 </body></html>)");
 }
 

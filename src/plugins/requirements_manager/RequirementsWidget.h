@@ -9,6 +9,8 @@ class QTreeView;
 class QTextBrowser;
 class QPlainTextEdit;
 class QLabel;
+class QLineEdit;
+class QTimer;
 class QPushButton;
 class QListWidget;
 class QSplitter;
@@ -79,6 +81,7 @@ private slots:
     void onViewModeChanged(int index);
     void onGraphNavigateRequested(const QString &id);
     void onRepoFilterChanged(int index);
+    void onSearchTextChanged(const QString &text);
 
 private:
     void reload();
@@ -88,12 +91,17 @@ private:
     void updateValidationStatus();
     void refreshActionState();
     void refreshRepoFilterCombo();
+    void applyViewFilters();
     QString linkFor(const QString &id) const;
 
     RequirementsModel *m_model;
     QTreeView *m_treeView;
     QComboBox *m_viewModeCombo;
     QComboBox *m_repoFilterCombo;
+    QLineEdit *m_searchEdit;
+    QLabel *m_matchLabel;
+    QTimer *m_searchTimer;
+    QString m_searchQuery;
     QTextBrowser *m_preview;
     QPlainTextEdit *m_editor;
     QLabel *m_fileLabel;
