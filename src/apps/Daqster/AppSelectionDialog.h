@@ -17,7 +17,7 @@ public:
     ~AppSelectionDialog();
 
     void LoadPlugins();
-    bool IsPluginVisible(const QString& pluginHash) const;
+    bool IsPluginVisible(const QString& pluginName) const;
 
 public slots:
     void SaveState();
