@@ -329,6 +329,17 @@ void QPluginManager::LoadPluginsInfoFromPersistency()
             continue;
         }
 
+        // If the file exists but its content hash does not match the stored
+        // hash, the .so was rebuilt or replaced by another build — the entry
+        // is stale. It will be re-discovered and re-health-tested below.
+        QString fileHash;
+        PluginDiscovery::computeFileHash(location, fileHash);
+        if (0 != fileHash.compare(hash)) {
+            qCDebug(lcFramework) << "Removing stale plugin from persistency (file hash mismatch):" << location << "hash:" << hash << "fileHash:" << fileHash;
+            m_persistence->removePlugin(hash);
+            continue;
+        }
+
         if (seenLocations.contains(location)) {
             bool isTmp = location.contains("/tmp/");
             if (isTmp) {
