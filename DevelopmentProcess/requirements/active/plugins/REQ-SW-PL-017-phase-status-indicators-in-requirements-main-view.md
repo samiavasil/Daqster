@@ -36,23 +36,23 @@ builds + unit тестове + headless smoke test) по RDD-PROCESS. Индик
 
 ## Acceptance Criteria
 
-- [ ] 1. **Parser: `Документация:` → `Requirement::docs`.** `Requirement`
+- [x] 1. **Parser: `Документация:` → `Requirement::docs`.** `Requirement`
       (`RequirementsParser.h:35-71`) получава член `QString docs` (след `tests`,
       ~ред 49). `RequirementsParser::parseFile()` (`RequirementsParser.cpp:409-515`)
       парсва `- **Документация:**` под `## Проследимост` в `out.docs` — огледално
       на Коммити/Код/Тестове (ред 488-493) — като редът остава и в raw
       `traceability` текста (fall-through contract, `handled` остава `false`).
-- [ ] 2. **Phase computation (QtCore-only, unit-testable).** В `RequirementsParser.h`
+- [x] 2. **Phase computation (QtCore-only, unit-testable).** В `RequirementsParser.h`
       се добавя `struct PhaseStatus { bool architecture, implementation, testing; };`
       и `PhaseStatus phaseStatus(const Requirement&)` — `architecture` ← `docs`,
       `implementation` ← `code`, `testing` ← `tests`. Непразно след trim поле =
       `true`; празно, whitespace или „—" = `false`.
-- [ ] 3. **Preview rendering.** `RequirementsWidget::updatePreviewText()`
+- [x] 3. **Preview rendering.** `RequirementsWidget::updatePreviewText()`
       (`RequirementsWidget.cpp:676-745`) показва в главния preview панел фазова
       линия „Архитектура ✓/✗ · Имплементация ✓/✗ · Тестове ✓/✗", изведена от
       `phaseStatus(req)` (вмъкване след Status/Priority реда, ~ред 683).
       Не-ASCII литералите се пишат задължително през `QStringLiteral`.
-- [ ] 4. **Status interplay (informative only).** Статусът не се променя: `DONE`
+- [x] 4. **Status interplay (informative only).** Статусът не се променя: `DONE`
       продължава да изисква пълна верификация по RDD-PROCESS; `phaseStatus` не се
       използва от валидатора, от matrix-а или от lifecycle логиката — само от
       preview.
@@ -62,13 +62,13 @@ builds + unit тестове + headless smoke test) по RDD-PROCESS. Индик
       `phaseStatus()`: всички празни → 0/3 `true`, всички попълнени → 3/3,
       частично (само `code`) → 1/3, „—"/whitespace → `false`. Qt5 + Qt6 builds;
       съществуващата suite остава зелена (68/68).
-- [ ] 6. **Docs.** `docs/Architecture/plugins/README.md` (Requirements Manager
+- [x] 6. **Docs.** `docs/Architecture/plugins/README.md` (Requirements Manager
       секция) документира phase-индикаторите и тяхната семантика
       (записано ≠ верифицирано).
 
 ## Проследимост
 
-- **Коммити:** *(попълва се при комит)*
+- **Коммити:** `4af3852`
 - **Код:** `src/plugins/requirements_manager/RequirementsParser.{h,cpp}` (нов `Requirement::docs` + парсване на `Документация:` + `phaseStatus()`), `src/plugins/requirements_manager/RequirementsWidget.cpp` (phase линия в `updatePreviewText()`)
 - **Документация:** `docs/Architecture/plugins/README.md` (Requirements Manager section)
 - **Тестове:** Qt5 + Qt6 builds; `tests/plugins/requirements_manager/test_parser.{h,cpp}` (разширен `parseDirectory_traceabilityFields` + нови `phaseStatus` слотове) в shared binary `requirements_manager_tests`; 68/68 PASS на Qt5/Qt6
@@ -88,3 +88,10 @@ builds + unit тестове + headless smoke test) по RDD-PROCESS. Индик
 - Известно следствие (честно): PL-013/014/015 са DONE, но нямат `Документация:`
   ред → ще покажат „Архитектура ✗" в главния изглед. Това е коректно според
   семантиката „записано ≠ верифицирано"; backfill-ът е извън обхват.
+
+## Бележка
+
+Имплементацията е завършена (2026-08-06). Unit тестовете са отложени по решение
+на автора (standing instruction: имплементации без тестове до ново нареждане).
+Статусът остава ACTIVE — DONE изисква пълна верификация (Qt5 + Qt6 builds +
+unit тестове + headless smoke test) по RDD-PROCESS.md.
