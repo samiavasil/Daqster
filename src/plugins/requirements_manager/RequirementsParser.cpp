@@ -144,11 +144,25 @@ QString RequirementsParser::repoForId(const QString &id)
 QVector<Requirement> RequirementsParser::parseDirectories(const QVector<RequirementRoot> &roots)
 {
     QVector<Requirement> result;
+    // Roots are deduplicated by canonical path (discoverRepoRoots), but the
+    // same physical file can still be reached via multiple roots — e.g. a root
+    // at the repo top level plus a root at DevelopmentProcess/requirements, or
+    // two sibling roots where one is a symlink. Dedup by canonical FILE path so
+    // each file is parsed exactly once.
+    QSet<QString> seenFiles;
     for (const RequirementRoot &root : roots) {
         QVector<Requirement> parsed = parseDirectory(root.repoRoot);
-        for (Requirement &req : parsed)
+        for (Requirement &req : parsed) {
+            const QFileInfo fileInfo(req.filePath);
+            const QString canonical = fileInfo.canonicalFilePath();
+            const QString key = canonical.isEmpty() ? fileInfo.absoluteFilePath()
+                                                    : canonical;
+            if (seenFiles.contains(key))
+                continue;
+            seenFiles.insert(key);
             req.repo = repoForId(req.id);
-        result += parsed;
+            result.append(req);
+        }
     }
 
     // Stable sort so ties inside one ID family keep their per-root order
