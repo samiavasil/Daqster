@@ -1,6 +1,6 @@
 # REQ-SW-PL-012: Multi-Repository Requirements View (Merge)
 
-- **Статус:** BACKLOG
+- **Статус:** ACTIVE
 - **Приоритет:** Low
 - **Отговорник (роля):** Architect + Implementation
 - **Дата:** 2026-08-01
@@ -24,9 +24,9 @@ Requirements Manager трябва да приема **ДВЕ директори�
 (agent-agnostic markdown), а изискванията, които засягат публичното repo, живеят в
 публичното repo. Мerge изгледът е мостът между двете дървета.
 
-**Това е future feature — НЕ се имплементира в текущата итерация.**
+**Имплементацията е завършена (2026-08-05); unit тестовете са отложени по решение на автора — виж Бележка.**
 
-## Acceptance Criteria (за бъдещата имплементация — not now)
+## Acceptance Criteria
 
 - [ ] 1. Input: конфигурируеми ДВЕ директории с изисквания (public + private), всяка парсвана от `RequirementsParser`.
 - [ ] 2. Merged model: обединен модел/дърво, всяко изискване носи repo идентификатор (колона/група "Repo" в UI).
@@ -37,7 +37,13 @@ Requirements Manager трябва да приема **ДВЕ директори�
 
 ## Проследимост
 
-- **Коммити:** —
+- **Коммити:** `c3d4e5c`
 - **Код:** `src/plugins/requirements_manager/`
 - **Документация:** `docs/Architecture/plugins/`
 - **Тестове:** —
+
+## Бележка
+
+Имплементацията е завършена (2026-08-05). Unit тестовете са отложени по решение
+на автора (2026-08-05). Статусът остава ACTIVE — DONE изисква пълна верификация
+(Qt5 + Qt6 builds + unit тестове + headless smoke test) по RDD-PROCESS.md.
