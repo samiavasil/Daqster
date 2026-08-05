@@ -47,6 +47,7 @@ struct Requirement
     QString commits;               //!< "- **Коммити:**" under Проследимост (commit hash list)
     QString code;                  //!< "- **Код:**" under Проследимост (code location)
     QString tests;                 //!< "- **Тестове:**" under Проследимост (test description)
+    QString docs;                  //!< "- **Документация:**" under Проследимост (doc location)
     QStringList acceptanceCriteria; //!< criterion text (without [ ] / [x] marker)
     QVector<bool> criteriaDone;    //!< parallel to acceptanceCriteria
     QString filePath;              //!< absolute path of the .md file
@@ -69,6 +70,31 @@ struct Requirement
      */
     QHash<QString, QString> dependencyHints;
 };
+
+/**
+ * @brief Phase progression indicators for a requirement (REQ-SW-PL-017).
+ *
+ * Derived from the traceability fields: architecture ← "Документация:",
+ * implementation ← "Код:", testing ← "Тестове:". A non-empty field after
+ * trim means "записано" (recorded); empty, whitespace or "—" means "not
+ * recorded". The flags are INFORMATIVE only — a true flag means the phase
+ * artifact is recorded, NOT that it is verified/working. Status remains the
+ * coarse gate (DONE requires full verification per RDD-PROCESS).
+ */
+struct PhaseStatus
+{
+    bool architecture = false; //!< "Документация:" recorded
+    bool implementation = false; //!< "Код:" recorded
+    bool testing = false;      //!< "Тестове:" recorded
+};
+
+/**
+ * @brief Computes the phase status indicators for a requirement (QtCore-only,
+ *        unit-testable in the headless requirements_manager_tests binary).
+ * @param req The parsed requirement.
+ * @return PhaseStatus with per-phase "recorded" flags.
+ */
+PhaseStatus phaseStatus(const Requirement& req);
 
 /**
  * @brief One requirements tree root (a repo root containing

@@ -491,6 +491,8 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
                     out.code = value;
                 else if (key == QStringLiteral("Тестове"))
                     out.tests = value;
+                else if (key == QStringLiteral("Документация"))
+                    out.docs = value;
             }
             if (handled)
                 continue;
@@ -512,6 +514,18 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
     out.description = descriptionLines.join(QStringLiteral("\n")).trimmed();
     out.traceability = traceabilityLines.join(QStringLiteral("\n")).trimmed();
     return !out.id.isEmpty();
+}
+
+PhaseStatus phaseStatus(const Requirement &req)
+{
+    PhaseStatus result;
+    result.architecture = !req.docs.trimmed().isEmpty()
+                          && req.docs.trimmed() != QStringLiteral("—");
+    result.implementation = !req.code.trimmed().isEmpty()
+                            && req.code.trimmed() != QStringLiteral("—");
+    result.testing = !req.tests.trimmed().isEmpty()
+                     && req.tests.trimmed() != QStringLiteral("—");
+    return result;
 }
 
 } // namespace Daqster

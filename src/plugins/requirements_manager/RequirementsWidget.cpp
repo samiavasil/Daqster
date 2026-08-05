@@ -686,6 +686,14 @@ void RequirementsWidget::updatePreviewText(const Requirement &req)
     text += QStringLiteral("<p><b>Repo:</b> %1</p>")
                 .arg(req.repo.isEmpty() ? QStringLiteral("—") : req.repo.toHtmlEscaped());
 
+    // Phase status indicators (REQ-SW-PL-017): informative only — "✓" means the
+    // traceability field is recorded ("записано"), NOT that the phase is verified.
+    const PhaseStatus phase = phaseStatus(req);
+    text += QStringLiteral("<p><b>Фази:</b> Архитектура %1 · Имплементация %2 · Тестове %3</p>")
+                .arg(phase.architecture ? QStringLiteral("✓") : QStringLiteral("✗"),
+                     phase.implementation ? QStringLiteral("✓") : QStringLiteral("✗"),
+                     phase.testing ? QStringLiteral("✓") : QStringLiteral("✗"));
+
     // Relationship axes: Родител / Деца / Зависи от / Зависими от
     text += QStringLiteral("<p><b>Родител:</b> ");
     if (req.parentId.trimmed().isEmpty())
