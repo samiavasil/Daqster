@@ -215,6 +215,20 @@ void RequirementsWidget::openDirectories(const QStringList &baseDirs)
         const QString canonical = QDir(dir).canonicalPath();
         if (canonical.isEmpty() || m_roots.contains(canonical))
             continue;
+        // Warn when the new root is inside (or contains) an already-loaded
+        // root: those files overlap and the parser dedups them by canonical
+        // file path, but the overlap is usually a user mistake.
+        const QString separator = QDir::separator();
+        for (const QString &existing : m_roots) {
+            if (canonical.startsWith(existing + separator)
+                || existing.startsWith(canonical + separator)) {
+                qCWarning(lcFramework)
+                    << "RequirementsManager: new root overlaps an already-loaded root"
+                    << canonical << "vs" << existing
+                    << "- files reachable via both roots are parsed once (dedup by file path)";
+                break;
+            }
+        }
         m_roots.append(canonical);
     }
     std::sort(m_roots.begin(), m_roots.end());
