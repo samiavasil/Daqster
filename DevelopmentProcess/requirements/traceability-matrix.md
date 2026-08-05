@@ -23,6 +23,7 @@
 | `REQ-SW-FW-004` | Platform Shutdown Handler | DONE | — | — | `0907d06`, `a1bce4b`, `027dc0a` | `src/frame_work/base/src/platform/ShutdownHandler*` | Qt5/Qt6 builds |
 | `REQ-SW-FW-005` | Logging Infrastructure | DONE | — | — | `5eed6d6`, `bc18fa4` | `src/frame_work/base/src/LogManager.cpp` | Qt5/Qt6 builds |
 | `REQ-SW-FW-006` | Process Management | DONE | — | `REQ-SW-FW-005` | `5eed6d6`, `bc18fa4` | `src/frame_work/base/src/process/QProcessManager.*` | Qt5/Qt6 builds |
+| `REQ-SW-FW-007` | Plugin Security & Vendor Trust Store | ACTIVE (roadmap) | — | `REQ-SW-FW-001`, `REQ-SW-FW-002` | — | `src/frame_work/base/src/` (QPluginManager load path + VendorTrustStore) | — (roadmap) |
 | `REQ-SW-APP-001` | Daqster Application Host | DONE | — | `REQ-SW-FW-001`, `REQ-SW-FW-004`, `REQ-SW-FW-005` | `0907d06`, `9ea787c`, `6b23593` | `src/apps/Daqster/` (main.cpp, ApplicationsManager, AppToolbar, AppSelectionDialog) | Qt5/Qt6 builds + headless smoke (offscreen) |
 | `REQ-SW-PL-013` | Shared Node API (Capabilities & NodeDataTypes) | DONE | — | — | `b16c409`, `e6edd62` | `src/plugins/common/capabilities/INodeProvider.h`, `src/plugins/common/NodeDataTypes/` | Qt5/Qt6 builds |
 | `REQ-SW-PL-014` | Node Editor IDE & Demo Nodes | DONE | — | `REQ-SW-PL-013` | `f7aa532`, `fe87d14`, `e0f1395` | `src/plugins/node_editor_ide/`, `src/plugins/demo_nodeditor_nodes/` | Qt5/Qt6 builds |
