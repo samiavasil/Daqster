@@ -70,6 +70,10 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 - **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality
+- **Documentation**:
+  - Plugins hub (`docs/plugins/README.md`) + fixed plugin documentation links in INDEX/Architecture (`b5c204f`)
+  - Demo plugin README — documented video nodes and optional OpenCV (`e2c4925`)
+  - REQ-SW-PL-018/PL-019 documentation refs backfill; plugin version alignment 0.3.0 → 0.2.0 in `project()` for `demo_nodeditor_nodes` and `node_editor_ide` (inert metadata, matching runtime 0.2.0) (`ed8b334`)
 
 ### Fixed
 - **Plugin launch fixes**:

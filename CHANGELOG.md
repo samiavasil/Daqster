@@ -49,6 +49,10 @@
 - **cmake/ComponentTemplates.cmake**: `create_external_library()` path → `src/plugins/external_libs/`
 - **CI Workflow**: Добавени Python patch стъпки за qtrest install fix (cmake_install.cmake patching)
 - **Architecture docs** актуализирани за новата структура
+- **Documentation**:
+  - Plugins hub (`docs/plugins/README.md`) + fix на plugin documentation links в INDEX/Architecture (`b5c204f`)
+  - Demo plugin README — документирани video nodes и optional OpenCV (`e2c4925`)
+  - REQ-SW-PL-018/PL-019 documentation refs backfill; plugin version alignment 0.3.0 → 0.2.0 в `project()` за `demo_nodeditor_nodes` и `node_editor_ide` (inert metadata, съответства на runtime 0.2.0) (`ed8b334`)
 
 ### Fixed
 - **Plugin launch fixes**:
