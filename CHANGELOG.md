@@ -7,6 +7,25 @@
 ## [Unreleased]
 
 ### Added
+- **Video нодове** (`src/plugins/demo_nodeditor_nodes/Sources/Video/`):
+  - `VideoCompat.h` — Qt5/Qt6 multimedia абстракция (QVideoProbe ↔ QVideoSink, camera enumeration, media source assignment, playback-state сигнали)
+  - `CameraSourceNode` — заснемане от QCamera (default или избран device)
+  - `VideoFileSourceNode` — възпроизвеждане на локален видео файл (QMediaPlayer)
+  - `StreamSourceNode` — възпроизвеждане на HTTP/RTSP stream (QMediaPlayer)
+  - `VideoOutputNode` — live preview на incoming кадри (QLabel, pass-through)
+  - `VideoModifierNode` — демо ефект: размяна на red/blue канали
+  - Регистрирани под категория "Video" в demo node editor plugin
+- **Requirements Manager plugin** (`src/plugins/requirements_manager/`):
+  - Standalone application plugin с requirements дърво (REQ-SW-002..008)
+  - Навигация: auto-clear filter при линк клик + back/forward история
+  - Search engine (REQ-SW-PL-011)
+  - Multi-repository requirements view — merge на public/private requirements (REQ-SW-PL-012)
+- **Dependency graph viewer** (REQ-SW-009) — интерактивен граф на зависимостите между requirements
+- **Traceability matrix** (REQ-SW-010) — изглед и export на traceability матрицата
+- **Typed requirement IDs** — поддръжка на `REQ-SW-<TYPE>-NN` схема с формат валидация (с миграция на съществуващите ID-та)
+- **Sugiyama auto-layout** (REQ-SW-PL-016) — автоматично подреждане на dependency graph
+- **Phase status indicators** (REQ-SW-PL-017) — индикатори за фаза/статус в requirements main view
+- **Plugin security & vendor trust store** (REQ-SW-FW-007) — ново изискване за plugin сигурност
 - **ArithmeticLogic нод** (`BuiltInNodes/Operators/ArithmeticLogic/`):
   - `ExprParser` — recursive descent C++ expression evaluator (всички C/C++ оператори: `+`,`-`,`*`,`/`,`%`,`&`,`|`,`^`,`~`,`<<`,`>>`,`&&`,`||`,`!`,`==`,`!=`,`<`,`>`,`<=`,`>=`,`?:`)
   - `ArithmeticLogicModel` — конфигурируем нод: тип (int/double), 2–8 входа, expression field, optional strobe
@@ -32,6 +51,14 @@
 - **Architecture docs** актуализирани за новата структура
 
 ### Fixed
+- **Plugin launch fixes**:
+  - Toolbar пуска plugins по име вместо stale hash
+  - Prune на persisted plugin entries с несъответстващ файлов hash при load
+  - Явна грешка (qCCritical + QMessageBox) при неуспешно зареждане на plugin
+  - AppSelectionDialog съхранява visibility по plugin name
+- **Video нодове** — компилация на Qt5 и Qt6 (VideoCompat helpers: connectPlayerError/connectCameraError, variantToInt за Qt5 QVariant, QOverload за error signal)
+- **Dependency graph** — edges следват nodes при drag, viewport се fit-ва при resize
+- **Requirements Manager** — dedup на requirement файлове, достижими през множество roots, предупреждение при добавяне на overlapping root
 - **NumericType::numberAsText()** — fix за ambiguous overload при int тип: явно cast до `double` с precision 0, предотвратява показване на hex/placeholder стойности вместо числа
 
 ### Removed

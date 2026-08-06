@@ -7,6 +7,25 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Video nodes** (`src/plugins/demo_nodeditor_nodes/Sources/Video/`):
+  - `VideoCompat.h` — Qt5/Qt6 multimedia abstraction (QVideoProbe vs QVideoSink, camera enumeration, media source assignment, playback-state signals)
+  - `CameraSourceNode` — QCamera capture from default or user-selected device
+  - `VideoFileSourceNode` — local video file playback (QMediaPlayer)
+  - `StreamSourceNode` — HTTP/RTSP stream playback (QMediaPlayer)
+  - `VideoOutputNode` — live preview of incoming frames (QLabel, pass-through)
+  - `VideoModifierNode` — demo effect swapping red/blue channels
+  - Registered under the "Video" category in the demo node editor plugin
+- **Requirements Manager plugin** (`src/plugins/requirements_manager/`):
+  - Standalone application plugin with requirements tree (REQ-SW-002..008)
+  - Navigation: auto-clear filter on link click + back/forward history
+  - Search engine (REQ-SW-PL-011)
+  - Multi-repository requirements view — merge of public/private requirements (REQ-SW-PL-012)
+- **Dependency graph viewer** (REQ-SW-009) — interactive graph of dependencies between requirements
+- **Traceability matrix** (REQ-SW-010) — traceability matrix view and export
+- **Typed requirement IDs** — support for the `REQ-SW-<TYPE>-NN` scheme with format validation (with migration of existing IDs)
+- **Sugiyama auto-layout** (REQ-SW-PL-016) — automatic layout for the dependency graph
+- **Phase status indicators** (REQ-SW-PL-017) — phase/status indicators in the requirements main view
+- **Plugin security & vendor trust store** (REQ-SW-FW-007) — new requirement for plugin security
 - **ArithmeticLogic node** (`BuiltInNodes/Operators/ArithmeticLogic/`):
   - `ExprParser` — recursive descent C++ expression evaluator (all C/C++ operators: `+`,`-`,`*`,`/`,`%`,`&`,`|`,`^`,`~`,`<<`,`>>`,`&&`,`||`,`!`,`==`,`!=`,`<`,`>`,`<=`,`>=`,`?:`)
   - `ArithmeticLogicModel` — configurable node: type (int/double), 2–8 inputs, expression field, optional strobe
@@ -53,6 +72,14 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality
 
 ### Fixed
+- **Plugin launch fixes**:
+  - Toolbar launches plugins by name instead of stale hash
+  - Prune persisted plugin entries with mismatched file hash on load
+  - Fail loudly (qCCritical + QMessageBox) when a requested plugin fails to load
+  - AppSelectionDialog persists visibility by plugin name
+- **Video nodes** — Qt5 and Qt6 compilation fixes (VideoCompat helpers: connectPlayerError/connectCameraError, variantToInt for Qt5 QVariant, QOverload for the error signal)
+- **Dependency graph** — edges follow nodes on drag, viewport fits on resize
+- **Requirements Manager** — dedup requirement files reachable via multiple roots, warn when adding an overlapping root
 - **NumericType::numberAsText()** — fixed ambiguous overload for int type: explicit cast to `double` with precision 0, prevents displaying hex/placeholder values instead of numbers
 
 ## [0.2.0] - 2025-09-18
