@@ -17,7 +17,7 @@
 #include "Sources/Video/VideoFileSourceNode.h"
 #include "Sources/Video/StreamSourceNode.h"
 #include "Sources/Video/VideoOutputNode.h"
-#include "Sources/Video/VideoModifierNode.h"
+#include "Sources/Video/VideoTransformNode.h"
 
 DemoNodeEditorNodesObject::DemoNodeEditorNodesObject(QObject* Parent)
     : Daqster::QBasePluginObject(Parent)
@@ -62,7 +62,7 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     registry.registerModel<VideoFileSourceNode>("Video");
     registry.registerModel<StreamSourceNode>("Video");
     registry.registerModel<VideoOutputNode>("Video");
-    registry.registerModel<VideoModifierNode>("Video");
+    registry.registerModel<VideoTransformNode>("Video");
 }
 
 void DemoNodeEditorNodesObject::DeInitialize()
