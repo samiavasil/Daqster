@@ -64,6 +64,9 @@ caller-ите остават version-agnostic.
 - [x] 6. **VideoModifierNode.** `Sources/Video/VideoModifierNode.{h,cpp}` —
        `name() = "VideoModifier"`, демо ефект `swapRedBlueChannels()` (R↔B)
        върху всеки входящ кадър, емитира модифицирано `ImageData`.
+       **Амендирано от REQ-SW-PL-019:** node-ът е преименуван на
+       `VideoTransformNode` (регистрация `"VideoTransform"`); R↔B swap-ът е
+       една от 8-те базови операции на новия node (виж REQ-SW-PL-019).
 - [x] 7. **Регистрация + build.** `DemoNodeEditorNodesObject::registerNodes()`
        регистрира всичките 5 под категория "Video"; `CMakeLists.txt` включва
        новите файлове; `Sources/Video` е в `INCLUDE_DIRECTORIES`.
