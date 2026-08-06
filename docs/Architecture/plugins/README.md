@@ -19,8 +19,8 @@
 
 Всяка основна плъгин компонента има своя документация:
 
-- [Node Editor IDE](./node_editor_ide/README.md) — архитектура, вградени нодове, INodeProvider discovery
-- [Demo NodeEditor Nodes](./demo_nodeditor_nodes/README.md) — INodeProvider пример, доставени нодове
+- [Node Editor IDE](../../plugins/node_editor_ide/README.md) — архитектура, вградени нодове, INodeProvider discovery
+- [Demo NodeEditor Nodes](../../plugins/demo_nodeditor_nodes/README.md) — INodeProvider пример, доставени нодове
 
 ### Requirements Manager (REQ-SW-PL-009 — Interactive Dependency Graph Viewer)
 
@@ -265,5 +265,5 @@ Environment variables:
 ## Детайлни документи
 
 - [Plugin Development](./PluginDevelopment.md)
-- [Node Editor IDE](./node_editor_ide/README.md)
-- [Demo NodeEditor Nodes](./demo_nodeditor_nodes/README.md)
+- [Node Editor IDE](../../plugins/node_editor_ide/README.md)
+- [Demo NodeEditor Nodes](../../plugins/demo_nodeditor_nodes/README.md)
