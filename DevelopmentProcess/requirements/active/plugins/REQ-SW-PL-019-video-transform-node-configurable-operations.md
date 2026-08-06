@@ -34,7 +34,7 @@ node с една операция (размяна на R↔B каналите). 
 
 ## Acceptance Criteria
 
-- [ ] 1. **Преименуване + регистрация.** `Sources/Video/VideoModifierNode.{h,cpp}`
+- [x] 1. **Преименуване + регистрация.** `Sources/Video/VideoModifierNode.{h,cpp}`
        → `Sources/Video/VideoTransformNode.{h,cpp}` — клас `VideoTransformNode`
        (`NodeDelegateModel`), `caption() = "Video Transform"`,
        `name() = "VideoTransform"`; `DemoNodeEditorNodesObject::registerNodes()`
@@ -42,7 +42,7 @@ node с една операция (размяна на R↔B каналите). 
        `registerModel<VideoModifierNode>`); `CMakeLists.txt` обновява
        `VIDEO_NODES` списъка. Старите сцени с `"VideoModifier"` не се зареждат —
        прието.
-- [ ] 2. **8 базови операции (QImage, без външни зависимости).** Op engine с
+- [x] 2. **8 базови операции (QImage, без външни зависимости).** Op engine с
        per-op функции `QImage + params → QImage` (namespace/static стил):
        RGB Channel Swap (R↔B, без параметри), Grayscale (без параметри),
        Invert (без параметри), Brightness (slider −100..+100), Contrast
@@ -50,12 +50,12 @@ node с една операция (размяна на R↔B каналите). 
        horizontal/vertical), Sepia (без параметри). Операциите се появяват
        динамично в списъка; всяка обработва входящия кадър и емитира
        модифицирано `ImageData`.
-- [ ] 3. **Widget.** Embedded widget: operation combo + `QStackedWidget` с по
+- [x] 3. **Widget.** Embedded widget: operation combo + `QStackedWidget` с по
        една страница параметри за операция; смяна на операцията превключва
        страницата и пре-обработва текущия кадър с новите параметри.
-- [ ] 4. **save()/load().** Моделът персистира текущата операция + параметрите
+- [x] 4. **save()/load().** Моделът персистира текущата операция + параметрите
        в `QJsonObject`; `load()` възстановява състоянието на widget-а.
-- [ ] 5. **Опционален OpenCV (compile-time auto-detect).** `find_package(OpenCV
+- [x] 5. **Опционален OpenCV (compile-time auto-detect).** `find_package(OpenCV
        QUIET)` в `CMakeLists.txt`; при открит OpenCV — `HAVE_OPENCV` +
        `OpenCVTransforms.cpp` с 3 операции: GaussianBlur (kernel slider), Canny
        (2 threshold sliders), Threshold (value slider); QImage↔cv::Mat
@@ -69,7 +69,8 @@ node с една операция (размяна на R↔B каналите). 
 
 ## Проследимост
 
-- **Коммити:** — (ще се попълни при имплементацията)
+- **Коммити:** `e574c63` (feat), `efc05c2` (docs: създаване на изискването) —
+  branch `feat/phase3-graph-matrix`
 - **Код:** `src/plugins/demo_nodeditor_nodes/Sources/Video/` (`VideoTransformNode.{h,cpp}`,
   op engine — напр. `VideoTransformOps.{h,cpp}`, `OpenCVTransforms.cpp` —
   conditional при `HAVE_OPENCV`), `DemoNodeEditorNodesObject.cpp` (registerNodes),
@@ -77,7 +78,10 @@ node с една операция (размяна на R↔B каналите). 
 - **Документация:** — (няма отделна архитектурна документация; API docs в
   header-ите на node моделите)
 - **Тестове:** отложени (standing instruction); при имплементацията — Qt5 (5.15.2)
-  + Qt6 (6.9.2) builds PASS и за двата варианта (с/без OpenCV)
+  + Qt6 (6.9.2) builds PASS и за двата варианта (с/без OpenCV): OpenCV path
+  (DAQSTER_USE_OPENCV=ON, OpenCV 4.6.0 dev инсталиран за тази верификация) и
+  fallback (DAQSTER_USE_OPENCV=OFF — 8-те базови операции, без OpenCV
+  sources/links); app smoke (Qt5/Qt6, DISPLAY=:0) — приложенията стартират без crash.
 
 ## Бележки по имплементацията (план)
 
@@ -112,8 +116,10 @@ node с една операция (размяна на R↔B каналите). 
 ## Бележка
 
 Изискването е създадено **преди** имплементацията (2026-08-06) по одобрен
-дизайн (rename + 8 базови операции + опционален OpenCV). AC 1–5 са pending
-(не са mark-нати) — ще се отбележат след имплементацията и верификацията.
-AC 6 (Tests) остава UNCHECKED по standing решение на автора. Статусът остава
-ACTIVE — DONE изисква пълна верификация (Qt5 + Qt6 builds + unit тестове +
-headless smoke test) по RDD-PROCESS.md.
+дизайн (rename + 8 базови операции + опционален OpenCV). Имплементацията и
+верификацията са завършени на 2026-08-06: AC 1–5 са mark-нати `[x]`
+(имплементация + Qt5/Qt6 builds и с двата варианта — с/без OpenCV; app smoke
+без crash). AC 6 (Tests) остава UNCHECKED по standing решение на автора
+(имплементации без тестове до ново нареждане). Статусът остава ACTIVE — DONE
+изисква пълна верификация (Qt5 + Qt6 builds + unit тестове + headless smoke
+test) по RDD-PROCESS.md.

@@ -13,7 +13,7 @@
   - `VideoFileSourceNode` — възпроизвеждане на локален видео файл (QMediaPlayer)
   - `StreamSourceNode` — възпроизвеждане на HTTP/RTSP stream (QMediaPlayer)
   - `VideoOutputNode` — live preview на incoming кадри (QLabel, pass-through)
-  - `VideoModifierNode` — демо ефект: размяна на red/blue канали
+  - `VideoModifierNode` → `VideoTransformNode` (REQ-SW-PL-019) — конфигурируем transform node: 8 базови операции (RGB Channel Swap, Grayscale, Invert, Brightness, Contrast, Blur, Flip, Sepia) + опционални OpenCV операции (GaussianBlur, Canny, Threshold) при открит OpenCV
   - Регистрирани под категория "Video" в demo node editor plugin
 - **Requirements Manager plugin** (`src/plugins/requirements_manager/`):
   - Standalone application plugin с requirements дърво (REQ-SW-002..008)

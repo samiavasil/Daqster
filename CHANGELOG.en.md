@@ -13,7 +13,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `VideoFileSourceNode` — local video file playback (QMediaPlayer)
   - `StreamSourceNode` — HTTP/RTSP stream playback (QMediaPlayer)
   - `VideoOutputNode` — live preview of incoming frames (QLabel, pass-through)
-  - `VideoModifierNode` — demo effect swapping red/blue channels
+  - `VideoModifierNode` → `VideoTransformNode` (REQ-SW-PL-019) — configurable transform node: 8 base operations (RGB Channel Swap, Grayscale, Invert, Brightness, Contrast, Blur, Flip, Sepia) + optional OpenCV operations (GaussianBlur, Canny, Threshold) when OpenCV is detected
   - Registered under the "Video" category in the demo node editor plugin
 - **Requirements Manager plugin** (`src/plugins/requirements_manager/`):
   - Standalone application plugin with requirements tree (REQ-SW-002..008)
