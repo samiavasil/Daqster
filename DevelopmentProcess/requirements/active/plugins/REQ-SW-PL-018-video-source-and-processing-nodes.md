@@ -83,8 +83,7 @@ caller-ите остават version-agnostic.
   `StreamSourceNode.{h,cpp}`, `VideoOutputNode.{h,cpp}`,
   `VideoModifierNode.{h,cpp}`), `DemoNodeEditorNodesObject.cpp`
   (registerNodes), `CMakeLists.txt`
-- **Документация:** — (няма отделна архитектурна документация; API docs в
-  header-ите на node моделите)
+- **Документация:** `docs/plugins/demo_nodeditor_nodes/README.md` (Video секция)
 - **Тестове:** Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS; app smoke —
   приложенията стартират без crash; unit тестовете са отложени
 
@@ -104,9 +103,9 @@ caller-ите остават version-agnostic.
 - Video node-ите обменят `ImageData` от публичните NodeDataTypes
   (REQ-SW-PL-013) — същия тип, който private AI Studio plugin-ът консумира
   на входа на `FrameToTensorNode` (REQ-AI-006).
-- `Документация:` е "—" → главният изглед ще покаже „Архитектура ✗" за това
-  изискване. Това е коректно според семантиката „записано ≠ верифицирано"
-  (PL-017); backfill-ът е извън обхват.
+- `Документация:` сочи `docs/plugins/demo_nodeditor_nodes/README.md` (Video секция)
+  → главният изглед ще покаже „Архитектура ✓". (PL-017: непразно поле = записано,
+  НЕ = верифицирано.)
 
 ## Бележка
 

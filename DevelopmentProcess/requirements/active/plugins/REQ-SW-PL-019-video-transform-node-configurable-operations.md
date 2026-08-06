@@ -75,8 +75,7 @@ node с една операция (размяна на R↔B каналите). 
   op engine — напр. `VideoTransformOps.{h,cpp}`, `OpenCVTransforms.cpp` —
   conditional при `HAVE_OPENCV`), `DemoNodeEditorNodesObject.cpp` (registerNodes),
   `CMakeLists.txt` (OpenCV auto-detect)
-- **Документация:** — (няма отделна архитектурна документация; API docs в
-  header-ите на node моделите)
+- **Документация:** `docs/plugins/demo_nodeditor_nodes/README.md` (VideoTransformNode — операции секция)
 - **Тестове:** отложени (standing instruction); при имплементацията — Qt5 (5.15.2)
   + Qt6 (6.9.2) builds PASS и за двата варианта (с/без OpenCV): OpenCV path
   (DAQSTER_USE_OPENCV=ON, OpenCV 4.6.0 dev инсталиран за тази верификация) и
