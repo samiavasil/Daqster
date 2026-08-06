@@ -2,6 +2,7 @@
 
 #include <QtGlobal>
 #include <QUrl>
+#include <QVariant>
 
 #include <QtMultimedia/QCamera>
 #include <QtMultimedia/QMediaPlayer>
@@ -9,6 +10,7 @@
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QtMultimedia/QCameraDevice>
+#include <QtMultimedia/QMediaCaptureSession>
 #include <QtMultimedia/QMediaDevices>
 #include <QtMultimedia/QVideoSink>
 #else
@@ -70,7 +72,11 @@ inline bool attachFrameProbe(QCamera *camera, FrameProbe *probe)
 {
     if (camera == nullptr || probe == nullptr)
         return false;
-    camera->setVideoSink(probe);
+    // Qt 6.x routes camera video through a QMediaCaptureSession; own the
+    // session as a child of the sink so its lifetime matches frame capture.
+    auto *session = new QMediaCaptureSession(probe);
+    session->setCamera(camera);
+    session->setVideoOutput(probe);
     return true;
 }
 
@@ -78,7 +84,7 @@ inline bool attachFrameProbe(QMediaPlayer *player, FrameProbe *probe)
 {
     if (player == nullptr || probe == nullptr)
         return false;
-    player->setVideoOutput(probe);
+    player->setVideoSink(probe);
     return true;
 }
 
@@ -92,9 +98,36 @@ inline void setMediaSource(QMediaPlayer *player, const QUrl &url)
     player->setSource(url);
 }
 
+inline int variantToInt(const QVariant &value, int defaultValue)
+{
+    bool ok = false;
+    const int result = value.toInt(&ok);
+    return ok ? result : defaultValue;
+}
+
 inline int playbackState(const QMediaPlayer *player)
 {
     return static_cast<int>(player->playbackState());
+}
+
+inline QMetaObject::Connection connectPlayerError(
+    QMediaPlayer *player,
+    QObject *context,
+    std::function<void(int, const QString &)> slot)
+{
+    return QObject::connect(player, &QMediaPlayer::errorOccurred, context,
+                            [slot](QMediaPlayer::Error error, const QString &errorString)
+                            { slot(static_cast<int>(error), errorString); });
+}
+
+inline QMetaObject::Connection connectCameraError(
+    QCamera *camera,
+    QObject *context,
+    std::function<void(int, const QString &)> slot)
+{
+    return QObject::connect(camera, &QCamera::errorOccurred, context,
+                            [slot](QCamera::Error error, const QString &errorString)
+                            { slot(static_cast<int>(error), errorString); });
 }
 
 inline QMetaObject::Connection connectFrameProbed(
@@ -170,9 +203,40 @@ inline void setMediaSource(QMediaPlayer *player, const QUrl &url)
     player->setMedia(QMediaContent(url));
 }
 
+inline int variantToInt(const QVariant &value, int defaultValue)
+{
+    bool ok = false;
+    const int result = value.toInt(&ok);
+    return ok ? result : defaultValue;
+}
+
 inline int playbackState(const QMediaPlayer *player)
 {
     return static_cast<int>(player->state());
+}
+
+inline QMetaObject::Connection connectPlayerError(
+    QMediaPlayer *player,
+    QObject *context,
+    std::function<void(int, const QString &)> slot)
+{
+    // Qt 5.15 QMediaPlayer only emits error(Error) without an error string;
+    // QOverload disambiguates the signal from the error() accessor.
+    return QObject::connect(player, QOverload<QMediaPlayer::Error>::of(&QMediaPlayer::error),
+                            context,
+                            [slot](QMediaPlayer::Error error)
+                            { slot(static_cast<int>(error), QString()); });
+}
+
+inline QMetaObject::Connection connectCameraError(
+    QCamera *camera,
+    QObject *context,
+    std::function<void(int, const QString &)> slot)
+{
+    // Qt 5.15 QCamera::errorOccurred(Error) carries no error string.
+    return QObject::connect(camera, &QCamera::errorOccurred, context,
+                            [slot](QCamera::Error error)
+                            { slot(static_cast<int>(error), QString()); });
 }
 
 inline QMetaObject::Connection connectFrameProbed(

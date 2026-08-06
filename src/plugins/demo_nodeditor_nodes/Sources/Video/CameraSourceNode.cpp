@@ -33,7 +33,7 @@ QJsonObject CameraSourceNode::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
 
-    const int deviceIndex = m_deviceCombo->currentData().toInt(-1);
+    const int deviceIndex = VideoCompat::variantToInt(m_deviceCombo->currentData(), -1);
     if (deviceIndex >= 0 && deviceIndex < m_devices.size())
         modelJson["cameraId"] = VideoCompat::cameraId(m_devices.at(deviceIndex));
     modelJson["running"] = m_running;
@@ -134,7 +134,7 @@ void CameraSourceNode::refreshDeviceList()
 
 VideoCompat::CameraDevice CameraSourceNode::selectedDevice() const
 {
-    const int deviceIndex = m_deviceCombo->currentData().toInt(-1);
+    const int deviceIndex = VideoCompat::variantToInt(m_deviceCombo->currentData(), -1);
     if (deviceIndex >= 0 && deviceIndex < m_devices.size())
         return m_devices.at(deviceIndex);
     return VideoCompat::defaultCamera();
@@ -164,11 +164,12 @@ void CameraSourceNode::startCamera()
         m_frameProbe, this,
         [this](const QVideoFrame &frame) { onFrameAvailable(frame); });
 
-    connect(m_camera, &QCamera::errorOccurred, this,
-            [this](QCamera::Error error, const QString &errorString) {
-                Q_UNUSED(error);
-                setStatus(tr("Camera error: %1").arg(errorString), false);
-            });
+    VideoCompat::connectCameraError(
+        m_camera, this,
+        [this](int error, const QString &errorString) {
+            Q_UNUSED(error);
+            setStatus(tr("Camera error: %1").arg(errorString), false);
+        });
 
     m_camera->start();
     m_running = true;

@@ -37,8 +37,11 @@ VideoFileSourceNode::VideoFileSourceNode()
 
     connect(m_player, &QMediaPlayer::mediaStatusChanged,
             this, &VideoFileSourceNode::onMediaStatusChanged);
-    connect(m_player, &QMediaPlayer::errorOccurred,
-            this, &VideoFileSourceNode::onPlayerError);
+    VideoCompat::connectPlayerError(
+        m_player, this,
+        [this](int error, const QString &errorString) {
+            onPlayerError(static_cast<QMediaPlayer::Error>(error), errorString);
+        });
 }
 
 VideoFileSourceNode::~VideoFileSourceNode()
