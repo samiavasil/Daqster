@@ -35,5 +35,6 @@
 ## Бележка
 
 Имплементацията е завършена (2026-08-05). Unit тестовете са отложени по решение
-на автора (2026-08-05). Статусът остава ACTIVE — DONE изисква пълна верификация
-(Qt5 + Qt6 builds + unit тестове + headless smoke test) по RDD-PROCESS.md.
+на автора (standing instruction: имплементации без тестове до ново нареждане).
+Статусът остава ACTIVE — DONE изисква пълна верификация (Qt5 + Qt6 builds +
+unit тестове + headless smoke test) по RDD-PROCESS.md.
