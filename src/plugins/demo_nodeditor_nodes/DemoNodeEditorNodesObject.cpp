@@ -13,6 +13,11 @@
 #include "Sources/AudioSource/AudioSourceDataModel.h"
 #include "Sources/LLamaSource/LLamaModelDataModel.h"
 #include "Sources/LLamaSource/ConsoleDataModel.h"
+#include "Sources/Video/CameraSourceNode.h"
+#include "Sources/Video/VideoFileSourceNode.h"
+#include "Sources/Video/StreamSourceNode.h"
+#include "Sources/Video/VideoOutputNode.h"
+#include "Sources/Video/VideoModifierNode.h"
 
 DemoNodeEditorNodesObject::DemoNodeEditorNodesObject(QObject* Parent)
     : Daqster::QBasePluginObject(Parent)
@@ -51,6 +56,13 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     registry.registerModel<AudioSourceDataModel>("Sources");
     registry.registerModel<LLamaModelDataModel>("LLama");
     registry.registerModel<ConsoleDataModel>("LLama");
+
+    // Video nodes (ImageData / "image" flow)
+    registry.registerModel<CameraSourceNode>("Video");
+    registry.registerModel<VideoFileSourceNode>("Video");
+    registry.registerModel<StreamSourceNode>("Video");
+    registry.registerModel<VideoOutputNode>("Video");
+    registry.registerModel<VideoModifierNode>("Video");
 }
 
 void DemoNodeEditorNodesObject::DeInitialize()

@@ -43,6 +43,21 @@ set(LLAMA_SOURCE_NODES
     Sources/LLamaSource/ChatBaseWidget.cpp
 )
 
+# ── Video nodes (ImageData / "image" flow) ──────────────────────────
+set(VIDEO_NODES
+    Sources/Video/VideoCompat.h
+    Sources/Video/CameraSourceNode.h
+    Sources/Video/CameraSourceNode.cpp
+    Sources/Video/VideoFileSourceNode.h
+    Sources/Video/VideoFileSourceNode.cpp
+    Sources/Video/StreamSourceNode.h
+    Sources/Video/StreamSourceNode.cpp
+    Sources/Video/VideoOutputNode.h
+    Sources/Video/VideoOutputNode.cpp
+    Sources/Video/VideoModifierNode.h
+    Sources/Video/VideoModifierNode.cpp
+)
+
 # ── Displays: AudioDisplay ──────────────────────────────────────────
 set(AUDIO_DISPLAY_NODES
     Displays/AudioDisplay/AudioDisplayModel.h
@@ -73,6 +88,7 @@ create_plugin(DemoNodeEditorNodes
         ${PLUGIN_SOURCES}
         ${AUDIO_SOURCE_NODES}
         ${LLAMA_SOURCE_NODES}
+        ${VIDEO_NODES}
         ${GENERIC_DISPLAY_NODES}
         ${AUDIO_DISPLAY_NODES}
         ${ROUTING_NODES}
@@ -92,6 +108,7 @@ create_plugin(DemoNodeEditorNodes
         ${DAQSTER_SOURCE_DIR}/src/plugins/common
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/AudioSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
+        ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/AudioDisplay
 )
 
