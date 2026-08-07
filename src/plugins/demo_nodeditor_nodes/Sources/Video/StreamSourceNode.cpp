@@ -1,6 +1,7 @@
 #include "StreamSourceNode.h"
 
 #include "NodeDataTypes/ImageData.h"
+#include "StreamUrlValidator.h"
 
 #include <QHBoxLayout>
 #include <QLabel>
@@ -129,23 +130,13 @@ void StreamSourceNode::onConnectClicked()
     }
 
     const QString urlString = m_urlEdit->text().trimmed();
-    if (urlString.isEmpty()) {
-        setStatus(tr("Enter a stream URL first"), false);
+    QString error;
+    if (!StreamUrlValidator::isValidStreamUrl(urlString, &error)) {
+        setStatus(error, false);
         return;
     }
 
     const QUrl url(urlString);
-    const QString scheme = url.scheme().toLower();
-    if (!url.isValid() || scheme.isEmpty()) {
-        setStatus(tr("Invalid stream URL"), false);
-        return;
-    }
-    if (scheme != QStringLiteral("http") && scheme != QStringLiteral("https")
-        && scheme != QStringLiteral("rtsp")) {
-        setStatus(tr("Unsupported stream scheme: %1").arg(url.scheme()), false);
-        return;
-    }
-
     VideoCompat::setMediaSource(m_player, url);
     m_player->play();
 }

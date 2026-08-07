@@ -52,6 +52,8 @@ set(VIDEO_NODES
     Sources/Video/VideoFileSourceNode.cpp
     Sources/Video/StreamSourceNode.h
     Sources/Video/StreamSourceNode.cpp
+    Sources/Video/StreamUrlValidator.h
+    Sources/Video/StreamUrlValidator.cpp
     Sources/Video/VideoOutputNode.h
     Sources/Video/VideoOutputNode.cpp
     Sources/Video/VideoTransformNode.h
