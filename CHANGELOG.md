@@ -43,6 +43,14 @@
   - Базов графичен плъгин използващ `NodeEditorWidget`
   - `APPLICATION_PLUGIN` тип с `create_plugin()` макро
 - **ChatGraphModel в споделената библиотека** — преместен от `node_editor_ide/` в `BuiltInNodes/Library/types/` за generality
+- **REQ-SW-PL-020** (zero-copy видео дисплей):
+  - `VideoFrameData` — zero-copy споделен data type (QVideoFrame Qt6 / QImage Qt5)
+  - Dual-output source nodes (Qt6): `CameraSourceNode` и `VideoFileSourceNode` изпращат `VideoFrameData` (zero-copy) + `ImageData` (legacy)
+  - `VideoOutputNode` — Qt6 GPU дисплей чрез detached `QVideoWidget`; Qt5 fallback към `QLabel` pixmap
+  - `VideoCompat` — Qt5/Qt6 мултиплекс abstraction helpers (presentFrameCompat, presentImageCompat, connectPlayerError, connectCameraError, variantToInt, QOverload)
+  - Windows cross-platform compliance (QStandardPaths, без Linux-only пътища)
+  - Комити: `b5c9651` (req), `157f34d` (VideoFrameData+shim), `085f63d` (VideoOutputNode), `0f92a9c` (CMake), `c873b43` (docs), `9d0f178` (AC/status)
+  - Статус: ACTIVE (impl готов, unit тестове отложени)
 
 ### Changed
 - **Directory Restructuring**:
@@ -58,6 +66,7 @@
   - Demo plugin README — документирани video nodes и optional OpenCV (`e2c4925`)
   - REQ-SW-PL-018/PL-019 documentation refs backfill; plugin version alignment 0.3.0 → 0.2.0 в `project()` за `demo_nodeditor_nodes` и `node_editor_ide` (inert metadata, съответства на runtime 0.2.0) (`ed8b334`)
 - **StreamUrlValidator** — извлечен от `StreamSourceNode` като самостоятелен header-only helper (`3048fbd`) за unit-testability (валидация на http/https/rtsp stream URL)
+- **Process**: mandatory branch-per-work-item clause в AGENTS.md (`bee28c4`); trunk-based-lite from master (`547401c`); master consolidation (PR #21 `3c8c47f` merged, phase3 branch изтрит, PL-020 rebased onto master)
 
 ### Fixed
 - **Plugin launch fixes**:
@@ -71,6 +80,7 @@
 - **NumericType::numberAsText()** — fix за ambiguous overload при int тип: явно cast до `double` с precision 0, предотвратява показване на hex/placeholder стойности вместо числа
 - **VideoTransformNode Flip (Qt5)** — вертикалният flip ползваше `QImage::mirrored()` с грешни параметри на Qt5; поправен (`0cf6d19`), открит от новите unit тестове
 - **Exporter CSV header** — колона "Repo" в CSV header-а на traceability matrix експорта беше с несъответстващо име; поправен (`9d90fff`)
+- **LoggingSystem.md** — symlink заменен с regular file за GitHub docs rendering (`b247046`)
 
 ### Removed
 - `src/plugins/node_editor/` — монолитен plugin (заменен от widget + app)
