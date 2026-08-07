@@ -122,6 +122,20 @@ const Requirement *findRequirement(const QVector<Requirement> &requirements,
     return nullptr;
 }
 
+// Minimal Requirement record for the phaseStatus() unit tests: only the three
+// traceability fields that drive the phase flags are set.
+Requirement phaseFixture(const QString &docs, const QString &code,
+                         const QString &tests)
+{
+    Requirement req;
+    req.id = QStringLiteral("REQ-SW-PL-017");
+    req.title = QStringLiteral("Phase Status");
+    req.docs = docs;
+    req.code = code;
+    req.tests = tests;
+    return req;
+}
+
 } // namespace
 
 void TestParser::parseDirectory_fullMetadata()
@@ -253,9 +267,10 @@ void TestParser::parseDirectory_nestedSubdirSection()
 
 void TestParser::parseDirectory_traceabilityFields()
 {
-    // "- **Коммити:**" / "- **Код:**" / "- **Тестове:**" lines must populate
-    // the structured fields AND still land in the raw traceability text
-    // (fall-through, preserving the "traceability.contains(commit)" contract).
+    // "- **Коммити:**" / "- **Код:**" / "- **Тестове:**" / "- **Документация:**"
+    // lines must populate the structured fields AND still land in the raw
+    // traceability text (fall-through, preserving the
+    // "traceability.contains(commit)" contract).
     QTemporaryDir temp;
     QVERIFY(temp.isValid());
     const QString baseDir = temp.path();
@@ -284,7 +299,8 @@ void TestParser::parseDirectory_traceabilityFields()
                      "\n"
                      "- **Коммити:** abc123, def456\n"
                      "- **Код:** src/plugins/requirements_manager/\n"
-                     "- **Тестове:** Qt5/Qt6 builds + unit tests\n"));
+                     "- **Тестове:** Qt5/Qt6 builds + unit tests\n"
+                     "- **Документация:** docs/Architecture/plugins/README.md\n"));
 
     const QVector<Requirement> requirements = RequirementsParser::parseDirectory(baseDir);
     QCOMPARE(requirements.size(), 1);
@@ -294,12 +310,14 @@ void TestParser::parseDirectory_traceabilityFields()
     QCOMPARE(req->commits, QStringLiteral("abc123, def456"));
     QCOMPARE(req->code, QStringLiteral("src/plugins/requirements_manager/"));
     QCOMPARE(req->tests, QStringLiteral("Qt5/Qt6 builds + unit tests"));
+    QCOMPARE(req->docs, QStringLiteral("docs/Architecture/plugins/README.md"));
 
     // The raw traceability text must still contain the same content.
     QVERIFY(req->traceability.contains(QStringLiteral("abc123")));
     QVERIFY(req->traceability.contains(QStringLiteral("def456")));
     QVERIFY(req->traceability.contains(QStringLiteral("src/plugins/requirements_manager/")));
     QVERIFY(req->traceability.contains(QStringLiteral("Qt5/Qt6 builds + unit tests")));
+    QVERIFY(req->traceability.contains(QStringLiteral("docs/Architecture/plugins/README.md")));
 
     // A requirement without a Тестове line keeps the field empty.
     writeFixture(activeDir, QStringLiteral("REQ-SW-PL-011-no-tests.md"),
@@ -320,6 +338,82 @@ void TestParser::parseDirectory_traceabilityFields()
     QCOMPARE(req11->commits, QStringLiteral("deadbeef"));
     QVERIFY(req11->tests.isEmpty());
     QVERIFY(req11->traceability.contains(QStringLiteral("deadbeef")));
+
+    // A "—" Документация value stays raw (no normalization) and reports the
+    // architecture phase as not recorded.
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-012-dash-docs.md"),
+                 QStringLiteral(
+                     "# REQ-SW-PL-012: Dash Docs\n"
+                     "\n"
+                     "## Описание\n"
+                     "\n"
+                     "Без документация.\n"
+                     "\n"
+                     "## Проследимост\n"
+                     "\n"
+                     "- **Документация:** —\n"));
+    const QVector<Requirement> three = RequirementsParser::parseDirectory(baseDir);
+    QCOMPARE(three.size(), 3);
+    const Requirement *req12 = findRequirement(three, QStringLiteral("REQ-SW-PL-012"));
+    QVERIFY2(req12, "REQ-SW-PL-012 should be parsed");
+    QCOMPARE(req12->docs, QStringLiteral("—"));
+    QCOMPARE(phaseStatus(*req12).architecture, false);
+}
+
+void TestParser::phaseStatus_allEmpty_false()
+{
+    const PhaseStatus ps = phaseStatus(phaseFixture(QString(), QString(), QString()));
+
+    QCOMPARE(ps.architecture, false);
+    QCOMPARE(ps.implementation, false);
+    QCOMPARE(ps.testing, false);
+}
+
+void TestParser::phaseStatus_dashAndWhitespace_false()
+{
+    // "—" (dash), whitespace-only and empty values are all "not recorded".
+    const PhaseStatus ps = phaseStatus(phaseFixture(QStringLiteral("—"),
+                                                    QStringLiteral("   "),
+                                                    QString()));
+
+    QCOMPARE(ps.architecture, false);
+    QCOMPARE(ps.implementation, false);
+    QCOMPARE(ps.testing, false);
+}
+
+void TestParser::phaseStatus_allFilled_true()
+{
+    const PhaseStatus ps = phaseStatus(phaseFixture(QStringLiteral("docs/"),
+                                                    QStringLiteral("src/"),
+                                                    QStringLiteral("tests/")));
+
+    QCOMPARE(ps.architecture, true);
+    QCOMPARE(ps.implementation, true);
+    QCOMPARE(ps.testing, true);
+}
+
+void TestParser::phaseStatus_partialCode_only()
+{
+    // Only the code field is recorded -> only the implementation flag is set.
+    const PhaseStatus ps = phaseStatus(phaseFixture(QString(),
+                                                    QStringLiteral("src/"),
+                                                    QString()));
+
+    QCOMPARE(ps.architecture, false);
+    QCOMPARE(ps.implementation, true);
+    QCOMPARE(ps.testing, false);
+}
+
+void TestParser::phaseStatus_trimmedNonEmpty_true()
+{
+    // Surrounding whitespace is trimmed before the emptiness check.
+    const PhaseStatus ps = phaseStatus(phaseFixture(QStringLiteral("  docs/  "),
+                                                    QStringLiteral("src/"),
+                                                    QStringLiteral("tests/")));
+
+    QCOMPARE(ps.architecture, true);
+    QCOMPARE(ps.implementation, true);
+    QCOMPARE(ps.testing, true);
 }
 
 void TestParser::parseDirectory_emptyDir()

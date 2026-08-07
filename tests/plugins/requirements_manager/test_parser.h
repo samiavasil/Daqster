@@ -15,6 +15,11 @@ private slots:
     void parseDirectory_typedId();
     void parseDirectory_nestedSubdirSection();
     void parseDirectory_traceabilityFields();
+    void phaseStatus_allEmpty_false();
+    void phaseStatus_dashAndWhitespace_false();
+    void phaseStatus_allFilled_true();
+    void phaseStatus_partialCode_only();
+    void phaseStatus_trimmedNonEmpty_true();
     void parseDirectory_emptyDir();
     void generateNextId_scansActiveAndArchive();
     void generateNextId_typedIsolation();
