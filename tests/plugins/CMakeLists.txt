@@ -6,3 +6,7 @@
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/requirements_manager)
     add_subdirectory(requirements_manager)
 endif()
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/demo_nodeditor_nodes)
+    add_subdirectory(demo_nodeditor_nodes)
+endif()
