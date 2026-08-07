@@ -69,7 +69,7 @@ private slots:
         buffer.seek(0);
         QString content = buffer.readAll();
 
-        QVERIFY(content.contains("ID,Title,Status,Priority,Parent,Dependencies,Commits,Code,Tests,Section"));
+        QVERIFY(content.contains("ID,Repo,Title,Status,Priority,Parent,Dependencies,Commits,Code,Tests,Section"));
         QVERIFY(content.contains("REQ-SW-PL-001"));
         QVERIFY(content.contains("Test, Requirement"));
         QVERIFY(content.contains("REQ-SW-PL-000"));
@@ -188,7 +188,7 @@ private slots:
         QVERIFY(MatrixExporter::exportCsv(reqs, buffer2));
         buffer2.seek(0);
         content = buffer2.readAll();
-        QVERIFY(content.contains("ID,Title,Status,Priority,Parent,Dependencies,Commits,Code,Tests,Section"));
+        QVERIFY(content.contains("ID,Repo,Title,Status,Priority,Parent,Dependencies,Commits,Code,Tests,Section"));
 
         QBuffer buffer3;
         buffer3.open(QIODevice::ReadWrite);
