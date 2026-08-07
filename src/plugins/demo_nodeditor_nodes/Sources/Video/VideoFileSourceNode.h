@@ -4,6 +4,7 @@
 #include "VideoCompat.h"
 
 #include <QtNodes/NodeDelegateModel>
+#include <QtNodes/internal/Definitions.hpp>
 
 #include <memory>
 
@@ -14,12 +15,20 @@ class QPushButton;
 class QWidget;
 
 class ImageData;
+class VideoFrameData;
 
 /**
  * @brief Video file source node: plays a local video file and emits frames.
  *
- * Uses QMediaPlayer with a VideoCompat frame probe attached. Each decoded
- * frame is converted to QImage and emitted as ImageData ("image") downstream.
+ * Uses QMediaPlayer with a VideoCompat frame probe attached.
+ *
+ * On Qt6 the node has two output ports (REQ-SW-PL-020):
+ *   - port 0 "video-frame" — zero-copy VideoFrameData wrapping the decoded
+ *     QVideoFrame; emitted for every frame (no QImage conversion).
+ *   - port 1 "image" — ImageData, converted from the frame ONLY while a
+ *     downstream processing consumer is connected.
+ *
+ * On Qt5 the node keeps the original single "image" output port (QImage path).
  */
 class VideoFileSourceNode : public QtNodes::NodeDelegateModel
 {
@@ -53,6 +62,11 @@ public:
 
     QWidget *embeddedWidget() override;
 
+    /// Track downstream "image" connections (port 1, Qt6) so the QImage
+    /// conversion only happens while a processing consumer is connected.
+    void outputConnectionCreated(QtNodes::ConnectionId const &conId) override;
+    void outputConnectionDeleted(QtNodes::ConnectionId const &conId) override;
+
 private slots:
     void onBrowseClicked();
     void onPlayPauseClicked();
@@ -74,6 +88,11 @@ private:
 
     QMediaPlayer *m_player = nullptr;
     VideoCompat::FrameProbe *m_frameProbe = nullptr;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // Reused per frame via setFrame() — no allocation per frame (REQ-SW-PL-020).
+    std::shared_ptr<VideoFrameData> m_videoFrameOut;
+    int m_imagePortConnectionCount = 0;
+#endif
     std::shared_ptr<ImageData> m_output;
     QString m_loadedPath;
     bool m_isPlaying = false;

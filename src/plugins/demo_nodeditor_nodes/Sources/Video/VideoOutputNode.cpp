@@ -1,6 +1,8 @@
 #include "VideoOutputNode.h"
 
 #include "NodeDataTypes/ImageData.h"
+#include "NodeDataTypes/VideoFrameData.h"
+#include "VideoCompat.h"
 
 #include <QEvent>
 #include <QLabel>
@@ -8,12 +10,19 @@
 #include <QSize>
 #include <QVBoxLayout>
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QVideoWidget>
+#endif
+
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 
 VideoOutputNode::VideoOutputNode()
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    : m_videoFrame(std::make_shared<VideoFrameData>())
+#endif
 {
     m_widget = new QWidget();
     auto *layout = new QVBoxLayout(m_widget);
@@ -31,6 +40,13 @@ VideoOutputNode::VideoOutputNode()
 
 VideoOutputNode::~VideoOutputNode()
 {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (m_videoWidget != nullptr) {
+        m_videoWidget->hide();
+        m_videoWidget->deleteLater();
+        m_videoWidget = nullptr;
+    }
+#endif
     // Widget lifetime is owned by the node/view framework.
     m_widget = nullptr;
 }
@@ -49,6 +65,12 @@ unsigned int VideoOutputNode::nPorts(PortType portType) const
 {
     switch (portType) {
     case PortType::In:
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        // Port 0: "video-frame" (zero-copy GPU), port 1: "image" (software).
+        return 2;
+#else
+        return 1;
+#endif
     case PortType::Out:
         return 1;
     default:
@@ -58,7 +80,16 @@ unsigned int VideoOutputNode::nPorts(PortType portType) const
 
 NodeDataType VideoOutputNode::dataType(PortType portType, PortIndex portIndex) const
 {
-    Q_UNUSED(portType);
+    if (portType == PortType::In) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        if (portIndex == 0)
+            return VideoFrameData().type();
+        return ImageData().type();
+#else
+        Q_UNUSED(portIndex);
+        return ImageData().type();
+#endif
+    }
     Q_UNUSED(portIndex);
     return ImageData().type();
 }
@@ -71,6 +102,61 @@ std::shared_ptr<NodeData> VideoOutputNode::outData(PortIndex port)
 
 void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
 {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (portIndex == 0) {
+        // --- Port 0: "video-frame" (zero-copy GPU display path) ---
+        auto videoFrame = std::dynamic_pointer_cast<VideoFrameData>(data);
+        if (videoFrame && videoFrame->hasFrame()) {
+            m_videoFrame = videoFrame;
+
+            // Lazily create the detached QVideoWidget on the first frame.
+            ensureVideoWidget();
+
+            // GPU path: HW buffer → RHI texture → screen (no QImage copy).
+            VideoCompat::presentFrame(m_videoWidget->videoSink(),
+                                      videoFrame->frame());
+
+            // Software fallback: convert lazily for the in-node QLabel preview.
+            // Only done when the label actually needs a pixmap (cheap relative
+            // to the GPU path, and keeps the node usable inside the scene).
+            const QImage image = VideoCompat::frameToImage(videoFrame->frame());
+            if (!image.isNull()) {
+                m_image = image;
+                updateDisplay();
+            }
+
+            // Pass-through output: emit the ImageData so downstream processing
+            // chains (VideoTransform, etc.) still work when connected to port 1.
+            m_output = std::make_shared<ImageData>(image);
+            Q_EMIT dataUpdated(0);
+        } else {
+            m_videoFrame.reset();
+            m_image = QImage();
+            m_output.reset();
+            updateDisplay();
+            Q_EMIT dataInvalidated(0);
+        }
+        return;
+    }
+
+    if (portIndex == 1) {
+        // --- Port 1: "image" (software / backward-compatible path) ---
+        m_image = QImage();
+        m_output.reset();
+
+        auto imageData = std::dynamic_pointer_cast<ImageData>(data);
+        if (imageData && !imageData->isEmpty()) {
+            m_image = imageData->image();
+            m_output = imageData;
+            updateDisplay();
+            Q_EMIT dataUpdated(0);
+        } else {
+            updateDisplay();
+            Q_EMIT dataInvalidated(0);
+        }
+        return;
+    }
+#else
     Q_UNUSED(portIndex);
 
     m_image = QImage();
@@ -86,6 +172,7 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
         updateDisplay();
         Q_EMIT dataInvalidated(0);
     }
+#endif
 }
 
 QWidget *VideoOutputNode::embeddedWidget()
@@ -114,3 +201,19 @@ void VideoOutputNode::updateDisplay()
     const QPixmap pixmap = QPixmap::fromImage(m_image);
     m_label->setPixmap(pixmap.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+void VideoOutputNode::ensureVideoWidget()
+{
+    if (m_videoWidget != nullptr)
+        return;
+
+    // QVideoWidget is a native QWindow with its own RHI swapchain and cannot
+    // be hosted inside the node editor scene (QTBUG-35299). Detach it into a
+    // separate top-level window on the first video-frame input.
+    m_videoWidget = new QVideoWidget();
+    m_videoWidget->setWindowTitle(tr("Video Output — %1").arg(caption()));
+    m_videoWidget->resize(640, 480);
+    m_videoWidget->show();
+}
+#endif

@@ -1,6 +1,7 @@
 #include "VideoFileSourceNode.h"
 
 #include "NodeDataTypes/ImageData.h"
+#include "NodeDataTypes/VideoFrameData.h"
 
 #include <QDir>
 #include <QFileDialog>
@@ -18,6 +19,9 @@ using QtNodes::PortType;
 
 VideoFileSourceNode::VideoFileSourceNode()
     : m_output(std::make_shared<ImageData>())
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    , m_videoFrameOut(std::make_shared<VideoFrameData>())
+#endif
 {
     buildWidget();
 
@@ -69,7 +73,12 @@ unsigned int VideoFileSourceNode::nPorts(PortType portType) const
 {
     switch (portType) {
     case PortType::Out:
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        // Port 0: "video-frame" (zero-copy), port 1: "image" (converted on demand).
+        return 2;
+#else
         return 1;
+#endif
     default:
         return 0;
     }
@@ -78,20 +87,52 @@ unsigned int VideoFileSourceNode::nPorts(PortType portType) const
 NodeDataType VideoFileSourceNode::dataType(PortType portType, PortIndex portIndex) const
 {
     Q_UNUSED(portType);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (portIndex == 1)
+        return ImageData().type();
+    return VideoFrameData().type();
+#else
     Q_UNUSED(portIndex);
     return ImageData().type();
+#endif
 }
 
 std::shared_ptr<NodeData> VideoFileSourceNode::outData(PortIndex port)
 {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (port == 1)
+        return m_output;
+    return m_videoFrameOut;
+#else
     Q_UNUSED(port);
     return m_output;
+#endif
 }
 
 void VideoFileSourceNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
 {
     Q_UNUSED(data);
     Q_UNUSED(portIndex);
+}
+
+void VideoFileSourceNode::outputConnectionCreated(QtNodes::ConnectionId const &conId)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (conId.outPortIndex == 1)
+        ++m_imagePortConnectionCount;
+#else
+    Q_UNUSED(conId);
+#endif
+}
+
+void VideoFileSourceNode::outputConnectionDeleted(QtNodes::ConnectionId const &conId)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (conId.outPortIndex == 1 && m_imagePortConnectionCount > 0)
+        --m_imagePortConnectionCount;
+#else
+    Q_UNUSED(conId);
+#endif
 }
 
 QWidget *VideoFileSourceNode::embeddedWidget()
@@ -167,12 +208,31 @@ void VideoFileSourceNode::onPlayPauseClicked()
 
 void VideoFileSourceNode::onFrameAvailable(const QVideoFrame &frame)
 {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // Zero-copy transport: wrap the decoded frame (ref-count bump only) and
+    // emit it downstream (REQ-SW-PL-020 AC 2). No QImage conversion in the
+    // hot path — the "image" port is converted only when a processing
+    // consumer is connected.
+    m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
+    Q_EMIT dataUpdated(0);
+
+    if (m_imagePortConnectionCount <= 0)
+        return;
+
+    const QImage image = VideoCompat::frameToImage(frame);
+    if (image.isNull())
+        return;
+
+    m_output = std::make_shared<ImageData>(image);
+    Q_EMIT dataUpdated(1);
+#else
     const QImage image = VideoCompat::frameToImage(frame);
     if (image.isNull())
         return;
 
     m_output = std::make_shared<ImageData>(image);
     Q_EMIT dataUpdated(0);
+#endif
 }
 
 void VideoFileSourceNode::onPlaybackStateChanged(int state)
