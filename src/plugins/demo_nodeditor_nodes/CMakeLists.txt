@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(demo_nodeditor_nodes VERSION 0.3.0 LANGUAGES CXX)
+project(demo_nodeditor_nodes VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -43,6 +43,46 @@ set(LLAMA_SOURCE_NODES
     Sources/LLamaSource/ChatBaseWidget.cpp
 )
 
+# ── Video nodes (ImageData / "image" flow) ──────────────────────────
+set(VIDEO_NODES
+    Sources/Video/VideoCompat.h
+    Sources/Video/CameraSourceNode.h
+    Sources/Video/CameraSourceNode.cpp
+    Sources/Video/VideoFileSourceNode.h
+    Sources/Video/VideoFileSourceNode.cpp
+    Sources/Video/StreamSourceNode.h
+    Sources/Video/StreamSourceNode.cpp
+    Sources/Video/StreamUrlValidator.h
+    Sources/Video/StreamUrlValidator.cpp
+    Sources/Video/VideoOutputNode.h
+    Sources/Video/VideoOutputNode.cpp
+    Sources/Video/VideoTransformNode.h
+    Sources/Video/VideoTransformNode.cpp
+    Sources/Video/VideoTransformOps.h
+    Sources/Video/VideoTransformOps.cpp
+)
+
+# ── Optional OpenCV transforms (compile-time auto-detect) ───────────
+# REQ-SW-PL-019: when OpenCV is found, OpenCVTransforms.cpp is compiled and
+# HAVE_OPENCV is defined, exposing 3 additional video transform operations
+# (GaussianBlur, Canny, Threshold). Without OpenCV the plugin builds normally
+# with the 8 base QImage operations.
+option(DAQSTER_USE_OPENCV "Enable OpenCV-based video transform operations" ON)
+find_package(OpenCV QUIET)
+set(VIDEO_OPENCV_SOURCES)
+set(VIDEO_OPENCV_DEFINITIONS)
+set(VIDEO_OPENCV_INCLUDE_DIRS)
+set(VIDEO_OPENCV_LINK_LIBRARIES)
+if(DAQSTER_USE_OPENCV AND OpenCV_FOUND)
+    message(STATUS "demo_nodeditor_nodes: OpenCV ${OpenCV_VERSION} found — enabling OpenCV video transform operations")
+    list(APPEND VIDEO_OPENCV_SOURCES Sources/Video/OpenCVTransforms.cpp)
+    list(APPEND VIDEO_OPENCV_DEFINITIONS HAVE_OPENCV)
+    list(APPEND VIDEO_OPENCV_INCLUDE_DIRS ${OpenCV_INCLUDE_DIRS})
+    list(APPEND VIDEO_OPENCV_LINK_LIBRARIES ${OpenCV_LIBS})
+else()
+    message(STATUS "demo_nodeditor_nodes: OpenCV not found or disabled — using the 8 base video transform operations")
+endif()
+
 # ── Displays: AudioDisplay ──────────────────────────────────────────
 set(AUDIO_DISPLAY_NODES
     Displays/AudioDisplay/AudioDisplayModel.h
@@ -73,6 +113,8 @@ create_plugin(DemoNodeEditorNodes
         ${PLUGIN_SOURCES}
         ${AUDIO_SOURCE_NODES}
         ${LLAMA_SOURCE_NODES}
+        ${VIDEO_NODES}
+        ${VIDEO_OPENCV_SOURCES}
         ${GENERIC_DISPLAY_NODES}
         ${AUDIO_DISPLAY_NODES}
         ${ROUTING_NODES}
@@ -87,12 +129,18 @@ create_plugin(DemoNodeEditorNodes
         Qt${QT_VERSION_MAJOR}::OpenGL
         QtNodes
         frame_work
+    COMPILE_DEFINITIONS
+        ${VIDEO_OPENCV_DEFINITIONS}
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${DAQSTER_SOURCE_DIR}/src/plugins/common
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/AudioSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
+        ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/AudioDisplay
+        ${VIDEO_OPENCV_INCLUDE_DIRS}
+    LINK_LIBRARIES
+        ${VIDEO_OPENCV_LINK_LIBRARIES}
 )
 
 # ── Output name must contain "plugin" substring ──────────────────────

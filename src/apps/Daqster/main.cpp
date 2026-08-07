@@ -13,6 +13,7 @@
 #include "LogCategories.h"
 #include <QSettings>
 #include <QLoggingCategory>
+#include <QMessageBox>
 #include "QConsoleListener.h"
 #include "main.h"
 
@@ -256,7 +257,22 @@ int main(int argc, char *argv[]) {
           qCDebug(lcApp) << "Plugin " << input << " founded! Run it.";
           obj->Initialize();
           QApplication::setApplicationName(matchedHash);
+        } else {
+          qCCritical(lcApp) << "Plugin " << input << " (hash " << matchedHash
+                            << ") found but failed to create plugin object";
+          QMessageBox::critical(
+              nullptr, "Daqster",
+              QString("Application plugin \"%1\" was found but failed to load.")
+                  .arg(input));
         }
+      } else {
+        qCCritical(lcApp) << "Plugin " << input << " not found";
+        QMessageBox::critical(
+            nullptr, "Daqster",
+            QString("Application plugin \"%1\" was not found. Rebuild the "
+                    "plugin or launch the Daqster main window and use the "
+                    "toolbar.")
+                .arg(input));
       }
       QConsoleListener *console = new QConsoleListener();
       QObject::connect(

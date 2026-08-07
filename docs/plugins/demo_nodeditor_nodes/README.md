@@ -4,7 +4,7 @@
 
 ## Преглед
 
-INodeProvider плъгин, който доставя Audio, LLaMA, Display и Routing нодове към Node Editor IDE. Това е основният доставчик на нодове за Daqster node editor-а.
+INodeProvider плъгин, който доставя Audio, Video, LLaMA, Display и Routing нодове към Node Editor IDE. Това е основният доставчик на нодове за Daqster node editor-а.
 
 **Локация:** `src/plugins/demo_nodeditor_nodes/`
 **Име на .so:** `libDemoNodeEditorNodesPlugin.so`
@@ -25,10 +25,19 @@ demo_nodeditor_nodes/
 │   │   ├── AudioNodeQdevIoConnector.{h,cpp}
 │   │   ├── AudioComboModel.{h,cpp}
 │   │   └── node_editor.qrc
-│   └── LLamaSource/                      # LLaMA AI нодове
-│       ├── LLamaModelDataModel.{h,cpp}
-│       ├── ConsoleDataModel.{h,cpp}
-│       └── ChatBaseWidget.{h,cpp}
+│   ├── LLamaSource/                      # LLaMA AI нодове
+│   │   ├── LLamaModelDataModel.{h,cpp}
+│   │   ├── ConsoleDataModel.{h,cpp}
+│   │   └── ChatBaseWidget.{h,cpp}
+│   └── Video/                            # Video нодове (ImageData / "image" flow)
+│       ├── VideoCompat.h                 # Qt5/Qt6 multimedia compatibility shim
+│       ├── CameraSourceNode.{h,cpp}
+│       ├── VideoFileSourceNode.{h,cpp}
+│       ├── StreamSourceNode.{h,cpp}
+│       ├── VideoOutputNode.{h,cpp}
+│       ├── VideoTransformNode.{h,cpp}    # 8 базови операции + опционален OpenCV
+│       ├── VideoTransformOps.{h,cpp}     # Op engine (QImage + params → QImage)
+│       └── OpenCVTransforms.cpp          # Само при HAVE_OPENCV
 ├── Displays/
 │   ├── AudioDisplay/
 │   │   └── AudioDisplayModel.{h,cpp}
@@ -52,7 +61,7 @@ DemoNodeEditorNodesInterface → QPluginInterface
         PLUGIN_NAME       = "DemoNodeEditorNodes"
         PLUGIN_TYPE       = APPLICATION_PLUGIN
         PLUGIN_TYPE_NAME  = "Node Providers"   ← групиране в PluginManager GUI
-        PLUGIN_VERSION    = "0.3.0"
+        PLUGIN_VERSION    = "0.2.0"
 ```
 
 ### QBasePluginObject ( frame_work )
@@ -73,6 +82,11 @@ DemoNodeEditorNodesObject → INodeProvider
         registry.registerModel<AudioSourceDataModel>("Sources")
         registry.registerModel<LLamaModelDataModel>("LLama")
         registry.registerModel<ConsoleDataModel>("LLama")
+        registry.registerModel<CameraSourceNode>("Video")
+        registry.registerModel<VideoFileSourceNode>("Video")
+        registry.registerModel<StreamSourceNode>("Video")
+        registry.registerModel<VideoOutputNode>("Video")
+        registry.registerModel<VideoTransformNode>("Video")
 ```
 
 **INodeProvider е standalone интерфейс** — не наследява други Daqster интерфейси.
@@ -103,17 +117,73 @@ DemoNodeEditorNodesObject → INodeProvider
 | LLamaModelDataModel | LLama | LLaMA модел — AI генерация на текст |
 | ConsoleDataModel | LLama | Конзола за показване на AI отговори |
 
+### Video
+| Нод | Категория | Описание |
+|-----|-----------|----------|
+| CameraSourceNode | Video | Заснема кадри от локално camera устройство (избор на устройство + start/stop), емитира `ImageData` с честотата на кадрите |
+| VideoFileSourceNode | Video | Възпроизвежда локален видео файл през `QMediaPlayer` + frame probe (browse + play/pause), емитира кадри като `ImageData` |
+| StreamSourceNode | Video | Възпроизвежда HTTP/RTSP stream (URL поле + connect), емитира кадри като `ImageData` |
+| VideoOutputNode | Video | Live preview на входящите `ImageData` кадри в `QLabel`; pass-through изходен порт за output вериги |
+| VideoTransformNode | Video | Прилага конфигурируема операция върху `ImageData` кадри (8 базови + опционални OpenCV операции) |
+
+Всички Video нодове обменят `ImageData` ("image") от публичните shared NodeDataTypes (REQ-SW-PL-013) — същия тип, който частният AI Studio plugin консумира на входа на `FrameToTensorNode` (REQ-AI-006).
+
+#### VideoTransformNode — операции (REQ-SW-PL-019)
+
+`VideoTransformNode` заменя стария фиксиран `VideoModifierNode` (само R↔B swap) с общ transform node. UI-то е operation combo + `QStackedWidget` с по една страница параметри за операция; текущата операция и параметрите се персистират чрез `save()`/`load()`.
+
+**8 базови операции (QImage, винаги налични, без външни зависимости):**
+
+| Операция | Параметри | Описание |
+|----------|-----------|----------|
+| RGB Channel Swap | — | Размяна на R↔B каналите на всеки пиксел |
+| Grayscale | — | Конвертиране към grayscale (luminance), изход RGB32 |
+| Invert | — | Инвертиране на цветовете на всеки пиксел |
+| Sepia | — | Sepia тон |
+| Brightness | slider −100..+100 (0 = без промяна) | Регулиране на яркостта |
+| Contrast | slider 0..200% (100 = без промяна) | Регулиране на контраста |
+| Blur | radius slider 0..10 (0 = без промяна) | Box blur |
+| Flip | combo horizontal/vertical | Обръщане хоризонтално или вертикално |
+
+**3 опционални OpenCV операции (само при `HAVE_OPENCV`):**
+
+| Операция | Параметри | Описание |
+|----------|-----------|----------|
+| GaussianBlur | kernel slider 1..31 (нечетен) | Gaussian blur |
+| Canny | low/high threshold sliders 0..255 | Canny edge detection |
+| Threshold | value slider 0..255 | Binary threshold |
+
 ## Зависимости
 
 Plugin-ът изисква следните Qt модули и библиотеки:
 - **Qt::Core, Qt::Gui** — основни Qt модули
 - **Qt::Charts** — за графична визуализация
-- **Qt::Multimedia** — за аудио функционалност
-- **Qt::Network** — за мрежова комуникация (LLaMA API)
+- **Qt::Multimedia** — за аудио и видео функционалност (AudioSource, Video нодове)
+- **Qt::Network** — за мрежова комуникация (LLaMA API, StreamSource)
 - **Qt::OpenGL** — за rendering
 - **QtNodes** — node editor library
 - **NodeEditorLibrary** — споделена библиотека за node editor
 - **frame_work** — Daqster core framework
+- **OpenCV 4.x (ОПЦИОНАЛЕН)** — само за OpenCV video transform операциите (GaussianBlur, Canny, Threshold)
+
+### OpenCV (опционален)
+
+`find_package(OpenCV QUIET)` в `CMakeLists.txt` + `option(DAQSTER_USE_OPENCV ... ON)`. Когато `DAQSTER_USE_OPENCV=ON` и OpenCV е открит:
+- `OpenCVTransforms.cpp` се компилира и дефинира `HAVE_OPENCV`
+- OpenCV операциите (GaussianBlur, Canny, Threshold) се добавят към списъка на `VideoTransformNode`
+- `${OpenCV_INCLUDE_DIRS}` / `${OpenCV_LIBS}` се подават към `create_plugin()`
+
+Когато OpenCV липсва или `DAQSTER_USE_OPENCV=OFF`, plugin-ът се build-ва нормално с 8-те базови QImage операции; OpenCV операциите отсъстват от списъка. Проверено: Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS и с двата варианта (OpenCV 4.6.0 / без OpenCV).
+
+## Qt5/Qt6 съвместимост (VideoCompat.h)
+
+Video нодовете използват Qt Multimedia API, който се различава между Qt5 и Qt6. Разликите са абстрахирани в `Sources/Video/VideoCompat.h` (по модела на съществуващия `AudioCompat.h`) — namespace от type aliases и inline helpers с version-agnostic API за caller-ите:
+
+- **Frame capture:** Qt6 `QVideoSink` (`videoFrameChanged`) vs Qt5 `QVideoProbe` (`videoFrameProbed`) — и двете доставят `QVideoFrame`, който се конвертира до `QImage`
+- **Camera enumeration:** Qt6 `QMediaDevices::videoInputs()` vs Qt5 `QCameraInfo::availableCameras()`
+- **Media source:** Qt6 `QMediaPlayer::setSource(QUrl)` vs Qt5 `setMedia(QMediaContent)`
+- **Playback state / error сигнали:** Qt6 `playbackStateChanged(PlaybackState)` / `errorOccurred(Error, QString)` vs Qt5 `stateChanged(State)` / `error(Error)` — транспортират се като int/callback (и двата enum-а споделят едни и същи unscoped стойности)
+- Qt6 camera routing изисква `QMediaCaptureSession` (създаден като child на sink-а, за да съвпада lifetime-ът с frame capture-а)
 
 ## Вид на плъгина
 
@@ -137,3 +207,5 @@ QObjectList providers = pm->instances(INodeProvider_IID);
 - [IPluginInterface](../../Architecture/framework/README.md) — как плъгините се откриват
 - [INodeProvider](../../Architecture/plugins/README.md) — capability discovery mechanism
 - [Node Editor IDE](../node_editor_ide/README.md) — потребителят на този плъгин
+- [REQ-SW-PL-018](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-018-video-source-and-processing-nodes.md) — Video Source & Processing Nodes (5-те video node модела + VideoCompat.h)
+- [REQ-SW-PL-019](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-019-video-transform-node-configurable-operations.md) — Video Transform Node (8 базови + опционални OpenCV операции)

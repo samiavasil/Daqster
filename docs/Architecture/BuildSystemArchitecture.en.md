@@ -131,10 +131,8 @@ External libraries are added via `create_external_library()`, which automaticall
 
 ```cmake
 # In root CMakeLists.txt
-# NodeEditor remains Qt5-only
-if(QT_VERSION_MAJOR EQUAL 5)
-    create_external_library(nodeeditor)   # target: QtNodes
-endif()
+# NodeEditor - Qt5/Qt6 (upstream has unified Qt${QT_VERSION_MAJOR} handling)
+create_external_library(nodeeditor)       # target: QtNodes
 
 # QtRest is Qt5/Qt6 compatible
 create_external_library(qtrest_lib)       # target: qtrest_lib
@@ -383,17 +381,15 @@ include(ComponentTemplates)
 add_subdirectory(src/frame_work)
 
 # 3. External libraries
-# NodeEditor is Qt5-only
-if(QT_VERSION_MAJOR EQUAL 5)
-    create_external_library(nodeeditor)   # -> target: QtNodes
-endif()
+# NodeEditor - Qt5/Qt6 (upstream has unified Qt${QT_VERSION_MAJOR} handling)
+create_external_library(nodeeditor)   # -> target: QtNodes
 
 # QtRest works on Qt5/Qt6
 create_external_library(qtrest_lib)       # -> target: qtrest_lib
 
 # 4. Plugins — all are added; the dependency system excludes them automatically
 add_subdirectory(src/plugins/node_editor_ide)     # Visual node-based editor (plugin)
-add_subdirectory(src/plugins/QtCoinTrader)       # Qt5-only (requires qtrest_lib)
+add_subdirectory(src/plugins/QtCoinTrader)       # Qt5/Qt6 (requires qtrest_lib)
 add_subdirectory(src/plugins/tests/plugin_main_test)
 add_subdirectory(src/plugins/tests/plugin_fancy_test)
 add_subdirectory(src/plugins/tests/plugin_uggly_test)
@@ -414,10 +410,10 @@ All plugin `add_subdirectory()` calls are always made. The dependency system aut
 
 ```
 Qt5 build:  NodeEditorPlugin enabled, QtCoinTraderPlugin enabled, test plugins enabled
-Qt6 build:  NodeEditorPlugin disabled, QtCoinTraderPlugin enabled, test plugins enabled
+Qt6 build:  NodeEditorPlugin enabled, QtCoinTraderPlugin enabled, test plugins enabled
 ```
 
-> Qt6 limitation: `NodeEditorPlugin` does not compile with Qt6 (`nodeeditor` is still Qt5-only). `QtCoinTraderPlugin` compiles on Qt6 because `qtrest_lib` is now ported to Qt6.
+> Both `NodeEditorPlugin` and `QtCoinTraderPlugin` compile on Qt5 and Qt6: `nodeeditor` has a `USE_QT6` option (set from the root CMakeLists), and `qtrest_lib` is Qt5/Qt6 dual-mode. Components are only excluded when specific Qt modules or external libraries are missing.
 
 ### Dependency Based (Automatic)
 A component is excluded automatically if its dependencies are missing:
@@ -944,9 +940,7 @@ set_target_properties(${COMPONENT_NAME} PROPERTIES
     add_subdirectory(src/frame_work)
     
     # External libraries
-    if(QT_VERSION_MAJOR EQUAL 5)
-        create_external_library(nodeeditor)
-    endif()
+    create_external_library(nodeeditor)   # Qt5/Qt6 — upstream handles Qt${QT_VERSION_MAJOR}
     create_external_library(qtrest_lib)
     
     # Plugins

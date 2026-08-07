@@ -131,10 +131,8 @@ create_internal_library(frame_work
 
 ```cmake
 # В root CMakeLists.txt
-# NodeEditor остава Qt5-only
-if(QT_VERSION_MAJOR EQUAL 5)
-    create_external_library(nodeeditor)   # target: QtNodes
-endif()
+# NodeEditor - Qt5/Qt6 (upstream има unified Qt${QT_VERSION_MAJOR} handling)
+create_external_library(nodeeditor)       # target: QtNodes
 
 # QtRest e Qt5/Qt6 compatible
 create_external_library(qtrest_lib)       # target: qtrest_lib
@@ -383,17 +381,15 @@ include(ComponentTemplates)
 add_subdirectory(src/frame_work)
 
 # 3. External libraries
-# NodeEditor е Qt5-only
-if(QT_VERSION_MAJOR EQUAL 5)
-    create_external_library(nodeeditor)   # -> target: QtNodes
-endif()
+# NodeEditor - Qt5/Qt6 (upstream има unified Qt${QT_VERSION_MAJOR} handling)
+create_external_library(nodeeditor)   # -> target: QtNodes
 
 # QtRest работи на Qt5/Qt6
 create_external_library(qtrest_lib)       # -> target: qtrest_lib
 
 # 4. Plugins — всички се добавят; dependency системата ги изключва автоматично
 add_subdirectory(src/plugins/node_editor_ide)     # Visual node-based editor (plugin)
-add_subdirectory(src/plugins/QtCoinTrader)       # Qt5-only (изисква qtrest_lib)
+add_subdirectory(src/plugins/QtCoinTrader)       # Qt5/Qt6 (изисква qtrest_lib)
 add_subdirectory(src/plugins/tests/plugin_main_test)
 add_subdirectory(src/plugins/tests/plugin_fancy_test)
 add_subdirectory(src/plugins/tests/plugin_uggly_test)
@@ -414,10 +410,10 @@ print_build_configuration_summary()
 
 ```
 Qt5 build:  NodeEditorPlugin включен, QtCoinTraderPlugin включен, test plugins включени
-Qt6 build:  NodeEditorPlugin изключен, QtCoinTraderPlugin включен, test plugins включени
+Qt6 build:  NodeEditorPlugin включен, QtCoinTraderPlugin включен, test plugins включени
 ```
 
-> Qt6 ограничение: `NodeEditorPlugin` не се компилира при Qt6 (външната библиотека `nodeeditor` все още е Qt5-only). `QtCoinTraderPlugin` се компилира при Qt6, защото `qtrest_lib` вече е портната за Qt6.
+> И `NodeEditorPlugin`, и `QtCoinTraderPlugin` се компилират при Qt5 и Qt6: `nodeeditor` има `USE_QT6` опция (задава се от root CMakeLists), а `qtrest_lib` е Qt5/Qt6 dual-mode. Компонентите се изключват само ако конкретни Qt модули или външни библиотеки липсват.
 
 ### Според зависимости (автоматично)
 Компонентът се изключва автоматично ако dependencies липсват:
@@ -944,9 +940,7 @@ set_target_properties(${COMPONENT_NAME} PROPERTIES
     add_subdirectory(src/frame_work)
     
     # External libraries
-    if(QT_VERSION_MAJOR EQUAL 5)
-        create_external_library(nodeeditor)
-    endif()
+    create_external_library(nodeeditor)   # Qt5/Qt6 — upstream handle-ва Qt${QT_VERSION_MAJOR}
     create_external_library(qtrest_lib)
     
     # Plugins

@@ -87,13 +87,15 @@ Metadata-та се съхранява в `PluginDescription` — property bag с
 
 ```
 1. QPluginManager::SearchForPlugins()
-   → сканира m_DirList за .so файлове
-   → IsCandidatePluginFile() проверя дали файла съдържа "plugin" в името
+   → сканира m_searchPaths за .so/.dll файлове (нормализирани с QDir::absolutePath())
+   → PluginDiscovery::isCandidatePluginFile() проверява дали файлът е библиотека, съдържа "plugin" в името, има companion .json файл или Qt plugin metadata
+   → LoadPluginsInfoFromPersistency() валидира дали файловете реално съществуват на диска (QFileInfo::exists) и чисти stale записи
+   → GetPluginList() гарантира дедупликация по PLUGIN_LOCATION (фаилов път)
 
 2. QPluginManager::LoadPluginInterfaceObject()
    → QPluginLoader::load()
    → QPluginInterface конструктора попълва m_PluginDescryptor
-   → StorePluginStateToPersistncy() запазва в QSettings
+   → StorePluginStateToPersistncy() запазва в QSettings (daqster_qtX.ini)
 
 3. QPluginManager::CreatePluginObject()
    → QPluginInterface::CreatePlugin() → CreatePluginInternal()
@@ -145,7 +147,7 @@ protected:
 };
 ```
 
-### INodeProvider ( capabilities/ )
+### INodeProvider ( src/plugins/common/capabilities/ )
 Standalone capability interface за доставка на нодове.
 
 ```cpp
@@ -167,8 +169,19 @@ public:
 - Съобщения при load failure (`loader.errorString()`)
 - Plugin health state: FOUNDED → IF_LOADED → HEALTHY / ILL
 - Постоянно съхранение на състоянието в QSettings
+- Автоматично почистване на липсващи/stale файлове от персистентността
 
-## See Also
+## Future Roadmap: Plugin Security & Vendor Verification (Code Signing)
+
+За бъдещи версии на фреймуърка е планирано надграждане на текущия MD5 файлов хеш (който следи само целостта и промените) с криптографска верификация на вендорите:
+
+1. **Trust Store (Хранилище на доверени ключове):**
+   - Управление на публични ключове на официални разработчици и вендори (напр. в папка `certificates/` или доверен `.pem` файл).
+2. **Цифрови подписи (Code Signing):**
+   - Всеки плъгин ще разполага с цифров подпис (генериран с асиметрична криптография върху бинарното съдържание).
+3. **Security Policies (Режими на сигурност):**
+   - **`Strict` (Production):** Зарежда само плъгини с валидни подписи от одобрени вендори в Trust Store.
+   - **`Permissive` / `Warning` (Development):** Зарежда неподписани плъгини, но логва предупреждения (`qCWarning`) и ги маркира визуално в GUI.
 
 - [Plugins Overview](../plugins/README.md)
 - [Framework Overview](./README.md)

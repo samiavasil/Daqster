@@ -137,7 +137,7 @@ function(create_plugin COMPONENT_NAME)
     # Install plugin
     install(TARGETS ${COMPONENT_NAME}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/daqster/plugins
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
     
@@ -148,7 +148,7 @@ function(create_plugin COMPONENT_NAME)
         )
     else()
         set_target_properties(${COMPONENT_NAME} PROPERTIES
-            INSTALL_RPATH "$ORIGIN/../../lib"
+            INSTALL_RPATH "$ORIGIN/../.."
         )
     endif()
     

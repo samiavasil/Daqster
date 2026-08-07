@@ -126,7 +126,7 @@ Daqster използва модулна архитектура с три клю�
 - `src/frame_work` - framework ядро (ShutdownHandler, QProcessManager)
 - `src/apps/Daqster` - хост приложение с ApplicationsManager
 - `src/plugins` - runtime плъгини и тестови плъгини
-- `src/external_libs` - външни библиотеки
+- `src/plugins/external_libs` - външни библиотеки
 - `tools` - скриптове за build и AppImage
 - `Docs` - архитектура, разработка, операции, портинг и диаграми
 

@@ -87,12 +87,12 @@ void ApplicationsManager::setupProcessEnvironment(QProcess* process,
     
     if (isDaqsterAppImage) {
       // AppImage structure
-      env.insert("LD_LIBRARY_PATH", basePath + "/usr/lib:" + env.value("LD_LIBRARY_PATH"));
-      env.insert("QML2_IMPORT_PATH", basePath + "/usr/lib/qml:" + env.value("QML2_IMPORT_PATH"));
-      env.insert("QT_PLUGIN_PATH", basePath + "/usr/lib/plugins:" + env.value("QT_PLUGIN_PATH"));
-      env.insert("QT_QPA_PLATFORM_PLUGIN_PATH", basePath + "/usr/lib/plugins/platforms");
-      env.insert("DAQSTER_PLUGIN_DIR", basePath + "/usr/lib/daqster/plugins");
-      env.insert("DAQSTER_PLUGIN_PATH", basePath + "/usr/lib/daqster/plugins:" + QDir::homePath() + "/.local/share/daqster/plugins");
+      env.insert("LD_LIBRARY_PATH", QDir(basePath + "/../lib").absolutePath() + ":" + env.value("LD_LIBRARY_PATH"));
+      env.insert("QML2_IMPORT_PATH", QDir(basePath + "/../lib/qml").absolutePath() + ":" + env.value("QML2_IMPORT_PATH"));
+      env.insert("QT_PLUGIN_PATH", QDir(basePath + "/../lib/plugins").absolutePath() + ":" + env.value("QT_PLUGIN_PATH"));
+      env.insert("QT_QPA_PLATFORM_PLUGIN_PATH", QDir(basePath + "/../lib/plugins/platforms").absolutePath());
+      env.insert("DAQSTER_PLUGIN_DIR", QDir(basePath + "/../lib/daqster/plugins").absolutePath());
+      env.insert("DAQSTER_PLUGIN_PATH", QDir(basePath + "/../lib/daqster/plugins").absolutePath() + ":" + QDir::homePath() + "/.local/share/daqster/plugins");
     } else {
       // Regular build structure
       env.insert("LD_LIBRARY_PATH", basePath + "/../lib:" + env.value("LD_LIBRARY_PATH"));

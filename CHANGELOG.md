@@ -7,6 +7,29 @@
 ## [Unreleased]
 
 ### Added
+- **Video нодове** (`src/plugins/demo_nodeditor_nodes/Sources/Video/`):
+  - `VideoCompat.h` — Qt5/Qt6 multimedia абстракция (QVideoProbe ↔ QVideoSink, camera enumeration, media source assignment, playback-state сигнали)
+  - `CameraSourceNode` — заснемане от QCamera (default или избран device)
+  - `VideoFileSourceNode` — възпроизвеждане на локален видео файл (QMediaPlayer)
+  - `StreamSourceNode` — възпроизвеждане на HTTP/RTSP stream (QMediaPlayer)
+  - `VideoOutputNode` — live preview на incoming кадри (QLabel, pass-through)
+  - `VideoModifierNode` → `VideoTransformNode` (REQ-SW-PL-019) — конфигурируем transform node: 8 базови операции (RGB Channel Swap, Grayscale, Invert, Brightness, Contrast, Blur, Flip, Sepia) + опционални OpenCV операции (GaussianBlur, Canny, Threshold) при открит OpenCV
+  - Регистрирани под категория "Video" в demo node editor plugin
+- **Requirements Manager plugin** (`src/plugins/requirements_manager/`):
+  - Standalone application plugin с requirements дърво (REQ-SW-002..008)
+  - Навигация: auto-clear filter при линк клик + back/forward история
+  - Search engine (REQ-SW-PL-011)
+  - Multi-repository requirements view — merge на public/private requirements (REQ-SW-PL-012)
+- **Dependency graph viewer** (REQ-SW-009) — интерактивен граф на зависимостите между requirements
+- **Traceability matrix** (REQ-SW-010) — изглед и export на traceability матрицата
+- **Typed requirement IDs** — поддръжка на `REQ-SW-<TYPE>-NN` схема с формат валидация (с миграция на съществуващите ID-та)
+- **Sugiyama auto-layout** (REQ-SW-PL-016) — автоматично подреждане на dependency graph
+- **Phase status indicators** (REQ-SW-PL-017) — индикатори за фаза/статус в requirements main view
+- **Plugin security & vendor trust store** (REQ-SW-FW-007) — ново изискване за plugin сигурност
+- **Unit тестове за REQ-SW-PL-011/012/017/018/019** (2026-08-07, Qt5 5.15.2 + Qt6 6.9.2 PASS):
+  - requirements manager shared binary `requirements_manager_tests` **87/87** (TestSearchEngine 19, TestMerge 6, validator +4, TestParser +5 phaseStatus) + `requirements_manager_matrix_tests` 7/7 + `requirements_manager_exporter_tests` 7/7
+  - video `demo_nodeditor_nodes_tests` **25/25** (16 VideoTransformOps + 9 StreamUrlValidator)
+  - комити: `825a9b4` (PL-017), `dff234a` (PL-011), `0429ea8` (PL-012), `3048fbd` (refactor: StreamUrlValidator), `0cf6d19` (fix: Qt5 vertical flip), `bac4503` (video suite), `9d90fff` (fix: exporter CSV header)
 - **ArithmeticLogic нод** (`BuiltInNodes/Operators/ArithmeticLogic/`):
   - `ExprParser` — recursive descent C++ expression evaluator (всички C/C++ оператори: `+`,`-`,`*`,`/`,`%`,`&`,`|`,`^`,`~`,`<<`,`>>`,`&&`,`||`,`!`,`==`,`!=`,`<`,`>`,`<=`,`>=`,`?:`)
   - `ArithmeticLogicModel` — конфигурируем нод: тип (int/double), 2–8 входа, expression field, optional strobe
@@ -30,9 +53,24 @@
 - **cmake/ComponentTemplates.cmake**: `create_external_library()` path → `src/plugins/external_libs/`
 - **CI Workflow**: Добавени Python patch стъпки за qtrest install fix (cmake_install.cmake patching)
 - **Architecture docs** актуализирани за новата структура
+- **Documentation**:
+  - Plugins hub (`docs/plugins/README.md`) + fix на plugin documentation links в INDEX/Architecture (`b5c204f`)
+  - Demo plugin README — документирани video nodes и optional OpenCV (`e2c4925`)
+  - REQ-SW-PL-018/PL-019 documentation refs backfill; plugin version alignment 0.3.0 → 0.2.0 в `project()` за `demo_nodeditor_nodes` и `node_editor_ide` (inert metadata, съответства на runtime 0.2.0) (`ed8b334`)
+- **StreamUrlValidator** — извлечен от `StreamSourceNode` като самостоятелен header-only helper (`3048fbd`) за unit-testability (валидация на http/https/rtsp stream URL)
 
 ### Fixed
+- **Plugin launch fixes**:
+  - Toolbar пуска plugins по име вместо stale hash
+  - Prune на persisted plugin entries с несъответстващ файлов hash при load
+  - Явна грешка (qCCritical + QMessageBox) при неуспешно зареждане на plugin
+  - AppSelectionDialog съхранява visibility по plugin name
+- **Video нодове** — компилация на Qt5 и Qt6 (VideoCompat helpers: connectPlayerError/connectCameraError, variantToInt за Qt5 QVariant, QOverload за error signal)
+- **Dependency graph** — edges следват nodes при drag, viewport се fit-ва при resize
+- **Requirements Manager** — dedup на requirement файлове, достижими през множество roots, предупреждение при добавяне на overlapping root
 - **NumericType::numberAsText()** — fix за ambiguous overload при int тип: явно cast до `double` с precision 0, предотвратява показване на hex/placeholder стойности вместо числа
+- **VideoTransformNode Flip (Qt5)** — вертикалният flip ползваше `QImage::mirrored()` с грешни параметри на Qt5; поправен (`0cf6d19`), открит от новите unit тестове
+- **Exporter CSV header** — колона "Repo" в CSV header-а на traceability matrix експорта беше с несъответстващо име; поправен (`9d90fff`)
 
 ### Removed
 - `src/plugins/node_editor/` — монолитен plugin (заменен от widget + app)

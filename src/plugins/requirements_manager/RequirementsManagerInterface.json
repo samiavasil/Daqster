@@ -1,0 +1,9 @@
+{
+    "Keys": ["Daqster.PlugIn.QPluginInterface"],
+    "MetaData": {
+        "Name": "RequirementsManager",
+        "Type": "APPLICATION_PLUGIN",
+        "Version": "0.1.0",
+        "Description": "Requirements Viewer/Editor tool for Markdown-based traceable requirements."
+    }
+}

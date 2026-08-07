@@ -136,12 +136,12 @@ create_plugin(MyNodes
         frame_work
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/src/plugins/capabilities
+        ${DAQSTER_SOURCE_DIR}/src/plugins/common
 )
 set_target_properties(MyNodes PROPERTIES OUTPUT_NAME "MyNodesPlugin")
 ```
 
-**Важно:** OUTPUT_NAME трябва да съдържа `"plugin"` — `QPluginManager::IsCandidatePluginFile()` го изисква.
+**Важно:** OUTPUT_NAME трябва да съдържа `"plugin"` — `PluginDiscovery::isCandidatePluginFile()` го изисква.
 
 ## 5. Plugin Metadata JSON
 

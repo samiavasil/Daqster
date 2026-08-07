@@ -144,13 +144,15 @@ mkdir -p "$BUILD_DIR/Daqster.AppDir/usr/lib"/{plugins,qml,daqster/plugins}
 echo "Copying executable..."
 cp "$SOURCE_BUILD_DIR/bin/Daqster" "$BUILD_DIR/Daqster.AppDir/usr/bin/"
 
-# Copy libraries
+# Copy libraries (CI mode: includes lib/daqster/plugins/ from cmake --install)
 echo "Copying libraries..."
 cp -r "$SOURCE_BUILD_DIR/lib"/* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
 
-# Copy plugins to correct location
-echo "Copying plugins..."
-cp -r "$SOURCE_BUILD_DIR/bin/plugins"/* "$BUILD_DIR/Daqster.AppDir/usr/lib/daqster/plugins/" 2>/dev/null || true
+# Copy plugins from build directory (local mode only)
+if [ "$MODE" = "local" ]; then
+    echo "Copying plugins from build directory..."
+    cp "$SOURCE_BUILD_DIR/bin/"*plugin*".so" "$BUILD_DIR/Daqster.AppDir/usr/lib/daqster/plugins/" 2>/dev/null || true
+fi
 
 # Copy Qt libraries
 echo "Copying Qt libraries..."

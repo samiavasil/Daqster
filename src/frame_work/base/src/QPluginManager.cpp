@@ -35,6 +35,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include<QFile>
 #include <QFileInfo>
 #include <QLibrary>
+#include <QSet>
 #include<QThread>
 #include <QWidget>
 
@@ -71,8 +72,8 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     // Plugin directories — ordered by priority
     
     // 1. Build directory (highest priority for debug)
-    m_discovery->addSearchPath( qApp->applicationDirPath() );
-    m_discovery->addSearchPath( qApp->applicationDirPath()+QString("/plugins") );
+    m_discovery->addSearchPath(QDir(qApp->applicationDirPath()).absolutePath());
+    m_discovery->addSearchPath(QDir(qApp->applicationDirPath()+"/plugins").absolutePath());
     m_discovery->addSearchPath(QDir(qApp->applicationDirPath()+"/../lib/daqster/plugins").absolutePath());
     
     // 2. Environment variable override
@@ -96,13 +97,13 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
                             + "/Daqster/plugins";
     m_discovery->addSearchPath(QDir(userPluginDir).absolutePath());
     // 4. System plugins directory (Windows)
-    m_discovery->addSearchPath("C:/Program Files/Daqster/plugins");
+    m_discovery->addSearchPath(QDir("C:/Program Files/Daqster/plugins").absolutePath());
 #else
     QString userPluginDir = QDir::homePath() + "/.local/share/daqster/plugins";
     m_discovery->addSearchPath(QDir(userPluginDir).absolutePath());
     // 4. System plugins directories (Unix, lowest priority)
-    m_discovery->addSearchPath("/usr/lib/daqster/plugins");
-    m_discovery->addSearchPath("/usr/local/lib/daqster/plugins");
+    m_discovery->addSearchPath(QDir("/usr/lib/daqster/plugins").absolutePath());
+    m_discovery->addSearchPath(QDir("/usr/local/lib/daqster/plugins").absolutePath());
 #endif
     
     // Debug: Print all plugin search paths
@@ -205,16 +206,35 @@ void QPluginManager::EnableDisablePluginList(const QList<QString> &HashList, boo
 QList<Daqster::PluginDescription> QPluginManager::GetPluginList( const Daqster::PluginFilter& Filter )
 {
     QList<PluginDescription> List  = m_registry->allDescriptions().values();
-    auto it = List.begin();
-    while( it != List.end() ){
+    
+    // Deduplicate by file location (PLUGIN_LOCATION) to prevent double entries of the same physical file (persistency vs discovery hash mismatch)
+    QMap<QString, PluginDescription> uniqueMap;
+    for (const PluginDescription& desc : List) {
+        QString location = desc.GetProperty(PLUGIN_LOCATION).toString();
+        QString hash = desc.GetProperty(PLUGIN_HASH).toString();
+        QString key = !location.isEmpty() ? location : hash;
+        
+        if (uniqueMap.contains(key)) {
+            QString existingLoc = uniqueMap[key].GetProperty(PLUGIN_LOCATION).toString();
+            if (existingLoc.contains("/tmp/") && !location.contains("/tmp/")) {
+                uniqueMap[key] = desc;
+            }
+        } else {
+            uniqueMap[key] = desc;
+        }
+    }
+
+    QList<PluginDescription> dedupedList = uniqueMap.values();
+    auto it = dedupedList.begin();
+    while( it != dedupedList.end() ){
         if( !Filter.IsFiltered( *it ) ){
-            it = List.erase(it);
+            it = dedupedList.erase(it);
         }
         else{
             it++;
         }
     }
-    return List;
+    return dedupedList;
 }
 
 PluginDescription QPluginManager::GetPluginDescriptionByHash(const QString &Hash)
@@ -294,7 +314,45 @@ void QPluginManager::ShowPluginManagerGui(QWidget *Parent)
  */
 void QPluginManager::LoadPluginsInfoFromPersistency()
 {
-    m_registry->setPluginDescriptions(m_persistence->loadPlugins());
+    QMap<QString, PluginDescription> loaded = m_persistence->loadPlugins();
+    QMap<QString, PluginDescription> validDescriptions;
+    QSet<QString> seenLocations;
+
+    for (auto it = loaded.constBegin(); it != loaded.constEnd(); ++it) {
+        const QString& hash = it.key();
+        const PluginDescription& desc = it.value();
+        QString location = desc.GetProperty(PLUGIN_LOCATION).toString();
+
+        if (location.isEmpty() || !QFileInfo::exists(location)) {
+            qCDebug(lcFramework) << "Removing stale plugin from persistency (file missing):" << location << "hash:" << hash;
+            m_persistence->removePlugin(hash);
+            continue;
+        }
+
+        // If the file exists but its content hash does not match the stored
+        // hash, the .so was rebuilt or replaced by another build — the entry
+        // is stale. It will be re-discovered and re-health-tested below.
+        QString fileHash;
+        PluginDiscovery::computeFileHash(location, fileHash);
+        if (0 != fileHash.compare(hash)) {
+            qCDebug(lcFramework) << "Removing stale plugin from persistency (file hash mismatch):" << location << "hash:" << hash << "fileHash:" << fileHash;
+            m_persistence->removePlugin(hash);
+            continue;
+        }
+
+        if (seenLocations.contains(location)) {
+            bool isTmp = location.contains("/tmp/");
+            if (isTmp) {
+                m_persistence->removePlugin(hash);
+                continue;
+            }
+        }
+
+        seenLocations.insert(location);
+        validDescriptions[hash] = desc;
+    }
+
+    m_registry->setPluginDescriptions(validDescriptions);
 }
 
 
