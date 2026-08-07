@@ -93,6 +93,20 @@ inline QImage frameToImage(const QVideoFrame &frame)
     return frame.toImage();
 }
 
+/// Identity: documents the zero-copy contract — the frame is transported
+/// as-is, no conversion happens (REQ-SW-PL-020).
+inline QVideoFrame frameToFrame(const QVideoFrame &frame)
+{
+    return frame;
+}
+
+/// Present a decoded frame on a QVideoSink (GPU path — no QImage copy).
+inline void presentFrame(QVideoSink *sink, const QVideoFrame &frame)
+{
+    if (sink != nullptr)
+        sink->setVideoFrame(frame);
+}
+
 inline void setMediaSource(QMediaPlayer *player, const QUrl &url)
 {
     player->setSource(url);
@@ -196,6 +210,12 @@ inline bool attachFrameProbe(QMediaPlayer *player, FrameProbe *probe)
 inline QImage frameToImage(const QVideoFrame &frame)
 {
     return frame.image();
+}
+
+inline QVideoFrame frameToFrame(const QVideoFrame &frame)
+{
+    // Qt5 probe frames must not be held; callers keep the QImage path.
+    return frame;
 }
 
 inline void setMediaSource(QMediaPlayer *player, const QUrl &url)
