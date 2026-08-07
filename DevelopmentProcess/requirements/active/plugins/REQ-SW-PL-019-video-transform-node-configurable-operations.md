@@ -1,6 +1,6 @@
 # REQ-SW-PL-019: Video Transform Node — Configurable Operations (VideoTransformNode)
 
-- **Статус:** ACTIVE
+- **Статус:** DONE
 - **Приоритет:** P2
 - **Отговорник (роля):** Ivan (Implementation)
 - **Дата:** 2026-08-06
@@ -62,25 +62,30 @@ node с една операция (размяна на R↔B каналите). 
        конверсията е в този файл. При липсващ OpenCV plugin-ът се build-ва
        нормално с 8-те базови операции; OpenCV операциите присъстват в списъка
        само при `HAVE_OPENCV`.
-- [ ] 6. **Tests.** Unit тестове за op engine-а (известни пиксели за
-       swap/invert/grayscale; param ranges) — **отложени** по standing решение
-       на автора (имплементации без тестове до ново нареждане). Qt5 + Qt6
-       builds; съществуващата suite остава зелена.
+- [x] 6. **Tests.** Unit тестове за op engine-а (`TestVideoTransformOps`,
+        известни пиксели за swap/invert/grayscale/brightness/contrast/blur/
+        flip/sepia + null-input contract; param ranges и clamping) — добавени
+        2026-08-07 след вдигане на standing инструкцията (комит `bac4503`).
+        Qt5 + Qt6 builds; съществуващата suite остава зелена.
 
 ## Проследимост
 
-- **Коммити:** `e574c63` (feat), `efc05c2` (docs: създаване на изискването) —
+- **Коммити:** `e574c63` (feat), `efc05c2` (docs: създаване на изискването),
+  `0cf6d19` (fix: Qt5 vertical flip), `bac4503` (test: video suite) —
   branch `feat/phase3-graph-matrix`
 - **Код:** `src/plugins/demo_nodeditor_nodes/Sources/Video/` (`VideoTransformNode.{h,cpp}`,
   op engine — напр. `VideoTransformOps.{h,cpp}`, `OpenCVTransforms.cpp` —
   conditional при `HAVE_OPENCV`), `DemoNodeEditorNodesObject.cpp` (registerNodes),
   `CMakeLists.txt` (OpenCV auto-detect)
 - **Документация:** `docs/plugins/demo_nodeditor_nodes/README.md` (VideoTransformNode — операции секция)
-- **Тестове:** отложени (standing instruction); при имплементацията — Qt5 (5.15.2)
-  + Qt6 (6.9.2) builds PASS и за двата варианта (с/без OpenCV): OpenCV path
-  (DAQSTER_USE_OPENCV=ON, OpenCV 4.6.0 dev инсталиран за тази верификация) и
-  fallback (DAQSTER_USE_OPENCV=OFF — 8-те базови операции, без OpenCV
-  sources/links); app smoke (Qt5/Qt6, DISPLAY=:0) — приложенията стартират без crash.
+- **Тестове:** Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS и за двата варианта
+  (с/без OpenCV): OpenCV path (DAQSTER_USE_OPENCV=ON, OpenCV 4.6.0 dev
+  инсталиран за тази верификация) и fallback (DAQSTER_USE_OPENCV=OFF — 8-те
+  базови операции, без OpenCV sources/links); `demo_nodeditor_nodes_tests` —
+  `TestVideoTransformOps` **16/16 PASS** и на двете версии (swap, grayscale,
+  invert, brightness clamps, contrast, blur 0/uniform/radius-1, flip h/v,
+  sepia, null input); fix `0cf6d19` — Qt5 вертикален flip (`mirrored()`);
+  app smoke (Qt5/Qt6, DISPLAY=:0) — приложенията стартират без crash.
 
 ## Бележки по имплементацията (план)
 
@@ -118,7 +123,8 @@ node с една операция (размяна на R↔B каналите). 
 дизайн (rename + 8 базови операции + опционален OpenCV). Имплементацията и
 верификацията са завършени на 2026-08-06: AC 1–5 са mark-нати `[x]`
 (имплементация + Qt5/Qt6 builds и с двата варианта — с/без OpenCV; app smoke
-без crash). AC 6 (Tests) остава UNCHECKED по standing решение на автора
-(имплементации без тестове до ново нареждане). Статусът остава ACTIVE — DONE
-изисква пълна верификация (Qt5 + Qt6 builds + unit тестове + headless smoke
-test) по RDD-PROCESS.md.
+без crash). AC 6 (Tests) е mark-нат на 2026-08-07 след вдигане на standing
+инструкцията (комит `bac4503`); по пътя беше открит и поправен реален Qt5
+bug: вертикален flip (`0cf6d19`, `mirrored()` call). Всички AC 1–6 са `[x]`;
+статус → **DONE**; файлът остава в `active/` (архивирането е отделно
+решение, по прецедента на PL-009/010/016).

@@ -1,6 +1,6 @@
 # REQ-SW-PL-018: Video Source & Processing Nodes for the Demo Node Editor
 
-- **Статус:** ACTIVE
+- **Статус:** DONE
 - **Приоритет:** P2
 - **Отговорник (роля):** Ivan (Implementation)
 - **Дата:** 2026-08-06
@@ -70,22 +70,24 @@ caller-ите остават version-agnostic.
 - [x] 7. **Регистрация + build.** `DemoNodeEditorNodesObject::registerNodes()`
        регистрира всичките 5 под категория "Video"; `CMakeLists.txt` включва
        новите файлове; `Sources/Video` е в `INCLUDE_DIRECTORIES`.
-- [ ] 8. **Tests.** Unit тестове за video node моделите (ако/когато бъдат
-       разрешени): frame conversion (`VideoCompat::frameToImage`),
-       modifier R↔B swap върху известен пиксел, port/type контракти.
-       Qt5 + Qt6 builds; съществуващата suite остава зелена.
+- [x] 8. **Tests.** Unit тестове за video node моделите: `StreamUrlValidator`
+        (извлечен от `StreamSourceNode` — рефакторинг `3048fbd`) — 9 слота
+        (valid http/https/rtsp, case-insensitive scheme, empty/whitespace,
+        no-scheme, unsupported scheme, error-out untouched on success) в
+        `demo_nodeditor_nodes_tests`; VideoTransformOps покрива R↔B swap и
+        останалите операции (виж REQ-SW-PL-019, комит `bac4503`).
+        Qt5 + Qt6 builds; съществуващата suite остава зелена.
 
 ## Проследимост
 
-- **Коммити:** `e5b7309`, `ef1b66c` (branch `feat/phase3-graph-matrix`)
+- **Коммити:** `e5b7309`, `ef1b66c` (feat), `3048fbd` (refactor: StreamUrlValidator), `0cf6d19` (fix: Qt5 vertical flip), `bac4503` (test: video suite) — branch `feat/phase3-graph-matrix`
 - **Код:** `src/plugins/demo_nodeditor_nodes/Sources/Video/` (`VideoCompat.h`,
   `CameraSourceNode.{h,cpp}`, `VideoFileSourceNode.{h,cpp}`,
   `StreamSourceNode.{h,cpp}`, `VideoOutputNode.{h,cpp}`,
   `VideoModifierNode.{h,cpp}`), `DemoNodeEditorNodesObject.cpp`
   (registerNodes), `CMakeLists.txt`
 - **Документация:** `docs/plugins/demo_nodeditor_nodes/README.md` (Video секция)
-- **Тестове:** Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS; app smoke —
-  приложенията стартират без crash; unit тестовете са отложени
+- **Тестове:** Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS; `demo_nodeditor_nodes_tests` — `TestStreamUrlValidator` **9/9 PASS** и на двете версии; app smoke — приложенията стартират без crash
 
 ## Бележки по имплементацията (план)
 
@@ -111,7 +113,9 @@ caller-ите остават version-agnostic.
 
 Имплементацията е завършена (2026-08-06) и верифицирана: Qt5 (5.15.2) + Qt6
 (6.9.2) builds PASS, приложенията стартират без crash. Unit тестовете са
-отложени по решение на автора (standing instruction: имплементации без
-тестове до ново нареждане). Статусът остава ACTIVE — DONE изисква пълна
-верификация (Qt5 + Qt6 builds + unit тестове + headless smoke test) по
-RDD-PROCESS.md.
+добавени на 2026-08-07 след вдигане на standing инструкцията за имплементации
+без тестове (`3048fbd` рефакторинг — извличане на `StreamUrlValidator` за
+unit-testability; `bac4503` — video тестовия suite). По пътя беше открит и
+поправен реален Qt5 bug: вертикален flip (`0cf6d19`, `mirrored()` call).
+Всички AC 1–8 са `[x]`; статус → **DONE**; файлът остава в `active/`
+(архивирането е отделно решение, по прецедента на PL-009/010/016).

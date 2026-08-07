@@ -1,6 +1,6 @@
 # REQ-SW-PL-017: Phase Status Indicators in the Requirements Main View
 
-- **Статус:** ACTIVE
+- **Статус:** DONE
 - **Приоритет:** P2
 - **Отговорник (роля):** Ivan (Implementation)
 - **Дата:** 2026-08-06
@@ -56,22 +56,23 @@ builds + unit тестове + headless smoke test) по RDD-PROCESS. Индик
       продължава да изисква пълна верификация по RDD-PROCESS; `phaseStatus` не се
       използва от валидатора, от matrix-а или от lifecycle логиката — само от
       preview.
-- [ ] 5. **Tests.** (a) `TestParser::parseDirectory_traceabilityFields()`
-      (`test_parser.cpp:254-323`) се разширява с `- **Документация:**` ред във
+- [x] 5. **Tests.** (a) `TestParser::parseDirectory_traceabilityFields()`
+      (`test_parser.cpp`) се разширява с `- **Документация:**` ред във
       фикстурата и `QCOMPARE(req->docs, ...)`; (b) нови TestParser слотове за
       `phaseStatus()`: всички празни → 0/3 `true`, всички попълнени → 3/3,
-      частично (само `code`) → 1/3, „—"/whitespace → `false`. Qt5 + Qt6 builds;
-      съществуващата suite остава зелена (68/68).
+      частично (само `code`) → 1/3, „—"/whitespace → `false`, trim-нат
+      non-empty → `true`. Qt5 + Qt6 builds; съществуващата suite остава зелена
+      (shared binary 87/87).
 - [x] 6. **Docs.** `docs/Architecture/plugins/README.md` (Requirements Manager
       секция) документира phase-индикаторите и тяхната семантика
       (записано ≠ верифицирано).
 
 ## Проследимост
 
-- **Коммити:** `4af3852`
+- **Коммити:** `4af3852` (feat), `825a9b4` (test) — branch `feat/phase3-graph-matrix`
 - **Код:** `src/plugins/requirements_manager/RequirementsParser.{h,cpp}` (нов `Requirement::docs` + парсване на `Документация:` + `phaseStatus()`), `src/plugins/requirements_manager/RequirementsWidget.cpp` (phase линия в `updatePreviewText()`)
 - **Документация:** `docs/Architecture/plugins/README.md` (Requirements Manager section)
-- **Тестове:** Qt5 + Qt6 builds; `tests/plugins/requirements_manager/test_parser.{h,cpp}` (разширен `parseDirectory_traceabilityFields` + нови `phaseStatus` слотове) в shared binary `requirements_manager_tests`; 68/68 PASS на Qt5/Qt6
+- **Тестове:** Qt5 (5.15.2) + Qt6 (6.9.2) builds + `requirements_manager_tests` — `TestParser` разширен с 5 `phaseStatus` слота (allEmpty, dashAndWhitespace, allFilled, partialCode, trimmedNonEmpty) + `parseDirectory_traceabilityFields` с `Документация:`; shared binary **87/87 PASS** и на двете версии
 
 ## Бележки по имплементацията (план)
 
@@ -91,7 +92,8 @@ builds + unit тестове + headless smoke test) по RDD-PROCESS. Индик
 
 ## Бележка
 
-Имплементацията е завършена (2026-08-06). Unit тестовете са отложени по решение
-на автора (standing instruction: имплементации без тестове до ново нареждане).
-Статусът остава ACTIVE — DONE изисква пълна верификация (Qt5 + Qt6 builds +
-unit тестове + headless smoke test) по RDD-PROCESS.md.
+Имплементацията е завършена (2026-08-06); unit тестовете са добавени на
+2026-08-07 след вдигане на standing инструкцията за имплементации без тестове
+(комит `825a9b4`). Всички AC 1–6 са `[x]`; верификацията (Qt5 + Qt6 builds +
+unit тестове) е записана в Проследимост. Статус → **DONE**; файлът остава в
+`active/` (архивирането е отделно решение, по прецедента на PL-009/010/016).

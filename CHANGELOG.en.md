@@ -26,6 +26,10 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Sugiyama auto-layout** (REQ-SW-PL-016) — automatic layout for the dependency graph
 - **Phase status indicators** (REQ-SW-PL-017) — phase/status indicators in the requirements main view
 - **Plugin security & vendor trust store** (REQ-SW-FW-007) — new requirement for plugin security
+- **Unit tests for REQ-SW-PL-011/012/017/018/019** (2026-08-07, Qt5 5.15.2 + Qt6 6.9.2 PASS):
+  - requirements manager shared binary `requirements_manager_tests` **87/87** (TestSearchEngine 19, TestMerge 6, validator +4, TestParser +5 phaseStatus) + `requirements_manager_matrix_tests` 7/7 + `requirements_manager_exporter_tests` 7/7
+  - video `demo_nodeditor_nodes_tests` **25/25** (16 VideoTransformOps + 9 StreamUrlValidator)
+  - commits: `825a9b4` (PL-017), `dff234a` (PL-011), `0429ea8` (PL-012), `3048fbd` (refactor: StreamUrlValidator), `0cf6d19` (fix: Qt5 vertical flip), `bac4503` (video suite), `9d90fff` (fix: exporter CSV header)
 - **ArithmeticLogic node** (`BuiltInNodes/Operators/ArithmeticLogic/`):
   - `ExprParser` — recursive descent C++ expression evaluator (all C/C++ operators: `+`,`-`,`*`,`/`,`%`,`&`,`|`,`^`,`~`,`<<`,`>>`,`&&`,`||`,`!`,`==`,`!=`,`<`,`>`,`<=`,`>=`,`?:`)
   - `ArithmeticLogicModel` — configurable node: type (int/double), 2–8 inputs, expression field, optional strobe
@@ -74,6 +78,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Plugins hub (`docs/plugins/README.md`) + fixed plugin documentation links in INDEX/Architecture (`b5c204f`)
   - Demo plugin README — documented video nodes and optional OpenCV (`e2c4925`)
   - REQ-SW-PL-018/PL-019 documentation refs backfill; plugin version alignment 0.3.0 → 0.2.0 in `project()` for `demo_nodeditor_nodes` and `node_editor_ide` (inert metadata, matching runtime 0.2.0) (`ed8b334`)
+- **StreamUrlValidator** — extracted from `StreamSourceNode` as a standalone header-only helper (`3048fbd`) for unit-testability (http/https/rtsp stream URL validation)
 
 ### Fixed
 - **Plugin launch fixes**:
@@ -85,6 +90,8 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Dependency graph** — edges follow nodes on drag, viewport fits on resize
 - **Requirements Manager** — dedup requirement files reachable via multiple roots, warn when adding an overlapping root
 - **NumericType::numberAsText()** — fixed ambiguous overload for int type: explicit cast to `double` with precision 0, prevents displaying hex/placeholder values instead of numbers
+- **VideoTransformNode Flip (Qt5)** — the vertical flip used `QImage::mirrored()` with wrong parameters on Qt5; fixed (`0cf6d19`), found by the new unit tests
+- **Exporter CSV header** — the "Repo" column in the traceability matrix CSV export header had a mismatched name; fixed (`9d90fff`)
 
 ## [0.2.0] - 2025-09-18
 
