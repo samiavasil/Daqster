@@ -189,5 +189,100 @@ void TestValidator::twoDigitId_warning()
     }
 }
 
+void TestValidator::duplicateId_acrossRepos_error()
+{
+    // With a merged multi-repo vector the same bare ID can appear twice (e.g.
+    // a public REQ-SW-PL-013 and a private duplicate). Every duplicate
+    // occurrence after the first is an Error on the "id" field.
+    QVector<Requirement> reqs;
+    Requirement publicReq = makeRequirement(QStringLiteral("REQ-SW-PL-013"),
+                                            QStringLiteral("active"), QString());
+    publicReq.repo = QStringLiteral("public");
+    reqs.append(publicReq);
+    Requirement privateReq = makeRequirement(QStringLiteral("REQ-SW-PL-013"),
+                                             QStringLiteral("active"), QString());
+    privateReq.repo = QStringLiteral("private");
+    reqs.append(privateReq);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QCOMPARE(issues.at(0).field, QStringLiteral("id"));
+    QVERIFY(issues.at(0).message.contains(QStringLiteral("duplicate requirement ID")));
+    QVERIFY(issues.at(0).message.contains(QStringLiteral("public")));
+    QVERIFY(issues.at(0).message.contains(QStringLiteral("private")));
+}
+
+void TestValidator::crossRepoParent_notDangling()
+{
+    // A public requirement whose parent lives in the private repo resolves via
+    // the lowercase findById lookup in the merged vector - no dangling error.
+    QVector<Requirement> reqs;
+    Requirement child = makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                        QStringLiteral("active"),
+                                        QStringLiteral("REQ-PLG-004"));
+    child.repo = QStringLiteral("public");
+    reqs.append(child);
+    Requirement parent = makeRequirement(QStringLiteral("REQ-PLG-004"),
+                                         QStringLiteral("active"), QString());
+    parent.repo = QStringLiteral("private");
+    reqs.append(parent);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 0);
+}
+
+void TestValidator::hintMismatch_warning()
+{
+    // The annotation "частно" claims the referenced requirement lives in the
+    // private repo, but it resolves to a public one -> Warning.
+    QVector<Requirement> reqs;
+    Requirement source = makeRequirement(QStringLiteral("REQ-SW-PL-012"),
+                                         QStringLiteral("active"), QString(),
+                                         {QStringLiteral("REQ-SW-PL-013")});
+    source.repo = QStringLiteral("public");
+    source.dependencyHints.insert(QStringLiteral("REQ-SW-PL-013"),
+                                  QStringLiteral("частно"));
+    reqs.append(source);
+    Requirement target = makeRequirement(QStringLiteral("REQ-SW-PL-013"),
+                                         QStringLiteral("active"), QString());
+    target.repo = QStringLiteral("public");
+    reqs.append(target);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Warning);
+    QVERIFY(issues.at(0).message.contains(QStringLiteral("annotated as")));
+    QVERIFY(issues.at(0).message.contains(QStringLiteral("resolves to")));
+}
+
+void TestValidator::hintMatch_noWarning()
+{
+    // "публично" hint against a public target matches -> no hint Warning.
+    QVector<Requirement> reqs;
+    Requirement source = makeRequirement(QStringLiteral("REQ-SW-PL-012"),
+                                         QStringLiteral("active"), QString(),
+                                         {QStringLiteral("REQ-SW-PL-013")});
+    source.repo = QStringLiteral("public");
+    source.dependencyHints.insert(QStringLiteral("REQ-SW-PL-013"),
+                                  QStringLiteral("публично"));
+    reqs.append(source);
+    Requirement target = makeRequirement(QStringLiteral("REQ-SW-PL-013"),
+                                         QStringLiteral("active"), QString());
+    target.repo = QStringLiteral("public");
+    reqs.append(target);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 0);
+}
+
 // No QTEST_GUILESS_MAIN here: the three test classes share one binary whose
 // main lives in test_main.cpp.

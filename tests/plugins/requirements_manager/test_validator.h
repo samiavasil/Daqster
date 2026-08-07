@@ -19,4 +19,8 @@ private slots:
     void archivedDependency_warning();
     void typedIdFormat_validAndMalformed();
     void twoDigitId_warning();
+    void duplicateId_acrossRepos_error();
+    void crossRepoParent_notDangling();
+    void hintMismatch_warning();
+    void hintMatch_noWarning();
 };
