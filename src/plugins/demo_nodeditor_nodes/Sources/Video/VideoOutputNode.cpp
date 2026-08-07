@@ -116,19 +116,19 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
             VideoCompat::presentFrame(m_videoWidget->videoSink(),
                                       videoFrame->frame());
 
-            // Software fallback: convert lazily for the in-node QLabel preview.
-            // Only done when the label actually needs a pixmap (cheap relative
-            // to the GPU path, and keeps the node usable inside the scene).
-            const QImage image = VideoCompat::frameToImage(videoFrame->frame());
-            if (!image.isNull()) {
-                m_image = image;
-                updateDisplay();
+            // Only do the expensive QImage conversion + ImageData output when a
+            // downstream processing consumer is connected to the output port.
+            // Otherwise the GPU path handles display in the detached window and
+            // the in-node QLabel shows a static placeholder (no per-frame work).
+            if (m_outputConnectionCount > 0) {
+                const QImage image = VideoCompat::frameToImage(videoFrame->frame());
+                if (!image.isNull()) {
+                    m_image = image;
+                    updateDisplay();
+                }
+                m_output = std::make_shared<ImageData>(image);
+                Q_EMIT dataUpdated(0);
             }
-
-            // Pass-through output: emit the ImageData so downstream processing
-            // chains (VideoTransform, etc.) still work when connected to port 1.
-            m_output = std::make_shared<ImageData>(image);
-            Q_EMIT dataUpdated(0);
         } else {
             m_videoFrame.reset();
             m_image = QImage();
@@ -175,6 +175,26 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
 #endif
 }
 
+void VideoOutputNode::outputConnectionCreated(QtNodes::ConnectionId const &conId)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (conId.outPortIndex == 0)
+        ++m_outputConnectionCount;
+#else
+    Q_UNUSED(conId);
+#endif
+}
+
+void VideoOutputNode::outputConnectionDeleted(QtNodes::ConnectionId const &conId)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (conId.outPortIndex == 0 && m_outputConnectionCount > 0)
+        --m_outputConnectionCount;
+#else
+    Q_UNUSED(conId);
+#endif
+}
+
 QWidget *VideoOutputNode::embeddedWidget()
 {
     return m_widget;
@@ -215,5 +235,9 @@ void VideoOutputNode::ensureVideoWidget()
     m_videoWidget->setWindowTitle(tr("Video Output — %1").arg(caption()));
     m_videoWidget->resize(640, 480);
     m_videoWidget->show();
+
+    // The in-node QLabel shows a static placeholder while the GPU path is
+    // active — it is not updated per-frame (avoids redundant QImage conversion).
+    m_label->setText(tr("GPU display active — see detached window"));
 }
 #endif

@@ -27,12 +27,16 @@ class VideoFrameData;
  *
  * On Qt5 the node keeps the original single "image" input port (QImage path).
  *
- * The embedded QLabel always shows a software fallback (last converted QImage)
- * so the node remains usable inside the node editor scene. The QVideoWidget is
- * a separate top-level window (QTBUG-35299 prevents hosting it in the scene).
+ * The embedded QLabel shows a static placeholder ("GPU display active — see
+ * detached window") while the Qt6 GPU path is active, so the node remains
+ * usable inside the node editor scene without per-frame QImage conversion.
+ * The QVideoWidget is a separate top-level window (QTBUG-35299 prevents
+ * hosting it in the scene).
  *
  * The node also passes the frame through on its output port so output chains
- * can be built (e.g. output of a modifier).
+ * can be built (e.g. output of a modifier). On Qt6 the per-frame QImage
+ * conversion + ImageData output only runs while a downstream consumer is
+ * connected to the output port (tracked via outputConnectionCreated/Deleted).
  */
 class VideoOutputNode : public QtNodes::NodeDelegateModel
 {
@@ -66,6 +70,11 @@ public:
 
     QWidget *embeddedWidget() override;
 
+    /// Track downstream connections on the output port (Qt6) so the per-frame
+    /// QImage conversion only happens while a processing consumer is connected.
+    void outputConnectionCreated(QtNodes::ConnectionId const &conId) override;
+    void outputConnectionDeleted(QtNodes::ConnectionId const &conId) override;
+
 protected:
     bool eventFilter(QObject *object, QEvent *event) override;
 
@@ -84,6 +93,7 @@ private:
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     std::shared_ptr<VideoFrameData> m_videoFrame;
     QVideoWidget *m_videoWidget = nullptr;
+    int m_outputConnectionCount = 0;
 #endif
 };
 

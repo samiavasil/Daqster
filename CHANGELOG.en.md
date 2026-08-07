@@ -102,6 +102,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **VideoTransformNode Flip (Qt5)** — the vertical flip used `QImage::mirrored()` with wrong parameters on Qt5; fixed (`0cf6d19`), found by the new unit tests
 - **Exporter CSV header** — the "Repo" column in the traceability matrix CSV export header had a mismatched name; fixed (`9d90fff`)
 - **LoggingSystem.md** — symlink replaced with regular file for GitHub docs rendering (`b247046`)
+- **VideoOutputNode (Qt6 GPU path)** — removed per-frame QImage conversion + QLabel update + ImageData output when the GPU path (detached QVideoWidget) is active; the in-node QLabel shows a static placeholder ("GPU display active — see detached window") once; QImage conversion + ImageData output now run only when a downstream consumer is connected to output port 0 (tracked via `outputConnectionCreated`/`outputConnectionDeleted` + `m_outputConnectionCount`). Eliminates the doubled CPU work observed when the GPU display is active.
 
 ## [0.2.0] - 2025-09-18
 

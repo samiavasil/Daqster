@@ -89,6 +89,14 @@ throttling. При 1080p30 това насища едно ядро (наблюд
   suite остава зелена (demo_nodeditor_nodes_tests 29/29,
   requirements_manager_tests 87/87, exporter 7/7, matrix 8/8, gui 4/4 — на
   двете версии).
+- **Bug fix (post-impl):** `VideoOutputNode::setInData()` port 0 (Qt6) изпълняваше
+  per-frame QImage конверсия + QLabel update + ImageData output дори когато GPU
+  пътят (detached QVideoWidget) е активен — двойна CPU работа. Поправка:
+  `outputConnectionCreated`/`outputConnectionDeleted` следят брой connections
+  на output port 0 (`m_outputConnectionCount`); QImage конверсията + ImageData
+  output се изпълняват само когато `m_outputConnectionCount > 0`; QLabel-ът
+  показва статичен placeholder ("GPU display active — see detached window")
+  веднъж при първи кадър.
 
 ## Бележки по имплементацията (план)
 
