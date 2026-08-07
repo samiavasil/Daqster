@@ -231,12 +231,14 @@ QImage flip(const QImage &image, bool horizontal)
         return QImage();
 
     // Qt 6.1+ deprecates mirrored() in favor of flipped(Qt::Orientations);
-    // on Qt5 mirrored() is the only option.
+    // on Qt5 mirrored() is the only option. mirrored(horizontal, vertical):
+    // flip horizontally when requested, vertically otherwise (the "vertical"
+    // flag must be the inverse of "horizontal").
     const QImage rgb = toRgb32(image);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 1, 0)
     return rgb.flipped(horizontal ? Qt::Horizontal : Qt::Vertical);
 #else
-    return rgb.mirrored(horizontal, false);
+    return rgb.mirrored(horizontal, !horizontal);
 #endif
 }
 
