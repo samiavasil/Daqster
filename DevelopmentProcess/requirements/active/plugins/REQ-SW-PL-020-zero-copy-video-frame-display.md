@@ -77,7 +77,8 @@ throttling. При 1080p30 това насища едно ядро (наблюд
 
 - **Коммити:** `085f63d` (feat: VideoOutputNode dual-input + Qt6 GPU display),
   `0f92a9c` (build: link MultimediaWidgets), `c873b43` (docs: Windows specifics
-  + traceability matrix) — branch `feat/REQ-SW-PL-020-video-frame-display`
+  + traceability matrix), `2bf9b39` (fix: stop per-frame QImage conversion when
+  GPU display is active) — branch `feat/REQ-SW-PL-020-video-frame-display`
 - **Код:** `src/plugins/common/NodeDataTypes/VideoFrameData.h`,
   `src/plugins/demo_nodeditor_nodes/Sources/Video/` (source нодове,
   `VideoOutputNode`, `VideoCompat.h` — shim функции за present),
