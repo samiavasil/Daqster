@@ -82,6 +82,8 @@
 - **Exporter CSV header** — колона "Repo" в CSV header-а на traceability matrix експорта беше с несъответстващо име; поправен (`9d90fff`)
 - **LoggingSystem.md** — symlink заменен с regular file за GitHub docs rendering (`b247046`)
 - **VideoOutputNode (Qt6 GPU path)** — премахната per-frame QImage конверсия + QLabel update + ImageData output когато GPU пътят (detached QVideoWidget) е активен; QLabel-ът показва статичен placeholder ("GPU display active — see detached window") веднъж; QImage конверсията + ImageData output се изпълняват само когато има downstream consumer connected на output port 0 (проследявано чрез `outputConnectionCreated`/`outputConnectionDeleted` + `m_outputConnectionCount`). Това премахва двойната CPU работа при активен GPU път.
+- **VideoOutputNode (Qt6, detached popup)** — detached QVideoWidget popup-ът вече се затваря при премахване на port-0 connection (`inputConnectionCreated`/`inputConnectionDeleted` + `m_videoInputConnected` guard в `setInData()`). Преди това disconnect не спираше source player-а и кадрите продължаваха да пристигат в `setInData()`, възкресявайки popup-а. Също: null-check на `m_videoWidget` преди `presentFrame()` и спиране на излъчването на `ImageData` с null QImage (`d86b095`)
+- **Temporary Qt6 video diagnostics** — qDebug логване на `QVideoFrame` (isValid, surfaceFormat().pixelFormat, handleType, map(), toImage()) в `VideoFileSourceNode`/`StreamSourceNode` onFrameAvailable (първите 10 кадъра) + еднократен dump на първия валиден кадър в `/tmp/qt6_frame_dump.png`. ВРЕМЕНЕН код — да се премахне след диагностиката (`abd46db`)
 
 ### Removed
 - `src/plugins/node_editor/` — монолитен plugin (заменен от widget + app)
