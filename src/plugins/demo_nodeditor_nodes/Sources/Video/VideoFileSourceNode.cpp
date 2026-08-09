@@ -1,5 +1,6 @@
 #include "VideoFileSourceNode.h"
 
+#include "AudioBufferToSampled.h"
 #include "NodeDataTypes/ImageData.h"
 #include "NodeDataTypes/VideoFrameData.h"
 
@@ -32,6 +33,20 @@ VideoFileSourceNode::VideoFileSourceNode()
     // set on the player — otherwise playback is silent (REQ-SW-PL-022 AC 1).
     m_audioOutput = new QAudioOutput(this);
     m_player->setAudioOutput(m_audioOutput);
+#endif
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+    // Qt6 (6.8+): receive decoded audio buffers for the SampledData port.
+    m_audioBufferOutput = new QAudioBufferOutput(this);
+    m_player->setAudioBufferOutput(m_audioBufferOutput);
+    connect(m_audioBufferOutput, &QAudioBufferOutput::audioBufferReceived,
+            this, &VideoFileSourceNode::onAudioBufferReceived);
+#elif QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    // Qt5: probe the player's decoded audio buffers.
+    m_audioProbe = new QAudioProbe(this);
+    if (m_audioProbe->setSource(m_player)) {
+        connect(m_audioProbe, &QAudioProbe::audioBufferProbed,
+                this, &VideoFileSourceNode::onAudioBufferReceived);
+    }
 #endif
     m_frameProbe = new VideoCompat::FrameProbe(this);
 
@@ -81,10 +96,12 @@ unsigned int VideoFileSourceNode::nPorts(PortType portType) const
     switch (portType) {
     case PortType::Out:
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        // Port 0: "video-frame" (zero-copy), port 1: "image" (converted on demand).
-        return 2;
+        // Port 0: "video-frame" (zero-copy), port 1: "image" (converted on
+        // demand), port 2: "sample" (audio, appended last — REQ-SW-PL-022).
+        return 3;
 #else
-        return 1;
+        // Port 0: "image", port 1: "sample" (audio, appended last).
+        return 2;
 #endif
     default:
         return 0;
@@ -95,11 +112,14 @@ NodeDataType VideoFileSourceNode::dataType(PortType portType, PortIndex portInde
 {
     Q_UNUSED(portType);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (portIndex == 2)
+        return SampledData().type();
     if (portIndex == 1)
         return ImageData().type();
     return VideoFrameData().type();
 #else
-    Q_UNUSED(portIndex);
+    if (portIndex == 1)
+        return SampledData().type();
     return ImageData().type();
 #endif
 }
@@ -107,11 +127,14 @@ NodeDataType VideoFileSourceNode::dataType(PortType portType, PortIndex portInde
 std::shared_ptr<NodeData> VideoFileSourceNode::outData(PortIndex port)
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (port == 2)
+        return m_audioOut;
     if (port == 1)
         return m_output;
     return m_videoFrameOut;
 #else
-    Q_UNUSED(port);
+    if (port == 1)
+        return m_audioOut;
     return m_output;
 #endif
 }
@@ -127,8 +150,11 @@ void VideoFileSourceNode::outputConnectionCreated(QtNodes::ConnectionId const &c
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (conId.outPortIndex == 1)
         ++m_imagePortConnectionCount;
+    else if (conId.outPortIndex == 2)
+        ++m_audioPortConnectionCount;
 #else
-    Q_UNUSED(conId);
+    if (conId.outPortIndex == 1)
+        ++m_audioPortConnectionCount;
 #endif
 }
 
@@ -137,8 +163,11 @@ void VideoFileSourceNode::outputConnectionDeleted(QtNodes::ConnectionId const &c
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (conId.outPortIndex == 1 && m_imagePortConnectionCount > 0)
         --m_imagePortConnectionCount;
+    else if (conId.outPortIndex == 2 && m_audioPortConnectionCount > 0)
+        --m_audioPortConnectionCount;
 #else
-    Q_UNUSED(conId);
+    if (conId.outPortIndex == 1 && m_audioPortConnectionCount > 0)
+        --m_audioPortConnectionCount;
 #endif
 }
 
@@ -268,6 +297,27 @@ void VideoFileSourceNode::onFrameAvailable(const QVideoFrame &frame)
     m_output = std::make_shared<ImageData>(image);
     Q_EMIT dataUpdated(0);
 #endif
+}
+
+void VideoFileSourceNode::onAudioBufferReceived(const QAudioBuffer &buffer)
+{
+    // Invalid/empty buffer (end-of-stream flush): ignore — no EOS type is
+    // emitted (REQ-SW-PL-022 §4).
+    if (!buffer.isValid() || buffer.byteCount() <= 0)
+        return;
+
+    // Wrap only — no sample conversion in the handler (REQ-SW-PL-022 §4).
+    // QByteArray copy of the ~7 KB block is acceptable (<1 µs).
+    m_audioOut = AudioBufferToSampled::wrapBuffer(buffer, name());
+    if (!m_audioOut)
+        return;
+
+    // Emit only while a downstream consumer is connected (connection-count
+    // model, like m_imagePortConnectionCount).
+    if (m_audioPortConnectionCount <= 0)
+        return;
+
+    Q_EMIT dataUpdated(audioPortIndex());
 }
 
 void VideoFileSourceNode::onPlaybackStateChanged(int state)
