@@ -1,7 +1,7 @@
 #ifndef DAQDISPLAYNODE_H
 #define DAQDISPLAYNODE_H
 
-#include "SampledData.h"
+#include "NodeDataTypes/SampledData.h"
 
 #include "QtChartsCompat.h"
 

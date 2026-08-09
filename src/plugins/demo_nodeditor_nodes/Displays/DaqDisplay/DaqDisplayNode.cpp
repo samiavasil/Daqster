@@ -16,6 +16,7 @@
 
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
+using QtNodes::NodeValidationState;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 

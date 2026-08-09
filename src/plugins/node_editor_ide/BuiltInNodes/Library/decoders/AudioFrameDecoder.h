@@ -1,7 +1,7 @@
 #ifndef AUDIOFRAMEDECODER_H
 #define AUDIOFRAMEDECODER_H
 
-#include "SampledStreamDescriptor.h"
+#include "NodeDataTypes/SampledStreamDescriptor.h"
 
 #include <QtGlobal>
 #include <QtMultimedia/QAudioFormat>

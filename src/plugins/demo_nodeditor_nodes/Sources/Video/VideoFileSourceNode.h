@@ -3,7 +3,7 @@
 
 #include "VideoCompat.h"
 
-#include "SampledData.h"
+#include "NodeDataTypes/SampledData.h"
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/internal/Definitions.hpp>

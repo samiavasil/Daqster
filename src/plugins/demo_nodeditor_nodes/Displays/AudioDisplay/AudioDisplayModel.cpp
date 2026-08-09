@@ -3,6 +3,7 @@
 #include <QDevioDisplayModelUi.h>
 #include <XYSeriesIODevice.h>
 #include <QDebug>
+#include <QStackedWidget>
 #include "LogCategories.h"
 
 AudioDisplayModel::AudioDisplayModel()

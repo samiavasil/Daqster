@@ -1,8 +1,7 @@
 #ifndef GENERICNUMERICTYPES_H
 #define GENERICNUMERICTYPES_H
 
-#include "SampledData.h"
-#include "SampledStreamDescriptor.h"
+#include "NodeDataTypes/SampledData.h"
 
 #include <QByteArray>
 #include <QVector>

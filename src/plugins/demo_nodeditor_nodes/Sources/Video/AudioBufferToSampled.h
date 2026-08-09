@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SampledData.h"
+#include "NodeDataTypes/SampledData.h"
 
 #include <QAudioBuffer>
 #include <QAudioFormat>
@@ -103,7 +103,7 @@ inline std::shared_ptr<SampledData> wrapBuffer(const QAudioBuffer &buffer,
         return nullptr;
 
     return std::make_shared<SampledData>(
-        QByteArray(reinterpret_cast<const char *>(buffer.constData()),
+        QByteArray(buffer.constData<char>(),
                    static_cast<int>(buffer.byteCount())),
         descriptorFromFormat(buffer.format(), sourceName));
 }
