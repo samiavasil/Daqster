@@ -5,7 +5,7 @@
 - **Отговорник (роля):** Implementation
 - **Дата:** 2026-08-06
 - **Родител:** —
-- **Зависи от:** REQ-SW-FW-001, REQ-SW-FW-002
+- **Зависи от:** REQ-SW-FW-001 (архив: archive/framework/REQ-SW-FW-001-plugin-manager-core.md), REQ-SW-FW-002 (архив: archive/framework/REQ-SW-FW-002-plugin-discovery-persistence-and-registry.md)
 
 ## Описание
 

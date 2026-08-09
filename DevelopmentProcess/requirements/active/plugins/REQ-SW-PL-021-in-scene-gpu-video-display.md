@@ -4,8 +4,8 @@
 - **Приоритет:** P1
 - **Отговорник (роля):** Ivan (Implementation)
 - **Дата:** 2026-08-07
-- **Родител:** REQ-SW-PL-018
-- **Зависи от:** REQ-SW-PL-020 (VideoFrameData zero-copy type), REQ-SW-PL-014 (Node Editor IDE)
+- **Родител:** REQ-SW-PL-018 (архив: archive/plugins/REQ-SW-PL-018-video-source-and-processing-nodes.md)
+- **Зависи от:** REQ-SW-PL-020 (VideoFrameData zero-copy type), REQ-SW-PL-014 (архив: archive/plugins/REQ-SW-PL-014-node-editor-ide-and-demo-nodes.md)
 
 ## Описание
 

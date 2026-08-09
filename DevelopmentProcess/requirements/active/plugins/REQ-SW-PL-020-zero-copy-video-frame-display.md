@@ -4,8 +4,8 @@
 - **Приоритет:** P1
 - **Отговорник (роля):** Ivan (Implementation)
 - **Дата:** 2026-08-07
-- **Родител:** REQ-SW-PL-018
-- **Зависи от:** REQ-SW-PL-018, REQ-SW-PL-013
+- **Родител:** REQ-SW-PL-018 (архив: archive/plugins/REQ-SW-PL-018-video-source-and-processing-nodes.md)
+- **Зависи от:** REQ-SW-PL-018 (архив: archive/plugins/REQ-SW-PL-018-video-source-and-processing-nodes.md), REQ-SW-PL-013 (архив: archive/plugins/REQ-SW-PL-013-shared-node-api.md)
 
 ## Описание
 
