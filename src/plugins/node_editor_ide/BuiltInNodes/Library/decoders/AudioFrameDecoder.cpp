@@ -165,6 +165,30 @@ qreal decodeF32BE(const char *p)
     return qreal(value);
 }
 
+qreal decodeF64LE(const char *p)
+{
+    quint64 bits = 0;
+    for (int i = 0; i < 8; ++i)
+        bits |= static_cast<quint64>(static_cast<quint8>(p[i])) << (8 * i);
+    double value;
+    std::memcpy(&value, &bits, sizeof(value));
+    if (value > 1.0) value = 1.0;
+    if (value < -1.0) value = -1.0;
+    return value;
+}
+
+qreal decodeF64BE(const char *p)
+{
+    quint64 bits = 0;
+    for (int i = 0; i < 8; ++i)
+        bits |= static_cast<quint64>(static_cast<quint8>(p[7 - i])) << (8 * i);
+    double value;
+    std::memcpy(&value, &bits, sizeof(value));
+    if (value > 1.0) value = 1.0;
+    if (value < -1.0) value = -1.0;
+    return value;
+}
+
 } // namespace
 
 AudioFrameDecoder::AudioFrameDecoder()
@@ -213,6 +237,31 @@ bool AudioFrameDecoder::configure(const QAudioFormat &format)
         break;
     default:
         break;
+    }
+
+    return m_decoder != nullptr;
+}
+
+bool AudioFrameDecoder::configure(SampleType sampleType, int sampleBits,
+                                  SampleEndian endian)
+{
+    m_decoder = nullptr;
+    m_channels = 1;
+    m_bytesPerSample = qMax(1, sampleBits / 8);
+
+    const bool isBig = endian == SampleEndian::BigEndian;
+
+    switch (sampleType) {
+    case SampleType::INT8:    m_decoder = decodeS8; break;
+    case SampleType::INT16:   m_decoder = isBig ? decodeS16BE : decodeS16LE; break;
+    case SampleType::INT24:   m_decoder = isBig ? decodeS24BE : decodeS24LE; break;
+    case SampleType::INT32:   m_decoder = isBig ? decodeS32BE : decodeS32LE; break;
+    case SampleType::UINT8:   m_decoder = decodeU8; break;
+    case SampleType::UINT16:  m_decoder = isBig ? decodeU16BE : decodeU16LE; break;
+    case SampleType::UINT24:  m_decoder = isBig ? decodeU24BE : decodeU24LE; break;
+    case SampleType::UINT32:  m_decoder = isBig ? decodeU32BE : decodeU32LE; break;
+    case SampleType::FLOAT32: m_decoder = isBig ? decodeF32BE : decodeF32LE; break;
+    case SampleType::FLOAT64: m_decoder = isBig ? decodeF64BE : decodeF64LE; break;
     }
 
     return m_decoder != nullptr;
