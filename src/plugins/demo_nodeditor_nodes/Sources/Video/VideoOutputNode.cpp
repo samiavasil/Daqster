@@ -107,14 +107,26 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
         // --- Port 0: "video-frame" (zero-copy GPU display path) ---
         auto videoFrame = std::dynamic_pointer_cast<VideoFrameData>(data);
         if (videoFrame && videoFrame->hasFrame()) {
+            // CRITICAL GUARD: disconnecting the edge does NOT stop the source
+            // player — frames keep flowing into setInData and would resurrect
+            // the detached QVideoWidget popup. The connection flag (not widget
+            // nullness) is the correct guard: it is cleared by
+            // inputConnectionDeleted(), which also closes the popup.
+            if (!m_videoInputConnected)
+                return;
+
             m_videoFrame = videoFrame;
 
             // Lazily create the detached QVideoWidget on the first frame.
             ensureVideoWidget();
 
-            // GPU path: HW buffer → RHI texture → screen (no QImage copy).
-            VideoCompat::presentFrame(m_videoWidget->videoSink(),
-                                      videoFrame->frame());
+            // Defensive: the widget may be null if the connection was just
+            // removed while a frame was in flight.
+            if (m_videoWidget != nullptr) {
+                // GPU path: HW buffer → RHI texture → screen (no QImage copy).
+                VideoCompat::presentFrame(m_videoWidget->videoSink(),
+                                          videoFrame->frame());
+            }
 
             // Only do the expensive QImage conversion + ImageData output when a
             // downstream processing consumer is connected to the output port.
@@ -122,10 +134,12 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
             // the in-node QLabel shows a static placeholder (no per-frame work).
             if (m_outputConnectionCount > 0) {
                 const QImage image = VideoCompat::frameToImage(videoFrame->frame());
-                if (!image.isNull()) {
-                    m_image = image;
-                    updateDisplay();
-                }
+                // Propagate only real frames — never an ImageData wrapping a
+                // null QImage (would emit a bogus "empty" data update).
+                if (image.isNull())
+                    return;
+                m_image = image;
+                updateDisplay();
                 m_output = std::make_shared<ImageData>(image);
                 Q_EMIT dataUpdated(0);
             }
@@ -190,6 +204,43 @@ void VideoOutputNode::outputConnectionDeleted(QtNodes::ConnectionId const &conId
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (conId.outPortIndex == 0 && m_outputConnectionCount > 0)
         --m_outputConnectionCount;
+#else
+    Q_UNUSED(conId);
+#endif
+}
+
+void VideoOutputNode::inputConnectionCreated(QtNodes::ConnectionId const &conId)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (conId.inPortIndex == 0)
+        m_videoInputConnected = true;
+#else
+    Q_UNUSED(conId);
+#endif
+}
+
+void VideoOutputNode::inputConnectionDeleted(QtNodes::ConnectionId const &conId)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (conId.inPortIndex != 0)
+        return;
+
+    // The port-0 "video-frame" edge was removed. Disconnecting does NOT stop
+    // the source player — frames keep flowing into setInData(), so first clear
+    // the connection flag that guards the port-0 branch, then close the
+    // detached popup and reset all video state (mirror of the destructor).
+    m_videoInputConnected = false;
+
+    if (m_videoWidget != nullptr) {
+        m_videoWidget->hide();
+        m_videoWidget->deleteLater();
+        m_videoWidget = nullptr;
+    }
+    m_videoFrame.reset();
+    m_image = QImage();
+    m_output.reset();
+    m_label->setText(tr("No video input"));
+    updateDisplay();
 #else
     Q_UNUSED(conId);
 #endif
