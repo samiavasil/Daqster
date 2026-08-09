@@ -4,6 +4,7 @@
 #include "NodeDataTypes/VideoFrameData.h"
 
 #include <QDir>
+#include <QDebug>
 #include <QFileDialog>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -215,6 +216,34 @@ void VideoFileSourceNode::onFrameAvailable(const QVideoFrame &frame)
     // consumer is connected.
     m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
     Q_EMIT dataUpdated(0);
+
+    // TEMPORARY Qt6 diagnostics — remove after green-screen diagnosis.
+    static int s_diagFrameCount = 0;
+    static bool s_diagDumped = false;
+    if (++s_diagFrameCount <= 10) {
+        qDebug() << "VideoDiag" << name() << "frame" << s_diagFrameCount
+                 << "valid" << frame.isValid()
+                 << "fmt" << frame.surfaceFormat().pixelFormat()
+                 << "handle" << static_cast<int>(frame.handleType())
+                 << "size" << frame.width() << "x" << frame.height();
+
+        QVideoFrame mappedFrame(frame);
+        const bool mapOk = mappedFrame.map(QVideoFrame::ReadOnly);
+        qDebug() << "VideoDiag   map(ReadOnly)" << mapOk
+                 << "mappedBytes" << (mapOk ? mappedFrame.mappedBytes(0) : 0);
+        if (mapOk)
+            mappedFrame.unmap();
+
+        const QImage img = VideoCompat::frameToImage(frame);
+        qDebug() << "VideoDiag   toImage isNull" << img.isNull()
+                 << "format" << static_cast<int>(img.format())
+                 << "size" << img.width() << "x" << img.height();
+
+        if (!img.isNull() && !s_diagDumped) {
+            s_diagDumped = img.save(QStringLiteral("/tmp/qt6_frame_dump.png"));
+            qDebug() << "VideoDiag   dump /tmp/qt6_frame_dump.png" << s_diagDumped;
+        }
+    }
 
     if (m_imagePortConnectionCount <= 0)
         return;
