@@ -51,6 +51,14 @@
   - Windows cross-platform compliance (QStandardPaths, без Linux-only пътища)
   - Комити: `b5c9651` (req), `157f34d` (VideoFrameData+shim), `085f63d` (VideoOutputNode), `0f92a9c` (CMake), `c873b43` (docs), `9d0f178` (AC/status)
   - Статус: ACTIVE (impl готов, unit тестове отложени)
+- **REQ-SW-PL-022** (unified sampled data transport & DAQ Display):
+  - `SampledData` — единен NodeData тип (`{"sample","Sample"}`) в `src/plugins/common/NodeDataTypes/`, QtCore-only, с QByteArray + per-channel `{name, SampleType}` + double sampleRate + `decodeToNormalized()`; `AudioData` = SampledData с `domain="audio"` (без отделен клас)
+  - `SampledStreamDescriptor` — консолидация на `GenericStreamConfig` + `QDevIOStreamConfig`: разширен `SampleType` enum (int8/uint8/int16/uint16/int24/uint24/int32/uint32/float32/float64), endianness, unit + amplitudeScale + amplitudeOffset, `domain` поле ("audio"/"vibration"/"daq"/"ecg"/…), device id/source name, first-sample timestamp
+  - Unified decoder конвенция — signed/unsigned делят на `(2^(bits-1) − 1)` със clamp в [-1,1], floats се clamp-ват (fix на старата GenericNumericTypes 32768/no-clamp конвенция); `AudioFrameDecoder` получи QtCore-only `configure(SampleType, bits, endian)` overload
+  - SampledData аудио изходен порт на `VideoFileSourceNode` + `StreamSourceNode` (append-нат ПОСЛЕДЕН — Qt6 порт 2, Qt5 порт 1 — старите saved graphs запазват индексите); capture: Qt6 `QAudioBufferOutput` (6.8+) / Qt5 `QAudioProbe`; буферите се обвиват в `shared_ptr<SampledData>` и се емитират гейтнати на connection count
+  - **DAQ Display нод** — `Displays/DaqDisplay/DaqDisplayNode.{h,cpp}`: реален Qt Charts waveform + FFT за всеки sampled source (audio/DAQ/сензори); plot слотове `std::function<QVector<float>(const SampledData&)>` (JIT-ready), v1 built-ins identity + FFT; `GenericDisplayNode` е legacy alias, `AudioDisplayModel::configureAudioView` no-op заменен с реален UI config
+  - Комити: `3929326` (req), `12076a2` (Qt6 audio fix), `cf5d0ae` (SampledData+descriptor), `6395220` (decoder convention), `75e291c` (audio port), `c5559b0` (DAQ Display), `8c56e83` (Qt5/Qt6 build fixes)
+  - Статус: ACTIVE (impl готов, unit тестове отложени)
 
 ### Changed
 - **Directory Restructuring**:
@@ -84,6 +92,7 @@
 - **VideoOutputNode (Qt6 GPU path)** — премахната per-frame QImage конверсия + QLabel update + ImageData output когато GPU пътят (detached QVideoWidget) е активен; QLabel-ът показва статичен placeholder ("GPU display active — see detached window") веднъж; QImage конверсията + ImageData output се изпълняват само когато има downstream consumer connected на output port 0 (проследявано чрез `outputConnectionCreated`/`outputConnectionDeleted` + `m_outputConnectionCount`). Това премахва двойната CPU работа при активен GPU път.
 - **VideoOutputNode (Qt6, detached popup)** — detached QVideoWidget popup-ът вече се затваря при премахване на port-0 connection (`inputConnectionCreated`/`inputConnectionDeleted` + `m_videoInputConnected` guard в `setInData()`). Преди това disconnect не спираше source player-а и кадрите продължаваха да пристигат в `setInData()`, възкресявайки popup-а. Също: null-check на `m_videoWidget` преди `presentFrame()` и спиране на излъчването на `ImageData` с null QImage (`d86b095`)
 - **Temporary Qt6 video diagnostics** — qDebug логване на `QVideoFrame` (isValid, surfaceFormat().pixelFormat, handleType, map(), toImage()) в `VideoFileSourceNode`/`StreamSourceNode` onFrameAvailable (първите 10 кадъра) + еднократен dump на първия валиден кадър в `/tmp/qt6_frame_dump.png`. ВРЕМЕНЕН код — да се премахне след диагностиката (`abd46db`)
+- **Тихо аудио на Qt6 (REQ-SW-PL-022)** — `VideoFileSourceNode` и `StreamSourceNode` създаваха `QMediaPlayer` без `QAudioOutput`; Qt6 изисква `setAudioOutput()` (иначе аудиото се декодира, но не се рутира). Добавен `QAudioOutput` member + `setAudioOutput()`, гарднат с `#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)`; Qt5 поведението непроменено (`12076a2`)
 
 ### Known issues
 - **VC-1 Advanced видео на Qt6 (known issue)** — VC-1 Advanced профил съдържание (напр. `50MB_1080P_THETESTDATA.COM_AVI.avi`, ASF контейнер, mislabelled .avi) показва зелен екран на Qt6: Qt FFmpeg backend (QFFmpegMediaPlugin, libavcodec 61/FFmpeg 7.1) доставя NV12 кадри с изцяло нулева chroma плоскост (Cb=Cr=0) → YCbCr→RGB = плътен зелен (0,226,0). Доказано със standalone probe без Daqster presentation код (system FFmpeg декодира правилно; H.264 и Cinepak работят на Qt6; Qt5 работи via GStreamer). Не е fixable в Daqster код — upstream Qt 6.9.2 bug. Открито на 2026-08-09.

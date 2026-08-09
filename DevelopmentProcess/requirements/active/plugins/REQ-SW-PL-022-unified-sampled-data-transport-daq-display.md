@@ -123,20 +123,20 @@ QDevIO byte-stream. QDevIO mic path-ът остава както е засега
 
 ## Acceptance Criteria
 
-- [ ] 1. **Qt6 audio fix (audible).** `VideoFileSourceNode` и `StreamSourceNode` създават
+- [x] 1. **Qt6 audio fix (audible).** `VideoFileSourceNode` и `StreamSourceNode` създават
        `QAudioOutput` member + `setAudioOutput()` (`#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)`);
        при възпроизвеждане на файл/stream с аудио трак звукът се **чува и на Qt6**;
        Qt5 поведението остава непроменено.
-- [ ] 2. **SampledData тип.** NodeData subclass в
+- [x] 2. **SampledData тип.** NodeData subclass в
        `src/plugins/common/NodeDataTypes/SampledData.{h,cpp}`, `type()` → `{"sample",
        "Sample"}`, **QtCore-only** (без QtMultimedia); носи QByteArray + per-channel
        {name, SampleType} + sampleRate + `decodeToNormalized()`; `AudioData` = SampledData
        с `domain="audio"` (без отделен клас).
-- [ ] 3. **Unified decoder конвенция.** Единна конвенция за нормализация:
+- [x] 3. **Unified decoder конвенция.** Единна конвенция за нормализация:
        signed/unsigned се делят на `(2^(bits-1) − 1)` със clamp в [-1, 1]; floats се
        clamp-ват. `GenericNumericTypes.cpp` вече не дели на `32768.0`; конвенцията е
        документирана в header-а на SampledData.
-- [ ] 4. **SampledStreamDescriptor консолидация.** `GenericStreamConfig` +
+- [x] 4. **SampledStreamDescriptor консолидация.** `GenericStreamConfig` +
        `QDevIOStreamConfig` сляти в `SampledStreamDescriptor` (всички полета от scope:
        double sampleRate, per-channel {name, SampleType}, разширен SampleType
        int8/uint8/int16/uint16/int24/uint24/int32/uint32/float32/float64, endianness,
@@ -145,21 +145,21 @@ QDevIO byte-stream. QDevIO mic path-ът остава както е засега
        консуматора са мигрирани (AudioFrameDecoder overload, GenericQDevIoConnector,
        QDevIoDisplayModel, GenericNumericData→SampledData, XYSeriesIODevice,
        GenericDisplayNode, AudioDisplayModel→DAQ Display).
-- [ ] 5. **Аудио изходен порт.** Аудио изходът е append-нат като ПОСЛЕДЕН порт (Qt6:
+- [x] 5. **Аудио изходен порт.** Аудио изходът е append-нат като ПОСЛЕДЕН порт (Qt6:
        порт 2; Qt5: порт 1); каптър: Qt6 `QAudioBufferOutput` (6.8+, guard) / Qt5
        `QAudioProbe`; всеки буфер се обвива в `shared_ptr<SampledData>` (domain=audio)
        и се емитира `dataUpdated(audioPortIndex)`, гейтнат на connection count;
        празният QAudioBuffer при EOS се флъшва/игнорира (без EOS тип); в handler-а се
        прави само wrap (без конверсия).
-- [ ] 6. **DAQ Display (DataPlot).** `AudioDisplayModel` е генерализиран на DAQ Display;
+- [x] 6. **DAQ Display (DataPlot).** `AudioDisplayModel` е генерализиран на DAQ Display;
        показва waveform + FFT за audio през същия нод; plot слотовете са
        `std::function<QVector<float>(const SampledData&)>`-базирани (JIT-ready); v1
        built-ins: identity + FFT; рендирането е реално (QtCharts) — stubs-ите в
        `GenericDisplayNode.cpp:136-146` и `AudioDisplayModel.cpp:33-39` са заменени.
-- [ ] 7. **Втори domain (доказателство за унификация).** DAQ Display-ът визуализира
+- [x] 7. **Втори domain (доказателство за унификация).** DAQ Display-ът визуализира
        синтетичен `"vibration"` SampledData (waveform + FFT) през същия входен порт,
        без промени по нода — унифицираният тип + domain дискриминатор работят.
-- [ ] 8. **Qt5 + Qt6 builds PASS + app smoke + saved-graph compat.** Приложенията
+- [x] 8. **Qt5 + Qt6 builds PASS + app smoke + saved-graph compat.** Приложенията
        стартират без crash; и двете версии се build-ват; съществуващата test suite
        остава зелена; старите saved graphs се зареждат без port re-indexing (аудио
        портът е append-нат последен). Unit тестовете са **отложени по решение на
@@ -179,7 +179,11 @@ QDevIO byte-stream. QDevIO mic path-ът остава както е засега
 
 ## Проследимост
 
-- **Коммити:** — (след имплементация; branch `feat/REQ-SW-PL-022-unified-sampled-data-transport-daq-display`)
+- **Коммити:** `12076a2` (fix: Qt6 audible audio output), `cf5d0ae` (feat:
+  SampledData + SampledStreamDescriptor + decoder overload), `6395220` (fix: unified
+  decoder convention 32767+clamp), `75e291c` (feat: SampledData audio output port),
+  `c5559b0` (feat: DAQ Display node), `8c56e83` (fix: Qt5/Qt6 build fixes) —
+  branch `feat/REQ-SW-PL-022-unified-sampled-data-transport-daq-display`
 - **Код:** `src/plugins/common/NodeDataTypes/SampledData.{h,cpp}`,
   `src/plugins/common/NodeDataTypes/SampledStreamDescriptor.h`,
   `src/plugins/demo_nodeditor_nodes/Sources/Video/` (VideoFileSourceNode,
