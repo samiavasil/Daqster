@@ -27,6 +27,12 @@ VideoFileSourceNode::VideoFileSourceNode()
     buildWidget();
 
     m_player = new QMediaPlayer(this);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // Qt6: audio is only routed to a sink when an explicit QAudioOutput is
+    // set on the player — otherwise playback is silent (REQ-SW-PL-022 AC 1).
+    m_audioOutput = new QAudioOutput(this);
+    m_player->setAudioOutput(m_audioOutput);
+#endif
     m_frameProbe = new VideoCompat::FrameProbe(this);
 
     if (!VideoCompat::attachFrameProbe(m_player, m_frameProbe))

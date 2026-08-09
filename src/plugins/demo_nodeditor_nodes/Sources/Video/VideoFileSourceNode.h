@@ -8,6 +8,10 @@
 
 #include <memory>
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtMultimedia/QAudioOutput>
+#endif
+
 class QLabel;
 class QLineEdit;
 class QMediaPlayer;
@@ -89,6 +93,9 @@ private:
     QMediaPlayer *m_player = nullptr;
     VideoCompat::FrameProbe *m_frameProbe = nullptr;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // Qt6 requires an explicit QAudioOutput; without setAudioOutput() the
+    // audio is decoded but never routed and stays silent (REQ-SW-PL-022 AC 1).
+    QAudioOutput *m_audioOutput = nullptr;
     // Reused per frame via setFrame() — no allocation per frame (REQ-SW-PL-020).
     std::shared_ptr<VideoFrameData> m_videoFrameOut;
     int m_imagePortConnectionCount = 0;
