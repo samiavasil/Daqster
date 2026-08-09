@@ -32,8 +32,15 @@ void AudioDisplayModel::setInData(std::shared_ptr<QtNodes::NodeData> data,
 
 void AudioDisplayModel::configureAudioView(int channels, int sampleRate)
 {
-    Q_UNUSED(sampleRate);
-    // The audio view (QDevioDisplayModelUi) is already set up by the base class.
-    // For mixed streams, we'd extract the audio channel here.
-    qCInfo(lcDemoNodes) << "AudioDisplayModel: configure for" << channels << "channels";
+    // Real view configuration — replaces the old no-op stub (REQ-SW-PL-022
+    // AC 6). The base QDevioDisplayModelUi renders the waveform; here we make
+    // sure the series count matches the stream and the audio view is current.
+    auto *displayUi = dynamic_cast<QDevioDisplayModelUi *>(m_stack->widget(m_audioViewIndex));
+    if (displayUi == nullptr)
+        return;
+
+    displayUi->SetSeries(0, qMax(1, channels));
+    m_stack->setCurrentIndex(m_audioViewIndex);
+    qCInfo(lcDemoNodes) << "AudioDisplayModel: configured for" << channels
+                        << "channels at" << sampleRate << "Hz";
 }

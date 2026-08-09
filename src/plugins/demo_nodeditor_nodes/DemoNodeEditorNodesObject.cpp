@@ -8,6 +8,7 @@
 
 #include "Displays/GenericDisplay/GenericDisplayNode.h"
 #include "Displays/AudioDisplay/AudioDisplayModel.h"
+#include "Displays/DaqDisplay/DaqDisplayNode.h"
 #include "Routing/Demux/DemuxNode.h"
 #include "Routing/Mux/MuxNode.h"
 #include "Sources/AudioSource/AudioSourceDataModel.h"
@@ -47,6 +48,7 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     // Display nodes
     registry.registerModel<AudioDisplayModel>("Displays");
     registry.registerModel<GenericDisplayNode>("Displays");
+    registry.registerModel<DaqDisplayNode>("Displays");
 
     // Stream routing nodes
     registry.registerModel<DemuxNode>("Routing");

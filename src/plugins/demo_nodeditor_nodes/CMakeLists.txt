@@ -89,7 +89,13 @@ set(AUDIO_DISPLAY_NODES
     Displays/AudioDisplay/AudioDisplayModel.cpp
 )
 
-# ── Displays: GenericDisplay ────────────────────────────────────────
+# ── Displays: DAQ Display (DataPlot, REQ-SW-PL-022) ─────────────────
+set(DAQ_DISPLAY_NODES
+    Displays/DaqDisplay/DaqDisplayNode.h
+    Displays/DaqDisplay/DaqDisplayNode.cpp
+)
+
+# ── Displays: GenericDisplay (legacy alias of DAQ Display) ──────────
 set(GENERIC_DISPLAY_NODES
     Displays/GenericDisplay/GenericDisplayNode.h
     Displays/GenericDisplay/GenericDisplayNode.cpp
@@ -117,6 +123,7 @@ create_plugin(DemoNodeEditorNodes
         ${VIDEO_OPENCV_SOURCES}
         ${GENERIC_DISPLAY_NODES}
         ${AUDIO_DISPLAY_NODES}
+        ${DAQ_DISPLAY_NODES}
         ${ROUTING_NODES}
         ${SHARED_TYPES}
     REQUIRES_LIBRARIES
@@ -139,6 +146,7 @@ create_plugin(DemoNodeEditorNodes
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/AudioDisplay
+        ${CMAKE_CURRENT_SOURCE_DIR}/Displays/DaqDisplay
         ${VIDEO_OPENCV_INCLUDE_DIRS}
     LINK_LIBRARIES
         ${VIDEO_OPENCV_LINK_LIBRARIES}
