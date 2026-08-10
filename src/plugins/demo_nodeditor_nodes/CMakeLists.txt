@@ -15,10 +15,15 @@ set(PLUGIN_SOURCES
 )
 
 # ── Sources: AudioSource ────────────────────────────────────────────
-# REQ-SW-PL-024: the old QDevIO mic + helpers renamed to _obsolete
-# (keep working); the SampledData AudioSourceDataModel + MicCaptureWorker
-# are added back in the feat commit.
+# REQ-SW-PL-024: the SampledData AudioSourceDataModel (new, takes the
+# "AudioSource" name, worker-thread capture via MicCaptureWorker) + shared
+# UI; the old QDevIO mic was renamed to _obsolete and keeps working
+# together with its helpers.
 set(AUDIO_SOURCE_NODES
+    Sources/AudioSource/AudioSourceDataModel.h
+    Sources/AudioSource/AudioSourceDataModel.cpp
+    Sources/AudioSource/MicCaptureWorker.h
+    Sources/AudioSource/MicCaptureWorker.cpp
     Sources/AudioSource/AudioSourceDataModelObsolete.h
     Sources/AudioSource/AudioSourceDataModelObsolete.cpp
     Sources/AudioSource/AudioSourceDataModelUI.h

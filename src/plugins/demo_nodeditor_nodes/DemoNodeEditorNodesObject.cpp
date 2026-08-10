@@ -11,6 +11,7 @@
 #include "Displays/DaqDisplay/DaqDisplayNode.h"
 #include "Routing/Demux/DemuxNodeObsolete.h"
 #include "Routing/Mux/MuxNodeObsolete.h"
+#include "Sources/AudioSource/AudioSourceDataModel.h"
 #include "Sources/AudioSource/AudioSourceDataModelObsolete.h"
 #include "Sources/LLamaSource/LLamaModelDataModel.h"
 #include "Sources/LLamaSource/ConsoleDataModel.h"
@@ -99,10 +100,11 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     registry.registerModel<MuxNodeObsoleteAlias>("Routing"); // old key "MuxNode"
 
     // Audio source + LLama source (moved from node_editor_ide)
-    // REQ-SW-PL-024 (rename step): only the obsolete QDevIO mic exists at this
-    // commit; the new SampledData AudioSourceDataModel is added in the feat
-    // commit and takes the "AudioSource" key back (no alias — old saved graphs
-    // instantiate the new node, QDevIO edges drop, documented consequence).
+    // REQ-SW-PL-024: the SampledData AudioSource takes the "AudioSource" key;
+    // the old QDevIO mic is registered as "AudioSourceObsolete" (no alias
+    // under "AudioSource" — old saved graphs instantiate the new node and
+    // QDevIO edges drop, documented consequence).
+    registry.registerModel<AudioSourceDataModel>("Sources");
     registry.registerModel<AudioSourceDataModelObsolete>("Sources");
     registry.registerModel<LLamaModelDataModel>("LLama");
     registry.registerModel<ConsoleDataModel>("LLama");
