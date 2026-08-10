@@ -239,6 +239,39 @@ public:
         }
     }
 
+    /**
+     * @brief Decode the raw buffer into per-channel normalized float values.
+     *
+     * Mirrors decodeToNormalized() for the display path (REQ-SW-PL-023): same
+     * channel layout, same SampledDecoder convention (32767 + clamp to [-1, 1]),
+     * but decodes directly into float channels without a double intermediate
+     * container.
+     */
+    void decodeToNormalizedF32(QVector<QVector<float>> &outChannels) const
+    {
+        outChannels.clear();
+        const int nChannels = m_descriptor.totalChannels();
+        const int frameBytes = m_descriptor.bytesPerFrame();
+        if (nChannels <= 0 || frameBytes <= 0 || m_buffer.isEmpty())
+            return;
+
+        const int totalFrames = m_buffer.size() / frameBytes;
+        outChannels.resize(nChannels);
+        for (int ch = 0; ch < nChannels; ++ch)
+            outChannels[ch].resize(totalFrames);
+
+        const char *ptr = m_buffer.constData();
+        for (int frame = 0; frame < totalFrames; ++frame) {
+            for (int ch = 0; ch < nChannels; ++ch) {
+                const StreamChannelDescriptor &desc = m_descriptor.channels.at(ch);
+                outChannels[ch][frame] = static_cast<float>(
+                    SampledDecoder::decodeNormalizedSample(
+                        ptr, desc.sampleType, m_descriptor.endianness));
+                ptr += sampleTypeByteSize(desc.sampleType);
+            }
+        }
+    }
+
 private:
     QByteArray m_buffer;
     SampledStreamDescriptor m_descriptor;
