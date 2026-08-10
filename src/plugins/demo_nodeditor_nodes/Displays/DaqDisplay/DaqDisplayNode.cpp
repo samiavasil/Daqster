@@ -1,7 +1,6 @@
 #include "DaqDisplayNode.h"
 
 #include "FftUtil.h"
-#include "LogCategories.h"
 
 #include <QComboBox>
 #include <QFrame>
@@ -14,7 +13,6 @@
 #include <QRunnable>
 #include <QScrollArea>
 #include <QSignalBlocker>
-#include <QThread>
 #include <QThreadPool>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -57,11 +55,6 @@ public:
 
     void run() override
     {
-        // TEMPORARY thread-identity log for Phase 4 smoke verification
-        // (REQ-SW-PL-023 AC 4). Remove after the smoke test.
-        qCDebug(lcDemoNodes) << "[DaqDisplayNode][temporary] compute thread:"
-                             << QThread::currentThread();
-
         if (m_node->m_shuttingDown.load())
             return;
 
@@ -166,11 +159,6 @@ QPair<QPointF, QPointF> DaqDisplayNode::spectrumRanges(const QVector<float> &val
 
 void DaqDisplayNode::applyResult(const PlotResult &result)
 {
-    // TEMPORARY thread-identity log for Phase 4 smoke verification
-    // (REQ-SW-PL-023 AC 4). Remove after the smoke test.
-    qCDebug(lcDemoNodes) << "[DaqDisplayNode][temporary] repaint thread:"
-                         << QThread::currentThread();
-
     // GUI thread: repaint ONLY — series->replace + axis->setRange (§4).
     const int n = qMin(result.series.size(), m_cards.size());
     for (int i = 0; i < n; ++i) {
