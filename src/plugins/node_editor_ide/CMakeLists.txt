@@ -30,23 +30,23 @@ if(NODE_EDITOR_LIB_ENABLED)
     set(LIB_SOURCES
         BuiltInNodes/Library/types/GenericNumericTypes.h
         BuiltInNodes/Library/types/GenericNumericTypes.cpp
-        BuiltInNodes/Library/types/IStreamDecoder.h
-        BuiltInNodes/Library/types/QDevIOStreamConfig.h
-        BuiltInNodes/Library/types/StreamChannel.h
+        BuiltInNodes/Library/types/IStreamDecoderObsolete.h
+        BuiltInNodes/Library/types/QDevIOStreamConfigObsolete.h
+        BuiltInNodes/Library/types/StreamChannelObsolete.h
         BuiltInNodes/Library/types/ChatGraphModel.h
-        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.h
-        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.cpp
-        BuiltInNodes/Library/connectors/GenericQDevIoConnector.h
-        BuiltInNodes/Library/connectors/GenericQDevIoConnector.cpp
+        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnectorObsolete.h
+        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnectorObsolete.cpp
+        BuiltInNodes/Library/connectors/GenericQDevIoConnectorObsolete.h
+        BuiltInNodes/Library/connectors/GenericQDevIoConnectorObsolete.cpp
         BuiltInNodes/Library/decoders/AudioFrameDecoder.h
         BuiltInNodes/Library/decoders/AudioFrameDecoder.cpp
-        BuiltInNodes/Library/display/QDevIoDisplayModel.h
-        BuiltInNodes/Library/display/QDevIoDisplayModel.cpp
-        BuiltInNodes/Library/display/QDevioDisplayModelUi.h
-        BuiltInNodes/Library/display/QDevioDisplayModelUi.cpp
-        BuiltInNodes/Library/display/QDevioDisplayModelUi.ui
-        BuiltInNodes/Library/display/XYSeriesIODevice.h
-        BuiltInNodes/Library/display/XYSeriesIODevice.cpp
+        BuiltInNodes/Library/display/QDevIoDisplayModelObsolete.h
+        BuiltInNodes/Library/display/QDevIoDisplayModelObsolete.cpp
+        BuiltInNodes/Library/display/QDevioDisplayModelUiObsolete.h
+        BuiltInNodes/Library/display/QDevioDisplayModelUiObsolete.cpp
+        BuiltInNodes/Library/display/QDevioDisplayModelUiObsolete.ui
+        BuiltInNodes/Library/display/XYSeriesIODeviceObsolete.h
+        BuiltInNodes/Library/display/XYSeriesIODeviceObsolete.cpp
         BuiltInNodes/Library/display/AudioCompat.h
         BuiltInNodes/Library/display/QtChartsCompat.h
         BuiltInNodes/Library/threading/EventThreadPull.h

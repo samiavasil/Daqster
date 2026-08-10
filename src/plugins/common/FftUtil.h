@@ -73,7 +73,7 @@ inline QVector<float> magnitudeSpectrum(const QVector<float> &samples,
     if (fftSize < 2)
         return {};
 
-    // Hann window, then Cooley-Tukey radix-2 DIT (pattern: QDevioDisplayModelUi).
+    // Hann window, then Cooley-Tukey radix-2 DIT (pattern: QDevioDisplayModelUiObsolete).
     const QVector<double> window = detail::hannWindow(fftSize);
     QVector<double> re(fftSize);
     QVector<double> im(fftSize, 0.0);

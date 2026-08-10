@@ -83,10 +83,10 @@ else()
     message(STATUS "demo_nodeditor_nodes: OpenCV not found or disabled — using the 8 base video transform operations")
 endif()
 
-# ── Displays: AudioDisplay ──────────────────────────────────────────
+# ── Displays: AudioDisplay (QDevIO, obsolete — REQ-SW-PL-023 §7) ─────
 set(AUDIO_DISPLAY_NODES
-    Displays/AudioDisplay/AudioDisplayModel.h
-    Displays/AudioDisplay/AudioDisplayModel.cpp
+    Displays/AudioDisplay/AudioDisplayModelObsolete.h
+    Displays/AudioDisplay/AudioDisplayModelObsolete.cpp
 )
 
 # ── Displays: DAQ Display (DataPlot, REQ-SW-PL-022) ─────────────────
@@ -101,12 +101,12 @@ set(GENERIC_DISPLAY_NODES
     Displays/GenericDisplay/GenericDisplayNode.cpp
 )
 
-# ── Routing: Demux + Mux ───────────────────────────────────────────
+# ── Routing: Demux + Mux (QDevIO, obsolete — REQ-SW-PL-023 §7) ──────
 set(ROUTING_NODES
-    Routing/Demux/DemuxNode.h
-    Routing/Demux/DemuxNode.cpp
-    Routing/Mux/MuxNode.h
-    Routing/Mux/MuxNode.cpp
+    Routing/Demux/DemuxNodeObsolete.h
+    Routing/Demux/DemuxNodeObsolete.cpp
+    Routing/Mux/MuxNodeObsolete.h
+    Routing/Mux/MuxNodeObsolete.cpp
 )
 
 # ── Shared types ────────────────────────────────────────────────────

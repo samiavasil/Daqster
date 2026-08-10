@@ -1,10 +1,10 @@
-#ifndef MUXNODE_H
-#define MUXNODE_H
+#ifndef MUXNODEOBSOLETE_H
+#define MUXNODEOBSOLETE_H
 
 #include <QtNodes/NodeDelegateModel>
 #include <QVector>
 #include <memory>
-#include "GenericQDevIoConnector.h"
+#include "GenericQDevIoConnectorObsolete.h"
 
 /**
  * @brief Multiplexes typed inputs into a mixed QDevIO stream.
@@ -13,23 +13,28 @@
  * Output: {"QDevIO", "IO"} (mixed stream)
  *
  * Combines typed inputs into a single MixedStreamPayload.
+ *
+ * @note Renamed to *_obsolete (REQ-SW-PL-023 §7) — implementation unchanged.
+ *       Kept working until the QDevIO display world is deleted at the very end.
+ *       Registered under its new name AND aliased under the old "MuxNode" key
+ *       so old saved graphs still load.
  */
-class MuxNode : public QtNodes::NodeDelegateModel
+class MuxNodeObsolete : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
 public:
-    MuxNode();
-    ~MuxNode() override;
+    MuxNodeObsolete();
+    ~MuxNodeObsolete() override;
 
     QString caption() const override
-    { return QStringLiteral("Mux"); }
+    { return QStringLiteral("Mux (obsolete)"); }
 
     bool captionVisible() const override
     { return false; }
 
     QString name() const override
-    { return QStringLiteral("MuxNode"); }
+    { return QStringLiteral("MuxNodeObsolete"); }
 
     QJsonObject save() const override;
 
@@ -55,7 +60,7 @@ private:
     };
 
     QVector<InputPort> m_inputs;
-    std::shared_ptr<GenericQDevIoConnector> m_output;
+    std::shared_ptr<GenericQDevIoConnectorObsolete> m_output;
 };
 
-#endif // MUXNODE_H
+#endif // MUXNODEOBSOLETE_H

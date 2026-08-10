@@ -12,7 +12,7 @@
  * The decoder is configured once per audio format and used in the hot path without
  * format branching. Two configuration entry points exist (REQ-SW-PL-022):
  *  - configure(const QAudioFormat&) — legacy QtMultimedia path used by the
- *    QDevIO mic display (XYSeriesIODevice);
+ *    QDevIO mic display (XYSeriesIODeviceObsolete);
  *  - configure(SampleType, int, SampleEndian) — QtCore-only overload used by
  *    the unified SampledData world; it shares the same normalization convention
  *    (signed/unsigned divided by (2^(bits-1) − 1), clamped to [-1, 1]; floats

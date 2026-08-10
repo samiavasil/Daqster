@@ -27,8 +27,8 @@
 **
 ****************************************************************************/
 
-#ifndef XYSERIESIODEVICE_H
-#define XYSERIESIODEVICE_H
+#ifndef XYSERIESIODEVICEOBSOLETE_H
+#define XYSERIESIODEVICEOBSOLETE_H
 
 #include <QtCore/QIODevice>
 #include <QtCore/QPointF>
@@ -37,12 +37,12 @@
 #include<QMutex>
 #include "AudioFrameDecoder.h"
 
-class XYSeriesIODevice : public QIODevice
+class XYSeriesIODeviceObsolete : public QIODevice
 {
     Q_OBJECT
 public:
-    explicit XYSeriesIODevice(QObject *parent = nullptr);
-    virtual ~XYSeriesIODevice() override;
+    explicit XYSeriesIODeviceObsolete(QObject *parent = nullptr);
+    virtual ~XYSeriesIODeviceObsolete() override;
     void ReinitDevice(const QAudioFormat &format,
                       int sampleCount = 8000);
 
@@ -72,4 +72,4 @@ private:
     char *m_data;
 };
 
-#endif // XYSERIESIODEVICE_H
+#endif // XYSERIESIODEVICEOBSOLETE_H

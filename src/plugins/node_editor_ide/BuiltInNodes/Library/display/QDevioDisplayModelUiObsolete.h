@@ -1,5 +1,5 @@
-#ifndef QDEVIODISPLAYMODELUI_H
-#define QDEVIODISPLAYMODELUI_H
+#ifndef QDEVIODISPLAYMODELUIOBSOLETE_H
+#define QDEVIODISPLAYMODELUIOBSOLETE_H
 
 #include "QtChartsCompat.h"
 
@@ -10,17 +10,17 @@
 #include <QVector>
 
 namespace Ui {
-class QDevioDisplayModelUi;
+class QDevioDisplayModelUiObsolete;
 }
 
-class QDevioDisplayModelUi : public QWidget
+class QDevioDisplayModelUiObsolete : public QWidget
 {
     Q_OBJECT
 
 public:
     typedef int disp_hndl_t;
-    explicit QDevioDisplayModelUi(QWidget *parent = nullptr);
-    ~QDevioDisplayModelUi();
+    explicit QDevioDisplayModelUiObsolete(QWidget *parent = nullptr);
+    ~QDevioDisplayModelUiObsolete();
     void UpdateConfig();
     virtual disp_hndl_t AddChart();
     virtual void RemoveChart(disp_hndl_t hndl);
@@ -34,7 +34,7 @@ protected:
     void populateLegendBox();
     void updateGrid();
 private:
-    std::unique_ptr<Ui::QDevioDisplayModelUi> ui;
+    std::unique_ptr<Ui::QDevioDisplayModelUiObsolete> ui;
 /*    QVector<QtChartsCompat::LineSeries*> m_series;*/
     QMap<disp_hndl_t, QVector<QtChartsCompat::LineSeries*>*> m_SeriesMap;
     QMap<disp_hndl_t, QtChartsCompat::ChartView*> m_ChartMap;
@@ -55,4 +55,4 @@ private slots:
     void showFftDialog();
 };
 
-#endif // QDEVIODISPLAYMODELUI_H
+#endif // QDEVIODISPLAYMODELUIOBSOLETE_H

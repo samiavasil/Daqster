@@ -84,7 +84,8 @@ struct StreamChannelDescriptor {
  * @brief Canonical descriptor for a sampled stream (audio, DAQ, sensors).
  *
  * Consolidates the legacy GenericStreamConfig (BuiltInNodes/Library/types/
- * GenericNumericTypes.h) and QDevIOStreamConfig (QDevIOStreamConfig.h) into a
+ * GenericNumericTypes.h) and QDevIOStreamConfig (QDevIOStreamConfigObsolete.h)
+ * into a
  * single self-describing descriptor carried by SampledData (REQ-SW-PL-022
  * AC 4). `domain` is the runtime discriminator ("audio", "vibration", "daq",
  * "ecg", ...) — a unified type with a domain field, no separate classes.

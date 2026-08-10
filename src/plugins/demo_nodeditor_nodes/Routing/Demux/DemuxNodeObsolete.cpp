@@ -1,6 +1,6 @@
-#include "DemuxNode.h"
-#include <GenericQDevIoConnector.h>
-#include <StreamChannel.h>
+#include "DemuxNodeObsolete.h"
+#include <GenericQDevIoConnectorObsolete.h>
+#include <StreamChannelObsolete.h>
 #include <QDebug>
 
 using QtNodes::PortType;
@@ -9,22 +9,22 @@ using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeValidationState;
 
-DemuxNode::DemuxNode()
+DemuxNodeObsolete::DemuxNodeObsolete()
 {
 }
 
-DemuxNode::~DemuxNode()
+DemuxNodeObsolete::~DemuxNodeObsolete()
 {
 }
 
-QJsonObject DemuxNode::save() const
+QJsonObject DemuxNodeObsolete::save() const
 {
     QJsonObject modelJson;
     modelJson["name"] = name();
     return modelJson;
 }
 
-unsigned int DemuxNode::nPorts(PortType portType) const
+unsigned int DemuxNodeObsolete::nPorts(PortType portType) const
 {
     switch (portType) {
     case QtNodes::PortType::In:
@@ -36,7 +36,7 @@ unsigned int DemuxNode::nPorts(PortType portType) const
     }
 }
 
-NodeDataType DemuxNode::dataType(PortType portType, PortIndex portIndex) const
+NodeDataType DemuxNodeObsolete::dataType(PortType portType, PortIndex portIndex) const
 {
     if (portType == QtNodes::PortType::In) {
         return {"QDevIO", "IO"};
@@ -48,7 +48,7 @@ NodeDataType DemuxNode::dataType(PortType portType, PortIndex portIndex) const
     return {QStringLiteral("unknown"), QStringLiteral("Unknown")};
 }
 
-std::shared_ptr<NodeData> DemuxNode::outData(PortIndex port)
+std::shared_ptr<NodeData> DemuxNodeObsolete::outData(PortIndex port)
 {
     if (port < m_outputs.size()) {
         return m_outputs[port].data;
@@ -56,15 +56,15 @@ std::shared_ptr<NodeData> DemuxNode::outData(PortIndex port)
     return nullptr;
 }
 
-void DemuxNode::setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex)
+void DemuxNodeObsolete::setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex)
 {
     if (portIndex != 0 || !data) return;
 
-    auto connector = std::dynamic_pointer_cast<GenericQDevIoConnector>(data);
+    auto connector = std::dynamic_pointer_cast<GenericQDevIoConnectorObsolete>(data);
     if (!connector) {
         NodeValidationState s;
         s._state = NodeValidationState::State::Warning;
-        s._stateMessage = "Expected GenericQDevIoConnector";
+        s._stateMessage = "Expected GenericQDevIoConnectorObsolete";
         setValidationState(s);
         return;
     }
@@ -79,7 +79,7 @@ void DemuxNode::setInData(std::shared_ptr<NodeData> data, PortIndex const portIn
             OutputPort out;
             out.type = ch.type;
             // Create a connector for each output channel
-            auto outConnector = std::make_shared<GenericQDevIoConnector>(this);
+            auto outConnector = std::make_shared<GenericQDevIoConnectorObsolete>(this);
             outConnector->setIODevice(connector->ioDevice());
             out.data = outConnector;
             m_outputs.append(out);
@@ -98,12 +98,12 @@ void DemuxNode::setInData(std::shared_ptr<NodeData> data, PortIndex const portIn
     setValidationState(s);
 }
 
-QWidget* DemuxNode::embeddedWidget()
+QWidget* DemuxNodeObsolete::embeddedWidget()
 {
     return nullptr; // No embedded widget
 }
 
-QtNodes::ConnectionPolicy DemuxNode::portConnectionPolicy(
+QtNodes::ConnectionPolicy DemuxNodeObsolete::portConnectionPolicy(
     PortType portType, PortIndex portIndex) const
 {
     Q_UNUSED(portType);
