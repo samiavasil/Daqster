@@ -120,13 +120,13 @@ DemoNodeEditorNodesObject → INodeProvider
 ### Video
 | Нод | Категория | Описание |
 |-----|-----------|----------|
-| CameraSourceNode | Video | Заснема кадри от локално camera устройство (избор на устройство + start/stop), емитира `ImageData` с честотата на кадрите |
-| VideoFileSourceNode | Video | Възпроизвежда локален видео файл през `QMediaPlayer` + frame probe (browse + play/pause), емитира кадри като `ImageData` |
-| StreamSourceNode | Video | Възпроизвежда HTTP/RTSP stream (URL поле + connect), емитира кадри като `ImageData` |
-| VideoOutputNode | Video | Live preview на входящите `ImageData` кадри в `QLabel`; pass-through изходен порт за output вериги |
+| CameraSourceNode | Video | Заснема кадри от локално camera устройство (избор на устройство + start/stop), емитира кадри — Qt6: port 0 `VideoFrameData` (zero-copy) + port 1 `ImageData` (on-demand); Qt5: `ImageData` |
+| VideoFileSourceNode | Video | Възпроизвежда локален видео файл през `QMediaPlayer` + frame probe (browse + play/pause), емитира кадри — Qt6: port 0 `VideoFrameData` (zero-copy) + port 1 `ImageData` (on-demand); Qt5: `ImageData` |
+| StreamSourceNode | Video | Възпроизвежда HTTP/RTSP stream (URL поле + connect), емитира кадри — Qt6: port 0 `VideoFrameData` (zero-copy) + port 1 `ImageData` (on-demand); Qt5: `ImageData` |
+| VideoOutputNode | Video | Live preview на входящите кадри — Qt6: два входа (port 0 `VideoFrameData` → GPU display през `QVideoWidget`; port 1 `ImageData` → `QLabel`), zero-copy GPU път (HW буфер → RHI → екран); Qt5: един вход `ImageData` → `QLabel`. Pass-through изходен порт за output вериги |
 | VideoTransformNode | Video | Прилага конфигурируема операция върху `ImageData` кадри (8 базови + опционални OpenCV операции) |
 
-Всички Video нодове обменят `ImageData` ("image") от публичните shared NodeDataTypes (REQ-SW-PL-013) — същия тип, който частният AI Studio plugin консумира на входа на `FrameToTensorNode` (REQ-AI-006).
+Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). На Qt6 източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат два изходни порта: port 0 `VideoFrameData` ("video-frame", zero-copy) и port 1 `ImageData` ("image", конвертира се on-demand само при свързан processing потребител). `VideoOutputNode` приема и двата типа — `VideoFrameData` се дисплеира през GPU (Qt6 `QVideoWidget`), `ImageData` през софтуерен път (`QLabel`). Същият `ImageData` тип частният AI Studio plugin консумира на входа на `FrameToTensorNode` (REQ-AI-006).
 
 #### VideoTransformNode — операции (REQ-SW-PL-019)
 
@@ -188,12 +188,49 @@ Video нодовете използват Qt Multimedia API, който се р�
 ## Вид на плъгина
 
 Това е **HEADLESS** плъгин — няма GUI. `Initialize()` връща `true` без да създава прозорец.
-Целта му е единствено да регистрира нодове в nodeeditor registry-я.
+Целта му е единствено да регистрирува нодове в nodeeditor registry-я.
 
 Такива плъгини се откриват от `node_editor_ide` чрез:
 ```cpp
 QObjectList providers = pm->instances(INodeProvider_IID);
 ```
+
+## Windows — специфики
+
+Видео пайплайнът в Daqster зависи от Qt Multimedia backend-а, който се различава
+между Qt5 и Qt6. По-долу са описани специфичностите за Windows.
+
+### Qt6 (препоръчително)
+
+- **FFmpeg backend** — работи из-кутия (bundled). RTSP стриимове се възпроизвеждат
+  нативно без допълнителни инсталации. H.264 и H.265 декодерите са вградени в
+  Qt6 FFmpeg build-а.
+- **Хардуерно декодиране** — поддържа се през D3D11VA и DXVA2. За да включите
+  HW декодиране, задайте:
+  ```
+  QT_FFMPEG_DECODING_HW_DEVICE_TYPES=d3d11va
+  ```
+  (или `dxva2` вместо `d3d11va`).
+- **Zero-copy display** — `VideoFrameData` и GPU display пътят (HW буфер → RHI
+  текстура → екран) са **Qt6-only** и на Windows. При активен HW decode няма
+  CPU копия на кадрите.
+
+### Qt5 (ограничена поддръжка)
+
+- **WMF backend** — Qt5 по подразбиране използва Windows Media Foundation (WMF).
+  RTSP поддръжката е ограничена или липсва в стандартния Qt5 build.
+- **RTSP на Windows** — за RTSP стриимове на Qt5 се нуждае от **GStreamer-build**
+  на Qt Multimedia + **GStreamer runtime** (plugins-good, plugins-bad, libav) +
+  изложена променлива `GST_PLUGIN_PATH`, указваща към директорията с плъгините.
+  Това изисква отделна инсталация и конфигурация.
+- **Zero-copy display** — `VideoFrameData` не се използва на Qt5 (GStreamer
+  рециклира буферите; probe кадрите не са безопасни за задържане). Qt5
+  остава на QImage/`ImageData` пътя.
+
+### Препоръка
+
+**Използвайте Qt6 на Windows** — осигурява нативна RTSP поддръжка, bundled
+видео кодеци и zero-copy GPU display без допълнителни зависимости.
 
 ## Как да добавиш нов INodeProvider плъгин
 
@@ -207,5 +244,6 @@ QObjectList providers = pm->instances(INodeProvider_IID);
 - [IPluginInterface](../../Architecture/framework/README.md) — как плъгините се откриват
 - [INodeProvider](../../Architecture/plugins/README.md) — capability discovery mechanism
 - [Node Editor IDE](../node_editor_ide/README.md) — потребителят на този плъгин
-- [REQ-SW-PL-018](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-018-video-source-and-processing-nodes.md) — Video Source & Processing Nodes (5-те video node модела + VideoCompat.h)
-- [REQ-SW-PL-019](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-019-video-transform-node-configurable-operations.md) — Video Transform Node (8 базови + опционални OpenCV операции)
+  - [REQ-SW-PL-018](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-018-video-source-and-processing-nodes.md) — Video Source & Processing Nodes (5-те video node модела + VideoCompat.h)
+  - [REQ-SW-PL-019](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-019-video-transform-node-configurable-operations.md) — Video Transform Node (8 базови + опционални OpenCV операции)
+  - [REQ-SW-PL-020](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-020-zero-copy-video-frame-display.md) — Zero-Copy Video Frame Transport & GPU Display (VideoFrameData, dual-port source/output nodes, Qt6 GPU display)

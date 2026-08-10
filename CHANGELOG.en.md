@@ -71,6 +71,14 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Automatic dependency checking
   - Conditional plugin subdirectory inclusion
   - Build configuration and plugin status summaries
+- **REQ-SW-PL-020** (zero-copy video frame display):
+  - `VideoFrameData` — zero-copy shared data type (QVideoFrame Qt6 / QImage Qt5)
+  - Dual-output source nodes (Qt6): `CameraSourceNode` and `VideoFileSourceNode` emit both `VideoFrameData` (zero-copy) and `ImageData` (legacy)
+  - `VideoOutputNode` — Qt6 GPU display via detached `QVideoWidget`; Qt5 falls back to `QLabel` pixmap
+  - `VideoCompat` — Qt5/Qt6 multimedia abstraction helpers (presentFrameCompat, presentImageCompat, connectPlayerError, connectCameraError, variantToInt, QOverload)
+  - Windows cross-platform compliance (QStandardPaths, no Linux-only paths)
+  - Commits: `b5c9651` (req), `157f34d` (VideoFrameData+shim), `085f63d` (VideoOutputNode), `0f92a9c` (CMake), `c873b43` (docs), `9d0f178` (AC/status)
+  - Status: ACTIVE (impl done, unit tests deferred)
 
 ### Changed
 - **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality
@@ -79,6 +87,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Demo plugin README — documented video nodes and optional OpenCV (`e2c4925`)
   - REQ-SW-PL-018/PL-019 documentation refs backfill; plugin version alignment 0.3.0 → 0.2.0 in `project()` for `demo_nodeditor_nodes` and `node_editor_ide` (inert metadata, matching runtime 0.2.0) (`ed8b334`)
 - **StreamUrlValidator** — extracted from `StreamSourceNode` as a standalone header-only helper (`3048fbd`) for unit-testability (http/https/rtsp stream URL validation)
+- **Process**: mandatory branch-per-work-item clause in AGENTS.md (`bee28c4`); trunk-based-lite from master (`547401c`); master consolidation (PR #21 `3c8c47f` merged, phase3 branch deleted, PL-020 rebased onto master)
 
 ### Fixed
 - **Plugin launch fixes**:
@@ -92,6 +101,8 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **NumericType::numberAsText()** — fixed ambiguous overload for int type: explicit cast to `double` with precision 0, prevents displaying hex/placeholder values instead of numbers
 - **VideoTransformNode Flip (Qt5)** — the vertical flip used `QImage::mirrored()` with wrong parameters on Qt5; fixed (`0cf6d19`), found by the new unit tests
 - **Exporter CSV header** — the "Repo" column in the traceability matrix CSV export header had a mismatched name; fixed (`9d90fff`)
+- **LoggingSystem.md** — symlink replaced with regular file for GitHub docs rendering (`b247046`)
+- **VideoOutputNode (Qt6 GPU path)** — removed per-frame QImage conversion + QLabel update + ImageData output when the GPU path (detached QVideoWidget) is active; the in-node QLabel shows a static placeholder ("GPU display active — see detached window") once; QImage conversion + ImageData output now run only when a downstream consumer is connected to output port 0 (tracked via `outputConnectionCreated`/`outputConnectionDeleted` + `m_outputConnectionCount`). Eliminates the doubled CPU work observed when the GPU display is active.
 
 ## [0.2.0] - 2025-09-18
 
