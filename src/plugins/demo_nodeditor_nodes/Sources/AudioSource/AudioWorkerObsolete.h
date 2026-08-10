@@ -1,23 +1,23 @@
-#ifndef AUDIOWORKER_H
-#define AUDIOWORKER_H
+#ifndef AUDIOWORKEROBSOLETE_H
+#define AUDIOWORKEROBSOLETE_H
 
 #include "AudioCompat.h"
+#include "AudioSourceDataModelUI.h"
 
-#include<EventThreadPull.h>
+#include<EventThreadPullObsolete.h>
 
 #include<QSharedPointer>
-#include <AudioSourceDataModel.h>
 
-class AudioWorker : public QObject
+class AudioWorkerObsolete : public QObject
 {
     Q_OBJECT
 
 public:
-    AudioWorker(std::shared_ptr<QIODevice> devio, QObject* parent=nullptr);
-    virtual ~AudioWorker();
+    AudioWorkerObsolete(std::shared_ptr<QIODevice> devio, QObject* parent=nullptr);
+    virtual ~AudioWorkerObsolete();
 public slots:
     void DoWork();
-    void Start(AudioSourceDataModel::StartStop status);
+    void Start(AudioSourceDataModelUI::StartStop status);
     void UpdateAudioDevice(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
 
 
@@ -32,4 +32,4 @@ private:
     AudioCompat::AudioInput* m_audio;
 };
 
-#endif // AUDIOWORKER_H
+#endif // AUDIOWORKEROBSOLETE_H

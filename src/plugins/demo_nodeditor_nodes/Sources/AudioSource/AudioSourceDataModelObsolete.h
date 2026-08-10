@@ -1,37 +1,32 @@
-#ifndef SOURCEDATAMODEL_H
-#define SOURCEDATAMODEL_H
+#ifndef AUDIOSOURCEDATAMODELOBSOLETE_H
+#define AUDIOSOURCEDATAMODELOBSOLETE_H
 
 #include "AudioCompat.h"
+#include "AudioSourceDataModelUI.h"
 
 #include <QtCore/QObject>
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/internal/Definitions.hpp>
 
-class AudioNodeQdevIoConnector;
-class AudioSourceDataModelUI;
-class EventThreadPull;
+class AudioNodeQdevIoConnectorObsolete;
+class EventThreadPullObsolete;
 
-class AudioSourceDataModel : public QtNodes::NodeDelegateModel
+class AudioSourceDataModelObsolete : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
 public:
-    enum StartStop {
-        ASDM_STOP,
-        ASDM_START,
-        ASDM_RELOAD,
-    };
 
-    AudioSourceDataModel();
+    AudioSourceDataModelObsolete();
 
     virtual
-    ~AudioSourceDataModel() override;
+    ~AudioSourceDataModelObsolete() override;
 
 public:
 
     QString
     caption() const override
-    { return QStringLiteral("AudioSource Source"); }
+    { return QStringLiteral("AudioSource Source (obsolete)"); }
 
     bool
     captionVisible() const override
@@ -39,7 +34,7 @@ public:
 
     QString
     name() const override
-    { return QStringLiteral("AudioSource"); }
+    { return QStringLiteral("AudioSourceObsolete"); }
 
 public:
 
@@ -80,17 +75,17 @@ public:
 
 signals:
     void disconnected();
-    void StartAudio(AudioSourceDataModel::StartStop start);
+    void StartAudio(AudioSourceDataModelUI::StartStop start);
     void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
 
 private slots:
     void destroyedObj(QObject *obj);
 
 private:
-    std::shared_ptr<AudioNodeQdevIoConnector> m_connector;
+    std::shared_ptr<AudioNodeQdevIoConnectorObsolete> m_connector;
     AudioSourceDataModelUI* m_Widget;
     QAudioDeviceInfo m_DevInfo;
     QAudioFormat m_FormatAudio;
 };
 
-#endif // SOURCEDATAMODEL_H
+#endif // AUDIOSOURCEDATAMODELOBSOLETE_H
