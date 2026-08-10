@@ -98,13 +98,13 @@ end-to-end latency (timestamp в worker → timestamp в GUI слота), CPU%.
 
 ## Acceptance Criteria
 
-- [ ] 1. **SampledData порт (новият нод).** Новият `AudioSourceDataModel`
+- [x] 1. **SampledData порт (новият нод).** Новият `AudioSourceDataModel`
        (registered name `AudioSource`) излъчва `{"sample", "Sample"}`; `outData`
        връща `shared_ptr<SampledData>`; в него **няма остатък от QDevIO**.
-- [ ] 2. **Dedicated worker thread.** QAudioSource живее и каптва в worker
+- [x] 2. **Dedicated worker thread.** QAudioSource живее и каптва в worker
        нишката; SampledData се предава през queued сигнал; на GUI нишката няма
        decode/PCM обработка. Проверка: qCDebug с `QThread::currentThread()`.
-- [ ] 3. **Старият QDevIO mic → _obsolete, работи.** `AudioSourceDataModelObsolete`
+- [x] 3. **Старият QDevIO mic → _obsolete, работи.** `AudioSourceDataModelObsolete`
        (registered name `AudioSourceObsolete`, caption "(obsolete)") + `AudioWorkerObsolete`
        + `AudioNodeQdevIoConnectorObsolete` + `EventThreadPullObsolete` са
        преименувани със **същата имплементация**; mic_obsolete → AudioDisplay_obsolete
@@ -112,16 +112,16 @@ end-to-end latency (timestamp в worker → timestamp в GUI слота), CPU%.
        категория "Sources". Стари графи с "AudioSource" инстанцират новия нод
        (прието следствие); стари графи с "AudioDisplay"/"MuxNode"/"DemuxNode"
        зареждат alias → `_obsolete` версиите.
-- [ ] 4. **Worker lifecycle.** start/stop/device-change работят през queued
+- [x] 4. **Worker lifecycle.** start/stop/device-change работят през queued
        слотове; унищожаването на нода спира чисто (quit + wait, без crash,
        без закачен thread).
-- [ ] 5. **UI непроменен.** Start/Stop и device/format контролите на
+- [x] 5. **UI непроменен.** Start/Stop и device/format контролите на
        `AudioSourceDataModelUI` работят както днес (и за двата нода).
 - [ ] 6. **Benchmark (старо vs ново mic).** Capability матрица + speed при равни
        условия (capture throughput, end-to-end latency, CPU%): QDevIO
        `AudioSourceDataModelObsolete` срещу SampledData `AudioSourceDataModel`.
        Резултатите са записани в session status файла (2026-08-10-status.md).
-- [ ] 7. **Qt5 + Qt6 builds PASS + app smoke.** И двете версии се build-ват;
+- [x] 7. **Qt5 + Qt6 builds PASS + app smoke.** И двете версии се build-ват;
        съществуващата test suite остава зелена; headless smoke
        (QT_QPA_PLATFORM=offscreen, ad-hoc /tmp harness): и двата mic нода
        стартират/спират; SampledData от новия стига до DAQ Display. Unit
@@ -139,9 +139,10 @@ end-to-end latency (timestamp в worker → timestamp в GUI слота), CPU%.
 
 ## Проследимост
 
-- **Коммити:** попълва се по време на имплементацията — branch
-  `feat/REQ-SW-PL-024-audio-source-sampleddata-migration` (rebase върху PL-023
-  след merge)
+- **Коммити:** `6ee9d3b` (refactor: rename old QDevIO mic + helpers to _obsolete),
+  `42eb5fa` (feat: SampledData AudioSourceDataModel + MicCaptureWorker), docs —
+  branch `feat/REQ-SW-PL-024-audio-source-sampleddata-migration` (rebase върху
+  PL-023 след merge)
 - **Код:** нови: `Sources/AudioSource/MicCaptureWorker.{h,cpp}`,
   `Sources/AudioSource/AudioSourceDataModel.{h,cpp}` (SampledData);
   rename: `AudioSourceDataModelObsolete.{h,cpp}`, `AudioWorkerObsolete.{h,cpp}`,

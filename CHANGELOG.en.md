@@ -92,6 +92,25 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `FftUtil` — утилитарна библиотека за FFT-раундлайн, `magnitudeSpectrum`, `decodeToNormalizedF32`
   - Комити: `4ba278b` (feat: DAQ Display Multi-Plot v1), `c74e7e3` (feat: FftUtil magnitudeSpectrum + SampledData decodeToNormalizedF32), `1ffac96` (chore: remove temporary thread-identity logging after Phase 4 verification)
   - Status: ACTIVE (impl готов, unit тестове отложени)
+- **REQ-SW-PL-024** (AudioSource migration from QDevIO to SampledData — new node
+  takes the name, old one → `_obsolete`):
+  - New `AudioSourceDataModel` (registered name `AudioSource`) — SampledData
+    stream `{"sample","Sample"}`; capture runs on a **dedicated worker thread**
+    (`MicCaptureWorker`, moveToThread into a model-owned `QThread`); the GUI
+    thread only keeps the latest shared_ptr and emits `dataUpdated(0)`;
+    connection-count gating — when no output is connected the worker drains and
+    does not wrap
+  - Old QDevIO mic → `AudioSourceDataModelObsolete` (registered
+    `AudioSourceObsolete`, caption "(obsolete)") + `AudioWorkerObsolete` +
+    `AudioNodeQdevIoConnectorObsolete` + `EventThreadPullObsolete` — rename-only,
+    still works (baseline for old-vs-new benchmarking)
+  - `AudioSourceDataModelUI` shared and unchanged; the `StartStop` enum is
+    defined in the UI header (single contract for both nodes)
+  - Commits: `6ee9d3b` (refactor: rename old QDevIO mic + helpers),
+    `42eb5fa` (feat: SampledData node + MicCaptureWorker)
+  - Status: ACTIVE (impl done, unit tests deferred); Qt5 (5.15.2) + Qt6 (6.9.2)
+    builds PASS + headless smoke PASS (capture on the worker thread → queued
+    SampledData delivered on the GUI thread, clean start/stop, clean destruction)
 
 ### Changed
 - **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality

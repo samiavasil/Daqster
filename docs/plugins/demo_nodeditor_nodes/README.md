@@ -17,12 +17,14 @@ demo_nodeditor_nodes/
 ├── DemoNodeEditorNodesInterface.json     # Plugin metadata
 ├── DemoNodeEditorNodesObject.{h,cpp}     # QBasePluginObject + INodeProvider
 ├── Sources/
-│   ├── AudioSource/                      # Аудио входни нодове
-│   │   ├── AudioSourceDataModel.{h,cpp}
+│   ├── AudioSource/                      # Аудио входни нодове (SampledData + obsolete QDevIO)
+│   │   ├── AudioSourceDataModel.{h,cpp}  # SampledData mic — worker-thread capture (REQ-SW-PL-024)
+│   │   ├── MicCaptureWorker.{h,cpp}      # Capture worker (moveToThread, QAudioSource + SampledData)
+│   │   ├── AudioSourceDataModelObsolete.{h,cpp}  # Старият QDevIO mic (rename-only, работи)
+│   │   ├── AudioWorkerObsolete.{h,cpp}   # Старият QDevIO capture worker
+│   │   ├── AudioNodeQdevIoConnectorObsolete.{h,cpp}  # Старият QDevIO connector
 │   │   ├── AudioSourceDataModelUI.{h,cpp}
 │   │   ├── AudioSourceConfig.{h,cpp,ui}
-│   │   ├── AudioWorker.{h,cpp}
-│   │   ├── AudioNodeQdevIoConnector.{h,cpp}
 │   │   ├── AudioComboModel.{h,cpp}
 │   │   └── node_editor.qrc
 │   ├── LLamaSource/                      # LLaMA AI нодове
@@ -81,6 +83,7 @@ DemoNodeEditorNodesObject → INodeProvider
         registry.registerModel<DemuxNode>("Routing")
         registry.registerModel<MuxNode>("Routing")
         registry.registerModel<AudioSourceDataModel>("Sources")
+        registry.registerModel<AudioSourceDataModelObsolete>("Sources")
         registry.registerModel<LLamaModelDataModel>("LLama")
         registry.registerModel<ConsoleDataModel>("LLama")
         registry.registerModel<CameraSourceNode>("Video")
@@ -98,7 +101,8 @@ DemoNodeEditorNodesObject → INodeProvider
 ### Sources
 | Нод | Категория | Описание |
 |-----|-----------|----------|
-| AudioSourceDataModel | Sources | Аудио вход с QWidget UI панел и QDeviceIOConnector |
+| AudioSourceDataModel | Sources | Аудио вход (микрофон) — SampledData поток `{"sample","Sample"}`; каптурата е в dedicated worker thread, GUI нишката само пази последния `shared_ptr` и емитира `dataUpdated` |
+| AudioSourceDataModelObsolete | Sources | Старият QDevIO аудио вход (rename-only, работи) — излъчва QDevIO byte-stream за legacy графите и benchmarking |
 
 ### Displays
 | Нод | Категория | Описание |
@@ -154,6 +158,60 @@ DemoNodeEditorNodesObject → INodeProvider
 | GaussianBlur | kernel slider 1..31 (нечетен) | Gaussian blur |
 | Canny | low/high threshold sliders 0..255 | Canny edge detection |
 | Threshold | value slider 0..255 | Binary threshold |
+
+## AudioSource — SampledData миграция (REQ-SW-PL-024)
+
+Mic пътят мигрира от QDevIO byte-stream към SampledData. Нов нод заема името
+`AudioSourceDataModel` (registered name `AudioSource`); старият QDevIO mic е
+преименуван на `AudioSourceDataModelObsolete` (registered name `AudioSourceObsolete`)
+и остава работещ — основата за benchmarking старо vs ново.
+
+### SampledData порт (новият нод)
+
+- Един изходен порт, тип `{"sample","Sample"}` (от `SampledData().type()`).
+- `outData()` връща най-новото `shared_ptr<SampledData>` (member `m_lastData`).
+- **Няма остатък от QDevIO** в новия нод.
+
+### Threading — dedicated worker thread
+
+- `MicCaptureWorker` QObject (queued slots `startCapture` / `stopCapture` /
+  `setCaptureEnabled` / `updateDevice`) е `moveToThread`-нат в модел-притежаван
+  `QThread` (`AudioSourceCaptureThread`).
+- `QAudioSource`/`QAudioInput` се създава **в worker нишката**; `readyRead` →
+  `readAll()` (PCM raw) → `AudioBufferToSampled::descriptorFromFormat` + wrap в
+  `shared_ptr<SampledData>` → queued сигнал `samplesReady` → модела (GUI).
+- Ако изходът не е свързан, worker-ът **дренира и не wrap-ва** (`m_connected`
+  atomic, сетван през queued `setCaptureEnabled` от `outputConnectionCreated/Deleted`).
+- GUI нишката прави само: keep-latest, `dataUpdated(0)`, UI wiring. Няма mutex за
+  данните — SampledData се произвежда изцяло в worker нишката и се предава по
+  shared_ptr (atomic refcount).
+- Stop: queued `stopCapture` → `QAudioSource::stop()`. Деструктор:
+  `m_thread->quit(); m_thread->wait();` — worker-ът се изтрива през
+  `QThread::finished` → `deleteLater`.
+
+### UI (споделен)
+
+`AudioSourceDataModelUI` (Start/Stop, device/format контроли) е общ за двата нода.
+Типът `AudioSourceDataModelUI::StartStop` (ASDM_STOP/ASDM_START/ASDM_RELOAD) е
+дефиниран в UI header-а; сигналите `Start` и `ChangeAudioConnection` на новия нод
+се маршрутизират към worker-а през queued слотове.
+
+### Obsolete rename таблица
+
+| Старо име | Ново име |
+|-----------|----------|
+| `AudioSourceDataModel` (QDevIO) | `AudioSourceDataModelObsolete` (registered `AudioSourceObsolete`) |
+| `AudioWorker` | `AudioWorkerObsolete` |
+| `AudioNodeQdevIoConnector` | `AudioNodeQdevIoConnectorObsolete` |
+| `EventThreadPull` (node_editor_ide threading) | `EventThreadPullObsolete` |
+
+### Saved-graph последица (приета)
+
+Стари графи с `"AudioSource"` инстанцират **новия** SampledData нод; QDevIO
+edges-ите към AudioDisplay/Mux/Demux отпадат (type mismatch). Стари графи с
+`"AudioDisplay"`/`"MuxNode"`/`"DemuxNode"` (QDevIO свят, alias към `_obsolete`
+версиите по REQ-SW-PL-023) работят с `AudioSourceObsolete`. Новите графи
+свързват `AudioSource` → DAQ Display (SampledData поток).
 
 ## Зависимости
 
@@ -248,7 +306,8 @@ QObjectList providers = pm->instances(INodeProvider_IID);
 - [Node Editor IDE](../node_editor_ide/README.md) — потребителят на този плъгин
   - [REQ-SW-PL-018](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-018-video-source-and-processing-nodes.md) — Video Source & Processing Nodes (5-те video node модела + VideoCompat.h)
   - [REQ-SW-PL-019](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-019-video-transform-node-configurable-operations.md) — Video Transform Node (8 базови + опционални OpenCV операции)
-   - [REQ-SW-PL-020](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-020-zero-copy-video-frame-display.md) — Zero-Copy Video Frame Transport & GPU Display (VideoFrameData, dual-port source/output nodes, Qt6 GPU display)
+  - [REQ-SW-PL-020](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-020-zero-copy-video-frame-display.md) — Zero-Copy Video Frame Transport & GPU Display (VideoFrameData, dual-port source/output nodes, Qt6 GPU display)
+  - [REQ-SW-PL-024](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-024-audio-source-sampleddata-migration.md) — AudioSource (Mic) миграция от QDevIO към SampledData
 
 ## _obsolete rename strategy_
 
