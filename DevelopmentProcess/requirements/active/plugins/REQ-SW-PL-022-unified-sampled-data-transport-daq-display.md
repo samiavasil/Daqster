@@ -167,7 +167,8 @@ QDevIO byte-stream. QDevIO mic path-ът остава както е засега
 
 ## Извън обхват (бъдеща работа)
 
-- **Mic (AudioSourceDataModel) миграция** от QDevIO към SampledData — по-късно.
+- **Mic (AudioSourceDataModel) миграция** от QDevIO към SampledData — преместено в
+  **REQ-SW-PL-024** (2026-08-10).
 - **AI аудио потребление** (AudioToTensorNode — private repo, трябва реален модел):
   window = N samples @ fixed rate, N/rate latency е присъща на windowing-а;
   `{1,C,N}` TensorData **не** носи sample rate — conversion node задава изходния rate
@@ -235,3 +236,28 @@ QDevIO byte-stream. QDevIO mic path-ът остава както е засега
 `DONE` чака тестовете (по модела на PL-020 AC 6). Процесната клауза "branch per work
 item" (AGENTS.md) важи: работата се върши на нов branch
 `feat/REQ-SW-PL-022-unified-sampled-data-transport-daq-display`.
+
+## Амендамент (2026-08-10)
+
+Потребителят одобри разбиването на mic миграцията (AudioSourceDataModel) от QDevIO
+към SampledData в отделно изискване — **REQ-SW-PL-024** (sibling на
+**REQ-SW-PL-023** — DAQ Display Multi-Plot v1). Тази промяна:
+
+- премества bullet-а за mic миграция от "Извън обхват" (ред 170) към PL-024;
+- записва потребителската директива за QDevIO света: **всички текущи QDevIO
+  компоненти се маркират `_obsolete` (rename на класове/файлове/registered names,
+  caption "(obsolete)"), запазват **същата работеща имплементация** и се
+  изтриват **НАЙ-НАКРАЯ** (отделно бъдещо решение). Новите компоненти вземат
+  текущите имена: новият SampledData mic заема `AudioSourceDataModel`, старият
+  QDevIO mic става `AudioSourceDataModelObsolete` (+ `AudioWorkerObsolete`,
+  `AudioNodeQdevIoConnectorObsolete`, `EventThreadPullObsolete`); QDevIO display
+  свят (`AudioDisplayModel`, `QDevIoDisplayModel`, `QDevioDisplayModelUi`,
+  `XYSeriesIODevice`, `GenericQDevIoConnector`, `NodeDataModelToQIODeviceConnector`,
+  `QDevIOStreamConfig`, `StreamChannel`, `IStreamDecoder`, `MuxNode`, `DemuxNode`)
+  става `_obsolete` в PL-023. И двете имплементации съществуват едновременно за
+  benchmarking (capability + speed при равни условия);
+- обръща по-ранния план за изтриване на `AudioWorker`/`AudioNodeQdevIoConnector`/
+  `EventThreadPull` — те **НЕ се изтриват**, а се преименуват `_obsolete` и остават
+  част от работещия obsolete mic път;
+- не променя нито един AC на PL-022 (AC 7 доказва унификацията със синтетичен
+  "vibration" SampledData, не с mic).
