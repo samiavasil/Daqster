@@ -2,7 +2,6 @@
 
 #include "LogCategories.h"
 
-#include <QThread>
 #include <QMutex>
 
 #include <cstring>
@@ -119,10 +118,6 @@ void MicCaptureWorker::startCapture()
     }
 
     m_running.store(true);
-    qCInfo(lcDemoNodes) << "MicCaptureWorker: capture started on thread" << QThread::currentThreadId()
-                        << "device" << m_sourceName
-                        << "rate" << m_format.sampleRate()
-                        << "channels" << m_format.channelCount();
 }
 
 void MicCaptureWorker::stopCapture()

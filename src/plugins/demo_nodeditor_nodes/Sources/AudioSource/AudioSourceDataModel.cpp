@@ -155,13 +155,5 @@ void AudioSourceDataModel::onSamplesReady(std::shared_ptr<SampledData> data)
     // GUI thread: keep-latest + dataUpdated ONLY (REQ-SW-PL-024 §3).
     m_lastData = std::move(data);
 
-    // TEMPORARY thread-identity diagnostics for the smoke harness — remove
-    // after Phase 4 (REQ-SW-PL-024 AC 2).
-    qCDebug(lcDemoNodes) << "AudioSourceDataModel: samplesReady on GUI thread"
-                         << QThread::currentThreadId()
-                         << "bytes" << m_lastData->buffer().size()
-                         << "channels" << m_lastData->channels()
-                         << "rate" << m_lastData->sampleRate();
-
     emit dataUpdated(0);
 }
