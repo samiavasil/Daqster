@@ -4,6 +4,8 @@
 #include "test_video_transform_ops.h"
 #include "test_stream_url_validator.h"
 #include "test_sampled_data.h"
+#include "test_fft_util.h"
+#include "test_audio_buffer_to_sampled.h"
 
 // Shared main for the demo_nodeditor_nodes video test classes. Each class is
 // declared in its own header so a single binary can run all of them through
@@ -27,6 +29,14 @@ int main(int argc, char *argv[])
     {
         SampledDataTest sampledData;
         status |= QTest::qExec(&sampledData, argc, argv);
+    }
+    {
+        FftUtilTest fftUtil;
+        status |= QTest::qExec(&fftUtil, argc, argv);
+    }
+    {
+        AudioBufferToSampledTest audioBufferToSampled;
+        status |= QTest::qExec(&audioBufferToSampled, argc, argv);
     }
     return status;
 }
