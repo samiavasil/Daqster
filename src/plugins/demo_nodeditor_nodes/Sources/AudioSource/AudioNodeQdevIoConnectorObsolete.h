@@ -1,5 +1,5 @@
-#ifndef AUDIONODEQDEVIOCONNECTOR_H
-#define AUDIONODEQDEVIOCONNECTOR_H
+#ifndef AUDIONODEQDEVIOCONNECTOROBSOLETE_H
+#define AUDIONODEQDEVIOCONNECTOROBSOLETE_H
 
 #include <memory>
 #include <NodeDataModelToQIODeviceConnectorObsolete.h>
@@ -9,12 +9,12 @@
 
 class QIODevice;
 
-class AudioNodeQdevIoConnector : public NodeDataModelToQIODeviceConnectorObsolete
+class AudioNodeQdevIoConnectorObsolete : public NodeDataModelToQIODeviceConnectorObsolete
 {
 
 public:
 
-    explicit AudioNodeQdevIoConnector( QtNodes::NodeDelegateModel* model);
+    explicit AudioNodeQdevIoConnectorObsolete( QtNodes::NodeDelegateModel* model);
 
     virtual QtNodes::NodeDataType type() const //TODO : TBD ???
     {
@@ -24,4 +24,4 @@ public:
     virtual void ConnectModels(QtNodes::NodeDelegateModel* dst_model);
 };
 
-#endif // AUDIONODEQDEVIOCONNECTOR_H
+#endif // AUDIONODEQDEVIOCONNECTOROBSOLETE_H

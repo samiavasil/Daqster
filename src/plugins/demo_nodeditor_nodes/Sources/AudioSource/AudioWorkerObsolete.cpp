@@ -1,8 +1,8 @@
-#include <AudioWorker.h>
+#include <AudioWorkerObsolete.h>
 #include <QDebug>
 #include "LogCategories.h"
 
-AudioWorker::AudioWorker(std::shared_ptr<QIODevice> devio, QObject *parent):QObject(parent),
+AudioWorkerObsolete::AudioWorkerObsolete(std::shared_ptr<QIODevice> devio, QObject *parent):QObject(parent),
     m_devio(devio)
 {
     m_devio = devio;
@@ -10,11 +10,11 @@ AudioWorker::AudioWorker(std::shared_ptr<QIODevice> devio, QObject *parent):QObj
 
 }
 
-AudioWorker::~AudioWorker(){
+AudioWorkerObsolete::~AudioWorkerObsolete(){
     m_audio_src->stop();
 }
 
-void AudioWorker::DoWork() {
+void AudioWorkerObsolete::DoWork() {
     QString result;
     QAudioDeviceInfo m_DevInfo = AudioCompat::defaultInputDevice();
     QAudioFormat  m_FormatAudio = AudioCompat::preferredFormat(m_DevInfo);
@@ -23,15 +23,15 @@ void AudioWorker::DoWork() {
     emit resultReady(result);
 }
 
-void AudioWorker::Start(AudioSourceDataModel::StartStop status)
+void AudioWorkerObsolete::Start(AudioSourceDataModelUI::StartStop status)
 {
     switch (status) {
-    case AudioSourceDataModel::ASDM_STOP:{
+    case AudioSourceDataModelUI::ASDM_STOP:{
         m_audio_src->stop();
         break;
     }
-    case AudioSourceDataModel::ASDM_START:
-    case AudioSourceDataModel::ASDM_RELOAD:{
+    case AudioSourceDataModelUI::ASDM_START:
+    case AudioSourceDataModelUI::ASDM_RELOAD:{
         m_audio_src->start(m_devio.get());
         if(QAudio::StoppedState == m_audio_src->state()) {
 
@@ -42,7 +42,7 @@ void AudioWorker::Start(AudioSourceDataModel::StartStop status)
     }
 }
 
-void AudioWorker::UpdateAudioDevice(QAudioDeviceInfo devInfo, QAudioFormat formatAudio)
+void AudioWorkerObsolete::UpdateAudioDevice(QAudioDeviceInfo devInfo, QAudioFormat formatAudio)
 {
     bool was_started = false;
 
@@ -59,7 +59,7 @@ void AudioWorker::UpdateAudioDevice(QAudioDeviceInfo devInfo, QAudioFormat forma
     m_audio_src->setObjectName(QString("AudioInput: %1").arg(AudioCompat::deviceName(devInfo)));
     connect(m_audio_src.get(),SIGNAL(stateChanged(QAudio::State)), this, SIGNAL(stateChanged(QAudio::State)) );
     if(was_started) {
-        Start(AudioSourceDataModel::ASDM_RELOAD);
+        Start(AudioSourceDataModelUI::ASDM_RELOAD);
     }
     emit ChangeAudioConnection(devInfo, formatAudio);
 }

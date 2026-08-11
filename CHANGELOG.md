@@ -64,6 +64,24 @@
   - `FftUtil` — утилитарна библиотека за FFT-раундлайн, `magnitudeSpectrum`, `decodeToNormalizedF32`
   - Комити: `4ba278b` (feat: DAQ Display Multi-Plot v1), `c74e7e3` (feat: FftUtil magnitudeSpectrum + SampledData decodeToNormalizedF32), `1ffac96` (chore: remove temporary thread-identity logging after Phase 4 verification)
   - Статус: ACTIVE (impl готов, unit тестове отложени)
+- **REQ-SW-PL-024** (AudioSource миграция от QDevIO към SampledData — нов нод
+  взема името, старият → `_obsolete`):
+  - Нов `AudioSourceDataModel` (registered name `AudioSource`) — SampledData поток
+    `{"sample","Sample"}`; каптурата е в **dedicated worker thread**
+    (`MicCaptureWorker`, moveToThread в модел-притежаван `QThread`); GUI нишката
+    само keep-latest + `dataUpdated(0)`; connection-count gating — без свързан
+    изход worker-ът дренира и не wrap-ва
+  - Старият QDevIO mic → `AudioSourceDataModelObsolete` (registered
+    `AudioSourceObsolete`, caption "(obsolete)") + `AudioWorkerObsolete` +
+    `AudioNodeQdevIoConnectorObsolete` + `EventThreadPullObsolete` — rename-only,
+    работи (база за benchmarking старо vs ново)
+  - `AudioSourceDataModelUI` споделен и непроменен; enum `StartStop` е дефиниран
+    в UI header-а (общ contract за двата нода)
+  - Комити: `6ee9d3b` (refactor: rename old QDevIO mic + helpers),
+    `42eb5fa` (feat: SampledData node + MicCaptureWorker)
+  - Статус: ACTIVE (impl готов, unit тестове отложени); Qt5 (5.15.2) + Qt6
+    (6.9.2) builds PASS + headless smoke PASS (capture в worker нишка → queued
+    SampledData на GUI нишката, чисто start/stop, чисто унищожаване)
 
 ### Changed
 - **Directory Restructuring**:

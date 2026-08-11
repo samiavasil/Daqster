@@ -1,32 +1,32 @@
-#ifndef AUDIOSOURCEDATAMODEL_H
-#define AUDIOSOURCEDATAMODEL_H
+#ifndef AUDIOSOURCEDATAMODELOBSOLETE_H
+#define AUDIOSOURCEDATAMODELOBSOLETE_H
 
 #include "AudioCompat.h"
 #include "AudioSourceDataModelUI.h"
-#include "MicCaptureWorker.h"
-#include "NodeDataTypes/SampledData.h"
 
-#include <QtCore/QThread>
+#include <QtCore/QObject>
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/internal/Definitions.hpp>
 
-#include <memory>
+class AudioNodeQdevIoConnectorObsolete;
+class EventThreadPullObsolete;
 
-class AudioSourceDataModel : public QtNodes::NodeDelegateModel
+class AudioSourceDataModelObsolete : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
 public:
-    AudioSourceDataModel();
+
+    AudioSourceDataModelObsolete();
 
     virtual
-    ~AudioSourceDataModel() override;
+    ~AudioSourceDataModelObsolete() override;
 
 public:
 
     QString
     caption() const override
-    { return QStringLiteral("AudioSource Source"); }
+    { return QStringLiteral("AudioSource Source (obsolete)"); }
 
     bool
     captionVisible() const override
@@ -34,7 +34,7 @@ public:
 
     QString
     name() const override
-    { return QStringLiteral("AudioSource"); }
+    { return QStringLiteral("AudioSourceObsolete"); }
 
 public:
 
@@ -62,6 +62,8 @@ public:
     QWidget *
     embeddedWidget() override;
 
+    void IO_connect(std::shared_ptr<QIODevice> io);
+
     QtNodes::ConnectionPolicy portConnectionPolicy(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
         Q_UNUSED(portType);
@@ -69,23 +71,21 @@ public:
         return QtNodes::ConnectionPolicy::One;
     }
 
-    void outputConnectionCreated(QtNodes::ConnectionId const &) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &) override;
 
+signals:
+    void disconnected();
+    void StartAudio(AudioSourceDataModelUI::StartStop start);
+    void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
+
 private slots:
-    void onUiStart(AudioSourceDataModelUI::StartStop start);
-    void onSamplesReady(std::shared_ptr<SampledData> data);
+    void destroyedObj(QObject *obj);
 
 private:
-    void setCaptureEnabled(bool enabled);
-
-    QThread *m_thread = nullptr;
-    MicCaptureWorker *m_worker = nullptr; // moveToThread'ed into m_thread; freed via QThread::finished → deleteLater
-    AudioSourceDataModelUI *m_Widget = nullptr;
+    std::shared_ptr<AudioNodeQdevIoConnectorObsolete> m_connector;
+    AudioSourceDataModelUI* m_Widget;
     QAudioDeviceInfo m_DevInfo;
     QAudioFormat m_FormatAudio;
-    std::shared_ptr<SampledData> m_lastData;
-    int m_connectionCount = 0;
 };
 
-#endif // AUDIOSOURCEDATAMODEL_H
+#endif // AUDIOSOURCEDATAMODELOBSOLETE_H

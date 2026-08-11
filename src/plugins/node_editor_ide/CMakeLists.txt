@@ -49,8 +49,8 @@ if(NODE_EDITOR_LIB_ENABLED)
         BuiltInNodes/Library/display/XYSeriesIODeviceObsolete.cpp
         BuiltInNodes/Library/display/AudioCompat.h
         BuiltInNodes/Library/display/QtChartsCompat.h
-        BuiltInNodes/Library/threading/EventThreadPull.h
-        BuiltInNodes/Library/threading/EventThreadPull.cpp
+        BuiltInNodes/Library/threading/EventThreadPullObsolete.h
+        BuiltInNodes/Library/threading/EventThreadPullObsolete.cpp
     )
 
     add_library(NodeEditorLibrary SHARED ${LIB_SOURCES})

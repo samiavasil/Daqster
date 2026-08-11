@@ -15,19 +15,27 @@ set(PLUGIN_SOURCES
 )
 
 # ── Sources: AudioSource ────────────────────────────────────────────
+# REQ-SW-PL-024: the SampledData AudioSourceDataModel (new, takes the
+# "AudioSource" name, worker-thread capture via MicCaptureWorker) + shared
+# UI; the old QDevIO mic was renamed to _obsolete and keeps working
+# together with its helpers.
 set(AUDIO_SOURCE_NODES
     Sources/AudioSource/AudioSourceDataModel.h
     Sources/AudioSource/AudioSourceDataModel.cpp
+    Sources/AudioSource/MicCaptureWorker.h
+    Sources/AudioSource/MicCaptureWorker.cpp
+    Sources/AudioSource/AudioSourceDataModelObsolete.h
+    Sources/AudioSource/AudioSourceDataModelObsolete.cpp
     Sources/AudioSource/AudioSourceDataModelUI.h
     Sources/AudioSource/AudioSourceDataModelUI.cpp
     Sources/AudioSource/AudioSourceDataModelUI.ui
     Sources/AudioSource/AudioSourceConfig.h
     Sources/AudioSource/AudioSourceConfig.cpp
     Sources/AudioSource/AudioSourceConfig.ui
-    Sources/AudioSource/AudioWorker.h
-    Sources/AudioSource/AudioWorker.cpp
-    Sources/AudioSource/AudioNodeQdevIoConnector.h
-    Sources/AudioSource/AudioNodeQdevIoConnector.cpp
+    Sources/AudioSource/AudioWorkerObsolete.h
+    Sources/AudioSource/AudioWorkerObsolete.cpp
+    Sources/AudioSource/AudioNodeQdevIoConnectorObsolete.h
+    Sources/AudioSource/AudioNodeQdevIoConnectorObsolete.cpp
     Sources/AudioSource/AudioComboModel.h
     Sources/AudioSource/AudioComboModel.cpp
     Sources/AudioSource/node_editor.qrc
