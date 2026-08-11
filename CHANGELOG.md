@@ -82,6 +82,32 @@
   - Статус: ACTIVE (impl готов, unit тестове отложени); Qt5 (5.15.2) + Qt6
     (6.9.2) builds PASS + headless smoke PASS (capture в worker нишка → queued
     SampledData на GUI нишката, чисто start/stop, чисто унищожаване)
+- **REQ-SW-PL-025** (DaqDisplayNode Multi-Plot v2 — физически decode + unit оси + ring buffer):
+  - `SampledData::decodeToPhysical()` — header-only физически decode
+    (`raw × amplitudeScale + amplitudeOffset`, БЕЗ normalization/центриране/clamp)
+    + нови raw decoders в `SampledDecoder` (`rawS8..rawF64`, `decodeRawSample`);
+    `decodeToNormalizedF32` остава непроменен
+  - Unit оси — per-card `QValueAxis` заглавия от дескриптора: Time Domain →
+    X `"Time (s)"` / Y `descriptor.unit` (fallback "normalized"/"amplitude");
+    Frequency → X `"Frequency (Hz)"` / Y unit (или "Magnitude" в normalized
+    режим); physical Y-обхват от min/max на декодираните стойности с ~5%
+    padding (normalized картите запазват [-1, 1]); `mode` (normalized/physical)
+    + `unitAxes` per-card, default за нови карти от `unit != "normalized"`
+  - Worker-притежаван ring buffer — N-секундна плъзгаща се история на канал
+    (raw bytes, default 10 s, `ringSeconds`); append на всеки compute pass,
+    descriptor-change reset при sampleRate/канали/bytesPerFrame промяна, FFT от
+    опашката (tail ≤4096), Time Domain показва целия прозорец (≤2000 точки);
+    всичката работа на worker нишката (QThreadPool maxThreadCount=1) — GUI
+    нишката само `series->replace()` + `axis->setRange()`
+  - save()/restore() — нови опционални полета `ringSeconds`, per-card
+    `mode` + `unitAxes` с defaults (10.0 / "normalized" / true) — старите v1
+    файлове се зареждат без промяна
+  - Комити: `6c20617` (feat: DaqDisplayNode v2 — decodeToPhysical, unit axes,
+    worker-owned ring buffer)
+  - Статус: ACTIVE (impl готов, unit тестове отложени); Qt5 (5.15.2) + Qt6
+    (6.9.2) builds PASS + ctest 6/6 green (и двете) + offscreen smoke PASS
+    (int16 32767 → 32.767, float passthrough без clamp, unit axis заглавия,
+    save/restore round-trip с v1 defaults)
 
 ### Changed
 - **Directory Restructuring**:

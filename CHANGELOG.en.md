@@ -111,6 +111,32 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Status: ACTIVE (impl done, unit tests deferred); Qt5 (5.15.2) + Qt6 (6.9.2)
     builds PASS + headless smoke PASS (capture on the worker thread → queued
     SampledData delivered on the GUI thread, clean start/stop, clean destruction)
+- **REQ-SW-PL-025** (DaqDisplayNode Multi-Plot v2 — physical decode + unit axes + ring buffer):
+  - `SampledData::decodeToPhysical()` — header-only physical decode
+    (`raw × amplitudeScale + amplitudeOffset`, NO normalization/centering/clamp)
+    plus new raw decoders in `SampledDecoder` (`rawS8..rawF64`, `decodeRawSample`);
+    `decodeToNormalizedF32` stays unchanged
+  - Unit axes — per-card `QValueAxis` titles from the descriptor: Time Domain →
+    X `"Time (s)"` / Y `descriptor.unit` (fallback "normalized"/"amplitude");
+    Frequency → X `"Frequency (Hz)"` / Y unit (or "Magnitude" in normalized
+    mode); physical Y range from min/max of decoded values with ~5% padding
+    (normalized cards keep [-1, 1]); per-card `mode` (normalized/physical) +
+    `unitAxes`, new-card default from `unit != "normalized"`
+  - Worker-owned ring buffer — N-second rolling per-channel history (raw bytes,
+    default 10 s, `ringSeconds`); append on every compute pass, descriptor-change
+    reset on sampleRate/channels/bytesPerFrame change, FFT from the ring tail
+    (≤4096), Time Domain shows the whole window (≤2000 points); all work on the
+    worker thread (QThreadPool maxThreadCount=1) — the GUI thread only does
+    `series->replace()` + `axis->setRange()`
+  - save()/restore() — new optional fields `ringSeconds`, per-card `mode` +
+    `unitAxes` with defaults (10.0 / "normalized" / true) — old v1 files load
+    unchanged
+  - Commits: `6c20617` (feat: DaqDisplayNode v2 — decodeToPhysical, unit axes,
+    worker-owned ring buffer)
+  - Status: ACTIVE (impl done, unit tests deferred); Qt5 (5.15.2) + Qt6 (6.9.2)
+    builds PASS + ctest 6/6 green (both) + offscreen smoke PASS (int16 32767 →
+    32.767, float passthrough without clamp, unit axis titles, save/restore
+    round-trip with v1 defaults)
 
 ### Changed
 - **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality

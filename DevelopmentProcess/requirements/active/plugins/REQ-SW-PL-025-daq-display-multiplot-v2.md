@@ -75,14 +75,14 @@ v1 форматът (`DaqDisplayNode.cpp:228-246`): `{"plots": [{"title", "proce
 
 ## Acceptance Criteria
 
-- [ ] 1. **`decodeToPhysical()` семантика.** Нов метод в `SampledData` (огледало на `decodeToNormalizedF32`, `SampledData.h:250-273`): integer стойностите се мащабират `raw × amplitudeScale + amplitudeOffset` **без** деление на `(2^(bits-1) − 1)` и **без** центриране; FLOAT32/FLOAT64 минават passthrough (само ×scale+offset); **няма clamp** — резултатът може да е извън [-1, 1]. Проверка: синтетичен int16 SampledData с `amplitudeScale=0.001, amplitudeOffset=0.0` → raw 32767 дава ≈32.767, а не 1.0.
-- [ ] 2. **Unit оси.** Всяка карта има `QValueAxis` заглавия от дескриптора (`DaqDisplayNode.cpp:422-427`): Time Domain → X "Time (s)", Y = `descriptor.unit`; Frequency → X "Frequency (Hz)", Y = unit/Magnitude. Physical картите имат Y-обхват от **min/max на данните** (с padding), а не фиксирания [-1, 1] (`timeRanges`, `DaqDisplayNode.cpp:140`); normalized картите запазват [-1, 1].
-- [ ] 3. **Ring buffer (rolling история).** Всеки канал държи N-секундна история (капацитет `N × sampleRate × bytesPerFrame`, default **10 s**); новите блокове се append-ват, старите отпадат; Time Domain показва целия прозорец (≤2000 точки/series, v1 бюджет).
-- [ ] 4. **Descriptor-change reset.** При промяна на `sampleRate`/брой канали/`bytesPerFrame` ring buffer-ът се изчиства и започва отново — няма смесване на проби от различни формати.
-- [ ] 5. **FFT от опашката.** Спектърът се изчислява от **най-новите** проби на ring buffer-а (tail, ≤4096 входа през FftUtil), а не от целия прозорец.
-- [ ] 6. **Threading contract.** Ring buffer append + decode (normalized/physical) + FFT + point build + min/max — **всичко** на worker нишката; на GUI нишката само `series->replace()` + `axis->setRange()`. Проверка: qCDebug с `QThread::currentThread()` в task-а и в repaint-а (както v1 AC 4).
-- [ ] 7. **save()/restore() backward compat.** v1 файл (без новите полета) се зарежда с defaults (`ringSeconds=10`, `mode="normalized"`, `unitAxes=true`); v2 файл round-trip-ва идентични карти + ringSeconds.
-- [ ] 8. **Qt5 + Qt6 builds PASS + ctest green + smoke.** И двете версии се build-ват; съществуващата test suite остава зелена; headless smoke (offscreen, ad-hoc /tmp harness) със синтетичен 2-канален SampledData (physical режим, unit оси, ring buffer) показва time + FFT карти без crash. Unit тестовете са **отложени по решение на потребителя** (standing instruction) — статус → `DONE` чака тестовете.
+- [x] 1. **`decodeToPhysical()` семантика.** Нов метод в `SampledData` (огледало на `decodeToNormalizedF32`, `SampledData.h:250-273`): integer стойностите се мащабират `raw × amplitudeScale + amplitudeOffset` **без** деление на `(2^(bits-1) − 1)` и **без** центриране; FLOAT32/FLOAT64 минават passthrough (само ×scale+offset); **няма clamp** — резултатът може да е извън [-1, 1]. Проверка: синтетичен int16 SampledData с `amplitudeScale=0.001, amplitudeOffset=0.0` → raw 32767 дава ≈32.767, а не 1.0.
+- [x] 2. **Unit оси.** Всяка карта има `QValueAxis` заглавия от дескриптора (`DaqDisplayNode.cpp:422-427`): Time Domain → X "Time (s)", Y = `descriptor.unit`; Frequency → X "Frequency (Hz)", Y = unit/Magnitude. Physical картите имат Y-обхват от **min/max на данните** (с padding), а не фиксирания [-1, 1] (`timeRanges`, `DaqDisplayNode.cpp:140`); normalized картите запазват [-1, 1].
+- [x] 3. **Ring buffer (rolling история).** Всеки канал държи N-секундна история (капацитет `N × sampleRate × bytesPerFrame`, default **10 s**); новите блокове се append-ват, старите отпадат; Time Domain показва целия прозорец (≤2000 точки/series, v1 бюджет).
+- [x] 4. **Descriptor-change reset.** При промяна на `sampleRate`/брой канали/`bytesPerFrame` ring buffer-ът се изчиства и започва отново — няма смесване на проби от различни формати.
+- [x] 5. **FFT от опашката.** Спектърът се изчислява от **най-новите** проби на ring buffer-а (tail, ≤4096 входа през FftUtil), а не от целия прозорец.
+- [x] 6. **Threading contract.** Ring buffer append + decode (normalized/physical) + FFT + point build + min/max — **всичко** на worker нишката; на GUI нишката само `series->replace()` + `axis->setRange()`. Проверка: qCDebug с `QThread::currentThread()` в task-а и в repaint-а (както v1 AC 4).
+- [x] 7. **save()/restore() backward compat.** v1 файл (без новите полета) се зарежда с defaults (`ringSeconds=10`, `mode="normalized"`, `unitAxes=true`); v2 файл round-trip-ва идентични карти + ringSeconds.
+- [x] 8. **Qt5 + Qt6 builds PASS + ctest green + smoke.** И двете версии се build-ват; съществуващата test suite остава зелена; headless smoke (offscreen, ad-hoc /tmp harness) със синтетичен 2-канален SampledData (physical режим, unit оси, ring buffer) показва time + FFT карти без crash. Unit тестовете са **отложени по решение на потребителя** (standing instruction) — статус → `DONE` чака тестовете.
 
 ## Извън обхват (бъдеща работа)
 
@@ -102,7 +102,7 @@ v1 форматът (`DaqDisplayNode.cpp:228-246`): `{"plots": [{"title", "proce
 
 ## Проследимост
 
-- **Коммити:** попълва се по време на имплементацията — branch `feat/REQ-SW-PL-025-daq-display-multiplot-v2`
+- **Коммити:** `6c20617` (feat: DaqDisplayNode v2 — decodeToPhysical, unit axes, worker-owned ring buffer) — branch `feat/REQ-SW-PL-025-daq-display-multiplot-v2`
 - **Код:** `src/plugins/common/NodeDataTypes/SampledData.h` (`decodeToPhysical`, огледало на `decodeToNormalizedF32` :250-273), `src/plugins/common/NodeDataTypes/SampledStreamDescriptor.h` (unit :102, amplitudeScale :103, amplitudeOffset :104), `src/plugins/demo_nodeditor_nodes/Displays/DaqDisplay/DaqDisplayNode.{h,cpp}` (axes :422-427, timeRanges :133-141, spectrumRanges :143-156, save :228-246, restore :248-267, ComputeTask :44-75, onRefreshTick :601-619)
 - **Документация:** `docs/plugins/demo_nodeditor_nodes/README.md` (DAQ Display секция — v2: physical decode, unit axes, ring buffer), traceability matrix (и двете repo-та)
 - **Тестове:** отложени по решение на потребителя (standing instruction). Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS; ctest green; smoke без crash; benchmark резултати в session status.

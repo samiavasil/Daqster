@@ -108,7 +108,7 @@ DemoNodeEditorNodesObject → INodeProvider
 | Нод | Категория | Описание |
 |-----|-----------|----------|
 | AudioDisplayModel | Displays | Аудио дисплей за визуализация на аудио данни |
-| DaqDisplayNode | Displays | Реален Qt Charts waveform + FFT за всякarn плъгин с sampled данни (audio/DAQ/sензори) |
+| DaqDisplayNode | Displays | Реален Qt Charts waveform + FFT за всякarn плъгин с sampled данни (audio/DAQ/sензори). v2 (REQ-SW-PL-025): физически decode (`decodeToPhysical`, `raw × amplitudeScale + amplitudeOffset`), unit оси от дескриптора (Time (s)/Hz + мерна единица), worker-притежаван N-секунден ring buffer (default 10 s) с FFT от опашката; per-card `mode` (normalized/physical) + `unitAxes`, backward-compatible save/restore |
 | GenericDisplayNode | Displays | Универсален дисплей за generic данни |
 
 ### Routing
@@ -327,3 +327,18 @@ current names. Both worlds coexist so capabilities and speed can be benchmarked 
 the _obsolete components are deleted at the very end. No data work happens on the GUI thread:
 capture runs in a QThread worker, decode/FFT/point-build in a node-owned QThreadPool (maxThreadCount=1),
 and the GUI thread only does `series->replace()` + `axis->setRange()` via a queued result bridge.
+
+### DAQ Display v2 (REQ-SW-PL-025)
+- **Physical decode** — `SampledData::decodeToPhysical()` (header-only): `raw × amplitudeScale + amplitudeOffset`
+  without normalization/centering/clamp (raw ints passthrough the scale, FLOAT32/64 passthrough value).
+  `decodeToNormalizedF32` stays unchanged for the normalized per-card mode.
+- **Unit axes** — per-card `QValueAxis` titles from `SampledStreamDescriptor`: Time Domain → X "Time (s)",
+  Y = `descriptor.unit` (fallback "normalized"/"amplitude"); Frequency → X "Frequency (Hz)", Y = unit
+  (or "Magnitude" in normalized mode). Physical Y-ranges are data-driven (min/max ± ~5% padding;
+  spectrum [0, maxMag × 1.05]); normalized cards keep [-1, 1].
+- **Worker-owned ring buffer** — N-second rolling per-channel raw history (default 10 s, `ringSeconds`);
+  appended on each compute pass, reset on descriptor change (sampleRate/channels/bytesPerFrame);
+  FFT from the ring tail (≤4096), Time Domain shows the whole window (≤2000 points). All ring access
+  happens on the worker thread — no data mutex, same immutable-copy model as v1.
+- **save()/restore()** — new optional fields `ringSeconds` (node) + `mode`/`unitAxes` (per card) with
+  defaults (10.0 / "normalized" / true); old v1 files load unchanged (backward compatible).
