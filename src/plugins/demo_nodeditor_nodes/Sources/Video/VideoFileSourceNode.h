@@ -3,11 +3,23 @@
 
 #include "VideoCompat.h"
 
+#include "NodeDataTypes/SampledData.h"
+
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/internal/Definitions.hpp>
 
 #include <memory>
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtMultimedia/QAudioOutput>
+#endif
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+#include <QtMultimedia/QAudioBufferOutput>
+#elif QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+#include <QtMultimedia/QAudioProbe>
+#endif
+
+class QAudioBuffer;
 class QLabel;
 class QLineEdit;
 class QMediaPlayer;
@@ -22,13 +34,20 @@ class VideoFrameData;
  *
  * Uses QMediaPlayer with a VideoCompat frame probe attached.
  *
- * On Qt6 the node has two output ports (REQ-SW-PL-020):
+ * On Qt6 the node has three output ports (REQ-SW-PL-020/022):
  *   - port 0 "video-frame" — zero-copy VideoFrameData wrapping the decoded
  *     QVideoFrame; emitted for every frame (no QImage conversion).
  *   - port 1 "image" — ImageData, converted from the frame ONLY while a
  *     downstream processing consumer is connected.
+ *   - port 2 "sample" — SampledData (domain "audio"), wrapped from the decoded
+ *     audio buffers (REQ-SW-PL-022).
  *
- * On Qt5 the node keeps the original single "image" output port (QImage path).
+ * On Qt5 the node has two output ports:
+ *   - port 0 "image" — ImageData (QImage path).
+ *   - port 1 "sample" — SampledData (domain "audio").
+ *
+ * The audio port is APPENDED LAST on both Qt versions so old saved graphs keep
+ * their port indices (REQ-SW-PL-022 AC 8).
  */
 class VideoFileSourceNode : public QtNodes::NodeDelegateModel
 {
@@ -62,8 +81,8 @@ public:
 
     QWidget *embeddedWidget() override;
 
-    /// Track downstream "image" connections (port 1, Qt6) so the QImage
-    /// conversion only happens while a processing consumer is connected.
+    /// Track downstream "image"/"sample" connections so conversion/wrapping
+    /// is only emitted while a consumer is connected.
     void outputConnectionCreated(QtNodes::ConnectionId const &conId) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &conId) override;
 
@@ -71,6 +90,7 @@ private slots:
     void onBrowseClicked();
     void onPlayPauseClicked();
     void onFrameAvailable(const QVideoFrame &frame);
+    void onAudioBufferReceived(const QAudioBuffer &buffer);
     void onPlaybackStateChanged(int state);
     void onMediaStatusChanged(QMediaPlayer::MediaStatus status);
     void onPlayerError(QMediaPlayer::Error error, const QString &errorString);
@@ -80,6 +100,14 @@ private:
     void setStatus(const QString &text, bool ok);
     QString currentFilePath() const;
     void updatePlayButton();
+    static QtNodes::PortIndex audioPortIndex()
+    {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        return 2; // 0 = video-frame, 1 = image, 2 = audio (appended last)
+#else
+        return 1; // 0 = image, 1 = audio (appended last)
+#endif
+    }
 
     QWidget *m_widget = nullptr;
     QLineEdit *m_fileEdit = nullptr;
@@ -89,10 +117,22 @@ private:
     QMediaPlayer *m_player = nullptr;
     VideoCompat::FrameProbe *m_frameProbe = nullptr;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // Qt6 requires an explicit QAudioOutput; without setAudioOutput() the
+    // audio is decoded but never routed and stays silent (REQ-SW-PL-022 AC 1).
+    QAudioOutput *m_audioOutput = nullptr;
     // Reused per frame via setFrame() — no allocation per frame (REQ-SW-PL-020).
     std::shared_ptr<VideoFrameData> m_videoFrameOut;
     int m_imagePortConnectionCount = 0;
 #endif
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+    // Qt6: receives decoded audio buffers (Qt 6.8+, FFmpeg backend).
+    QAudioBufferOutput *m_audioBufferOutput = nullptr;
+#elif QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    // Qt5: audio buffer probe (audioBufferProbed).
+    QAudioProbe *m_audioProbe = nullptr;
+#endif
+    std::shared_ptr<SampledData> m_audioOut;
+    int m_audioPortConnectionCount = 0;
     std::shared_ptr<ImageData> m_output;
     QString m_loadedPath;
     bool m_isPlaying = false;

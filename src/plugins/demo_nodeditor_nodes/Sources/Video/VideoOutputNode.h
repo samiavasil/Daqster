@@ -75,6 +75,13 @@ public:
     void outputConnectionCreated(QtNodes::ConnectionId const &conId) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &conId) override;
 
+    /// Track the port-0 "video-frame" input connection. Disconnecting the edge
+    /// does NOT stop the source player — frames keep arriving in setInData() —
+    /// so the connection flag (not widget nullness) is the guard that prevents
+    /// the detached QVideoWidget popup from being resurrected after disconnect.
+    void inputConnectionCreated(QtNodes::ConnectionId const &conId) override;
+    void inputConnectionDeleted(QtNodes::ConnectionId const &conId) override;
+
 protected:
     bool eventFilter(QObject *object, QEvent *event) override;
 
@@ -94,6 +101,10 @@ private:
     std::shared_ptr<VideoFrameData> m_videoFrame;
     QVideoWidget *m_videoWidget = nullptr;
     int m_outputConnectionCount = 0;
+    /// True while a port-0 "video-frame" edge exists. Guards setInData() so
+    /// frames that keep flowing from a still-playing source after the edge is
+    /// removed cannot resurrect the detached popup.
+    bool m_videoInputConnected = false;
 #endif
 };
 

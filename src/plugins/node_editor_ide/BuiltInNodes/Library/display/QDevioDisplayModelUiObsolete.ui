@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>QDevioDisplayModelUi</class>
- <widget class="QWidget" name="QDevioDisplayModelUi">
+ <class>QDevioDisplayModelUiObsolete</class>
+ <widget class="QWidget" name="QDevioDisplayModelUiObsolete">
   <property name="geometry">
    <rect>
     <x>0</x>

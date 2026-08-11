@@ -1,5 +1,5 @@
-#ifndef ISTREAMDECODER_H
-#define ISTREAMDECODER_H
+#ifndef ISTREAMDECODEROBSOLETE_H
+#define ISTREAMDECODEROBSOLETE_H
 
 #include <QByteArray>
 #include <QVector>
@@ -13,10 +13,12 @@
  * knowing the specific format.
  *
  * Output is always normalized to [-1.0, 1.0] range per channel.
+ *
+ * @note Renamed to *_obsolete (REQ-SW-PL-023 §7) — implementation unchanged.
  */
-class IStreamDecoder {
+class IStreamDecoderObsolete {
 public:
-    virtual ~IStreamDecoder() = default;
+    virtual ~IStreamDecoderObsolete() = default;
 
     /**
      * @brief Decode raw bytes from QDevIO stream into per-channel samples.
@@ -37,4 +39,4 @@ public:
     virtual QString streamType() const = 0;
 };
 
-#endif // ISTREAMDECODER_H
+#endif // ISTREAMDECODEROBSOLETE_H

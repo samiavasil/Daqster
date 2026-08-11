@@ -1,5 +1,5 @@
-#include "QDevioDisplayModelUi.h"
-#include "ui_QDevioDisplayModelUi.h"
+#include "QDevioDisplayModelUiObsolete.h"
+#include "ui_QDevioDisplayModelUiObsolete.h"
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
 #include <QtCharts/QChart>
@@ -34,9 +34,9 @@ static void applyHannWindow(QVector<double> &data)
     }
 }
 
-QDevioDisplayModelUi::QDevioDisplayModelUi(QWidget *parent) :
+QDevioDisplayModelUiObsolete::QDevioDisplayModelUiObsolete(QWidget *parent) :
     QWidget(parent),
-    ui(new Ui::QDevioDisplayModelUi),
+    ui(new Ui::QDevioDisplayModelUiObsolete),
     m_NextHndl(0)
 {
     m_ColCount = 1;
@@ -90,11 +90,11 @@ QDevioDisplayModelUi::QDevioDisplayModelUi(QWidget *parent) :
     QTimer::singleShot(100, this, SLOT(pollData()));
 }
 
-QDevioDisplayModelUi::~QDevioDisplayModelUi()
+QDevioDisplayModelUiObsolete::~QDevioDisplayModelUiObsolete()
 {
 }
 
-QDevioDisplayModelUi::disp_hndl_t QDevioDisplayModelUi::AddChart()
+QDevioDisplayModelUiObsolete::disp_hndl_t QDevioDisplayModelUiObsolete::AddChart()
 {
     disp_hndl_t hndl = m_NextHndl;
     m_ChartMap[hndl] = new QtChartsCompat::ChartView(new QtChartsCompat::Chart);
@@ -104,7 +104,7 @@ QDevioDisplayModelUi::disp_hndl_t QDevioDisplayModelUi::AddChart()
     return hndl;
 }
 
-void QDevioDisplayModelUi::RemoveChart(QDevioDisplayModelUi::disp_hndl_t hndl)
+void QDevioDisplayModelUiObsolete::RemoveChart(QDevioDisplayModelUiObsolete::disp_hndl_t hndl)
 {
 }
 
@@ -112,7 +112,7 @@ void RemoveSeriesFromVector(QVector<QtChartsCompat::LineSeries*>& series) {
  QtChartsCompat::ValueAxis *axisX = new QtChartsCompat::ValueAxis;
 }
 
-void QDevioDisplayModelUi::updateUI()
+void QDevioDisplayModelUiObsolete::updateUI()
 {
     QtChartsCompat::Chart::ChartTheme theme = static_cast<QtChartsCompat::Chart::ChartTheme>(
         ui->theme->itemData(ui->theme->currentIndex()).toInt());
@@ -182,7 +182,7 @@ void QDevioDisplayModelUi::updateUI()
 
 }
 
-void QDevioDisplayModelUi::populateThemeBox()
+void QDevioDisplayModelUiObsolete::populateThemeBox()
 {
     // add items to theme combobox
     ui->theme->addItem("Light", QtChartsCompat::Chart::ChartThemeLight);
@@ -195,7 +195,7 @@ void QDevioDisplayModelUi::populateThemeBox()
     ui->theme->addItem("Qt", QtChartsCompat::Chart::ChartThemeQt);
 }
 
-void QDevioDisplayModelUi::populateAnimationBox()
+void QDevioDisplayModelUiObsolete::populateAnimationBox()
 {
     // add items to animation combobox
     ui->animation->addItem("No Animations", QtChartsCompat::Chart::NoAnimation);
@@ -204,7 +204,7 @@ void QDevioDisplayModelUi::populateAnimationBox()
     ui->animation->addItem("All Animations", QtChartsCompat::Chart::AllAnimations);
 }
 
-void QDevioDisplayModelUi::populateLegendBox()
+void QDevioDisplayModelUiObsolete::populateLegendBox()
 {
     // add items to legend combobox
     ui->legend->addItem("No Legend ", 0);
@@ -216,7 +216,7 @@ void QDevioDisplayModelUi::populateLegendBox()
 }
 #include<QDebug>
 #include "LogCategories.h"
-void QDevioDisplayModelUi::updateGrid() {
+void QDevioDisplayModelUiObsolete::updateGrid() {
 
     while(auto item = ui->gridLayout->itemAt(0)) {
         ui->gridLayout->removeItem(item);
@@ -231,13 +231,13 @@ void QDevioDisplayModelUi::updateGrid() {
     }
 }
 
-void QDevioDisplayModelUi::gridChanged(int val)
+void QDevioDisplayModelUiObsolete::gridChanged(int val)
 {
     m_ColCount = val;
     updateGrid();
 }
 
-int QDevioDisplayModelUi::SetSeries(QDevioDisplayModelUi::disp_hndl_t hndl, int num)
+int QDevioDisplayModelUiObsolete::SetSeries(QDevioDisplayModelUiObsolete::disp_hndl_t hndl, int num)
 {
     int Ret = -1;
 
@@ -306,7 +306,7 @@ int QDevioDisplayModelUi::SetSeries(QDevioDisplayModelUi::disp_hndl_t hndl, int 
     return Ret;
 }
 
-int QDevioDisplayModelUi::RemoveSeries()
+int QDevioDisplayModelUiObsolete::RemoveSeries()
 {
     int removed = 0;
 #if 0
@@ -334,7 +334,7 @@ int QDevioDisplayModelUi::RemoveSeries()
     return removed;
 }
 
-void QDevioDisplayModelUi::contextMenuEvent(QContextMenuEvent *event)
+void QDevioDisplayModelUiObsolete::contextMenuEvent(QContextMenuEvent *event)
 {
 
     QMenu menu;
@@ -356,11 +356,11 @@ void QDevioDisplayModelUi::contextMenuEvent(QContextMenuEvent *event)
 
 }
 
-void QDevioDisplayModelUi::pollData() {
+void QDevioDisplayModelUiObsolete::pollData() {
 
 }
 
-void QDevioDisplayModelUi::bufferReady(QVector<QPointF> &buff, int channel)
+void QDevioDisplayModelUiObsolete::bufferReady(QVector<QPointF> &buff, int channel)
 {
     auto series = m_SeriesMap.value(0, nullptr);
     Q_ASSERT(series != nullptr);
@@ -378,7 +378,7 @@ void QDevioDisplayModelUi::bufferReady(QVector<QPointF> &buff, int channel)
     }
 }
 
-void QDevioDisplayModelUi::showFftDialog()
+void QDevioDisplayModelUiObsolete::showFftDialog()
 {
     auto *fftChartView = m_ChartMap.value(m_fftHandle, nullptr);
     if (!fftChartView)
@@ -388,7 +388,7 @@ void QDevioDisplayModelUi::showFftDialog()
     updateGrid();
 }
 
-void QDevioDisplayModelUi::computeFFT(const QVector<QPointF> &timeDomainData,
+void QDevioDisplayModelUiObsolete::computeFFT(const QVector<QPointF> &timeDomainData,
                                       QVector<QPointF> &spectrumOut)
 {
     const int n = timeDomainData.size();

@@ -1,10 +1,10 @@
-#ifndef GENERICQDEVIOCONNECTOR_H
-#define GENERICQDEVIOCONNECTOR_H
+#ifndef GENERICQDEVIOCONNECTOROBSOLETE_H
+#define GENERICQDEVIOCONNECTOROBSOLETE_H
 
 #include <memory>
-#include "NodeDataModelToQIODeviceConnector.h"
-#include "QDevIOStreamConfig.h"
-#include "StreamChannel.h"
+#include "NodeDataModelToQIODeviceConnectorObsolete.h"
+#include "QDevIOStreamConfigObsolete.h"
+#include "StreamChannelObsolete.h"
 
 /**
  * @brief General purpose QDevIO connector with metadata.
@@ -12,25 +12,28 @@
  * Replaces AudioNodeQdevIoConnector as the universal connector for
  * QDevIO streams. Carries:
  * - QIODevice pointer (the data stream)
- * - QDevIOStreamConfig (optional metadata about the stream format)
+ * - QDevIOStreamConfigObsolete (optional metadata about the stream format)
  * - MixedStreamPayload (optional, for mixed multi-type streams)
  *
  * Display nodes read the metadata to auto-route to the correct view.
  * If no metadata is present, the display shows a config panel.
+ *
+ * @note Renamed to *_obsolete (REQ-SW-PL-023 §7) — implementation unchanged.
+ *       Kept working until the QDevIO display world is deleted at the very end.
  */
-class GenericQDevIoConnector : public NodeDataModelToQIODeviceConnector {
+class GenericQDevIoConnectorObsolete : public NodeDataModelToQIODeviceConnectorObsolete {
 public:
-    explicit GenericQDevIoConnector(QtNodes::NodeDelegateModel* model);
-    ~GenericQDevIoConnector() override = default;
+    explicit GenericQDevIoConnectorObsolete(QtNodes::NodeDelegateModel* model);
+    ~GenericQDevIoConnectorObsolete() override = default;
 
     // ── QIODevice ──────────────────────────────────────────────
     void setIODevice(std::shared_ptr<QIODevice> device);
     std::shared_ptr<QIODevice> ioDevice() const;
 
     // ── Stream Metadata ────────────────────────────────────────
-    void setStreamConfig(QDevIOStreamConfig config);
+    void setStreamConfig(QDevIOStreamConfigObsolete config);
     bool hasStreamConfig() const;
-    QDevIOStreamConfig streamConfig() const;
+    QDevIOStreamConfigObsolete streamConfig() const;
 
     // ── Mixed Streams ──────────────────────────────────────────
     void setPayload(MixedStreamPayload payload);
@@ -43,9 +46,9 @@ public:
 
 private:
     std::shared_ptr<QIODevice> m_device;
-    QDevIOStreamConfig m_config;
+    QDevIOStreamConfigObsolete m_config;
     MixedStreamPayload m_payload;
     bool m_hasConfig = false;
 };
 
-#endif // GENERICQDEVIOCONNECTOR_H
+#endif // GENERICQDEVIOCONNECTOROBSOLETE_H

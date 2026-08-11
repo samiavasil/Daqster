@@ -1,21 +1,23 @@
-#ifndef STREAMCHANNEL_H
-#define STREAMCHANNEL_H
+#ifndef STREAMCHANNELOBSOLETE_H
+#define STREAMCHANNELOBSOLETE_H
 
 #include <QString>
 #include <QVariantMap>
 #include <QVector>
 #include <QSharedPointer>
 
-class IStreamDecoder;
+class IStreamDecoderObsolete;
 
 /**
  * @brief A single channel in a stream, with its decoder and metadata.
  *
  * Used in MixedStreamPayload to describe one channel in a multi-type stream.
+ *
+ * @note Renamed to *_obsolete (REQ-SW-PL-023 §7) — implementation unchanged.
  */
-struct StreamChannel {
+struct StreamChannelObsolete {
     QString type;                              // "audio", "sensor", "video"
-    QSharedPointer<IStreamDecoder> decoder;    // decoder for this channel
+    QSharedPointer<IStreamDecoderObsolete> decoder;    // decoder for this channel
     int channelCount = 0;                      // channels in this sub-stream
     QVariantMap metadata;                      // domain-specific config
 };
@@ -27,7 +29,7 @@ struct StreamChannel {
  * Display nodes use extractChannel() to get only the type they need.
  */
 struct MixedStreamPayload {
-    QVector<StreamChannel> channels;
+    QVector<StreamChannelObsolete> channels;
 
     bool isSingleType() const { return channels.size() == 1; }
 
@@ -35,16 +37,16 @@ struct MixedStreamPayload {
         return channels.size() == 1 ? channels.first().type : "mixed";
     }
 
-    StreamChannel* findChannel(const QString& type) {
+    StreamChannelObsolete* findChannel(const QString& type) {
         for (auto& ch : channels)
             if (ch.type == type) return &ch;
         return nullptr;
     }
 
-    StreamChannel extractChannel(const QString& type) {
+    StreamChannelObsolete extractChannel(const QString& type) {
         for (int i = 0; i < channels.size(); ++i) {
             if (channels[i].type == type) {
-                StreamChannel result = std::move(channels[i]);
+                StreamChannelObsolete result = std::move(channels[i]);
                 channels.remove(i);
                 return result;
             }
@@ -53,4 +55,4 @@ struct MixedStreamPayload {
     }
 };
 
-#endif // STREAMCHANNEL_H
+#endif // STREAMCHANNELOBSOLETE_H

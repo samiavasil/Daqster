@@ -1,16 +1,16 @@
-#ifndef QDEVIODISPLAY_H
-#define QDEVIODISPLAY_H
+#ifndef QDEVIODISPLAYOBSOLETE_H
+#define QDEVIODISPLAYOBSOLETE_H
 
 #include "AudioCompat.h"
-#include "QDevIOStreamConfig.h"
+#include "QDevIOStreamConfigObsolete.h"
 
 #include <QtCore/QObject>
 #include <QtCore/QMap>
 #include <QtNodes/NodeDelegateModel>
 #include <memory>
 
-class NodeDataModelToQIODeviceConnector;
-class GenericQDevIoConnector;
+class NodeDataModelToQIODeviceConnectorObsolete;
+class GenericQDevIoConnectorObsolete;
 class QStackedWidget;
 class QWidget;
 
@@ -22,23 +22,28 @@ class QWidget;
  * - If no config → show manual config panel
  * - Mixed streams → activate all matching views
  *
- * Audio-specific subclass (AudioDisplayModel) overrides for demux.
+ * Audio-specific subclass (AudioDisplayModelObsolete) overrides for demux.
+ *
+ * @note Renamed to *_obsolete (REQ-SW-PL-023 §7) — implementation unchanged.
+ *       Kept working until the QDevIO display world is deleted at the very end.
+ *       Registered under its new name AND aliased under the old "QDevIoDisplay"
+ *       key so old saved graphs still load.
  */
-class QDevIoDisplayModel : public QtNodes::NodeDelegateModel
+class QDevIoDisplayModelObsolete : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
 public:
-    QDevIoDisplayModel();
+    QDevIoDisplayModelObsolete();
 
     virtual
-    ~QDevIoDisplayModel() override;
+    ~QDevIoDisplayModelObsolete() override;
 
 public:
 
     QString
     caption() const override
-    { return QStringLiteral("QDevIo Display"); }
+    { return QStringLiteral("QDevIo Display (obsolete)"); }
 
     bool
     captionVisible() const override
@@ -46,7 +51,7 @@ public:
 
     QString
     name() const override
-    { return QStringLiteral("QDevIoDisplay"); }
+    { return QStringLiteral("QDevIoDisplayObsolete"); }
 
     QJsonObject
     save() const override;
@@ -78,12 +83,12 @@ public slots:
     void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
 
 protected:
-    void handleGenericConnector(std::shared_ptr<GenericQDevIoConnector> connector);
+    void handleGenericConnector(std::shared_ptr<GenericQDevIoConnectorObsolete> connector);
     void showConfigPanel();
 
-    std::shared_ptr<NodeDataModelToQIODeviceConnector> m_connector;
+    std::shared_ptr<NodeDataModelToQIODeviceConnectorObsolete> m_connector;
     std::shared_ptr<QIODevice> m_device;
-    QDevIOStreamConfig m_currentConfig;
+    QDevIOStreamConfigObsolete m_currentConfig;
 
     // ── Stacked Widget Pages ───────────────────────────────────
     std::unique_ptr<QStackedWidget> m_stack;
@@ -92,4 +97,4 @@ protected:
     int m_audioViewIndex = -1;          // index of audio waveform view
 };
 
-#endif // QDEVIODISPLAY_H
+#endif // QDEVIODISPLAYOBSOLETE_H

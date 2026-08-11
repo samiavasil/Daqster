@@ -27,7 +27,7 @@
 **
 ****************************************************************************/
 
-#include "XYSeriesIODevice.h"
+#include "XYSeriesIODeviceObsolete.h"
 #include "AudioCompat.h"
 #include<QTimer>
 #include<QDebug>
@@ -43,7 +43,7 @@ static inline unsigned long near_power_of_two(unsigned long x) {
     return 1 << cnt;
 }
 
-XYSeriesIODevice::XYSeriesIODevice(QObject *parent) :
+XYSeriesIODeviceObsolete::XYSeriesIODeviceObsolete(QObject *parent) :
     QIODevice(parent),
     m_data(nullptr)
 {
@@ -66,12 +66,12 @@ XYSeriesIODevice::XYSeriesIODevice(QObject *parent) :
     QTimer::singleShot(100, this, SLOT(pollData()));
 }
 
-XYSeriesIODevice::~XYSeriesIODevice()
+XYSeriesIODeviceObsolete::~XYSeriesIODeviceObsolete()
 {
-    qCDebug(lcNodeEditor) << "Destroy XYSeriesIODevice" << this;
+    qCDebug(lcNodeEditor) << "Destroy XYSeriesIODeviceObsolete" << this;
 }
 
-void XYSeriesIODevice::ReinitDevice(const QAudioFormat &format,
+void XYSeriesIODeviceObsolete::ReinitDevice(const QAudioFormat &format,
                                     int sampleCount)
 {
     QMutexLocker locker(&m_lock);
@@ -90,11 +90,11 @@ void XYSeriesIODevice::ReinitDevice(const QAudioFormat &format,
 
 
 /**
- * @brief XYSeriesIODevice::pollData
+ * @brief XYSeriesIODeviceObsolete::pollData
  * Read data from ring buffer and send data to screen on regular time (25 ms).
  * This is to have a evenly refresh of the screen
  */
-void XYSeriesIODevice::pollData(){
+void XYSeriesIODeviceObsolete::pollData(){
 
     QMutexLocker locker(&m_lock);
     quint64 len = (m_write_idx - m_read_idx) & m_mask;
@@ -138,14 +138,14 @@ void XYSeriesIODevice::pollData(){
     QTimer::singleShot(25, this, SLOT(pollData()));
 }
 
-qint64 XYSeriesIODevice::readData(char *data, qint64 maxSize)
+qint64 XYSeriesIODeviceObsolete::readData(char *data, qint64 maxSize)
 {
     Q_UNUSED(data)
     Q_UNUSED(maxSize)
     return -1;
 }
 
-qint64 XYSeriesIODevice::writeData(const char *data, qint64 max)
+qint64 XYSeriesIODeviceObsolete::writeData(const char *data, qint64 max)
 {
     QMutexLocker locker(&m_lock);
     quint64 maxSize = static_cast<quint64>(max);
@@ -163,7 +163,7 @@ qint64 XYSeriesIODevice::writeData(const char *data, qint64 max)
     return static_cast<qint64>(maxSize);
 }
 
-void XYSeriesIODevice::initParams(int resolution_bytes, int channels, int sampleCount)
+void XYSeriesIODeviceObsolete::initParams(int resolution_bytes, int channels, int sampleCount)
 {
     m_read_idx    = 0;
     m_write_idx   = 0;

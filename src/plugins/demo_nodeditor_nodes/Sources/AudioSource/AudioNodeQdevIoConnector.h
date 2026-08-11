@@ -2,14 +2,14 @@
 #define AUDIONODEQDEVIOCONNECTOR_H
 
 #include <memory>
-#include <NodeDataModelToQIODeviceConnector.h>
+#include <NodeDataModelToQIODeviceConnectorObsolete.h>
 #include <QSharedPointer>
 
 #include <QtNodes/NodeDelegateModel>
 
 class QIODevice;
 
-class AudioNodeQdevIoConnector : public NodeDataModelToQIODeviceConnector
+class AudioNodeQdevIoConnector : public NodeDataModelToQIODeviceConnectorObsolete
 {
 
 public:

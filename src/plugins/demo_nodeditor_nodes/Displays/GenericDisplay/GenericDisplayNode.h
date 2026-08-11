@@ -1,67 +1,28 @@
 #ifndef GENERICDISPLAYNODE_H
 #define GENERICDISPLAYNODE_H
 
-#include <QtNodes/NodeDelegateModel>
-#include <QVector>
-#include <QMap>
-
-class QStackedWidget;
-
-// Include full definition — ChartView inherits QWidget, needed for addWidget()
-#include "QtChartsCompat.h"
+#include "DaqDisplayNode.h"
 
 /**
- * @brief Display node for generic_numeric port type.
+ * @brief Legacy alias of the DAQ Display (REQ-SW-PL-022).
  *
- * Handles typed numeric data (int16/uint16/int32/uint32/float32/float64)
- * with manual configuration: channels, SampleType, sampleRate, scale.
- *
- * Views: TimeChart, FFTSpectrum, SensorGauge (future).
+ * Old saved graphs reference the "GenericDisplay" model name. Keeping this
+ * thin subclass preserves saved-graph loading (AC 8) while inheriting the
+ * real DataPlot rendering of DaqDisplayNode — the old updateTimeChart() /
+ * updateFFTChart() stubs are replaced by the inherited slot pipeline (AC 6).
  */
-class GenericDisplayNode : public QtNodes::NodeDelegateModel
+class GenericDisplayNode : public DaqDisplayNode
 {
     Q_OBJECT
 
 public:
-    GenericDisplayNode();
-    ~GenericDisplayNode() override;
+    GenericDisplayNode() = default;
 
     QString caption() const override
     { return QStringLiteral("Generic Display"); }
 
-    bool captionVisible() const override
-    { return false; }
-
     QString name() const override
     { return QStringLiteral("GenericDisplay"); }
-
-    QJsonObject save() const override;
-
-    unsigned int nPorts(QtNodes::PortType portType) const override;
-
-    QtNodes::NodeDataType dataType(QtNodes::PortType portType,
-                                   QtNodes::PortIndex portIndex) const override;
-
-    std::shared_ptr<QtNodes::NodeData> outData(QtNodes::PortIndex const port) override;
-
-    void setInData(std::shared_ptr<QtNodes::NodeData> data,
-                   QtNodes::PortIndex const portIndex) override;
-
-    QWidget* embeddedWidget() override;
-
-private:
-    void setupUi();
-    void updateTimeChart(const QVector<QVector<double>>& channels);
-    void updateFFTChart(const QVector<QVector<double>>& channels);
-
-    QStackedWidget* m_stack = nullptr;
-    QtChartsCompat::ChartView* m_timeChart = nullptr;
-    QtChartsCompat::ChartView* m_fftChart = nullptr;
-    QVector<QtChartsCompat::LineSeries*> m_timeSeries;
-    QVector<QtChartsCompat::LineSeries*> m_fftSeries;
-    int m_configPanelIndex = -1;
-    int m_timeChartIndex = -1;
-    int m_fftChartIndex = -1;
 };
 
 #endif // GENERICDISPLAYNODE_H

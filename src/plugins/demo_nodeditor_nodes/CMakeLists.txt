@@ -83,24 +83,30 @@ else()
     message(STATUS "demo_nodeditor_nodes: OpenCV not found or disabled — using the 8 base video transform operations")
 endif()
 
-# ── Displays: AudioDisplay ──────────────────────────────────────────
+# ── Displays: AudioDisplay (QDevIO, obsolete — REQ-SW-PL-023 §7) ─────
 set(AUDIO_DISPLAY_NODES
-    Displays/AudioDisplay/AudioDisplayModel.h
-    Displays/AudioDisplay/AudioDisplayModel.cpp
+    Displays/AudioDisplay/AudioDisplayModelObsolete.h
+    Displays/AudioDisplay/AudioDisplayModelObsolete.cpp
 )
 
-# ── Displays: GenericDisplay ────────────────────────────────────────
+# ── Displays: DAQ Display (DataPlot, REQ-SW-PL-022) ─────────────────
+set(DAQ_DISPLAY_NODES
+    Displays/DaqDisplay/DaqDisplayNode.h
+    Displays/DaqDisplay/DaqDisplayNode.cpp
+)
+
+# ── Displays: GenericDisplay (legacy alias of DAQ Display) ──────────
 set(GENERIC_DISPLAY_NODES
     Displays/GenericDisplay/GenericDisplayNode.h
     Displays/GenericDisplay/GenericDisplayNode.cpp
 )
 
-# ── Routing: Demux + Mux ───────────────────────────────────────────
+# ── Routing: Demux + Mux (QDevIO, obsolete — REQ-SW-PL-023 §7) ──────
 set(ROUTING_NODES
-    Routing/Demux/DemuxNode.h
-    Routing/Demux/DemuxNode.cpp
-    Routing/Mux/MuxNode.h
-    Routing/Mux/MuxNode.cpp
+    Routing/Demux/DemuxNodeObsolete.h
+    Routing/Demux/DemuxNodeObsolete.cpp
+    Routing/Mux/MuxNodeObsolete.h
+    Routing/Mux/MuxNodeObsolete.cpp
 )
 
 # ── Shared types ────────────────────────────────────────────────────
@@ -117,6 +123,7 @@ create_plugin(DemoNodeEditorNodes
         ${VIDEO_OPENCV_SOURCES}
         ${GENERIC_DISPLAY_NODES}
         ${AUDIO_DISPLAY_NODES}
+        ${DAQ_DISPLAY_NODES}
         ${ROUTING_NODES}
         ${SHARED_TYPES}
     REQUIRES_LIBRARIES
@@ -139,6 +146,7 @@ create_plugin(DemoNodeEditorNodes
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/AudioDisplay
+        ${CMAKE_CURRENT_SOURCE_DIR}/Displays/DaqDisplay
         ${VIDEO_OPENCV_INCLUDE_DIRS}
     LINK_LIBRARIES
         ${VIDEO_OPENCV_LINK_LIBRARIES}

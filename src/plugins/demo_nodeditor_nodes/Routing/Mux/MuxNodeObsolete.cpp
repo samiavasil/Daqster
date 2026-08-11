@@ -1,6 +1,6 @@
-#include "MuxNode.h"
-#include <GenericQDevIoConnector.h>
-#include <StreamChannel.h>
+#include "MuxNodeObsolete.h"
+#include <GenericQDevIoConnectorObsolete.h>
+#include <StreamChannelObsolete.h>
 #include <QDebug>
 
 using QtNodes::PortType;
@@ -9,23 +9,23 @@ using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeValidationState;
 
-MuxNode::MuxNode()
-    : m_output(std::make_shared<GenericQDevIoConnector>(this))
+MuxNodeObsolete::MuxNodeObsolete()
+    : m_output(std::make_shared<GenericQDevIoConnectorObsolete>(this))
 {
 }
 
-MuxNode::~MuxNode()
+MuxNodeObsolete::~MuxNodeObsolete()
 {
 }
 
-QJsonObject MuxNode::save() const
+QJsonObject MuxNodeObsolete::save() const
 {
     QJsonObject modelJson;
     modelJson["name"] = name();
     return modelJson;
 }
 
-unsigned int MuxNode::nPorts(PortType portType) const
+unsigned int MuxNodeObsolete::nPorts(PortType portType) const
 {
     switch (portType) {
     case QtNodes::PortType::In:
@@ -37,7 +37,7 @@ unsigned int MuxNode::nPorts(PortType portType) const
     }
 }
 
-NodeDataType MuxNode::dataType(PortType portType, PortIndex portIndex) const
+NodeDataType MuxNodeObsolete::dataType(PortType portType, PortIndex portIndex) const
 {
     if (portType == QtNodes::PortType::In && portIndex < m_inputs.size()) {
         return {m_inputs[portIndex].type,
@@ -49,7 +49,7 @@ NodeDataType MuxNode::dataType(PortType portType, PortIndex portIndex) const
     return {QStringLiteral("unknown"), QStringLiteral("Unknown")};
 }
 
-std::shared_ptr<NodeData> MuxNode::outData(PortIndex port)
+std::shared_ptr<NodeData> MuxNodeObsolete::outData(PortIndex port)
 {
     if (port == 0) {
         return m_output;
@@ -57,7 +57,7 @@ std::shared_ptr<NodeData> MuxNode::outData(PortIndex port)
     return nullptr;
 }
 
-void MuxNode::setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex)
+void MuxNodeObsolete::setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex)
 {
     if (!data || portIndex < 0) return;
 
@@ -68,7 +68,7 @@ void MuxNode::setInData(std::shared_ptr<NodeData> data, PortIndex const portInde
         m_inputs.append(inp);
     }
 
-    auto connector = std::dynamic_pointer_cast<GenericQDevIoConnector>(data);
+    auto connector = std::dynamic_pointer_cast<GenericQDevIoConnectorObsolete>(data);
     if (connector && connector->hasStreamConfig()) {
         m_inputs[portIndex].type = connector->streamConfig().type;
     } else {
@@ -80,12 +80,12 @@ void MuxNode::setInData(std::shared_ptr<NodeData> data, PortIndex const portInde
     MixedStreamPayload payload;
     for (const auto& inp : m_inputs) {
         if (inp.data) {
-            StreamChannel ch;
+            StreamChannelObsolete ch;
             ch.type = inp.type;
-            auto inpConn = std::dynamic_pointer_cast<GenericQDevIoConnector>(inp.data);
+            auto inpConn = std::dynamic_pointer_cast<GenericQDevIoConnectorObsolete>(inp.data);
             if (inpConn) {
                 ch.decoder = inpConn->payload().channels.isEmpty() ?
-                    QSharedPointer<IStreamDecoder>() :
+                    QSharedPointer<IStreamDecoderObsolete>() :
                     inpConn->payload().channels.first().decoder;
             }
             payload.channels.append(ch);
@@ -99,12 +99,12 @@ void MuxNode::setInData(std::shared_ptr<NodeData> data, PortIndex const portInde
     setValidationState(s);
 }
 
-QWidget* MuxNode::embeddedWidget()
+QWidget* MuxNodeObsolete::embeddedWidget()
 {
     return nullptr; // No embedded widget
 }
 
-QtNodes::ConnectionPolicy MuxNode::portConnectionPolicy(
+QtNodes::ConnectionPolicy MuxNodeObsolete::portConnectionPolicy(
     PortType portType, PortIndex portIndex) const
 {
     Q_UNUSED(portType);

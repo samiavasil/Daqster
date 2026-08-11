@@ -1,5 +1,5 @@
-#ifndef DEMUXNODE_H
-#define DEMUXNODE_H
+#ifndef DEMUXNODEOBSOLETE_H
+#define DEMUXNODEOBSOLETE_H
 
 #include <QtNodes/NodeDelegateModel>
 #include <QVector>
@@ -12,23 +12,28 @@
  *
  * Reads MixedStreamPayload from the connector and routes each
  * channel to its corresponding output port.
+ *
+ * @note Renamed to *_obsolete (REQ-SW-PL-023 §7) — implementation unchanged.
+ *       Kept working until the QDevIO display world is deleted at the very end.
+ *       Registered under its new name AND aliased under the old "DemuxNode" key
+ *       so old saved graphs still load.
  */
-class DemuxNode : public QtNodes::NodeDelegateModel
+class DemuxNodeObsolete : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
 public:
-    DemuxNode();
-    ~DemuxNode() override;
+    DemuxNodeObsolete();
+    ~DemuxNodeObsolete() override;
 
     QString caption() const override
-    { return QStringLiteral("Demux"); }
+    { return QStringLiteral("Demux (obsolete)"); }
 
     bool captionVisible() const override
     { return false; }
 
     QString name() const override
-    { return QStringLiteral("DemuxNode"); }
+    { return QStringLiteral("DemuxNodeObsolete"); }
 
     QJsonObject save() const override;
 
@@ -57,4 +62,4 @@ private:
     std::shared_ptr<QtNodes::NodeData> m_input;
 };
 
-#endif // DEMUXNODE_H
+#endif // DEMUXNODEOBSOLETE_H
