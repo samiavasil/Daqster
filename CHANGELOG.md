@@ -55,9 +55,14 @@
   - `SampledData` — единен NodeData тип (`{"sample","Sample"}`) в `src/plugins/common/NodeDataTypes/`, QtCore-only, с QByteArray + per-channel `{name, SampleType}` + double sampleRate + `decodeToNormalized()`; `AudioData` = SampledData с `domain="audio"` (без отделен клас)
   - `SampledStreamDescriptor` — консолидация на `GenericStreamConfig` + `QDevIOStreamConfig`: разширен `SampleType` enum (int8/uint8/int16/uint16/int24/uint24/int32/uint32/float32/float64), endianness, unit + amplitudeScale + amplitudeOffset, `domain` поле ("audio"/"vibration"/"daq"/"ecg"/…), device id/source name, first-sample timestamp
   - Unified decoder конвенция — signed/unsigned делят на `(2^(bits-1) − 1)` със clamp в [-1,1], floats се clamp-ват (fix на старата GenericNumericTypes 32768/no-clamp конвенция); `AudioFrameDecoder` получи QtCore-only `configure(SampleType, bits, endian)` overload
-  - SampledData аудио изходен порт на `VideoFileSourceNode` + `StreamSourceNode` (append-нат ПОСЛЕДЕН — Qt6 порт 2, Qt5 порт 1 — старите saved graphs запазват индексите); capture: Qt6 `QAudioBufferOutput` (6.8+) / Qt5 `QAudioProbe`; буферите се обвиват в `shared_ptr<SampledData>` и се емитират гейтнати на connection count
-  - **DAQ Display нод** — `Displays/DaqDisplay/DaqDisplayNode.{h,cpp}`: реален Qt Charts waveform + FFT за всеки sampled source (audio/DAQ/сензори); plot слотове `std::function<QVector<float>(const SampledData&)>` (JIT-ready), v1 built-ins identity + FFT; `GenericDisplayNode` е legacy alias, `AudioDisplayModel::configureAudioView` no-op заменен с реален UI config
+  - SampledData аудио изходен порт на `VideoFileSourceNode` + `StreamSourceNode` (append-нат ПОСЪДЪН — Qt6 порт 2, Qt5 порт 1 — старите saved graphs запазват индексите); capture: Qt6 `QAudioBufferOutput` (6.8+) / Qt5 `QAudioProbe`; буферите се обвиват в `shared_ptr<SampledData>` и се емитират гейтнати на connection count
+  - **DAQ Display нод** — `Displays/DaqDisplay/DaqDisplayNode.{h,cpp}`: реален Qt Charts waveform + FFT за всякarn плъгин с sampled данни (audio/DAQ/sензори); plot слотове `std::function<QVector<float>(const SampledData&)>` (JIT-ready), v1 built-ins identity + FFT; `GenericDisplayNode` е legacy alias, `AudioDisplayModel::configureAudioView` no-op заменен с реален UI config
   - Комити: `3929326` (req), `12076a2` (Qt6 audio fix), `cf5d0ae` (SampledData+descriptor), `6395220` (decoder convention), `75e291c` (audio port), `c5559b0` (DAQ Display), `8c56e83` (Qt5/Qt6 build fixes)
+  - Статус: ACTIVE (impl готов, unit тестове отложени)
+- **REQ-SW-PL-023** (DaqDisplayNode Multi-Plot v1):
+  - `DaqDisplayNode` — плъгин за мултиплейт plotting чрез Qt Charts, FFT за всякarn sampled источник (audio/DAQ/sензори), per-plot channel/type, off-GUI compute via `QThreadPool`, save/restore via `QDataStream`
+  - `FftUtil` — утилитарна библиотека за FFT-раундлайн, `magnitudeSpectrum`, `decodeToNormalizedF32`
+  - Комити: `4ba278b` (feat: DAQ Display Multi-Plot v1), `c74e7e3` (feat: FftUtil magnitudeSpectrum + SampledData decodeToNormalizedF32), `1ffac96` (chore: remove temporary thread-identity logging after Phase 4 verification)
   - Статус: ACTIVE (impl готов, unit тестове отложени)
 
 ### Changed

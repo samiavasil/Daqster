@@ -41,8 +41,8 @@ demo_nodeditor_nodes/
 ├── Displays/
 │   ├── AudioDisplay/
 │   │   └── AudioDisplayModel.{h,cpp}
-│   └── GenericDisplay/
-│       └── GenericDisplayNode.{h,cpp}
+│   └── DaqDisplay/
+│       └── DaqDisplayNode.{h,cpp}
 └── Routing/
     ├── Demux/
     │   └── DemuxNode.{h,cpp}
@@ -76,6 +76,7 @@ DemoNodeEditorNodesObject → QBasePluginObject
 DemoNodeEditorNodesObject → INodeProvider
   └── registerNodes(registry) →
         registry.registerModel<AudioDisplayModel>("Displays")
+        registry.registerModel<DaqDisplayNode>("Displays")
         registry.registerModel<GenericDisplayNode>("Displays")
         registry.registerModel<DemuxNode>("Routing")
         registry.registerModel<MuxNode>("Routing")
@@ -103,6 +104,7 @@ DemoNodeEditorNodesObject → INodeProvider
 | Нод | Категория | Описание |
 |-----|-----------|----------|
 | AudioDisplayModel | Displays | Аудио дисплей за визуализация на аудио данни |
+| DaqDisplayNode | Displays | Реален Qt Charts waveform + FFT за всякarn плъгин с sampled данни (audio/DAQ/sензори) |
 | GenericDisplayNode | Displays | Универсален дисплей за generic данни |
 
 ### Routing
@@ -246,4 +248,23 @@ QObjectList providers = pm->instances(INodeProvider_IID);
 - [Node Editor IDE](../node_editor_ide/README.md) — потребителят на този плъгин
   - [REQ-SW-PL-018](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-018-video-source-and-processing-nodes.md) — Video Source & Processing Nodes (5-те video node модела + VideoCompat.h)
   - [REQ-SW-PL-019](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-019-video-transform-node-configurable-operations.md) — Video Transform Node (8 базови + опционални OpenCV операции)
-  - [REQ-SW-PL-020](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-020-zero-copy-video-frame-display.md) — Zero-Copy Video Frame Transport & GPU Display (VideoFrameData, dual-port source/output nodes, Qt6 GPU display)
+   - [REQ-SW-PL-020](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-020-zero-copy-video-frame-display.md) — Zero-Copy Video Frame Transport & GPU Display (VideoFrameData, dual-port source/output nodes, Qt6 GPU display)
+
+## _obsolete rename strategy_
+
+До **[REQ-SW-PL-020]**, `QDevIO` приложението `DisplayWorld` беше преименувано на `_obsolete` (rename-стратегия) за съществена архитектурна промяна. `DaqDisplayNode` остава единственият нод с реален UI в `Displays/`, като наследник от `DisplayWorld`. Към **`1ffac96`** `QDevIO` е преименувано. При **`4ba278b`** `DaqDisplayNode` е наследник от `DisplayWorld`.
+
+## off-GUI threading model
+
+`DaqDisplayNode` не се стартира в GUI потребителското съземе. Комуникацията с основния интерфейс е изградена със `QThreadPool` + `Qt::QueuedConnection`, което гарантира, че FFT/канализация на графиките винаги се изпълнява в работна работа, а не в основния UI потребителски контекст. `QDataStream` изходният канал е намерен за сериализация (пре-поредица на `QVariant`). `QThread` е дефолтна възможност за асинхронизация — `DaqDisplayNode` по-специализира работата за `QDataStream` и `QPlotWidget`-ът.
+
+### QDevIO → SampledData migration (_obsolete strategy)
+Since REQ-SW-PL-023/PL-024, all legacy QDevIO components are renamed with an `_obsolete` suffix
+(class `XxxObsolete`, files `XxxObsolete.{h,cpp,ui}`, registered name `XxxObsolete`, caption "(obsolete)")
+but keep their original working implementation. Alias subclasses keep the old registered names where
+the key is not taken by a new node (e.g. `AudioDisplayModelObsoleteAlias` → "AudioDisplay").
+The new `DaqDisplayNode` (SampledData) and the new `AudioSourceDataModel` (SampledData) take the
+current names. Both worlds coexist so capabilities and speed can be benchmarked head-to-head;
+the _obsolete components are deleted at the very end. No data work happens on the GUI thread:
+capture runs in a QThread worker, decode/FFT/point-build in a node-owned QThreadPool (maxThreadCount=1),
+and the GUI thread only does `series->replace()` + `axis->setRange()` via a queued result bridge.

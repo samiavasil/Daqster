@@ -87,6 +87,11 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - **DAQ Display node** — `Displays/DaqDisplay/DaqDisplayNode.{h,cpp}`: real Qt Charts waveform + FFT for any sampled source (audio/DAQ/sensors); plot slots `std::function<QVector<float>(const SampledData&)>` (JIT-ready), v1 built-ins identity + FFT; `GenericDisplayNode` is a legacy alias, `AudioDisplayModel::configureAudioView` no-op replaced with real UI config
   - Commits: `3929326` (req), `12076a2` (Qt6 audio fix), `cf5d0ae` (SampledData+descriptor), `6395220` (decoder convention), `75e291c` (audio port), `c5559b0` (DAQ Display), `8c56e83` (Qt5/Qt6 build fixes)
   - Status: ACTIVE (impl done, unit tests deferred)
+- **REQ-SW-PL-023** (DaqDisplayNode Multi-Plot v1):
+  - `DaqDisplayNode` — плъгин за мултиплейт plotting чрез Qt Charts, FFT за всякarn sampled источник (audio/DAQ/sензори), per-plot channel/type, off-GUI compute via `QThreadPool`, save/restore via `QDataStream`
+  - `FftUtil` — утилитарна библиотека за FFT-раундлайн, `magnitudeSpectrum`, `decodeToNormalizedF32`
+  - Комити: `4ba278b` (feat: DAQ Display Multi-Plot v1), `c74e7e3` (feat: FftUtil magnitudeSpectrum + SampledData decodeToNormalizedF32), `1ffac96` (chore: remove temporary thread-identity logging after Phase 4 verification)
+  - Status: ACTIVE (impl готов, unit тестове отложени)
 
 ### Changed
 - **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality
