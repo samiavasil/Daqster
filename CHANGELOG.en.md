@@ -80,6 +80,14 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Commits: `b5c9651` (req), `157f34d` (VideoFrameData+shim), `085f63d` (VideoOutputNode), `0f92a9c` (CMake), `c873b43` (docs), `9d0f178` (AC/status)
   - Status: ACTIVE (impl done, unit tests deferred)
 - (REQ-SW-PL-020) VideoFrameData and VideoOutputNode unit tests (PL-020 AC6) — e054396.
+- **REQ-SW-PL-027** (Video Pipeline Instrumentation & Overlay — first consumer of REQ-SW-FW-008):
+  - Domain getters: `Daqster::Perf::Domain::{avg,min,max,count}(stage)` (read-only, -1 when the stage has no samples) in `PerfProfiler.{h,cpp}`
+  - Source instrumentation: `StreamSourceNode`, `VideoFileSourceNode`, `CameraSourceNode` record the inter-frame gap (`"source.frame_interval"`) + the wrap/emit segment (`"source.wrap_emit"`) and latch `handleType`/`pixelFormat` (HW/SW markers) in the `"video"` domain
+  - Output instrumentation: `VideoOutputNode` records `"output.present"` (blit) + `"output.total"` and latches the incoming frame's markers
+  - Qt6-only overlay + checkbox: "Perf" checkbox → `Domain::get("video").setEnabled()` + 500 ms `QTimer` + semi-transparent `QLabel` badge (child of the detached `QVideoWidget`, top-left): `HW|SW · fmt=… · handle=… · fps=… · gap=…ms · present=…ms · total=…ms`
+  - `VideoPerfBadge.{h,cpp}` — pure QtCore-only `formatPerfBadge()` formatter (no widgets/QtMultimedia) + deterministic unit test (8 slots)
+  - Removed the temporary `VideoDiag` diagnostic block; zero overhead at `DAQSTER_ENABLE_PERF=OFF`
+  - Commits: `885ad11`, `5c0c831`, `7682bb1`, `3ecd5c0`
 - **REQ-SW-PL-022** (unified sampled data transport & DAQ Display):
   - `SampledData` — unified NodeData type (`{"sample","Sample"}`) in `src/plugins/common/NodeDataTypes/`, QtCore-only, carrying QByteArray + per-channel `{name, SampleType}` + double sampleRate + `decodeToNormalized()`; `AudioData` = SampledData with `domain="audio"` (no separate class)
   - `SampledStreamDescriptor` — consolidation of `GenericStreamConfig` + `QDevIOStreamConfig`: extended `SampleType` enum (int8/uint8/int16/uint16/int24/uint24/int32/uint32/float32/float64), endianness, unit + amplitudeScale + amplitudeOffset, `domain` field ("audio"/"vibration"/"daq"/"ecg"/…), device id/source name, first-sample timestamp
