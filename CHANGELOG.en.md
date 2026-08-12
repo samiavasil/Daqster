@@ -88,6 +88,12 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `VideoPerfBadge.{h,cpp}` — pure QtCore-only `formatPerfBadge()` formatter (no widgets/QtMultimedia) + deterministic unit test (8 slots)
   - Removed the temporary `VideoDiag` diagnostic block; zero overhead at `DAQSTER_ENABLE_PERF=OFF`
   - Commits: `885ad11`, `5c0c831`, `7682bb1`, `3ecd5c0`
+- **REQ-SW-PL-027 (periodic console line + self-CPU)** — copy-paste-able perf numbers on both Qt5 + Qt6:
+  - `ProcessCpu` (`src/frame_work/base/src/perf/ProcessCpu.{h,cpp}`) — self-CPU sampler for the current process (Linux `/proc/self/stat` utime+stime in clock ticks / Windows `GetProcessTimes()` KernelTime+UserTime); first sample establishes the baseline and returns 0.0
+  - Periodic 5 s console log in `VideoOutputNode` (both Qt5 + Qt6): `[PERF] video | SW | fmt=NV12 | handle=NoHandle | fps=30 | gap=…ms | present=…ms | total=…ms | cpu=…%` via `qCDebug(lcPerf)` (stable `[PERF] video` prefix for grep/copy-paste); the "Perf" checkbox now lives on both Qt versions
+  - Qt5 display-path instrumentation (`"output.present"` around `updateDisplay()`, `"output.total"` around the whole image branch) + Qt5 source-node instrumentation (`"source.frame_interval"` gap + `"source.wrap_emit"` wrapping the QVideoFrame→QImage conversion)
+  - `formatPerfLine()` pure QtCore-only formatter in `VideoPerfBadge.{h,cpp}` + deterministic unit tests (5 new slots, 15 total in `TestVideoPerfBadge`)
+  - Commits: `0eb005b`, `7a71e12`, `fb0455d`, `952e416`
 - **REQ-SW-PL-022** (unified sampled data transport & DAQ Display):
   - `SampledData` — unified NodeData type (`{"sample","Sample"}`) in `src/plugins/common/NodeDataTypes/`, QtCore-only, carrying QByteArray + per-channel `{name, SampleType}` + double sampleRate + `decodeToNormalized()`; `AudioData` = SampledData with `domain="audio"` (no separate class)
   - `SampledStreamDescriptor` — consolidation of `GenericStreamConfig` + `QDevIOStreamConfig`: extended `SampleType` enum (int8/uint8/int16/uint16/int24/uint24/int32/uint32/float32/float64), endianness, unit + amplitudeScale + amplitudeOffset, `domain` field ("audio"/"vibration"/"daq"/"ecg"/…), device id/source name, first-sample timestamp

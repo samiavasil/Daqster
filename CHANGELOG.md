@@ -60,6 +60,12 @@
   - `VideoPerfBadge.{h,cpp}` — pure QtCore-only `formatPerfBadge()` форматър (без widgets/QtMultimedia) + детерминистичен unit тест (8 slots)
   - Премахнат временният `VideoDiag` диагностичен блок; нулев разход при `DAQSTER_ENABLE_PERF=OFF`
   - Комити: `885ad11`, `5c0c831`, `7682bb1`, `3ecd5c0`
+- **REQ-SW-PL-027 (периодичен конзолен ред + self-CPU)** — copy-paste-ващи перф числа на Qt5 + Qt6:
+  - `ProcessCpu` (`src/frame_work/base/src/perf/ProcessCpu.{h,cpp}`) — self-CPU семплър за текущия процес (Linux `/proc/self/stat` utime+stime в clock ticks / Windows `GetProcessTimes()` KernelTime+UserTime); първият sample задава базовата линия и връща 0.0
+  - Периодичен 5 s конзолен лог в `VideoOutputNode` (Qt5 + Qt6): `[PERF] video | SW | fmt=NV12 | handle=NoHandle | fps=30 | gap=…ms | present=…ms | total=…ms | cpu=…%` през `qCDebug(lcPerf)` (стабилен `[PERF] video` префикс за grep/copy-paste); чекбоксът „Perf" вече е и на двете Qt версии
+  - Qt5 инструментиране на display пътя (`"output.present"` около `updateDisplay()`, `"output.total"` около целия image клон) + Qt5 инструментиране на source нодовете (`"source.frame_interval"` gap + `"source.wrap_emit"` около QVideoFrame→QImage конверсията)
+  - `formatPerfLine()` pure QtCore-only форматър в `VideoPerfBadge.{h,cpp}` + детерминистични unit тестове (5 нови slot-а, общо 15 в `TestVideoPerfBadge`)
+  - Комити: `0eb005b`, `7a71e12`, `fb0455d`, `952e416`
 - **REQ-SW-PL-022** (unified sampled data transport & DAQ Display):
   - `SampledData` — единен NodeData тип (`{"sample","Sample"}`) в `src/plugins/common/NodeDataTypes/`, QtCore-only, с QByteArray + per-channel `{name, SampleType}` + double sampleRate + `decodeToNormalized()`; `AudioData` = SampledData с `domain="audio"` (без отделен клас)
   - `SampledStreamDescriptor` — консолидация на `GenericStreamConfig` + `QDevIOStreamConfig`: разширен `SampleType` enum (int8/uint8/int16/uint16/int24/uint24/int32/uint32/float32/float64), endianness, unit + amplitudeScale + amplitudeOffset, `domain` поле ("audio"/"vibration"/"daq"/"ecg"/…), device id/source name, first-sample timestamp
