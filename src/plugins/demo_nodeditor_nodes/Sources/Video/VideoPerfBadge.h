@@ -27,4 +27,30 @@
 QString formatPerfBadge(qint64 gapNs, qint64 presentNs, qint64 totalNs,
                         int handleType, int pixelFormat);
 
+/**
+ * @brief Formats the single-line console perf report (REQ-SW-PL-027).
+ *
+ * Pure, QtCore-only helper (same model as formatPerfBadge) so it can be
+ * unit-tested deterministically. Intended for the 5 s periodic console log
+ * (qCDebug(lcPerf)) in VideoOutputNode — a stable `[PERF] video` prefix makes
+ * the numbers grep-able / copy-paste-able, and the trailing `cpu=` adds the
+ * self-CPU percentage from Daqster::Perf::ProcessCpu.
+ *
+ * Output layout:
+ *   `[PERF] video | HW|SW | fmt=… | handle=… | fps=… | gap=…ms | present=…ms | total=…ms | cpu=…%`
+ *
+ * @param gapNs      avg inter-frame gap (stage "source.frame_interval"), ns.
+ *                   <= 0 (no samples / first frame) renders fps=0 and gap=0.0ms.
+ * @param presentNs  avg present/blit time (stage "output.present"), ns.
+ * @param totalNs    avg full setInData frame processing (stage "output.total"), ns.
+ * @param cpuPercent self-CPU percentage over the interval since the previous
+ *                   ProcessCpu::sample() (0.0 on the first sample).
+ * @param handleType QVideoFrame::HandleType as int (0 = NoHandle → "SW").
+ * @param pixelFormat QVideoFrameFormat::PixelFormat as int (Qt6 values).
+ *
+ * @return The formatted single-line report.
+ */
+QString formatPerfLine(qint64 gapNs, qint64 presentNs, qint64 totalNs,
+                       double cpuPercent, int handleType, int pixelFormat);
+
 #endif // VIDEOPERFBADGE_H

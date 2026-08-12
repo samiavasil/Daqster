@@ -3,6 +3,8 @@
 
 #include <QtNodes/NodeDelegateModel>
 
+#include "ProcessCpu.h"
+
 #include <QImage>
 #include <memory>
 
@@ -10,10 +12,10 @@ class QLabel;
 class QWidget;
 
 class ImageData;
-
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 class QCheckBox;
 class QTimer;
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 class QVideoWidget;
 class VideoFrameData;
 #endif
@@ -90,6 +92,9 @@ protected:
 private:
     void updateDisplay();
 
+    /// Log the single-line console perf report (5 s timer, both Qt5 + Qt6).
+    void logPerfLine();
+
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     /// Lazily create the detached QVideoWidget on the first video-frame input.
     void ensureVideoWidget();
@@ -103,6 +108,18 @@ private:
     QLabel *m_label = nullptr;
     QImage m_image;
     std::shared_ptr<ImageData> m_output;
+
+    // Perf console line (REQ-SW-PL-027, both Qt5 + Qt6): the "Perf" checkbox
+    // enables the "video" domain and drives the 5 s console timer; m_cpu
+    // samples self-CPU; the markers tag the last presented frame. On Qt5 the
+    // markers stay at their defaults (SW / Invalid) — the QImage path never
+    // delivers a QVideoFrame to this node, so there is no handle/pixel format.
+    QCheckBox *m_perfCheck = nullptr;
+    QTimer *m_consoleTimer = nullptr;
+    Daqster::Perf::ProcessCpu m_cpu;
+    int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
+    int m_lastPixelFormat = -1;    // QVideoFrameFormat::PixelFormat
+
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     std::shared_ptr<VideoFrameData> m_videoFrame;
     QVideoWidget *m_videoWidget = nullptr;
@@ -112,13 +129,10 @@ private:
     /// removed cannot resurrect the detached popup.
     bool m_videoInputConnected = false;
 
-    // Perf overlay (REQ-SW-PL-027): the checkbox lives in the embedded widget;
-    // the badge is a child of the detached QVideoWidget; the timer refreshes it.
-    QCheckBox *m_perfCheck = nullptr;
+    // Perf overlay (REQ-SW-PL-027): the badge is a child of the detached
+    // QVideoWidget; the 500 ms timer refreshes it.
     QLabel *m_perfBadge = nullptr;
     QTimer *m_perfTimer = nullptr;
-    int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
-    int m_lastPixelFormat = -1;    // QVideoFrameFormat::PixelFormat
 #endif
 };
 

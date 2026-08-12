@@ -292,12 +292,26 @@ void CameraSourceNode::onFrameAvailable(const QVideoFrame &frame)
     m_output = std::make_shared<ImageData>(image);
     Q_EMIT dataUpdated(1);
 #else
-    const QImage image = VideoCompat::frameToImage(frame);
-    if (image.isNull())
-        return;
+    // Qt5 QImage path (REQ-SW-PL-027): inter-frame gap is a proxy for the
+    // decode cadence, then frameToImage + emit are wrapped in the wrap_emit
+    // segment (which on Qt5 includes the QVideoFrame→QImage conversion). No-op
+    // while the "video" domain is disabled.
+    if (PERF_ENABLED("video")) {
+        const std::int64_t gapNs = m_perfWatch.mark();
+        if (!m_perfFirstFrame && gapNs > 0)
+            Daqster::Perf::Domain::get("video").record("source.frame_interval", gapNs);
+        m_perfFirstFrame = false;
+    }
 
-    m_output = std::make_shared<ImageData>(image);
-    Q_EMIT dataUpdated(0);
+    {
+        PERF_SCOPE("video", "source.wrap_emit");
+        const QImage image = VideoCompat::frameToImage(frame);
+        if (image.isNull())
+            return;
+
+        m_output = std::make_shared<ImageData>(image);
+        Q_EMIT dataUpdated(0);
+    }
 #endif
 }
 

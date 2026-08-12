@@ -88,14 +88,17 @@ private:
     QList<VideoCompat::CameraDevice> m_devices;
     QCamera *m_camera = nullptr;
     VideoCompat::FrameProbe *m_frameProbe = nullptr;
+    // Runtime profiling (REQ-SW-PL-027): inter-frame gap stopwatch + first-frame
+    // flag, shared by both the Qt6 zero-copy path and the Qt5 QImage path. The
+    // HW/SW markers are Qt6-only (Qt5 QVideoFrame has no surfaceFormat()).
+    Daqster::Perf::Stopwatch m_perfWatch;
+    bool m_perfFirstFrame = true;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     // Reused per frame via setFrame() — no allocation per frame (REQ-SW-PL-020).
     std::shared_ptr<VideoFrameData> m_videoFrameOut;
     int m_imagePortConnectionCount = 0;
-    // Runtime profiling (REQ-SW-PL-027): inter-frame gap stopwatch + last-frame
-    // HW/SW markers (handleType/pixelFormat) for source-side diagnostics.
-    Daqster::Perf::Stopwatch m_perfWatch;
-    bool m_perfFirstFrame = true;
+    // Runtime profiling (REQ-SW-PL-027): last-frame HW/SW markers
+    // (handleType/pixelFormat) for source-side diagnostics.
     int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
     int m_lastPixelFormat = -1;    // QVideoFrameFormat::PixelFormat
 #endif

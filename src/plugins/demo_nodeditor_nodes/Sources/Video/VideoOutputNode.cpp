@@ -2,19 +2,20 @@
 
 #include "NodeDataTypes/ImageData.h"
 #include "NodeDataTypes/VideoFrameData.h"
+#include "LogCategories.h"
 #include "PerfProfiler.h"
 #include "VideoCompat.h"
 #include "VideoPerfBadge.h"
 
+#include <QCheckBox>
 #include <QEvent>
 #include <QLabel>
 #include <QPixmap>
 #include <QSize>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-#include <QCheckBox>
-#include <QTimer>
 #include <QVideoWidget>
 #endif
 
@@ -39,26 +40,39 @@ VideoOutputNode::VideoOutputNode()
     m_label->setStyleSheet(QStringLiteral("background-color: black; color: gray;"));
     layout->addWidget(m_label);
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    // Perf overlay toggle (REQ-SW-PL-027): enables the "video" profiling domain
-    // live and drives the badge refresh timer. Qt5 keeps the QImage path with
-    // no overlay (REQ-SW-PL-027 notes).
+    // Perf toggle + console line (REQ-SW-PL-027, both Qt5 + Qt6): enables the
+    // "video" profiling domain live and drives the 5 s console timer. On Qt6 it
+    // also drives the on-screen badge refresh timer (500 ms); Qt5 keeps the
+    // QImage path with no overlay but still logs the copy-paste-able line.
     m_perfCheck = new QCheckBox(tr("Perf"), m_widget);
     layout->addWidget(m_perfCheck);
 
+    m_consoleTimer = new QTimer(this);
+    m_consoleTimer->setInterval(5000);
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     m_perfTimer = new QTimer(this);
     m_perfTimer->setInterval(500);
+#endif
 
     connect(m_perfCheck, &QCheckBox::toggled, this, [this](bool checked) {
         Daqster::Perf::Domain::get("video").setEnabled(checked);
         if (checked) {
+            m_consoleTimer->start();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             m_perfTimer->start();
+#endif
         } else {
+            m_consoleTimer->stop();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             m_perfTimer->stop();
             if (m_perfBadge != nullptr)
                 m_perfBadge->hide();
+#endif
         }
     });
+    connect(m_consoleTimer, &QTimer::timeout, this, &VideoOutputNode::logPerfLine);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     connect(m_perfTimer, &QTimer::timeout, this, &VideoOutputNode::updatePerfBadge);
 #endif
 
@@ -67,6 +81,8 @@ VideoOutputNode::VideoOutputNode()
 
 VideoOutputNode::~VideoOutputNode()
 {
+    if (m_consoleTimer != nullptr)
+        m_consoleTimer->stop();
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (m_perfTimer != nullptr)
         m_perfTimer->stop();
@@ -218,6 +234,11 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
 #else
     Q_UNUSED(portIndex);
 
+    // Qt5 image path (REQ-SW-PL-027): "output.total" spans the whole frame
+    // processing; "output.present" wraps the QImage→QPixmap + smooth-scale
+    // display update. Both are no-ops while the "video" domain is disabled.
+    PERF_SCOPE("video", "output.total");
+
     m_image = QImage();
     m_output.reset();
 
@@ -225,7 +246,10 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
     if (imageData && !imageData->isEmpty()) {
         m_image = imageData->image();
         m_output = imageData;
-        updateDisplay();
+        {
+            PERF_SCOPE("video", "output.present");
+            updateDisplay();
+        }
         Q_EMIT dataUpdated(0);
     } else {
         updateDisplay();
@@ -317,6 +341,30 @@ void VideoOutputNode::updateDisplay()
 
     const QPixmap pixmap = QPixmap::fromImage(m_image);
     m_label->setPixmap(pixmap.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+}
+
+void VideoOutputNode::logPerfLine()
+{
+    auto &domain = Daqster::Perf::Domain::get("video");
+    if (!domain.enabled())
+        return;
+
+    // Sample self-CPU first: the first sample only establishes the baseline and
+    // returns 0.0 (the "cpu=0.0%" on the very first line is expected).
+    const double cpuPercent = m_cpu.sample();
+
+    // Log only once there are actual frame records (count > 0).
+    if (domain.count("output.total") <= 0
+        && domain.count("source.frame_interval") <= 0) {
+        return;
+    }
+
+    qCDebug(lcPerf).noquote()
+        << formatPerfLine(domain.avg("source.frame_interval"),
+                          domain.avg("output.present"),
+                          domain.avg("output.total"),
+                          cpuPercent,
+                          m_lastHandleType, m_lastPixelFormat);
 }
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
