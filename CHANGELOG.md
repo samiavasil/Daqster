@@ -62,8 +62,8 @@
 - **REQ-SW-PL-023** (DaqDisplayNode Multi-Plot v1):
   - `DaqDisplayNode` — плъгин за мултиплейт plotting чрез Qt Charts, FFT за всякarn sampled источник (audio/DAQ/sензори), per-plot channel/type, off-GUI compute via `QThreadPool`, save/restore via `QDataStream`
   - `FftUtil` — утилитарна библиотека за FFT-раундлайн, `magnitudeSpectrum`, `decodeToNormalizedF32`
-  - Комити: `4ba278b` (feat: DAQ Display Multi-Plot v1), `c74e7e3` (feat: FftUtil magnitudeSpectrum + SampledData decodeToNormalizedF32), `1ffac96` (chore: remove temporary thread-identity logging after Phase 4 verification)
-  - Статус: ACTIVE (impl готов, unit тестове отложени)
+  - Комити: `4ba278b` (feat: DAQ Display Multi-Plot v1), `c74e7e3` (feat: FftUtil magnitudeSpectrum + SampledData decodeToNormalizedF32), `1ffac96` (chore: remove temporary thread-identity logging after Phase 4 verification), `2174008` (test: SampledData decode), `0655401` (test: FftUtil + AudioBufferToSampled)
+  - Статус: ACTIVE (impl готов, unit тестове добавени и минаващи — Qt5/Qt6)
 - **REQ-SW-PL-024** (AudioSource миграция от QDevIO към SampledData — нов нод
   взема името, старият → `_obsolete`):
   - Нов `AudioSourceDataModel` (registered name `AudioSource`) — SampledData поток
@@ -78,8 +78,10 @@
   - `AudioSourceDataModelUI` споделен и непроменен; enum `StartStop` е дефиниран
     в UI header-а (общ contract за двата нода)
   - Комити: `6ee9d3b` (refactor: rename old QDevIO mic + helpers),
-    `42eb5fa` (feat: SampledData node + MicCaptureWorker)
-  - Статус: ACTIVE (impl готов, unit тестове отложени); Qt5 (5.15.2) + Qt6
+    `42eb5fa` (feat: SampledData node + MicCaptureWorker), `0655401`
+    (test: AudioBufferToSampled glue)
+  - Статус: ACTIVE (impl готов, unit тестове добавени и минаващи — Qt5/Qt6);
+    Qt5 (5.15.2) + Qt6
     (6.9.2) builds PASS + headless smoke PASS (capture в worker нишка → queued
     SampledData на GUI нишката, чисто start/stop, чисто унищожаване)
 - **REQ-SW-PL-025** (DaqDisplayNode Multi-Plot v2 — физически decode + unit оси + ring buffer):
