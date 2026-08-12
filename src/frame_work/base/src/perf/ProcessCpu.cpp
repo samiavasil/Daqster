@@ -77,8 +77,9 @@ std::int64_t ProcessCpu::totalCpuUnits()
     //   majflt cmajflt utime stime ...
     // utime (field 14) and stime (field 15) are in clock ticks. The comm field
     // (2) is parenthesised and may itself contain spaces/parens, so locate the
-    // LAST ')' and parse the 13 integers that follow it — utime is the 12th,
-    // stime the 13th.
+    // LAST ')' and parse what follows it: field 3 (state) is a single
+    // non-numeric character, then fields 4..15 are integers — utime is the 11th
+    // integer after state, stime the 12th.
     std::ifstream stat("/proc/self/stat");
     if (!stat.is_open())
         return 0;
@@ -92,15 +93,19 @@ std::int64_t ProcessCpu::totalCpuUnits()
 
     std::istringstream fields(line.substr(rparen + 1));
 
+    char state = 0;
+    if (!(fields >> state))
+        return 0;
+
     std::int64_t utime = 0;
     std::int64_t stime = 0;
     std::int64_t value = 0;
-    for (int i = 0; i < 13; ++i) {
+    for (int i = 0; i < 12; ++i) {
         if (!(fields >> value))
             return 0;
-        if (i == 11)
+        if (i == 10)
             utime = value; // field 14
-        else if (i == 12)
+        else if (i == 11)
             stime = value; // field 15
     }
 
