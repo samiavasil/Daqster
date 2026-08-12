@@ -2,7 +2,6 @@
 
 #include "NodeDataTypes/ImageData.h"
 #include "NodeDataTypes/VideoFrameData.h"
-#include "LogCategories.h"
 #include "PerfProfiler.h"
 #include "VideoCompat.h"
 #include "VideoPerfBadge.h"
@@ -359,7 +358,12 @@ void VideoOutputNode::logPerfLine()
         return;
     }
 
-    qCDebug(lcPerf).noquote()
+    // Log at Info level WITHOUT a category (qInfo() instead of qCDebug(lcPerf)):
+    // the "daqster.perf" category is disabled by default in LogManager, so a
+    // qCDebug(lcPerf) line would be silently filtered and the [PERF] report
+    // would never reach the console. qInfo() is unconditional (like the FFmpeg
+    // [INF] lines) and guarantees the report is always visible when Perf is on.
+    qInfo().noquote()
         << formatPerfLine(domain.avg("source.frame_interval"),
                           domain.avg("output.present"),
                           domain.avg("output.total"),
