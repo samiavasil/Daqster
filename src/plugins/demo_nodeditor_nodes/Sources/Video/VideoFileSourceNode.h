@@ -89,6 +89,9 @@ public:
 private slots:
     void onBrowseClicked();
     void onPlayPauseClicked();
+    void onStopClicked();
+    void onSeekBackClicked();
+    void onSeekForwardClicked();
     void onFrameAvailable(const QVideoFrame &frame);
     void onAudioBufferReceived(const QAudioBuffer &buffer);
     void onPlaybackStateChanged(int state);
@@ -112,7 +115,11 @@ private:
     QWidget *m_widget = nullptr;
     QLineEdit *m_fileEdit = nullptr;
     QPushButton *m_playPauseButton = nullptr;
+    QPushButton *m_stopButton = nullptr;
+    QPushButton *m_seekBackButton = nullptr;
+    QPushButton *m_seekForwardButton = nullptr;
     QLabel *m_statusLabel = nullptr;
+    QLabel *m_timeLabel = nullptr;
 
     QMediaPlayer *m_player = nullptr;
     VideoCompat::FrameProbe *m_frameProbe = nullptr;

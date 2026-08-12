@@ -68,6 +68,15 @@ VideoFileSourceNode::VideoFileSourceNode()
         [this](int error, const QString &errorString) {
             onPlayerError(static_cast<QMediaPlayer::Error>(error), errorString);
         });
+
+    connect(m_player, &QMediaPlayer::positionChanged, this, [this](qint64 pos) {
+        const qint64 dur = m_player->duration();
+        int posSecs = pos / 1000;
+        int durSecs = dur / 1000;
+        m_timeLabel->setText(QString("%1:%2 / %3:%4")
+            .arg(posSecs / 60, 2, 10, QChar('0')).arg(posSecs % 60, 2, 10, QChar('0'))
+            .arg(durSecs / 60, 2, 10, QChar('0')).arg(durSecs % 60, 2, 10, QChar('0')));
+    });
 }
 
 VideoFileSourceNode::~VideoFileSourceNode()
@@ -200,10 +209,30 @@ void VideoFileSourceNode::buildWidget()
     controlRow->addWidget(m_statusLabel, 1);
     layout->addLayout(controlRow);
 
+    auto *seekRow = new QHBoxLayout();
+    m_stopButton = new QPushButton(tr("Stop"), m_widget);
+    m_stopButton->setEnabled(false);
+    m_seekBackButton = new QPushButton(tr("<< -5s"), m_widget);
+    m_seekBackButton->setEnabled(false);
+    m_seekForwardButton = new QPushButton(tr(">> +5s"), m_widget);
+    m_seekForwardButton->setEnabled(false);
+    m_timeLabel = new QLabel(tr("0:00 / 0:00"), m_widget);
+    seekRow->addWidget(m_stopButton);
+    seekRow->addWidget(m_seekBackButton);
+    seekRow->addWidget(m_seekForwardButton);
+    seekRow->addWidget(m_timeLabel, 1);
+    layout->addLayout(seekRow);
+
     connect(browseButton, &QPushButton::clicked,
             this, &VideoFileSourceNode::onBrowseClicked);
     connect(m_playPauseButton, &QPushButton::clicked,
             this, &VideoFileSourceNode::onPlayPauseClicked);
+    connect(m_stopButton, &QPushButton::clicked,
+            this, &VideoFileSourceNode::onStopClicked);
+    connect(m_seekBackButton, &QPushButton::clicked,
+            this, &VideoFileSourceNode::onSeekBackClicked);
+    connect(m_seekForwardButton, &QPushButton::clicked,
+            this, &VideoFileSourceNode::onSeekForwardClicked);
 }
 
 void VideoFileSourceNode::onBrowseClicked()
@@ -240,6 +269,35 @@ void VideoFileSourceNode::onPlayPauseClicked()
     }
 
     m_player->play();
+    m_stopButton->setEnabled(true);
+    m_seekBackButton->setEnabled(true);
+    m_seekForwardButton->setEnabled(true);
+}
+
+void VideoFileSourceNode::onStopClicked()
+{
+    m_player->stop();
+    m_loadedPath.clear();
+    m_isPlaying = false;
+    updatePlayButton();  // set to "Play"
+    setStatus(tr("Stopped"), false);  // gray status
+    m_stopButton->setEnabled(false);
+    m_seekBackButton->setEnabled(false);
+    m_seekForwardButton->setEnabled(false);
+}
+
+void VideoFileSourceNode::onSeekBackClicked()
+{
+    const qint64 pos = m_player->position();
+    m_player->setPosition(qMax(qint64(0), pos - 5000)); // -5 seconds
+}
+
+void VideoFileSourceNode::onSeekForwardClicked()
+{
+    const qint64 pos = m_player->position();
+    const qint64 dur = m_player->duration();
+    if (dur > 0)
+        m_player->setPosition(qMin(dur, pos + 5000)); // +5 seconds
 }
 
 void VideoFileSourceNode::onFrameAvailable(const QVideoFrame &frame)
@@ -308,7 +366,7 @@ void VideoFileSourceNode::onAudioBufferReceived(const QAudioBuffer &buffer)
 
     // Wrap only — no sample conversion in the handler (REQ-SW-PL-022 §4).
     // QByteArray copy of the ~7 KB block is acceptable (<1 µs).
-    m_audioOut = AudioBufferToSampled::wrapBuffer(buffer, name());
+    m_audioOut = AudioBufferToSampled::wrapBuffer(buffer, name(), 10.0);
     if (!m_audioOut)
         return;
 
@@ -335,6 +393,9 @@ void VideoFileSourceNode::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
         m_isPlaying = false;
         updatePlayButton();
         setStatus(tr("End of video"), false);
+        m_stopButton->setEnabled(false);
+        m_seekBackButton->setEnabled(false);
+        m_seekForwardButton->setEnabled(false);
         break;
     case QMediaPlayer::LoadingMedia:
         setStatus(tr("Loading..."), false);
