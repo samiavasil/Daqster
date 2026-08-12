@@ -52,6 +52,14 @@
   - Комити: `b5c9651` (req), `157f34d` (VideoFrameData+shim), `085f63d` (VideoOutputNode), `0f92a9c` (CMake), `c873b43` (docs), `9d0f178` (AC/status)
   - Статус: ACTIVE (impl готов, unit тестове отложени)
 - (REQ-SW-PL-020) VideoFrameData и VideoOutputNode unit тестове (PL-020 AC6) — e054396.
+- **REQ-SW-PL-027** (Video Pipeline Instrumentation & Overlay — първи консуматор на REQ-SW-FW-008):
+  - Domain getters: `Daqster::Perf::Domain::{avg,min,max,count}(stage)` (read-only, -1 при липса на samples) в `PerfProfiler.{h,cpp}`
+  - Source инструментиране: `StreamSourceNode`, `VideoFileSourceNode`, `CameraSourceNode` записват inter-frame gap (`"source.frame_interval"`) + wrap/emit сегмент (`"source.wrap_emit"`) и latch-ват `handleType`/`pixelFormat` (HW/SW маркери) в домейн `"video"`
+  - Output инструментиране: `VideoOutputNode` записва `"output.present"` (blit) + `"output.total"` и latch-ва маркерите от incoming кадър
+  - Qt6-only Overlay + чекбокс: „Perf" чекбокс → `Domain::get("video").setEnabled()` + 500 ms `QTimer` + полупрозрачен `QLabel` бейдж (child на detached `QVideoWidget`, горе-ляво): `HW|SW · fmt=… · handle=… · fps=… · gap=…ms · present=…ms · total=…ms`
+  - `VideoPerfBadge.{h,cpp}` — pure QtCore-only `formatPerfBadge()` форматър (без widgets/QtMultimedia) + детерминистичен unit тест (8 slots)
+  - Премахнат временният `VideoDiag` диагностичен блок; нулев разход при `DAQSTER_ENABLE_PERF=OFF`
+  - Комити: `885ad11`, `5c0c831`, `7682bb1`, `3ecd5c0`
 - **REQ-SW-PL-022** (unified sampled data transport & DAQ Display):
   - `SampledData` — единен NodeData тип (`{"sample","Sample"}`) в `src/plugins/common/NodeDataTypes/`, QtCore-only, с QByteArray + per-channel `{name, SampleType}` + double sampleRate + `decodeToNormalized()`; `AudioData` = SampledData с `domain="audio"` (без отделен клас)
   - `SampledStreamDescriptor` — консолидация на `GenericStreamConfig` + `QDevIOStreamConfig`: разширен `SampleType` enum (int8/uint8/int16/uint16/int24/uint24/int32/uint32/float32/float64), endianness, unit + amplitudeScale + amplitudeOffset, `domain` поле ("audio"/"vibration"/"daq"/"ecg"/…), device id/source name, first-sample timestamp
