@@ -55,3 +55,47 @@ target_link_libraries(demo_nodeditor_nodes_tests PRIVATE
 )
 
 add_test(NAME demo_nodeditor_nodes_tests COMMAND $<TARGET_FILE:demo_nodeditor_nodes_tests>)
+
+# ── DaqDisplayNode save/restore round-trip GUI tests ─────────────────────────
+#
+# DaqDisplayNode requires QApplication (QtCharts widgets) and the offscreen
+# platform plugin. The node source is compiled directly into the test binary
+# (same pattern as requirements_manager_gui_tests). QTEST_MAIN in
+# test_daq_display_node.cpp provides the QApplication main.
+#
+# The QtChartsCompat.h header is in node_editor_ide/BuiltInNodes/Library/display/.
+# DaqDisplayNode.cpp transitively depends on FftUtil.h + SampledData.h (both
+# header-only, in src/plugins/common/) and on SampledStreamDescriptor.h (in
+# NodeDataTypes/).
+find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Charts REQUIRED)
+
+set(DISPLAY_TEST_SOURCES
+    test_daq_display_node.cpp
+    test_daq_display_node.h
+    # plugin logic under test (compiled directly into the test binary):
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Displays/DaqDisplay/DaqDisplayNode.cpp
+)
+
+add_executable(demo_nodeditor_display_tests ${DISPLAY_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_display_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Displays/DaqDisplay
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+)
+
+target_link_libraries(demo_nodeditor_display_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Charts
+    QtNodes
+)
+
+add_test(NAME demo_nodeditor_display_tests
+         COMMAND demo_nodeditor_display_tests)
+set_tests_properties(demo_nodeditor_display_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

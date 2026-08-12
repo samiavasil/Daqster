@@ -101,6 +101,8 @@ class DaqDisplayNode : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
+    friend class DaqDisplayNodeTest;
+
 public:
     DaqDisplayNode();
     ~DaqDisplayNode() override;
@@ -141,9 +143,6 @@ public:
     static QVector<float> channelSamples(const SampledData &data, int channel);
     static QVector<float> spectrumSamples(const SampledData &data, int channel);
 
-private:
-    using PreprocessFn = std::function<QVector<float>(const SampledData &)>;
-
     /// One configurable DataPlot card (REQ-SW-PL-023 §1, v2 REQ-SW-PL-025 §2).
     struct PlotCard {
         enum class ProcessingType { TimeDomain, FrequencySpectrum };
@@ -156,7 +155,7 @@ private:
         ProcessingType processingType = ProcessingType::TimeDomain;
         DecodeMode mode = DecodeMode::Normalized; // default normalized = v1 behavior
         bool unitAxes = true;                     // descriptor unit axis titles
-        PreprocessFn preprocess;          // bound to this card's channelIndex
+        std::function<QVector<float>(const SampledData &)> preprocess; // bound to this card's channelIndex
 
         QtChartsCompat::LineSeries *series = nullptr;
         QtChartsCompat::Chart *chart = nullptr;
@@ -177,6 +176,13 @@ private:
         PlotCard::DecodeMode mode = PlotCard::DecodeMode::Normalized;
         bool unitAxes = true;
     };
+
+    /// Add a configured plot card to the display (also used by restore()).
+    void addPlotCard(const QString &title, PlotCard::ProcessingType type, int channelIndex,
+                     PlotCard::DecodeMode mode, bool unitAxes);
+
+private:
+    using PreprocessFn = std::function<QVector<float>(const SampledData &)>;
 
     /// Worker-owned rolling history (REQ-SW-PL-025 §3). Touched ONLY by the
     /// worker thread (node-owned QThreadPool, maxThreadCount=1) — never by the
@@ -199,8 +205,6 @@ private:
     class ComputeTask;
 
     void setupUi();
-    void addPlotCard(const QString &title, PlotCard::ProcessingType type, int channelIndex,
-                     PlotCard::DecodeMode mode, bool unitAxes);
     void removeCardAt(int index);
     void clearAllCards();
     void bindCardPreprocess(PlotCard &card);
