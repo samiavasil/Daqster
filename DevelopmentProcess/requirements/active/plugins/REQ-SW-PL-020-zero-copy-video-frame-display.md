@@ -1,6 +1,6 @@
 # REQ-SW-PL-020: Zero-Copy Video Frame Transport & GPU Display (VideoFrameData)
 
-- **Статус:** ACTIVE
+- **Статус:** DONE
 - **Приоритет:** P1
 - **Отговорник (роля):** Ivan (Implementation)
 - **Дата:** 2026-08-07
@@ -61,10 +61,9 @@ throttling. При 1080p30 това насища едно ядро (наблюд
        QImage конверсия само когато са свързани.
 - [x] 5. **Qt5 поведение непроменено.** Qt5 остава на QImage/`ImageData` пътя
        (GStreamer probe, безопасна незабавна конверсия).
-- [ ] 6. **Qt5 + Qt6 builds PASS + app smoke.** Приложенията стартират без
-       crash; и двете версии се build-ват. Unit тестовете са **отложени по
-       решение на потребителя** (standing instruction — status → `DONE` чака
-       тестовете).
+- [x] 6. **Qt5 + Qt6 builds PASS + app smoke.** Приложенията стартират без
+        crash; и двете версии се build-ват. Unit тестовете са **завършени**
+        (PL-020 AC6).
 - [x] 7. **Windows документация.** `docs/plugins/demo_nodeditor_nodes/README.md`
        документира Windows особеностите на video пайплайна: Qt6 FFmpeg backend
        работи из-кутия (RTSP нативно, без допълнителни инсталации); Qt5 ползва
@@ -130,6 +129,5 @@ throttling. При 1080p30 това насища едно ядро (наблюд
 клауза "branch per work item" (AGENTS.md) важи: работата се върши на нов
 branch `feat/REQ-SW-PL-020-video-frame-display`.
 
-**Статус:** ACTIVE (имплементация завършена 2026-08-07; unit тестовете
-отложени по решение на потребителя). AC 1–5, 7 `[x]`; AC 6 `[ ]` (tests
-deferred).
+**Статус:** DONE (имплементация завършена 2026-08-07; unit тестовете
+завършени 2026-08-12). AC 1–7 `[x]`.

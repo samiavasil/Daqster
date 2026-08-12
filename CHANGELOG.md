@@ -51,6 +51,7 @@
   - Windows cross-platform compliance (QStandardPaths, без Linux-only пътища)
   - Комити: `b5c9651` (req), `157f34d` (VideoFrameData+shim), `085f63d` (VideoOutputNode), `0f92a9c` (CMake), `c873b43` (docs), `9d0f178` (AC/status)
   - Статус: ACTIVE (impl готов, unit тестове отложени)
+- (REQ-SW-PL-020) VideoFrameData и VideoOutputNode unit тестове (PL-020 AC6) — e054396.
 - **REQ-SW-PL-022** (unified sampled data transport & DAQ Display):
   - `SampledData` — единен NodeData тип (`{"sample","Sample"}`) в `src/plugins/common/NodeDataTypes/`, QtCore-only, с QByteArray + per-channel `{name, SampleType}` + double sampleRate + `decodeToNormalized()`; `AudioData` = SampledData с `domain="audio"` (без отделен клас)
   - `SampledStreamDescriptor` — консолидация на `GenericStreamConfig` + `QDevIOStreamConfig`: разширен `SampleType` enum (int8/uint8/int16/uint16/int24/uint24/int32/uint32/float32/float64), endianness, unit + amplitudeScale + amplitudeOffset, `domain` поле ("audio"/"vibration"/"daq"/"ecg"/…), device id/source name, first-sample timestamp

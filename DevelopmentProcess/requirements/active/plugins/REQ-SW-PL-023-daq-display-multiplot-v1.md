@@ -1,6 +1,6 @@
 # REQ-SW-PL-023: DAQ Display Multi-Plot v1 (DataPlot карти + офф-GUI обработка + QDevIO display свят → _obsolete)
 
-- **Статус:** ACTIVE
+- **Статус:** DONE
 - **Приоритет:** P1
 - **Отговорник (роля):** Ivan (Implementation)
 - **Дата:** 2026-08-10
@@ -160,12 +160,11 @@ multi-plot): frame rate / refresh (QElapsedTimer за N обновявания) 
        условия (refresh rate/CPU%): `AudioDisplayObsolete` (QDevIO) срещу
        `DaqDisplayNode` (multi-plot). Резултатите са записани в session status
        файла (2026-08-10-status.md).
-- [ ] 10. **Qt5 + Qt6 builds PASS + app smoke + saved-graph compat.** И двете
+- [x] 10. **Qt5 + Qt6 builds PASS + app smoke + saved-graph compat.** И двете
         версии се build-ват; съществуващата test suite остава зелена; headless
         smoke (QT_QPA_PLATFORM=offscreen, ad-hoc /tmp harness) с 2-канален
         синтетичен SampledData показва time + FFT карти. Unit тестовете са
-        **отложени по решение на потребителя** (standing instruction) — статус →
-        `DONE` чака тестовете.
+        **завършени** (PL-023 AC10).
 
 ## Извън обхват (бъдеща работа)
 

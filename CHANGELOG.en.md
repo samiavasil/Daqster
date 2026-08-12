@@ -79,6 +79,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Windows cross-platform compliance (QStandardPaths, no Linux-only paths)
   - Commits: `b5c9651` (req), `157f34d` (VideoFrameData+shim), `085f63d` (VideoOutputNode), `0f92a9c` (CMake), `c873b43` (docs), `9d0f178` (AC/status)
   - Status: ACTIVE (impl done, unit tests deferred)
+- (REQ-SW-PL-020) VideoFrameData and VideoOutputNode unit tests (PL-020 AC6) — e054396.
 - **REQ-SW-PL-022** (unified sampled data transport & DAQ Display):
   - `SampledData` — unified NodeData type (`{"sample","Sample"}`) in `src/plugins/common/NodeDataTypes/`, QtCore-only, carrying QByteArray + per-channel `{name, SampleType}` + double sampleRate + `decodeToNormalized()`; `AudioData` = SampledData with `domain="audio"` (no separate class)
   - `SampledStreamDescriptor` — consolidation of `GenericStreamConfig` + `QDevIOStreamConfig`: extended `SampleType` enum (int8/uint8/int16/uint16/int24/uint24/int32/uint32/float32/float64), endianness, unit + amplitudeScale + amplitudeOffset, `domain` field ("audio"/"vibration"/"daq"/"ecg"/…), device id/source name, first-sample timestamp
