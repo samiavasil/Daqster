@@ -138,6 +138,27 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     builds PASS + ctest 6/6 green (both) + offscreen smoke PASS (int16 32767 →
     32.767, float passthrough without clamp, unit axis titles, save/restore
     round-trip with v1 defaults)
+- **REQ-SW-FW-008** (Lightweight Runtime Profiling Framework — new framework-level
+  module `src/frame_work/base/src/perf/` in `namespace Daqster::Perf`):
+  - `RollingStats` — fixed pre-allocated ring buffer (O(1) `add`, no heap
+    allocation in the hot path); `avg`/`min`/`max` on demand, `count` capped at
+    capacity, `reset()`
+  - `Domain` — named runtime-toggleable profiling domain: thread-safe `get(name)`
+    get-or-create registry, relaxed-atomic `enabled()`/`setEnabled()`,
+    `record(stage, ns)` (no-op when disabled), `flush()` (aggregates via
+    `qCDebug(lcPerf)` + reset)
+  - `Scope` — RAII timer for synchronous blocks (zero cost when the domain is
+    disabled); `Stopwatch` — `mark()`/`reset()` for async/event measurement (ns)
+  - Macros `PERF_SCOPE(dom, stage)` / `PERF_ENABLED(dom)` with two-level opt-out:
+    compile-time (`DAQSTER_ENABLE_PERF` CMake option, default ON → `((void)0)`/
+    `false` when OFF, zero Perf symbols in consumers) + runtime (atomic live
+    toggle)
+  - New logging category `lcPerf` = `"daqster.perf"` in `LogCategories.{h,cpp}`
+  - Unit tests `tests/framework/perf/perf_profiler_tests` **19/19** (RollingStats
+    6, Domain 7, Stopwatch/Scope 6); Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS +
+    ctest 9/9 green (both) + `-DDAQSTER_ENABLE_PERF=OFF` build PASS
+  - Commits: `6ad8e89` (PerfProfiler module), `2c31b4a` (lcPerf + CMake),
+    `52a620c` (perf_profiler_tests)
 
 ### Changed
 - **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality
