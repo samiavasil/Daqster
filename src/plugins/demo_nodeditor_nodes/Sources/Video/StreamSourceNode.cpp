@@ -284,7 +284,7 @@ void StreamSourceNode::onAudioBufferReceived(const QAudioBuffer &buffer)
 
     // Wrap only — no sample conversion in the handler (REQ-SW-PL-022 §4).
     // QByteArray copy of the ~7 KB block is acceptable (<1 µs).
-    m_audioOut = AudioBufferToSampled::wrapBuffer(buffer, name());
+    m_audioOut = AudioBufferToSampled::wrapBuffer(buffer, name(), 10.0);
     if (!m_audioOut)
         return;
 

@@ -106,6 +106,9 @@ struct SampledStreamDescriptor {
     QString deviceId;                          // source device id (if any)
     QString sourceName;                        // source / stream name
     qint64 firstSampleTimestamp = 0;           // µs since epoch (or stream-local)
+    /// Recommended ring-buffer duration in seconds for display nodes; 0.0 means
+    /// use the consumer's own default.
+    double expectedBufferSeconds = 0.0;
 
     int totalChannels() const { return channels.size(); }
 

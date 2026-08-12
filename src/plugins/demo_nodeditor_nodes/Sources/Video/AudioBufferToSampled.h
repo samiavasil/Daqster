@@ -62,7 +62,8 @@ inline SampleType sampleTypeFromFormat(const QAudioFormat &format)
 
 /// Build a SampledStreamDescriptor (domain = "audio") from a QAudioFormat.
 inline SampledStreamDescriptor descriptorFromFormat(const QAudioFormat &format,
-                                                    const QString &sourceName = QString())
+                                                    const QString &sourceName = QString(),
+                                                    double expectedBufferSeconds = 0.0)
 {
     SampledStreamDescriptor desc;
     desc.domain = QStringLiteral("audio");
@@ -71,6 +72,7 @@ inline SampledStreamDescriptor descriptorFromFormat(const QAudioFormat &format,
     desc.amplitudeScale = 1.0;
     desc.amplitudeOffset = 0.0;
     desc.sourceName = sourceName;
+    desc.expectedBufferSeconds = expectedBufferSeconds;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     // Qt6 formats are host-endian (little-endian on the supported platforms).
     desc.endianness = SampleEndian::LittleEndian;
@@ -97,7 +99,8 @@ inline SampledStreamDescriptor descriptorFromFormat(const QAudioFormat &format,
  * end-of-stream is flushed/ignored, no EOS type is emitted (REQ-SW-PL-022 §4).
  */
 inline std::shared_ptr<SampledData> wrapBuffer(const QAudioBuffer &buffer,
-                                               const QString &sourceName = QString())
+                                                const QString &sourceName = QString(),
+                                                double expectedBufferSeconds = 0.0)
 {
     if (!buffer.isValid() || buffer.byteCount() <= 0)
         return nullptr;
@@ -105,7 +108,7 @@ inline std::shared_ptr<SampledData> wrapBuffer(const QAudioBuffer &buffer,
     return std::make_shared<SampledData>(
         QByteArray(buffer.constData<char>(),
                    static_cast<int>(buffer.byteCount())),
-        descriptorFromFormat(buffer.format(), sourceName));
+        descriptorFromFormat(buffer.format(), sourceName, expectedBufferSeconds));
 }
 
 } // namespace AudioBufferToSampled

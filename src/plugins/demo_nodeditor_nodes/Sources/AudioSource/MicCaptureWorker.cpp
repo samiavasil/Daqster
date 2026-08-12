@@ -160,6 +160,6 @@ void MicCaptureWorker::onReadyRead()
         return;
 
     auto data = std::make_shared<SampledData>(
-        raw, AudioBufferToSampled::descriptorFromFormat(m_format, m_sourceName));
+        raw, AudioBufferToSampled::descriptorFromFormat(m_format, m_sourceName, 5.0));
     emit samplesReady(data);
 }

@@ -17,6 +17,7 @@
 #include <memory>
 
 class QComboBox;
+class QDoubleSpinBox;
 class QLabel;
 class QPushButton;
 class QScrollArea;
@@ -255,6 +256,7 @@ private:
     QWidget *m_cardsContainer = nullptr;
     QVBoxLayout *m_cardsLayout = nullptr;
     QPushButton *m_addPlotButton = nullptr;
+    QDoubleSpinBox *m_ringSpinBox = nullptr;
     QLabel *m_emptyLabel = nullptr;
     QLabel *m_domainLabel = nullptr;
     QVector<PlotCard> m_cards;

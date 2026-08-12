@@ -3,6 +3,7 @@
 #include "FftUtil.h"
 
 #include <QComboBox>
+#include <QDoubleSpinBox>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QJsonArray>
@@ -501,6 +502,18 @@ void DaqDisplayNode::setInData(std::shared_ptr<NodeData> data, PortIndex const p
 
     m_lastData = sampled;
 
+    // Descriptor-override: source can recommend a ring-buffer duration; only
+    // applies when the descriptor explicitly provides a value > 0
+    // (REQ-SW-PL-023 §7 — expectedBufferSeconds).
+    if (sampled) {
+        const SampledStreamDescriptor &desc = sampled->descriptor();
+        if (desc.expectedBufferSeconds > 0.0) {
+            m_ringSeconds = desc.expectedBufferSeconds;
+            if (m_ringSpinBox)
+                m_ringSpinBox->setValue(m_ringSeconds);
+        }
+    }
+
     NodeValidationState s;
     if (m_lastData) {
         s._state = NodeValidationState::State::Valid;
@@ -552,11 +565,19 @@ void DaqDisplayNode::setupUi()
     rootLayout->setContentsMargins(2, 2, 2, 2);
     rootLayout->setSpacing(2);
 
-    // Header: domain/rate label + Add Plot button (REQ-SW-PL-023 §1).
+    // Header: domain/rate label + buffer spinbox + Add Plot button (REQ-SW-PL-023 §1).
     auto *header = new QHBoxLayout();
     m_domainLabel = new QLabel(tr("sampled"), m_root);
+    m_ringSpinBox = new QDoubleSpinBox(m_root);
+    m_ringSpinBox->setRange(1.0, 120.0);
+    m_ringSpinBox->setSingleStep(1.0);
+    m_ringSpinBox->setSuffix(QStringLiteral(" s"));
+    m_ringSpinBox->setValue(m_ringSeconds);
+    m_ringSpinBox->setToolTip(tr("Ring-buffer duration in seconds"));
     m_addPlotButton = new QPushButton(tr("Add Plot"), m_root);
     header->addWidget(m_domainLabel, 1);
+    header->addWidget(new QLabel(tr("Buffer:"), m_root));
+    header->addWidget(m_ringSpinBox);
     header->addWidget(m_addPlotButton);
     rootLayout->addLayout(header);
 
@@ -578,6 +599,8 @@ void DaqDisplayNode::setupUi()
     m_cardsLayout->addWidget(m_emptyLabel);
 
     connect(m_addPlotButton, &QPushButton::clicked, this, &DaqDisplayNode::onAddPlot);
+    connect(m_ringSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged),
+            this, [this](double val) { m_ringSeconds = val; });
 }
 
 void DaqDisplayNode::addPlotCard(const QString &title,
