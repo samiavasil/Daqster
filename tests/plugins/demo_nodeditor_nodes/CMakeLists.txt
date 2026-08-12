@@ -16,6 +16,9 @@
 # required coverage (REQ-SW-PL-018/019) and the tests must not require OpenCV.
 
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Test Multimedia REQUIRED)
+if(QT_VERSION_MAJOR GREATER_EQUAL 6)
+    find_package(Qt${QT_VERSION_MAJOR} COMPONENTS MultimediaWidgets REQUIRED)
+endif()
 
 # The test classes declare Q_OBJECT in their headers - the root CMakeLists.txt
 # already sets CMAKE_AUTOMOC ON globally; we repeat it here so this directory
@@ -98,4 +101,75 @@ target_link_libraries(demo_nodeditor_display_tests PRIVATE
 add_test(NAME demo_nodeditor_display_tests
          COMMAND demo_nodeditor_display_tests)
 set_tests_properties(demo_nodeditor_display_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# ── VideoFrameData value-semantic tests (REQ-SW-PL-020, AC 6) ────────────────
+#
+# QTEST_GUILESS_MAIN provides QCoreApplication — QImage operations do not
+# need a widget-backed event loop. On Qt5 only the stub path is compiled;
+# Qt6 brings QVideoFrame-based round-trip tests.
+set(VIDEO_FRAME_TEST_SOURCES
+    test_video_frame_data.cpp
+    test_video_frame_data.h
+)
+
+add_executable(demo_nodeditor_videoframe_tests ${VIDEO_FRAME_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_videoframe_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+)
+
+target_link_libraries(demo_nodeditor_videoframe_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Multimedia
+    QtNodes
+)
+
+add_test(NAME demo_nodeditor_videoframe_tests
+         COMMAND demo_nodeditor_videoframe_tests)
+set_tests_properties(demo_nodeditor_videoframe_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# ── VideoOutputNode behavioural tests (REQ-SW-PL-020, AC 6) ──────────────────
+#
+# QTEST_MAIN provides QApplication; the binary runs headless via the offscreen
+# platform plugin. VideoOutputNode.cpp is compiled directly into the test
+# binary so we can exercise input/output connection callbacks without linking
+# the plugin .so.
+set(VIDEO_OUTPUT_TEST_SOURCES
+    test_video_output_node.cpp
+    test_video_output_node.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoOutputNode.cpp
+)
+
+add_executable(demo_nodeditor_videooutput_tests ${VIDEO_OUTPUT_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_videooutput_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+)
+
+target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Multimedia
+    QtNodes
+)
+
+# QVideoWidget lives in Qt6::MultimediaWidgets (Qt5 bundles it in Multimedia).
+if(QT_VERSION_MAJOR GREATER_EQUAL 6)
+    target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
+        Qt${QT_VERSION_MAJOR}::MultimediaWidgets)
+endif()
+
+add_test(NAME demo_nodeditor_videooutput_tests
+         COMMAND demo_nodeditor_videooutput_tests)
+set_tests_properties(demo_nodeditor_videooutput_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
