@@ -7,6 +7,8 @@ set(FRAME_WORK_SOURCES
   base/src/global.h
   base/src/perf/PerfProfiler.h
   base/src/perf/PerfProfiler.cpp
+  base/src/perf/ProcessCpu.h
+  base/src/perf/ProcessCpu.cpp
   base/src/PluginDescription.cpp
   base/src/PluginFilter.cpp
   base/src/QBasePluginObject.cpp
