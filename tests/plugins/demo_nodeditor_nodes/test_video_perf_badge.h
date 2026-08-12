@@ -19,4 +19,9 @@ private slots:
     void unknownEnumsFallBackToNumeric();
     void noSamplesNegativeRendersZero();
     void fullFormatLayout();
+    void consoleLineCpuFormatting();
+    void consoleLineFpsZeroEdge();
+    void consoleLineNegativeCollapse();
+    void consoleLineFullLayout();
+    void consoleLineStablePrefix();
 };
