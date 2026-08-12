@@ -303,39 +303,28 @@ void VideoFileSourceNode::onSeekForwardClicked()
 void VideoFileSourceNode::onFrameAvailable(const QVideoFrame &frame)
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // Runtime profiling (REQ-SW-PL-027): inter-frame gap is a proxy for the
+    // decode cadence (the backend decodes before onFrameAvailable) and the
+    // HW/SW markers tag the actual frame path. Everything is a no-op while the
+    // "video" domain is disabled — the PERF_ENABLED guard avoids the clock read.
+    if (PERF_ENABLED("video")) {
+        const std::int64_t gapNs = m_perfWatch.mark();
+        if (!m_perfFirstFrame && gapNs > 0)
+            Daqster::Perf::Domain::get("video").record("source.frame_interval", gapNs);
+        m_perfFirstFrame = false;
+
+        m_lastHandleType = static_cast<int>(frame.handleType());
+        m_lastPixelFormat = static_cast<int>(frame.surfaceFormat().pixelFormat());
+    }
+
     // Zero-copy transport: wrap the decoded frame (ref-count bump only) and
     // emit it downstream (REQ-SW-PL-020 AC 2). No QImage conversion in the
     // hot path — the "image" port is converted only when a processing
     // consumer is connected.
-    m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
-    Q_EMIT dataUpdated(0);
-
-    // TEMPORARY Qt6 diagnostics — remove after green-screen diagnosis.
-    static int s_diagFrameCount = 0;
-    static bool s_diagDumped = false;
-    if (++s_diagFrameCount <= 10) {
-        qDebug() << "VideoDiag" << name() << "frame" << s_diagFrameCount
-                 << "valid" << frame.isValid()
-                 << "fmt" << frame.surfaceFormat().pixelFormat()
-                 << "handle" << static_cast<int>(frame.handleType())
-                 << "size" << frame.width() << "x" << frame.height();
-
-        QVideoFrame mappedFrame(frame);
-        const bool mapOk = mappedFrame.map(QVideoFrame::ReadOnly);
-        qDebug() << "VideoDiag   map(ReadOnly)" << mapOk
-                 << "mappedBytes" << (mapOk ? mappedFrame.mappedBytes(0) : 0);
-        if (mapOk)
-            mappedFrame.unmap();
-
-        const QImage img = VideoCompat::frameToImage(frame);
-        qDebug() << "VideoDiag   toImage isNull" << img.isNull()
-                 << "format" << static_cast<int>(img.format())
-                 << "size" << img.width() << "x" << img.height();
-
-        if (!img.isNull() && !s_diagDumped) {
-            s_diagDumped = img.save(QStringLiteral("/tmp/qt6_frame_dump.png"));
-            qDebug() << "VideoDiag   dump /tmp/qt6_frame_dump.png" << s_diagDumped;
-        }
+    {
+        PERF_SCOPE("video", "source.wrap_emit");
+        m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
+        Q_EMIT dataUpdated(0);
     }
 
     if (m_imagePortConnectionCount <= 0)

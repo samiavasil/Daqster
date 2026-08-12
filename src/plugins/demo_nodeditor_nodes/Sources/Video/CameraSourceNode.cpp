@@ -258,12 +258,29 @@ void CameraSourceNode::onStartStopClicked()
 void CameraSourceNode::onFrameAvailable(const QVideoFrame &frame)
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // Runtime profiling (REQ-SW-PL-027): inter-frame gap is a proxy for the
+    // decode cadence (the backend decodes before onFrameAvailable) and the
+    // HW/SW markers tag the actual frame path. Everything is a no-op while the
+    // "video" domain is disabled — the PERF_ENABLED guard avoids the clock read.
+    if (PERF_ENABLED("video")) {
+        const std::int64_t gapNs = m_perfWatch.mark();
+        if (!m_perfFirstFrame && gapNs > 0)
+            Daqster::Perf::Domain::get("video").record("source.frame_interval", gapNs);
+        m_perfFirstFrame = false;
+
+        m_lastHandleType = static_cast<int>(frame.handleType());
+        m_lastPixelFormat = static_cast<int>(frame.surfaceFormat().pixelFormat());
+    }
+
     // Zero-copy transport: wrap the decoded frame (ref-count bump only) and
     // emit it downstream (REQ-SW-PL-020 AC 2). No QImage conversion in the
     // hot path — the "image" port is converted only when a processing
     // consumer is connected.
-    m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
-    Q_EMIT dataUpdated(0);
+    {
+        PERF_SCOPE("video", "source.wrap_emit");
+        m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
+        Q_EMIT dataUpdated(0);
+    }
 
     if (m_imagePortConnectionCount <= 0)
         return;

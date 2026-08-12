@@ -4,6 +4,7 @@
 #include "VideoCompat.h"
 
 #include "NodeDataTypes/SampledData.h"
+#include "PerfProfiler.h"
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/internal/Definitions.hpp>
@@ -130,6 +131,12 @@ private:
     // Reused per frame via setFrame() — no allocation per frame (REQ-SW-PL-020).
     std::shared_ptr<VideoFrameData> m_videoFrameOut;
     int m_imagePortConnectionCount = 0;
+    // Runtime profiling (REQ-SW-PL-027): inter-frame gap stopwatch + last-frame
+    // HW/SW markers (handleType/pixelFormat) for source-side diagnostics.
+    Daqster::Perf::Stopwatch m_perfWatch;
+    bool m_perfFirstFrame = true;
+    int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
+    int m_lastPixelFormat = -1;    // QVideoFrameFormat::PixelFormat
 #endif
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     // Qt6: receives decoded audio buffers (Qt 6.8+, FFmpeg backend).
