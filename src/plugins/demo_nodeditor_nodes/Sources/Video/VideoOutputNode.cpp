@@ -2,7 +2,9 @@
 
 #include "NodeDataTypes/ImageData.h"
 #include "NodeDataTypes/VideoFrameData.h"
+#include "PerfProfiler.h"
 #include "VideoCompat.h"
+#include "VideoPerfBadge.h"
 
 #include <QEvent>
 #include <QLabel>
@@ -11,6 +13,8 @@
 #include <QVBoxLayout>
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QCheckBox>
+#include <QTimer>
 #include <QVideoWidget>
 #endif
 
@@ -35,17 +39,44 @@ VideoOutputNode::VideoOutputNode()
     m_label->setStyleSheet(QStringLiteral("background-color: black; color: gray;"));
     layout->addWidget(m_label);
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // Perf overlay toggle (REQ-SW-PL-027): enables the "video" profiling domain
+    // live and drives the badge refresh timer. Qt5 keeps the QImage path with
+    // no overlay (REQ-SW-PL-027 notes).
+    m_perfCheck = new QCheckBox(tr("Perf"), m_widget);
+    layout->addWidget(m_perfCheck);
+
+    m_perfTimer = new QTimer(this);
+    m_perfTimer->setInterval(500);
+
+    connect(m_perfCheck, &QCheckBox::toggled, this, [this](bool checked) {
+        Daqster::Perf::Domain::get("video").setEnabled(checked);
+        if (checked) {
+            m_perfTimer->start();
+        } else {
+            m_perfTimer->stop();
+            if (m_perfBadge != nullptr)
+                m_perfBadge->hide();
+        }
+    });
+    connect(m_perfTimer, &QTimer::timeout, this, &VideoOutputNode::updatePerfBadge);
+#endif
+
     m_label->installEventFilter(this);
 }
 
 VideoOutputNode::~VideoOutputNode()
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    if (m_perfTimer != nullptr)
+        m_perfTimer->stop();
+
     if (m_videoWidget != nullptr) {
         m_videoWidget->hide();
         m_videoWidget->deleteLater();
         m_videoWidget = nullptr;
     }
+    m_perfBadge = nullptr; // deleted as a child of m_videoWidget above
 #endif
     // Widget lifetime is owned by the node/view framework.
     m_widget = nullptr;
@@ -105,6 +136,9 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (portIndex == 0) {
         // --- Port 0: "video-frame" (zero-copy GPU display path) ---
+        // "output.total" spans the whole port-0 frame processing (REQ-SW-PL-027).
+        PERF_SCOPE("video", "output.total");
+
         auto videoFrame = std::dynamic_pointer_cast<VideoFrameData>(data);
         if (videoFrame && videoFrame->hasFrame()) {
             // CRITICAL GUARD: disconnecting the edge does NOT stop the source
@@ -115,6 +149,15 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
             if (!m_videoInputConnected)
                 return;
 
+            // Perf markers for the badge (REQ-SW-PL-027): HW/SW path + pixel
+            // format of the frame actually being presented. No-op while the
+            // "video" domain is disabled.
+            if (PERF_ENABLED("video")) {
+                const QVideoFrame &frame = videoFrame->frame();
+                m_lastHandleType = static_cast<int>(frame.handleType());
+                m_lastPixelFormat = static_cast<int>(frame.surfaceFormat().pixelFormat());
+            }
+
             m_videoFrame = videoFrame;
 
             // Lazily create the detached QVideoWidget on the first frame.
@@ -124,6 +167,8 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
             // removed while a frame was in flight.
             if (m_videoWidget != nullptr) {
                 // GPU path: HW buffer → RHI texture → screen (no QImage copy).
+                // "output.present" measures the blit (presentFrame).
+                PERF_SCOPE("video", "output.present");
                 VideoCompat::presentFrame(m_videoWidget->videoSink(),
                                           videoFrame->frame());
             }
@@ -236,6 +281,7 @@ void VideoOutputNode::inputConnectionDeleted(QtNodes::ConnectionId const &conId)
         m_videoWidget->deleteLater();
         m_videoWidget = nullptr;
     }
+    m_perfBadge = nullptr; // deleted as a child of m_videoWidget above
     m_videoFrame.reset();
     m_image = QImage();
     m_output.reset();
@@ -287,8 +333,39 @@ void VideoOutputNode::ensureVideoWidget()
     m_videoWidget->resize(640, 480);
     m_videoWidget->show();
 
+    // Perf overlay badge (REQ-SW-PL-027): a child of the detached QVideoWidget
+    // (NOT the node editor scene — QTBUG-35299), top-left, semi-transparent.
+    // Shown only while the "video" domain is enabled, raised above the video.
+    m_perfBadge = new QLabel(m_videoWidget);
+    m_perfBadge->setStyleSheet(
+        QStringLiteral("background-color: rgba(0,0,0,140); color: #0f0; padding: 2px;"));
+    m_perfBadge->move(4, 4);
+    m_perfBadge->adjustSize();
+    m_perfBadge->hide();
+
     // The in-node QLabel shows a static placeholder while the GPU path is
     // active — it is not updated per-frame (avoids redundant QImage conversion).
     m_label->setText(tr("GPU display active — see detached window"));
+}
+
+void VideoOutputNode::updatePerfBadge()
+{
+    if (m_perfBadge == nullptr)
+        return;
+
+    auto &domain = Daqster::Perf::Domain::get("video");
+    if (!domain.enabled()) {
+        m_perfBadge->hide();
+        return;
+    }
+
+    m_perfBadge->setText(formatPerfBadge(
+        domain.avg("source.frame_interval"),
+        domain.avg("output.present"),
+        domain.avg("output.total"),
+        m_lastHandleType, m_lastPixelFormat));
+    m_perfBadge->adjustSize();
+    m_perfBadge->raise();
+    m_perfBadge->show();
 }
 #endif

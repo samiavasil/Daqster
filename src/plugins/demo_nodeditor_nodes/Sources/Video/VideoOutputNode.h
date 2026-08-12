@@ -12,6 +12,8 @@ class QWidget;
 class ImageData;
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+class QCheckBox;
+class QTimer;
 class QVideoWidget;
 class VideoFrameData;
 #endif
@@ -91,6 +93,10 @@ private:
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     /// Lazily create the detached QVideoWidget on the first video-frame input.
     void ensureVideoWidget();
+
+    /// Refresh the perf overlay badge from the "video" domain aggregates
+    /// (fired on a ~500 ms timer while the Perf checkbox is enabled).
+    void updatePerfBadge();
 #endif
 
     QWidget *m_widget = nullptr;
@@ -105,6 +111,14 @@ private:
     /// frames that keep flowing from a still-playing source after the edge is
     /// removed cannot resurrect the detached popup.
     bool m_videoInputConnected = false;
+
+    // Perf overlay (REQ-SW-PL-027): the checkbox lives in the embedded widget;
+    // the badge is a child of the detached QVideoWidget; the timer refreshes it.
+    QCheckBox *m_perfCheck = nullptr;
+    QLabel *m_perfBadge = nullptr;
+    QTimer *m_perfTimer = nullptr;
+    int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
+    int m_lastPixelFormat = -1;    // QVideoFrameFormat::PixelFormat
 #endif
 };
 
