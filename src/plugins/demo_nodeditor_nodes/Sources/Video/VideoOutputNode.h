@@ -102,6 +102,11 @@ private:
     /// Refresh the perf overlay badge from the "video" domain aggregates
     /// (fired on a ~500 ms timer while the Perf checkbox is enabled).
     void updatePerfBadge();
+
+    /// (Re)position the top-level perf badge over the top-left corner of the
+    /// detached QVideoWidget. Called on creation and on every badge refresh so
+    /// the overlay tracks the video window when it is moved or resized.
+    void positionPerfBadge();
 #endif
 
     QWidget *m_widget = nullptr;
@@ -129,8 +134,10 @@ private:
     /// removed cannot resurrect the detached popup.
     bool m_videoInputConnected = false;
 
-    // Perf overlay (REQ-SW-PL-027): the badge is a child of the detached
-    // QVideoWidget; the 500 ms timer refreshes it.
+    // Perf overlay (REQ-SW-PL-027): a separate top-level frameless tool window
+    // (NOT a child of the QVideoWidget) because QVideoWidget renders the video
+    // in its own layer and does not composite child widgets on top of it. The
+    // 500 ms timer refreshes its text and repositions it over the video window.
     QLabel *m_perfBadge = nullptr;
     QTimer *m_perfTimer = nullptr;
 #endif

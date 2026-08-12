@@ -83,8 +83,11 @@ overlay с чекбокс „Perf". Временният `VideoDiag` диагн�
 - **HW/SW в бейджа:** `VideoOutputNode` получава `VideoFrameData`, обвиващ
   `QVideoFrame` — `handleType()`/`pixelFormat()` се четат директно от получения
   кадър; source-side маркерите тагват собствените статистики на източника.
-- **Overlay parent:** бейджът е child на detach-натия `QVideoWidget` (създаван в
-  `ensureVideoWidget()`, `VideoOutputNode.cpp:277-294`) — не в node editor сцената
-  (QTBUG-35299).
+- **Overlay parent:** бейджът е **отделен top-level frameless tool прозорец** (не
+  child на detach-натия `QVideoWidget`, създаван в `ensureVideoWidget()`), защото
+  `QVideoWidget` рендерира видеото в собствен native слой (RHI swapchain) и не
+  композира child widget-и върху него. Следва позицията на видео прозореца
+  (горе-ляво, offset ~4,4) при създаване и на всеки ~500 ms refresh
+  (`positionPerfBadge()`).
 - **Qt5:** инструментирането е Qt6-фокусирано (zero-copy път); Qt5 остава на
   QImage пътя без overlay (без влошаване).

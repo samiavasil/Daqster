@@ -91,7 +91,13 @@ VideoOutputNode::~VideoOutputNode()
         m_videoWidget->deleteLater();
         m_videoWidget = nullptr;
     }
-    m_perfBadge = nullptr; // deleted as a child of m_videoWidget above
+    // The badge is a top-level window (not a child of m_videoWidget), so it
+    // must be closed explicitly to avoid a dangling overlay window.
+    if (m_perfBadge != nullptr) {
+        m_perfBadge->hide();
+        m_perfBadge->deleteLater();
+        m_perfBadge = nullptr;
+    }
 #endif
     // Widget lifetime is owned by the node/view framework.
     m_widget = nullptr;
@@ -304,7 +310,13 @@ void VideoOutputNode::inputConnectionDeleted(QtNodes::ConnectionId const &conId)
         m_videoWidget->deleteLater();
         m_videoWidget = nullptr;
     }
-    m_perfBadge = nullptr; // deleted as a child of m_videoWidget above
+    // The badge is a top-level window (not a child of m_videoWidget), so close
+    // it explicitly to avoid a dangling overlay window.
+    if (m_perfBadge != nullptr) {
+        m_perfBadge->hide();
+        m_perfBadge->deleteLater();
+        m_perfBadge = nullptr;
+    }
     m_videoFrame.reset();
     m_image = QImage();
     m_output.reset();
@@ -385,15 +397,22 @@ void VideoOutputNode::ensureVideoWidget()
     m_videoWidget->resize(640, 480);
     m_videoWidget->show();
 
-    // Perf overlay badge (REQ-SW-PL-027): a child of the detached QVideoWidget
-    // (NOT the node editor scene — QTBUG-35299), top-left, semi-transparent.
-    // Shown only while the "video" domain is enabled, raised above the video.
-    m_perfBadge = new QLabel(m_videoWidget);
+    // Perf overlay badge (REQ-SW-PL-027): a separate top-level frameless tool
+    // window (NOT a child of the detached QVideoWidget). QVideoWidget renders
+    // the video in its own native layer (RHI swapchain) and does NOT composite
+    // child widgets on top of it, so a child QLabel would stay invisible over
+    // the video. A frameless, transparent-for-mouse, always-on-top tool window
+    // that tracks the video window's position is the reliable approach.
+    m_perfBadge = new QLabel(nullptr,
+        Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    m_perfBadge->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_perfBadge->setAttribute(Qt::WA_TranslucentBackground);
+    m_perfBadge->setAttribute(Qt::WA_ShowWithoutActivating);
     m_perfBadge->setStyleSheet(
         QStringLiteral("background-color: rgba(0,0,0,140); color: #0f0; padding: 2px;"));
-    m_perfBadge->move(4, 4);
     m_perfBadge->adjustSize();
     m_perfBadge->hide();
+    positionPerfBadge();
 
     // The in-node QLabel shows a static placeholder while the GPU path is
     // active — it is not updated per-frame (avoids redundant QImage conversion).
@@ -417,7 +436,20 @@ void VideoOutputNode::updatePerfBadge()
         domain.avg("output.total"),
         m_lastHandleType, m_lastPixelFormat));
     m_perfBadge->adjustSize();
+    positionPerfBadge();
     m_perfBadge->raise();
     m_perfBadge->show();
+}
+
+void VideoOutputNode::positionPerfBadge()
+{
+    if (m_perfBadge == nullptr || m_videoWidget == nullptr)
+        return;
+
+    // The badge is a top-level window, so it must be positioned in global
+    // coordinates. Pin it to the top-left corner of the video window (client
+    // area origin mapped to global), offset by a few pixels.
+    const QPoint topLeft = m_videoWidget->mapToGlobal(QPoint(0, 0)) + QPoint(4, 4);
+    m_perfBadge->move(topLeft);
 }
 #endif
