@@ -12,12 +12,15 @@ class VideoFrameDataTest : public QObject
 
 private slots:
     void defaultCtor_hasNoFrame();
+    void fromQImage_hasFrame();
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    void fromQImage_hasFrame();
     void fromQImage_toImage_roundTrip();
+#endif
+
     void setFrame_replaces();
-#else
-    void hasFrame_alwaysFalse_qt5();
+
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    void qt5_wrapsOwnedFrames();
 #endif
 };

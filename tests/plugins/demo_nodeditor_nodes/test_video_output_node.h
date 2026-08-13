@@ -12,13 +12,10 @@ class VideoOutputNodeTest : public QObject
     Q_OBJECT
 
 private slots:
-    void portTopology_qt5_qt6();
+    void portTopology();
     void imageData_passthrough();
     void nullImageData_invalidates();
-
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    void videoInputConnectionGuard_qt6_only();
-    void outputConnectionCounter_qt6_only();
-    void outputChain_qt6_only();
-#endif
+    void videoInputConnectionGuard();
+    void outputConnectionCounter();
+    void outputChain();
 };

@@ -43,12 +43,19 @@ class VideoFrameData;
  *   - port 2 "sample" — SampledData (domain "audio"), wrapped from the decoded
  *     audio buffers (REQ-SW-PL-022).
  *
- * On Qt5 the node has two output ports:
- *   - port 0 "image" — ImageData (QImage path).
- *   - port 1 "sample" — SampledData (domain "audio").
+ * On Qt5 the node has three output ports (mirror of Qt6, NV12-direct):
+ *   - port 0 "video-frame" — VideoFrameData wrapping an OWNED copy of the
+ *     decoded frame (VideoCompat::frameToOwnedFrame), emitted for every frame
+ *     (no QImage conversion).
+ *   - port 1 "image" — ImageData, converted from the frame ONLY while a
+ *     downstream processing consumer is connected.
+ *   - port 2 "sample" — SampledData (domain "audio").
  *
  * The audio port is APPENDED LAST on both Qt versions so old saved graphs keep
- * their port indices (REQ-SW-PL-022 AC 8).
+ * their port indices (REQ-SW-PL-022 AC 8). NOTE (NV12-direct renumbering): on
+ * Qt5 the image port moved from 0 to 1 — old saved Qt5 graphs that connected
+ * the source's port 0 (was "image") to an ImageData consumer will lose that
+ * edge and must be re-connected to the new image port (port 1).
  */
 class VideoFileSourceNode : public QtNodes::NodeDelegateModel
 {
@@ -106,11 +113,7 @@ private:
     void updatePlayButton();
     static QtNodes::PortIndex audioPortIndex()
     {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         return 2; // 0 = video-frame, 1 = image, 2 = audio (appended last)
-#else
-        return 1; // 0 = image, 1 = audio (appended last)
-#endif
     }
 
     QWidget *m_widget = nullptr;
@@ -125,22 +128,24 @@ private:
     QMediaPlayer *m_player = nullptr;
     VideoCompat::FrameProbe *m_frameProbe = nullptr;
     // Runtime profiling (REQ-SW-PL-027): inter-frame gap stopwatch + first-frame
-    // flag, shared by both the Qt6 zero-copy path and the Qt5 QImage path. The
-    // HW/SW markers are Qt6-only (Qt5 QVideoFrame has no surfaceFormat()).
+    // flag. The HW/SW markers are filled on both Qt versions (Qt5 via the
+    // normalized VideoCompat::pixelFormatInt()).
     Daqster::Perf::Stopwatch m_perfWatch;
     bool m_perfFirstFrame = true;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     // Qt6 requires an explicit QAudioOutput; without setAudioOutput() the
     // audio is decoded but never routed and stays silent (REQ-SW-PL-022 AC 1).
     QAudioOutput *m_audioOutput = nullptr;
+#endif
     // Reused per frame via setFrame() — no allocation per frame (REQ-SW-PL-020).
+    // On Qt5 the frame is an owned copy (frameToOwnedFrame); on Qt6 the decoded
+    // probe frame (ref-count bump only).
     std::shared_ptr<VideoFrameData> m_videoFrameOut;
     int m_imagePortConnectionCount = 0;
     // Runtime profiling (REQ-SW-PL-027): last-frame HW/SW markers
     // (handleType/pixelFormat) for source-side diagnostics.
     int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
-    int m_lastPixelFormat = -1;    // QVideoFrameFormat::PixelFormat
-#endif
+    int m_lastPixelFormat = -1;    // normalized (Qt6 numbering, see VideoCompat)
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     // Qt6: receives decoded audio buffers (Qt 6.8+, FFmpeg backend).
     QAudioBufferOutput *m_audioBufferOutput = nullptr;
