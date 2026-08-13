@@ -146,6 +146,9 @@
     ctest 9/9 green (и двете) + `-DDAQSTER_ENABLE_PERF=OFF` build PASS
   - Комити: `6ad8e89` (PerfProfiler module), `2c31b4a` (lcPerf + CMake),
     `52a620c` (perf_profiler_tests)
+- **GL blit display widget** (`VideoGLBlitWidget`, `DAQSTER_GL_BLIT=1`) — detached OpenGL display за `VideoOutputNode`: качва декодираните CPU кадри като YUV текстури (NV12 / YUV420P) и конвертира в RGB във fragment shader (QImage fallback за RGB формати). И на двете Qt версии; измерено CPU: Qt5 27.9% → 15.0-16.2%, Qt6 17.8-18.2%, GLBLIT ~50-330 µs, failures=0.
+- **NV12-direct за Qt5 (REQ-SW-PL-020)** — `VideoFrameData` вече не е Qt6-gated; Qt5 source-ите емитират OWNED копие на декодирания кадър (`VideoCompat::frameToOwnedFrame` — NV12/YUV420P plane-ове memcpy в `QAbstractPlanarVideoBuffer`) на port 0 (video-frame), image port 1 конвертира on-demand, audio port 2 appended last. `VideoOutputNode` има dual input video-frame@0 / image@1 и на двете версии. **Преномерация:** на Qt5 image портът се мести от 0 на 1 — стари Qt5 графи с image@0 трябва да се пресвържат.
+- **Perf резултати doc** — `tests/performance/performance-video-display-2026-08-13.md`: пълна методология, числа преди/след shadow, perf анализ, промени и следващи лостове.
 
 ### Changed
 - **Directory Restructuring**:
@@ -162,6 +165,8 @@
   - REQ-SW-PL-018/PL-019 documentation refs backfill; plugin version alignment 0.3.0 → 0.2.0 в `project()` за `demo_nodeditor_nodes` и `node_editor_ide` (inert metadata, съответства на runtime 0.2.0) (`ed8b334`)
 - **StreamUrlValidator** — извлечен от `StreamSourceNode` като самостоятелен header-only helper (`3048fbd`) за unit-testability (валидация на http/https/rtsp stream URL)
 - **Process**: mandatory branch-per-work-item clause в AGENTS.md (`bee28c4`); trunk-based-lite from master (`547401c`); master consolidation (PR #21 `3c8c47f` merged, phase3 branch изтрит, PL-020 rebased onto master)
+- **Node drop shadows изключени (perf)** — nodeeditor default `DefaultStyle.json` вече е с `ShadowEnabled=false` и display нодовете (`VideoOutputNode`, `DaqDisplayNode`, `NumberDisplayDataModel`, `QDevIoDisplayModelObsolete` вкл. AudioDisplay) го форсират per-node. `QGraphicsDropShadowEffect` blur-ът се изпълнява при всеки scene repaint и струваше ~46% CPU при video playback (измерено Qt6 36% → 17.6%).
+- **Video source порт преномерация на Qt5** — виж NV12-direct по-горе; стари Qt5 графи, свързващи source port 0 (беше "image") с ImageData консуматор, губят връзката.
 
 ### Fixed
 - **Plugin launch fixes**:
@@ -182,6 +187,8 @@
 - **Тихо аудио на Qt6 (REQ-SW-PL-022)** — `VideoFileSourceNode` и `StreamSourceNode` създаваха `QMediaPlayer` без `QAudioOutput`; Qt6 изисква `setAudioOutput()` (иначе аудиото се декодира, но не се рутира). Добавен `QAudioOutput` member + `setAudioOutput()`, гарднат с `#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)`; Qt5 поведението непроменено (`12076a2`)
 - **`[PERF]` конзолен ред не излизаше (REQ-SW-PL-027)** — `VideoOutputNode::logPerfLine()` логваше през `qCDebug(lcPerf)`, но категорията `daqster.perf` е изключена по подразбиране в `LogManager` → редът се филтрираше. Преминато на `qInfo().noquote()` (Info ниво, без категория — винаги излиза, като FFmpeg `[INF]` редовете); форматът на реда (formatPerfLine) е запазен
 - **Perf overlay бейджът не се виждаше (REQ-SW-PL-027, Qt6)** — бейджът беше `QLabel` child на detached `QVideoWidget`; `QVideoWidget` рендерира видеото в отделен native слой (RHI swapchain) и не композира child widget-и върху него → бейджът оставаше невидим. Мигриран към отделен top-level frameless tool прозорец (`Qt::Tool | FramelessWindowHint | WindowStaysOnTopHint`, `WA_TransparentForMouseEvents`, полупрозрачен фон), който следва позицията на видео прозореца (горе-ляво, offset ~4,4) при създаване и на всеки ~500 ms refresh; `show()`/`hide()` според `domain.enabled()`; затваря се при `inputConnectionDeleted`/деструктор
+- **Detached GL blit прозорецът не се появяваше при повторно закачане (Qt5 + Qt6 image порт)** — разкачането криеше GL прозореца (null клон на `updateDisplay()`), но `ensureGlWidget()` връщаше рано при съществуващ-но-скрит widget, а Qt5 `inputConnectionDeleted()` беше no-op → прозорецът не се връщаше при повторно закачане. `ensureGlWidget()` вече re-show-ва скрит widget и Qt5 disconnect премахва прозореца като Qt6. Проверено ръчно и на двете версии.
+- **Qt5 видео throttled до 1 fps при видим GL прозорец** — на NVIDIA GLX default swap interval throttled `QOpenGLWidget` repaint-ите до ~1 Hz (възпроизведено с минимален standalone widget), което задушаваше видео пайплайна до 1 fps. `VideoGLBlitWidget` задава `QSurfaceFormat::setSwapInterval(0)` (+ default format) → свободни presents → 25 fps.
 
 ### Known issues
 - **VC-1 Advanced видео на Qt6 (known issue)** — VC-1 Advanced профил съдържание (напр. `50MB_1080P_THETESTDATA.COM_AVI.avi`, ASF контейнер, mislabelled .avi) показва зелен екран на Qt6: Qt FFmpeg backend (QFFmpegMediaPlugin, libavcodec 61/FFmpeg 7.1) доставя NV12 кадри с изцяло нулева chroma плоскост (Cb=Cr=0) → YCbCr→RGB = плътен зелен (0,226,0). Доказано със standalone probe без Daqster presentation код (system FFmpeg декодира правилно; H.264 и Cinepak работят на Qt6; Qt5 работи via GStreamer). Не е fixable в Daqster код — upstream Qt 6.9.2 bug. Открито на 2026-08-09.
