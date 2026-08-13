@@ -6,6 +6,7 @@
 #include "test_sampled_data.h"
 #include "test_fft_util.h"
 #include "test_audio_buffer_to_sampled.h"
+#include "test_video_perf_badge.h"
 
 // Shared main for the demo_nodeditor_nodes video test classes. Each class is
 // declared in its own header so a single binary can run all of them through
@@ -37,6 +38,10 @@ int main(int argc, char *argv[])
     {
         AudioBufferToSampledTest audioBufferToSampled;
         status |= QTest::qExec(&audioBufferToSampled, argc, argv);
+    }
+    {
+        TestVideoPerfBadge videoPerfBadge;
+        status |= QTest::qExec(&videoPerfBadge, argc, argv);
     }
     return status;
 }

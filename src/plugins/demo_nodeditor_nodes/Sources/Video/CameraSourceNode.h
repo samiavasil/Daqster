@@ -3,6 +3,8 @@
 
 #include "VideoCompat.h"
 
+#include "PerfProfiler.h"
+
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/internal/Definitions.hpp>
 
@@ -21,10 +23,14 @@ class VideoFrameData;
 /**
  * @brief Camera source node: captures frames from a local camera device.
  *
- * Emits at the camera frame rate. On Qt6 the node has two output ports
- * (REQ-SW-PL-020): port 0 "video-frame" (zero-copy VideoFrameData, always
- * emitted) and port 1 "image" (ImageData, converted only while a processing
- * consumer is connected). On Qt5 it keeps the single "image" output.
+ * Emits at the camera frame rate. On both Qt versions the node has two output
+ * ports (REQ-SW-PL-020): port 0 "video-frame" (zero-copy VideoFrameData, always
+ * emitted; Qt5 wraps an OWNED copy via VideoCompat::frameToOwnedFrame) and
+ * port 1 "image" (ImageData, converted only while a processing consumer is
+ * connected). NOTE (NV12-direct renumbering): on Qt5 the image port moved from
+ * 0 to 1 — old saved Qt5 graphs that connected the source's port 0 (was
+ * "image") to an ImageData consumer will lose that edge and must be
+ * re-connected to the new image port (port 1).
  * The embedded widget lets the user pick a camera device (or the platform
  * default) and start or stop the capture.
  */
@@ -60,7 +66,7 @@ public:
 
     QWidget *embeddedWidget() override;
 
-    /// Track downstream "image" connections (port 1, Qt6) so the QImage
+    /// Track downstream "image" connections (port 1) so the QImage
     /// conversion only happens while a processing consumer is connected.
     void outputConnectionCreated(QtNodes::ConnectionId const &conId) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &conId) override;
@@ -86,11 +92,20 @@ private:
     QList<VideoCompat::CameraDevice> m_devices;
     QCamera *m_camera = nullptr;
     VideoCompat::FrameProbe *m_frameProbe = nullptr;
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // Runtime profiling (REQ-SW-PL-027): inter-frame gap stopwatch + first-frame
+    // flag. The HW/SW markers are filled on both Qt versions (Qt5 via the
+    // normalized VideoCompat::pixelFormatInt()).
+    Daqster::Perf::Stopwatch m_perfWatch;
+    bool m_perfFirstFrame = true;
     // Reused per frame via setFrame() — no allocation per frame (REQ-SW-PL-020).
+    // On Qt5 the frame is an owned copy (frameToOwnedFrame); on Qt6 the decoded
+    // probe frame (ref-count bump only).
     std::shared_ptr<VideoFrameData> m_videoFrameOut;
     int m_imagePortConnectionCount = 0;
-#endif
+    // Runtime profiling (REQ-SW-PL-027): last-frame HW/SW markers
+    // (handleType/pixelFormat) for source-side diagnostics.
+    int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
+    int m_lastPixelFormat = -1;    // normalized (Qt6 numbering, see VideoCompat)
     std::shared_ptr<ImageData> m_output;
     bool m_running = false;
 };

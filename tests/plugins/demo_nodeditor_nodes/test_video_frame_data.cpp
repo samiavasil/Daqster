@@ -13,8 +13,6 @@ void VideoFrameDataTest::defaultCtor_hasNoFrame()
     QCOMPARE(t.name, QStringLiteral("Video Frame"));
 }
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-
 void VideoFrameDataTest::fromQImage_hasFrame()
 {
     QImage img(320, 240, QImage::Format_ARGB32);
@@ -27,6 +25,8 @@ void VideoFrameDataTest::fromQImage_hasFrame()
     QVERIFY(vfd.hasFrame());
     QCOMPARE(vfd.frame().size(), QSize(320, 240));
 }
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 
 void VideoFrameDataTest::fromQImage_toImage_roundTrip()
 {
@@ -46,6 +46,8 @@ void VideoFrameDataTest::fromQImage_toImage_roundTrip()
     QCOMPARE(roundTripped.size(), img.size());
     QCOMPARE(roundTripped.pixelColor(100, 100), Qt::red);
 }
+
+#endif  // QT_VERSION >= 0x060000
 
 void VideoFrameDataTest::setFrame_replaces()
 {
@@ -67,18 +69,24 @@ void VideoFrameDataTest::setFrame_replaces()
     QCOMPARE(vfd.frame().size(), QSize(200, 200));
 }
 
-#else  // QT_VERSION < 0x060000
-
-void VideoFrameDataTest::hasFrame_alwaysFalse_qt5()
+// ── Qt5 NV12-direct (REQ-SW-PL-020): VideoFrameData is no longer a stub ──────
+//
+// The Qt5 default-constructed frame is still invalid; the type becomes valid
+// when it wraps a QVideoFrame (sources build owned copies via
+// VideoCompat::frameToOwnedFrame). Constructing a QImage-backed frame exercises
+// the same value semantics as on Qt6.
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+void VideoFrameDataTest::qt5_wrapsOwnedFrames()
 {
-    VideoFrameData vfd;
-    QVERIFY(!vfd.hasFrame());
+    QImage img(64, 64, QImage::Format_ARGB32);
+    img.fill(Qt::cyan);
+    QVideoFrame vf(img);
+    QVERIFY(vf.isValid());
 
-    // Constructing non-default still yields no frame on Qt5 (stub class).
-    VideoFrameData vfd2;
-    QVERIFY(!vfd2.hasFrame());
+    VideoFrameData vfd(vf);
+    QVERIFY(vfd.hasFrame());
+    QCOMPARE(vfd.frame().size(), QSize(64, 64));
 }
-
 #endif
 
 QTEST_GUILESS_MAIN(VideoFrameDataTest)

@@ -12,6 +12,12 @@ NumberDisplayDataModel::
 NumberDisplayDataModel()
     : _label(new QLabel())
 {
+    // Display nodes must never get a graphics effect (perf): the shadow blur
+    // runs per repaint and costs ~46% CPU during video playback.
+    QtNodes::NodeStyle s = this->nodeStyle();
+    s.ShadowEnabled = false;
+    this->setNodeStyle(s);
+
     _label->setMargin(3);
 
     m_typeCombo = new QComboBox();

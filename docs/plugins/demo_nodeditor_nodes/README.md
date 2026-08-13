@@ -126,13 +126,21 @@ DemoNodeEditorNodesObject → INodeProvider
 ### Video
 | Нод | Категория | Описание |
 |-----|-----------|----------|
-| CameraSourceNode | Video | Заснема кадри от локално camera устройство (избор на устройство + start/stop), емитира кадри — Qt6: port 0 `VideoFrameData` (zero-copy) + port 1 `ImageData` (on-demand); Qt5: `ImageData` |
-| VideoFileSourceNode | Video | Възпроизвежда локален видео файл през `QMediaPlayer` + frame probe (browse + play/pause), емитира кадри — Qt6: port 0 `VideoFrameData` (zero-copy) + port 1 `ImageData` (on-demand); Qt5: `ImageData` |
-| StreamSourceNode | Video | Възпроизвежда HTTP/RTSP stream (URL поле + connect), емитира кадри — Qt6: port 0 `VideoFrameData` (zero-copy) + port 1 `ImageData` (on-demand); Qt5: `ImageData` |
-| VideoOutputNode | Video | Live preview на входящите кадри — Qt6: два входа (port 0 `VideoFrameData` → GPU display през `QVideoWidget`; port 1 `ImageData` → `QLabel`), zero-copy GPU път (HW буфер → RHI → екран); Qt5: един вход `ImageData` → `QLabel`. Pass-through изходен порт за output вериги |
+| CameraSourceNode | Video | Заснема кадри от локално camera устройство (избор на устройство + start/stop), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `ImageData` (on-demand) |
+| VideoFileSourceNode | Video | Възпроизвежда локален видео файл през `QMediaPlayer` + frame probe (browse + play/pause), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `ImageData` (on-demand) + port 2 `SampledData` (audio) |
+| StreamSourceNode | Video | Възпроизвежда HTTP/RTSP stream (URL поле + connect), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `ImageData` (on-demand) + port 2 `SampledData` (audio) |
+| VideoOutputNode | Video | Live preview на входящите кадри — два входа (port 0 `VideoFrameData` → GPU display през detached GL blit прозорец (`DAQSTER_GL_BLIT=1`, Qt6 и Qt5) или `QVideoWidget` (Qt6 без GL blit); port 1 `ImageData` → `QLabel`), zero-copy GPU път. Pass-through изходен порт за output вериги |
 | VideoTransformNode | Video | Прилага конфигурируема операция върху `ImageData` кадри (8 базови + опционални OpenCV операции) |
 
-Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). На Qt6 източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат два изходни порта: port 0 `VideoFrameData` ("video-frame", zero-copy) и port 1 `ImageData` ("image", конвертира се on-demand само при свързан processing потребител). `VideoOutputNode` приема и двата типа — `VideoFrameData` се дисплеира през GPU (Qt6 `QVideoWidget`), `ImageData` през софтуерен път (`QLabel`). Същият `ImageData` тип частният AI Studio plugin консумира на входа на `FrameToTensorNode` (REQ-AI-006).
+Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy) и port 1 `ImageData` ("image", конвертира се on-demand само при свързан processing потребител); видео source-ите имат и port 2 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема и двата типа — `VideoFrameData` се дисплеира през GPU (detached GL blit прозорец при `DAQSTER_GL_BLIT=1`, и на двете Qt версии; Qt6 без GL blit ползва `QVideoWidget`), `ImageData` през софтуерен път (`QLabel`). Същият `ImageData` тип частният AI Studio plugin консумира на входа на `FrameToTensorNode` (REQ-AI-006).
+
+> **Преномерация (NV12-direct, 2026-08-13):** на Qt5 източниковите нодове и
+> `VideoOutputNode` вече имат същата топология като Qt6 — port 0 е
+> "video-frame", а image портът е port 1 (беше port 0 на Qt5). Стари saved Qt5
+> графи, които свързват source port 0 (беше "image") с ImageData консуматор,
+> **ще загубят връзката** и трябва да се пресвържат към новия image порт (1).
+> Причина: Qt5 сега транспортира OWNED NV12/YUV420P копия (`VideoCompat::frameToOwnedFrame`),
+> така че `VideoFrameData` не е вече Qt6-only.
 
 #### VideoTransformNode — операции (REQ-SW-PL-019)
 
@@ -239,7 +247,8 @@ Plugin-ът изисква следните Qt модули и библиоте�
 
 Video нодовете използват Qt Multimedia API, който се различава между Qt5 и Qt6. Разликите са абстрахирани в `Sources/Video/VideoCompat.h` (по модела на съществуващия `AudioCompat.h`) — namespace от type aliases и inline helpers с version-agnostic API за caller-ите:
 
-- **Frame capture:** Qt6 `QVideoSink` (`videoFrameChanged`) vs Qt5 `QVideoProbe` (`videoFrameProbed`) — и двете доставят `QVideoFrame`, който се конвертира до `QImage`
+- **Frame capture:** Qt6 `QVideoSink` (`videoFrameChanged`) vs Qt5 `QVideoProbe` (`videoFrameProbed`) — и двете доставят `QVideoFrame`. Qt6 транспортира кадъра zero-copy; Qt5 прави OWNED копие (`frameToOwnedFrame`, NV12/YUV420P) за безопасно преминаване през графа.
+- **Frame transport:** `VideoCompat::frameToFrame()` — Qt6 identity (ref-count bump), Qt5 `frameToOwnedFrame()` (map + memcpy plane-ове в `QAbstractPlanarVideoBuffer`). `pixelFormatInt()` нормализира Qt5/Qt6 pixel format за `[PERF]` маркерите.
 - **Camera enumeration:** Qt6 `QMediaDevices::videoInputs()` vs Qt5 `QCameraInfo::availableCameras()`
 - **Media source:** Qt6 `QMediaPlayer::setSource(QUrl)` vs Qt5 `setMedia(QMediaContent)`
 - **Playback state / error сигнали:** Qt6 `playbackStateChanged(PlaybackState)` / `errorOccurred(Error, QString)` vs Qt5 `stateChanged(State)` / `error(Error)` — транспортират се като int/callback (и двата enum-а споделят едни и същи unscoped стойности)
@@ -283,9 +292,11 @@ QObjectList providers = pm->instances(INodeProvider_IID);
   на Qt Multimedia + **GStreamer runtime** (plugins-good, plugins-bad, libav) +
   изложена променлива `GST_PLUGIN_PATH`, указваща към директорията с плъгините.
   Това изисква отделна инсталация и конфигурация.
-- **Zero-copy display** — `VideoFrameData` не се използва на Qt5 (GStreamer
-  рециклира буферите; probe кадрите не са безопасни за задържане). Qt5
-  остава на QImage/`ImageData` пътя.
+- **Zero-copy display** — Qt5 (2026-08-13, NV12-direct) вече транспортира
+  OWNED копия на декодираните кадри (`VideoCompat::frameToOwnedFrame`), така че
+  `VideoFrameData` се използва и на Qt5. GPU display (detached GL blit прозорец,
+  `DAQSTER_GL_BLIT=1`) работи на Qt5 с NV12/YUV420P шейдърен път; RGB формати
+  падат на QImage. За максимална производителност пак се препоръчва Qt6.
 
 ### Препоръка
 

@@ -10,8 +10,12 @@
 #include <QLayout>
 #include <QPushButton>
 #include <QMenu>
+#include <QCheckBox>
+#include <QJsonObject>
 
+#include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
+#include <QtNodes/DataFlowGraphModel>
 #include <QtNodes/ConnectionStyle>
 
 #include <QtWidgets/QVBoxLayout>
@@ -96,6 +100,12 @@ bool NodeEditorIdeObject::Initialize()
     m_Win->show();
     m_Win->setAttribute(Qt::WA_DeleteOnClose, true);
 
+    // Dev driver (DAQSTER_AUTOSTART_VIDEO=1): builds a video source -> output
+    // graph and starts playback without GUI interaction. Used by the PERF
+    // measurement harness (tests/performance/performance-video-display-2026-08-13.md).
+    if (qEnvironmentVariableIsSet("DAQSTER_AUTOSTART_VIDEO"))
+        autoStartVideo();
+
     connect(m_Widget, &NodeEditorWidget::nodeDoubleClicked,
             this, &NodeEditorIdeObject::nodeDoubleClicked);
     connect(m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)));
@@ -170,5 +180,84 @@ void NodeEditorIdeObject::ShowPlugins()
     if (nullptr != pm) {
         DEBUG << "Plugin Manager: " << pm;
         pm->ShowPluginManagerGui(m_Win);
+    }
+}
+
+// ── Dev driver: DAQSTER_AUTOSTART_VIDEO=1 ────────────────────────────────────
+// Builds a video source -> VideoOutput graph, starts playback from
+// DAQSTER_VIDEO_FILE / DAQSTER_STREAM_URL and enables the "Perf" checkbox, so
+// the video pipeline can be measured headlessly (see the PERF results doc in
+// tests/performance/). No-op unless the env var is set.
+void NodeEditorIdeObject::autoStartVideo()
+{
+    QtNodes::DataFlowGraphModel* gm = m_Widget->graphModel();
+    if (gm == nullptr) {
+        DEBUG << "autoStartVideo: no graph model";
+        return;
+    }
+
+    // DAQSTER_VIDEO_FILE (file source) takes precedence over DAQSTER_STREAM_URL
+    // (rtsp/http stream source).
+    const QString videoFile = qEnvironmentVariable("DAQSTER_VIDEO_FILE");
+    const QString streamUrl = qEnvironmentVariable(
+        "DAQSTER_STREAM_URL", QStringLiteral("rtsp://192.168.33.233:554/stream1"));
+    const bool useFile = !videoFile.isEmpty();
+    const QString srcNodeName = useFile
+        ? QStringLiteral("VideoFileSource") : QStringLiteral("StreamSource");
+
+    const QtNodes::NodeId srcId = gm->addNode(srcNodeName);
+    const QtNodes::NodeId outId = gm->addNode(QStringLiteral("VideoOutput"));
+    DEBUG << "autoStartVideo: nodes created src=" << srcId << " out=" << outId
+          << " source=" << srcNodeName << (useFile ? videoFile : streamUrl);
+
+    // Connect source port 0 -> output port 0 (video-frame on both Qt versions).
+    const QtNodes::ConnectionId conn{srcId, 0, outId, 0};
+    if (gm->connectionPossible(conn)) {
+        gm->addConnection(conn);
+        DEBUG << "autoStartVideo: connected " << srcNodeName << " -> VideoOutput";
+    } else {
+        DEBUG << "autoStartVideo: connection NOT possible";
+    }
+
+    // Configure the source node and press its start button.
+    auto* srcModel = gm->delegateModel<QtNodes::NodeDelegateModel>(srcId);
+    if (srcModel != nullptr) {
+        QJsonObject cfg;
+        const QString buttonText = useFile ? QStringLiteral("Play")
+                                           : QStringLiteral("Connect");
+        if (useFile)
+            cfg["filePath"] = videoFile;
+        else
+            cfg["url"] = streamUrl;
+        srcModel->load(cfg);
+
+        QWidget* w = srcModel->embeddedWidget();
+        if (w != nullptr) {
+            const auto buttons = w->findChildren<QPushButton*>();
+            for (QPushButton* b : buttons) {
+                if (b->text() == buttonText) {
+                    DEBUG << "autoStartVideo: pressing " << buttonText;
+                    b->click();
+                    break;
+                }
+            }
+        }
+    }
+
+    // Enable the Perf checkbox on the output node (drives the [PERF] console
+    // line + badge).
+    auto* outModel = gm->delegateModel<QtNodes::NodeDelegateModel>(outId);
+    if (outModel != nullptr) {
+        QWidget* w = outModel->embeddedWidget();
+        if (w != nullptr) {
+            const auto checks = w->findChildren<QCheckBox*>();
+            for (QCheckBox* c : checks) {
+                if (c->text() == tr("Perf")) {
+                    DEBUG << "autoStartVideo: enabling Perf";
+                    c->setChecked(true);
+                    break;
+                }
+            }
+        }
     }
 }

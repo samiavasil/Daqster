@@ -134,6 +134,30 @@ void Domain::record(const char *stage, std::int64_t ns)
     m_stages[QByteArray(stage)].add(ns);
 }
 
+std::int64_t Domain::avg(const char *stage) const
+{
+    const auto it = m_stages.constFind(QByteArray(stage));
+    return it == m_stages.constEnd() ? -1 : it->avg();
+}
+
+std::int64_t Domain::min(const char *stage) const
+{
+    const auto it = m_stages.constFind(QByteArray(stage));
+    return it == m_stages.constEnd() ? -1 : it->min();
+}
+
+std::int64_t Domain::max(const char *stage) const
+{
+    const auto it = m_stages.constFind(QByteArray(stage));
+    return it == m_stages.constEnd() ? -1 : it->max();
+}
+
+std::int64_t Domain::count(const char *stage) const
+{
+    const auto it = m_stages.constFind(QByteArray(stage));
+    return it == m_stages.constEnd() ? -1 : it->count();
+}
+
 void Domain::flush()
 {
     for (auto it = m_stages.begin(); it != m_stages.end(); ++it) {

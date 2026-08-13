@@ -64,6 +64,10 @@ set(VIDEO_NODES
     Sources/Video/StreamUrlValidator.cpp
     Sources/Video/VideoOutputNode.h
     Sources/Video/VideoOutputNode.cpp
+    Sources/Video/VideoPerfBadge.h
+    Sources/Video/VideoPerfBadge.cpp
+    Sources/Video/VideoGLBlitWidget.h
+    Sources/Video/VideoGLBlitWidget.cpp
     Sources/Video/VideoTransformNode.h
     Sources/Video/VideoTransformNode.cpp
     Sources/Video/VideoTransformOps.h

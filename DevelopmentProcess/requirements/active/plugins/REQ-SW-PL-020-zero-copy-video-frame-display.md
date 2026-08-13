@@ -106,9 +106,20 @@ throttling. При 1080p30 това насища едно ядро (наблюд
   само backend → source (вече текущата архитектура).
 - **`VideoCompat.h`** е designated shim за Qt5/Qt6 multimedia — всички
   version-разлики (вкл. present/QVideoSink helper) отиват там.
-- **Qt5 gotcha:** `QVideoProbe` frames не трябва да се държат извън сигнала;
-  `flush()` съществува точно за освобождаване на задържани референции. Затова
-  нулево-копийният път е Qt6-only.
+- **Qt5 gotcha:** `QVideoProbe` frames не трябва да се държат извън сигнала
+  (backend-ът рециклира буферите); `flush()` съществува точно за освобождаване
+  на задържани референции.
+- **NV12-direct за Qt5 (2026-08-13, Variante A):** Qt5 source-ите вече
+  транспортират **OWNED** копия на декодираните кадри
+  (`VideoCompat::frameToOwnedFrame` — map + memcpy по plane-ове за NV12/YUV420P
+  в QByteArray, построени в `QAbstractPlanarVideoBuffer` subclass), така че
+  `VideoFrameData` вече не е Qt6-gated. `VideoOutputNode` има два входа и на Qt5
+  (video-frame@0 → GL blit, image@1 → SW). Неподдържан формат → invalid frame →
+  source пада на QImage. **Преномерация (append-last нарушен):** Qt5 порт 0
+  стана "video-frame" (беше "image") — стари saved Qt5 графи, които свързват
+  source порт 0 с ImageData консуматор, **ще загубят връзката** и трябва да се
+  пресвържат към новия image порт (порт 1). Това е документирано в header-ите
+  на трите source-а, `VideoOutputNode.h` и `docs/plugins/demo_nodeditor_nodes/README.md`.
 - **QGraphicsProxyWidget не може да хостингне `QVideoWidget`** (QTBUG-35299 на
   Qt5 — "can't work, and never will"; Qt6 `QVideoWindow` = native QWindow със
   собствен RHI swapchain). Решението е detached top-level прозорец (съществува

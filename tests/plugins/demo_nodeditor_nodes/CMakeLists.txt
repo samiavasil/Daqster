@@ -15,7 +15,7 @@
 # this target: the 8 base QImage operations in VideoTransformOps.cpp are the
 # required coverage (REQ-SW-PL-018/019) and the tests must not require OpenCV.
 
-find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Test Multimedia REQUIRED)
+find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Test Multimedia OpenGL REQUIRED)
 if(QT_VERSION_MAJOR GREATER_EQUAL 6)
     find_package(Qt${QT_VERSION_MAJOR} COMPONENTS MultimediaWidgets REQUIRED)
 endif()
@@ -32,9 +32,11 @@ set(TEST_SOURCES
     test_sampled_data.cpp test_sampled_data.h
     test_fft_util.cpp test_fft_util.h
     test_audio_buffer_to_sampled.cpp test_audio_buffer_to_sampled.h
+    test_video_perf_badge.cpp test_video_perf_badge.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoTransformOps.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/StreamUrlValidator.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoPerfBadge.cpp
 )
 
 add_executable(demo_nodeditor_nodes_tests ${TEST_SOURCES})
@@ -143,6 +145,10 @@ set(VIDEO_OUTPUT_TEST_SOURCES
     test_video_output_node.cpp
     test_video_output_node.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoOutputNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoPerfBadge.cpp
+    # VideoOutputNode references VideoGLBlitWidget (DAQSTER_GL_BLIT display path);
+    # compile the widget source so the test binary links standalone:
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoGLBlitWidget.cpp
 )
 
 add_executable(demo_nodeditor_videooutput_tests ${VIDEO_OUTPUT_TEST_SOURCES})
@@ -161,12 +167,23 @@ target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Multimedia
     QtNodes
+    # VideoOutputNode.cpp now instruments via Daqster::Perf (REQ-SW-PL-027):
+    # frame_work supplies the PerfProfiler symbols, the base/src/perf PUBLIC
+    # include dir, and the DAQSTER_ENABLE_PERF compile definition.
+    frame_work
 )
 
 # QVideoWidget lives in Qt6::MultimediaWidgets (Qt5 bundles it in Multimedia).
+# VideoGLBlitWidget (QOpenGLWidget shaders) needs the OpenGL module on both
+# Qt versions.
 if(QT_VERSION_MAJOR GREATER_EQUAL 6)
     target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
-        Qt${QT_VERSION_MAJOR}::MultimediaWidgets)
+        Qt${QT_VERSION_MAJOR}::MultimediaWidgets
+        Qt${QT_VERSION_MAJOR}::OpenGLWidgets
+        Qt${QT_VERSION_MAJOR}::OpenGL)
+else()
+    target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
+        Qt${QT_VERSION_MAJOR}::OpenGL)
 endif()
 
 add_test(NAME demo_nodeditor_videooutput_tests

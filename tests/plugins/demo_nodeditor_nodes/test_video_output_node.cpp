@@ -21,16 +21,14 @@ static ConnectionId makeConId(PortIndex inPort, PortIndex outPort)
     return {0, outPort, 0, inPort};
 }
 
-// ── portTopology_qt5_qt6 ─────────────────────────────────────────────────────
+// ── portTopology ─────────────────────────────────────────────────────────────
 //
-// On Qt6 the node exposes two input ports (video-frame, image) plus one output;
-// on Qt5 only a single image input port. The port types are verified
-// independently of the Qt version.
-void VideoOutputNodeTest::portTopology_qt5_qt6()
+// On both Qt versions the node exposes two input ports (video-frame, image)
+// plus one output (REQ-SW-PL-020, NV12-direct).
+void VideoOutputNodeTest::portTopology()
 {
     VideoOutputNode node;
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QCOMPARE(node.nPorts(PortType::In), 2u);
     // Port 0: "video-frame"
     {
@@ -44,14 +42,6 @@ void VideoOutputNodeTest::portTopology_qt5_qt6()
         QCOMPARE(dt.id, QStringLiteral("image"));
         QCOMPARE(dt.name, QStringLiteral("Image"));
     }
-#else
-    QCOMPARE(node.nPorts(PortType::In), 1u);
-    {
-        const auto dt = node.dataType(PortType::In, 0);
-        QCOMPARE(dt.id, QStringLiteral("image"));
-        QCOMPARE(dt.name, QStringLiteral("Image"));
-    }
-#endif
 
     QCOMPARE(node.nPorts(PortType::Out), 1u);
     {
@@ -63,8 +53,8 @@ void VideoOutputNodeTest::portTopology_qt5_qt6()
 
 // ── imageData_passthrough ────────────────────────────────────────────────────
 //
-// Feeds a non-empty ImageData into the image port (port 1 on Qt6, port 0 on
-// Qt5) and verifies it propagates to outData(0).
+// Feeds a non-empty ImageData into the image port (port 1) and verifies it
+// propagates to outData(0).
 void VideoOutputNodeTest::imageData_passthrough()
 {
     VideoOutputNode node;
@@ -74,11 +64,7 @@ void VideoOutputNodeTest::imageData_passthrough()
     img.fill(Qt::green);
     auto input = std::make_shared<ImageData>(img);
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     constexpr PortIndex imagePort = 1;
-#else
-    constexpr PortIndex imagePort = 0;
-#endif
 
     node.setInData(input, imagePort);
 
@@ -102,11 +88,7 @@ void VideoOutputNodeTest::nullImageData_invalidates()
     VideoOutputNode node;
     QSignalSpy spy(&node, &QtNodes::NodeDelegateModel::dataInvalidated);
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     constexpr PortIndex imagePort = 1;
-#else
-    constexpr PortIndex imagePort = 0;
-#endif
 
     // First feed a valid image so there is something to invalidate.
     {
@@ -123,16 +105,14 @@ void VideoOutputNodeTest::nullImageData_invalidates()
     QVERIFY(node.outData(0) == nullptr);
 }
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-
-// ── videoInputConnectionGuard_qt6_only ───────────────────────────────────────
+// ── videoInputConnectionGuard ────────────────────────────────────────────────
 //
 // 1. inputConnectionCreated(0) + outputConnectionCreated(0) → both connected
 // 2. Feed a valid VideoFrameData → accepted (dataUpdated emitted via output
 //    chain, verifying the frame was not blocked)
 // 3. inputConnectionDeleted(0) → m_videoInputConnected = false
 // 4. Feed another VideoFrameData → REJECTED (no dataUpdated emitted)
-void VideoOutputNodeTest::videoInputConnectionGuard_qt6_only()
+void VideoOutputNodeTest::videoInputConnectionGuard()
 {
     VideoOutputNode node;
     QSignalSpy spyUpdated(&node, &QtNodes::NodeDelegateModel::dataUpdated);
@@ -166,13 +146,13 @@ void VideoOutputNodeTest::videoInputConnectionGuard_qt6_only()
     QCOMPARE(spyUpdated.count(), 0);
 }
 
-// ── outputConnectionCounter_qt6_only ─────────────────────────────────────────
+// ── outputConnectionCounter ──────────────────────────────────────────────────
 //
 // outputConnectionCreated/deleted(0) are tracked as a ref-count. The
 // counter controls whether the per-frame QImage conversion runs: only
 // when counter > 0 does setInData(port 0) produce an ImageData output.
 // We verify indirectly via the presence of dataUpdated(0).
-void VideoOutputNodeTest::outputConnectionCounter_qt6_only()
+void VideoOutputNodeTest::outputConnectionCounter()
 {
     VideoOutputNode node;
     QSignalSpy spyUpdated(&node, &QtNodes::NodeDelegateModel::dataUpdated);
@@ -204,12 +184,12 @@ void VideoOutputNodeTest::outputConnectionCounter_qt6_only()
     QCOMPARE(spyUpdated.count(), 0);
 }
 
-// ── outputChain_qt6_only ─────────────────────────────────────────────────────
+// ── outputChain ──────────────────────────────────────────────────────────────
 //
 // With an output connection present, feeding a synthetic VideoFrameData
 // produces ImageData on outData(0) and emits dataUpdated(0). The output
 // image must match the source frame's dimensions.
-void VideoOutputNodeTest::outputChain_qt6_only()
+void VideoOutputNodeTest::outputChain()
 {
     VideoOutputNode node;
     QSignalSpy spyUpdated(&node, &QtNodes::NodeDelegateModel::dataUpdated);
@@ -236,7 +216,5 @@ void VideoOutputNodeTest::outputChain_qt6_only()
     QCOMPARE(outImage->width(), frameSize.width());
     QCOMPARE(outImage->height(), frameSize.height());
 }
-
-#endif  // QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 
 QTEST_MAIN(VideoOutputNodeTest)

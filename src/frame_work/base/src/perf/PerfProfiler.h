@@ -46,6 +46,14 @@ public:
     void setEnabled(bool on);                   // relaxed atomic store
     void record(const char *stage, std::int64_t ns);  // no-op when off
     void flush();                               // qCDebug(lcPerf) + reset
+
+    // Read aggregate stats for a stage. Return -1 when the stage has no
+    // samples. Intended to be called from the same thread that records (GUI),
+    // so no locking.
+    std::int64_t avg(const char *stage) const;
+    std::int64_t min(const char *stage) const;
+    std::int64_t max(const char *stage) const;
+    std::int64_t count(const char *stage) const;
 private:
     Domain(const char *name);
     QByteArray m_name;
