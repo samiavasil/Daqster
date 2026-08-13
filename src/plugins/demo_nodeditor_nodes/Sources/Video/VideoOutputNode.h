@@ -18,6 +18,7 @@ class VideoFrameData;
 class VideoGLBlitWidget;
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+class QGraphicsVideoItem;
 class QVideoWidget;
 #endif
 
@@ -139,10 +140,25 @@ private:
     /// Lazily create the detached display on the first video-frame input:
     /// GL blit window when GL display is enabled (both Qt versions),
     /// QVideoWidget fallback on Qt6 without GL blit, software label path on
-    /// Qt5 without GL.
+    /// Qt5 without GL. No-op in Qt6 in-scene mode (m_detachedEnabled == false)
+    /// — the in-scene QGraphicsVideoItem branch in setInData() handles display.
     void ensureVideoWidget();
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    /// Lazily create the in-scene QGraphicsVideoItem (REQ-SW-PL-021, Qt6,
+    /// "GPU display" checkbox OFF): finds the node editor scene via
+    /// QApplication::topLevelWidgets() → GraphicsView → DataFlowGraphicsScene,
+    /// parents the item to this node's NodeGraphicsObject and positions/sizes
+    /// it over the embedded label area. Frames are presented through
+    /// VideoCompat::presentFrame() on the item's video sink (GPU path — no
+    /// QImage copy). No-op when the scene/item cannot be resolved (the
+    /// software QLabel path then stays the fallback).
+    void ensureSceneVideoItem();
+
+    /// (Re)position/resize m_sceneVideoItem over the embedded label area.
+    /// Called on creation and when the label is resized (eventFilter).
+    void updateSceneVideoItemGeometry();
+
     /// Refresh the perf overlay badge from the "video" domain aggregates
     /// (fired on a ~500 ms timer while the Perf checkbox is enabled).
     void updatePerfBadge();
@@ -209,10 +225,21 @@ private:
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QVideoWidget *m_videoWidget = nullptr;
 
+    /// In-scene QGraphicsVideoItem (REQ-SW-PL-021, Qt6): child of this node's
+    /// NodeGraphicsObject, shows the video-frame input inside the node when the
+    /// "GPU display" checkbox is OFF (in-scene mode). Null while detached.
+    QGraphicsVideoItem *m_sceneVideoItem = nullptr;
+    /// This node's NodeId in the editor scene, captured on input connection
+    /// (needed to locate the NodeGraphicsObject for the in-scene item).
+    QtNodes::NodeId m_selfNodeId = QtNodes::InvalidNodeId;
+    /// True once m_selfNodeId has been captured from an input connection.
+    bool m_selfNodeIdKnown = false;
+
     // Perf overlay (REQ-SW-PL-027): a separate top-level frameless tool window
     // (NOT a child of the display window) because the video renders in its own
     // layer and does not composite child widgets on top of it. The 500 ms
     // timer refreshes its text and repositions it over the display window.
+    // In-scene mode (m_detachedEnabled == false) never creates/shows it.
     QLabel *m_perfBadge = nullptr;
     QTimer *m_perfTimer = nullptr;
 #endif

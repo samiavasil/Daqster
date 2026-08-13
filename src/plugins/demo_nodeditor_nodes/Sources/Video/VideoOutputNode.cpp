@@ -22,7 +22,12 @@
 #include <QVBoxLayout>
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QApplication>
+#include <QGraphicsVideoItem>
 #include <QVideoWidget>
+#include <QtNodes/DataFlowGraphicsScene>
+#include <QtNodes/GraphicsView>
+#include <QtNodes/internal/NodeGraphicsObject.hpp>
 #endif
 
 using QtNodes::NodeData;
@@ -179,6 +184,13 @@ VideoOutputNode::~VideoOutputNode()
         m_videoWidget->deleteLater();
         m_videoWidget = nullptr;
     }
+    // In-scene QGraphicsVideoItem (REQ-SW-PL-021): child of the node's
+    // NodeGraphicsObject — delete it so it stops receiving frames and is
+    // removed from the scene with the node.
+    if (m_sceneVideoItem != nullptr) {
+        m_sceneVideoItem->deleteLater();
+        m_sceneVideoItem = nullptr;
+    }
     // The badge is a top-level window (not a child of m_videoWidget), so it
     // must be closed explicitly to avoid a dangling overlay window.
     if (m_perfBadge != nullptr) {
@@ -279,9 +291,26 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
             }
 #endif
             else {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+                // In-scene GPU display (REQ-SW-PL-021, Qt6): "GPU display"
+                // checkbox OFF → present the frame on the in-scene
+                // QGraphicsVideoItem child of the node's NodeGraphicsObject.
+                // GPU path: HW buffer → RHI texture → scene (no QImage copy).
+                // "output.present" measures the present (presentFrame).
+                if (!m_detachedEnabled) {
+                    ensureSceneVideoItem();
+                    if (m_sceneVideoItem != nullptr) {
+                        PERF_SCOPE("video", "output.present");
+                        VideoCompat::presentFrame(m_sceneVideoItem->videoSink(),
+                                                  videoFrame->frame());
+                        return;
+                    }
+                }
+#endif
                 // Software display path (Qt5 without GL blit / checkbox off /
-                // GL unavailable): convert the frame and show it in the
-                // embedded label — video keeps displaying at the source rate
+                // GL unavailable / Qt6 when the in-scene item could not be
+                // created): convert the frame and show it in the embedded
+                // label — video keeps displaying at the source rate
                 // (REQ-SW-PL-021 auto-fallback).
                 const QImage image = VideoCompat::frameToImage(videoFrame->frame());
                 if (image.isNull())
@@ -354,8 +383,15 @@ void VideoOutputNode::outputConnectionDeleted(QtNodes::ConnectionId const &conId
 
 void VideoOutputNode::inputConnectionCreated(QtNodes::ConnectionId const &conId)
 {
-    if (conId.inPortIndex == 0)
+    if (conId.inPortIndex == 0) {
         m_videoInputConnected = true;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        // Capture our own NodeId (REQ-SW-PL-021): needed to find the node's
+        // NodeGraphicsObject when creating the in-scene QGraphicsVideoItem.
+        m_selfNodeId = conId.inNodeId;
+        m_selfNodeIdKnown = true;
+#endif
+    }
 }
 
 void VideoOutputNode::inputConnectionDeleted(QtNodes::ConnectionId const &conId)
@@ -379,6 +415,12 @@ void VideoOutputNode::inputConnectionDeleted(QtNodes::ConnectionId const &conId)
         m_videoWidget->hide();
         m_videoWidget->deleteLater();
         m_videoWidget = nullptr;
+    }
+    // In-scene QGraphicsVideoItem (REQ-SW-PL-021): delete on disconnect so no
+    // stale video surface keeps rendering inside the node.
+    if (m_sceneVideoItem != nullptr) {
+        m_sceneVideoItem->deleteLater();
+        m_sceneVideoItem = nullptr;
     }
     // The badge is a top-level window (not a child of m_videoWidget), so close
     // it explicitly to avoid a dangling overlay window.
@@ -405,8 +447,16 @@ bool VideoOutputNode::eventFilter(QObject *object, QEvent *event)
     // In GL blit mode the detached GL window has its own size — label resizes
     // must not trigger per-frame re-presents. The label is the active display
     // surface only while no GL window exists (software path / fallback).
-    if (object == m_label && event->type() == QEvent::Resize && m_glWidget == nullptr)
-        updateDisplay();
+    if (object == m_label && event->type() == QEvent::Resize) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        // In-scene mode (REQ-SW-PL-021): keep the QGraphicsVideoItem aligned
+        // over the label area when the embedded widget is resized.
+        if (m_sceneVideoItem != nullptr)
+            updateSceneVideoItemGeometry();
+#endif
+        if (m_glWidget == nullptr)
+            updateDisplay();
+    }
     return false;
 }
 
@@ -487,6 +537,15 @@ void VideoOutputNode::setGlEnabled(bool enabled)
     // frame by ensureVideoWidget(). Nothing to do here — but if a previous GL
     // attempt failed this session, do not resurrect a broken window: fall back
     // again.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // In-scene -> detached: destroy the in-scene QGraphicsVideoItem so no
+    // stale surface keeps rendering inside the node once the detached window
+    // takes over.
+    if (m_sceneVideoItem != nullptr) {
+        m_sceneVideoItem->deleteLater();
+        m_sceneVideoItem = nullptr;
+    }
+#endif
     if (m_glEnabled && m_glFailed) {
         fallbackToSoftware(QStringLiteral("GL unavailable (previous attempt failed)"));
         return;
@@ -593,6 +652,11 @@ void VideoOutputNode::logPerfLine()
 void VideoOutputNode::ensureVideoWidget()
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // In-scene mode (REQ-SW-PL-021, checkbox OFF): never create a detached
+    // window — the in-scene QGraphicsVideoItem branch in setInData() handles
+    // display (with the software QLabel path as fallback).
+    if (!m_detachedEnabled)
+        return;
     if (m_videoWidget != nullptr || m_glWidget != nullptr)
         return;
 #else
@@ -636,6 +700,10 @@ void VideoOutputNode::ensureVideoWidget()
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 void VideoOutputNode::createPerfBadge()
 {
+    // In-scene mode (REQ-SW-PL-021, checkbox OFF): the badge is a detached-
+    // window overlay — never create it for the in-scene QGraphicsVideoItem.
+    if (!m_detachedEnabled)
+        return;
     if (m_perfBadge != nullptr)
         return;
 
@@ -662,6 +730,13 @@ void VideoOutputNode::updatePerfBadge()
     if (m_perfBadge == nullptr)
         return;
 
+    // In-scene mode: the badge only tracks detached windows — hide it so a
+    // stale overlay does not float over the scene.
+    if (!m_detachedEnabled) {
+        m_perfBadge->hide();
+        return;
+    }
+
     auto &domain = Daqster::Perf::Domain::get("video");
     if (!domain.enabled()) {
         m_perfBadge->hide();
@@ -681,6 +756,10 @@ void VideoOutputNode::updatePerfBadge()
 
 void VideoOutputNode::positionPerfBadge()
 {
+    // The badge only tracks detached display windows (REQ-SW-PL-021): no-op in
+    // in-scene mode.
+    if (!m_detachedEnabled)
+        return;
     if (m_perfBadge == nullptr)
         return;
 
@@ -695,5 +774,76 @@ void VideoOutputNode::positionPerfBadge()
     // area origin mapped to global), offset by a few pixels.
     const QPoint topLeft = displayWindow->mapToGlobal(QPoint(0, 0)) + QPoint(4, 4);
     m_perfBadge->move(topLeft);
+}
+
+void VideoOutputNode::ensureSceneVideoItem()
+{
+    if (m_sceneVideoItem != nullptr || !m_selfNodeIdKnown)
+        return;
+
+    // NodeDelegateModel has no direct scene access (REQ-SW-PL-021 design note):
+    // locate the node editor GraphicsView among the running top-level widgets,
+    // then the DataFlowGraphicsScene that owns the NodeGraphicsObject for this
+    // node.
+    QtNodes::GraphicsView *view = nullptr;
+    const QWidgetList topLevels = QApplication::topLevelWidgets();
+    for (QWidget *w : topLevels) {
+        view = w->findChild<QtNodes::GraphicsView *>();
+        if (view != nullptr)
+            break;
+    }
+    if (view == nullptr)
+        return;
+
+    auto *scene = dynamic_cast<QtNodes::DataFlowGraphicsScene *>(view->scene());
+    if (scene == nullptr)
+        return;
+
+    QtNodes::NodeGraphicsObject *ngo = scene->nodeGraphicsObject(m_selfNodeId);
+    if (ngo == nullptr)
+        return;
+
+    // The video item renders inside the node and inherits the node's transform
+    // (moves/resizes with it). Z-value above the embedded proxy widget so it
+    // covers the label area.
+    m_sceneVideoItem = new QGraphicsVideoItem(ngo);
+    m_sceneVideoItem->setParentItem(ngo);
+    m_sceneVideoItem->setZValue(1.0);
+    m_sceneVideoItem->setFlag(QGraphicsItem::ItemIgnoresParentOpacity);
+    updateSceneVideoItemGeometry();
+    m_sceneVideoItem->show();
+
+    m_label->setText(tr("GPU display active — in scene"));
+}
+
+void VideoOutputNode::updateSceneVideoItemGeometry()
+{
+    if (m_sceneVideoItem == nullptr || !m_selfNodeIdKnown)
+        return;
+
+    // Same geometry source as the embedded widget (updateQWidgetEmbedPos →
+    // widgetPosition) plus the label's own offset inside the widget layout.
+    // The proxy widget embeds the QWidget 1:1 in scene units, so the label's
+    // top-left in scene coordinates is widgetPosition + label pos-in-widget.
+    QtNodes::GraphicsView *view = nullptr;
+    const QWidgetList topLevels = QApplication::topLevelWidgets();
+    for (QWidget *w : topLevels) {
+        view = w->findChild<QtNodes::GraphicsView *>();
+        if (view != nullptr)
+            break;
+    }
+    if (view == nullptr)
+        return;
+
+    auto *scene = dynamic_cast<QtNodes::DataFlowGraphicsScene *>(view->scene());
+    if (scene == nullptr)
+        return;
+
+    const QPointF widgetPos = scene->nodeGeometry().widgetPosition(m_selfNodeId);
+    const QPointF labelPos = m_label->pos();
+    m_sceneVideoItem->setPos(widgetPos + labelPos);
+    const QSize labelSize = m_label->size();
+    if (labelSize.isValid() && !labelSize.isEmpty())
+        m_sceneVideoItem->setSize(QSizeF(labelSize));
 }
 #endif
