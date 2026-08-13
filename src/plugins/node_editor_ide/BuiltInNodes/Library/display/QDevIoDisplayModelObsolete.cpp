@@ -25,6 +25,12 @@ QDevIoDisplayModelObsolete::QDevIoDisplayModelObsolete()
     , m_stack(std::make_unique<QStackedWidget>())
     , m_device(std::shared_ptr<XYSeriesIODeviceObsolete>(new XYSeriesIODeviceObsolete()))
 {
+    // Display nodes must never get a graphics effect (perf): the shadow blur
+    // runs per repaint and costs ~46% CPU during video playback.
+    QtNodes::NodeStyle s = this->nodeStyle();
+    s.ShadowEnabled = false;
+    this->setNodeStyle(s);
+
     // Page 0: Audio waveform view (existing UI)
     auto* audioView = new QDevioDisplayModelUiObsolete();
     m_audioViewIndex = m_stack->addWidget(audioView);

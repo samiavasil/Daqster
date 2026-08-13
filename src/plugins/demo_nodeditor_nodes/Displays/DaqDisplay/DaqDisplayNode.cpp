@@ -359,6 +359,12 @@ void DaqDisplayResultBridge::onComputeDone(PlotResult result)
 
 DaqDisplayNode::DaqDisplayNode()
 {
+    // Display nodes must never get a graphics effect (perf): the shadow blur
+    // runs per repaint and costs ~46% CPU during video playback.
+    QtNodes::NodeStyle s = this->nodeStyle();
+    s.ShadowEnabled = false;
+    this->setNodeStyle(s);
+
     // Metatype for the queued result delivery (REQ-SW-PL-023 §4).
     qRegisterMetaType<PlotResult>("PlotResult");
 
