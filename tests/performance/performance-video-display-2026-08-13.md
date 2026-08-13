@@ -151,6 +151,41 @@
 | SW (QPixmap) | Qt5 | 57-61% | **34.2%** | — (пътят е заменен от GL) |
 | GL blit | Qt5 | 42.8% | **27.9%** | **15.0-16.2%** |
 
+### 3.7 GL blit DEFAULT за Qt5 + auto-fallback + UI toggle (REQ-SW-PL-021) — НОВО
+
+Потребителско решение: GL blit става **default за Qt5** (най-бързият път), Qt6 остава
+на native `QVideoWidget`. Env var `DAQSTER_GL_BLIT` е debug override само за стартиране
+(стойността има значение — `=0` форсира софтуерен път, `=1` форсира GL); след старт
+чекбоксът **„GPU display"** (Qt5) има последната дума. При недостъпен GL контекст има
+auto-fallback към софтуерния път (лог `GL fallback: <причина>`), без crash.
+
+Измервания (2026-08-13, финален binary, `measure_gl_default.sh`, 45 s прогони, bars_h265_1080p25_x3.mp4):
+
+| Сценарий | CPU% (self, steady) | Display | Забележка |
+|---|---|---|---|
+| **Qt5 default** (без env) | **16.0-17.6%** | GL blit | GLBLIT `fmt=NV12` avg ~68-132 µs (steady), failures=0, fps=25; `ps` ~19-20% |
+| **Qt5 `DAQSTER_GL_BLIT=0`** | **33.8-36.0%** | софтуерен | `total=4.4-4.8ms`/кадър (NV12→ARGB32 + QLabel); fps=25 |
+| **Qt6 default** (без env) | **17.0-17.4%** | native QVideoWidget | няма GLBLIT редове (GL не е активен) |
+| Qt5 `DAQSTER_GL_BLIT=1` | ~19-20% | GL blit (форсиран) | същият път като Qt5 default; измерването паралелно с Qt6 run (contention) |
+| Qt6 `DAQSTER_GL_BLIT=1` | ~19-20% | GL blit (форсиран) | A/B пътят работи и на Qt6; NV12, failures=0 |
+
+**GLBLIT-FMT (NV12, без toImage) на Qt5:** временният GLBLIT-FMT probe от по-ранната
+сесия не е комитван; сегашният `GLBLIT | fmt=NV12 | ... | failures=0` ред потвърждава
+NV12 шейдърния път — липсва суфикс `-> toImage(N)`, който се появява при RGB fallback
+(avg ~50-130 µs е несъвместим с per-frame QImage upload ~370-585 µs).
+
+**Auto-fallback тест:** `glPlatformAvailable()` временно форсиран да върне false
+(симулация VM/remote без GL) → лог `GL fallback: no GL context can be created —
+switching to software display`, GL прозорец не се създава, видеото се показва в
+embedded QLabel, чекбоксът се отмаркира; повторното маркиране fallback-ва веднага
+(session guard `m_glFailed`). Scratch тестове (не се комитват): `/tmp/opencode/reattach/`.
+
+**Регрес на прозореца (закачи/разкачи/закачи):** scratch тест срещу реалния X11 display
+потвърждава и на Qt5 (GL прозорец) и на Qt6 (native QVideoWidget): закачане → прозорец
+видим; разкачане → изчезва; повторно закачане → пак се появява. UI toggle „GPU display"
+на Qt5: uncheck → GL прозорецът се затваря и следващият кадър минава по софтуерен път;
+re-check → GL прозорецът се отваря отново.
+
 ---
 
 ## 4. Perf анализ на тясното място (perf categories)

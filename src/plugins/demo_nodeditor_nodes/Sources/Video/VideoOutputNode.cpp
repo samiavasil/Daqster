@@ -13,6 +13,8 @@
 #include <QEvent>
 #include <QFile>
 #include <QLabel>
+#include <QOffscreenSurface>
+#include <QOpenGLContext>
 #include <QPixmap>
 #include <QSize>
 #include <QTextStream>
@@ -30,12 +32,46 @@ using QtNodes::PortType;
 
 namespace {
 
-/// Env toggle selects the GL blit display path (QVideoFrame -> YUV textures ->
-/// shader on both Qt versions; QImage -> RGBA texture for the image port).
-bool glBlitEnabled()
+/// Initial GL blit display preference (applied at startup only).
+///
+/// The `DAQSTER_GL_BLIT` environment variable is a DEBUG override: "0" forces
+/// the software display path (also on Qt5), "1" forces the GL blit path (also
+/// on Qt6). Unset → per-Qt default:
+///   - Qt5: GL blit ON (fastest measured display path, ~15% vs ~34% CPU)
+///   - Qt6: native QVideoWidget ON (GL blit OFF)
+/// The VALUE matters — the old presence check (qEnvironmentVariableIsSet)
+/// treated even "=0" as enabled. After startup the "GPU display" checkbox in
+/// the node has the final word (see VideoOutputNode::m_glEnabled).
+bool glBlitStartupEnabled()
 {
-    static const bool enabled = qEnvironmentVariableIsSet("DAQSTER_GL_BLIT");
-    return enabled;
+    if (qEnvironmentVariableIsSet("DAQSTER_GL_BLIT"))
+        return qEnvironmentVariableIntValue("DAQSTER_GL_BLIT") != 0;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return false;
+#else
+    return true;
+#endif
+}
+
+/// Probe whether the platform can create a GL context at all. Called BEFORE
+/// constructing the QOpenGLWidget so we never create it when GL is missing
+/// (VM / remote / software rendering without GL). A real context + surface
+/// round-trip is the most reliable signal: QOpenGLContext::create() alone can
+/// succeed even when the display cannot be used.
+bool glPlatformAvailable()
+{
+    QOpenGLContext probe;
+    QOffscreenSurface surface;
+    surface.setFormat(probe.format());
+    surface.create();
+    if (!probe.create())
+        return false;
+    if (!surface.isValid())
+        return false;
+    const bool ok = probe.makeCurrent(&surface);
+    if (ok)
+        probe.doneCurrent();
+    return ok;
 }
 
 } // namespace
@@ -67,6 +103,21 @@ VideoOutputNode::VideoOutputNode()
     // QImage path with no overlay but still logs the copy-paste-able line.
     m_perfCheck = new QCheckBox(tr("Perf"), m_widget);
     layout->addWidget(m_perfCheck);
+
+    // "GPU display" toggle (REQ-SW-PL-021): Qt5 shows it checked by default
+    // (GL blit is the fastest display path); Qt6 hides it because the native
+    // QVideoWidget is already GPU-accelerated and the experimental GL blit
+    // stays available via DAQSTER_GL_BLIT=1 at startup. The checkbox drives
+    // m_glEnabled — the UI has the final word after startup (the env var only
+    // picks the initial state).
+    m_glCheck = new QCheckBox(tr("GPU display"), m_widget);
+    m_glCheck->setChecked(glBlitStartupEnabled());
+    m_glEnabled = m_glCheck->isChecked();
+    layout->addWidget(m_glCheck);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    m_glCheck->hide();
+#endif
+    connect(m_glCheck, &QCheckBox::toggled, this, &VideoOutputNode::setGlEnabled);
 
     m_consoleTimer = new QTimer(this);
     m_consoleTimer->setInterval(5000);
@@ -207,6 +258,7 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
 
             // Defensive: the widget may be null if the connection was just
             // removed while a frame was in flight.
+            bool softwareDisplayed = false;
             if (m_glWidget != nullptr) {
                 PERF_SCOPE("video", "output.present");
                 m_glWidget->presentFrame(videoFrame->frame());
@@ -220,13 +272,30 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                                           videoFrame->frame());
             }
 #endif
+            else {
+                // Software display path (Qt5 without GL blit / checkbox off /
+                // GL unavailable): convert the frame and show it in the
+                // embedded label — video keeps displaying at the source rate
+                // (REQ-SW-PL-021 auto-fallback).
+                const QImage image = VideoCompat::frameToImage(videoFrame->frame());
+                if (image.isNull())
+                    return;
+                softwareDisplayed = true;
+                m_image = image;
+                updateDisplay();
+            }
 
             // Only do the expensive QImage conversion + ImageData output when a
             // downstream processing consumer is connected to the output port.
             // Otherwise the GPU path handles display in the detached window and
             // the in-node QLabel shows a static placeholder (no per-frame work).
             if (m_outputConnectionCount > 0) {
-                const QImage image = VideoCompat::frameToImage(videoFrame->frame());
+                // Reuse the frame conversion when the software display path
+                // just ran; otherwise convert here (GL display path with a
+                // downstream consumer — never reuse a stale m_image).
+                QImage image = softwareDisplayed
+                    ? m_image
+                    : VideoCompat::frameToImage(videoFrame->frame());
                 // Propagate only real frames — never an ImageData wrapping a
                 // null QImage (would emit a bogus "empty" data update).
                 if (image.isNull())
@@ -328,15 +397,16 @@ QWidget *VideoOutputNode::embeddedWidget()
 bool VideoOutputNode::eventFilter(QObject *object, QEvent *event)
 {
     // In GL blit mode the detached GL window has its own size — label resizes
-    // must not trigger per-frame re-presents.
-    if (object == m_label && event->type() == QEvent::Resize && !glBlitEnabled())
+    // must not trigger per-frame re-presents. The label is the active display
+    // surface only while no GL window exists (software path / fallback).
+    if (object == m_label && event->type() == QEvent::Resize && m_glWidget == nullptr)
         updateDisplay();
     return false;
 }
 
 void VideoOutputNode::updateDisplay()
 {
-    if (glBlitEnabled()) {
+    if (m_glEnabled) {
         // GL blit path: present the QImage (image port / RGB fallback)
         // on the detached GL window instead of QPixmap + smooth-scale.
         if (m_image.isNull()) {
@@ -346,8 +416,12 @@ void VideoOutputNode::updateDisplay()
             return;
         }
         ensureGlWidget();
-        m_glWidget->presentImage(m_image);
-        return;
+        if (m_glWidget != nullptr) {
+            m_glWidget->presentImage(m_image);
+            return;
+        }
+        // GL unavailable — fallbackToSoftware() already ran and cleared
+        // m_glEnabled; fall through to the embedded label path.
     }
 
     if (m_image.isNull()) {
@@ -363,8 +437,67 @@ void VideoOutputNode::updateDisplay()
     m_label->setPixmap(pixmap.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
 
+void VideoOutputNode::setGlEnabled(bool enabled)
+{
+    if (m_glEnabled == enabled)
+        return;
+    m_glEnabled = enabled;
+
+    if (!enabled) {
+        // GL -> software: close the detached GL window right away so no
+        // orphan window keeps showing; the next frame/image takes the
+        // embedded-label path (applied "at the next frame", no crash, no
+        // video loss).
+        if (m_glWidget != nullptr) {
+            m_glWidget->hide();
+            m_glWidget->deleteLater();
+            m_glWidget = nullptr;
+        }
+        return;
+    }
+
+    // Software -> GL: the window is created lazily on the next frame by
+    // ensureVideoWidget(). Nothing to do here — but if a previous GL attempt
+    // failed this session, do not resurrect a broken window: fall back again.
+    if (m_glFailed) {
+        fallbackToSoftware(QStringLiteral("GL unavailable (previous attempt failed)"));
+        return;
+    }
+}
+
+void VideoOutputNode::fallbackToSoftware(const QString &reason)
+{
+    qWarning().noquote()
+        << QStringLiteral("GL fallback: %1 — switching to software display").arg(reason);
+    m_glFailed = true;
+
+    if (m_glWidget != nullptr) {
+        m_glWidget->hide();
+        m_glWidget->deleteLater();
+        m_glWidget = nullptr;
+    }
+
+    // Reflect the real display backend in the UI: unchecking fires the toggled
+    // handler, which clears m_glEnabled and closes the GL window (already done
+    // above). Re-checking later re-attempts GL and falls back again (the
+    // session guard m_glFailed prevents a broken window from being created).
+    if (m_glCheck != nullptr && m_glCheck->isChecked())
+        m_glCheck->setChecked(false);
+    else
+        m_glEnabled = false;
+
+    // Placeholder until the next frame delivers a software image.
+    m_label->setText(tr("GPU display unavailable — using software display"));
+}
+
 void VideoOutputNode::ensureGlWidget()
 {
+    // GL is known unavailable this session: do not create (or resurrect) a
+    // broken window. Callers (ensureVideoWidget / updateDisplay) fall through
+    // to the software path.
+    if (m_glFailed)
+        return;
+
     if (m_glWidget != nullptr) {
         // Disconnecting an input edge only HIDES the GL window (the
         // updateDisplay() null-image branch) — it is not destroyed. Re-show it
@@ -377,11 +510,27 @@ void VideoOutputNode::ensureGlWidget()
         return;
     }
 
+    // Pre-probe: never construct the QOpenGLWidget when the platform cannot
+    // create a GL context (VM / remote / software rendering without GL).
+    if (!glPlatformAvailable()) {
+        fallbackToSoftware(QStringLiteral("no GL context can be created"));
+        return;
+    }
+
     m_glWidget = new VideoGLBlitWidget();
     m_glWidget->setWindowTitle(tr("Video Output — %1 (GL blit)").arg(caption()));
     m_glWidget->resize(640, 480);
     m_glWidget->show();
     m_label->setText(tr("GPU display active — see detached window"));
+
+    // Auto-fallback (REQ-SW-PL-021): the GL context is created lazily by
+    // QOpenGLWidget on the first show/paint. Defer the validity check by one
+    // event-loop turn so the context creation has run; if it failed the node
+    // falls back to the software path and video keeps displaying at 25 fps.
+    QTimer::singleShot(0, this, [this]() {
+        if (m_glWidget != nullptr && !m_glWidget->isValid())
+            fallbackToSoftware(QStringLiteral("QOpenGLWidget GL context is not valid"));
+    });
 }
 
 void VideoOutputNode::logPerfLine()
@@ -423,16 +572,19 @@ void VideoOutputNode::ensureVideoWidget()
         return;
 #endif
 
-    // GL blit path (DAQSTER_GL_BLIT=1): use the experimental GL window instead
-    // of the QVideoWidget (Qt6) / QPixmap path (Qt5) so the two display
-    // backends can be A/B tested. On Qt5 the GL window is the only detached
-    // display backend for the video-frame port.
-    if (glBlitEnabled()) {
+    // GL blit display path (default on Qt5; Qt6 only when DAQSTER_GL_BLIT=1):
+    // use the GL window instead of the QVideoWidget (Qt6) / software label
+    // path (Qt5) so the two display backends can be A/B tested. If the GL
+    // context cannot be created, ensureGlWidget() falls back to software and
+    // the label path in setInData() keeps the video visible.
+    if (m_glEnabled) {
         ensureGlWidget();
+        if (m_glWidget != nullptr) {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        createPerfBadge();
+            createPerfBadge();
 #endif
-        m_label->setText(tr("GPU display active — see detached window"));
+            m_label->setText(tr("GPU display active — see detached window"));
+        }
         return;
     }
 
