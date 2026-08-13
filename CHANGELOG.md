@@ -111,6 +111,27 @@
     (6.9.2) builds PASS + ctest 6/6 green (и двете) + offscreen smoke PASS
     (int16 32767 → 32.767, float passthrough без clamp, unit axis заглавия,
     save/restore round-trip с v1 defaults)
+- **REQ-SW-FW-008** (Lightweight Runtime Profiling Framework — нов framework-level
+  модул `src/frame_work/base/src/perf/` в `namespace Daqster::Perf`):
+  - `RollingStats` — фиксиран pre-allocated ring buffer (O(1) `add`, без heap
+    алокация в hot path); `avg`/`min`/`max` on demand, `count` капнат на
+    capacity, `reset()`
+  - `Domain` — именуван runtime-toggleable профилиращ домейн: thread-safe
+    `get(name)` get-or-create регистър, relaxed-atomic `enabled()`/`setEnabled()`,
+    `record(stage, ns)` (no-op при изключен домейн), `flush()` (агрегира през
+    `qCDebug(lcPerf)` + reset)
+  - `Scope` — RAII таймер за синхронни блокове (нулев разход при изключен
+    домейн); `Stopwatch` — `mark()`/`reset()` за async/event мерене (ns)
+  - Макрота `PERF_SCOPE(dom, stage)` / `PERF_ENABLED(dom)` с двустепенно
+    изключване: compile-time (`DAQSTER_ENABLE_PERF` CMake option, default ON →
+    `((void)0)`/`false` при OFF, нула Perf символи в потребителите) + runtime
+    (atomic flag live toggle)
+  - Нова лог категория `lcPerf` = `"daqster.perf"` в `LogCategories.{h,cpp}`
+  - Unit тестове `tests/framework/perf/perf_profiler_tests` **19/19** (RollingStats
+    6, Domain 7, Stopwatch/Scope 6); Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS +
+    ctest 9/9 green (и двете) + `-DDAQSTER_ENABLE_PERF=OFF` build PASS
+  - Комити: `6ad8e89` (PerfProfiler module), `2c31b4a` (lcPerf + CMake),
+    `52a620c` (perf_profiler_tests)
 
 ### Changed
 - **Directory Restructuring**:
