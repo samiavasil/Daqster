@@ -15,7 +15,7 @@
 # this target: the 8 base QImage operations in VideoTransformOps.cpp are the
 # required coverage (REQ-SW-PL-018/019) and the tests must not require OpenCV.
 
-find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Test Multimedia REQUIRED)
+find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Test Multimedia OpenGL REQUIRED)
 if(QT_VERSION_MAJOR GREATER_EQUAL 6)
     find_package(Qt${QT_VERSION_MAJOR} COMPONENTS MultimediaWidgets REQUIRED)
 endif()
@@ -146,6 +146,9 @@ set(VIDEO_OUTPUT_TEST_SOURCES
     test_video_output_node.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoOutputNode.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoPerfBadge.cpp
+    # VideoOutputNode references VideoGLBlitWidget (DAQSTER_GL_BLIT display path);
+    # compile the widget source so the test binary links standalone:
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoGLBlitWidget.cpp
 )
 
 add_executable(demo_nodeditor_videooutput_tests ${VIDEO_OUTPUT_TEST_SOURCES})
@@ -171,9 +174,16 @@ target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
 )
 
 # QVideoWidget lives in Qt6::MultimediaWidgets (Qt5 bundles it in Multimedia).
+# VideoGLBlitWidget (QOpenGLWidget shaders) needs the OpenGL module on both
+# Qt versions.
 if(QT_VERSION_MAJOR GREATER_EQUAL 6)
     target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
-        Qt${QT_VERSION_MAJOR}::MultimediaWidgets)
+        Qt${QT_VERSION_MAJOR}::MultimediaWidgets
+        Qt${QT_VERSION_MAJOR}::OpenGLWidgets
+        Qt${QT_VERSION_MAJOR}::OpenGL)
+else()
+    target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
+        Qt${QT_VERSION_MAJOR}::OpenGL)
 endif()
 
 add_test(NAME demo_nodeditor_videooutput_tests

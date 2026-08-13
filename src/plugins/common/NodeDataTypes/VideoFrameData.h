@@ -3,29 +3,29 @@
 #include <QtGlobal>
 #include <QtNodes/NodeDelegateModel>
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QtMultimedia/QVideoFrame>
-#endif
 
 /**
- * @brief Zero-copy video frame node data type (Qt6).
+ * @brief Zero-copy video frame node data type.
  *
- * Wraps a Qt6 QVideoFrame and transports it through the graph as
+ * Wraps a QVideoFrame and transports it through the graph as
  * std::shared_ptr<NodeData> — only the reference count is bumped, the
- * decoded pixel buffer is never copied. Qt6 QVideoFrame is implicitly
- * shared (QSharedData), so holding and passing it is safe.
+ * decoded pixel buffer is never copied. QVideoFrame is implicitly shared
+ * (QSharedData), so holding and passing it is safe.
  *
- * On Qt5 this type carries no frame (hasFrame() always returns false):
- * Qt5 probe frames are NOT safe to hold beyond the signal (the backend
- * recycles the buffers), so the zero-copy path is Qt6-only and Qt5 callers
- * keep the ImageData/QImage path (REQ-SW-PL-020, AC 1 + AC 5).
+ * On Qt6 the wrapped frame is the decoded probe frame (ref-count bump only).
+ * On Qt5 probe frames are NOT safe to hold beyond the signal (the backend
+ * recycles the buffers), so sources wrap an OWNED copy instead: the planes
+ * are memcpy'd into QByteArray storage via VideoCompat::frameToOwnedFrame()
+ * (NV12 / YUV420P; unsupported formats stay on the QImage path). The
+ * transport through the graph is then zero-copy on both versions — the copy
+ * happens exactly once in the source (REQ-SW-PL-020, NV12-direct for Qt5).
  */
 class VideoFrameData : public QtNodes::NodeData
 {
 public:
     VideoFrameData() = default;
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     explicit VideoFrameData(const QVideoFrame &frame) : m_frame(frame) {}
 
     QtNodes::NodeDataType type() const override
@@ -43,13 +43,4 @@ public:
 
 private:
     QVideoFrame m_frame;
-#else
-    QtNodes::NodeDataType type() const override
-    {
-        return QtNodes::NodeDataType {"video-frame", "Video Frame"};
-    }
-
-    /// Qt5 probe frames are not safe to hold — never a frame here.
-    bool hasFrame() const { return false; }
-#endif
 };
