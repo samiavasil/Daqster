@@ -39,10 +39,12 @@ class QVideoWidget;
  *     software path (also Qt5), `DAQSTER_GL_BLIT=1` forces the GL path (also
  *     Qt6). Unset → per-Qt default above. The VALUE matters: "0" disables
  *     (the old presence check treated even "=0" as enabled).
- *   - UI: the "GPU display" checkbox (Qt5 only, checked by default; hidden on
- *     Qt6 because the native QVideoWidget is already GPU-accelerated) has the
- *     final word at runtime — toggling switches the display backend at the
- *     next frame without crashing or losing video.
+ *   - UI: the "GPU display" checkbox (visible + checked by default on both Qt
+ *     versions) has the final word at runtime — toggling switches between a
+ *     detached display window and in-scene rendering at the next frame without
+ *     crashing or losing video. Qt5: ON = detached GL blit, OFF = software
+ *     QLabel. Qt6: ON = detached (QVideoWidget / GL blit per env), OFF =
+ *     in-scene QGraphicsVideoItem (REQ-SW-PL-021).
  *   - Auto-fallback: if the GL context cannot be created (VM / remote /
  *     software rendering without GL) the node logs `GL fallback: <reason>`
  *     and switches to the software path — video keeps displaying.
@@ -116,9 +118,10 @@ private:
     /// Log the single-line console perf report (5 s timer, both Qt5 + Qt6).
     void logPerfLine();
 
-    /// Apply the "GPU display" checkbox: toggling GL blit OFF closes the
-    /// detached GL window immediately; toggling ON is applied at the next
-    /// frame (the window is created lazily by ensureVideoWidget()).
+    /// Apply the "GPU display" checkbox: toggling OFF (in-scene / software)
+    /// closes the detached windows immediately; toggling ON (detached) is
+    /// applied at the next frame (the window is created lazily by
+    /// ensureVideoWidget()).
     void setGlEnabled(bool enabled);
 
     /// Switch to the software display path because GL is not usable
@@ -173,13 +176,23 @@ private:
     int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
     int m_lastPixelFormat = -1;    // normalized (Qt6 numbering, see VideoCompat)
 
-    /// "GPU display" toggle (REQ-SW-PL-021): Qt5 visible + checked by default,
-    /// Qt6 hidden (native QVideoWidget is already GPU-accelerated; GL blit
-    /// stays available via DAQSTER_GL_BLIT=1 at startup).
+    /// "GPU display" toggle (REQ-SW-PL-021): visible + checked by default on
+    /// BOTH Qt versions (checkbox ON = detached display window). Qt5 checked →
+    /// detached GL blit window, unchecked → software QLabel path inside the
+    /// node. Qt6 checked → detached window (native QVideoWidget unless
+    /// DAQSTER_GL_BLIT=1 forces the GL blit widget), unchecked → in-scene
+    /// QGraphicsVideoItem child of the node's NodeGraphicsObject (software
+    /// QLabel auto-fallback).
     QCheckBox *m_glCheck = nullptr;
-    /// Current GL blit display preference. Initialized from
-    /// glBlitStartupEnabled() (env override + per-Qt default) and then driven
-    /// by the checkbox — the UI has the final word after startup.
+    /// Detached-vs-in-scene display mode (REQ-SW-PL-021): driven by the
+    /// "GPU display" checkbox. true = video renders in a detached top-level
+    /// window; false = video renders inside the node (Qt6: QGraphicsVideoItem
+    /// via ensureSceneVideoItem(); Qt5: embedded QLabel software path).
+    bool m_detachedEnabled = false;
+    /// Detached display backend selection. Qt5: identical to
+    /// m_detachedEnabled (checkbox ON means GL blit). Qt6: initialized from
+    /// glBlitStartupEnabled() — DAQSTER_GL_BLIT=1 forces the GL blit widget,
+    /// otherwise the native QVideoWidget is used when detached.
     bool m_glEnabled = false;
     /// True once a GL context could not be created in this session. GL is then
     /// not retried (re-checking the box falls back immediately) until the

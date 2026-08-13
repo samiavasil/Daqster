@@ -104,19 +104,25 @@ VideoOutputNode::VideoOutputNode()
     m_perfCheck = new QCheckBox(tr("Perf"), m_widget);
     layout->addWidget(m_perfCheck);
 
-    // "GPU display" toggle (REQ-SW-PL-021): Qt5 shows it checked by default
-    // (GL blit is the fastest display path); Qt6 hides it because the native
-    // QVideoWidget is already GPU-accelerated and the experimental GL blit
-    // stays available via DAQSTER_GL_BLIT=1 at startup. The checkbox drives
-    // m_glEnabled — the UI has the final word after startup (the env var only
-    // picks the initial state).
+    // "GPU display" toggle (REQ-SW-PL-021): visible + checked by default on
+    // BOTH Qt versions — checked = detached display window, unchecked = video
+    // renders inside the node (Qt6: in-scene QGraphicsVideoItem; Qt5:
+    // software QLabel path). The checkbox drives m_detachedEnabled; m_glEnabled
+    // selects the detached backend (Qt5: GL blit when checked; Qt6:
+    // DAQSTER_GL_BLIT=1 at startup forces the GL blit widget, otherwise the
+    // native QVideoWidget). The env var only picks the initial state — the UI
+    // has the final word after startup.
     m_glCheck = new QCheckBox(tr("GPU display"), m_widget);
-    m_glCheck->setChecked(glBlitStartupEnabled());
-    m_glEnabled = m_glCheck->isChecked();
-    layout->addWidget(m_glCheck);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    m_glCheck->hide();
+    m_glCheck->setChecked(true);              // detached QVideoWidget default
+    m_detachedEnabled = true;
+    m_glEnabled = glBlitStartupEnabled();     // DAQSTER_GL_BLIT=1 → GL blit
+#else
+    m_glCheck->setChecked(glBlitStartupEnabled());
+    m_detachedEnabled = m_glCheck->isChecked();
+    m_glEnabled = m_detachedEnabled;          // checked = GL blit
 #endif
+    layout->addWidget(m_glCheck);
     connect(m_glCheck, &QCheckBox::toggled, this, &VideoOutputNode::setGlEnabled);
 
     m_consoleTimer = new QTimer(this);
@@ -406,7 +412,10 @@ bool VideoOutputNode::eventFilter(QObject *object, QEvent *event)
 
 void VideoOutputNode::updateDisplay()
 {
-    if (m_glEnabled) {
+    // In-scene mode (Qt6 checkbox OFF / Qt5 software) must never open a
+    // detached GL window — m_detachedEnabled guards the GL blit branch. On Qt5
+    // m_detachedEnabled == m_glEnabled, so behavior is unchanged there.
+    if (m_detachedEnabled && m_glEnabled) {
         // GL blit path: present the QImage (image port / RGB fallback)
         // on the detached GL window instead of QPixmap + smooth-scale.
         if (m_image.isNull()) {
@@ -439,27 +448,46 @@ void VideoOutputNode::updateDisplay()
 
 void VideoOutputNode::setGlEnabled(bool enabled)
 {
-    if (m_glEnabled == enabled)
+    // The checkbox drives the detached-vs-in-scene choice. On Qt5 the detached
+    // backend IS the GL blit widget, so m_glEnabled follows the checkbox
+    // (unchecked = software QLabel path). On Qt6 the detached backend is fixed
+    // by DAQSTER_GL_BLIT at startup (GL blit widget vs native QVideoWidget) and
+    // the checkbox only toggles detached vs in-scene (QGraphicsVideoItem).
+    if (m_detachedEnabled == enabled)
         return;
+    m_detachedEnabled = enabled;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // Qt6: the detached backend (m_glEnabled) stays as initialized — the
+    // checkbox does not switch GL blit / QVideoWidget, only detached / in-scene.
+#else
     m_glEnabled = enabled;
+#endif
 
     if (!enabled) {
-        // GL -> software: close the detached GL window right away so no
-        // orphan window keeps showing; the next frame/image takes the
-        // embedded-label path (applied "at the next frame", no crash, no
-        // video loss).
+        // Detached -> in-scene/software: close the detached windows right away
+        // so no orphan window keeps showing; the next frame/image takes the
+        // in-scene (Qt6) or embedded-label (Qt5) path (applied "at the next
+        // frame", no crash, no video loss).
         if (m_glWidget != nullptr) {
             m_glWidget->hide();
             m_glWidget->deleteLater();
             m_glWidget = nullptr;
         }
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        if (m_videoWidget != nullptr) {
+            m_videoWidget->hide();
+            m_videoWidget->deleteLater();
+            m_videoWidget = nullptr;
+        }
+#endif
         return;
     }
 
-    // Software -> GL: the window is created lazily on the next frame by
-    // ensureVideoWidget(). Nothing to do here — but if a previous GL attempt
-    // failed this session, do not resurrect a broken window: fall back again.
-    if (m_glFailed) {
+    // Software/in-scene -> detached: the window is created lazily on the next
+    // frame by ensureVideoWidget(). Nothing to do here — but if a previous GL
+    // attempt failed this session, do not resurrect a broken window: fall back
+    // again.
+    if (m_glEnabled && m_glFailed) {
         fallbackToSoftware(QStringLiteral("GL unavailable (previous attempt failed)"));
         return;
     }
