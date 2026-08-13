@@ -258,6 +258,22 @@ void NodeEditorIdeObject::autoStartVideo()
                     break;
                 }
             }
+
+            // DAQSTER_SCENE_VIDEO=1 (Qt6 dev driver, REQ-SW-PL-021): uncheck
+            // the "GPU display" checkbox so video renders IN the scene (in-scene
+            // QGraphicsVideoItem) instead of a detached window — headless
+            // verification of the in-scene path.
+            if (qEnvironmentVariableIsSet("DAQSTER_SCENE_VIDEO")
+                && qEnvironmentVariableIntValue("DAQSTER_SCENE_VIDEO") != 0) {
+                const auto sceneChecks = w->findChildren<QCheckBox*>();
+                for (QCheckBox* c : sceneChecks) {
+                    if (c->text() == tr("GPU display")) {
+                        DEBUG << "autoStartVideo: enabling in-scene video (DAQSTER_SCENE_VIDEO=1)";
+                        c->setChecked(false);
+                        break;
+                    }
+                }
+            }
         }
     }
 }
