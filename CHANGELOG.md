@@ -195,6 +195,18 @@
   CPU без blocking stdin **0.0%** (Qt6 и Qt5, instantaneous /proc stat deltas;
   lifetime avg 3.8%/3.3% вкл. startup), срещу ~181-183% преди. Workaround-ът
   `tail -f /dev/null |` вече не е нужен. Коммит `6900e2c`.
+- **Plugin-not-found / create-failure startup — процесът излиза сам (REQ-SW-APP-003)** —
+  при `Daqster <plugin-name>` (single-arg) с несъществуващ plugin (нито hash, нито
+  name match) или при намерен hash, но неуспешен `CreatePluginObject` (nullptr),
+  `main.cpp` показваше `QMessageBox::critical` и след това продължаваше към
+  `a.exec()` — процесът оставаше жив като ПРАЗЕН прозорец без функционалност,
+  докато не се затвори ръчно. Сега и в двата failure path-а след затварянето на
+  диалога `main()` връща `1` (exit code != 0) — процесът (вкл. child процесите,
+  спавнати от launcher-а през `ApplicationsManager::StartApplication`) се затваря
+  сам, без празен прозорец. Success path-ът (валиден plugin) и multi-arg
+  spawner-ът са непроменени. Проверено ръчно (Qt5 + Qt6, DISPLAY=:0): диалог се
+  показва, след Return/OK процесът излиза с код 1; `NodeEditorIDE` стартира и
+  конзолният `quit` продължава да работи (REQ-SW-APP-002).
 - **Plugin launch fixes**:
   - Toolbar пуска plugins по име вместо stale hash
   - Prune на persisted plugin entries с несъответстващ файлов hash при load

@@ -23,22 +23,28 @@
 
 ## Acceptance Criteria
 
-- [ ] 1. `Daqster <неизвестен-plugin>` (Qt5 и Qt6): показва се грешката и
+- [x] 1. `Daqster <неизвестен-plugin>` (Qt5 и Qt6): показва се грешката и
       процесът ИЗЛИЗА сам (без празен прозорец), exit code != 0.
-- [ ] 2. Child процес от launcher-а (multi-arg / `StartApplication`) с
+- [x] 2. Child процес от launcher-а (multi-arg / `StartApplication`) с
       несъществуващ plugin също излиза сам.
-- [ ] 3. `Daqster NodeEditorIde` (валиден plugin) работи както преди — без
+- [x] 3. `Daqster NodeEditorIde` (валиден plugin) работи както преди — без
       регресия; quit през конзолата продължава да работи (REQ-SW-APP-002).
-- [ ] 4. Qt5 + Qt6 builds PASS; съществуващата test suite остава зелена.
+- [x] 4. Qt5 + Qt6 builds PASS; съществуващата test suite остава зелена.
       Unit тестовете са отложени по действащата standing instruction.
-- [ ] 5. Без busy-spin / ненужен CPU при неизвестен plugin (EOF fix-ът от
+- [x] 5. Без busy-spin / ненужен CPU при неизвестен plugin (EOF fix-ът от
       REQ-SW-APP-002 остава валиден).
 
 ## Проследимост
 
-- **Коммити:** — (след имплементация)
+- **Коммити:** `chore (REQ-SW-APP-003)` — REQ файл; `fix (REQ-SW-APP-003)` —
+  `return 1;` в single-arg failure path-ите; `docs (REQ-SW-APP-003)` — changelog
+  + AC updates.
 - **Код:** `src/apps/Daqster/main.cpp` (single-arg branch: not-found + create-failure paths)
-- **Тестове:** отложени (standing instruction 2026-08-13)
+- **Тестове:** отложени (standing instruction 2026-08-13). Верификация: ръчна
+  (Qt5 + Qt6, DISPLAY=:0, xsendreturn/xraise_return XTest helper за затваряне на
+  модалния диалог): exit code 1 за невалиден plugin; child от multi-arg launcher
+  също излиза с 1; `NodeEditorIDE` стартира и `quit` през конзолата работи;
+  ctest 9/9 (Qt5 + Qt6).
 
 ## Бележка
 
