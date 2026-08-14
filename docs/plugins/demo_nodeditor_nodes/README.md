@@ -129,10 +129,32 @@ DemoNodeEditorNodesObject → INodeProvider
 | CameraSourceNode | Video | Заснема кадри от локално camera устройство (избор на устройство + start/stop), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `ImageData` (on-demand) |
 | VideoFileSourceNode | Video | Възпроизвежда локален видео файл през `QMediaPlayer` + frame probe (browse + play/pause), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `ImageData` (on-demand) + port 2 `SampledData` (audio) |
 | StreamSourceNode | Video | Възпроизвежда HTTP/RTSP stream (URL поле + connect), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `ImageData` (on-demand) + port 2 `SampledData` (audio) |
-| VideoOutputNode | Video | Live preview на входящите кадри — два входа (port 0 `VideoFrameData` → GPU display през detached GL blit прозорец (`DAQSTER_GL_BLIT=1`, Qt6 и Qt5) или `QVideoWidget` (Qt6 без GL blit); port 1 `ImageData` → `QLabel`), zero-copy GPU път. Pass-through изходен порт за output вериги |
+| VideoOutputNode | Video | Live preview на входящите кадри — два входа (port 0 `VideoFrameData` → GPU display; port 1 `ImageData` → `QLabel`), zero-copy GPU път. Qt6: чекбокс „GPU display" (checked по подразбиране) → detached прозорец (`QVideoWidget` или GL blit при `DAQSTER_GL_BLIT=1`); unchecked → in-scene `QGraphicsVideoItem` в node-а (REQ-SW-PL-021). Qt5: checked → detached GL blit прозорец, unchecked → софтуерен QLabel. Pass-through изходен порт за output вериги |
 | VideoTransformNode | Video | Прилага конфигурируема операция върху `ImageData` кадри (8 базови + опционални OpenCV операции) |
 
-Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy) и port 1 `ImageData` ("image", конвертира се on-demand само при свързан processing потребител); видео source-ите имат и port 2 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема и двата типа — `VideoFrameData` се дисплеира през GPU (detached GL blit прозорец при `DAQSTER_GL_BLIT=1`, и на двете Qt версии; Qt6 без GL blit ползва `QVideoWidget`), `ImageData` през софтуерен път (`QLabel`). Същият `ImageData` тип частният AI Studio plugin консумира на входа на `FrameToTensorNode` (REQ-AI-006).
+Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy) и port 1 `ImageData` ("image", конвертира се on-demand само при свързан processing потребител); видео source-ите имат и port 2 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема и двата типа — `VideoFrameData` се дисплейва през GPU (вж. „Qt6 in-scene toggle" по-долу; Qt5: detached GL blit прозорец при `DAQSTER_GL_BLIT=1`), `ImageData` през софтуерен път (`QLabel`). Същият `ImageData` тип частният AI Studio plugin консумира на входа на `FrameToTensorNode` (REQ-AI-006).
+
+#### Qt6 in-scene GPU display toggle (REQ-SW-PL-021)
+
+`VideoOutputNode` на Qt6 има видим чекбокс **„GPU display"** (checked по
+подразбиране — запазва текущото detached поведение):
+
+- **Checked (detached, default):** видеото се показва в отделен прозорец —
+  native `QVideoWidget` (GPU, RHI swapchain) или GL blit прозорец при
+  `DAQSTER_GL_BLIT=1` (debug override за стартиране).
+- **Unchecked (in-scene):** видеото се рендерира **вътре в node-а** — в сцената
+  се създава `QGraphicsVideoItem` като child на `NodeGraphicsObject`-а на node-а
+  (позиция/размер = label area-та). Кадрите се подават през
+  `VideoCompat::presentFrame(item->videoSink(), frame)` — GPU път без QImage
+  копие (при SW decode Qt рендерира кадрите без QImage копие в приложението).
+  Софтуерният `QLabel` път остава като automatic fallback.
+- При toggle действието се прилага при следващия кадър — без crash, без загуба
+  на видео; detached прозорците се затварят веднага при unchecked, in-scene
+  item-ът се трие при checked/дисконект.
+- **Headless dev driver:** `DAQSTER_SCENE_VIDEO=1` + `DAQSTER_AUTOSTART_VIDEO=1`
+  автоматично uncheck-ва чекбокса (in-scene режим) за безглава проверка.
+- Qt5 пътищата са непроменени: checked → detached GL blit, unchecked → софтуерен
+  QLabel.
 
 > **Преномерация (NV12-direct, 2026-08-13):** на Qt5 източниковите нодове и
 > `VideoOutputNode` вече имат същата топология като Qt6 — port 0 е

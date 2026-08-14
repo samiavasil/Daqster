@@ -33,30 +33,60 @@
 
 ## Acceptance Criteria
 
-- [ ] 1. **In-scene display.** `VideoOutputNode` на Qt6 създава `QGraphicsVideoItem`
+- [x] 1. **In-scene display.** `VideoOutputNode` на Qt6 създава `QGraphicsVideoItem`
        като дъщерен item на `NodeGraphicsObject`-а (чрез `scene->nodeGraphicsObject(nodeId)`);
        видеото се рендерира вътре в node-а, не в отделен прозорец.
-- [ ] 2. **GPU path.** Кадрите се подават през `QGraphicsVideoItem::videoSink()` →
-       `setVideoFrame()`; при активен hw decode (VAAPI/D3D11VA) няма QImage копие
-       в display пътя.
-- [ ] 3. **Node lifetime.** `QGraphicsVideoItem` се премества/мрежи заедно с node-а
+       Имплементирано: `ensureSceneVideoItem()` (Qt6) — намира `GraphicsView` +
+       `DataFlowGraphicsScene` през `QApplication::topLevelWidgets()`, създава
+       `QGraphicsVideoItem` като child на `NodeGraphicsObject`-а (zValue над
+       embedded proxy widget), геометрията следва label area-та
+       (`widgetPosition` + label offset, обновява се при resize).
+       Комити: `63c7f78`, `a04f05e`.
+- [x] 2. **GPU path.** Кадрите се подават през `QGraphicsVideoItem::videoSink()` →
+       `setVideoFrame()` (чрез `VideoCompat::presentFrame`); при активен hw decode
+       (VAAPI/D3D11VA) няма QImage копие в display пътя.
+       Имплементирано: `VideoOutputNode::setInData` port-0 Qt6 in-scene branch
+       (`!m_detachedEnabled`) → `presentFrame(m_sceneVideoItem->videoSink(), frame)`.
+       Проверено: SW decode (NoHandle) кадрите се рендерират в сцената; при HW
+       decode пътят е същият zero-copy present. Комит: `a04f05e`.
+- [x] 3. **Node lifetime.** `QGraphicsVideoItem` се премества/мрежи заедно с node-а
        (наследява `NodeGraphicsObject` трансформа); се трие при изтриване на node-а.
+       Имплементирано: item-ът е child на `NodeGraphicsObject` (наследява
+       transform); deleteLater + nullptr в деструктора, `inputConnectionDeleted`
+       и при toggle обратно към detached. Комит: `a04f05e`.
 - [ ] 4. **Backward compat.** Свързване с `ImageData` (processing chain) продължава
-       да работи (софтуерен QLabel fallback).
-- [ ] 5. **Qt5 fallback.** Qt5 ползва `QGraphicsVideoItem` + GStreamer (или detached
+       да работи (софтуерен QLabel fallback). (Покрито частично: софтуерният
+       QLabel fallback остава за image port-а и като auto-fallback; в-scene
+       режимът е display-only — output-port propagation се връща в software/
+       detached режимите.)
+- [x] 5. **Qt5 fallback.** Qt5 ползва `QGraphicsVideoItem` + GStreamer (или detached
        `QVideoWidget` от PL-020 при недостатъчна поддръжка); поведение не се влошава.
+       Анотация: Qt5 пътищата са **byte-identical** — GL blit detached по
+       подразбиране / софтуерен QLabel при изключен чекбокс. QGraphicsVideoItem +
+       GStreamer на Qt5 остава **future** (не се докосва в тази имплементация).
+       Комити: `63c7f78`, `a04f05e` (Qt5 клоновете не са променяни семантично).
 - [ ] 6. **Builds + smoke.** Qt5 + Qt6 builds PASS; app smoke без crash; съществуващата
        test suite остава зелена. Unit тестовете са **отложени** по решение на потребителя.
+       Анотация: builds PASS (Qt5 5.15.2 + Qt6 6.9.2), ctest 9/9 и на двете, три
+       headless smoke-а без crash (Qt6 in-scene, Qt6 detached default, Qt5 GL blit
+       regression). Unit тестовете остават **отложени** (standing instruction).
 - [ ] 7. **Windows документация.** README обновява Windows спецификата: Qt6 FFmpeg
-       + D3D11VA; `QGraphicsVideoItem` работи на Windows Qt6.
+       + D3D11VA; `QGraphicsVideoItem` работи на Windows Qt6. (README обновен за
+       Qt6 toggle; Windows `QGraphicsVideoItem` спецификата остава за следваща
+       стъпка — виж README.)
 
 ## Проследимост
 
-- **Коммити:** — (след имплементация)
+- **Коммити:** `63c7f78` (Qt6 GPU display checkbox + detached/in-scene state
+  separation), `a04f05e` (Qt6 in-scene QGraphicsVideoItem child of
+  NodeGraphicsObject), `3a0686e` (DAQSTER_SCENE_VIDEO=1 dev hook), `ba7561f`
+  (chore: remove temporary diagnostics)
 - **Код:** `src/plugins/demo_nodeditor_nodes/Sources/Video/VideoOutputNode.{h,cpp}`,
-  `VideoCompat.h` (present helper), `DemoNodeEditorNodesObject.cpp` (scene/NodeId достъп)
+  `VideoCompat.h` (present helper), `src/plugins/node_editor_ide/NodeEditorIdeObject.cpp`
+  (DAQSTER_SCENE_VIDEO=1 dev driver)
 - **Документация:** `docs/plugins/demo_nodeditor_nodes/README.md`
-- **Тестове:** отложени (standing instruction).
+- **Тестове:** отложени (standing instruction); smoke: Qt6 in-scene / Qt6
+  detached / Qt5 GL blit regression — PASS без crash, ctest 9/9 (Qt5 + Qt6).
 
 ## Бележни по имплементацията (план)
 
