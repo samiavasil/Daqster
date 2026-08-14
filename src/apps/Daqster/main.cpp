@@ -276,6 +276,9 @@ int main(int argc, char *argv[]) {
               nullptr, "Daqster",
               QString("Application plugin \"%1\" was found but failed to load.")
                   .arg(input));
+          // Plugin creation failed: do NOT stay alive as an empty window.
+          // Exit with non-zero code after the user dismisses the dialog.
+          return 1;
         }
       } else {
         qCCritical(lcApp) << "Plugin " << input << " not found";
@@ -285,6 +288,9 @@ int main(int argc, char *argv[]) {
                     "plugin or launch the Daqster main window and use the "
                     "toolbar.")
                 .arg(input));
+        // Plugin not found: do NOT stay alive as an empty window. Exit with
+        // non-zero code after the user dismisses the dialog.
+        return 1;
       }
     }
     res = a.exec();
