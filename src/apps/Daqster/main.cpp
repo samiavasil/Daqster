@@ -182,6 +182,18 @@ int main(int argc, char *argv[]) {
 
   }
 
+  // Console listener: stdin "quit" handler — created unconditionally so it is
+  // available on ALL startup paths (main app launcher, single- and multi-arg).
+  QConsoleListener *console = new QConsoleListener();
+  QObject::connect(
+      console, &QConsoleListener::newLine, [&a](const QString &strNewLine) {
+        // quit
+        if (strNewLine.trimmed().compare("quit", Qt::CaseInsensitive) == 0) {
+          qCDebug(lcApp) << "Goodbye";
+          a.quit();
+        }
+      });
+
   if (args.count() > 0) {
     if (args.count() > 1) {
       foreach (auto Name, args) {
@@ -274,15 +286,6 @@ int main(int argc, char *argv[]) {
                     "toolbar.")
                 .arg(input));
       }
-      QConsoleListener *console = new QConsoleListener();
-      QObject::connect(
-          console, &QConsoleListener::newLine, [&a](const QString &strNewLine) {
-            // quit
-            if (strNewLine.trimmed().compare("quit", Qt::CaseInsensitive) == 0) {
-              qCDebug(lcApp) << "Goodbye";
-              a.quit();
-            }
-          });
     }
     res = a.exec();
   } else {
