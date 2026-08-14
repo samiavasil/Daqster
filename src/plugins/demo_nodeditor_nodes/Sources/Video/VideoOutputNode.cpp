@@ -814,6 +814,17 @@ void VideoOutputNode::ensureSceneVideoItem()
     m_sceneVideoItem->show();
 
     m_label->setText(tr("GPU display active — in scene"));
+
+    // One-shot diagnostic (REQ-SW-PL-021): confirms the in-scene item exists
+    // and where it was placed over the label area.
+    qInfo().noquote() << QStringLiteral(
+        "VideoOutputNode: in-scene QGraphicsVideoItem created (nodeId=%1, "
+        "pos=(%2,%3), size=%4x%5)")
+            .arg(m_selfNodeId)
+            .arg(m_sceneVideoItem->pos().x())
+            .arg(m_sceneVideoItem->pos().y())
+            .arg(m_sceneVideoItem->size().width())
+            .arg(m_sceneVideoItem->size().height());
 }
 
 void VideoOutputNode::updateSceneVideoItemGeometry()
