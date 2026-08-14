@@ -25,23 +25,43 @@ idle_cpu.txt), срещу **~1-2%** с `tail -f /dev/null |` (което дър�
 
 ## Acceptance Criteria
 
-- [ ] 1. **Без busy-spin при EOF.** `QConsoleListener` (Linux) не активира
+- [x] 1. **Без busy-spin при EOF.** `QConsoleListener` (Linux) не активира
       `QSocketNotifier` повече след като stdin достигне EOF; notifier-ът се
       disable-ва при първото празно/EOF четене (`feof(stdin)` / `readLine()==0`).
-- [ ] 2. **Нормален режим непроменен.** При жив stdin (терминал или отворен
+      Имплементирано: при `file.readLine() == 0` (⇒ `read()` върна 0 ⇒ EOF)
+      `m_notifier->setEnabled(false)` и `return` без emit. Проверено
+      емпирично: `QFile::atEnd()` не е сигнален за EOF при pipe fd-ове
+      (non-seekable, винаги `true`), но празен `readLine()` на blocking fd е
+      еквивалентен на EOF. Комит: `6900e2c`.
+- [x] 2. **Нормален режим непроменен.** При жив stdin (терминал или отворен
       pipe с данни) `quit` командата през конзолата продължава да работи
       (main.cpp:277-285); команди се четат ред по ред без загуба.
+      Проверено: `printf 'quit\n' | build_qt6/bin/Daqster ...` → "Goodbye"
+      в лога, clean exit code 0; `tail -f /dev/null |` → app продължава да
+      работи (не излиза, не крашва). Комит: `6900e2c`.
 - [ ] 3. **Windows път.** `QWinEventNotifier` се disable-ва при EOF/грешка на
       конзолния handle (без зацикляне).
-- [ ] 4. **CPU.** Idle CPU с празен graph без blocking stdin пада от
+      Анотация: добавен guard `line.empty() && std::cin.eof()` →
+      `m_notifier->setEnabled(false)` (компил-safe, Qt5/Qt6); не е
+      верифициран на реален Windows — остава за проверка от потребителя.
+- [x] 4. **CPU.** Idle CPU с празен graph без blocking stdin пада от
       ~181-183% до ≤ ~2-3% (същото ниво като blocking-stdin базовата линия).
-- [ ] 5. **Builds + smoke.** Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS; app smoke
+      Измерено (2026-08-14, `ps`/`/proc/<pid>/stat` utime+stime deltas, празен
+      graph, `< /dev/null`): Qt6 6.9.2 — instantaneous **0.0%** (7 samples по
+      2 s), lifetime avg **3.8%** (вкл. startup); Qt5 5.15.2 — instantaneous
+      **0.0%** (5 samples), lifetime avg **3.3%**. Срещу 181-183% преди fix-а.
+      Комит: `6900e2c`.
+- [x] 5. **Builds + smoke.** Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS; app smoke
       без crash (offscreen и с DISPLAY); съществуващата test suite остава
       зелена. Unit тестовете са отложени по действащата standing instruction.
+      Проверено: builds PASS (Qt5 + Qt6), ctest **9/9** и на двете, app smoke
+      с DISPLAY=:0 без crash (Qt6 + Qt5, `< /dev/null` и `tail -f /dev/null |`),
+      quit командата работи. Комит: `6900e2c`.
 
 ## Проследимост
 
-- **Коммити:** — (след имплементация)
+- **Коммити:** `7681566` (chore: retro-REQ + PUB-002 issue), `6900e2c` (fix:
+  disable notifier on stdin EOF), docs (changelog + AC updates, този branch)
 - **Код:** `src/apps/Daqster/QConsoleListener.{h,cpp}`, `src/apps/Daqster/main.cpp`
 - **Тестове:** отложени (standing instruction 2026-08-13)
 

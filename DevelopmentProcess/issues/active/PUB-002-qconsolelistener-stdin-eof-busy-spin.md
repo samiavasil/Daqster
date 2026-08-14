@@ -25,8 +25,17 @@ workaround се ползва във всички перф прогони.
 QConsoleListener.cpp:14-15, 27-34).
 
 ## Acceptance Criteria
-- [ ] Linux: notifier-ът се disable-ва при EOF на stdin; idle CPU ≤ ~2-3%
-      без blocking stdin
+- [x] Linux: notifier-ът се disable-ва при EOF на stdin; idle CPU ≤ ~2-3%
+      без blocking stdin — измерено **0.0%** instantaneous (Qt6 + Qt5,
+      2026-08-14), комит `6900e2c`
 - [ ] Windows: notifier-ът се disable-ва при EOF/грешка на конзолния handle
-- [ ] `quit` командата през жива конзола продължава да работи
-- [ ] Qt5 + Qt6 builds PASS; съществуващата test suite остава зелена
+      — guard добавен (`line.empty() && cin.eof()` → disable), не е
+      верифициран на реален Windows
+- [x] `quit` командата през жива конзола продължава да работи — проверено
+      (`printf 'quit\n' |` → "Goodbye", exit 0; `tail -f /dev/null |` →
+      app работи), комит `6900e2c`
+- [x] Qt5 + Qt6 builds PASS; съществуващата test suite остава зелена —
+      builds PASS, ctest 9/9 и на двете, комит `6900e2c`
+
+> Статус: OPEN — заключва се след проверка от потребителя (Windows AC
+> остава неверифициран).

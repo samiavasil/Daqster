@@ -174,6 +174,18 @@
 - **Video source порт преномерация на Qt5** — виж NV12-direct по-горе; стари Qt5 графи, свързващи source port 0 (беше "image") с ImageData консуматор, губят връзката.
 
 ### Fixed
+- **QConsoleListener busy-spin при stdin EOF (REQ-SW-APP-002, PUB-002)** — при
+  стартиране на Daqster без blocking stdin (`< /dev/null`, затворен stdin от
+  IDE/launcher, или приключил pipe) `QSocketNotifier` на `fileno(stdin)`
+  зацикляше: EOF е перманентно "readable", всяко активиране четеше празен ред
+  и емитираше празно `newLine("")` → **busy-spin ~181-183% idle CPU**. Сега при
+  първото празно четене (`readLine()==0` ⇒ `read()` върна 0 ⇒ EOF) notifier-ът
+  се disable-ва; жив терминал/pipe с данни не се засяга (при липса на вход fd
+  не е readable и notifier-ът не се активира). Windows: `QWinEventNotifier` се
+  disable-ва при `getline()==""` + `std::cin.eof()`. Измерено след fix-а: idle
+  CPU без blocking stdin **0.0%** (Qt6 и Qt5, instantaneous /proc stat deltas;
+  lifetime avg 3.8%/3.3% вкл. startup), срещу ~181-183% преди. Workaround-ът
+  `tail -f /dev/null |` вече не е нужен. Коммит `6900e2c`.
 - **Plugin launch fixes**:
   - Toolbar пуска plugins по име вместо stale hash
   - Prune на persisted plugin entries с несъответстващ файлов hash при load
