@@ -34,11 +34,17 @@ idle_cpu.txt), срещу **~1-2%** с `tail -f /dev/null |` (което дър�
       (non-seekable, винаги `true`), но празен `readLine()` на blocking fd е
       еквивалентен на EOF. Комит: `6900e2c`.
 - [x] 2. **Нормален режим непроменен.** При жив stdin (терминал или отворен
-      pipe с данни) `quit` командата през конзолата продължава да работи
-      (main.cpp:277-285); команди се четат ред по ред без загуба.
+      pipe с данни) `quit` командата през конзолата продължава да работи;
+      команди се четат ред по ред без загуба.
       Проверено: `printf 'quit\n' | build_qt6/bin/Daqster ...` → "Goodbye"
       в лога, clean exit code 0; `tail -f /dev/null |` → app продължава да
       работи (не излиза, не крашва). Комит: `6900e2c`.
+      **Main app launcher:** след hoist-а на `QConsoleListener` (създава се
+      безусловно преди `if (args.count() > 0)`, main.cpp:185-195) `quit` е
+      верифициран и от основния launcher (без аргументи) — PTY harness
+      (сам процес, `quit\n` след ~8 s): извежда процеса за 0.12-0.17 s, exit
+      0, на Qt5 и Qt6; single-arg път (`NodeEditorIde`) без регресия. Комит:
+      `9893d35`.
 - [ ] 3. **Windows път.** `QWinEventNotifier` се disable-ва при EOF/грешка на
       конзолния handle (без зацикляне).
       Анотация: добавен guard `line.empty() && std::cin.eof()` →
@@ -61,7 +67,8 @@ idle_cpu.txt), срещу **~1-2%** с `tail -f /dev/null |` (което дър�
 ## Проследимост
 
 - **Коммити:** `7681566` (chore: retro-REQ + PUB-002 issue), `6900e2c` (fix:
-  disable notifier on stdin EOF), docs (changelog + AC updates, този branch)
+  disable notifier on stdin EOF), `9893d35` (fix: hoist QConsoleListener —
+  quit от main app launcher), docs (changelog + AC updates, този branch)
 - **Код:** `src/apps/Daqster/QConsoleListener.{h,cpp}`, `src/apps/Daqster/main.cpp`
 - **Тестове:** отложени (standing instruction 2026-08-13)
 

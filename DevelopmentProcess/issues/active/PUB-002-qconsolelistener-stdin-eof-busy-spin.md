@@ -33,7 +33,11 @@ QConsoleListener.cpp:14-15, 27-34).
       верифициран на реален Windows
 - [x] `quit` командата през жива конзола продължава да работи — проверено
       (`printf 'quit\n' |` → "Goodbye", exit 0; `tail -f /dev/null |` →
-      app работи), комит `6900e2c`
+      app работи), комит `6900e2c`. **След hoist-а** listener-ът е
+      безусловен (main.cpp:185-195) → `quit` верифициран и от main app
+      launcher-а (без аргументи, Qt5 + Qt6): PTY harness `quit\n` → exit
+      0.12-0.17 s, exit 0; single-arg път (`NodeEditorIde`) без регресия.
+      Комит: `9893d35`
 - [x] Qt5 + Qt6 builds PASS; съществуващата test suite остава зелена —
       builds PASS, ctest 9/9 и на двете, комит `6900e2c`
 

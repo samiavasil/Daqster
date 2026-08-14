@@ -174,6 +174,15 @@
 - **Video source порт преномерация на Qt5** — виж NV12-direct по-горе; стари Qt5 графи, свързващи source port 0 (беше "image") с ImageData консуматор, губят връзката.
 
 ### Fixed
+- **Конзолният `quit` не работеше от main app launcher-а (REQ-SW-APP-002, PUB-002)** —
+  `QConsoleListener` се създаваше само вътре в `if (args.count() > 0)` клона на
+  `main()` (след plugin load), затова при стартиране на Daqster без аргументи
+  (основния launcher → `QMainWindow` + toolbar) stdin `quit\n` беше игнориран и
+  приложението не излизаше. Сега `QConsoleListener` се създава **безусловно**
+  преди `if (args.count() > 0)` — `quit` работи на всички стартови пътища (main
+  launcher, single-arg plugin, multi-arg spawner). Проверено с PTY harness (сам
+  процес, без child spawn-ове, DISPLAY=:0): `quit\n` извежда процеса за
+  0.12-0.17 s (Qt5 + Qt6, с и без `NodeEditorIde`), exit 0. Коммит `9893d35`.
 - **QConsoleListener busy-spin при stdin EOF (REQ-SW-APP-002, PUB-002)** — при
   стартиране на Daqster без blocking stdin (`< /dev/null`, затворен stdin от
   IDE/launcher, или приключил pipe) `QSocketNotifier` на `fileno(stdin)`
