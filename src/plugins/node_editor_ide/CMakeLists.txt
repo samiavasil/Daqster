@@ -129,6 +129,8 @@ set(IDE_SOURCES
     NodeEditorIdeObject.h
     NodeEditorWidget.cpp
     NodeEditorWidget.h
+    CustomDataFlowScene.cpp
+    CustomDataFlowScene.h
 )
 
 create_plugin(NodeEditorIde
