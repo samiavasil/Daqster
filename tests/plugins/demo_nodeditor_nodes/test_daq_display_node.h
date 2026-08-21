@@ -16,4 +16,9 @@ private slots:
     void save_restore_multipleCards();
     void restore_v1_fileDefaults();
     void save_restore_mode_physical();
+
+    // Worker-owned rolling ring buffer (REQ-SW-PL-025 AC 3/AC 4), exercised
+    // through the friend-declared static appendRingBlock() + ComputeState.
+    void ringBuffer_rollingWindowDropsOldest();
+    void ringBuffer_descriptorChangeReset();
 };
