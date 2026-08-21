@@ -5,8 +5,9 @@
 # into the test binary instead of linking the plugin .so. The tests run
 # headless (QCoreApplication, no widgets).
 #
-# The five test classes (TestVideoTransformOps/TestStreamUrlValidator/
-# SampledDataTest/FftUtilTest/AudioBufferToSampledTest) are declared in headers
+# The test classes (TestVideoTransformOps/TestStreamUrlValidator/
+# SampledDataTest/SampledStreamDescriptorTest/FftUtilTest/
+# AudioBufferToSampledTest/TestVideoPerfBadge) are declared in headers
 # and share a single binary (demo_nodeditor_nodes_tests) whose main() lives in
 # test_main.cpp. Each class is run through QTest::qExec there, mirroring
 # QTEST_GUILESS_MAIN.
@@ -30,6 +31,7 @@ set(TEST_SOURCES
     test_video_transform_ops.cpp test_video_transform_ops.h
     test_stream_url_validator.cpp test_stream_url_validator.h
     test_sampled_data.cpp test_sampled_data.h
+    test_sampled_stream_descriptor.cpp test_sampled_stream_descriptor.h
     test_fft_util.cpp test_fft_util.h
     test_audio_buffer_to_sampled.cpp test_audio_buffer_to_sampled.h
     test_video_perf_badge.cpp test_video_perf_badge.h
