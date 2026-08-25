@@ -234,7 +234,7 @@ void NodeEditorIdeObject::autoStartVideo()
               << " name=" << effectNodeName;
 
         const QtNodes::ConnectionId oldConn{prevId, 0, outId, 0};
-        if (gm->connectionPossible(oldConn))
+        if (gm->connectionExists(oldConn))
             gm->deleteConnection(oldConn);
         const QtNodes::ConnectionId inConn{prevId, 0, effectNodeId, 0};
         if (gm->connectionPossible(inConn)) {
@@ -262,7 +262,7 @@ void NodeEditorIdeObject::autoStartVideo()
         DEBUG << "autoStartVideo: sampler node created id=" << samplerId;
 
         const QtNodes::ConnectionId oldConn{prevId, 0, outId, 0};
-        if (gm->connectionPossible(oldConn))
+        if (gm->connectionExists(oldConn))
             gm->deleteConnection(oldConn);
         const QtNodes::ConnectionId inConn{prevId, 0, samplerId, 0};
         if (gm->connectionPossible(inConn)) {
