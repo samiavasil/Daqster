@@ -117,6 +117,9 @@ void VideoGLBlitWidget::presentFrame(const QVideoFrame &frame)
     default:
         // RGB formats or anything else: fall back to a CPU QImage conversion
         // inside the GL path (honest — the conversion cost lands in the blit).
+        // NOTE: this widget receives a raw QVideoFrame (not a VideoFrameData),
+        // so it cannot reuse the lazy asImage() cache (REQ-SW-PL-032) — the
+        // conversion here is per-presentation and unavoidable on this path.
         m_hasYuv = false;
         m_image = VideoCompat::frameToImage(frame);
         m_formatName += QStringLiteral(" -> toImage(%1)").arg(m_image.format());

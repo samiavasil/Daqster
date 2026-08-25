@@ -1,7 +1,6 @@
 #include "VideoEffectNode.h"
 
 #include "NodeDataTypes/VideoFrameData.h"
-#include "VideoCompat.h"
 
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -113,7 +112,11 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
         // GPU path failed (unsupported frame format / GL error) — CPU fallback.
     }
 
-    const QImage img = VideoCompat::frameToImage(frame);
+    // CPU path: reuse the lazy QImage cache on the shared VideoFrameData
+    // (REQ-SW-PL-032) — the conversion happens at most once per frame and is
+    // shared between all CPU consumers. m_lastInput is non-null here (checked
+    // above), so asImage() is safe.
+    const QImage img = m_lastInput->asImage();
     const QImage transformed = applyCpu(img);
     if (transformed.isNull()) {
         Q_EMIT dataInvalidated(0);

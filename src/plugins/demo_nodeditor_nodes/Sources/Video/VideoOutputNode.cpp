@@ -311,8 +311,10 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                 // GL unavailable / Qt6 when the in-scene item could not be
                 // created): convert the frame and show it in the embedded
                 // label — video keeps displaying at the source rate
-                // (REQ-SW-PL-021 auto-fallback).
-                const QImage image = VideoCompat::frameToImage(videoFrame->frame());
+                // (REQ-SW-PL-021 auto-fallback). Reuse the lazy QImage cache
+                // on the shared VideoFrameData (REQ-SW-PL-032) — the
+                // conversion happens at most once per frame.
+                const QImage image = videoFrame->asImage();
                 if (image.isNull())
                     return;
                 softwareDisplayed = true;
@@ -327,10 +329,13 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
             if (m_outputConnectionCount > 0) {
                 // Reuse the frame conversion when the software display path
                 // just ran; otherwise convert here (GL display path with a
-                // downstream consumer — never reuse a stale m_image).
+                // downstream consumer — never reuse a stale m_image). Both
+                // paths go through the lazy QImage cache on the shared
+                // VideoFrameData (REQ-SW-PL-032) — at most one conversion
+                // per frame, shared between all consumers.
                 QImage image = softwareDisplayed
                     ? m_image
-                    : VideoCompat::frameToImage(videoFrame->frame());
+                    : videoFrame->asImage();
                 // Propagate only real frames — never an ImageData wrapping a
                 // null QImage (would emit a bogus "empty" data update).
                 if (image.isNull())
