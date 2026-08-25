@@ -201,8 +201,8 @@ bool VideoEffectGLProcessor::ensureProgram(const EffectSpec &spec, bool nv12)
         || (m_context->format().profile() == QSurfaceFormat::CoreProfile);
 
     const QString key = spec.id
-        + QStringLiteral(nv12 ? ":nv12" : ":420p")
-        + QStringLiteral(core ? ":core" : ":compat");
+        + (nv12 ? QStringLiteral(":nv12") : QStringLiteral(":420p"))
+        + (core ? QStringLiteral(":core") : QStringLiteral(":compat"));
     if (m_program != nullptr && m_programKey == key)
         return true;
 
