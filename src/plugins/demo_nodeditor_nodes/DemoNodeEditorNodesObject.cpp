@@ -20,6 +20,8 @@
 #include "Sources/Video/StreamSourceNode.h"
 #include "Sources/Video/VideoOutputNode.h"
 #include "Sources/Video/VideoTransformNode.h"
+#include "Sources/Video/VideoEffectNode.h"
+#include "Sources/Video/FrameSamplerNode.h"
 #include <QDevIoDisplayModelObsolete.h>
 
 // ── Saved-graph alias registration (REQ-SW-PL-023 §7) ────────────────
@@ -115,6 +117,17 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     registry.registerModel<StreamSourceNode>("Video");
     registry.registerModel<VideoOutputNode>("Video");
     registry.registerModel<VideoTransformNode>("Video");
+
+    // Video effect nodes (VideoFrameData flow, REQ-SW-PL-028) — one node per
+    // effect + the frame resampler (REQ-SW-PL-030).
+    registry.registerModel<VideoEffectBrightnessNode>("Video");
+    registry.registerModel<VideoEffectContrastNode>("Video");
+    registry.registerModel<VideoEffectGrayscaleNode>("Video");
+    registry.registerModel<VideoEffectInvertNode>("Video");
+    registry.registerModel<VideoEffectSepiaNode>("Video");
+    registry.registerModel<VideoEffectChannelSwapNode>("Video");
+    registry.registerModel<VideoEffectFlipNode>("Video");
+    registry.registerModel<FrameSamplerNode>("Video");
 }
 
 void DemoNodeEditorNodesObject::DeInitialize()

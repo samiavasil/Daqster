@@ -72,6 +72,15 @@ set(VIDEO_NODES
     Sources/Video/VideoTransformNode.cpp
     Sources/Video/VideoTransformOps.h
     Sources/Video/VideoTransformOps.cpp
+    Sources/Video/VideoGLShaders.h
+    Sources/Video/VideoEffectOps.h
+    Sources/Video/VideoEffectOps.cpp
+    Sources/Video/VideoEffectGLProcessor.h
+    Sources/Video/VideoEffectGLProcessor.cpp
+    Sources/Video/VideoEffectNode.h
+    Sources/Video/VideoEffectNode.cpp
+    Sources/Video/FrameSamplerNode.h
+    Sources/Video/FrameSamplerNode.cpp
 )
 
 # ── Optional OpenCV transforms (compile-time auto-detect) ───────────
