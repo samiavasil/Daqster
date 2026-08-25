@@ -118,8 +118,11 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     registry.registerModel<VideoOutputNode>("Video");
     registry.registerModel<VideoTransformNode>("Video");
 
-    // Video effect nodes (VideoFrameData flow, REQ-SW-PL-028) — one node per
-    // effect + the frame resampler (REQ-SW-PL-030).
+    // Video effect nodes (VideoFrameData flow, REQ-SW-PL-028) — ONE node with
+    // an effect combo (REQ-SW-PL-028 AC 4) + the frame resampler (REQ-SW-PL-030).
+    // The 7 per-effect registrations below are deprecated aliases kept for
+    // backward compatibility with old saved graphs.
+    registry.registerModel<VideoEffectNode>("Video");
     registry.registerModel<VideoEffectBrightnessNode>("Video");
     registry.registerModel<VideoEffectContrastNode>("Video");
     registry.registerModel<VideoEffectGrayscaleNode>("Video");
