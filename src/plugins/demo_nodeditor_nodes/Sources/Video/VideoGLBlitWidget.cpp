@@ -1,6 +1,7 @@
 #include "VideoGLBlitWidget.h"
 
 #include "VideoCompat.h"
+#include "VideoGLShaders.h"
 
 #include <QElapsedTimer>
 #include <QOpenGLContext>
@@ -57,124 +58,6 @@ YuvLayout classifyYuv(const QVideoFrame &frame, QString *formatName)
         return YuvLayout::Other;
     }
 #endif
-}
-
-QString buildVertexSource(bool core)
-{
-    if (core) {
-        return QStringLiteral(
-            "#version 150 core\n"
-            "in vec2 a_position;\n"
-            "in vec2 a_texcoord;\n"
-            "out vec2 v_texcoord;\n"
-            "void main() {\n"
-            "  gl_Position = vec4(a_position, 0.0, 1.0);\n"
-            "  v_texcoord = a_texcoord;\n"
-            "}\n");
-    }
-    return QStringLiteral(
-        "#version 120\n"
-        "attribute vec2 a_position;\n"
-        "attribute vec2 a_texcoord;\n"
-        "varying vec2 v_texcoord;\n"
-        "void main() {\n"
-        "  gl_Position = vec4(a_position, 0.0, 1.0);\n"
-        "  v_texcoord = a_texcoord;\n"
-        "}\n");
-}
-
-/// YUV->RGB fragment shader. UV channel swizzle is baked per upload layout:
-/// core GL_RG => ".rg", compat GL_LUMINANCE_ALPHA => ".ra" (R=U, A=V).
-QString buildYuvFragmentSource(bool core, bool nv12)
-{
-    QString src;
-    if (core) {
-        src += QStringLiteral(
-            "#version 150 core\n"
-            "uniform sampler2D u_texY;\n");
-        if (nv12)
-            src += QStringLiteral("uniform sampler2D u_texUV;\n");
-        else
-            src += QStringLiteral("uniform sampler2D u_texU;\nuniform sampler2D u_texV;\n");
-        src += QStringLiteral(
-            "uniform int u_matrix;\n"
-            "uniform int u_range;\n"
-            "in vec2 v_texcoord;\n"
-            "out vec4 fragColor;\n");
-    } else {
-        src += QStringLiteral(
-            "#version 120\n"
-            "uniform sampler2D u_texY;\n");
-        if (nv12)
-            src += QStringLiteral("uniform sampler2D u_texUV;\n");
-        else
-            src += QStringLiteral("uniform sampler2D u_texU;\nuniform sampler2D u_texV;\n");
-        src += QStringLiteral(
-            "uniform int u_matrix;\n"
-            "uniform int u_range;\n"
-            "varying vec2 v_texcoord;\n");
-    }
-
-    src += QStringLiteral("void main() {\n");
-    if (core) {
-        if (nv12) {
-            src += QStringLiteral(
-                "  float y = texture(u_texY, v_texcoord).r;\n"
-                "  vec2 uv = texture(u_texUV, v_texcoord).rg;\n");
-        } else {
-            src += QStringLiteral(
-                "  float y = texture(u_texY, v_texcoord).r;\n"
-                "  vec2 uv = vec2(texture(u_texU, v_texcoord).r,\n"
-                "                 texture(u_texV, v_texcoord).r);\n");
-        }
-    } else {
-        if (nv12) {
-            src += QStringLiteral(
-                "  float y = texture2D(u_texY, v_texcoord).r;\n"
-                "  vec2 uv = texture2D(u_texUV, v_texcoord).ra;\n");
-        } else {
-            src += QStringLiteral(
-                "  float y = texture2D(u_texY, v_texcoord).r;\n"
-                "  vec2 uv = vec2(texture2D(u_texU, v_texcoord).r,\n"
-                "                 texture2D(u_texV, v_texcoord).r);\n");
-        }
-    }
-
-    src += QStringLiteral(
-        "  if (u_range == 0) {\n"
-        "    y = (y - 0.0627451) * 1.1643836;\n"
-        "    uv = (uv - vec2(0.5019608)) * 1.1383929;\n"
-        "  }\n"
-        "  vec3 rgb;\n"
-        "  if (u_matrix == 1) {\n"
-        "    rgb = vec3(y + 1.5748 * (uv.y - 0.5),\n"
-        "               y - 0.187324 * (uv.x - 0.5) - 0.468124 * (uv.y - 0.5),\n"
-        "               y + 1.8556 * (uv.x - 0.5));\n"
-        "  } else {\n"
-        "    rgb = vec3(y + 1.402 * (uv.y - 0.5),\n"
-        "               y - 0.344136 * (uv.x - 0.5) - 0.714136 * (uv.y - 0.5),\n"
-        "               y + 1.772 * (uv.x - 0.5));\n"
-        "  }\n");
-    src += core ? QStringLiteral("  fragColor = vec4(rgb, 1.0);\n}\n")
-                : QStringLiteral("  gl_FragColor = vec4(rgb, 1.0);\n}\n");
-    return src;
-}
-
-QString buildRgbaFragmentSource(bool core)
-{
-    if (core) {
-        return QStringLiteral(
-            "#version 150 core\n"
-            "uniform sampler2D u_tex;\n"
-            "in vec2 v_texcoord;\n"
-            "out vec4 fragColor;\n"
-            "void main() { fragColor = texture(u_tex, v_texcoord); }\n");
-    }
-    return QStringLiteral(
-        "#version 120\n"
-        "uniform sampler2D u_tex;\n"
-        "varying vec2 v_texcoord;\n"
-        "void main() { gl_FragColor = texture2D(u_tex, v_texcoord); }\n");
 }
 
 void setupTextureParams(QOpenGLFunctions *f, GLuint id)
