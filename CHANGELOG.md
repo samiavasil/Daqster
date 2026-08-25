@@ -162,6 +162,10 @@
 - **Qt6 in-scene GPU video display (REQ-SW-PL-021)** — чекбоксът „GPU display" вече е **видим и на Qt6** (checked по подразбиране = detached `QVideoWidget`, запазено текущото поведение). При unchecked `VideoOutputNode` създава `QGraphicsVideoItem` като child на `NodeGraphicsObject`-а на node-а (`ensureSceneVideoItem()` — намира сцената през `QApplication::topLevelWidgets()` → `GraphicsView` → `DataFlowGraphicsScene`) и кадрите се подават през `VideoCompat::presentFrame(item->videoSink(), frame)` — GPU път без QImage копие; софтуерният QLabel път остава автоматичен fallback. Detached прозорците се затварят при unchecked; in-scene item-ът се трие при toggle/дисконект. Perf бейджът следва само detached прозорците. Qt5 пътищата са непроменени. Dev driver: `DAQSTER_SCENE_VIDEO=1` uncheck-ва чекбокса за headless проверка. Комити: `63c7f78`, `a04f05e`, `3a0686e`, `ba7561f`. Smoke: Qt6 in-scene (кадрите се рендерират в сцената) + Qt6 detached + Qt5 GL blit regression — PASS без crash; ctest 9/9 (Qt5 + Qt6).
 
 ### Changed
+- **Design refinement (REQ-SW-PL-028/029/032, 2026-08-25)** — documentation-only:
+  - PL-028: рефакторинг към **ЕДИН** `VideoEffectNode` с комбобокс за избор на ефект + параметри/конфигурация (вместо 7 отделни subclass-а); EffectSpec-ите остават в `VideoEffectOps.h/.cpp`
+  - PL-032: уточнен дизайн — lazy кешове (`asImage()`/`asTexture()`), node residency предпочитания (Вариант C), GPU-resident транспорт (Път B), Qt6-първо/Qt5-после, формат NV12 → Y+UV → YUV→RGB+ефект → RGBA
+  - PL-029: потвърден отделен нод (не вграден в `VideoEffectNode`) — различно UI (GLSL редактор + compile + error log), разширяем към DAQ/други типове
 - **Directory Restructuring**:
   - `src/external_libs/` → `src/plugins/external_libs/` (всички external libs са под plugins)
   - `src/plugins/node_editor/` → разделяне на `node_editor_widget/` + `node_editor_app/`

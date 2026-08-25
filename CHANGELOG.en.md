@@ -188,6 +188,10 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Video display perf results doc** — `tests/performance/performance-video-display-2026-08-13.md`: full methodology, before/after shadow numbers, perf bottleneck analysis, changes and next levers.
 
 ### Changed
+- **Design refinement (REQ-SW-PL-028/029/032, 2026-08-25)** — documentation-only:
+  - PL-028: refactor to a SINGLE `VideoEffectNode` with a combobox for effect selection + parameters/config (instead of 7 separate subclasses); EffectSpecs stay in `VideoEffectOps.h/.cpp`
+  - PL-032: refined design — lazy caches (`asImage()`/`asTexture()`), node residency preferences (Option C), GPU-resident transport (Path B), Qt6-first/Qt5-after, format NV12 → Y+UV → YUV→RGB+effect → RGBA
+  - PL-029: confirmed standalone node (not embedded in `VideoEffectNode`) — different UI (GLSL editor + compile + error log), extensible to DAQ/other types
 - **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality
 - **Documentation**:
   - Plugins hub (`docs/plugins/README.md`) + fixed plugin documentation links in INDEX/Architecture (`b5c204f`)

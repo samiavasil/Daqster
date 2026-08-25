@@ -20,18 +20,30 @@
 4. **Рантайм компилация** (`addShaderFromSourceCode`) + **обработка на
    грешки** — компилационни грешки → потребителски съобщения, не crash.
 
+**Потвърждение (решение 2026-08-25):** `CustomShaderNode` остава **отделен
+нод** — не се вгражда в `VideoEffectNode`. Обосновка:
+
+- **Различно UI:** GLSL редактор + compile + error log (power-user функция)
+  — не е комбобокс с параметри като `VideoEffectNode`.
+- **Разширяемост:** общ GPU compute нод с data-адаптери — v2+ към
+  `SampledData`/DAQ, `TensorData`; `VideoEffectNode` е ограничен до видео
+  ефекти.
+
 ## Acceptance Criteria
 
-- [ ] 1. **Типова съвместимост (v1).** `CustomShaderNode` приема
+- [ ] 1. **Отделен нод (потвърждение).** `CustomShaderNode` е отделен нод —
+       не вграден в `VideoEffectNode` (различно UI: GLSL редактор + compile
+       + error log; power-user функция; разширяем към DAQ/други типове).
+- [ ] 2. **Типова съвместимост (v1).** `CustomShaderNode` приема
        `VideoFrameData`, извежда `VideoFrameData`.
-- [ ] 2. **`IDataAdapter` интерфейс.** Pluggable адаптери: upload/download
+- [ ] 3. **`IDataAdapter` интерфейс.** Pluggable адаптери: upload/download
        между data и текстура.
-- [ ] 3. **Потребителски GLSL + uniform-и.** Шаблон + uniform стойности
+- [ ] 4. **Потребителски GLSL + uniform-и.** Шаблон + uniform стойности
        (време, слайдери).
-- [ ] 4. **Рантайм компилация с обработка на грешки.** Компилационни грешки
+- [ ] 5. **Рантайм компилация с обработка на грешки.** Компилационни грешки
        → потребителски съобщения, без crash.
-- [ ] 5. **Qt5 + Qt6 builds PASS.**
-- [ ] 6. **Тестове** (отложени по стояща инструкция).
+- [ ] 6. **Qt5 + Qt6 builds PASS.**
+- [ ] 7. **Тестове** (отложени по стояща инструкция).
 
 ## Проследимост
 
@@ -43,6 +55,10 @@
 
 ## Бележки по имплементацията (план)
 
+- **Отделен нод (потвърдено 2026-08-25):** не се вгражда в
+  `VideoEffectNode` — различно UI (GLSL редактор + compile + error log),
+  power-user функция, разширяем към DAQ/други типове (общ GPU compute нод
+  с data-адаптери).
 - **`IDataAdapter`:** интерфейс за upload/download между data и текстура;
   v1 видео адаптер, v2+ SampledData/DAQ и TensorData адаптери.
 - **Шаблон + uniform-и:** потребителски GLSL код + uniform стойности (време,
