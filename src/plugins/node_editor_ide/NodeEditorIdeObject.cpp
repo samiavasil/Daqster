@@ -222,16 +222,24 @@ void NodeEditorIdeObject::autoStartVideo()
     // ── Dev driver: DAQSTER_AUTOSTART_EFFECT=<effectId> ─────────────────────
     // Inserts a VideoEffect node between the source and the output (REQ-SW-PL-028
     // smoke driver). The env value is the effect id ("brightness", "contrast",
-    // "grayscale", "invert", "sepia", "channelSwap", "flip") — the registered
-    // node name is "VideoEffect" + capitalized id.
+    // "grayscale", "invert", "sepia", "channelSwap", "flip"). The node is the
+    // single "VideoEffect" node with an effect combo; the effect is selected
+    // through load() (same path a saved graph uses).
     QtNodes::NodeId prevId = srcId;
     const QString effectId = qEnvironmentVariable("DAQSTER_AUTOSTART_EFFECT");
     if (!effectId.isEmpty()) {
-        const QString effectNodeName = QStringLiteral("VideoEffect")
-            + effectId.left(1).toUpper() + effectId.mid(1);
-        const QtNodes::NodeId effectNodeId = gm->addNode(effectNodeName);
-        DEBUG << "autoStartVideo: effect node created id=" << effectNodeId
-              << " name=" << effectNodeName;
+        const QtNodes::NodeId effectNodeId = gm->addNode(QStringLiteral("VideoEffect"));
+        DEBUG << "autoStartVideo: effect node created id=" << effectNodeId;
+
+        auto *effectModel = gm->delegateModel<QtNodes::NodeDelegateModel>(effectNodeId);
+        if (effectModel) {
+            QJsonObject cfg;
+            cfg[QStringLiteral("effect")] = effectId;
+            effectModel->load(cfg);
+            DEBUG << "autoStartVideo: effect set to " << effectId;
+        } else {
+            DEBUG << "autoStartVideo: effect model NOT available";
+        }
 
         const QtNodes::ConnectionId oldConn{prevId, 0, outId, 0};
         if (gm->connectionExists(oldConn))
