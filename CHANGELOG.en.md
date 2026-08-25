@@ -7,6 +7,16 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-028** (VideoEffectNode — per-effect GPU/CPU backend):
+  - `VideoGLShaders.h` — shared GLSL source builders (`buildVertexSource`, `buildYuvFragmentSource`, `buildRgbaFragmentSource` extracted from `VideoGLBlitWidget.cpp` + new `buildEffectFragmentSource` with `u_flipY` and injectable effect body)
+  - `VideoEffectOps.{h,cpp}` — `EffectSpec` registry (7 effects: brightness, contrast, grayscale, invert, sepia, channelSwap, flip) with CPU functions (delegating to `VideoTransformOps`) + GLSL body
+  - `VideoEffectGLProcessor.{h,cpp}` — GPU backend: `QOpenGLContext` + `QOffscreenSurface` + `QOpenGLFramebufferObject`, Y/U/V upload with `GL_UNPACK_ROW_LENGTH`, `hasHardwareGL()` (llvmpipe/softpipe/SwiftShader detection, lazy cached)
+  - `VideoEffectNode.{h,cpp}` — node model (port 0 in/out `VideoFrameData`) + 7 thin subclasses (VideoEffectBrightness/Contrast/Grayscale/Invert/Sepia/ChannelSwap/Flip), runtime backend selection, parameter UI (slider/combo/info), save/load with clamps
+  - Registered under the "Video" category in the demo node editor plugin
+- **REQ-SW-PL-030** (FrameSampler — frame resampling):
+  - `FrameSamplerNode.{h,cpp}` — standalone node (port 0 in/out `VideoFrameData`), "Every N-th frame" (1..1000) / "Max FPS" (1..120) modes, zero-copy passthrough (same `shared_ptr`), gate without emit on drop, save/load + counter/timer reset
+  - Registered under the "Video" category in the demo node editor plugin
+- **Smoke drivers** (`NodeEditorIdeObject.cpp`): `DAQSTER_AUTOSTART_EFFECT=<effectId>` inserts a VideoEffect node between source and output; `DAQSTER_AUTOSTART_SAMPLER=1` inserts a FrameSampler
 - **Video nodes** (`src/plugins/demo_nodeditor_nodes/Sources/Video/`):
   - `VideoCompat.h` — Qt5/Qt6 multimedia abstraction (QVideoProbe vs QVideoSink, camera enumeration, media source assignment, playback-state signals)
   - `CameraSourceNode` — QCamera capture from default or user-selected device

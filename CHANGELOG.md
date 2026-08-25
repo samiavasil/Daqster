@@ -7,6 +7,16 @@
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-028** (VideoEffectNode — GPU/CPU backend по ефект):
+  - `VideoGLShaders.h` — споделени GLSL source builder-и (`buildVertexSource`, `buildYuvFragmentSource`, `buildRgbaFragmentSource` извлечени от `VideoGLBlitWidget.cpp` + нов `buildEffectFragmentSource` с `u_flipY` и инжектируем effect body)
+  - `VideoEffectOps.{h,cpp}` — `EffectSpec` регистър (7 ефекта: brightness, contrast, grayscale, invert, sepia, channelSwap, flip) с CPU функции (делегират на `VideoTransformOps`) + GLSL body
+  - `VideoEffectGLProcessor.{h,cpp}` — GPU backend: `QOpenGLContext` + `QOffscreenSurface` + `QOpenGLFramebufferObject`, Y/U/V upload с `GL_UNPACK_ROW_LENGTH`, `hasHardwareGL()` (llvmpipe/softpipe/SwiftShader детекция, lazy кеширана)
+  - `VideoEffectNode.{h,cpp}` — нод модел (port 0 in/out `VideoFrameData`) + 7 thin subclass-а (VideoEffectBrightness/Contrast/Grayscale/Invert/Sepia/ChannelSwap/Flip), runtime backend избор, параметър UI (slider/combo/info), save/load с clamp-ове
+  - Регистрирани под категория "Video" в demo node editor plugin
+- **REQ-SW-PL-030** (FrameSampler — ресемплиране):
+  - `FrameSamplerNode.{h,cpp}` — отделен нод (port 0 in/out `VideoFrameData`), режими „Every N-th frame" (1..1000) / „Max FPS" (1..120), zero-copy passthrough (същият `shared_ptr`), gate без emit при не-pass, save/load + reset на брояча/таймера
+  - Регистриран под категория "Video" в demo node editor plugin
+- **Smoke drivers** (`NodeEditorIdeObject.cpp`): `DAQSTER_AUTOSTART_EFFECT=<effectId>` вмъква VideoEffect нод между source и output; `DAQSTER_AUTOSTART_SAMPLER=1` вмъква FrameSampler
 - **Video нодове** (`src/plugins/demo_nodeditor_nodes/Sources/Video/`):
   - `VideoCompat.h` — Qt5/Qt6 multimedia абстракция (QVideoProbe ↔ QVideoSink, camera enumeration, media source assignment, playback-state сигнали)
   - `CameraSourceNode` — заснемане от QCamera (default или избран device)

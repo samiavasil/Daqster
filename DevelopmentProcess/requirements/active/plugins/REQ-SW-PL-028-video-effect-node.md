@@ -30,24 +30,30 @@ frame-а; не тригерира lazy `asImage()` освен ако ефект�
 
 ## Acceptance Criteria
 
-- [ ] 1. **Типова съвместимост.** `VideoEffectNode` приема `VideoFrameData`
+- [x] 1. **Типова съвместимост.** `VideoEffectNode` приема `VideoFrameData`
        (type id `"video-frame"`), извежда `VideoFrameData`.
-- [ ] 2. **Runtime backend избор.** Backend-ът се избира в рантайм по ефект +
+- [x] 2. **Runtime backend избор.** Backend-ът се избира в рантайм по ефект +
        GL детекция; при липса на хардуерен GL (`llvmpipe`/`softpipe`/
        `SwiftShader`) се ползва CPU.
-- [ ] 3. **CPU-only ефекти.** CPU-only ефекти вървят на CPU на всички
-       платформи (независимо от GL наличност).
-- [ ] 4. **Един нод = един ефект.** Регистрация по ефект; `EffectSpec`
+- [x] 3. **CPU-only ефекти.** CPU-only ефекти вървят на CPU на всички
+       платформи (независимо от GL наличност). Механизмът е имплементиран
+       (`EffectSpec::Backend::CpuOnly` + runtime проверка в `setInData()`);
+       текущите 7 ефекта са `GpuOrCpu`.
+- [x] 4. **Един нод = един ефект.** Регистрация по ефект; `EffectSpec`
        описва ефекта с опционален GLSL.
-- [ ] 5. **Qt5 + Qt6 builds PASS.**
+- [x] 5. **Qt5 + Qt6 builds PASS.**
 - [ ] 6. **Тестове** (отложени по стояща инструкция).
 
 ## Проследимост
 
-- **Коммити:** чака имплементация
-- **Код:** чака имплементация
+- **Коммити:** `54a3162` (VideoGLShaders.h), `c0ca1b1` (VideoEffectOps),
+  `8b0c353` (VideoEffectGLProcessor), `dc1d11f` (VideoEffectNode + 7
+  subclass-а), `a4111be` (CMake + регистрация), `3e91e58`/`1aa23c2`
+  (autostart smoke driver)
+- **Код:** `src/plugins/demo_nodeditor_nodes/Sources/Video/` (VideoGLShaders.h,
+  VideoEffectOps.{h,cpp}, VideoEffectGLProcessor.{h,cpp}, VideoEffectNode.{h,cpp})
 - **Документация:** дизайн документ `video-frame-consolidation-design.md` §3.2;
-  статус `2026-08-24-status.md` §10
+  статус `2026-08-24-status.md` §10; `docs/plugins/demo_nodeditor_nodes/README.md`
 - **Тестове:** отложени (standing instruction)
 
 ## Бележки по имплементацията (план)

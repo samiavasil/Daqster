@@ -20,21 +20,23 @@
 
 ## Acceptance Criteria
 
-- [ ] 1. **Типова съвместимост.** `FrameSampler` приема `VideoFrameData`,
+- [x] 1. **Типова съвместимост.** `FrameSampler` приема `VideoFrameData`,
        извежда `VideoFrameData`.
-- [ ] 2. **Режими.** Всеки N-ти кадър, max fps (избираемо).
-- [ ] 3. **Zero-copy.** Ресемплираният кадър се споделя (frame-ът се
+- [x] 2. **Режими.** Всеки N-ти кадър, max fps (избираемо).
+- [x] 3. **Zero-copy.** Ресемплираният кадър се споделя (frame-ът се
        предава, не се копира).
-- [ ] 4. **Fan-out.** Ресемплираният кадър стига до N консуматора.
-- [ ] 5. **Qt5 + Qt6 builds PASS.**
+- [x] 4. **Fan-out.** Ресемплираният кадър стига до N консуматора (същият
+       `shared_ptr<VideoFrameData>` се предава на всички свързани консуматори).
+- [x] 5. **Qt5 + Qt6 builds PASS.**
 - [ ] 6. **Тестове** (отложени по стояща инструкция).
 
 ## Проследимост
 
-- **Коммити:** чака имплементация
-- **Код:** чака имплементация
+- **Коммити:** `5b2f884` (FrameSamplerNode), `a4111be` (CMake + регистрация),
+  `3e91e58`/`1aa23c2` (autostart smoke driver)
+- **Код:** `src/plugins/demo_nodeditor_nodes/Sources/Video/FrameSamplerNode.{h,cpp}`
 - **Документация:** дизайн документ `video-frame-consolidation-design.md` §3.4;
-  статус `2026-08-24-status.md` §8
+  статус `2026-08-24-status.md` §8; `docs/plugins/demo_nodeditor_nodes/README.md`
 - **Тестове:** отложени (standing instruction)
 
 ## Бележки по имплементацията (план)
