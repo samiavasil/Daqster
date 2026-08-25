@@ -44,11 +44,12 @@ frame-а; не тригерира lazy `asImage()` освен ако ефект�
        платформи (независимо от GL наличност). Механизмът е имплементиран
        (`EffectSpec::Backend::CpuOnly` + runtime проверка в `setInData()`);
        текущите 7 ефекта са `GpuOrCpu`.
-- [ ] 4. **Един нод с комбобокс (рефакторинг).** Един `VideoEffectNode` с
+- [x] 4. **Един нод с комбобокс (рефакторинг).** Един `VideoEffectNode` с
        комбобокс за избор на ефект + параметри/конфигурация за избрания
        (като VideoTransformNode / Image пътя: комбо + QStackedWidget).
-       Вместо 7 отделни subclass-а (един нод = един ефект).
-- [ ] 5. **EffectSpec-ите остават.** `VideoEffectOps.h/.cpp` — 7-те ефекта с
+       Вместо 7 отделни subclass-а (един нод = един ефект). 7-те стари
+       subclass-а остават като deprecated aliases (стари saved графи).
+- [x] 5. **EffectSpec-ите остават.** `VideoEffectOps.h/.cpp` — 7-те ефекта с
        CPU fn + GLSL body; комбобоксът избира между тях (не се създават
        нови типове нодове).
 - [x] 6. **Qt5 + Qt6 builds PASS.**
@@ -59,7 +60,10 @@ frame-а; не тригерира lazy `asImage()` освен ако ефект�
 - **Коммити:** `54a3162` (VideoGLShaders.h), `c0ca1b1` (VideoEffectOps),
   `8b0c353` (VideoEffectGLProcessor), `dc1d11f` (VideoEffectNode + 7
   subclass-а), `a4111be` (CMake + регистрация), `3e91e58`/`1aa23c2`
-  (autostart smoke driver)
+  (autostart smoke driver); **комбобокс рефакторинг (AC 4/5):** `e84f6d0`
+  (един VideoEffectNode с комбо + QStackedWidget + 7 deprecated aliases),
+  `42bb57a` (регистрация на VideoEffectNode преди aliases-ите), `9fb46b9`
+  (smoke driver през load())
 - **Код:** `src/plugins/demo_nodeditor_nodes/Sources/Video/` (VideoGLShaders.h,
   VideoEffectOps.{h,cpp}, VideoEffectGLProcessor.{h,cpp}, VideoEffectNode.{h,cpp})
 - **Документация:** дизайн документ `video-frame-consolidation-design.md` §3.2;

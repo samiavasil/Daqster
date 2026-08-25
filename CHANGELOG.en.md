@@ -11,11 +11,14 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `VideoGLShaders.h` — shared GLSL source builders (`buildVertexSource`, `buildYuvFragmentSource`, `buildRgbaFragmentSource` extracted from `VideoGLBlitWidget.cpp` + new `buildEffectFragmentSource` with `u_flipY` and injectable effect body)
   - `VideoEffectOps.{h,cpp}` — `EffectSpec` registry (7 effects: brightness, contrast, grayscale, invert, sepia, channelSwap, flip) with CPU functions (delegating to `VideoTransformOps`) + GLSL body
   - `VideoEffectGLProcessor.{h,cpp}` — GPU backend: `QOpenGLContext` + `QOffscreenSurface` + `QOpenGLFramebufferObject`, Y/U/V upload with `GL_UNPACK_ROW_LENGTH`, `hasHardwareGL()` (llvmpipe/softpipe/SwiftShader detection, lazy cached)
-  - `VideoEffectNode.{h,cpp}` — node model (port 0 in/out `VideoFrameData`) + 7 thin subclasses (VideoEffectBrightness/Contrast/Grayscale/Invert/Sepia/ChannelSwap/Flip), runtime backend selection, parameter UI (slider/combo/info), save/load with clamps
+  - `VideoEffectNode.{h,cpp}` — node model (port 0 in/out `VideoFrameData`) + **single node with an effect combo** (combo + `QStackedWidget`, like `VideoTransformNode`) + 7 deprecated aliases (VideoEffectBrightness/Contrast/Grayscale/Invert/Sepia/ChannelSwap/Flip — old saved graphs), runtime backend selection, parameter UI (slider/combo/info), save/load with clamps (backward compatible: `"effect"` = id + params)
   - Registered under the "Video" category in the demo node editor plugin
 - **REQ-SW-PL-030** (FrameSampler — frame resampling):
   - `FrameSamplerNode.{h,cpp}` — standalone node (port 0 in/out `VideoFrameData`), "Every N-th frame" (1..1000) / "Max FPS" (1..120) modes, zero-copy passthrough (same `shared_ptr`), gate without emit on drop, save/load + counter/timer reset
   - Registered under the "Video" category in the demo node editor plugin
+- **REQ-SW-PL-032** (VideoFrameData lazy QImage cache):
+  - `VideoFrameData::asImage()` — lazy CPU QImage cache: converts at most once per frame, caches and shares the result between all CPU consumers (fan-out); `setFrame()` invalidates the cache; GUI-thread only (no mutex)
+  - Consumers use the cache: `VideoEffectNode` CPU path + `VideoOutputNode` software display / downstream consumer path (`VideoCompat::frameToImage` → `asImage()`); `VideoGLBlitWidget` stays on `frameToImage` (raw `QVideoFrame`, not `VideoFrameData`)
 - **Smoke drivers** (`NodeEditorIdeObject.cpp`): `DAQSTER_AUTOSTART_EFFECT=<effectId>` inserts a VideoEffect node between source and output; `DAQSTER_AUTOSTART_SAMPLER=1` inserts a FrameSampler
 - **Video nodes** (`src/plugins/demo_nodeditor_nodes/Sources/Video/`):
   - `VideoCompat.h` — Qt5/Qt6 multimedia abstraction (QVideoProbe vs QVideoSink, camera enumeration, media source assignment, playback-state signals)
@@ -192,6 +195,8 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - PL-028: refactor to a SINGLE `VideoEffectNode` with a combobox for effect selection + parameters/config (instead of 7 separate subclasses); EffectSpecs stay in `VideoEffectOps.h/.cpp`
   - PL-032: refined design — lazy caches (`asImage()`/`asTexture()`), node residency preferences (Option C), GPU-resident transport (Path B), Qt6-first/Qt5-after, format NV12 → Y+UV → YUV→RGB+effect → RGBA
   - PL-029: confirmed standalone node (not embedded in `VideoEffectNode`) — different UI (GLSL editor + compile + error log), extensible to DAQ/other types
+- **VideoEffectNode combobox refactor (REQ-SW-PL-028 AC 4/5, implemented)** — the 7 per-effect subclasses become deprecated aliases; a single `VideoEffectNode` with combo + `QStackedWidget` (7 pages: brightness slider, contrast slider, grayscale/invert/sepia/channelSwap info, flip combo). `setEffect(id)` selects by id (unknown → index 0); `save()`/`load()` format unchanged (`"effect"` = id + params) — backward compatible. The smoke driver (`DAQSTER_AUTOSTART_EFFECT`) adds a single `VideoEffect` node and sets the effect via `load()`. Commits: `e84f6d0`, `42bb57a`, `9fb46b9`
+- **VideoFrameData lazy QImage cache (REQ-SW-PL-032 AC 1/2/3 CPU part, implemented)** — `asImage()` converts once per frame and caches; `setFrame()` clears the cache; consumers (`VideoEffectNode` CPU path, `VideoOutputNode` software/consumer path) use the cache instead of `VideoCompat::frameToImage`. Commits: `3f9ec84`, `093b557`
 - **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality
 - **Documentation**:
   - Plugins hub (`docs/plugins/README.md`) + fixed plugin documentation links in INDEX/Architecture (`b5c204f`)

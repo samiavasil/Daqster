@@ -69,14 +69,21 @@
 
 ## Acceptance Criteria
 
-- [ ] 1. **Lazy кешове.** `VideoFrameData` с lazy `asImage()` (CPU QImage
+- [x] 1. **Lazy кешове.** `VideoFrameData` с lazy `asImage()` (CPU QImage
        кеш) + lazy `asTexture()` (GPU текстура кеш) — всяко представяне се
        изчислява най-много веднъж на кадър и се споделя.
-- [ ] 2. **Display/processing разделение.** Display = `frame()` zero-copy;
+       **CPU частта (asImage) е имплементирана** (2026-08-26); `asTexture()`
+       остава бъдещ лост (GPU-resident транспорт, AC 5/6/7).
+- [x] 2. **Display/processing разделение.** Display = `frame()` zero-copy;
        processing = `asImage()` 1×/кадър споделено.
-- [ ] 3. **Fan-out.** N консуматора споделят една конверсия (не N×
+       **CPU частта е имплементирана** — `VideoEffectNode` CPU път и
+       `VideoOutputNode` software/consumer път ползват `asImage()`.
+- [x] 3. **Fan-out.** N консуматора споделят една конверсия (не N×
        `toImage()`); всяко представяне се изчислява най-много веднъж на
        кадър, споделено между всички консуматори от същия тип.
+       **CPU частта е имплементирана** — кешът е в споделения
+       `VideoFrameData` обект; консуматорите (VideoEffectNode +
+       VideoOutputNode) споделят една конверсия.
 - [ ] 4. **Node residency предпочитания (Вариант C).** Нодовете ДЕКЛАРИРАТ
        какво представяне искат (GPU текстура или CPU QImage) — не са
        отделни GPU/CPU типове нодове и нямат config toggle. GPU нод
@@ -105,8 +112,13 @@
 
 ## Проследимост
 
-- **Коммити:** чака имплементация
-- **Код:** чака имплементация
+- **Коммити:** `3f9ec84` (feat: lazy asImage() QImage cache в VideoFrameData),
+  `093b557` (refactor: консуматорите ползват asImage()) — CPU частта на AC
+  1/2/3; `asTexture()`/GPU-resident транспорт — бъдещ лост
+- **Код:** `src/plugins/common/NodeDataTypes/VideoFrameData.h` (asImage +
+  m_imageCache), `src/plugins/demo_nodeditor_nodes/Sources/Video/`
+  (VideoEffectNode.cpp CPU път, VideoOutputNode.cpp software/consumer път,
+  VideoGLBlitWidget.cpp — коментар, остава на frameToImage)
 - **Документация:** дизайн документ `video-frame-consolidation-design.md` §3.1,
   §4; статус `2026-08-24-status.md` §4–§14
 - **Тестове:** отложени (standing instruction)
