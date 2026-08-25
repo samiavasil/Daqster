@@ -4,9 +4,11 @@
 
 #include <QComboBox>
 #include <QHBoxLayout>
+#include <QJsonObject>
 #include <QLabel>
 #include <QSignalBlocker>
 #include <QSlider>
+#include <QStackedWidget>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -16,9 +18,9 @@ using QtNodes::NodeDataType;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 
-VideoEffectNode::VideoEffectNode(const EffectSpec &spec)
-    : m_spec(spec)
+VideoEffectNode::VideoEffectNode()
 {
+    m_specs = VideoEffectOps::allSpecs();
     buildWidget();
 }
 
@@ -28,15 +30,11 @@ VideoEffectNode::~VideoEffectNode()
     m_widget = nullptr;
 }
 
-QString VideoEffectNode::caption() const
-{
-    return m_spec.displayName;
-}
-
 QJsonObject VideoEffectNode::save() const
 {
     QJsonObject obj = QtNodes::NodeDelegateModel::save();
-    obj[QStringLiteral("effect")] = m_spec.id;
+    if (m_effectIndex >= 0 && m_effectIndex < m_specs.size())
+        obj[QStringLiteral("effect")] = m_specs[m_effectIndex].id;
     obj[QStringLiteral("brightness")] = m_params.brightness;
     obj[QStringLiteral("contrast")] = m_params.contrast;
     obj[QStringLiteral("flipMode")] = m_params.flipHorizontal
@@ -55,6 +53,8 @@ void VideoEffectNode::load(QJsonObject const &p)
     m_params.brightness = std::max(-100, std::min(100, m_params.brightness));
     m_params.contrast = std::max(0, std::min(200, m_params.contrast));
 
+    // Unknown effect id -> setEffect falls back to index 0 safely.
+    setEffect(p.value(QStringLiteral("effect")).toString());
     syncWidgetsFromParams();
     reprocessCurrentFrame();
 }
@@ -96,14 +96,15 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
     }
 
     const QVideoFrame &frame = m_lastInput->frame();
+    const EffectSpec &spec = m_specs[m_effectIndex];
 
     // Runtime backend selection (REQ-SW-PL-028 AC 2/3): CPU-only effects always
     // run on the CPU; GpuOrCpu effects run on the GPU only with hardware GL.
-    const bool useGpu = (m_spec.backend == EffectSpec::Backend::GpuOrCpu)
+    const bool useGpu = (spec.backend == EffectSpec::Backend::GpuOrCpu)
         && VideoEffectGLProcessor::hasHardwareGL();
 
     if (useGpu) {
-        const QImage result = m_glProcessor.process(frame, m_spec, m_params);
+        const QImage result = m_glProcessor.process(frame, spec, m_params);
         if (!result.isNull()) {
             m_output = std::make_shared<VideoFrameData>(QVideoFrame(result));
             Q_EMIT dataUpdated(0);
@@ -132,6 +133,38 @@ QWidget *VideoEffectNode::embeddedWidget()
     return m_widget;
 }
 
+int VideoEffectNode::indexOfEffect(const QString &id) const
+{
+    for (int i = 0; i < m_specs.size(); ++i) {
+        if (m_specs[i].id == id)
+            return i;
+    }
+    return -1;
+}
+
+void VideoEffectNode::setEffect(const QString &id)
+{
+    const int index = indexOfEffect(id);
+    setEffectIndex(index < 0 ? 0 : index);
+    syncWidgetsFromParams();
+    reprocessCurrentFrame();
+}
+
+void VideoEffectNode::setEffectIndex(int index)
+{
+    if (index < 0 || index >= m_specs.size())
+        index = 0;
+
+    m_effectIndex = index;
+
+    if (m_effectCombo && m_effectCombo->currentIndex() != index) {
+        const QSignalBlocker blocker(m_effectCombo);
+        m_effectCombo->setCurrentIndex(index);
+    }
+    if (m_stack && m_stack->currentIndex() != index)
+        m_stack->setCurrentIndex(index);
+}
+
 void VideoEffectNode::buildWidget()
 {
     m_widget = new QWidget();
@@ -139,47 +172,64 @@ void VideoEffectNode::buildWidget()
     layout->setContentsMargins(4, 4, 4, 4);
     layout->setSpacing(6);
 
-    if (m_spec.id == QStringLiteral("brightness")) {
-        layout->addWidget(createSliderPage(
-            m_brightnessSlider, m_brightnessValue, -100, 100,
-            m_params.brightness, tr("Brightness (-100..+100)"),
-            [this](int value) {
-                m_params.brightness = value;
+    m_effectCombo = new QComboBox(m_widget);
+    m_effectCombo->setMinimumWidth(190);
+    for (const EffectSpec &spec : m_specs)
+        m_effectCombo->addItem(spec.displayName);
+    layout->addWidget(m_effectCombo);
+
+    m_stack = new QStackedWidget(m_widget);
+    // Page order must match allSpecs() order so combo index == stack index:
+    // brightness, contrast, grayscale, invert, sepia, channelSwap, flip.
+    m_stack->addWidget(createSliderPage(
+        m_brightnessSlider, m_brightnessValue, -100, 100,
+        m_params.brightness, tr("Brightness (-100..+100)"),
+        [this](int value) {
+            m_params.brightness = value;
+            reprocessCurrentFrame();
+        }));
+    m_stack->addWidget(createSliderPage(
+        m_contrastSlider, m_contrastValue, 0, 200,
+        m_params.contrast, tr("Contrast (0..200%, 100% = unchanged)"),
+        [this](int value) {
+            m_params.contrast = value;
+            reprocessCurrentFrame();
+        }));
+    m_stack->addWidget(createInfoPage(tr("Converts every frame to grayscale.")));
+    m_stack->addWidget(createInfoPage(tr("Inverts the colors of every frame.")));
+    m_stack->addWidget(createInfoPage(tr("Applies a sepia tone to every frame.")));
+    m_stack->addWidget(createInfoPage(
+        tr("Swaps the red and blue channels (R<->B) on every frame.")));
+    m_stack->addWidget(createFlipPage());
+    layout->addWidget(m_stack, 1);
+
+    connect(m_effectCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [this](int index) {
+                setEffectIndex(index);
                 reprocessCurrentFrame();
-            }));
-    } else if (m_spec.id == QStringLiteral("contrast")) {
-        layout->addWidget(createSliderPage(
-            m_contrastSlider, m_contrastValue, 0, 200,
-            m_params.contrast, tr("Contrast (0..200%, 100% = unchanged)"),
-            [this](int value) {
-                m_params.contrast = value;
-                reprocessCurrentFrame();
-            }));
-    } else if (m_spec.id == QStringLiteral("flip")) {
-        layout->addWidget(createFlipPage());
-    } else {
-        QString info;
-        if (m_spec.id == QStringLiteral("grayscale"))
-            info = tr("Converts every frame to grayscale.");
-        else if (m_spec.id == QStringLiteral("invert"))
-            info = tr("Inverts the colors of every frame.");
-        else if (m_spec.id == QStringLiteral("sepia"))
-            info = tr("Applies a sepia tone to every frame.");
-        else if (m_spec.id == QStringLiteral("channelSwap"))
-            info = tr("Swaps the red and blue channels (R<->B) on every frame.");
-        else
-            info = tr("No parameters.");
-        auto *label = new QLabel(info, m_widget);
-        label->setWordWrap(true);
-        layout->addWidget(label);
-    }
+            });
+
+    setEffectIndex(0);
+}
+
+QWidget *VideoEffectNode::createInfoPage(const QString &text)
+{
+    auto *page = new QWidget(m_stack);
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(4, 4, 4, 4);
+
+    auto *label = new QLabel(text, page);
+    label->setWordWrap(true);
+    layout->addWidget(label);
+
+    return page;
 }
 
 QWidget *VideoEffectNode::createSliderPage(QSlider *&sliderOut, QLabel *&valueLabelOut,
                                            int min, int max, int initial, const QString &title,
                                            std::function<void(int)> onChanged)
 {
-    auto *page = new QWidget(m_widget);
+    auto *page = new QWidget(m_stack);
     auto *layout = new QVBoxLayout(page);
     layout->setContentsMargins(4, 4, 4, 4);
 
@@ -210,7 +260,7 @@ QWidget *VideoEffectNode::createSliderPage(QSlider *&sliderOut, QLabel *&valueLa
 
 QWidget *VideoEffectNode::createFlipPage()
 {
-    auto *page = new QWidget(m_widget);
+    auto *page = new QWidget(m_stack);
     auto *layout = new QVBoxLayout(page);
     layout->setContentsMargins(4, 4, 4, 4);
 
@@ -252,7 +302,8 @@ void VideoEffectNode::reprocessCurrentFrame()
 
 QImage VideoEffectNode::applyCpu(const QImage &source) const
 {
-    if (!m_spec.cpuApply)
+    const EffectSpec &spec = m_specs[m_effectIndex];
+    if (!spec.cpuApply)
         return source;
-    return m_spec.cpuApply(source, m_params);
+    return spec.cpuApply(source, m_params);
 }

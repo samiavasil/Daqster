@@ -8,6 +8,7 @@
 
 #include <QImage>
 #include <QJsonObject>
+#include <QVector>
 
 #include <functional>
 #include <memory>
@@ -15,39 +16,54 @@
 class QComboBox;
 class QLabel;
 class QSlider;
+class QStackedWidget;
 class QWidget;
 
 class VideoFrameData;
 
 /**
- * @brief Video effect node (REQ-SW-PL-028): one node = one effect.
+ * @brief Video effect node (REQ-SW-PL-028): ONE node with an effect combo.
  *
  * Accepts VideoFrameData on port 0 and emits VideoFrameData on port 0. The
- * backend is chosen at runtime per effect + GL detection:
- *   - CpuOnly effects always run on the CPU (VideoCompat::frameToImage ->
- *     EffectSpec::cpuApply -> QVideoFrame).
+ * effect is chosen from a combo box (like VideoTransformNode / the Image
+ * path: combo + QStackedWidget); the backend is chosen at runtime per
+ * effect + GL detection:
+ *   - CpuOnly effects always run on the CPU (asImage() -> EffectSpec::cpuApply
+ *     -> QVideoFrame).
  *   - GpuOrCpu effects run on the GPU (VideoEffectGLProcessor) when hardware
  *     GL is available and fall back to the CPU otherwise (including when the
  *     frame format is not NV12/YUV420P).
  *
- * The embedded widget is a single parameter page matching the effect
- * (brightness slider, contrast slider, flip combo, or an info label).
- * Parameters are persisted via save()/load().
+ * The embedded widget is an effect combo + a QStackedWidget with one
+ * parameter page per effect (brightness slider, contrast slider, flip combo,
+ * or an info label). Parameters are persisted via save()/load() — the format
+ * is backward compatible with the old per-effect subclasses ("effect" = id +
+ * parameters).
+ *
+ * The 7 old per-effect subclasses (VideoEffectBrightnessNode, ...) remain as
+ * deprecated aliases so old saved graphs keep working (Task 3.2).
  */
 class VideoEffectNode : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
 public:
-    explicit VideoEffectNode(const EffectSpec &spec);
+    VideoEffectNode();
     ~VideoEffectNode() override;
 
-    QString caption() const override;
+    QString caption() const override
+    { return QStringLiteral("Video Effect"); }
+
     bool captionVisible() const override
     { return true; }
 
     QString name() const override
     { return QStringLiteral("VideoEffect"); }
+
+    /// Selects the effect by id (from VideoEffectOps::allSpecs()). Unknown
+    /// ids fall back to index 0. Syncs the widget stack and reprocesses the
+    /// current frame.
+    void setEffect(const QString &id);
 
     QJsonObject save() const override;
     void load(QJsonObject const &p) override;
@@ -65,7 +81,10 @@ public:
     QWidget *embeddedWidget() override;
 
 private:
+    int indexOfEffect(const QString &id) const;
+    void setEffectIndex(int index);
     void buildWidget();
+    QWidget *createInfoPage(const QString &text);
     QWidget *createSliderPage(QSlider *&sliderOut, QLabel *&valueLabelOut,
                               int min, int max, int initial, const QString &title,
                               std::function<void(int)> onChanged);
@@ -74,7 +93,8 @@ private:
     void reprocessCurrentFrame();
     QImage applyCpu(const QImage &source) const;
 
-    EffectSpec m_spec;
+    QVector<EffectSpec> m_specs;
+    int m_effectIndex = 0;
     EffectParams m_params;
     VideoEffectGLProcessor m_glProcessor;
 
@@ -82,6 +102,8 @@ private:
     std::shared_ptr<VideoFrameData> m_output;
 
     QWidget *m_widget = nullptr;
+    QComboBox *m_effectCombo = nullptr;
+    QStackedWidget *m_stack = nullptr;
     QSlider *m_brightnessSlider = nullptr;
     QLabel *m_brightnessValue = nullptr;
     QSlider *m_contrastSlider = nullptr;
@@ -89,15 +111,15 @@ private:
     QComboBox *m_flipCombo = nullptr;
 };
 
-// ── 7 thin subclasses — one per effect (REQ-SW-PL-028 AC 4) ──────────────────
-// Same pattern as the saved-graph aliases in DemoNodeEditorNodesObject.cpp:
-// no Q_OBJECT (no extra signals/slots), the constructor fixes the effect spec
-// and name() returns the registry key.
+// ── 7 deprecated aliases — one per effect (REQ-SW-PL-028 AC 4) ───────────────
+// Old saved graphs reference these registry keys ("VideoEffectBrightness",
+// "VideoEffectContrast", ...). Each alias is a plain VideoEffectNode with the
+// effect preselected via setEffect(); no Q_OBJECT (no extra signals/slots).
+// New graphs should use the single "VideoEffect" node with the effect combo.
 class VideoEffectBrightnessNode : public VideoEffectNode
 {
 public:
-    VideoEffectBrightnessNode()
-        : VideoEffectNode(VideoEffectOps::specFor(QStringLiteral("brightness"))) {}
+    VideoEffectBrightnessNode() : VideoEffectNode() { setEffect(QStringLiteral("brightness")); }
     QString name() const override
     { return QStringLiteral("VideoEffectBrightness"); }
 };
@@ -105,8 +127,7 @@ public:
 class VideoEffectContrastNode : public VideoEffectNode
 {
 public:
-    VideoEffectContrastNode()
-        : VideoEffectNode(VideoEffectOps::specFor(QStringLiteral("contrast"))) {}
+    VideoEffectContrastNode() : VideoEffectNode() { setEffect(QStringLiteral("contrast")); }
     QString name() const override
     { return QStringLiteral("VideoEffectContrast"); }
 };
@@ -114,8 +135,7 @@ public:
 class VideoEffectGrayscaleNode : public VideoEffectNode
 {
 public:
-    VideoEffectGrayscaleNode()
-        : VideoEffectNode(VideoEffectOps::specFor(QStringLiteral("grayscale"))) {}
+    VideoEffectGrayscaleNode() : VideoEffectNode() { setEffect(QStringLiteral("grayscale")); }
     QString name() const override
     { return QStringLiteral("VideoEffectGrayscale"); }
 };
@@ -123,8 +143,7 @@ public:
 class VideoEffectInvertNode : public VideoEffectNode
 {
 public:
-    VideoEffectInvertNode()
-        : VideoEffectNode(VideoEffectOps::specFor(QStringLiteral("invert"))) {}
+    VideoEffectInvertNode() : VideoEffectNode() { setEffect(QStringLiteral("invert")); }
     QString name() const override
     { return QStringLiteral("VideoEffectInvert"); }
 };
@@ -132,8 +151,7 @@ public:
 class VideoEffectSepiaNode : public VideoEffectNode
 {
 public:
-    VideoEffectSepiaNode()
-        : VideoEffectNode(VideoEffectOps::specFor(QStringLiteral("sepia"))) {}
+    VideoEffectSepiaNode() : VideoEffectNode() { setEffect(QStringLiteral("sepia")); }
     QString name() const override
     { return QStringLiteral("VideoEffectSepia"); }
 };
@@ -141,8 +159,7 @@ public:
 class VideoEffectChannelSwapNode : public VideoEffectNode
 {
 public:
-    VideoEffectChannelSwapNode()
-        : VideoEffectNode(VideoEffectOps::specFor(QStringLiteral("channelSwap"))) {}
+    VideoEffectChannelSwapNode() : VideoEffectNode() { setEffect(QStringLiteral("channelSwap")); }
     QString name() const override
     { return QStringLiteral("VideoEffectChannelSwap"); }
 };
@@ -150,8 +167,7 @@ public:
 class VideoEffectFlipNode : public VideoEffectNode
 {
 public:
-    VideoEffectFlipNode()
-        : VideoEffectNode(VideoEffectOps::specFor(QStringLiteral("flip"))) {}
+    VideoEffectFlipNode() : VideoEffectNode() { setEffect(QStringLiteral("flip")); }
     QString name() const override
     { return QStringLiteral("VideoEffectFlip"); }
 };
