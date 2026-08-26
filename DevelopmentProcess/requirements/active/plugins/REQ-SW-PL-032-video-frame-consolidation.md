@@ -128,8 +128,15 @@
        чупят съществуващите графи.
 - [ ] 9. **Фаза 2.** Еквивалентност доказана — ръчна оценка от потребителя
        (визуално; без пиксел-диф харнес).
-- [ ] 10. **Фаза 3.** `VideoTransformNode`, `FrameToTensorNode`,
-       `VideoOutputNode` fallback, saved графи мигрирани.
+- [x] 10. **Фаза 3.** `VideoTransformNode`, `FrameToTensorNode`,
+        `VideoOutputNode` fallback, saved графи мигрирани.
+        **Имплементирано (2026-08-26):** `VideoTransformNode` е премахнат
+        (заменен от `VideoEffectNode`, който покрива всичките му операции);
+        `ImageData` типът е изтрит — единственият frame тип е
+        `VideoFrameData`; image портовете са премахнати от source-ите и
+        `VideoOutputNode`; `FrameToTensorNode` мигрира към `VideoFrameData`
+        (частен REQ-AI-007); saved-graph последиците са документирани в
+        README-а.
 - [ ] 11. **Qt5 + Qt6 builds PASS.**
 - [ ] 12. **Тестове** (отложени по стояща инструкция).
 
@@ -181,3 +188,25 @@
   2026-08-24); без пиксел-диф харнес.
 - **Фаза 3:** миграция на `VideoTransformNode`, `FrameToTensorNode` (частен
   REQ-AI-007), `VideoOutputNode` fallback, saved графи (type id промени).
+
+## Бележки по имплементацията (актуално, 2026-08-26 — Фаза 3)
+
+- **`VideoTransformNode` премахнат** (комит `688c899`): registry
+  `registerModel<VideoTransformNode>("Video")` и CMake записите са изтрити,
+  файловете `VideoTransformNode.{h,cpp}` са изтрити. `VideoTransformOps.{h,cpp}`
+  и `OpenCVTransforms.cpp` **остават** — `VideoEffectOps` ги ползва за CPU
+  ефектите (brightness/contrast/grayscale/invert/sepia/channelSwap/flip/blur +
+  gaussianBlur/canny/threshold при HAVE_OPENCV).
+- **`ImageData` типът изтрит** (комит `817002e`):
+  `src/plugins/common/NodeDataTypes/ImageData.h` е изтрит; grep за `ImageData`
+  в `src/` и `tests/` → 0 резултата. Единственият frame тип е `VideoFrameData`.
+- **Image портовете премахнати:** source-ите (`CameraSourceNode`,
+  `VideoFileSourceNode`, `StreamSourceNode`) емитират само `VideoFrameData`
+  (port 0) + `SampledData` (port 1, audio); `VideoOutputNode` приема само
+  `VideoFrameData` (комити `63010f3`, `3fc51a3`).
+- **Saved-graph последици:** стари графи с `"VideoTransform"` registry ключ или
+  image edges **няма да се заредят** — пресвържете към `VideoEffect` +
+  `VideoFrameData` вериги. Документирано в README-а на demo_nodeditor_nodes.
+- **Фаза 1 (AC 8) е завършена исторически** — `ImageData` остана през Фаза 1,
+  новите нодове работеха паралелно; **Фаза 2 (AC 9)** чака ръчната визуална
+  оценка от потребителя.

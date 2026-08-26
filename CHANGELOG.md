@@ -12,6 +12,7 @@
   - `VideoEffectOps.{h,cpp}` — `EffectSpec` регистър (7 ефекта: brightness, contrast, grayscale, invert, sepia, channelSwap, flip) с CPU функции (делегират на `VideoTransformOps`) + GLSL body
   - `VideoEffectGLProcessor.{h,cpp}` — GPU backend: `QOpenGLContext` + `QOffscreenSurface` + `QOpenGLFramebufferObject`, Y/U/V upload с `GL_UNPACK_ROW_LENGTH`, `hasHardwareGL()` (llvmpipe/softpipe/SwiftShader детекция, lazy кеширана)
   - `VideoEffectNode.{h,cpp}` — нод модел (port 0 in/out `VideoFrameData`) + **един нод с комбобокс** за избор на ефект (комбо + `QStackedWidget`, като `VideoTransformNode`), runtime backend избор, параметър UI (slider/combo/info), save/load с clamp-ове (backward compatible: `"effect"` = id + параметри)
+  - **Blur + OpenCV ефекти (2026-08-26, комит `095981b`)** — добавени `blur` (box blur, radius 0..10) + `gaussianBlur`/`canny`/`threshold` (OpenCV, само при `HAVE_OPENCV`) като `CpuOnly` ефекти — общо 11 ефекта; покриват всички операции на премахнатия `VideoTransformNode`
   - Регистрирани под категория "Video" в demo node editor plugin
 - **REQ-SW-PL-030** (FrameSampler — ресемплиране):
   - `FrameSamplerNode.{h,cpp}` — отделен нод (port 0 in/out `VideoFrameData`), режими „Every N-th frame" (1..1000) / „Max FPS" (1..120), zero-copy passthrough (същият `shared_ptr`), gate без emit при не-pass, save/load + reset на брояча/таймера
@@ -182,6 +183,11 @@
 - **VideoFrameData lazy QImage кеш (REQ-SW-PL-032 AC 1/2/3 CPU част, имплементиран)** — `asImage()` конвертира веднъж на кадър и кешира; `setFrame()` чисти кеша; консуматорите (`VideoEffectNode` CPU път, `VideoOutputNode` software/consumer път) ползват кеша вместо `VideoCompat::frameToImage`. Комити: `3f9ec84`, `093b557`
 - **GPU-resident транспорт Stage 2A (REQ-SW-PL-032 AC 1/5, имплементиран)** — `VideoGLContextManager` (споделен GL контекст, share group с display-а), `VideoFrameData::asTexture()` (lazy Y/U/V upload, кеширан handle) + `fromTexture()` (GPU-resident RGBA wrap) + `isGpuResident()`; `VideoEffectGLProcessor` мигрира към споделения контекст. Комити: `6cb1aaa`, `803e4f6`, `9a39006`
 - **GPU-resident ефект верига Stage 2B (REQ-SW-PL-032 AC 5/7, имплементиран за ефект веригата)** — `VideoEffectGLProcessor::processTexture()` (текстура-вход → текстура-изход, без `toImage()` readback; program cache key с layout ∈ {nv12, 420p, rgba}; нова `buildRgbaEffectFragmentSource()`); `VideoEffectNode` GPU път `asTexture()` → `processTexture()` → `fromTexture()` — вторият ефект консумира текстурата директно; `VideoGLBlitWidget::presentTexture()` — zero-copy display на RGBA текстурата; Qt6 native display прави readback на границата (Stage 2C). **PERF (Qt5 GL blit, sepia): cpu 62.2% → 16.9%, present 7.1ms → 0.1ms, GLBLIT avg 322us → 18.8us (fmt=Texture(RGBA)); 2-ефекта (sepia+invert) cpu 19.0%; Qt6: 34% → 25% (1 ефект), 26.8% (2 ефекта).** Комити: `b6af20e`, `d1a5e7a`
+- **Фаза 3 — миграция към един VideoFrameData тип (REQ-SW-PL-032, 2026-08-26)**:
+  - **Image портовете премахнати** от video source-ите (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) — емитират само `VideoFrameData` (port 0) + `SampledData` (port 1, audio); `VideoOutputNode` приема само `VideoFrameData`. Комити: `63010f3`, `3fc51a3`
+  - **`VideoTransformNode` премахнат** — заменен от `VideoEffectNode`, който покрива всичките му операции (вкл. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` остават (ползвани от `VideoEffectOps`). Комит: `688c899`
+  - **`ImageData` типът изтрит** — единственият frame тип е `VideoFrameData`; grep `ImageData` в `src/` и `tests/` → 0. Комит: `817002e`
+  - **Saved-graph последици:** стари графи с `"VideoTransform"` registry ключ или image edges няма да се заредят — пресвържете към `VideoEffect` + `VideoFrameData` вериги (документирано в README-а)
 - **Directory Restructuring**:
   - `src/external_libs/` → `src/plugins/external_libs/` (всички external libs са под plugins)
   - `src/plugins/node_editor/` → разделяне на `node_editor_widget/` + `node_editor_app/`
@@ -265,6 +271,9 @@
 - `src/plugins/node_editor/` — монолитен plugin (заменен от widget + app)
 - `src/external_libs/` — празна директория премахната
 - **7-те deprecated VideoEffect alias нода (REQ-SW-PL-028, 2026-08-26, решение на потребителя)** — `VideoEffectBrightnessNode`, `VideoEffectContrastNode`, `VideoEffectGrayscaleNode`, `VideoEffectInvertNode`, `VideoEffectSepiaNode`, `VideoEffectChannelSwapNode`, `VideoEffectFlipNode` премахнати от `VideoEffectNode.h` и регистрациите им от `DemoNodeEditorNodesObject.cpp`. Единственият регистриран ефект нод е `VideoEffect` (с комбобокс). **Стари saved графи, които реферират alias registry ключовете, вече няма да се зареждат** (прието последствие).
+- **`VideoTransformNode` (REQ-SW-PL-032 Фаза 3, 2026-08-26)** — премахнат от регистрацията, CMake и файловата система; заменен от `VideoEffectNode` (покрива всичките му операции вкл. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` остават (ползвани от `VideoEffectOps`). Комит: `688c899`
+- **`ImageData` тип (REQ-SW-PL-032 Фаза 3, 2026-08-26)** — `src/plugins/common/NodeDataTypes/ImageData.h` изтрит; единственият frame тип е `VideoFrameData`. Комит: `817002e`
+- **Image портове (REQ-SW-PL-032 Фаза 3, 2026-08-26)** — премахнати от video source-ите и `VideoOutputNode`; source-ите емитират само `VideoFrameData` + `SampledData` (audio). Комити: `63010f3`, `3fc51a3`
 
 - **Framework Architecture Refactoring** - голям рефакторинг за извличане на reusable компоненти:
   - **Platform Abstraction Layer** (`frame_work/base/src/platform/`):

@@ -12,6 +12,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `VideoEffectOps.{h,cpp}` — `EffectSpec` registry (7 effects: brightness, contrast, grayscale, invert, sepia, channelSwap, flip) with CPU functions (delegating to `VideoTransformOps`) + GLSL body
   - `VideoEffectGLProcessor.{h,cpp}` — GPU backend: `QOpenGLContext` + `QOffscreenSurface` + `QOpenGLFramebufferObject`, Y/U/V upload with `GL_UNPACK_ROW_LENGTH`, `hasHardwareGL()` (llvmpipe/softpipe/SwiftShader detection, lazy cached)
   - `VideoEffectNode.{h,cpp}` — node model (port 0 in/out `VideoFrameData`) + **single node with an effect combo** (combo + `QStackedWidget`, like `VideoTransformNode`), runtime backend selection, parameter UI (slider/combo/info), save/load with clamps (backward compatible: `"effect"` = id + params)
+  - **Blur + OpenCV effects (2026-08-26, commit `095981b`)** — added `blur` (box blur, radius 0..10) + `gaussianBlur`/`canny`/`threshold` (OpenCV, only with `HAVE_OPENCV`) as `CpuOnly` effects — 11 effects total; they cover all operations of the removed `VideoTransformNode`
   - Registered under the "Video" category in the demo node editor plugin
 - **REQ-SW-PL-030** (FrameSampler — frame resampling):
   - `FrameSamplerNode.{h,cpp}` — standalone node (port 0 in/out `VideoFrameData`), "Every N-th frame" (1..1000) / "Max FPS" (1..120) modes, zero-copy passthrough (same `shared_ptr`), gate without emit on drop, save/load + counter/timer reset
@@ -208,6 +209,11 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **VideoFrameData lazy QImage cache (REQ-SW-PL-032 AC 1/2/3 CPU part, implemented)** — `asImage()` converts once per frame and caches; `setFrame()` clears the cache; consumers (`VideoEffectNode` CPU path, `VideoOutputNode` software/consumer path) use the cache instead of `VideoCompat::frameToImage`. Commits: `3f9ec84`, `093b557`
 - **GPU-resident transport Stage 2A (REQ-SW-PL-032 AC 1/5, implemented)** — `VideoGLContextManager` (shared GL context, share group with the display), `VideoFrameData::asTexture()` (lazy Y/U/V upload, cached handle) + `fromTexture()` (GPU-resident RGBA wrap) + `isGpuResident()`; `VideoEffectGLProcessor` migrated to the shared context. Commits: `6cb1aaa`, `803e4f6`, `9a39006`
 - **GPU-resident effect chain Stage 2B (REQ-SW-PL-032 AC 5/7, implemented for the effect chain)** — `VideoEffectGLProcessor::processTexture()` (texture-in → texture-out, no `toImage()` readback; program cache key with layout ∈ {nv12, 420p, rgba}; new `buildRgbaEffectFragmentSource()`); `VideoEffectNode` GPU path `asTexture()` → `processTexture()` → `fromTexture()` — a second effect consumes the texture directly; `VideoGLBlitWidget::presentTexture()` — zero-copy display of the RGBA texture; the Qt6 native display does a readback at the boundary (Stage 2C). **PERF (Qt5 GL blit, sepia): cpu 62.2% → 16.9%, present 7.1ms → 0.1ms, GLBLIT avg 322us → 18.8us (fmt=Texture(RGBA)); 2 effects (sepia+invert) cpu 19.0%; Qt6: 34% → 25% (1 effect), 26.8% (2 effects).** Commits: `b6af20e`, `d1a5e7a`
+- **Phase 3 — migration to a single VideoFrameData type (REQ-SW-PL-032, 2026-08-26)**:
+  - **Image ports removed** from the video source nodes (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) — they now emit only `VideoFrameData` (port 0) + `SampledData` (port 1, audio); `VideoOutputNode` accepts only `VideoFrameData`. Commits: `63010f3`, `3fc51a3`
+  - **`VideoTransformNode` removed** — superseded by `VideoEffectNode`, which covers all of its operations (incl. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` stay (used by `VideoEffectOps`). Commit: `688c899`
+  - **`ImageData` type deleted** — the only frame type is `VideoFrameData`; grep `ImageData` in `src/` and `tests/` → 0. Commit: `817002e`
+  - **Saved-graph consequences:** old graphs with the `"VideoTransform"` registry key or image edges no longer load — rewire to `VideoEffect` + `VideoFrameData` chains (documented in the README)
 - **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality
 - **Documentation**:
   - Plugins hub (`docs/plugins/README.md`) + fixed plugin documentation links in INDEX/Architecture (`b5c204f`)
@@ -249,6 +255,9 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 - **7 deprecated VideoEffect alias nodes (REQ-SW-PL-028, 2026-08-26, user decision)** — `VideoEffectBrightnessNode`, `VideoEffectContrastNode`, `VideoEffectGrayscaleNode`, `VideoEffectInvertNode`, `VideoEffectSepiaNode`, `VideoEffectChannelSwapNode`, `VideoEffectFlipNode` removed from `VideoEffectNode.h` and their registrations from `DemoNodeEditorNodesObject.cpp`. The single `VideoEffect` node (effect combo) is the only registered effect node. **Old saved graphs referencing the alias registry keys no longer load** (accepted consequence).
+- **`VideoTransformNode` (REQ-SW-PL-032 Phase 3, 2026-08-26)** — removed from registration, CMake and the filesystem; superseded by `VideoEffectNode` (covers all its operations incl. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` stay (used by `VideoEffectOps`). Commit: `688c899`
+- **`ImageData` type (REQ-SW-PL-032 Phase 3, 2026-08-26)** — `src/plugins/common/NodeDataTypes/ImageData.h` deleted; the only frame type is `VideoFrameData`. Commit: `817002e`
+- **Image ports (REQ-SW-PL-032 Phase 3, 2026-08-26)** — removed from the video source nodes and `VideoOutputNode`; sources emit only `VideoFrameData` + `SampledData` (audio). Commits: `63010f3`, `3fc51a3`
 
 ## [0.2.0] - 2025-09-18
 

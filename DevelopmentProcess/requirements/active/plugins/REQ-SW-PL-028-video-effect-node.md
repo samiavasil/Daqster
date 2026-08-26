@@ -41,9 +41,14 @@ frame-а; не тригерира lazy `asImage()` освен ако ефект�
        GL детекция; при липса на хардуерен GL (`llvmpipe`/`softpipe`/
        `SwiftShader`) се ползва CPU.
 - [x] 3. **CPU-only ефекти.** CPU-only ефекти вървят на CPU на всички
-       платформи (независимо от GL наличност). Механизмът е имплементиран
-       (`EffectSpec::Backend::CpuOnly` + runtime проверка в `setInData()`);
-       текущите 7 ефекта са `GpuOrCpu`.
+        платформи (независимо от GL наличност). Механизмът е имплементиран
+        (`EffectSpec::Backend::CpuOnly` + runtime проверка в `setInData()`);
+        текущите 7 ефекта са `GpuOrCpu`.
+        **Нови CpuOnly ефекти (2026-08-26):** добавени са blur (box blur,
+        radius 0..10) + gaussianBlur/canny/threshold (OpenCV, само при
+        `HAVE_OPENCV`) като `CpuOnly` — механизмът вече се упражнява от реални
+        CpuOnly ефекти. Общо 11 ефекта; това покрива всички операции на
+        премахнатия `VideoTransformNode` (REQ-SW-PL-032 Фаза 3).
 - [x] 4. **Един нод с комбобокс (рефакторинг).** Един `VideoEffectNode` с
        комбобокс за избор на ефект + параметри/конфигурация за избрания
        (като VideoTransformNode / Image пътя: комбо + QStackedWidget).
@@ -66,7 +71,9 @@ frame-а; не тригерира lazy `asImage()` освен ако ефект�
   (един VideoEffectNode с комбо + QStackedWidget + 7 deprecated aliases),
   `42bb57a` (регистрация на VideoEffectNode преди aliases-ите), `9fb46b9`
   (smoke driver през load()); **премахване на aliases-ите (2026-08-26):**
-  `dd82f4e` (7-те deprecated alias нода премахнати — единствен `VideoEffect`)
+  `dd82f4e` (7-те deprecated alias нода премахнати — единствен `VideoEffect`);
+  **blur + OpenCV ефекти (2026-08-26):** `095981b` (blur + gaussianBlur/canny/
+  threshold като CpuOnly)
 - **Код:** `src/plugins/demo_nodeditor_nodes/Sources/Video/` (VideoGLShaders.h,
   VideoEffectOps.{h,cpp}, VideoEffectGLProcessor.{h,cpp}, VideoEffectNode.{h,cpp})
 - **Документация:** дизайн документ `video-frame-consolidation-design.md` §3.2;
@@ -89,5 +96,11 @@ frame-а; не тригерира lazy `asImage()` освен ако ефект�
 - **`EffectSpec`:** описание на ефекта — име, параметри, опционален GLSL за
   GPU backend-а.
 - **CPU-only ефекти:** винаги CPU, независимо от GL — не се опитва GPU път.
+  **Актуално (2026-08-26):** blur (box blur) + gaussianBlur/canny/threshold
+  (OpenCV, само при `HAVE_OPENCV`) са `CpuOnly`; останалите 7 са `GpuOrCpu`.
+  OpenCV ефектите делегират на `OpenCVTransforms.cpp` (който остава след
+  премахването на `VideoTransformNode`).
 - **Staged:** нодът се добавя във Фаза 1 (паралелно с `ImageData`); замества
-  `VideoTransformNode` във Фаза 3 (виж REQ-SW-PL-032).
+  `VideoTransformNode` във Фаза 3 (виж REQ-SW-PL-032). **Фаза 3 (2026-08-26):**
+  `VideoTransformNode` е премахнат — `VideoEffectNode` покрива всичките му
+  операции.
