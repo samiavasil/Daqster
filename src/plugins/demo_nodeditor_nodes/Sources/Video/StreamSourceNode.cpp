@@ -1,7 +1,6 @@
 #include "StreamSourceNode.h"
 
 #include "AudioBufferToSampled.h"
-#include "NodeDataTypes/ImageData.h"
 #include "NodeDataTypes/VideoFrameData.h"
 #include "StreamUrlValidator.h"
 
@@ -20,8 +19,7 @@ using QtNodes::PortIndex;
 using QtNodes::PortType;
 
 StreamSourceNode::StreamSourceNode()
-    : m_output(std::make_shared<ImageData>())
-    , m_videoFrameOut(std::make_shared<VideoFrameData>())
+    : m_videoFrameOut(std::make_shared<VideoFrameData>())
 {
     buildWidget();
 
@@ -93,9 +91,9 @@ unsigned int StreamSourceNode::nPorts(PortType portType) const
 {
     switch (portType) {
     case PortType::Out:
-        // Port 0: "video-frame" (zero-copy), port 1: "image" (converted on
-        // demand), port 2: "sample" (audio, appended last — REQ-SW-PL-022).
-        return 3;
+        // Port 0: "video-frame" (zero-copy), port 2: "sample" (audio,
+        // appended last — REQ-SW-PL-022).
+        return 2;
     default:
         return 0;
     }
@@ -106,8 +104,6 @@ NodeDataType StreamSourceNode::dataType(PortType portType, PortIndex portIndex) 
     Q_UNUSED(portType);
     if (portIndex == 2)
         return SampledData().type();
-    if (portIndex == 1)
-        return ImageData().type();
     return VideoFrameData().type();
 }
 
@@ -115,8 +111,6 @@ std::shared_ptr<NodeData> StreamSourceNode::outData(PortIndex port)
 {
     if (port == 2)
         return m_audioOut;
-    if (port == 1)
-        return m_output;
     return m_videoFrameOut;
 }
 
@@ -128,17 +122,13 @@ void StreamSourceNode::setInData(std::shared_ptr<NodeData> data, PortIndex portI
 
 void StreamSourceNode::outputConnectionCreated(QtNodes::ConnectionId const &conId)
 {
-    if (conId.outPortIndex == 1)
-        ++m_imagePortConnectionCount;
-    else if (conId.outPortIndex == 2)
+    if (conId.outPortIndex == 2)
         ++m_audioPortConnectionCount;
 }
 
 void StreamSourceNode::outputConnectionDeleted(QtNodes::ConnectionId const &conId)
 {
-    if (conId.outPortIndex == 1 && m_imagePortConnectionCount > 0)
-        --m_imagePortConnectionCount;
-    else if (conId.outPortIndex == 2 && m_audioPortConnectionCount > 0)
+    if (conId.outPortIndex == 2 && m_audioPortConnectionCount > 0)
         --m_audioPortConnectionCount;
 }
 
@@ -208,28 +198,16 @@ void StreamSourceNode::onFrameAvailable(const QVideoFrame &frame)
 
     // Zero-copy transport: wrap the decoded frame (ref-count bump only) and
     // emit it downstream (REQ-SW-PL-020 AC 2). No QImage conversion in the
-    // hot path — the "image" port is converted only when a processing
-    // consumer is connected.
+    // hot path — the single video-frame port carries the frame (REQ-SW-PL-032).
     {
         PERF_SCOPE("video", "source.wrap_emit");
         m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
         Q_EMIT dataUpdated(0);
     }
-
-    if (m_imagePortConnectionCount <= 0)
-        return;
-
-    const QImage image = VideoCompat::frameToImage(frame);
-    if (image.isNull())
-        return;
-
-    m_output = std::make_shared<ImageData>(image);
-    Q_EMIT dataUpdated(1);
 #else
     // Qt5 (NV12-direct, mirror of the Qt6 branch): the decoded probe frame is
     // wrapped as an OWNED copy (frameToOwnedFrame) and emitted on the
-    // video-frame port (0); the image port (1) is converted only while a
-    // processing consumer is connected. No QImage conversion in the hot path.
+    // video-frame port (0). No QImage conversion in the hot path.
     if (PERF_ENABLED("video")) {
         const std::int64_t gapNs = m_perfWatch.mark();
         if (!m_perfFirstFrame && gapNs > 0)
@@ -243,21 +221,9 @@ void StreamSourceNode::onFrameAvailable(const QVideoFrame &frame)
     {
         PERF_SCOPE("video", "source.wrap_emit");
         m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
-        // Unsupported formats produce an invalid owned frame → skip the
-        // video-frame emit and let the image port carry the QImage fallback.
         if (m_videoFrameOut->hasFrame())
             Q_EMIT dataUpdated(0);
     }
-
-    if (m_imagePortConnectionCount <= 0)
-        return;
-
-    const QImage image = VideoCompat::frameToImage(frame);
-    if (image.isNull())
-        return;
-
-    m_output = std::make_shared<ImageData>(image);
-    Q_EMIT dataUpdated(1);
 #endif
 }
 
@@ -275,7 +241,7 @@ void StreamSourceNode::onAudioBufferReceived(const QAudioBuffer &buffer)
         return;
 
     // Emit only while a downstream consumer is connected (connection-count
-    // model, like m_imagePortConnectionCount).
+    // model, like the video-frame port).
     if (m_audioPortConnectionCount <= 0)
         return;
 

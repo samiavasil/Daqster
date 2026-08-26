@@ -1,6 +1,5 @@
 #include "CameraSourceNode.h"
 
-#include "NodeDataTypes/ImageData.h"
 #include "NodeDataTypes/VideoFrameData.h"
 
 #include <QCamera>
@@ -17,8 +16,7 @@ using QtNodes::PortIndex;
 using QtNodes::PortType;
 
 CameraSourceNode::CameraSourceNode()
-    : m_output(std::make_shared<ImageData>())
-    , m_videoFrameOut(std::make_shared<VideoFrameData>())
+    : m_videoFrameOut(std::make_shared<VideoFrameData>())
 {
     buildWidget();
     refreshDeviceList();
@@ -61,8 +59,8 @@ unsigned int CameraSourceNode::nPorts(PortType portType) const
 {
     switch (portType) {
     case PortType::Out:
-        // Port 0: "video-frame" (zero-copy), port 1: "image" (converted on demand).
-        return 2;
+        // Port 0: "video-frame" (zero-copy, single video-frame type).
+        return 1;
     default:
         return 0;
     }
@@ -71,15 +69,13 @@ unsigned int CameraSourceNode::nPorts(PortType portType) const
 NodeDataType CameraSourceNode::dataType(PortType portType, PortIndex portIndex) const
 {
     Q_UNUSED(portType);
-    if (portIndex == 1)
-        return ImageData().type();
+    Q_UNUSED(portIndex);
     return VideoFrameData().type();
 }
 
 std::shared_ptr<NodeData> CameraSourceNode::outData(PortIndex port)
 {
-    if (port == 1)
-        return m_output;
+    Q_UNUSED(port);
     return m_videoFrameOut;
 }
 
@@ -87,18 +83,6 @@ void CameraSourceNode::setInData(std::shared_ptr<NodeData> data, PortIndex portI
 {
     Q_UNUSED(data);
     Q_UNUSED(portIndex);
-}
-
-void CameraSourceNode::outputConnectionCreated(QtNodes::ConnectionId const &conId)
-{
-    if (conId.outPortIndex == 1)
-        ++m_imagePortConnectionCount;
-}
-
-void CameraSourceNode::outputConnectionDeleted(QtNodes::ConnectionId const &conId)
-{
-    if (conId.outPortIndex == 1 && m_imagePortConnectionCount > 0)
-        --m_imagePortConnectionCount;
 }
 
 QWidget *CameraSourceNode::embeddedWidget()
@@ -250,28 +234,16 @@ void CameraSourceNode::onFrameAvailable(const QVideoFrame &frame)
 
     // Zero-copy transport: wrap the decoded frame (ref-count bump only) and
     // emit it downstream (REQ-SW-PL-020 AC 2). No QImage conversion in the
-    // hot path — the "image" port is converted only when a processing
-    // consumer is connected.
+    // hot path — the single video-frame port carries the frame (REQ-SW-PL-032).
     {
         PERF_SCOPE("video", "source.wrap_emit");
         m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
         Q_EMIT dataUpdated(0);
     }
-
-    if (m_imagePortConnectionCount <= 0)
-        return;
-
-    const QImage image = VideoCompat::frameToImage(frame);
-    if (image.isNull())
-        return;
-
-    m_output = std::make_shared<ImageData>(image);
-    Q_EMIT dataUpdated(1);
 #else
     // Qt5 (NV12-direct, mirror of the Qt6 branch): the decoded probe frame is
     // wrapped as an OWNED copy (frameToOwnedFrame) and emitted on the
-    // video-frame port (0); the image port (1) is converted only while a
-    // processing consumer is connected. No QImage conversion in the hot path.
+    // video-frame port (0). No QImage conversion in the hot path.
     if (PERF_ENABLED("video")) {
         const std::int64_t gapNs = m_perfWatch.mark();
         if (!m_perfFirstFrame && gapNs > 0)
@@ -285,21 +257,9 @@ void CameraSourceNode::onFrameAvailable(const QVideoFrame &frame)
     {
         PERF_SCOPE("video", "source.wrap_emit");
         m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
-        // Unsupported formats produce an invalid owned frame → skip the
-        // video-frame emit and let the image port carry the QImage fallback.
         if (m_videoFrameOut->hasFrame())
             Q_EMIT dataUpdated(0);
     }
-
-    if (m_imagePortConnectionCount <= 0)
-        return;
-
-    const QImage image = VideoCompat::frameToImage(frame);
-    if (image.isNull())
-        return;
-
-    m_output = std::make_shared<ImageData>(image);
-    Q_EMIT dataUpdated(1);
 #endif
 }
 
