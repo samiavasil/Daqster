@@ -1,6 +1,5 @@
 #include "VideoOutputNode.h"
 
-#include "NodeDataTypes/ImageData.h"
 #include "NodeDataTypes/VideoFrameData.h"
 #include "PerfProfiler.h"
 #include "VideoCompat.h"
@@ -217,8 +216,8 @@ unsigned int VideoOutputNode::nPorts(PortType portType) const
 {
     switch (portType) {
     case PortType::In:
-        // Port 0: "video-frame" (zero-copy GPU), port 1: "image" (software).
-        return 2;
+        // Port 0: "video-frame" (zero-copy GPU, single video-frame type).
+        return 1;
     case PortType::Out:
         return 1;
     default:
@@ -228,13 +227,8 @@ unsigned int VideoOutputNode::nPorts(PortType portType) const
 
 NodeDataType VideoOutputNode::dataType(PortType portType, PortIndex portIndex) const
 {
-    if (portType == PortType::In) {
-        if (portIndex == 0)
-            return VideoFrameData().type();
-        return ImageData().type();
-    }
     Q_UNUSED(portIndex);
-    return ImageData().type();
+    return VideoFrameData().type();
 }
 
 std::shared_ptr<NodeData> VideoOutputNode::outData(PortIndex port)
@@ -333,10 +327,11 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                 updateDisplay();
             }
 
-            // Only do the expensive QImage conversion + ImageData output when a
-            // downstream processing consumer is connected to the output port.
-            // Otherwise the GPU path handles display in the detached window and
-            // the in-node QLabel shows a static placeholder (no per-frame work).
+            // Only do the expensive QImage conversion + VideoFrameData output
+            // when a downstream processing consumer is connected to the output
+            // port. Otherwise the GPU path handles display in the detached
+            // window and the in-node QLabel shows a static placeholder (no
+            // per-frame work).
             if (m_outputConnectionCount > 0) {
                 // Reuse the frame conversion when the software display path
                 // just ran; otherwise convert here (GL display path with a
@@ -347,37 +342,21 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                 QImage image = softwareDisplayed
                     ? m_image
                     : videoFrame->asImage();
-                // Propagate only real frames — never an ImageData wrapping a
-                // null QImage (would emit a bogus "empty" data update).
+                // Propagate only real frames — never a VideoFrameData wrapping
+                // a null QImage (would emit a bogus "empty" data update).
                 if (image.isNull())
                     return;
                 m_image = image;
                 updateDisplay();
-                m_output = std::make_shared<ImageData>(image);
+                // Output chains emit the single video-frame type (REQ-SW-PL-032):
+                // wrap the converted QImage back into a VideoFrameData.
+                m_output = std::make_shared<VideoFrameData>(QVideoFrame(image));
                 Q_EMIT dataUpdated(0);
             }
         } else {
             m_videoFrame.reset();
             m_image = QImage();
             m_output.reset();
-            updateDisplay();
-            Q_EMIT dataInvalidated(0);
-        }
-        return;
-    }
-
-    if (portIndex == 1) {
-        // --- Port 1: "image" (software / backward-compatible path) ---
-        m_image = QImage();
-        m_output.reset();
-
-        auto imageData = std::dynamic_pointer_cast<ImageData>(data);
-        if (imageData && !imageData->isEmpty()) {
-            m_image = imageData->image();
-            m_output = imageData;
-            updateDisplay();
-            Q_EMIT dataUpdated(0);
-        } else {
             updateDisplay();
             Q_EMIT dataInvalidated(0);
         }

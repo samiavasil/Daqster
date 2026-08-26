@@ -13,8 +13,6 @@ class VideoOutputNodeTest : public QObject
 
 private slots:
     void portTopology();
-    void imageData_passthrough();
-    void nullImageData_invalidates();
     void videoInputConnectionGuard();
     void outputConnectionCounter();
     void outputChain();

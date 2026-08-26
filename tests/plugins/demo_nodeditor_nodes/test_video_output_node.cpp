@@ -1,6 +1,5 @@
 #include "test_video_output_node.h"
 
-#include "NodeDataTypes/ImageData.h"
 #include "NodeDataTypes/VideoFrameData.h"
 #include "VideoOutputNode.h"
 
@@ -23,86 +22,27 @@ static ConnectionId makeConId(PortIndex inPort, PortIndex outPort)
 
 // ── portTopology ─────────────────────────────────────────────────────────────
 //
-// On both Qt versions the node exposes two input ports (video-frame, image)
-// plus one output (REQ-SW-PL-020, NV12-direct).
+// On both Qt versions the node exposes a single input port (video-frame) plus
+// one output (REQ-SW-PL-020, NV12-direct, single video-frame type
+// REQ-SW-PL-032).
 void VideoOutputNodeTest::portTopology()
 {
     VideoOutputNode node;
 
-    QCOMPARE(node.nPorts(PortType::In), 2u);
+    QCOMPARE(node.nPorts(PortType::In), 1u);
     // Port 0: "video-frame"
     {
         const auto dt = node.dataType(PortType::In, 0);
         QCOMPARE(dt.id, QStringLiteral("video-frame"));
         QCOMPARE(dt.name, QStringLiteral("Video Frame"));
     }
-    // Port 1: "image"
-    {
-        const auto dt = node.dataType(PortType::In, 1);
-        QCOMPARE(dt.id, QStringLiteral("image"));
-        QCOMPARE(dt.name, QStringLiteral("Image"));
-    }
 
     QCOMPARE(node.nPorts(PortType::Out), 1u);
     {
         const auto dt = node.dataType(PortType::Out, 0);
-        QCOMPARE(dt.id, QStringLiteral("image"));
-        QCOMPARE(dt.name, QStringLiteral("Image"));
+        QCOMPARE(dt.id, QStringLiteral("video-frame"));
+        QCOMPARE(dt.name, QStringLiteral("Video Frame"));
     }
-}
-
-// ── imageData_passthrough ────────────────────────────────────────────────────
-//
-// Feeds a non-empty ImageData into the image port (port 1) and verifies it
-// propagates to outData(0).
-void VideoOutputNodeTest::imageData_passthrough()
-{
-    VideoOutputNode node;
-    QSignalSpy spy(&node, &QtNodes::NodeDelegateModel::dataUpdated);
-
-    QImage img(128, 128, QImage::Format_RGB32);
-    img.fill(Qt::green);
-    auto input = std::make_shared<ImageData>(img);
-
-    constexpr PortIndex imagePort = 1;
-
-    node.setInData(input, imagePort);
-
-    QCOMPARE(spy.count(), 1);
-    QCOMPARE(spy.at(0).at(0).toInt(), 0);
-
-    auto output = node.outData(0);
-    QVERIFY(output != nullptr);
-    auto outImage = std::dynamic_pointer_cast<ImageData>(output);
-    QVERIFY(outImage != nullptr);
-    QCOMPARE(outImage->width(), 128);
-    QCOMPARE(outImage->height(), 128);
-}
-
-// ── nullImageData_invalidates ────────────────────────────────────────────────
-//
-// Feeding an empty ImageData emits dataInvalidated(0) and sets outData(0) to
-// nullptr.
-void VideoOutputNodeTest::nullImageData_invalidates()
-{
-    VideoOutputNode node;
-    QSignalSpy spy(&node, &QtNodes::NodeDelegateModel::dataInvalidated);
-
-    constexpr PortIndex imagePort = 1;
-
-    // First feed a valid image so there is something to invalidate.
-    {
-        QImage img(64, 64, QImage::Format_RGB32);
-        img.fill(Qt::blue);
-        node.setInData(std::make_shared<ImageData>(img), imagePort);
-    }
-
-    spy.clear();
-    node.setInData(std::make_shared<ImageData>(), imagePort);
-
-    QCOMPARE(spy.count(), 1);
-    QCOMPARE(spy.at(0).at(0).toInt(), 0);
-    QVERIFY(node.outData(0) == nullptr);
 }
 
 // ── videoInputConnectionGuard ────────────────────────────────────────────────
@@ -150,7 +90,7 @@ void VideoOutputNodeTest::videoInputConnectionGuard()
 //
 // outputConnectionCreated/deleted(0) are tracked as a ref-count. The
 // counter controls whether the per-frame QImage conversion runs: only
-// when counter > 0 does setInData(port 0) produce an ImageData output.
+// when counter > 0 does setInData(port 0) produce a VideoFrameData output.
 // We verify indirectly via the presence of dataUpdated(0).
 void VideoOutputNodeTest::outputConnectionCounter()
 {
@@ -187,8 +127,8 @@ void VideoOutputNodeTest::outputConnectionCounter()
 // ── outputChain ──────────────────────────────────────────────────────────────
 //
 // With an output connection present, feeding a synthetic VideoFrameData
-// produces ImageData on outData(0) and emits dataUpdated(0). The output
-// image must match the source frame's dimensions.
+// produces VideoFrameData on outData(0) and emits dataUpdated(0). The output
+// frame must match the source frame's dimensions.
 void VideoOutputNodeTest::outputChain()
 {
     VideoOutputNode node;
@@ -208,13 +148,13 @@ void VideoOutputNodeTest::outputChain()
     QCOMPARE(spyUpdated.count(), 1);
     QCOMPARE(spyUpdated.at(0).at(0).toInt(), 0);
 
-    // outData(0) must contain the converted ImageData.
+    // outData(0) must contain the converted VideoFrameData.
     auto out = node.outData(0);
     QVERIFY(out != nullptr);
-    auto outImage = std::dynamic_pointer_cast<ImageData>(out);
-    QVERIFY(outImage != nullptr);
-    QCOMPARE(outImage->width(), frameSize.width());
-    QCOMPARE(outImage->height(), frameSize.height());
+    auto outFrame = std::dynamic_pointer_cast<VideoFrameData>(out);
+    QVERIFY(outFrame != nullptr);
+    QCOMPARE(outFrame->asImage().width(), frameSize.width());
+    QCOMPARE(outFrame->asImage().height(), frameSize.height());
 }
 
 QTEST_MAIN(VideoOutputNodeTest)

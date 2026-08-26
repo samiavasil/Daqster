@@ -12,7 +12,6 @@
 class QLabel;
 class QWidget;
 
-class ImageData;
 class QCheckBox;
 class QTimer;
 class VideoFrameData;
@@ -26,13 +25,12 @@ class QVideoWidget;
 /**
  * @brief Video output node: displays incoming video frames.
  *
- * The node has two input ports on BOTH Qt versions (REQ-SW-PL-020, NV12-direct):
+ * The node has a single input port on BOTH Qt versions (REQ-SW-PL-020,
+ * NV12-direct, single video-frame type REQ-SW-PL-032):
  *   - port 0 "video-frame" — zero-copy VideoFrameData; presented on the
  *     detached GL blit window (default on Qt5; Qt6 uses QVideoWidget unless
  *     DAQSTER_GL_BLIT=1). Qt5 frames are owned copies (frameToOwnedFrame),
  *     Qt6 frames are the decoded probe frames.
- *   - port 1 "image" — ImageData; displayed on the embedded QLabel (backward
- *     compatible with processing chains that emit ImageData).
  *
  * GL blit display selection (REQ-SW-PL-021):
  *   - Default per Qt version: Qt5 = GL blit ON (fastest measured display path,
@@ -58,14 +56,10 @@ class QVideoWidget;
  * (QTBUG-35299 prevents hosting a native video surface in the scene).
  *
  * The node also passes the frame through on its output port so output chains
- * can be built (e.g. output of a modifier). The per-frame QImage conversion +
- * ImageData output only runs while a downstream consumer is connected to the
- * output port (tracked via outputConnectionCreated/Deleted).
- *
- * NOTE (NV12-direct renumbering): on Qt5 port 0 changed from "image" to
- * "video-frame" — old saved Qt5 graphs that connected an ImageData producer to
- * input port 0 will lose that edge and must be re-connected to the image port
- * (port 1).
+ * can be built (e.g. output of a modifier). The output emits VideoFrameData
+ * (single video-frame type REQ-SW-PL-032); the per-frame QImage conversion +
+ * output only runs while a downstream consumer is connected to the output port
+ * (tracked via outputConnectionCreated/Deleted).
  */
 class VideoOutputNode : public QtNodes::NodeDelegateModel
 {
@@ -183,7 +177,7 @@ private:
     QWidget *m_widget = nullptr;
     QLabel *m_label = nullptr;
     QImage m_image;
-    std::shared_ptr<ImageData> m_output;
+    std::shared_ptr<VideoFrameData> m_output;
 
     /// GL blit display window. Created instead of the QVideoWidget (Qt6) /
     /// QPixmap path (Qt5) while GL display is enabled (see m_glEnabled).
