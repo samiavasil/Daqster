@@ -101,6 +101,11 @@ public:
     /// True when the payload lives on the GPU (GpuYuv / GpuRgba).
     bool isGpuResident() const { return m_residency != VideoFrameResidency::Cpu; }
 
+    /// True when the payload is a GPU-resident RGBA texture (effect output,
+    /// REQ-SW-PL-032 Stage 2B). The wrapped QVideoFrame is invalid then —
+    /// consumers must use asTexture()/asImage() instead of frame().
+    bool isGpuRgba() const { return m_residency == VideoFrameResidency::GpuRgba; }
+
     /// Lazy CPU QImage representation (REQ-SW-PL-032 AC 1/2/3).
     ///
     /// Converts the wrapped frame to a QImage at most once per frame and

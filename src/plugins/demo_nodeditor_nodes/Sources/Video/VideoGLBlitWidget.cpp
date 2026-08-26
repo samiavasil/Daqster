@@ -1,5 +1,6 @@
 #include "VideoGLBlitWidget.h"
 
+#include "NodeDataTypes/VideoFrameData.h"
 #include "VideoCompat.h"
 #include "VideoGLShaders.h"
 
@@ -97,6 +98,8 @@ void VideoGLBlitWidget::presentFrame(const QVideoFrame &frame)
     if (!frame.isValid())
         return;
 
+    m_textureOwner.reset();
+    m_textureHandle = VideoTextureHandle();
     m_frame = frame;
     m_image = QImage();
     m_yuvW = frame.width();
@@ -132,10 +135,30 @@ void VideoGLBlitWidget::presentImage(const QImage &image)
 {
     if (image.isNull())
         return;
+    m_textureOwner.reset();
+    m_textureHandle = VideoTextureHandle();
     m_image = image;
     m_hasYuv = false;
     m_frame = QVideoFrame();
     m_formatName = QStringLiteral("QImage(%1)").arg(m_image.format());
+    update();
+}
+
+void VideoGLBlitWidget::presentTexture(const VideoTextureHandle &handle,
+                                       std::shared_ptr<VideoFrameData> owner)
+{
+    if (handle.texY == 0 || handle.width <= 0 || handle.height <= 0)
+        return;
+    // Hold the owning frame so the texture stays alive until the next present
+    // (the deferred repaint binds it in the shared GL context).
+    m_textureOwner = std::move(owner);
+    m_textureHandle = handle;
+    m_hasYuv = false;
+    m_image = QImage();
+    m_frame = QVideoFrame();
+    m_yuvW = handle.width;
+    m_yuvH = handle.height;
+    m_formatName = QStringLiteral("Texture(RGBA)");
     update();
 }
 
@@ -217,6 +240,9 @@ void VideoGLBlitWidget::paintGL()
     if (m_hasYuv) {
         srcW = m_yuvW;
         srcH = m_yuvH;
+    } else if (m_textureHandle.texY != 0) {
+        srcW = m_textureHandle.width;
+        srcH = m_textureHandle.height;
     } else if (!m_image.isNull()) {
         srcW = m_image.width();
         srcH = m_image.height();
@@ -246,6 +272,11 @@ void VideoGLBlitWidget::paintGL()
 
 void VideoGLBlitWidget::uploadFrame()
 {
+    if (m_textureHandle.texY != 0) {
+        // GPU-resident RGBA texture (effect output) — already on the GPU,
+        // nothing to upload (REQ-SW-PL-032 Stage 2B).
+        return;
+    }
     if (m_hasYuv) {
         if (!m_frame.isValid())
             return;
@@ -333,7 +364,7 @@ void VideoGLBlitWidget::drawQuad()
     QOpenGLShaderProgram *prog = nullptr;
     if (m_hasYuv)
         prog = m_useNv12 ? m_programNv12 : m_program420p;
-    else if (!m_image.isNull())
+    else if (m_textureHandle.texY != 0 || !m_image.isNull())
         prog = m_programRgba;
 
     if (prog == nullptr)
@@ -342,7 +373,13 @@ void VideoGLBlitWidget::drawQuad()
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     prog->bind();
 
-    if (m_hasYuv) {
+    if (m_textureHandle.texY != 0) {
+        // GPU-resident RGBA texture (effect output): bind it directly — no
+        // upload (REQ-SW-PL-032 Stage 2B).
+        f->glActiveTexture(GL_TEXTURE0);
+        f->glBindTexture(GL_TEXTURE_2D, m_textureHandle.texY);
+        prog->setUniformValue("u_tex", 0);
+    } else if (m_hasYuv) {
         f->glActiveTexture(GL_TEXTURE0);
         f->glBindTexture(GL_TEXTURE_2D, m_texY);
         prog->setUniformValue("u_texY", 0);

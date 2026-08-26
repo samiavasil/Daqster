@@ -96,7 +96,6 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
         return;
     }
 
-    const QVideoFrame &frame = m_lastInput->frame();
     const EffectSpec &spec = m_specs[m_effectIndex];
 
     // Runtime backend selection (REQ-SW-PL-028 AC 2/3): CPU-only effects always
@@ -105,13 +104,21 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
         && VideoGLContextManager::hasHardwareGL();
 
     if (useGpu) {
-        const QImage result = m_glProcessor.process(frame, spec, m_params);
-        if (!result.isNull()) {
-            m_output = std::make_shared<VideoFrameData>(QVideoFrame(result));
-            Q_EMIT dataUpdated(0);
-            return;
+        // GPU-resident transport (REQ-SW-PL-032 AC 5): when the input is
+        // already GPU-resident (previous effect output / asTexture cache) the
+        // handle is taken directly — no upload, no readback. A CPU frame is
+        // uploaded lazily once and cached on the shared VideoFrameData.
+        VideoTextureHandle input;
+        if (m_lastInput->asTexture(&input)) {
+            VideoTextureHandle out;
+            if (m_glProcessor.processTexture(input, spec, m_params, &out)) {
+                m_output = VideoFrameData::fromTexture(out);
+                Q_EMIT dataUpdated(0);
+                return;
+            }
+            // GPU processing failed (GL error) — CPU fallback below.
         }
-        // GPU path failed (unsupported frame format / GL error) — CPU fallback.
+        // asTexture failed (unsupported format / GL error) — CPU fallback below.
     }
 
     // CPU path: reuse the lazy QImage cache on the shared VideoFrameData

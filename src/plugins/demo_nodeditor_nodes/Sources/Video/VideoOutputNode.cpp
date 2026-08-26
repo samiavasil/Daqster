@@ -279,7 +279,18 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
             bool softwareDisplayed = false;
             if (m_glWidget != nullptr) {
                 PERF_SCOPE("video", "output.present");
-                m_glWidget->presentFrame(videoFrame->frame());
+                if (videoFrame->isGpuRgba()) {
+                    // GPU-resident RGBA frame (effect output): present the
+                    // texture directly — zero-copy, no upload/readback
+                    // (REQ-SW-PL-032 AC 5).
+                    VideoTextureHandle h;
+                    if (videoFrame->asTexture(&h))
+                        m_glWidget->presentTexture(h, videoFrame);
+                    else
+                        m_glWidget->presentImage(videoFrame->asImage());
+                } else {
+                    m_glWidget->presentFrame(videoFrame->frame());
+                }
             }
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             else if (m_videoWidget != nullptr) {
@@ -287,7 +298,7 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                 // "output.present" measures the blit (presentFrame).
                 PERF_SCOPE("video", "output.present");
                 VideoCompat::presentFrame(m_videoWidget->videoSink(),
-                                          videoFrame->frame());
+                                          presentableFrame(videoFrame));
             }
 #endif
             else {
@@ -302,7 +313,7 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                     if (m_sceneVideoItem != nullptr) {
                         PERF_SCOPE("video", "output.present");
                         VideoCompat::presentFrame(m_sceneVideoItem->videoSink(),
-                                                  videoFrame->frame());
+                                                  presentableFrame(videoFrame));
                         return;
                     }
                 }
@@ -445,6 +456,18 @@ void VideoOutputNode::inputConnectionDeleted(QtNodes::ConnectionId const &conId)
 QWidget *VideoOutputNode::embeddedWidget()
 {
     return m_widget;
+}
+
+QVideoFrame VideoOutputNode::presentableFrame(
+    const std::shared_ptr<VideoFrameData> &frame) const
+{
+    if (frame->isGpuRgba()) {
+        // GPU-resident RGBA frame (effect output): the native sinks cannot
+        // consume a raw GL texture — readback at the display boundary
+        // (REQ-SW-PL-032 AC 5; Stage 2C will present the texture directly).
+        return QVideoFrame(frame->asImage());
+    }
+    return frame->frame();
 }
 
 bool VideoOutputNode::eventFilter(QObject *object, QEvent *event)

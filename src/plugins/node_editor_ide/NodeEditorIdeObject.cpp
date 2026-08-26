@@ -225,9 +225,13 @@ void NodeEditorIdeObject::autoStartVideo()
     // "grayscale", "invert", "sepia", "channelSwap", "flip"). The node is the
     // single "VideoEffect" node with an effect combo; the effect is selected
     // through load() (same path a saved graph uses).
+    // DAQSTER_AUTOSTART_EFFECT2=<effectId> inserts a SECOND effect after the
+    // first — the GPU-resident chain smoke (REQ-SW-PL-032 Stage 2B): the second
+    // effect consumes the first effect's texture directly (no upload/readback).
     QtNodes::NodeId prevId = srcId;
-    const QString effectId = qEnvironmentVariable("DAQSTER_AUTOSTART_EFFECT");
-    if (!effectId.isEmpty()) {
+    const auto insertEffect = [&](const QString &effectId) {
+        if (effectId.isEmpty())
+            return;
         const QtNodes::NodeId effectNodeId = gm->addNode(QStringLiteral("VideoEffect"));
         DEBUG << "autoStartVideo: effect node created id=" << effectNodeId;
 
@@ -247,7 +251,7 @@ void NodeEditorIdeObject::autoStartVideo()
         const QtNodes::ConnectionId inConn{prevId, 0, effectNodeId, 0};
         if (gm->connectionPossible(inConn)) {
             gm->addConnection(inConn);
-            DEBUG << "autoStartVideo: connected source -> effect";
+            DEBUG << "autoStartVideo: connected prev -> effect";
         } else {
             DEBUG << "autoStartVideo: effect input connection NOT possible";
         }
@@ -259,7 +263,9 @@ void NodeEditorIdeObject::autoStartVideo()
             DEBUG << "autoStartVideo: effect output connection NOT possible";
         }
         prevId = effectNodeId;
-    }
+    };
+    insertEffect(qEnvironmentVariable("DAQSTER_AUTOSTART_EFFECT"));
+    insertEffect(qEnvironmentVariable("DAQSTER_AUTOSTART_EFFECT2"));
 
     // ── Dev driver: DAQSTER_AUTOSTART_SAMPLER=1 ─────────────────────────────
     // Inserts a FrameSampler node between the previous node and the output

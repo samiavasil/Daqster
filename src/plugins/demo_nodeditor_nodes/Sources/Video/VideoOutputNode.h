@@ -6,6 +6,7 @@
 #include "ProcessCpu.h"
 
 #include <QImage>
+#include <QtMultimedia/QVideoFrame>
 #include <memory>
 
 class QLabel;
@@ -115,6 +116,12 @@ protected:
 
 private:
     void updateDisplay();
+
+    /// Frame to present on a native sink (Qt6 QVideoWidget / in-scene item).
+    /// GPU-resident RGBA frames (effect output) cannot be consumed by the
+    /// native sinks — readback at the display boundary (Stage 2C will present
+    /// the texture directly). CPU / GpuYuv frames pass through zero-copy.
+    QVideoFrame presentableFrame(const std::shared_ptr<VideoFrameData> &frame) const;
 
     /// Log the single-line console perf report (5 s timer, both Qt5 + Qt6).
     void logPerfLine();
