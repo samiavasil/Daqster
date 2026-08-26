@@ -77,6 +77,10 @@ set(VIDEO_NODES
     Sources/Video/VideoEffectGLProcessor.cpp
     Sources/Video/VideoEffectNode.h
     Sources/Video/VideoEffectNode.cpp
+    Sources/Video/CustomShaderGLProcessor.h
+    Sources/Video/CustomShaderGLProcessor.cpp
+    Sources/Video/CustomShaderNode.h
+    Sources/Video/CustomShaderNode.cpp
     Sources/Video/FrameSamplerNode.h
     Sources/Video/FrameSamplerNode.cpp
 )

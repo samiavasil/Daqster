@@ -20,6 +20,7 @@
 #include "Sources/Video/StreamSourceNode.h"
 #include "Sources/Video/VideoOutputNode.h"
 #include "Sources/Video/VideoEffectNode.h"
+#include "Sources/Video/CustomShaderNode.h"
 #include "Sources/Video/FrameSamplerNode.h"
 #include <QDevIoDisplayModelObsolete.h>
 
@@ -122,6 +123,7 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     // 2026-08-26 (user decision) — old saved graphs referencing those registry
     // keys no longer load; "VideoEffect" is the only registered effect node.
     registry.registerModel<VideoEffectNode>("Video");
+    registry.registerModel<CustomShaderNode>("Video");
     registry.registerModel<FrameSamplerNode>("Video");
 }
 
