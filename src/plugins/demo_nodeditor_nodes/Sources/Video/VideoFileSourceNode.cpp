@@ -102,7 +102,7 @@ unsigned int VideoFileSourceNode::nPorts(PortType portType) const
     case PortType::Out:
         // Port 0: "video-frame" (zero-copy), port 2: "sample" (audio,
         // appended last — REQ-SW-PL-022).
-        return 2;
+        return 3;
     default:
         return 0;
     }
