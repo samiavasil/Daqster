@@ -51,7 +51,7 @@ set(LLAMA_SOURCE_NODES
     Sources/LLamaSource/ChatBaseWidget.cpp
 )
 
-# ── Video nodes (ImageData / "image" flow) ──────────────────────────
+# ── Video nodes (VideoFrameData / "video-frame" flow) ───────────────
 set(VIDEO_NODES
     Sources/Video/VideoCompat.h
     Sources/Video/CameraSourceNode.h

@@ -110,7 +110,7 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     registry.registerModel<LLamaModelDataModel>("LLama");
     registry.registerModel<ConsoleDataModel>("LLama");
 
-    // Video nodes (ImageData / "image" flow)
+    // Video nodes (VideoFrameData / "video-frame" flow)
     registry.registerModel<CameraSourceNode>("Video");
     registry.registerModel<VideoFileSourceNode>("Video");
     registry.registerModel<StreamSourceNode>("Video");
