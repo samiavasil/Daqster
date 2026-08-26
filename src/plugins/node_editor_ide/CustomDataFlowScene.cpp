@@ -8,8 +8,12 @@ void CustomDataFlowScene::onNodeDataArrived(QtNodes::NodeId const nodeId)
     if (!node)
         return;
 
-    auto *model = static_cast<QtNodes::DataFlowGraphModel &>(graphModel())
-                      .delegateModel<QtNodes::NodeDelegateModel>(nodeId);
+    auto *dfModel = dynamic_cast<QtNodes::DataFlowGraphModel *>(&graphModel());
+    if (!dfModel) {
+        onNodeUpdated(nodeId);
+        return;
+    }
+    auto *model = dfModel->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
 
     if (model && !model->dataArrivalChangesGeometry()) {
         // Repaint-only fast path (video pipeline): the node updates its

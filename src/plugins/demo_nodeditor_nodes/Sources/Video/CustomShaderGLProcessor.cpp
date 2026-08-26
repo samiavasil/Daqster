@@ -11,6 +11,7 @@
 #include <QOpenGLShaderProgram>
 #include <QOpenGLVertexArrayObject>
 #include <QSurfaceFormat>
+#include <QVector2D>
 
 namespace {
 
@@ -62,6 +63,8 @@ CustomShaderGLProcessor::~CustomShaderGLProcessor()
             m_vbo = 0;
         }
         mgr.doneCurrent();
+    } else {
+        qWarning() << "CustomShaderGLProcessor: could not make GL context current for cleanup";
     }
 }
 
