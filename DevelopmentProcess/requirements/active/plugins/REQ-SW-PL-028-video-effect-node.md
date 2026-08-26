@@ -65,7 +65,8 @@ frame-а; не тригерира lazy `asImage()` освен ако ефект�
   (autostart smoke driver); **комбобокс рефакторинг (AC 4/5):** `e84f6d0`
   (един VideoEffectNode с комбо + QStackedWidget + 7 deprecated aliases),
   `42bb57a` (регистрация на VideoEffectNode преди aliases-ите), `9fb46b9`
-  (smoke driver през load())
+  (smoke driver през load()); **премахване на aliases-ите (2026-08-26):**
+  `dd82f4e` (7-те deprecated alias нода премахнати — единствен `VideoEffect`)
 - **Код:** `src/plugins/demo_nodeditor_nodes/Sources/Video/` (VideoGLShaders.h,
   VideoEffectOps.{h,cpp}, VideoEffectGLProcessor.{h,cpp}, VideoEffectNode.{h,cpp})
 - **Документация:** дизайн документ `video-frame-consolidation-design.md` §3.2;
