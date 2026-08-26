@@ -133,6 +133,49 @@ inline QString buildRgbaFragmentSource(bool core)
         "void main() { gl_FragColor = texture2D(u_tex, v_texcoord); }\n");
 }
 
+/// RGBA fragment shader with an injected effect body (VideoEffectNode GPU
+/// backend, texture-in path — REQ-SW-PL-032 Stage 2B). Same base as
+/// buildRgbaFragmentSource() plus the effect uniforms
+/// (u_flipY/u_brightness/u_contrast) and the injected effectBody operating on
+/// the local `vec3 rgb` variable — mirrors buildEffectFragmentSource() but
+/// samples a single RGBA texture instead of YUV planes. The input alpha is
+/// preserved (the YUV path always writes 1.0).
+inline QString buildRgbaEffectFragmentSource(bool core, const QString &effectBody)
+{
+    QString src;
+    if (core) {
+        src += QStringLiteral(
+            "#version 150 core\n"
+            "uniform sampler2D u_tex;\n"
+            "uniform int u_flipY;\n"
+            "uniform float u_brightness;\n"
+            "uniform float u_contrast;\n"
+            "in vec2 v_texcoord;\n"
+            "out vec4 fragColor;\n");
+    } else {
+        src += QStringLiteral(
+            "#version 120\n"
+            "uniform sampler2D u_tex;\n"
+            "uniform int u_flipY;\n"
+            "uniform float u_brightness;\n"
+            "uniform float u_contrast;\n"
+            "varying vec2 v_texcoord;\n");
+    }
+
+    src += QStringLiteral("void main() {\n");
+    src += QStringLiteral(
+        "  vec2 tc = v_texcoord;\n"
+        "  if (u_flipY != 0) tc.y = 1.0 - tc.y;\n");
+    src += core ? QStringLiteral("  vec4 tex = texture(u_tex, tc);\n")
+                : QStringLiteral("  vec4 tex = texture2D(u_tex, tc);\n");
+    src += QStringLiteral("  vec3 rgb = tex.rgb;\n");
+    if (!effectBody.isEmpty())
+        src += effectBody;
+    src += core ? QStringLiteral("  fragColor = vec4(rgb, tex.a);\n}\n")
+                : QStringLiteral("  gl_FragColor = vec4(rgb, tex.a);\n}\n");
+    return src;
+}
+
 /// YUV->RGB fragment shader with an injected effect body (VideoEffectNode GPU
 /// backend). Same base as buildYuvFragmentSource() plus:
 ///   - `uniform int u_flipY` — when non-zero the texture coordinate is flipped

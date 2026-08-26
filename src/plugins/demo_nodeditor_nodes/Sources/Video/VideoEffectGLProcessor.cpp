@@ -143,29 +143,37 @@ bool VideoEffectGLProcessor::ensureContext()
     return true;
 }
 
-bool VideoEffectGLProcessor::ensureProgram(const EffectSpec &spec, bool nv12)
+bool VideoEffectGLProcessor::ensureProgram(const EffectSpec &spec, TextureLayout layout)
 {
     VideoGLContextManager &mgr = VideoGLContextManager::instance();
     const bool forceCore = qEnvironmentVariableIntValue("DAQSTER_GL_FORCE_CORE") == 1;
     const bool core = forceCore
         || (mgr.context()->format().profile() == QSurfaceFormat::CoreProfile);
 
-    const QString key = spec.id
-        + (nv12 ? QStringLiteral(":nv12") : QStringLiteral(":420p"))
+    // Program cache key: "<effectId>:<layout>:<profile>" with layout ∈
+    // {nv12, 420p, rgba} (REQ-SW-PL-032 Stage 2B adds the rgba layout).
+    const QString layoutKey = (layout == TextureLayout::Nv12) ? QStringLiteral("nv12")
+        : (layout == TextureLayout::Yuv420p) ? QStringLiteral("420p")
+        : QStringLiteral("rgba");
+    const QString key = spec.id + QStringLiteral(":") + layoutKey
         + (core ? QStringLiteral(":core") : QStringLiteral(":compat"));
     if (m_program != nullptr && m_programKey == key)
         return true;
 
     m_programKey = key;
     m_useCore = core;
-    m_useNv12 = nv12;
+    m_useNv12 = (layout == TextureLayout::Nv12);
 
     delete m_program;
     m_program = nullptr;
 
     auto *prog = new QOpenGLShaderProgram();
     const QString vert = buildVertexSource(core);
-    const QString frag = buildEffectFragmentSource(core, nv12, spec.glslBody);
+    QString frag;
+    if (layout == TextureLayout::Rgba)
+        frag = buildRgbaEffectFragmentSource(core, spec.glslBody);
+    else
+        frag = buildEffectFragmentSource(core, (layout == TextureLayout::Nv12), spec.glslBody);
     if (!prog->addShaderFromSourceCode(QOpenGLShader::Vertex, vert)
         || !prog->addShaderFromSourceCode(QOpenGLShader::Fragment, frag)
         || !prog->link()) {
@@ -233,31 +241,43 @@ bool VideoEffectGLProcessor::uploadFrame(const QVideoFrame &frame)
     return true;
 }
 
-bool VideoEffectGLProcessor::drawQuad(const EffectSpec &spec, const EffectParams &params)
+bool VideoEffectGLProcessor::drawQuad(const EffectSpec &spec, const EffectParams &params,
+                                      const VideoTextureHandle &input)
 {
     if (m_program == nullptr || m_fbo == nullptr)
         return false;
 
+    // The caller binds the FBO (process() / processTexture()) — this method
+    // only sets the viewport and draws.
     QOpenGLFunctions *f = VideoGLContextManager::instance().context()->functions();
-    m_fbo->bind();
     f->glViewport(0, 0, m_fbo->width(), m_fbo->height());
 
     QOpenGLShaderProgram *prog = m_program;
     prog->bind();
 
-    f->glActiveTexture(GL_TEXTURE0);
-    f->glBindTexture(GL_TEXTURE_2D, m_texY);
-    prog->setUniformValue("u_texY", 0);
-    if (m_useNv12) {
+    // Bind the input textures from the handle — no upload (REQ-SW-PL-032
+    // Stage 2B). RGBA: single texture; NV12: Y + interleaved UV; YUV420P:
+    // three planes.
+    if (input.rgba) {
+        f->glActiveTexture(GL_TEXTURE0);
+        f->glBindTexture(GL_TEXTURE_2D, input.texY);
+        prog->setUniformValue("u_tex", 0);
+    } else if (input.nv12) {
+        f->glActiveTexture(GL_TEXTURE0);
+        f->glBindTexture(GL_TEXTURE_2D, input.texY);
+        prog->setUniformValue("u_texY", 0);
         f->glActiveTexture(GL_TEXTURE1);
-        f->glBindTexture(GL_TEXTURE_2D, m_texUV);
+        f->glBindTexture(GL_TEXTURE_2D, input.texUV);
         prog->setUniformValue("u_texUV", 1);
     } else {
+        f->glActiveTexture(GL_TEXTURE0);
+        f->glBindTexture(GL_TEXTURE_2D, input.texY);
+        prog->setUniformValue("u_texY", 0);
         f->glActiveTexture(GL_TEXTURE1);
-        f->glBindTexture(GL_TEXTURE_2D, m_texU);
+        f->glBindTexture(GL_TEXTURE_2D, input.texU);
         prog->setUniformValue("u_texU", 1);
         f->glActiveTexture(GL_TEXTURE2);
-        f->glBindTexture(GL_TEXTURE_2D, m_texV);
+        f->glBindTexture(GL_TEXTURE_2D, input.texV);
         prog->setUniformValue("u_texV", 2);
     }
     prog->setUniformValue("u_matrix", m_matrix);
@@ -290,7 +310,6 @@ bool VideoEffectGLProcessor::drawQuad(const EffectSpec &spec, const EffectParams
         m_vao->release();
     f->glBindBuffer(GL_ARRAY_BUFFER, 0);
     prog->release();
-    m_fbo->release();
     return true;
 }
 
@@ -316,7 +335,7 @@ QImage VideoEffectGLProcessor::process(const QVideoFrame &frame, const EffectSpe
     }
     const bool nv12 = (layout == YuvLayout::Nv12);
 
-    if (!ensureProgram(spec, nv12))
+    if (!ensureProgram(spec, nv12 ? TextureLayout::Nv12 : TextureLayout::Yuv420p))
         return QImage();
 
     if (!uploadFrame(frame))
@@ -333,9 +352,87 @@ QImage VideoEffectGLProcessor::process(const QVideoFrame &frame, const EffectSpe
         }
     }
 
-    if (!drawQuad(spec, params))
+    // The uploaded planes live in the processor's own textures — wrap them in
+    // a handle so drawQuad() binds them uniformly.
+    const VideoTextureHandle input{m_texY, m_texUV, m_texU, m_texV, w, h, m_useNv12, false};
+
+    m_fbo->bind();
+    const bool drawn = drawQuad(spec, params, input);
+    m_fbo->release();
+    if (!drawn)
         return QImage();
 
     // toImage() applies the built-in vertical flip, so the result is top-down.
     return m_fbo->toImage();
+}
+
+bool VideoEffectGLProcessor::processTexture(const VideoTextureHandle &input,
+                                            const EffectSpec &spec,
+                                            const EffectParams &params,
+                                            VideoTextureHandle *out)
+{
+    if (input.texY == 0 || input.width <= 0 || input.height <= 0 || spec.id.isEmpty())
+        return false;
+
+    VideoGLContextManager &mgr = VideoGLContextManager::instance();
+    if (!ensureContext())
+        return false;
+    VideoGLContextManager::CurrentGuard guard(mgr);
+
+    const TextureLayout layout = input.rgba ? TextureLayout::Rgba
+        : (input.nv12 ? TextureLayout::Nv12 : TextureLayout::Yuv420p);
+    if (!ensureProgram(spec, layout))
+        return false;
+
+    const int w = input.width;
+    const int h = input.height;
+
+    // FBO sized to the input (reused across frames — it does not own the
+    // output texture).
+    if (m_fbo == nullptr || m_fbo->width() != w || m_fbo->height() != h) {
+        delete m_fbo;
+        m_fbo = new QOpenGLFramebufferObject(w, h);
+        if (!m_fbo->isValid()) {
+            qWarning().noquote() << QStringLiteral("VideoEffectGLProcessor | FBO invalid (%1x%2)").arg(w).arg(h);
+            return false;
+        }
+    }
+
+    // Output texture: a NEW RGBA texture per call. Ownership is handed to the
+    // caller (VideoFrameData::fromTexture deletes it), so the processor must
+    // never reuse a texture it has handed off — the owner would delete it
+    // while the processor still references it.
+    QOpenGLFunctions *f = mgr.context()->functions();
+    GLuint outTex = 0;
+    f->glGenTextures(1, &outTex);
+    f->glBindTexture(GL_TEXTURE_2D, outTex);
+    setupTextureParams(f, outTex);
+    f->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    f->glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Attach the output texture as the FBO's color attachment, draw, then
+    // detach it and restore the FBO's own texture — the output texture
+    // outlives the FBO (QOpenGLFramebufferObject has no takeTexture() on Qt5).
+    m_fbo->bind();
+    f->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, outTex, 0);
+    const GLenum status = f->glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        qWarning().noquote() << QStringLiteral("VideoEffectGLProcessor | FBO incomplete (0x%1)").arg(status, 0, 16);
+        f->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_fbo->texture(), 0);
+        m_fbo->release();
+        f->glDeleteTextures(1, &outTex);
+        return false;
+    }
+
+    const bool drawn = drawQuad(spec, params, input);
+    f->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_fbo->texture(), 0);
+    m_fbo->release();
+    if (!drawn) {
+        f->glDeleteTextures(1, &outTex);
+        return false;
+    }
+
+    if (out != nullptr)
+        *out = VideoTextureHandle{outTex, 0, 0, 0, w, h, false, true};
+    return true;
 }

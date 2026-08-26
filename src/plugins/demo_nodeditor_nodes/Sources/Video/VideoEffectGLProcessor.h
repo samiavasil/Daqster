@@ -11,13 +11,19 @@
 //    REQ-SW-PL-032 Stage 2A) instead of owning a private context — the same
 //    share group as the QOpenGLWidget display, so textures uploaded by
 //    VideoFrameData::asTexture() are visible here (and vice versa).
-//  - Compiles one effect program per (effect id, NV12/YUV420P, core/compat)
+//  - Compiles one effect program per (effect id, NV12/YUV420P/RGBA, core/compat)
 //    key; core/compat detection matches VideoGLBlitWidget (DAQSTER_GL_FORCE_CORE
 //    override + context profile).
-//  - Uploads the Y/U/V planes honoring bytesPerLine strides, draws the
-//    fullscreen quad into a QOpenGLFramebufferObject sized to the frame, then
-//    reads the result with toImage() (which applies the built-in vertical
+//  - process(): uploads the Y/U/V planes honoring bytesPerLine strides, draws
+//    the fullscreen quad into a QOpenGLFramebufferObject sized to the frame,
+//    then reads the result with toImage() (which applies the built-in vertical
 //    flip, so the output QImage is top-down).
+//  - processTexture() (REQ-SW-PL-032 Stage 2B): binds the input textures from
+//    a VideoTextureHandle — no upload — renders the effect into an offscreen
+//    FBO and returns the FBO's RGBA texture wrapped in a new VideoTextureHandle
+//    — no toImage() readback. The output texture is created per call and
+//    ownership is handed to the caller (VideoFrameData::fromTexture deletes
+//    it), so the processor never reuses a texture it has handed off.
 //  - hasHardwareGL() distinguishes hardware GL from the software renderers
 //    (llvmpipe / softpipe / SwiftShader) so the node can pick the CPU backend
 //    headlessly. Moved to VideoGLContextManager.
@@ -26,6 +32,7 @@
 // part of Qt::Gui.
 
 #include "VideoEffectOps.h"
+#include "NodeDataTypes/VideoTextureHandle.h"
 
 #include <QImage>
 #include <QString>
@@ -49,11 +56,26 @@ public:
     QImage process(const QVideoFrame &frame, const EffectSpec &spec,
                    const EffectParams &params);
 
+    /// Apply an effect to a GPU-resident texture (YUV or RGBA) on the GPU
+    /// (REQ-SW-PL-032 Stage 2B). Binds the input textures from the handle —
+    /// no upload — renders into an offscreen FBO and returns the FBO's RGBA
+    /// texture wrapped in a new VideoTextureHandle — no toImage() readback.
+    /// The returned handle owns a freshly created texture; the caller takes
+    /// ownership (VideoFrameData::fromTexture deletes it). Returns false when
+    /// a GL step fails — the caller falls back to the CPU backend.
+    bool processTexture(const VideoTextureHandle &input, const EffectSpec &spec,
+                        const EffectParams &params, VideoTextureHandle *out);
+
 private:
+    /// Input texture layout for program selection (program cache key layout
+    /// component: nv12 / 420p / rgba).
+    enum class TextureLayout { Nv12, Yuv420p, Rgba };
+
     bool ensureContext();
-    bool ensureProgram(const EffectSpec &spec, bool nv12);
+    bool ensureProgram(const EffectSpec &spec, TextureLayout layout);
     bool uploadFrame(const QVideoFrame &frame);
-    bool drawQuad(const EffectSpec &spec, const EffectParams &params);
+    bool drawQuad(const EffectSpec &spec, const EffectParams &params,
+                  const VideoTextureHandle &input);
 
     QOpenGLFramebufferObject *m_fbo = nullptr;
     QOpenGLShaderProgram *m_program = nullptr;
