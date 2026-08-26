@@ -68,8 +68,6 @@ set(VIDEO_NODES
     Sources/Video/VideoPerfBadge.cpp
     Sources/Video/VideoGLBlitWidget.h
     Sources/Video/VideoGLBlitWidget.cpp
-    Sources/Video/VideoTransformNode.h
-    Sources/Video/VideoTransformNode.cpp
     Sources/Video/VideoTransformOps.h
     Sources/Video/VideoTransformOps.cpp
     Sources/Video/VideoGLShaders.h

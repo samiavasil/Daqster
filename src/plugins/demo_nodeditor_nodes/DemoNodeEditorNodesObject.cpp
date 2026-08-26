@@ -19,7 +19,6 @@
 #include "Sources/Video/VideoFileSourceNode.h"
 #include "Sources/Video/StreamSourceNode.h"
 #include "Sources/Video/VideoOutputNode.h"
-#include "Sources/Video/VideoTransformNode.h"
 #include "Sources/Video/VideoEffectNode.h"
 #include "Sources/Video/FrameSamplerNode.h"
 #include <QDevIoDisplayModelObsolete.h>
@@ -116,7 +115,6 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     registry.registerModel<VideoFileSourceNode>("Video");
     registry.registerModel<StreamSourceNode>("Video");
     registry.registerModel<VideoOutputNode>("Video");
-    registry.registerModel<VideoTransformNode>("Video");
 
     // Video effect nodes (VideoFrameData flow, REQ-SW-PL-028) — ONE node with
     // an effect combo (REQ-SW-PL-028 AC 4) + the frame resampler (REQ-SW-PL-030).
