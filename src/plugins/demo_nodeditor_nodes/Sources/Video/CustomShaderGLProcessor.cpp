@@ -140,6 +140,10 @@ QString CustomShaderGLProcessor::buildFragmentSource(const QString &userSource,
         ) + userSource;
     }
     // Compatibility profile: #version 120, varying, gl_FragColor.
+    // GLSL 120 has texture2D() but not the unified texture() overload
+    // introduced in GLSL 130.  Provide a thin shim so user code that
+    // writes texture() — the modern / core-profile convention — works
+    // transparently on compatibility contexts as well.
     return QStringLiteral(
         "#version 120\n"
         "uniform sampler2D u_tex;\n"
@@ -150,6 +154,7 @@ QString CustomShaderGLProcessor::buildFragmentSource(const QString &userSource,
         "uniform float u_param2;\n"
         "uniform float u_param3;\n"
         "varying vec2 v_texcoord;\n"
+        "vec4 texture(sampler2D s, vec2 uv) { return texture2D(s, uv); }\n"
         "void mainImage(out vec4 fragColor, in vec2 fragCoord);\n"
         "void main() {\n"
         "    mainImage(gl_FragColor, v_texcoord * u_resolution);\n"
