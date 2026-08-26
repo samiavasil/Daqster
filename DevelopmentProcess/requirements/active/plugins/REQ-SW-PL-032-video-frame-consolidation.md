@@ -72,8 +72,10 @@
 - [x] 1. **Lazy кешове.** `VideoFrameData` с lazy `asImage()` (CPU QImage
        кеш) + lazy `asTexture()` (GPU текстура кеш) — всяко представяне се
        изчислява най-много веднъж на кадър и се споделя.
-       **CPU частта (asImage) е имплементирана** (2026-08-26); `asTexture()`
-       остава бъдещ лост (GPU-resident транспорт, AC 5/6/7).
+       **CPU частта (asImage) е имплементирана** (2026-08-26); **GPU частта
+       (asTexture/fromTexture/isGpuResident) е имплементирана** (Stage 2A,
+       2026-08-26) — lazy upload при първия GPU консуматор, кеширан handle,
+       споделен между всички GPU консуматори.
 - [x] 2. **Display/processing разделение.** Display = `frame()` zero-copy;
        processing = `asImage()` 1×/кадър споделено.
        **CPU частта е имплементирана** — `VideoEffectNode` CPU път и
@@ -90,17 +92,38 @@
        (`VideoEffectNode`/`VideoOutputNode`) → `asTexture()`; CPU нод
        (`FrameToTensorNode`) → `asImage()`. Транспортът конвертира
        автоматично на границата.
+       **Частично (Stage 2B):** `VideoEffectNode` GPU пътят ползва
+       `asTexture()` (текстура-вход) и извежда `VideoFrameData::fromTexture()`
+       (текстура-изход); `VideoOutputNode` GL blit пътят консумира
+       GPU-resident RGBA текстурата директно (`presentTexture`). Остава:
+       `FrameToTensorNode` → `asImage()` (частен REQ-AI-007).
 - [ ] 5. **GPU-resident транспорт (Път B).** Upload веднъж при първия GPU
        нод (lazy); текстурите текат между GPU нодовете без CPU↔GPU
        пресичания; display консумира текстурата директно (zero-copy);
        readback само при CPU консуматор на границата.
+       **Частично (Stage 2B):** ефект веригата е изцяло GPU-resident —
+       `asTexture()` (lazy upload веднъж) → `processTexture()` (bind, без
+       upload/readback) → `fromTexture()` (RGBA текстура) → вторият ефект
+       консумира текстурата директно → GL blit display консумира текстурата
+       директно (`presentTexture`, zero-copy). Qt6 native display
+       (QVideoWidget) прави readback на границата (`presentableFrame` →
+       `asImage()`) — Stage 2C ще презентира текстурата директно.
 - [ ] 6. **Qt6 първо, Qt5 после.** GPU-resident транспортът се имплементира
        първо на Qt6 (`QVideoFrame::fromRhiTexture` нативно), верифицира се,
        после се портва на Qt5 (custom `QAbstractVideoBuffer` с GL texture
        handle).
+       **Отклонение (Stage 2A/2B):** имплементирано едновременно на Qt5+Qt6
+       през споделения GL контекст (`VideoGLContextManager` + `asTexture`/
+       `fromTexture` с raw GL texture handle-и) вместо `fromRhiTexture` —
+       същият zero-copy ефект, без Qt6-only API. `fromRhiTexture` остава
+       бъдещ лост за native Qt6 display.
 - [ ] 7. **Формат.** NV12 от декодера → 2 текстури (Y+UV) → първият шейдър
        прави YUV→RGB + ефект → RGBA текстура → display семплира RGBA (без
        конверсия).
+       **Частично (Stage 2B):** NV12 → 2 текстури (Y+UV) → `processTexture()`
+       YUV→RGB + ефект → RGBA текстура → GL blit display семплира RGBA
+       директно (`presentTexture`). Qt6 native display прави readback на
+       границата (Stage 2C).
 - [ ] 8. **Фаза 1.** `ImageData` остава; новите нодове работят редом без да
        чупят съществуващите графи.
 - [ ] 9. **Фаза 2.** Еквивалентност доказана — ръчна оценка от потребителя
@@ -114,13 +137,23 @@
 
 - **Коммити:** `3f9ec84` (feat: lazy asImage() QImage cache в VideoFrameData),
   `093b557` (refactor: консуматорите ползват asImage()) — CPU частта на AC
-  1/2/3; `asTexture()`/GPU-resident транспорт — бъдещ лост
+  1/2/3; `6cb1aaa` (feat: shared GL context manager VideoGLContextManager),
+  `803e4f6` (feat: VideoFrameData texture transport asTexture/fromTexture/
+  isGpuResident), `9a39006` (refactor: VideoEffectGLProcessor uses shared GL
+  context) — Stage 2A GPU-resident транспорт; `b6af20e` (feat:
+  VideoEffectGLProcessor processTexture — texture output, no readback),
+  `d1a5e7a` (feat: VideoEffectNode texture in/out + GL blit presentTexture +
+  DAQSTER_AUTOSTART_EFFECT2) — Stage 2B ефект верига
 - **Код:** `src/plugins/common/NodeDataTypes/VideoFrameData.h` (asImage +
-  m_imageCache), `src/plugins/demo_nodeditor_nodes/Sources/Video/`
-  (VideoEffectNode.cpp CPU път, VideoOutputNode.cpp software/consumer път,
-  VideoGLBlitWidget.cpp — коментар, остава на frameToImage)
+  m_imageCache + asTexture/fromTexture/isGpuResident/isGpuRgba),
+  `src/plugins/common/GL/VideoGLContextManager.h` (споделен GL контекст),
+  `src/plugins/demo_nodeditor_nodes/Sources/Video/` (VideoEffectGLProcessor.
+  {h,cpp} processTexture, VideoEffectNode.cpp texture in/out, VideoGLBlitWidget.
+  {h,cpp} presentTexture, VideoOutputNode.cpp GpuRgba display, VideoGLShaders.h
+  buildRgbaEffectFragmentSource), `src/plugins/node_editor_ide/
+  NodeEditorIdeObject.cpp` (DAQSTER_AUTOSTART_EFFECT2)
 - **Документация:** дизайн документ `video-frame-consolidation-design.md` §3.1,
-  §4; статус `2026-08-24-status.md` §4–§14
+  §3.6, §4; статус `2026-08-24-status.md` §4–§14
 - **Тестове:** отложени (standing instruction)
 
 ## Бележки по имплементацията (план)
