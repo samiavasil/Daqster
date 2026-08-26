@@ -1,5 +1,6 @@
 #include "VideoEffectGLProcessor.h"
 
+#include "GL/VideoGLContextManager.h"
 #include "VideoCompat.h"
 #include "VideoGLShaders.h"
 
@@ -82,15 +83,16 @@ VideoEffectGLProcessor::VideoEffectGLProcessor()
 
 VideoEffectGLProcessor::~VideoEffectGLProcessor()
 {
-    if (m_context != nullptr && m_context->isValid() && m_surface != nullptr) {
-        m_context->makeCurrent(m_surface);
+    // All GL resources live in the shared context (VideoGLContextManager).
+    VideoGLContextManager &mgr = VideoGLContextManager::instance();
+    if (mgr.makeCurrent()) {
         delete m_program;
         m_program = nullptr;
         delete m_fbo;
         m_fbo = nullptr;
         delete m_vao;
         m_vao = nullptr;
-        QOpenGLFunctions *f = m_context->functions();
+        QOpenGLFunctions *f = mgr.context()->functions();
         if (m_vbo != 0) {
             f->glDeleteBuffers(1, &m_vbo);
             m_vbo = 0;
@@ -111,72 +113,19 @@ VideoEffectGLProcessor::~VideoEffectGLProcessor()
             f->glDeleteTextures(1, &m_texUV);
             m_texUV = 0;
         }
-        m_context->doneCurrent();
+        mgr.doneCurrent();
     }
-    delete m_context;
-    m_context = nullptr;
-    delete m_surface;
-    m_surface = nullptr;
-}
-
-bool VideoEffectGLProcessor::hasHardwareGL()
-{
-    static const bool cached = []() {
-        QOpenGLContext ctx;
-        QOffscreenSurface surface;
-        surface.setFormat(ctx.format());
-        surface.create();
-        if (!ctx.create() || !surface.isValid()) {
-            qWarning().noquote() << QStringLiteral("VideoEffectGLProcessor | GL detection: no context/surface");
-            return false;
-        }
-        if (!ctx.makeCurrent(&surface)) {
-            qWarning().noquote() << QStringLiteral("VideoEffectGLProcessor | GL detection: makeCurrent failed");
-            return false;
-        }
-        const QByteArray renderer = QByteArray(
-            reinterpret_cast<const char *>(ctx.functions()->glGetString(GL_RENDERER)));
-        ctx.doneCurrent();
-        const QByteArray lower = renderer.toLower();
-        const bool hardware = !lower.contains("llvmpipe")
-            && !lower.contains("softpipe")
-            && !lower.contains("swiftshader");
-        qInfo().noquote() << QStringLiteral("VideoEffectGLProcessor | renderer=%1 hardwareGL=%2")
-            .arg(QString::fromLatin1(renderer))
-            .arg(hardware ? QStringLiteral("yes") : QStringLiteral("no"));
-        return hardware;
-    }();
-    return cached;
 }
 
 bool VideoEffectGLProcessor::ensureContext()
 {
-    if (m_context != nullptr && m_surface != nullptr && m_context->isValid())
-        return m_context->makeCurrent(m_surface);
-
-    if (m_context == nullptr) {
-        m_context = new QOpenGLContext();
-        m_context->setFormat(QSurfaceFormat::defaultFormat());
-        if (!m_context->create()) {
-            qWarning().noquote() << QStringLiteral("VideoEffectGLProcessor | context create failed");
-            return false;
-        }
-    }
-    if (m_surface == nullptr) {
-        m_surface = new QOffscreenSurface();
-        m_surface->setFormat(m_context->format());
-        m_surface->create();
-        if (!m_surface->isValid()) {
-            qWarning().noquote() << QStringLiteral("VideoEffectGLProcessor | offscreen surface invalid");
-            return false;
-        }
-    }
-    if (!m_context->makeCurrent(m_surface))
+    VideoGLContextManager &mgr = VideoGLContextManager::instance();
+    if (!mgr.makeCurrent())
         return false;
 
     // One-time GL resource setup (VBO + textures + optional core VAO).
     if (m_vbo == 0) {
-        QOpenGLFunctions *f = m_context->functions();
+        QOpenGLFunctions *f = mgr.context()->functions();
         f->glGenBuffers(1, &m_vbo);
         f->glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
         f->glBufferData(GL_ARRAY_BUFFER, sizeof(kQuadVertices), kQuadVertices, GL_STATIC_DRAW);
@@ -196,9 +145,10 @@ bool VideoEffectGLProcessor::ensureContext()
 
 bool VideoEffectGLProcessor::ensureProgram(const EffectSpec &spec, bool nv12)
 {
+    VideoGLContextManager &mgr = VideoGLContextManager::instance();
     const bool forceCore = qEnvironmentVariableIntValue("DAQSTER_GL_FORCE_CORE") == 1;
     const bool core = forceCore
-        || (m_context->format().profile() == QSurfaceFormat::CoreProfile);
+        || (mgr.context()->format().profile() == QSurfaceFormat::CoreProfile);
 
     const QString key = spec.id
         + (nv12 ? QStringLiteral(":nv12") : QStringLiteral(":420p"))
@@ -255,7 +205,7 @@ bool VideoEffectGLProcessor::uploadFrame(const QVideoFrame &frame)
     const GLenum uvInternal = m_useCore ? GL_RG8 : GL_LUMINANCE_ALPHA;
     const GLenum uvFormat = m_useCore ? GL_RG : GL_LUMINANCE_ALPHA;
 
-    QOpenGLFunctions *f = m_context->functions();
+    QOpenGLFunctions *f = VideoGLContextManager::instance().context()->functions();
     f->glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     f->glBindTexture(GL_TEXTURE_2D, m_texY);
@@ -288,7 +238,7 @@ bool VideoEffectGLProcessor::drawQuad(const EffectSpec &spec, const EffectParams
     if (m_program == nullptr || m_fbo == nullptr)
         return false;
 
-    QOpenGLFunctions *f = m_context->functions();
+    QOpenGLFunctions *f = VideoGLContextManager::instance().context()->functions();
     m_fbo->bind();
     f->glViewport(0, 0, m_fbo->width(), m_fbo->height());
 
@@ -350,19 +300,12 @@ QImage VideoEffectGLProcessor::process(const QVideoFrame &frame, const EffectSpe
     if (!frame.isValid() || spec.id.isEmpty())
         return QImage();
 
+    VideoGLContextManager &mgr = VideoGLContextManager::instance();
     if (!ensureContext())
         return QImage();
 
     // Ensure doneCurrent() on every exit path.
-    struct CurrentGuard {
-        QOpenGLContext *ctx = nullptr;
-        ~CurrentGuard()
-        {
-            if (ctx != nullptr)
-                ctx->doneCurrent();
-        }
-    } guard;
-    guard.ctx = m_context;
+    VideoGLContextManager::CurrentGuard guard(mgr);
 
     QString formatName;
     const YuvLayout layout = classifyYuv(frame, &formatName);

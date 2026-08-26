@@ -7,7 +7,10 @@
 // back as a QImage.
 //
 // Design (mirrors VideoGLBlitWidget):
-//  - Owns a QOpenGLContext + QOffscreenSurface (created lazily on first use).
+//  - Uses the process-wide shared GL context (VideoGLContextManager,
+//    REQ-SW-PL-032 Stage 2A) instead of owning a private context — the same
+//    share group as the QOpenGLWidget display, so textures uploaded by
+//    VideoFrameData::asTexture() are visible here (and vice versa).
 //  - Compiles one effect program per (effect id, NV12/YUV420P, core/compat)
 //    key; core/compat detection matches VideoGLBlitWidget (DAQSTER_GL_FORCE_CORE
 //    override + context profile).
@@ -17,7 +20,7 @@
 //    flip, so the output QImage is top-down).
 //  - hasHardwareGL() distinguishes hardware GL from the software renderers
 //    (llvmpipe / softpipe / SwiftShader) so the node can pick the CPU backend
-//    headlessly.
+//    headlessly. Moved to VideoGLContextManager.
 //
 // No new CMake dependencies: QOpenGLFramebufferObject / QOffscreenSurface are
 // part of Qt::Gui.
@@ -30,8 +33,6 @@
 #include <QtGui/qopengl.h>
 #include <QtMultimedia/QVideoFrame>
 
-class QOffscreenSurface;
-class QOpenGLContext;
 class QOpenGLFramebufferObject;
 class QOpenGLShaderProgram;
 class QOpenGLVertexArrayObject;
@@ -41,11 +42,6 @@ class VideoEffectGLProcessor
 public:
     VideoEffectGLProcessor();
     ~VideoEffectGLProcessor();
-
-    /// True when a hardware GL renderer is available (not llvmpipe / softpipe /
-    /// SwiftShader). Lazy — the detection context is created once and the
-    /// result is cached for the process lifetime.
-    static bool hasHardwareGL();
 
     /// Apply an effect to a YUV frame on the GPU. Returns a null QImage when
     /// the frame format is unsupported (non NV12/YUV420P) or a GL step fails —
@@ -59,8 +55,6 @@ private:
     bool uploadFrame(const QVideoFrame &frame);
     bool drawQuad(const EffectSpec &spec, const EffectParams &params);
 
-    QOpenGLContext *m_context = nullptr;
-    QOffscreenSurface *m_surface = nullptr;
     QOpenGLFramebufferObject *m_fbo = nullptr;
     QOpenGLShaderProgram *m_program = nullptr;
     QOpenGLVertexArrayObject *m_vao = nullptr;

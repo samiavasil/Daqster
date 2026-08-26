@@ -1,5 +1,6 @@
 #include "VideoEffectNode.h"
 
+#include "GL/VideoGLContextManager.h"
 #include "NodeDataTypes/VideoFrameData.h"
 
 #include <QComboBox>
@@ -101,7 +102,7 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
     // Runtime backend selection (REQ-SW-PL-028 AC 2/3): CPU-only effects always
     // run on the CPU; GpuOrCpu effects run on the GPU only with hardware GL.
     const bool useGpu = (spec.backend == EffectSpec::Backend::GpuOrCpu)
-        && VideoEffectGLProcessor::hasHardwareGL();
+        && VideoGLContextManager::hasHardwareGL();
 
     if (useGpu) {
         const QImage result = m_glProcessor.process(frame, spec, m_params);
