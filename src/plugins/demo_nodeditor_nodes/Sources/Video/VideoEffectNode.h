@@ -62,6 +62,11 @@ public:
     QString name() const override
     { return QStringLiteral("VideoEffect"); }
 
+    /// Video nodes do not change their geometry on data arrival — the display
+    /// is updated directly in setInData(). Opts out of the full scene geometry
+    /// recompute cascade (repaint-only fast path on data arrival).
+    bool dataArrivalChangesGeometry() const override { return false; }
+
     /// Selects the effect by id (from VideoEffectOps::allSpecs()). Unknown
     /// ids fall back to index 0. Syncs the widget stack and reprocesses the
     /// current frame.

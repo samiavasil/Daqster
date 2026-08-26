@@ -78,6 +78,11 @@ public:
     QString name() const override
     { return QStringLiteral("VideoOutput"); }
 
+    /// Video nodes do not change their geometry on data arrival — the display
+    /// is updated directly in setInData(). Opts out of the full scene geometry
+    /// recompute cascade (repaint-only fast path on data arrival).
+    bool dataArrivalChangesGeometry() const override { return false; }
+
     QJsonObject save() const override;
     void load(QJsonObject const &p) override;
 
