@@ -97,13 +97,6 @@ DemoNodeEditorNodesObject → INodeProvider
         registry.registerModel<VideoOutputNode>("Video")
         registry.registerModel<VideoTransformNode>("Video")
         registry.registerModel<VideoEffectNode>("Video")   // един нод с комбо (REQ-SW-PL-028 AC 4)
-        registry.registerModel<VideoEffectBrightnessNode>("Video")  // deprecated alias
-        registry.registerModel<VideoEffectContrastNode>("Video")    // deprecated alias
-        registry.registerModel<VideoEffectGrayscaleNode>("Video")   // deprecated alias
-        registry.registerModel<VideoEffectInvertNode>("Video")      // deprecated alias
-        registry.registerModel<VideoEffectSepiaNode>("Video")       // deprecated alias
-        registry.registerModel<VideoEffectChannelSwapNode>("Video") // deprecated alias
-        registry.registerModel<VideoEffectFlipNode>("Video")        // deprecated alias
         registry.registerModel<FrameSamplerNode>("Video")
 ```
 
@@ -146,13 +139,6 @@ DemoNodeEditorNodesObject → INodeProvider
 | VideoOutputNode | Video | Live preview на входящите кадри — два входа (port 0 `VideoFrameData` → GPU display; port 1 `ImageData` → `QLabel`), zero-copy GPU път. Qt6: чекбокс „GPU display" (checked по подразбиране) → detached прозорец (`QVideoWidget` или GL blit при `DAQSTER_GL_BLIT=1`); unchecked → in-scene `QGraphicsVideoItem` в node-а (REQ-SW-PL-021). Qt5: checked → detached GL blit прозорец, unchecked → софтуерен QLabel. Pass-through изходен порт за output вериги |
 | VideoTransformNode | Video | Прилага конфигурируема операция върху `ImageData` кадри (8 базови + опционални OpenCV операции) |
 | VideoEffectNode | Video | Единен ефект нод с **комбобокс** за избор на ефект (brightness, contrast, grayscale, invert, sepia, channelSwap, flip) + параметри за избрания — върху `VideoFrameData`, GPU/CPU backend (REQ-SW-PL-028) |
-| VideoEffectBrightnessNode | Video | **Deprecated alias** — стари saved графи; ефектът е фиксиран (brightness) |
-| VideoEffectContrastNode | Video | **Deprecated alias** — стари saved графи; ефектът е фиксиран (contrast) |
-| VideoEffectGrayscaleNode | Video | **Deprecated alias** — стари saved графи; ефектът е фиксиран (grayscale) |
-| VideoEffectInvertNode | Video | **Deprecated alias** — стари saved графи; ефектът е фиксиран (invert) |
-| VideoEffectSepiaNode | Video | **Deprecated alias** — стари saved графи; ефектът е фиксиран (sepia) |
-| VideoEffectChannelSwapNode | Video | **Deprecated alias** — стари saved графи; ефектът е фиксиран (channelSwap) |
-| VideoEffectFlipNode | Video | **Deprecated alias** — стари saved графи; ефектът е фиксиран (flip) |
 | FrameSamplerNode | Video | Ресемплиране на `VideoFrameData` — всеки N-ти кадър или max FPS, zero-copy passthrough (REQ-SW-PL-030) |
 
 Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy) и port 1 `ImageData` ("image", конвертира се on-demand само при свързан processing потребител); видео source-ите имат и port 2 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема и двата типа — `VideoFrameData` се дисплейва през GPU (вж. „Qt6 in-scene toggle" по-долу; Qt5: detached GL blit прозорец при `DAQSTER_GL_BLIT=1`), `ImageData` през софтуерен път (`QLabel`). Същият `ImageData` тип частният AI Studio plugin консумира на входа на `FrameToTensorNode` (REQ-AI-006).
@@ -231,11 +217,13 @@ DemoNodeEditorNodesObject → INodeProvider
   sepia/channelSwap). `setEffect(id)` избира по id (непознат id → индекс 0);
   `save()`/`load()` персистират `"effect"` = id + brightness/contrast/flipMode
   с clamp-ове — форматът е **backward compatible** със старите графи.
-- **Deprecated aliases:** `VideoEffectBrightnessNode`, `VideoEffectContrastNode`,
+- **Deprecated aliases (премахнати 2026-08-26):** 7-те alias нода
+  (`VideoEffectBrightnessNode`, `VideoEffectContrastNode`,
   `VideoEffectGrayscaleNode`, `VideoEffectInvertNode`, `VideoEffectSepiaNode`,
-  `VideoEffectChannelSwapNode`, `VideoEffectFlipNode` остават регистрирани
-  (без `Q_OBJECT`) — стари saved графи, които реферират тези имена, продължават
-  да работят; всеки alias е `VideoEffectNode` с фиксиран ефект през `setEffect()`.
+  `VideoEffectChannelSwapNode`, `VideoEffectFlipNode`) бяха **премахнати** по
+  решение на потребителя — стари saved графи, които реферират тези registry
+  ключове, **вече няма да се зареждат**; единственият регистриран ефект нод е
+  `VideoEffect` (с комбобокс).
 - **Backend избор (runtime):** `CpuOnly` ефекти вървят на CPU навсякъде;
   `GpuOrCpu` ефекти вървят на GPU когато има хардуерен GL и падат на CPU
   иначе (включително при не-NV12/YUV420P формат на кадъра).

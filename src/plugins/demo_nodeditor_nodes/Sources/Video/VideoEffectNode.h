@@ -40,8 +40,10 @@ class VideoFrameData;
  * is backward compatible with the old per-effect subclasses ("effect" = id +
  * parameters).
  *
- * The 7 old per-effect subclasses (VideoEffectBrightnessNode, ...) remain as
- * deprecated aliases so old saved graphs keep working (Task 3.2).
+ * The 7 old per-effect subclasses (VideoEffectBrightnessNode, ...) were
+ * removed on 2026-08-26 (user decision) — old saved graphs that reference the
+ * alias registry keys no longer load; the single "VideoEffect" node is the
+ * only registered effect node.
  */
 class VideoEffectNode : public QtNodes::NodeDelegateModel
 {
@@ -109,67 +111,6 @@ private:
     QSlider *m_contrastSlider = nullptr;
     QLabel *m_contrastValue = nullptr;
     QComboBox *m_flipCombo = nullptr;
-};
-
-// ── 7 deprecated aliases — one per effect (REQ-SW-PL-028 AC 4) ───────────────
-// Old saved graphs reference these registry keys ("VideoEffectBrightness",
-// "VideoEffectContrast", ...). Each alias is a plain VideoEffectNode with the
-// effect preselected via setEffect(); no Q_OBJECT (no extra signals/slots).
-// New graphs should use the single "VideoEffect" node with the effect combo.
-class VideoEffectBrightnessNode : public VideoEffectNode
-{
-public:
-    VideoEffectBrightnessNode() : VideoEffectNode() { setEffect(QStringLiteral("brightness")); }
-    QString name() const override
-    { return QStringLiteral("VideoEffectBrightness"); }
-};
-
-class VideoEffectContrastNode : public VideoEffectNode
-{
-public:
-    VideoEffectContrastNode() : VideoEffectNode() { setEffect(QStringLiteral("contrast")); }
-    QString name() const override
-    { return QStringLiteral("VideoEffectContrast"); }
-};
-
-class VideoEffectGrayscaleNode : public VideoEffectNode
-{
-public:
-    VideoEffectGrayscaleNode() : VideoEffectNode() { setEffect(QStringLiteral("grayscale")); }
-    QString name() const override
-    { return QStringLiteral("VideoEffectGrayscale"); }
-};
-
-class VideoEffectInvertNode : public VideoEffectNode
-{
-public:
-    VideoEffectInvertNode() : VideoEffectNode() { setEffect(QStringLiteral("invert")); }
-    QString name() const override
-    { return QStringLiteral("VideoEffectInvert"); }
-};
-
-class VideoEffectSepiaNode : public VideoEffectNode
-{
-public:
-    VideoEffectSepiaNode() : VideoEffectNode() { setEffect(QStringLiteral("sepia")); }
-    QString name() const override
-    { return QStringLiteral("VideoEffectSepia"); }
-};
-
-class VideoEffectChannelSwapNode : public VideoEffectNode
-{
-public:
-    VideoEffectChannelSwapNode() : VideoEffectNode() { setEffect(QStringLiteral("channelSwap")); }
-    QString name() const override
-    { return QStringLiteral("VideoEffectChannelSwap"); }
-};
-
-class VideoEffectFlipNode : public VideoEffectNode
-{
-public:
-    VideoEffectFlipNode() : VideoEffectNode() { setEffect(QStringLiteral("flip")); }
-    QString name() const override
-    { return QStringLiteral("VideoEffectFlip"); }
 };
 
 #endif // VIDEOEFFECTNODE_H

@@ -11,7 +11,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `VideoGLShaders.h` — shared GLSL source builders (`buildVertexSource`, `buildYuvFragmentSource`, `buildRgbaFragmentSource` extracted from `VideoGLBlitWidget.cpp` + new `buildEffectFragmentSource` with `u_flipY` and injectable effect body)
   - `VideoEffectOps.{h,cpp}` — `EffectSpec` registry (7 effects: brightness, contrast, grayscale, invert, sepia, channelSwap, flip) with CPU functions (delegating to `VideoTransformOps`) + GLSL body
   - `VideoEffectGLProcessor.{h,cpp}` — GPU backend: `QOpenGLContext` + `QOffscreenSurface` + `QOpenGLFramebufferObject`, Y/U/V upload with `GL_UNPACK_ROW_LENGTH`, `hasHardwareGL()` (llvmpipe/softpipe/SwiftShader detection, lazy cached)
-  - `VideoEffectNode.{h,cpp}` — node model (port 0 in/out `VideoFrameData`) + **single node with an effect combo** (combo + `QStackedWidget`, like `VideoTransformNode`) + 7 deprecated aliases (VideoEffectBrightness/Contrast/Grayscale/Invert/Sepia/ChannelSwap/Flip — old saved graphs), runtime backend selection, parameter UI (slider/combo/info), save/load with clamps (backward compatible: `"effect"` = id + params)
+  - `VideoEffectNode.{h,cpp}` — node model (port 0 in/out `VideoFrameData`) + **single node with an effect combo** (combo + `QStackedWidget`, like `VideoTransformNode`), runtime backend selection, parameter UI (slider/combo/info), save/load with clamps (backward compatible: `"effect"` = id + params)
   - Registered under the "Video" category in the demo node editor plugin
 - **REQ-SW-PL-030** (FrameSampler — frame resampling):
   - `FrameSamplerNode.{h,cpp}` — standalone node (port 0 in/out `VideoFrameData`), "Every N-th frame" (1..1000) / "Max FPS" (1..120) modes, zero-copy passthrough (same `shared_ptr`), gate without emit on drop, save/load + counter/timer reset
@@ -235,6 +235,9 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Known issues
 - **VC-1 Advanced video on Qt6 (known issue)** — VC-1 Advanced content (e.g. `50MB_1080P_THETESTDATA.COM_AVI.avi`, ASF container mislabelled .avi) shows a green screen on Qt6: the Qt FFmpeg backend (QFFmpegMediaPlugin, libavcodec 61/FFmpeg 7.1) delivers NV12 frames with an ENTIRELY zero chroma plane (Cb=Cr=0) → YCbCr→RGB = solid green (0,226,0). Proven with a standalone probe containing no Daqster presentation code (system FFmpeg decodes correctly; H.264 and Cinepak work on Qt6; Qt5 works via GStreamer). Not fixable in Daqster code — upstream Qt 6.9.2 bug. Discovered 2026-08-09.
+
+### Removed
+- **7 deprecated VideoEffect alias nodes (REQ-SW-PL-028, 2026-08-26, user decision)** — `VideoEffectBrightnessNode`, `VideoEffectContrastNode`, `VideoEffectGrayscaleNode`, `VideoEffectInvertNode`, `VideoEffectSepiaNode`, `VideoEffectChannelSwapNode`, `VideoEffectFlipNode` removed from `VideoEffectNode.h` and their registrations from `DemoNodeEditorNodesObject.cpp`. The single `VideoEffect` node (effect combo) is the only registered effect node. **Old saved graphs referencing the alias registry keys no longer load** (accepted consequence).
 
 ## [0.2.0] - 2025-09-18
 

@@ -11,7 +11,7 @@
   - `VideoGLShaders.h` — споделени GLSL source builder-и (`buildVertexSource`, `buildYuvFragmentSource`, `buildRgbaFragmentSource` извлечени от `VideoGLBlitWidget.cpp` + нов `buildEffectFragmentSource` с `u_flipY` и инжектируем effect body)
   - `VideoEffectOps.{h,cpp}` — `EffectSpec` регистър (7 ефекта: brightness, contrast, grayscale, invert, sepia, channelSwap, flip) с CPU функции (делегират на `VideoTransformOps`) + GLSL body
   - `VideoEffectGLProcessor.{h,cpp}` — GPU backend: `QOpenGLContext` + `QOffscreenSurface` + `QOpenGLFramebufferObject`, Y/U/V upload с `GL_UNPACK_ROW_LENGTH`, `hasHardwareGL()` (llvmpipe/softpipe/SwiftShader детекция, lazy кеширана)
-  - `VideoEffectNode.{h,cpp}` — нод модел (port 0 in/out `VideoFrameData`) + **един нод с комбобокс** за избор на ефект (комбо + `QStackedWidget`, като `VideoTransformNode`) + 7 deprecated aliases (VideoEffectBrightness/Contrast/Grayscale/Invert/Sepia/ChannelSwap/Flip — стари saved графи), runtime backend избор, параметър UI (slider/combo/info), save/load с clamp-ове (backward compatible: `"effect"` = id + параметри)
+  - `VideoEffectNode.{h,cpp}` — нод модел (port 0 in/out `VideoFrameData`) + **един нод с комбобокс** за избор на ефект (комбо + `QStackedWidget`, като `VideoTransformNode`), runtime backend избор, параметър UI (slider/combo/info), save/load с clamp-ове (backward compatible: `"effect"` = id + параметри)
   - Регистрирани под категория "Video" в demo node editor plugin
 - **REQ-SW-PL-030** (FrameSampler — ресемплиране):
   - `FrameSamplerNode.{h,cpp}` — отделен нод (port 0 in/out `VideoFrameData`), режими „Every N-th frame" (1..1000) / „Max FPS" (1..120), zero-copy passthrough (същият `shared_ptr`), gate без emit при не-pass, save/load + reset на брояча/таймера
@@ -253,6 +253,7 @@
 ### Removed
 - `src/plugins/node_editor/` — монолитен plugin (заменен от widget + app)
 - `src/external_libs/` — празна директория премахната
+- **7-те deprecated VideoEffect alias нода (REQ-SW-PL-028, 2026-08-26, решение на потребителя)** — `VideoEffectBrightnessNode`, `VideoEffectContrastNode`, `VideoEffectGrayscaleNode`, `VideoEffectInvertNode`, `VideoEffectSepiaNode`, `VideoEffectChannelSwapNode`, `VideoEffectFlipNode` премахнати от `VideoEffectNode.h` и регистрациите им от `DemoNodeEditorNodesObject.cpp`. Единственият регистриран ефект нод е `VideoEffect` (с комбобокс). **Стари saved графи, които реферират alias registry ключовете, вече няма да се зареждат** (прието последствие).
 
 - **Framework Architecture Refactoring** - голям рефакторинг за извличане на reusable компоненти:
   - **Platform Abstraction Layer** (`frame_work/base/src/platform/`):
