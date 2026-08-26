@@ -92,6 +92,43 @@ QVector<EffectSpec> allSpecs()
         // (vertical flip of the texture coordinate).
         QString()));
 
+    // CPU-only effects (REQ-SW-PL-028 AC 3): always run on the CPU regardless
+    // of GL availability. The OpenCV-backed ones (gaussianBlur, canny,
+    // threshold) are only registered when HAVE_OPENCV is defined.
+    specs.append(makeSpec(
+        QStringLiteral("blur"), QStringLiteral("Blur"),
+        EffectSpec::Backend::CpuOnly,
+        [](const QImage &img, const EffectParams &p) {
+            return VideoTransformOps::blur(img, p.blurRadius);
+        },
+        QString()));
+
+#ifdef HAVE_OPENCV
+    specs.append(makeSpec(
+        QStringLiteral("gaussianBlur"), QStringLiteral("Gaussian Blur"),
+        EffectSpec::Backend::CpuOnly,
+        [](const QImage &img, const EffectParams &p) {
+            return VideoTransformOps::gaussianBlur(img, p.gaussianKernel);
+        },
+        QString()));
+
+    specs.append(makeSpec(
+        QStringLiteral("canny"), QStringLiteral("Canny Edges"),
+        EffectSpec::Backend::CpuOnly,
+        [](const QImage &img, const EffectParams &p) {
+            return VideoTransformOps::canny(img, p.cannyLow, p.cannyHigh);
+        },
+        QString()));
+
+    specs.append(makeSpec(
+        QStringLiteral("threshold"), QStringLiteral("Threshold"),
+        EffectSpec::Backend::CpuOnly,
+        [](const QImage &img, const EffectParams &p) {
+            return VideoTransformOps::threshold(img, p.thresholdValue);
+        },
+        QString()));
+#endif // HAVE_OPENCV
+
     return specs;
 }
 

@@ -13,12 +13,21 @@
  * brightness: -100..+100 (0 = unchanged), contrast: 0..200 (100 = unchanged),
  * flipHorizontal: flip direction for the flip effect (CPU path; the GPU path
  * flips vertically through the u_flipY shader uniform).
+ * blurRadius: box blur radius 0..10 (0 = unchanged).
+ * gaussianKernel: odd Gaussian kernel size 1..31 (OpenCV, HAVE_OPENCV).
+ * cannyLow/cannyHigh: Canny thresholds 0..255 (OpenCV, HAVE_OPENCV).
+ * thresholdValue: binary threshold 0..255 (OpenCV, HAVE_OPENCV).
  */
 struct EffectParams
 {
     int brightness = 0;
     int contrast = 100;
     bool flipHorizontal = true;
+    int blurRadius = 0;
+    int gaussianKernel = 5;
+    int cannyLow = 50;
+    int cannyHigh = 150;
+    int thresholdValue = 128;
 };
 
 /**
@@ -45,8 +54,9 @@ struct EffectSpec
 
 namespace VideoEffectOps {
 
-/// All registered effects (7): brightness, contrast, grayscale, invert, sepia,
-/// channelSwap, flip.
+/// All registered effects: brightness, contrast, grayscale, invert, sepia,
+/// channelSwap, flip, blur (CpuOnly), and — when HAVE_OPENCV is defined —
+/// gaussianBlur, canny, threshold (all CpuOnly).
 QVector<EffectSpec> allSpecs();
 
 /// Look up an effect by id; returns an empty (invalid) EffectSpec when unknown.

@@ -91,6 +91,10 @@ private:
                               int min, int max, int initial, const QString &title,
                               std::function<void(int)> onChanged);
     QWidget *createFlipPage();
+#ifdef HAVE_OPENCV
+    QWidget *createGaussianPage();
+    QWidget *createCannyPage();
+#endif
     void syncWidgetsFromParams();
     void reprocessCurrentFrame();
     QImage applyCpu(const QImage &source) const;
@@ -111,6 +115,18 @@ private:
     QSlider *m_contrastSlider = nullptr;
     QLabel *m_contrastValue = nullptr;
     QComboBox *m_flipCombo = nullptr;
+    QSlider *m_blurSlider = nullptr;
+    QLabel *m_blurValue = nullptr;
+#ifdef HAVE_OPENCV
+    QSlider *m_gaussianSlider = nullptr;
+    QLabel *m_gaussianValue = nullptr;
+    QSlider *m_cannyLowSlider = nullptr;
+    QLabel *m_cannyLowValue = nullptr;
+    QSlider *m_cannyHighSlider = nullptr;
+    QLabel *m_cannyHighValue = nullptr;
+    QSlider *m_thresholdSlider = nullptr;
+    QLabel *m_thresholdValue = nullptr;
+#endif
 };
 
 #endif // VIDEOEFFECTNODE_H

@@ -41,6 +41,11 @@ QJsonObject VideoEffectNode::save() const
     obj[QStringLiteral("flipMode")] = m_params.flipHorizontal
         ? QStringLiteral("horizontal")
         : QStringLiteral("vertical");
+    obj[QStringLiteral("blurRadius")] = m_params.blurRadius;
+    obj[QStringLiteral("gaussianKernel")] = m_params.gaussianKernel;
+    obj[QStringLiteral("cannyLow")] = m_params.cannyLow;
+    obj[QStringLiteral("cannyHigh")] = m_params.cannyHigh;
+    obj[QStringLiteral("thresholdValue")] = m_params.thresholdValue;
     return obj;
 }
 
@@ -50,9 +55,19 @@ void VideoEffectNode::load(QJsonObject const &p)
     m_params.contrast = p.value(QStringLiteral("contrast")).toInt(m_params.contrast);
     m_params.flipHorizontal = (p.value(QStringLiteral("flipMode")).toString()
                                != QStringLiteral("vertical"));
+    m_params.blurRadius = p.value(QStringLiteral("blurRadius")).toInt(m_params.blurRadius);
+    m_params.gaussianKernel = p.value(QStringLiteral("gaussianKernel")).toInt(m_params.gaussianKernel);
+    m_params.cannyLow = p.value(QStringLiteral("cannyLow")).toInt(m_params.cannyLow);
+    m_params.cannyHigh = p.value(QStringLiteral("cannyHigh")).toInt(m_params.cannyHigh);
+    m_params.thresholdValue = p.value(QStringLiteral("thresholdValue")).toInt(m_params.thresholdValue);
 
     m_params.brightness = std::max(-100, std::min(100, m_params.brightness));
     m_params.contrast = std::max(0, std::min(200, m_params.contrast));
+    m_params.blurRadius = std::max(0, std::min(10, m_params.blurRadius));
+    m_params.gaussianKernel = std::max(1, std::min(31, m_params.gaussianKernel | 1));
+    m_params.cannyLow = std::max(0, std::min(255, m_params.cannyLow));
+    m_params.cannyHigh = std::max(0, std::min(255, m_params.cannyHigh));
+    m_params.thresholdValue = std::max(0, std::min(255, m_params.thresholdValue));
 
     // Unknown effect id -> setEffect falls back to index 0 safely.
     setEffect(p.value(QStringLiteral("effect")).toString());
@@ -188,7 +203,8 @@ void VideoEffectNode::buildWidget()
 
     m_stack = new QStackedWidget(m_widget);
     // Page order must match allSpecs() order so combo index == stack index:
-    // brightness, contrast, grayscale, invert, sepia, channelSwap, flip.
+    // brightness, contrast, grayscale, invert, sepia, channelSwap, flip,
+    // blur, gaussianBlur, canny, threshold.
     m_stack->addWidget(createSliderPage(
         m_brightnessSlider, m_brightnessValue, -100, 100,
         m_params.brightness, tr("Brightness (-100..+100)"),
@@ -209,6 +225,24 @@ void VideoEffectNode::buildWidget()
     m_stack->addWidget(createInfoPage(
         tr("Swaps the red and blue channels (R<->B) on every frame.")));
     m_stack->addWidget(createFlipPage());
+    m_stack->addWidget(createSliderPage(
+        m_blurSlider, m_blurValue, 0, 10,
+        m_params.blurRadius, tr("Blur radius (0..10)"),
+        [this](int value) {
+            m_params.blurRadius = value;
+            reprocessCurrentFrame();
+        }));
+#ifdef HAVE_OPENCV
+    m_stack->addWidget(createGaussianPage());
+    m_stack->addWidget(createCannyPage());
+    m_stack->addWidget(createSliderPage(
+        m_thresholdSlider, m_thresholdValue, 0, 255,
+        m_params.thresholdValue, tr("Threshold value (0..255)"),
+        [this](int value) {
+            m_params.thresholdValue = value;
+            reprocessCurrentFrame();
+        }));
+#endif
     layout->addWidget(m_stack, 1);
 
     connect(m_effectCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
@@ -291,6 +325,68 @@ QWidget *VideoEffectNode::createFlipPage()
     return page;
 }
 
+#ifdef HAVE_OPENCV
+QWidget *VideoEffectNode::createGaussianPage()
+{
+    QWidget *page = createSliderPage(m_gaussianSlider, m_gaussianValue, 1, 31,
+                                     m_params.gaussianKernel, tr("Kernel size (odd, 1..31)"),
+                                     [this](int value) {
+                                         m_params.gaussianKernel = value | 1;
+                                         reprocessCurrentFrame();
+                                     });
+    m_gaussianSlider->setSingleStep(2);
+    return page;
+}
+
+QWidget *VideoEffectNode::createCannyPage()
+{
+    auto *page = new QWidget(m_stack);
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(4, 4, 4, 4);
+
+    auto *titleLabel = new QLabel(tr("Canny edge detection thresholds"), page);
+    titleLabel->setWordWrap(true);
+    layout->addWidget(titleLabel);
+
+    auto *lowRow = new QHBoxLayout();
+    m_cannyLowSlider = new QSlider(Qt::Horizontal, page);
+    m_cannyLowSlider->setRange(0, 255);
+    m_cannyLowSlider->setValue(m_params.cannyLow);
+    m_cannyLowValue = new QLabel(QString::number(m_params.cannyLow), page);
+    m_cannyLowValue->setMinimumWidth(32);
+    m_cannyLowValue->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    lowRow->addWidget(new QLabel(tr("Low"), page));
+    lowRow->addWidget(m_cannyLowSlider, 1);
+    lowRow->addWidget(m_cannyLowValue);
+    layout->addLayout(lowRow);
+
+    auto *highRow = new QHBoxLayout();
+    m_cannyHighSlider = new QSlider(Qt::Horizontal, page);
+    m_cannyHighSlider->setRange(0, 255);
+    m_cannyHighSlider->setValue(m_params.cannyHigh);
+    m_cannyHighValue = new QLabel(QString::number(m_params.cannyHigh), page);
+    m_cannyHighValue->setMinimumWidth(32);
+    m_cannyHighValue->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    highRow->addWidget(new QLabel(tr("High"), page));
+    highRow->addWidget(m_cannyHighSlider, 1);
+    highRow->addWidget(m_cannyHighValue);
+    layout->addLayout(highRow);
+
+    connect(m_cannyLowSlider, &QSlider::valueChanged, this, [this](int value) {
+        m_params.cannyLow = value;
+        m_cannyLowValue->setText(QString::number(value));
+        reprocessCurrentFrame();
+    });
+    connect(m_cannyHighSlider, &QSlider::valueChanged, this, [this](int value) {
+        m_params.cannyHigh = value;
+        m_cannyHighValue->setText(QString::number(value));
+        reprocessCurrentFrame();
+    });
+
+    return page;
+}
+#endif // HAVE_OPENCV
+
 void VideoEffectNode::syncWidgetsFromParams()
 {
     if (m_brightnessSlider)
@@ -299,6 +395,18 @@ void VideoEffectNode::syncWidgetsFromParams()
         m_contrastSlider->setValue(m_params.contrast);
     if (m_flipCombo)
         m_flipCombo->setCurrentIndex(m_params.flipHorizontal ? 0 : 1);
+    if (m_blurSlider)
+        m_blurSlider->setValue(m_params.blurRadius);
+#ifdef HAVE_OPENCV
+    if (m_gaussianSlider)
+        m_gaussianSlider->setValue(m_params.gaussianKernel);
+    if (m_cannyLowSlider)
+        m_cannyLowSlider->setValue(m_params.cannyLow);
+    if (m_cannyHighSlider)
+        m_cannyHighSlider->setValue(m_params.cannyHigh);
+    if (m_thresholdSlider)
+        m_thresholdSlider->setValue(m_params.thresholdValue);
+#endif
 }
 
 void VideoEffectNode::reprocessCurrentFrame()
