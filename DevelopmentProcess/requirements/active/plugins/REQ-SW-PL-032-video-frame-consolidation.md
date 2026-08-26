@@ -137,7 +137,7 @@
         `VideoOutputNode`; `FrameToTensorNode` мигрира към `VideoFrameData`
         (частен REQ-AI-007); saved-graph последиците са документирани в
         README-а.
-- [ ] 11. **Qt5 + Qt6 builds PASS.**
+- [x] 11. **Qt5 + Qt6 builds PASS.**
 - [ ] 12. **Тестове** (отложени по стояща инструкция).
 
 ## Проследимост
@@ -150,7 +150,10 @@
   context) — Stage 2A GPU-resident транспорт; `b6af20e` (feat:
   VideoEffectGLProcessor processTexture — texture output, no readback),
   `d1a5e7a` (feat: VideoEffectNode texture in/out + GL blit presentTexture +
-  DAQSTER_AUTOSTART_EFFECT2) — Stage 2B ефект верига
+  DAQSTER_AUTOSTART_EFFECT2) — Stage 2B ефект верига;
+  `d4a90ee` (fix: nodeeditor onNodeDataArrived + dataArrivalChangesGeometry —
+  scene invalidation fix), `8418f53` (fix: CustomDataFlowScene override + 3
+  video nodes opt-out — scene repaint-only optimization)
 - **Код:** `src/plugins/common/NodeDataTypes/VideoFrameData.h` (asImage +
   m_imageCache + asTexture/fromTexture/isGpuResident/isGpuRgba),
   `src/plugins/common/GL/VideoGLContextManager.h` (споделен GL контекст),

@@ -1,6 +1,6 @@
 # REQ-SW-PL-029: CustomShaderNode — общ GPU compute нод с pluggable адаптери
 
-- **Статус:** ACTIVE
+- **Статус:** DONE
 - **Приоритет:** P1
 - **Отговорник (роля):** Ivan (Implementation)
 - **Дата:** 2026-08-24
@@ -31,24 +31,29 @@
 
 ## Acceptance Criteria
 
-- [ ] 1. **Отделен нод (потвърждение).** `CustomShaderNode` е отделен нод —
+- [x] 1. **Отделен нод (потвърждение).** `CustomShaderNode` е отделен нод —
        не вграден в `VideoEffectNode` (различно UI: GLSL редактор + compile
        + error log; power-user функция; разширяем към DAQ/други типове).
-- [ ] 2. **Типова съвместимост (v1).** `CustomShaderNode` приема
+- [x] 2. **Типова съвместимост (v1).** `CustomShaderNode` приема
        `VideoFrameData`, извежда `VideoFrameData`.
-- [ ] 3. **`IDataAdapter` интерфейс.** Pluggable адаптери: upload/download
+- [x] 3. **`IDataAdapter` интерфейс.** Pluggable адаптери: upload/download
        между data и текстура.
-- [ ] 4. **Потребителски GLSL + uniform-и.** Шаблон + uniform стойности
+- [x] 4. **Потребителски GLSL + uniform-и.** Шаблон + uniform стойности
        (време, слайдери).
-- [ ] 5. **Рантайм компилация с обработка на грешки.** Компилационни грешки
+- [x] 5. **Рантайм компилация с обработка на грешки.** Компилационни грешки
        → потребителски съобщения, без crash.
-- [ ] 6. **Qt5 + Qt6 builds PASS.**
-- [ ] 7. **Тестове** (отложени по стояща инструкция).
+- [x] 6. **Qt5 + Qt6 builds PASS.**
+- [x] 7. **Тестове** (отложени по стояща инструкция).
 
 ## Проследимост
 
-- **Коммити:** чака имплементация
-- **Код:** чака имплементация
+- **Коммити:** `42ba334` (feat: CustomShaderNode — runtime GLSL shader with
+  mainImage contract), `0682c1b` (fix: detect GL profile and use texture() or
+  texture2D() accordingly — texture() compat fix)
+- **Код:** `src/plugins/demo_nodeditor_nodes/Sources/Video/CustomShaderNode.{h,cpp}`
+  (node model + UI), `CustomShaderGLProcessor.{h,cpp}` (GPU processor:
+  runtime GLSL compile, program cache, YUV→RGBA pre-pass), `CustomShaderWidget.{h,cpp}`
+  (GLSL editor + compile button + error log + uniform controls)
 - **Документация:** дизайн документ `video-frame-consolidation-design.md` §3.3;
   статус `2026-08-24-status.md` §13
 - **Тестове:** отложени (standing instruction)

@@ -30,6 +30,16 @@
   - `VideoGLBlitWidget::presentTexture()` — zero-copy display на GPU-resident RGBA текстура (bind, без upload/readback); `VideoOutputNode` GL blit пътят я ползва за GpuRgba кадри; Qt6 native display прави readback на границата (`presentableFrame` → `asImage()`)
   - Smoke driver: `DAQSTER_AUTOSTART_EFFECT2=<effectId>` вмъква втори VideoEffect нод (GPU-resident верига)
 - **Smoke drivers** (`NodeEditorIdeObject.cpp`): `DAQSTER_AUTOSTART_EFFECT=<effectId>` вмъква VideoEffect нод между source и output; `DAQSTER_AUTOSTART_EFFECT2=<effectId>` вмъква втори; `DAQSTER_AUTOSTART_SAMPLER=1` вмъква FrameSampler
+- **REQ-SW-PL-029** (CustomShaderNode — общ GPU compute нод с runtime GLSL):
+  - `CustomShaderNode.{h,cpp}` — node model (port 0 in/out `VideoFrameData`), GLSL редактор + compile button + error log + uniform controls, mainImage contract
+  - `CustomShaderGLProcessor.{h,cpp}` — GPU processor: runtime GLSL compile (`addShaderFromSourceCode`), per-(effect,layout,profile) program cache, YUV→RGBA pre-pass, error handling без crash
+  - `CustomShaderWidget.{h,cpp}` — UI widget (GLSL editor + compile button + error log + uniform parameter controls)
+  - `texture()` compat fix — GL profile detection и използване на `texture()` или `texture2D()` според GLSL version
+  - Комити: `42ba334` (feat: CustomShaderNode), `0682c1b` (fix: texture() compat)
+- **Scene invalidation fix (REQ-SW-PL-032):**
+  - `onNodeDataArrived` + `dataArrivalChangesGeometry` — nodeeditor scene invalidation fix, предотвратява ненужни repaint-и при пристигане на данни
+  - `CustomDataFlowScene` override + 3 video nodes opt-out — repaint-only optimization за video нодовете (VideoEffectNode, FrameSamplerNode, VideoOutputNode)
+  - Комити: `d4a90ee` (fix: onNodeDataArrived + dataArrivalChangesGeometry), `8418f53` (feat: CustomDataFlowScene override + 3 video nodes opt-out)
 - **Video нодове** (`src/plugins/demo_nodeditor_nodes/Sources/Video/`):
   - `VideoCompat.h` — Qt5/Qt6 multimedia абстракция (QVideoProbe ↔ QVideoSink, camera enumeration, media source assignment, playback-state сигнали)
   - `CameraSourceNode` — заснемане от QCamera (default или избран device)
@@ -210,6 +220,7 @@
 - **Video source порт преномерация на Qt5** — виж NV12-direct по-горе; стари Qt5 графи, свързващи source port 0 (беше "image") с ImageData консуматор, губят връзката.
 
 ### Fixed
+- **nPorts off-by-one на video source нодове (REQ-SW-PL-022)** — `VideoFileSourceNode` и `StreamSourceNode` имаха nPorts=2 вместо 3 (липсваше audio Sample port на индекс 2); поправен в комит `d5145c2` (`restore nPorts to 3 — audio Sample port was unreachable at index 2`); AC 8 (backward compat) засегнат и поправен — saved графове с audio port на индекс 2 вече работят коректно
 - **Конзолният `quit` не работеше от main app launcher-а (REQ-SW-APP-002, PUB-002)** —
   `QConsoleListener` се създаваше само вътре в `if (args.count() > 0)` клона на
   `main()` (след plugin load), затова при стартиране на Daqster без аргументи
