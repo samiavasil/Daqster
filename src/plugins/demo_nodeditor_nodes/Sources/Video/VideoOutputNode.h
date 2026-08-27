@@ -4,15 +4,21 @@
 #include <QtNodes/NodeDelegateModel>
 
 #include "ProcessCpu.h"
+#include "VideoEffectGLProcessor.h"
+#include "VideoEffectOps.h"
 
 #include <QImage>
 #include <QtMultimedia/QVideoFrame>
+#include <QVBoxLayout>
+#include <functional>
 #include <memory>
 
 class QLabel;
 class QWidget;
 
 class QCheckBox;
+class QComboBox;
+class QStackedWidget;
 class QTimer;
 class VideoFrameData;
 class VideoGLBlitWidget;
@@ -150,6 +156,33 @@ private:
     /// — the in-scene QGraphicsVideoItem branch in setInData() handles display.
     void ensureVideoWidget();
 
+    /// Select the embedded effect by combo index (REQ-SW-PL-034). Index 0 is
+    /// the "No effect" placeholder (m_effectEnabled = false); indices 1..N map
+    /// to m_specs[0..N-1]. Syncs the parameter stack and the enabled flag.
+    void setEffectIndex(int index);
+
+    /// Build the embedded effect combo + parameter stack (REQ-SW-PL-034).
+    /// Adds a leading "No effect" item (index 0) followed by one item per
+    /// effect from VideoEffectOps::allSpecs(), with a QStackedWidget holding
+    /// a blank page for index 0 and one parameter page per effect.
+    void buildEffectControls();
+
+    /// Compact parameter page: a title label + a horizontal slider bound to
+    /// the given int member via onChanged. Returns the page widget.
+    QWidget *createSliderPage(int &value, int min, int max, const QString &title,
+                              std::function<void(int)> onChanged);
+
+    /// Flip direction page (horizontal/vertical combo bound to
+    /// m_params.flipHorizontal).
+    QWidget *createFlipPage();
+
+    /// Canny thresholds page (low/high sliders bound to m_params).
+    QWidget *createCannyPage();
+
+    /// Simple info page for parameter-less effects (grayscale/invert/sepia/
+    /// channelSwap).
+    QWidget *createInfoPage(const QString &text);
+
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     /// Lazily create the in-scene QGraphicsVideoItem (REQ-SW-PL-021, Qt6,
     /// "GPU display" checkbox OFF): finds the node editor scene via
@@ -227,6 +260,29 @@ private:
     /// frames that keep flowing from a still-playing source after the edge is
     /// removed cannot resurrect the detached popup.
     bool m_videoInputConnected = false;
+
+    // ── Embedded effects (REQ-SW-PL-034, optional, default none) ────────────
+    /// All registered effects (from VideoEffectOps::allSpecs()). Index 0 of
+    /// the combo is the "No effect" placeholder, so m_specs[i] corresponds to
+    /// combo index i+1.
+    QVector<EffectSpec> m_specs;
+    /// Selected effect index into m_specs; -1 = no effect.
+    int m_effectIndex = -1;
+    /// True when an effect is selected and applied. When false the effect
+    /// block in setInData() is skipped entirely — zero-copy passthrough is
+    /// byte-identical to a node without embedded effects.
+    bool m_effectEnabled = false;
+    /// Effect parameters (brightness/contrast/flip/blur/OpenCV thresholds).
+    EffectParams m_params;
+    /// GPU backend for GpuOrCpu effects (shared GL context, zero-copy).
+    VideoEffectGLProcessor m_glProcessor;
+    /// Embedded effect combo (index 0 = "No effect").
+    QComboBox *m_effectCombo = nullptr;
+    /// Parameter stack: page 0 = blank (no effect), page i+1 = effect i.
+    QStackedWidget *m_effectStack = nullptr;
+    /// The embedded widget's vertical layout (set in the constructor; used by
+    /// buildEffectControls() to append the effect combo + stack).
+    QVBoxLayout *m_layout = nullptr;
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QVideoWidget *m_videoWidget = nullptr;

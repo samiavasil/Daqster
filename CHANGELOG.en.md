@@ -199,6 +199,13 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **GL blit display widget** (`VideoGLBlitWidget`, `DAQSTER_GL_BLIT=1`) — detached OpenGL display for `VideoOutputNode` that uploads decoded CPU frames as YUV textures (NV12 / YUV420P) and converts to RGB in a fragment shader (QImage fallback for RGB formats). Enabled on both Qt versions; measured CPU: Qt5 27.9% → 15.0-16.2%, Qt6 17.8-18.2%, GLBLIT ~50-330 µs, failures=0.
 - **NV12-direct for Qt5 (REQ-SW-PL-020)** — `VideoFrameData` is no longer Qt6-gated; Qt5 video sources emit an OWNED copy of the decoded frame (`VideoCompat::frameToOwnedFrame` — NV12/YUV420P planes memcpy'd into a `QAbstractPlanarVideoBuffer`) on port 0 (video-frame), image port 1 converts on demand, audio port 2 appended last. `VideoOutputNode` has the video-frame@0 / image@1 dual input on both Qt versions. **Renumbering note:** on Qt5 the image port moved from 0 to 1 — old saved Qt5 graphs with image@0 must reconnect.
 - **Video display perf results doc** — `tests/performance/performance-video-display-2026-08-13.md`: full methodology, before/after shadow numbers, perf bottleneck analysis, changes and next levers.
+- **REQ-SW-PL-034** (VideoOutputNode embedded effects — optional, default none):
+  - `VideoOutputNode` gains **optional embedded effects** — the same 11 effects as `VideoEffectNode` (brightness, contrast, grayscale, invert, sepia, channelSwap, flip, blur + gaussianBlur/canny/threshold with `HAVE_OPENCV`), **no effect by default**
+  - Combo with a leading "No effect" item (index 0) + `QStackedWidget` parameter pages (slider/flip/OpenCV); backend suffix "(GPU)"/"(CPU)" like `VideoEffectNode`
+  - When no effect is selected the block in `setInData()` is **skipped entirely** — `asTexture()`/`asImage()` are never called, the zero-copy passthrough is byte-identical (AC 2)
+  - GPU path: `asTexture()` → `VideoEffectGLProcessor::processTexture()` → `fromTexture()` (GpuRgba, zero-copy) with hardware GL; CPU path/fallback: `asImage()` → `EffectSpec::cpuApply` → `QVideoFrame`
+  - `save()`/`load()`: `"effect"` id + params (`brightness`/`contrast`/`flipMode`/`blurRadius`/`gaussianKernel`/`cannyLow`/`cannyHigh`/`thresholdValue`) with clamps; old graphs without the `"effect"` key → "no effect" (backward compatible)
+  - Tests: `demo_nodeditor_videooutput_tests` +4 (default no-effect passthrough, load→save round-trip, backward compat, effect transforms the frame); Qt5/Qt6 builds PASS + ctest 9/9 green (both)
 
 ### Changed
 - **Design refinement (REQ-SW-PL-028/029/032, 2026-08-25)** — documentation-only:

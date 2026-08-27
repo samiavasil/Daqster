@@ -1,5 +1,6 @@
 #include "VideoOutputNode.h"
 
+#include "GL/VideoGLContextManager.h"
 #include "NodeDataTypes/VideoFrameData.h"
 #include "PerfProfiler.h"
 #include "VideoCompat.h"
@@ -7,18 +8,25 @@
 #include "VideoPerfBadge.h"
 
 #include <QCheckBox>
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QEvent>
 #include <QFile>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
 #include <QPixmap>
+#include <QSignalBlocker>
 #include <QSize>
+#include <QSlider>
+#include <QStackedWidget>
 #include <QTextStream>
 #include <QTimer>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QApplication>
@@ -91,22 +99,22 @@ VideoOutputNode::VideoOutputNode()
     this->setNodeStyle(s);
 
     m_widget = new QWidget();
-    auto *layout = new QVBoxLayout(m_widget);
-    layout->setContentsMargins(4, 4, 4, 4);
+    m_layout = new QVBoxLayout(m_widget);
+    m_layout->setContentsMargins(4, 4, 4, 4);
 
     m_label = new QLabel(m_widget);
     m_label->setMinimumSize(320, 240);
     m_label->setAlignment(Qt::AlignCenter);
     m_label->setText(tr("No video input"));
     m_label->setStyleSheet(QStringLiteral("background-color: black; color: gray;"));
-    layout->addWidget(m_label);
+    m_layout->addWidget(m_label);
 
     // Perf toggle + console line (REQ-SW-PL-027, both Qt5 + Qt6): enables the
     // "video" profiling domain live and drives the 5 s console timer. On Qt6 it
     // also drives the on-screen badge refresh timer (500 ms); Qt5 keeps the
     // QImage path with no overlay but still logs the copy-paste-able line.
     m_perfCheck = new QCheckBox(tr("Perf"), m_widget);
-    layout->addWidget(m_perfCheck);
+    m_layout->addWidget(m_perfCheck);
 
     // "GPU display" toggle (REQ-SW-PL-021): visible + checked by default on
     // BOTH Qt versions — checked = detached display window, unchecked = video
@@ -126,8 +134,12 @@ VideoOutputNode::VideoOutputNode()
     m_detachedEnabled = m_glCheck->isChecked();
     m_glEnabled = m_detachedEnabled;          // checked = GL blit
 #endif
-    layout->addWidget(m_glCheck);
+    m_layout->addWidget(m_glCheck);
     connect(m_glCheck, &QCheckBox::toggled, this, &VideoOutputNode::setGlEnabled);
+
+    // Embedded effects (REQ-SW-PL-034): optional, default "No effect" — the
+    // zero-copy passthrough is preserved until the user selects an effect.
+    buildEffectControls();
 
     m_consoleTimer = new QTimer(this);
     m_consoleTimer->setInterval(5000);
@@ -159,6 +171,205 @@ VideoOutputNode::VideoOutputNode()
 #endif
 
     m_label->installEventFilter(this);
+}
+
+void VideoOutputNode::buildEffectControls()
+{
+    m_specs = VideoEffectOps::allSpecs();
+
+    // Effect combo: index 0 = "No effect" (empty id), then one item per effect
+    // with a backend suffix mirroring VideoEffectNode (REQ-SW-PL-028 AC 8).
+    m_effectCombo = new QComboBox(m_widget);
+    m_effectCombo->setMinimumWidth(190);
+    m_effectCombo->addItem(tr("No effect"));
+    for (const EffectSpec &spec : m_specs) {
+        const QString backendLabel = (spec.backend == EffectSpec::Backend::CpuOnly)
+            ? QStringLiteral(" (CPU)")
+            : QStringLiteral(" (GPU)");
+        m_effectCombo->addItem(spec.displayName + backendLabel);
+    }
+    m_layout->addWidget(m_effectCombo);
+
+    // Parameter stack: page 0 = blank (no effect), page i+1 = effect i.
+    m_effectStack = new QStackedWidget(m_widget);
+    m_effectStack->addWidget(new QWidget(m_effectStack)); // blank "No effect" page
+    for (int i = 0; i < m_specs.size(); ++i) {
+        const EffectSpec &spec = m_specs[i];
+        QWidget *page = nullptr;
+        if (spec.id == QStringLiteral("brightness")) {
+            page = createSliderPage(
+                m_params.brightness, -100, 100, tr("Brightness (-100..+100)"),
+                [this](int value) { m_params.brightness = value; });
+        } else if (spec.id == QStringLiteral("contrast")) {
+            page = createSliderPage(
+                m_params.contrast, 0, 200, tr("Contrast (0..200%, 100% = unchanged)"),
+                [this](int value) { m_params.contrast = value; });
+        } else if (spec.id == QStringLiteral("flip")) {
+            page = createFlipPage();
+        } else if (spec.id == QStringLiteral("blur")) {
+            page = createSliderPage(
+                m_params.blurRadius, 0, 10, tr("Blur radius (0..10)"),
+                [this](int value) { m_params.blurRadius = value; });
+        } else if (spec.id == QStringLiteral("gaussianBlur")) {
+            page = createSliderPage(
+                m_params.gaussianKernel, 1, 31, tr("Gaussian kernel (odd, 1..31)"),
+                [this](int value) { m_params.gaussianKernel = value | 1; });
+        } else if (spec.id == QStringLiteral("canny")) {
+            page = createCannyPage();
+        } else if (spec.id == QStringLiteral("threshold")) {
+            page = createSliderPage(
+                m_params.thresholdValue, 0, 255, tr("Threshold value (0..255)"),
+                [this](int value) { m_params.thresholdValue = value; });
+        } else {
+            // Parameter-less effects (grayscale/invert/sepia/channelSwap):
+            // a compact info label describing the effect.
+            page = createInfoPage(spec.displayName);
+        }
+        m_effectStack->addWidget(page);
+    }
+    m_layout->addWidget(m_effectStack, 1);
+
+    connect(m_effectCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            &VideoOutputNode::setEffectIndex);
+
+    // Default: no effect (index 0).
+    setEffectIndex(0);
+}
+
+void VideoOutputNode::setEffectIndex(int index)
+{
+    // Index 0 = "No effect" placeholder; indices 1..N map to m_specs[0..N-1].
+    if (index <= 0 || index > m_specs.size()) {
+        m_effectEnabled = false;
+        m_effectIndex = -1;
+    } else {
+        m_effectEnabled = true;
+        m_effectIndex = index - 1;
+    }
+
+    if (m_effectCombo != nullptr && m_effectCombo->currentIndex() != index) {
+        const QSignalBlocker blocker(m_effectCombo);
+        m_effectCombo->setCurrentIndex(index);
+    }
+    if (m_effectStack != nullptr && m_effectStack->currentIndex() != index)
+        m_effectStack->setCurrentIndex(index);
+}
+
+QWidget *VideoOutputNode::createSliderPage(int &value, int min, int max,
+                                           const QString &title,
+                                           std::function<void(int)> onChanged)
+{
+    auto *page = new QWidget(m_effectStack);
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(4, 4, 4, 4);
+
+    auto *titleLabel = new QLabel(title, page);
+    titleLabel->setWordWrap(true);
+    layout->addWidget(titleLabel);
+
+    auto *row = new QHBoxLayout();
+    auto *slider = new QSlider(Qt::Horizontal, page);
+    slider->setRange(min, max);
+    slider->setValue(value);
+    auto *valueLabel = new QLabel(QString::number(value), page);
+    valueLabel->setMinimumWidth(32);
+    valueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    row->addWidget(slider, 1);
+    row->addWidget(valueLabel);
+    layout->addLayout(row);
+
+    connect(slider, &QSlider::valueChanged, this,
+            [this, &value, valueLabel, onChanged](int v) {
+                value = v;
+                valueLabel->setText(QString::number(v));
+                if (onChanged)
+                    onChanged(v);
+            });
+
+    return page;
+}
+
+QWidget *VideoOutputNode::createFlipPage()
+{
+    auto *page = new QWidget(m_effectStack);
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(4, 4, 4, 4);
+
+    auto *titleLabel = new QLabel(tr("Flip direction"), page);
+    titleLabel->setWordWrap(true);
+    layout->addWidget(titleLabel);
+
+    auto *flipCombo = new QComboBox(page);
+    flipCombo->addItem(tr("Horizontal"), true);
+    flipCombo->addItem(tr("Vertical"), false);
+    flipCombo->setCurrentIndex(m_params.flipHorizontal ? 0 : 1);
+    layout->addWidget(flipCombo);
+
+    connect(flipCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [this, flipCombo](int) {
+                m_params.flipHorizontal = flipCombo->currentData().toBool();
+            });
+
+    return page;
+}
+
+QWidget *VideoOutputNode::createCannyPage()
+{
+    auto *page = new QWidget(m_effectStack);
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(4, 4, 4, 4);
+
+    auto *titleLabel = new QLabel(tr("Canny edge detection thresholds"), page);
+    titleLabel->setWordWrap(true);
+    layout->addWidget(titleLabel);
+
+    auto *lowRow = new QHBoxLayout();
+    auto *lowSlider = new QSlider(Qt::Horizontal, page);
+    lowSlider->setRange(0, 255);
+    lowSlider->setValue(m_params.cannyLow);
+    auto *lowValue = new QLabel(QString::number(m_params.cannyLow), page);
+    lowValue->setMinimumWidth(32);
+    lowValue->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    lowRow->addWidget(new QLabel(tr("Low"), page));
+    lowRow->addWidget(lowSlider, 1);
+    lowRow->addWidget(lowValue);
+    layout->addLayout(lowRow);
+
+    auto *highRow = new QHBoxLayout();
+    auto *highSlider = new QSlider(Qt::Horizontal, page);
+    highSlider->setRange(0, 255);
+    highSlider->setValue(m_params.cannyHigh);
+    auto *highValue = new QLabel(QString::number(m_params.cannyHigh), page);
+    highValue->setMinimumWidth(32);
+    highValue->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    highRow->addWidget(new QLabel(tr("High"), page));
+    highRow->addWidget(highSlider, 1);
+    highRow->addWidget(highValue);
+    layout->addLayout(highRow);
+
+    connect(lowSlider, &QSlider::valueChanged, this, [this, lowValue](int v) {
+        m_params.cannyLow = v;
+        lowValue->setText(QString::number(v));
+    });
+    connect(highSlider, &QSlider::valueChanged, this, [this, highValue](int v) {
+        m_params.cannyHigh = v;
+        highValue->setText(QString::number(v));
+    });
+
+    return page;
+}
+
+QWidget *VideoOutputNode::createInfoPage(const QString &text)
+{
+    auto *page = new QWidget(m_effectStack);
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(4, 4, 4, 4);
+
+    auto *label = new QLabel(text, page);
+    label->setWordWrap(true);
+    layout->addWidget(label);
+
+    return page;
 }
 
 VideoOutputNode::~VideoOutputNode()
@@ -204,12 +415,61 @@ VideoOutputNode::~VideoOutputNode()
 
 QJsonObject VideoOutputNode::save() const
 {
-    return QtNodes::NodeDelegateModel::save();
+    QJsonObject obj = QtNodes::NodeDelegateModel::save();
+
+    // Embedded effect (REQ-SW-PL-034): persist the selected effect id only
+    // when an effect is active. No-effect saves omit the key — old graphs
+    // without "effect" load as no-effect (backward compatible).
+    if (m_effectEnabled && m_effectIndex >= 0 && m_effectIndex < m_specs.size())
+        obj[QStringLiteral("effect")] = m_specs[m_effectIndex].id;
+
+    // Effect parameters (mirrors VideoEffectNode::save()).
+    obj[QStringLiteral("brightness")] = m_params.brightness;
+    obj[QStringLiteral("contrast")] = m_params.contrast;
+    obj[QStringLiteral("flipMode")] = m_params.flipHorizontal
+        ? QStringLiteral("horizontal")
+        : QStringLiteral("vertical");
+    obj[QStringLiteral("blurRadius")] = m_params.blurRadius;
+    obj[QStringLiteral("gaussianKernel")] = m_params.gaussianKernel;
+    obj[QStringLiteral("cannyLow")] = m_params.cannyLow;
+    obj[QStringLiteral("cannyHigh")] = m_params.cannyHigh;
+    obj[QStringLiteral("thresholdValue")] = m_params.thresholdValue;
+    return obj;
 }
 
 void VideoOutputNode::load(QJsonObject const &p)
 {
-    Q_UNUSED(p);
+    // Effect parameters with defaults (mirrors VideoEffectNode::load()).
+    m_params.brightness = p.value(QStringLiteral("brightness")).toInt(m_params.brightness);
+    m_params.contrast = p.value(QStringLiteral("contrast")).toInt(m_params.contrast);
+    m_params.flipHorizontal = (p.value(QStringLiteral("flipMode")).toString()
+                               != QStringLiteral("vertical"));
+    m_params.blurRadius = p.value(QStringLiteral("blurRadius")).toInt(m_params.blurRadius);
+    m_params.gaussianKernel = p.value(QStringLiteral("gaussianKernel")).toInt(m_params.gaussianKernel);
+    m_params.cannyLow = p.value(QStringLiteral("cannyLow")).toInt(m_params.cannyLow);
+    m_params.cannyHigh = p.value(QStringLiteral("cannyHigh")).toInt(m_params.cannyHigh);
+    m_params.thresholdValue = p.value(QStringLiteral("thresholdValue")).toInt(m_params.thresholdValue);
+
+    // Clamp to valid ranges (mirrors VideoEffectNode.cpp:64-70).
+    m_params.brightness = std::max(-100, std::min(100, m_params.brightness));
+    m_params.contrast = std::max(0, std::min(200, m_params.contrast));
+    m_params.blurRadius = std::max(0, std::min(10, m_params.blurRadius));
+    m_params.gaussianKernel = std::max(1, std::min(31, m_params.gaussianKernel | 1));
+    m_params.cannyLow = std::max(0, std::min(255, m_params.cannyLow));
+    m_params.cannyHigh = std::max(0, std::min(255, m_params.cannyHigh));
+    m_params.thresholdValue = std::max(0, std::min(255, m_params.thresholdValue));
+
+    // Effect selection: absent/empty/invalid "effect" id → no effect
+    // (backward compatible with old graphs without the key).
+    const QString effectId = p.value(QStringLiteral("effect")).toString();
+    int comboIndex = 0; // "No effect"
+    for (int i = 0; i < m_specs.size(); ++i) {
+        if (m_specs[i].id == effectId) {
+            comboIndex = i + 1; // combo index = spec index + 1
+            break;
+        }
+    }
+    setEffectIndex(comboIndex);
 }
 
 unsigned int VideoOutputNode::nPorts(PortType portType) const
@@ -264,6 +524,35 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
             }
 
             m_videoFrame = videoFrame;
+
+            // ── Embedded effect (REQ-SW-PL-034, optional, default none) ─────
+            // When no effect is selected (m_effectEnabled == false) this block
+            // is SKIPPED ENTIRELY — asTexture()/asImage() are never called and
+            // the display path below is byte-identical to a node without
+            // embedded effects (zero-copy passthrough preserved).
+            if (m_effectEnabled && m_effectIndex >= 0 && m_effectIndex < m_specs.size()) {
+                const EffectSpec &spec = m_specs[m_effectIndex];
+                // Runtime backend selection (mirrors VideoEffectNode): GpuOrCpu
+                // effects run on the GPU only with hardware GL.
+                const bool useGpu = (spec.backend == EffectSpec::Backend::GpuOrCpu)
+                    && VideoGLContextManager::hasHardwareGL();
+                if (useGpu) {
+                    VideoTextureHandle input;
+                    if (videoFrame->asTexture(&input)) {
+                        VideoTextureHandle out;
+                        if (m_glProcessor.processTexture(input, spec, m_params, &out))
+                            videoFrame = VideoFrameData::fromTexture(out);
+                    }
+                }
+                // CPU path (or GPU fallback when asTexture/processTexture
+                // failed): convert, apply, re-wrap.
+                if (!videoFrame->isGpuRgba()) {
+                    const QImage img = videoFrame->asImage();
+                    const QImage transformed = spec.cpuApply ? spec.cpuApply(img, m_params) : img;
+                    if (!transformed.isNull())
+                        videoFrame = std::make_shared<VideoFrameData>(QVideoFrame(transformed));
+                }
+            }
 
             // Lazily create the detached display on the first frame.
             ensureVideoWidget();

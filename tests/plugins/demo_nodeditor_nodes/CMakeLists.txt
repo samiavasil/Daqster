@@ -151,6 +151,15 @@ set(VIDEO_OUTPUT_TEST_SOURCES
     # VideoOutputNode references VideoGLBlitWidget (DAQSTER_GL_BLIT display path);
     # compile the widget source so the test binary links standalone:
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoGLBlitWidget.cpp
+    # Embedded effects (REQ-SW-PL-034): VideoOutputNode now uses
+    # VideoEffectOps::allSpecs() + VideoEffectGLProcessor::processTexture().
+    # VideoEffectOps.cpp delegates to VideoTransformOps.cpp for the CPU apply
+    # functions; VideoEffectGLProcessor.cpp is the GPU backend. The test binary
+    # compiles WITHOUT HAVE_OPENCV (the 8 base effects only) — the plugin .so
+    # keeps the OpenCV-backed effects.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoEffectOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoTransformOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoEffectGLProcessor.cpp
 )
 
 add_executable(demo_nodeditor_videooutput_tests ${VIDEO_OUTPUT_TEST_SOURCES})

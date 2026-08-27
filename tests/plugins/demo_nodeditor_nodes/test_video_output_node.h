@@ -16,4 +16,10 @@ private slots:
     void videoInputConnectionGuard();
     void outputConnectionCounter();
     void outputChain();
+
+    // Embedded effects (REQ-SW-PL-034):
+    void defaultNoEffectPassthrough();
+    void loadEffectPersistsSave();
+    void loadAbsentEffectIsNoEffect();
+    void loadAppliesEffectToFrame();
 };

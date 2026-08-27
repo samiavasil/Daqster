@@ -3,7 +3,9 @@
 #include "NodeDataTypes/VideoFrameData.h"
 #include "VideoOutputNode.h"
 
+#include <QColor>
 #include <QImage>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QVideoFrame>
 
@@ -155,6 +157,99 @@ void VideoOutputNodeTest::outputChain()
     QVERIFY(outFrame != nullptr);
     QCOMPARE(outFrame->asImage().width(), frameSize.width());
     QCOMPARE(outFrame->asImage().height(), frameSize.height());
+}
+
+// ── defaultNoEffectPassthrough ───────────────────────────────────────────────
+//
+// REQ-SW-PL-034 AC 1/2: the node defaults to "No effect" — save() must NOT
+// write an "effect" key, and the output frame must be byte-identical to the
+// input (zero-copy passthrough preserved when no effect is selected).
+void VideoOutputNodeTest::defaultNoEffectPassthrough()
+{
+    VideoOutputNode node;
+    node.inputConnectionCreated(makeConId(0, 0));
+    node.outputConnectionCreated(makeConId(0, 0));
+
+    // Default save: no "effect" key (backward compatible with old graphs).
+    const QJsonObject saved = node.save();
+    QVERIFY(!saved.contains(QStringLiteral("effect")));
+
+    // Feed a frame → output must equal the input pixels exactly.
+    QImage img(64, 48, QImage::Format_ARGB32);
+    img.fill(Qt::red);
+    QVideoFrame vf(img);
+    node.setInData(std::make_shared<VideoFrameData>(vf), 0);
+
+    auto out = std::dynamic_pointer_cast<VideoFrameData>(node.outData(0));
+    QVERIFY(out != nullptr);
+    // Qt6 asImage() normalizes to ARGB32 — compare pixel content, not format.
+    QCOMPARE(out->asImage().convertToFormat(img.format()), img);
+}
+
+// ── loadEffectPersistsSave ───────────────────────────────────────────────────
+//
+// REQ-SW-PL-034 AC 4: loading a graph with an "effect" key selects the effect
+// and save() round-trips the id + parameters.
+void VideoOutputNodeTest::loadEffectPersistsSave()
+{
+    VideoOutputNode node;
+
+    QJsonObject graph;
+    graph[QStringLiteral("effect")] = QStringLiteral("brightness");
+    graph[QStringLiteral("brightness")] = 42;
+    node.load(graph);
+
+    const QJsonObject saved = node.save();
+    QCOMPARE(saved.value(QStringLiteral("effect")).toString(),
+             QStringLiteral("brightness"));
+    QCOMPARE(saved.value(QStringLiteral("brightness")).toInt(), 42);
+}
+
+// ── loadAbsentEffectIsNoEffect ───────────────────────────────────────────────
+//
+// REQ-SW-PL-034 AC 4 (backward compatible): old graphs without the "effect"
+// key load as no-effect — save() omits the key again.
+void VideoOutputNodeTest::loadAbsentEffectIsNoEffect()
+{
+    VideoOutputNode node;
+
+    // Old graph: only display-related keys, no "effect".
+    QJsonObject graph;
+    graph[QStringLiteral("someOldKey")] = QStringLiteral("value");
+    node.load(graph);
+
+    const QJsonObject saved = node.save();
+    QVERIFY(!saved.contains(QStringLiteral("effect")));
+}
+
+// ── loadAppliesEffectToFrame ─────────────────────────────────────────────────
+//
+// REQ-SW-PL-034 AC 3: with an effect loaded, the output frame is transformed.
+// CPU brightness maps delta -100..+100 to -255..+255 (shift = delta*255/100),
+// so brightness=10 → shift=25 → 128+25 = 153.
+void VideoOutputNodeTest::loadAppliesEffectToFrame()
+{
+    VideoOutputNode node;
+    node.inputConnectionCreated(makeConId(0, 0));
+    node.outputConnectionCreated(makeConId(0, 0));
+
+    QJsonObject graph;
+    graph[QStringLiteral("effect")] = QStringLiteral("brightness");
+    graph[QStringLiteral("brightness")] = 10;
+    node.load(graph);
+
+    // Mid-gray input (128,128,128) → brightness +10 → (153,153,153).
+    QImage img(64, 48, QImage::Format_RGB32);
+    img.fill(QColor(128, 128, 128));
+    QVideoFrame vf(img);
+    node.setInData(std::make_shared<VideoFrameData>(vf), 0);
+
+    auto out = std::dynamic_pointer_cast<VideoFrameData>(node.outData(0));
+    QVERIFY(out != nullptr);
+    const QImage outImg = out->asImage();
+    QCOMPARE(outImg.pixelColor(0, 0).red(), 153);
+    QCOMPARE(outImg.pixelColor(0, 0).green(), 153);
+    QCOMPARE(outImg.pixelColor(0, 0).blue(), 153);
 }
 
 QTEST_MAIN(VideoOutputNodeTest)
