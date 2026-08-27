@@ -3,6 +3,7 @@
 
 #include "VideoCompat.h"
 
+#include "NodeDataTypes/SampledData.h"
 #include "PerfProfiler.h"
 
 #include <QtNodes/NodeDelegateModel>
@@ -11,6 +12,11 @@
 #include <QList>
 #include <memory>
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+#include <QtMultimedia/QAudioProbe>
+#endif
+
+class QAudioBuffer;
 class QCamera;
 class QComboBox;
 class QLabel;
@@ -22,10 +28,14 @@ class VideoFrameData;
 /**
  * @brief Camera source node: captures frames from a local camera device.
  *
- * Emits at the camera frame rate. On both Qt versions the node has a single
- * output port (REQ-SW-PL-020, single video-frame type REQ-SW-PL-032): port 0
- * "video-frame" (zero-copy VideoFrameData, always emitted; Qt5 wraps an OWNED
- * copy via VideoCompat::frameToOwnedFrame).
+ * Emits at the camera frame rate. On both Qt versions the node has two
+ * output ports (REQ-SW-PL-020/022, single video-frame type REQ-SW-PL-032):
+ *   - port 0 "video-frame" — zero-copy VideoFrameData wrapping the captured
+ *     QVideoFrame; emitted for every frame (no QImage conversion).
+ *   - port 1 "sample" — SampledData (domain "audio"). Qt5 captures camera
+ *     audio via QAudioProbe; Qt6 does not expose captured audio buffers on
+ *     QMediaCaptureSession (QAudioBufferOutput is playback-only), so the
+ *     sample port emits invalid data on Qt6.
  * The embedded widget lets the user pick a camera device (or the platform
  * default) and start or stop the capture.
  */
@@ -61,10 +71,16 @@ public:
 
     QWidget *embeddedWidget() override;
 
+    /// Track downstream "sample" connections so wrapping is only emitted
+    /// while a consumer is connected.
+    void outputConnectionCreated(QtNodes::ConnectionId const &conId) override;
+    void outputConnectionDeleted(QtNodes::ConnectionId const &conId) override;
+
 private slots:
     void onDeviceChanged(int index);
     void onStartStopClicked();
     void onFrameAvailable(const QVideoFrame &frame);
+    void onAudioBufferReceived(const QAudioBuffer &buffer);
 
 private:
     void buildWidget();
@@ -73,6 +89,10 @@ private:
     void startCamera();
     void stopCamera();
     void setStatus(const QString &text, bool ok);
+    static QtNodes::PortIndex audioPortIndex()
+    {
+        return 1; // 0 = video-frame, 1 = audio (no gap)
+    }
 
     QWidget *m_widget = nullptr;
     QComboBox *m_deviceCombo = nullptr;
@@ -95,6 +115,12 @@ private:
     // (handleType/pixelFormat) for source-side diagnostics.
     int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
     int m_lastPixelFormat = -1;    // normalized (Qt6 numbering, see VideoCompat)
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    // Qt5: audio buffer probe (audioBufferProbed) on the camera.
+    QAudioProbe *m_audioProbe = nullptr;
+#endif
+    std::shared_ptr<SampledData> m_audioOut;
+    int m_audioPortConnectionCount = 0;
     bool m_running = false;
 };
 
