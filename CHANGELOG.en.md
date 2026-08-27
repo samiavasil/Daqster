@@ -208,6 +208,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Tests: `demo_nodeditor_videooutput_tests` +4 (default no-effect passthrough, load→save round-trip, backward compat, effect transforms the frame); Qt5/Qt6 builds PASS + ctest 9/9 green (both)
 
 ### Changed
+- **Node body repaint on data arrival is now opt-out (REQ-SW-PL-032, perf)** — `dataArrivalChangesWidget()` virtual in nodeeditor: video/LLM/console nodes (`VideoOutputNode`, `VideoEffectNode`, `CustomShaderNode`, `FrameSamplerNode`, `LLamaModelDataModel`, `ConsoleDataModel`) return `false` and skip the per-frame `node->update()` body repaint (widget content self-repaints via Qt); validation-state nodes (NumberDisplay, DaqDisplay, ...) keep the default `true`. nodeeditor commit: `43c1dea`
 - **Design refinement (REQ-SW-PL-028/029/032, 2026-08-25)** — documentation-only:
   - PL-028: refactor to a SINGLE `VideoEffectNode` with a combobox for effect selection + parameters/config (instead of 7 separate subclasses); EffectSpecs stay in `VideoEffectOps.h/.cpp`
   - PL-032: refined design — lazy caches (`asImage()`/`asTexture()`), node residency preferences (Option C), GPU-resident transport (Path B), Qt6-first/Qt5-after, format NV12 → Y+UV → YUV→RGB+effect → RGBA

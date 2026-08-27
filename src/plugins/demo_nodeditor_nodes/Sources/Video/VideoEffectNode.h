@@ -67,6 +67,10 @@ public:
     /// recompute cascade (repaint-only fast path on data arrival).
     bool dataArrivalChangesGeometry() const override { return false; }
 
+    /// The node BODY (boundary, caption, ports) does not depend on data —
+    /// widget content self-repaints via Qt. Opts out of the body repaint.
+    bool dataArrivalChangesWidget() const override { return false; }
+
     /// Selects the effect by id (from VideoEffectOps::allSpecs()). Unknown
     /// ids fall back to index 0. Syncs the widget stack and reprocesses the
     /// current frame.

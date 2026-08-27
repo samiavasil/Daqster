@@ -193,6 +193,7 @@
   - Тестове: `demo_nodeditor_videooutput_tests` +4 (default no-effect passthrough, load→save round-trip, backward compat, ефектът трансформира frame-а); Qt5/Qt6 builds PASS + ctest 9/9 green (и двете)
 
 ### Changed
+- **Node body repaint on data arrival is now opt-out (REQ-SW-PL-032, perf)** — `dataArrivalChangesWidget()` virtual в nodeeditor: video/LLM/console нодовете (`VideoOutputNode`, `VideoEffectNode`, `CustomShaderNode`, `FrameSamplerNode`, `LLamaModelDataModel`, `ConsoleDataModel`) връщат `false` и пропускат per-frame `node->update()` repaint-а на тялото на нода (widget съдържанието се self-repaint-ва през Qt); нодовете с validation state (NumberDisplay, DaqDisplay, ...) запазват default-а `true`. nodeeditor комит: `43c1dea`
 - **Design refinement (REQ-SW-PL-028/029/032, 2026-08-25)** — documentation-only:
   - PL-028: рефакторинг към **ЕДИН** `VideoEffectNode` с комбобокс за избор на ефект + параметри/конфигурация (вместо 7 отделни subclass-а); EffectSpec-ите остават в `VideoEffectOps.h/.cpp`
   - PL-032: уточнен дизайн — lazy кешове (`asImage()`/`asTexture()`), node residency предпочитания (Вариант C), GPU-resident транспорт (Път B), Qt6-първо/Qt5-после, формат NV12 → Y+UV → YUV→RGB+ефект → RGBA

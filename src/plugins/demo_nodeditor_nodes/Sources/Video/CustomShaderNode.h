@@ -49,6 +49,10 @@ public:
     /// Fixed-size widget — no geometry recomputation on data arrival.
     bool dataArrivalChangesGeometry() const override { return false; }
 
+    /// The node BODY (boundary, caption, ports) does not depend on data —
+    /// widget content self-repaints via Qt. Opts out of the body repaint.
+    bool dataArrivalChangesWidget() const override { return false; }
+
     QJsonObject save() const override;
     void load(QJsonObject const &p) override;
 
