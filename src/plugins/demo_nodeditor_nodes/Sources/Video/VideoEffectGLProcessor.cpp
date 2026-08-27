@@ -1,7 +1,6 @@
 #include "VideoEffectGLProcessor.h"
 
 #include "GL/VideoGLContextManager.h"
-#include "VideoCompat.h"
 #include "VideoGLShaders.h"
 
 #include <QOffscreenSurface>
@@ -11,10 +10,6 @@
 #include <QOpenGLShaderProgram>
 #include <QOpenGLVertexArrayObject>
 #include <QSurfaceFormat>
-
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-#include <QtMultimedia/QVideoFrameFormat>
-#endif
 
 namespace {
 
@@ -28,39 +23,6 @@ const GLfloat kQuadVertices[] = {
     -1.0f,  1.0f, 0.0f, 0.0f,
      1.0f,  1.0f, 1.0f, 0.0f,
 };
-
-/// Classify a frame's pixel layout for the shader selection (same logic as
-/// VideoGLBlitWidget.cpp).
-enum class YuvLayout { Nv12, Yuv420p, Other };
-
-YuvLayout classifyYuv(const QVideoFrame &frame, QString *formatName)
-{
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    const auto pf = frame.surfaceFormat().pixelFormat();
-    *formatName = QVideoFrameFormat::pixelFormatToString(pf);
-    switch (pf) {
-    case QVideoFrameFormat::Format_NV12:
-        return YuvLayout::Nv12;
-    case QVideoFrameFormat::Format_YUV420P:
-        return YuvLayout::Yuv420p;
-    default:
-        return YuvLayout::Other;
-    }
-#else
-    const auto pf = frame.pixelFormat();
-    switch (pf) {
-    case QVideoFrame::Format_NV12:
-        *formatName = QStringLiteral("NV12");
-        return YuvLayout::Nv12;
-    case QVideoFrame::Format_YUV420P:
-        *formatName = QStringLiteral("YUV420P");
-        return YuvLayout::Yuv420p;
-    default:
-        *formatName = QStringLiteral("Format(%1)").arg(static_cast<int>(pf));
-        return YuvLayout::Other;
-    }
-#endif
-}
 
 void setupTextureParams(QOpenGLFunctions *f, GLuint id)
 {
@@ -97,22 +59,6 @@ VideoEffectGLProcessor::~VideoEffectGLProcessor()
             f->glDeleteBuffers(1, &m_vbo);
             m_vbo = 0;
         }
-        if (m_texY != 0) {
-            f->glDeleteTextures(1, &m_texY);
-            m_texY = 0;
-        }
-        if (m_texU != 0) {
-            f->glDeleteTextures(1, &m_texU);
-            m_texU = 0;
-        }
-        if (m_texV != 0) {
-            f->glDeleteTextures(1, &m_texV);
-            m_texV = 0;
-        }
-        if (m_texUV != 0) {
-            f->glDeleteTextures(1, &m_texUV);
-            m_texUV = 0;
-        }
         mgr.doneCurrent();
     }
 }
@@ -123,22 +69,13 @@ bool VideoEffectGLProcessor::ensureContext()
     if (!mgr.makeCurrent())
         return false;
 
-    // One-time GL resource setup (VBO + textures + optional core VAO).
+    // One-time GL resource setup (VBO + optional core VAO).
     if (m_vbo == 0) {
         QOpenGLFunctions *f = mgr.context()->functions();
         f->glGenBuffers(1, &m_vbo);
         f->glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
         f->glBufferData(GL_ARRAY_BUFFER, sizeof(kQuadVertices), kQuadVertices, GL_STATIC_DRAW);
         f->glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-        f->glGenTextures(1, &m_texY);
-        f->glGenTextures(1, &m_texU);
-        f->glGenTextures(1, &m_texV);
-        f->glGenTextures(1, &m_texUV);
-        setupTextureParams(f, m_texY);
-        setupTextureParams(f, m_texU);
-        setupTextureParams(f, m_texV);
-        setupTextureParams(f, m_texUV);
     }
     return true;
 }
@@ -162,7 +99,6 @@ bool VideoEffectGLProcessor::ensureProgram(const EffectSpec &spec, TextureLayout
 
     m_programKey = key;
     m_useCore = core;
-    m_useNv12 = (layout == TextureLayout::Nv12);
 
     delete m_program;
     m_program = nullptr;
@@ -188,56 +124,6 @@ bool VideoEffectGLProcessor::ensureProgram(const EffectSpec &spec, TextureLayout
         m_vao = new QOpenGLVertexArrayObject();
         m_vao->create();
     }
-    return true;
-}
-
-bool VideoEffectGLProcessor::uploadFrame(const QVideoFrame &frame)
-{
-    if (!frame.isValid())
-        return false;
-    // Implicit share: cheap local copy so map()/unmap()/bits() work (they are
-    // non-const on Qt5; the probe frame itself is never modified).
-    QVideoFrame mappable = frame;
-    if (!VideoCompat::mapForRead(mappable)) {
-        qWarning().noquote() << QStringLiteral("VideoEffectGLProcessor | frame map failed");
-        return false;
-    }
-
-    const int w = mappable.width();
-    const int h = mappable.height();
-    const int chromaW = (w + 1) / 2;
-    const int chromaH = (h + 1) / 2;
-
-    const GLenum yInternal = m_useCore ? GL_R8 : GL_LUMINANCE;
-    const GLenum yFormat = m_useCore ? GL_RED : GL_LUMINANCE;
-    const GLenum uvInternal = m_useCore ? GL_RG8 : GL_LUMINANCE_ALPHA;
-    const GLenum uvFormat = m_useCore ? GL_RG : GL_LUMINANCE_ALPHA;
-
-    QOpenGLFunctions *f = VideoGLContextManager::instance().context()->functions();
-    f->glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-    f->glBindTexture(GL_TEXTURE_2D, m_texY);
-    f->glPixelStorei(GL_UNPACK_ROW_LENGTH, mappable.bytesPerLine(0));
-    f->glTexImage2D(GL_TEXTURE_2D, 0, yInternal, w, h, 0,
-                    yFormat, GL_UNSIGNED_BYTE, mappable.bits(0));
-
-    if (m_useNv12) {
-        f->glBindTexture(GL_TEXTURE_2D, m_texUV);
-        f->glPixelStorei(GL_UNPACK_ROW_LENGTH, mappable.bytesPerLine(1) / 2);
-        f->glTexImage2D(GL_TEXTURE_2D, 0, uvInternal, chromaW, chromaH, 0,
-                        uvFormat, GL_UNSIGNED_BYTE, mappable.bits(1));
-    } else {
-        f->glBindTexture(GL_TEXTURE_2D, m_texU);
-        f->glPixelStorei(GL_UNPACK_ROW_LENGTH, mappable.bytesPerLine(1));
-        f->glTexImage2D(GL_TEXTURE_2D, 0, yInternal, chromaW, chromaH, 0,
-                        yFormat, GL_UNSIGNED_BYTE, mappable.bits(1));
-        f->glBindTexture(GL_TEXTURE_2D, m_texV);
-        f->glPixelStorei(GL_UNPACK_ROW_LENGTH, mappable.bytesPerLine(2));
-        f->glTexImage2D(GL_TEXTURE_2D, 0, yInternal, chromaW, chromaH, 0,
-                        yFormat, GL_UNSIGNED_BYTE, mappable.bits(2));
-    }
-    f->glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    mappable.unmap();
     return true;
 }
 
@@ -315,59 +201,6 @@ bool VideoEffectGLProcessor::drawQuad(const EffectSpec &spec, const EffectParams
     f->glBindBuffer(GL_ARRAY_BUFFER, 0);
     prog->release();
     return true;
-}
-
-QImage VideoEffectGLProcessor::process(const QVideoFrame &frame, const EffectSpec &spec,
-                                       const EffectParams &params)
-{
-    if (!frame.isValid() || spec.id.isEmpty())
-        return QImage();
-
-    VideoGLContextManager &mgr = VideoGLContextManager::instance();
-    if (!ensureContext())
-        return QImage();
-
-    // Ensure doneCurrent() on every exit path.
-    VideoGLContextManager::CurrentGuard guard(mgr);
-
-    QString formatName;
-    const YuvLayout layout = classifyYuv(frame, &formatName);
-    if (layout == YuvLayout::Other) {
-        qWarning().noquote() << QStringLiteral("VideoEffectGLProcessor | unsupported format %1 — CPU fallback")
-            .arg(formatName);
-        return QImage();
-    }
-    const bool nv12 = (layout == YuvLayout::Nv12);
-
-    if (!ensureProgram(spec, nv12 ? TextureLayout::Nv12 : TextureLayout::Yuv420p))
-        return QImage();
-
-    if (!uploadFrame(frame))
-        return QImage();
-
-    const int w = frame.width();
-    const int h = frame.height();
-    if (m_fbo == nullptr || m_fbo->width() != w || m_fbo->height() != h) {
-        delete m_fbo;
-        m_fbo = new QOpenGLFramebufferObject(w, h);
-        if (!m_fbo->isValid()) {
-            qWarning().noquote() << QStringLiteral("VideoEffectGLProcessor | FBO invalid (%1x%2)").arg(w).arg(h);
-            return QImage();
-        }
-    }
-
-    // The uploaded planes live in the processor's own textures — wrap them in
-    // a handle so drawQuad() binds them uniformly.
-    const VideoTextureHandle input{m_texY, m_texUV, m_texU, m_texV, w, h, m_useNv12, false};
-
-    m_fbo->bind();
-    const bool drawn = drawQuad(spec, params, input);
-    m_fbo->release();
-    if (!drawn)
-        return QImage();
-
-    // toImage() applies the built-in vertical flip, so the result is top-down.
-    return m_fbo->toImage();
 }
 
 bool VideoEffectGLProcessor::processTexture(const VideoTextureHandle &input,

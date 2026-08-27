@@ -14,10 +14,6 @@
 //  - Compiles one effect program per (effect id, NV12/YUV420P/RGBA, core/compat)
 //    key; core/compat detection matches VideoGLBlitWidget (DAQSTER_GL_FORCE_CORE
 //    override + context profile).
-//  - process(): uploads the Y/U/V planes honoring bytesPerLine strides, draws
-//    the fullscreen quad into a QOpenGLFramebufferObject sized to the frame,
-//    then reads the result with toImage() (which applies the built-in vertical
-//    flip, so the output QImage is top-down).
 //  - processTexture() (REQ-SW-PL-032 Stage 2B): binds the input textures from
 //    a VideoTextureHandle — no upload — renders the effect into an offscreen
 //    FBO and returns the FBO's RGBA texture wrapped in a new VideoTextureHandle
@@ -38,7 +34,6 @@
 #include <QString>
 
 #include <QtGui/qopengl.h>
-#include <QtMultimedia/QVideoFrame>
 
 class QOpenGLFramebufferObject;
 class QOpenGLShaderProgram;
@@ -49,12 +44,6 @@ class VideoEffectGLProcessor
 public:
     VideoEffectGLProcessor();
     ~VideoEffectGLProcessor();
-
-    /// Apply an effect to a YUV frame on the GPU. Returns a null QImage when
-    /// the frame format is unsupported (non NV12/YUV420P) or a GL step fails —
-    /// the caller falls back to the CPU backend.
-    QImage process(const QVideoFrame &frame, const EffectSpec &spec,
-                   const EffectParams &params);
 
     /// Apply an effect to a GPU-resident texture (YUV or RGBA) on the GPU
     /// (REQ-SW-PL-032 Stage 2B). Binds the input textures from the handle —
@@ -73,7 +62,6 @@ private:
 
     bool ensureContext();
     bool ensureProgram(const EffectSpec &spec, TextureLayout layout);
-    bool uploadFrame(const QVideoFrame &frame);
     bool drawQuad(const EffectSpec &spec, const EffectParams &params,
                   const VideoTextureHandle &input);
 
@@ -81,15 +69,10 @@ private:
     QOpenGLShaderProgram *m_program = nullptr;
     QOpenGLVertexArrayObject *m_vao = nullptr;
 
-    GLuint m_texY = 0;
-    GLuint m_texU = 0;
-    GLuint m_texV = 0;
-    GLuint m_texUV = 0;
     GLuint m_vbo = 0;
 
     QString m_programKey;   // program cache key: "<effectId>:<layout>:<profile>"
     bool m_useCore = false; // core-profile path (GL_RED/RG + #version 150)
-    bool m_useNv12 = false; // interleaved UV plane (plane 1 = U,V pairs)
     int m_matrix = 1;       // 0 = BT.601, 1 = BT.709
     int m_range = 1;        // 0 = limited, 1 = full
 };
