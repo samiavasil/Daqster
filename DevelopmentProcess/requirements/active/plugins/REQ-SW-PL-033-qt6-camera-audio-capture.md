@@ -5,7 +5,7 @@
 - **Отговорник (роля):** Ivan (Implementation)
 - **Дата:** 2026-08-27
 - **Родител:** —
-- **Зависи от:** REQ-SW-PL-022 (sample порт)
+- **Зависи от:** REQ-SW-PL-022 (архив: archive/plugins/REQ-SW-PL-022-unified-sampled-data-transport-daq-display.md) (sample порт)
 
 ## Статус: FUTURE (backlog — не се имплементира сега)
 
