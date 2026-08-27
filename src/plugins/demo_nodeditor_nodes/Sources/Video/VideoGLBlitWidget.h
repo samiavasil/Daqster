@@ -64,6 +64,14 @@ public:
     void presentTexture(const VideoTextureHandle &handle,
                         std::shared_ptr<VideoFrameData> owner);
 
+    /// Zero-copy present of GPU-resident YUV textures (the asTexture() cache,
+    /// REQ-SW-PL-032): binds the cached Y/U/V planes directly — no duplicate
+    /// upload. Stores the handle + the owning frame (keeps the textures alive
+    /// until the next present) and schedules a repaint. Falls back to
+    /// presentFrame() when the handle is invalid.
+    void presentYuvTexture(const VideoTextureHandle &handle,
+                           std::shared_ptr<VideoFrameData> owner);
+
     QString lastFormatName() const { return m_formatName; }
     bool lastFrameYuv() const { return m_hasYuv; }
 

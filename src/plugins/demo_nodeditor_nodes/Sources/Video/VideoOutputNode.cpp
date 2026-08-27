@@ -571,7 +571,15 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                     else
                         m_glWidget->presentImage(videoFrame->asImage());
                 } else {
-                    m_glWidget->presentFrame(videoFrame->frame());
+                    // CPU / GpuYuv frame: present the cached YUV textures
+                    // (asTexture) directly — no duplicate upload
+                    // (REQ-SW-PL-032). Falls back to the CPU frame path when
+                    // the frame is not NV12/YUV420P or GL is unavailable.
+                    VideoTextureHandle h;
+                    if (videoFrame->asTexture(&h))
+                        m_glWidget->presentYuvTexture(h, videoFrame);
+                    else
+                        m_glWidget->presentFrame(videoFrame->frame());
                 }
             }
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)

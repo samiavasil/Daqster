@@ -174,6 +174,30 @@ void VideoGLBlitWidget::presentTexture(const VideoTextureHandle &handle,
     update();
 }
 
+void VideoGLBlitWidget::presentYuvTexture(const VideoTextureHandle &handle,
+                                          std::shared_ptr<VideoFrameData> owner)
+{
+    if (handle.texY == 0 || handle.width <= 0 || handle.height <= 0) {
+        // Invalid handle — fall back to the CPU frame path.
+        if (owner && owner->hasFrame())
+            presentFrame(owner->frame());
+        return;
+    }
+    // Hold the owning frame so the cached textures stay alive until the next
+    // present (the deferred repaint binds them in the shared GL context).
+    m_textureOwner = std::move(owner);
+    m_textureHandle = handle;
+    m_hasYuv = true;
+    m_useNv12 = handle.nv12;
+    m_image = QImage();
+    m_frame = QVideoFrame();
+    m_yuvW = handle.width;
+    m_yuvH = handle.height;
+    m_formatName = handle.nv12 ? QStringLiteral("Texture(NV12)")
+                               : QStringLiteral("Texture(YUV420P)");
+    update();
+}
+
 void VideoGLBlitWidget::initializeGL()
 {
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
@@ -291,8 +315,9 @@ void VideoGLBlitWidget::paintGL()
 void VideoGLBlitWidget::uploadFrame()
 {
     if (m_textureHandle.texY != 0) {
-        // GPU-resident RGBA texture (effect output) — already on the GPU,
-        // nothing to upload (REQ-SW-PL-032 Stage 2B).
+        // GPU-resident frame (RGBA effect output OR cached YUV planes from
+        // asTexture) — already on the GPU, nothing to upload
+        // (REQ-SW-PL-032 Stage 2A/2B).
         return;
     }
     if (m_hasYuv) {
@@ -395,7 +420,28 @@ void VideoGLBlitWidget::drawQuad()
     // (REQ-SW-PL-032); QImage/YUV quads are top-down and use the standard quad.
     bool useFboQuad = false;
 
-    if (m_textureHandle.texY != 0) {
+    if (m_textureHandle.texY != 0 && m_hasYuv) {
+        // GPU-resident YUV textures (asTexture cache, REQ-SW-PL-032): bind the
+        // cached planes directly — no duplicate upload. Uploaded from the
+        // top-down CPU frame, so the standard (non-FBO) quad is used.
+        f->glActiveTexture(GL_TEXTURE0);
+        f->glBindTexture(GL_TEXTURE_2D, m_textureHandle.texY);
+        prog->setUniformValue("u_texY", 0);
+        if (m_useNv12) {
+            f->glActiveTexture(GL_TEXTURE1);
+            f->glBindTexture(GL_TEXTURE_2D, m_textureHandle.texUV);
+            prog->setUniformValue("u_texUV", 1);
+        } else {
+            f->glActiveTexture(GL_TEXTURE1);
+            f->glBindTexture(GL_TEXTURE_2D, m_textureHandle.texU);
+            prog->setUniformValue("u_texU", 1);
+            f->glActiveTexture(GL_TEXTURE2);
+            f->glBindTexture(GL_TEXTURE_2D, m_textureHandle.texV);
+            prog->setUniformValue("u_texV", 2);
+        }
+        prog->setUniformValue("u_matrix", m_matrix);
+        prog->setUniformValue("u_range", m_range);
+    } else if (m_textureHandle.texY != 0) {
         // GPU-resident RGBA texture (effect output): bind it directly — no
         // upload (REQ-SW-PL-032 Stage 2B).
         useFboQuad = true;
