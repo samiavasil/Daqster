@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QtCore/QObject>
+#include <QtCore/QEvent>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QComboBox>
 #include <QtWidgets/QVBoxLayout>
@@ -59,6 +60,15 @@ public:
     /// widget content self-repaints via Qt. The validation border self-repaints
     /// via setValidationState(). Opts out of the per-frame body repaint.
     bool dataArrivalChangesWidget() const override { return false; }
+
+    /// The node geometry only changes on a REAL widget resize (handled by the
+    /// event filter below) — not on data arrival. Opts out of the per-frame
+    /// geometry recompute + connection move cascade.
+    bool dataArrivalChangesGeometry() const override { return false; }
+
+    /// Re-emits requestNodeUpdate() when the embedded widget is actually
+    /// resized, so the scene recomputes the node size + moves connections.
+    bool eventFilter(QObject *object, QEvent *event) override;
 
     QJsonObject save() const override;
     void load(QJsonObject const &p) override;
