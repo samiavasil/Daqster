@@ -91,6 +91,7 @@ private:
     GLuint m_texUV = 0;
     GLuint m_texRgba = 0;
     GLuint m_vbo = 0;
+    GLuint m_vboFbo = 0;  // flipped-v quad for bottom-up FBO textures (REQ-SW-PL-032)
 
     bool m_useCore = false;   // core-profile path (GL_RED/RG + #version 150)
     bool m_useNv12 = false;   // interleaved UV plane (plane 1 = U,V pairs)

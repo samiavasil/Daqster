@@ -27,6 +27,18 @@ const GLfloat kQuadVertices[] = {
      1.0f,  1.0f, 1.0f, 0.0f,
 };
 
+// ── Quad for GPU-resident FBO textures (effect / custom-shader output) ───────
+// FBO-attached textures are bottom-up (row 0 = scene bottom), so the v
+// coordinate is inverted relative to the top-down QImage/YUV quads above.
+// Drawing with v' = 1 - v compensates for the FBO convention; without this the
+// display inversion would cancel the flip effect's vertical flip (REQ-SW-PL-032).
+const GLfloat kQuadVerticesFbo[] = {
+    -1.0f, -1.0f, 0.0f, 0.0f,
+     1.0f, -1.0f, 1.0f, 0.0f,
+    -1.0f,  1.0f, 0.0f, 1.0f,
+     1.0f,  1.0f, 1.0f, 1.0f,
+};
+
 /// Classify a frame's pixel layout for the shader selection and report a
 /// human-readable format name (Qt6: QVideoFrameFormat names; Qt5: the
 /// QVideoFrame::PixelFormat names — no QVideoFrameFormat on Qt5).
@@ -201,6 +213,12 @@ void VideoGLBlitWidget::initializeGL()
     f->glBufferData(GL_ARRAY_BUFFER, sizeof(kQuadVertices), kQuadVertices, GL_STATIC_DRAW);
     f->glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+    // Flipped-v quad VBO for bottom-up FBO textures (REQ-SW-PL-032).
+    f->glGenBuffers(1, &m_vboFbo);
+    f->glBindBuffer(GL_ARRAY_BUFFER, m_vboFbo);
+    f->glBufferData(GL_ARRAY_BUFFER, sizeof(kQuadVerticesFbo), kQuadVerticesFbo, GL_STATIC_DRAW);
+    f->glBindBuffer(GL_ARRAY_BUFFER, 0);
+
     if (m_useCore) {
         m_vao = new QOpenGLVertexArrayObject(this);
         m_vao->create();
@@ -373,9 +391,14 @@ void VideoGLBlitWidget::drawQuad()
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     prog->bind();
 
+    // GPU-resident FBO textures are bottom-up, so they use the flipped-v quad
+    // (REQ-SW-PL-032); QImage/YUV quads are top-down and use the standard quad.
+    bool useFboQuad = false;
+
     if (m_textureHandle.texY != 0) {
         // GPU-resident RGBA texture (effect output): bind it directly — no
         // upload (REQ-SW-PL-032 Stage 2B).
+        useFboQuad = true;
         f->glActiveTexture(GL_TEXTURE0);
         f->glBindTexture(GL_TEXTURE_2D, m_textureHandle.texY);
         prog->setUniformValue("u_tex", 0);
@@ -409,7 +432,7 @@ void VideoGLBlitWidget::drawQuad()
     if (m_vao != nullptr)
         m_vao->bind();
 
-    f->glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+    f->glBindBuffer(GL_ARRAY_BUFFER, useFboQuad ? m_vboFbo : m_vbo);
     prog->enableAttributeArray(posLoc);
     prog->setAttributeBuffer(posLoc, GL_FLOAT, 0, 2, 4 * static_cast<int>(sizeof(GLfloat)));
     prog->enableAttributeArray(texLoc);

@@ -11,8 +11,9 @@
  * @brief Effect parameter set shared by the CPU and GPU backends.
  *
  * brightness: -100..+100 (0 = unchanged), contrast: 0..200 (100 = unchanged),
- * flipHorizontal: flip direction for the flip effect (CPU path; the GPU path
- * flips vertically through the u_flipY shader uniform).
+ * flipHorizontal: flip direction for the flip effect (true = horizontal flip,
+ * false = vertical flip; honored by both the CPU and GPU paths — the GPU path
+ * sets u_flipX/u_flipY from this).
  * blurRadius: box blur radius 0..10 (0 = unchanged).
  * gaussianKernel: odd Gaussian kernel size 1..31 (OpenCV, HAVE_OPENCV).
  * cannyLow/cannyHigh: Canny thresholds 0..255 (OpenCV, HAVE_OPENCV).
@@ -48,7 +49,7 @@ struct EffectSpec
     /// CPU implementation (delegates to VideoTransformOps).
     std::function<QImage(const QImage &, const EffectParams &)> cpuApply;
     /// GLSL statements injected into the effect fragment shader, operating on
-    /// the local `vec3 rgb` variable (may be empty — e.g. flip via u_flipY).
+    /// the local `vec3 rgb` variable (may be empty — e.g. flip via u_flipX/u_flipY).
     QString glslBody;
 };
 

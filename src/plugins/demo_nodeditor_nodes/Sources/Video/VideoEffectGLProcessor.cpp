@@ -289,8 +289,12 @@ bool VideoEffectGLProcessor::drawQuad(const EffectSpec &spec, const EffectParams
         prog->setUniformValue("u_brightness", params.brightness / 100.0f);
     if (prog->uniformLocation("u_contrast") != -1)
         prog->setUniformValue("u_contrast", params.contrast / 100.0f);
+    if (prog->uniformLocation("u_flipX") != -1)
+        prog->setUniformValue("u_flipX",
+            (spec.id == QStringLiteral("flip") && params.flipHorizontal) ? 1 : 0);
     if (prog->uniformLocation("u_flipY") != -1)
-        prog->setUniformValue("u_flipY", (spec.id == QStringLiteral("flip")) ? 1 : 0);
+        prog->setUniformValue("u_flipY",
+            (spec.id == QStringLiteral("flip") && !params.flipHorizontal) ? 1 : 0);
 
     const int posLoc = prog->attributeLocation("a_position");
     const int texLoc = prog->attributeLocation("a_texcoord");

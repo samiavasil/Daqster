@@ -88,8 +88,8 @@ QVector<EffectSpec> allSpecs()
         [](const QImage &img, const EffectParams &p) {
             return VideoTransformOps::flip(img, p.flipHorizontal);
         },
-        // Empty body: the GPU flip is done through the u_flipY shader uniform
-        // (vertical flip of the texture coordinate).
+        // Empty body: the GPU flip is done through the u_flipX/u_flipY shader
+        // uniforms (direction from params.flipHorizontal).
         QString()));
 
     // CPU-only effects (REQ-SW-PL-028 AC 3): always run on the CPU regardless

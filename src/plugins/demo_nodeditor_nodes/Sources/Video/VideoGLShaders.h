@@ -158,6 +158,7 @@ inline QString buildRgbaEffectFragmentSource(bool core, const QString &effectBod
         src += QStringLiteral(
             "#version 150 core\n"
             "uniform sampler2D u_tex;\n"
+            "uniform int u_flipX;\n"
             "uniform int u_flipY;\n"
             "uniform float u_brightness;\n"
             "uniform float u_contrast;\n"
@@ -167,6 +168,7 @@ inline QString buildRgbaEffectFragmentSource(bool core, const QString &effectBod
         src += QStringLiteral(
             "#version 120\n"
             "uniform sampler2D u_tex;\n"
+            "uniform int u_flipX;\n"
             "uniform int u_flipY;\n"
             "uniform float u_brightness;\n"
             "uniform float u_contrast;\n"
@@ -176,6 +178,7 @@ inline QString buildRgbaEffectFragmentSource(bool core, const QString &effectBod
     src += QStringLiteral("void main() {\n");
     src += QStringLiteral(
         "  vec2 tc = v_texcoord;\n"
+        "  if (u_flipX != 0) tc.x = 1.0 - tc.x;\n"
         "  if (u_flipY != 0) tc.y = 1.0 - tc.y;\n");
     src += core ? QStringLiteral("  vec4 tex = texture(u_tex, tc);\n")
                 : QStringLiteral("  vec4 tex = texture2D(u_tex, tc);\n");
@@ -189,9 +192,10 @@ inline QString buildRgbaEffectFragmentSource(bool core, const QString &effectBod
 
 /// YUV->RGB fragment shader with an injected effect body (VideoEffectNode GPU
 /// backend). Same base as buildYuvFragmentSource() plus:
-///   - `uniform int u_flipY` — when non-zero the texture coordinate is flipped
+///   - `uniform int u_flipX` / `uniform int u_flipY` — when non-zero the
+///     texture coordinate is flipped horizontally (`tc.x = 1.0 - tc.x`) /
 ///     vertically (`tc.y = 1.0 - tc.y`) before sampling. The flip effect uses
-///     this; other effects leave it 0.
+///     these (direction from params.flipHorizontal); other effects leave them 0.
 ///   - `uniform float u_brightness` / `uniform float u_contrast` — declared
 ///     unconditionally so effect bodies may reference them; the processor sets
 ///     them only when the effect uses them (harmless when unused).
@@ -212,6 +216,7 @@ inline QString buildEffectFragmentSource(bool core, bool nv12, const QString &ef
         src += QStringLiteral(
             "uniform int u_matrix;\n"
             "uniform int u_range;\n"
+            "uniform int u_flipX;\n"
             "uniform int u_flipY;\n"
             "uniform float u_brightness;\n"
             "uniform float u_contrast;\n"
@@ -228,6 +233,7 @@ inline QString buildEffectFragmentSource(bool core, bool nv12, const QString &ef
         src += QStringLiteral(
             "uniform int u_matrix;\n"
             "uniform int u_range;\n"
+            "uniform int u_flipX;\n"
             "uniform int u_flipY;\n"
             "uniform float u_brightness;\n"
             "uniform float u_contrast;\n"
@@ -237,6 +243,7 @@ inline QString buildEffectFragmentSource(bool core, bool nv12, const QString &ef
     src += QStringLiteral("void main() {\n");
     src += QStringLiteral(
         "  vec2 tc = v_texcoord;\n"
+        "  if (u_flipX != 0) tc.x = 1.0 - tc.x;\n"
         "  if (u_flipY != 0) tc.y = 1.0 - tc.y;\n");
     if (core) {
         if (nv12) {
