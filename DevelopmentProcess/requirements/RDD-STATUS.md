@@ -73,6 +73,13 @@
   GPU-resident ефект верига (Stage 2A/2B), Фаза 3 завършена (2026-08-26):
   `VideoTransformNode` премахнат, `ImageData` изтрит, image портовете премахнати.
   Scene invalidation fix (2026-08-27): `d4a90ee`, `8418f53`.
+  **Stage 2C (2026-08-27, `cf5bf7c`):** GpuRgba frames се презентират с GL blit
+  на Qt6 — zero-copy, без per-sink RHI upload (потребител потвърди: 2 display-а
+  на effect output вече са евтини). Плюс perf довършване: repaint opt-out
+  (`64c1448`), setValidationState self-invalidate (`8925708`), NumberDisplay
+  resize-only geometry (`f9bd7bb`), VideoOutputNode output zero-copy passthrough
+  (`f758cd8`), presentYuvTexture reuse (`accc8aa`), VideoFrameData copy ctor
+  deleted (`211034c`), dead `process()` removed (`460cbf1`).
   AC 1–3, 10–11 `[x]`; AC 4–7 частично; AC 9 (Фаза 2 еквивалентност) чака
   ръчна оценка от потребителя. Тестове отложени.
 - **REQ-SW-PL-034** — `VideoOutputNode` вградени ефекти (опционални, default
@@ -99,7 +106,7 @@
 | REQ-SW-PL-029 | **Имплементирано (DONE)** — `42ba334`, `0682c1b` |
 | REQ-SW-PL-030 | Имплементирано (тестове отложени) |
 | REQ-SW-PL-031 | Неимплементирано |
-| REQ-SW-PL-032 | Имплементирано — Фаза 3 завършена; AC 1–3, 10–11 `[x]`; AC 9 чака |
+| REQ-SW-PL-032 | Имплементирано — Фаза 3 завършена; **Stage 2C done** (GL blit Qt6, zero-copy, `cf5bf7c`); AC 1–3, 10–11 `[x]`; AC 9 чака |
 | REQ-SW-PL-034 | Имплементирано (AC 1–5 `[x]`) — `615f53e`; тестове 10/10 (Qt5 + Qt6) |
 | REQ-SW-FW-008 | Имплементирано |
 | REQ-SW-FW-007 | Бъдещ лост (roadmap) |
