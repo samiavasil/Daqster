@@ -14,6 +14,7 @@
   - `VideoEffectNode.{h,cpp}` — нод модел (port 0 in/out `VideoFrameData`) + **един нод с комбобокс** за избор на ефект (комбо + `QStackedWidget`, като `VideoTransformNode`), runtime backend избор, параметър UI (slider/combo/info), save/load с clamp-ове (backward compatible: `"effect"` = id + параметри)
   - **Blur + OpenCV ефекти (2026-08-26, комит `095981b`)** — добавени `blur` (box blur, radius 0..10) + `gaussianBlur`/`canny`/`threshold` (OpenCV, само при `HAVE_OPENCV`) като `CpuOnly` ефекти — общо 11 ефекта; покриват всички операции на премахнатия `VideoTransformNode`
   - Регистрирани под категория "Video" в demo node editor plugin
+  - Комбобоксът на VideoEffectNode показва backend-а на всеки ефект като суфикс ((GPU)/(CPU)); registry ключът остава spec.id
 - **REQ-SW-PL-030** (FrameSampler — ресемплиране):
   - `FrameSamplerNode.{h,cpp}` — отделен нод (port 0 in/out `VideoFrameData`), режими „Every N-th frame" (1..1000) / „Max FPS" (1..120), zero-copy passthrough (същият `shared_ptr`), gate без emit при не-pass, save/load + reset на брояча/таймера
   - Регистриран под категория "Video" в demo node editor plugin

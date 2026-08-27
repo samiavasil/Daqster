@@ -197,8 +197,12 @@ void VideoEffectNode::buildWidget()
 
     m_effectCombo = new QComboBox(m_widget);
     m_effectCombo->setMinimumWidth(190);
-    for (const EffectSpec &spec : m_specs)
-        m_effectCombo->addItem(spec.displayName);
+    for (const EffectSpec &spec : m_specs) {
+        const QString backendLabel = (spec.backend == EffectSpec::Backend::CpuOnly)
+            ? QStringLiteral(" (CPU)")
+            : QStringLiteral(" (GPU)");
+        m_effectCombo->addItem(spec.displayName + backendLabel);
+    }
     layout->addWidget(m_effectCombo);
 
     m_stack = new QStackedWidget(m_widget);

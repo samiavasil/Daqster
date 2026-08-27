@@ -207,7 +207,8 @@ CPU ефектите. Стари saved графи с `"VideoTransform"` registry
   0..255) — последните три са `CpuOnly` и налични само при `HAVE_OPENCV`
   (REQ-SW-PL-028, добавени 2026-08-26). Това покрива всички операции на
   премахнатия `VideoTransformNode`.
-- **UI:** комбо с displayName-ите на ефектите + `QStackedWidget` с по една
+- **UI:** комбо с displayName-ите на ефектите + суфикс за backend-а
+  ((GPU)/(CPU), по `EffectSpec::Backend`) + `QStackedWidget` с по една
   страница параметри за ефект (brightness slider −100..+100, contrast slider
   0..200%, blur radius slider, gaussian kernel slider, canny/threshold sliders,
   flip combo horizontal/vertical, info label за grayscale/invert/
