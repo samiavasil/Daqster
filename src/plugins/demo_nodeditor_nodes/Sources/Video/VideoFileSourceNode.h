@@ -38,17 +38,16 @@ class VideoFrameData;
  * type REQ-SW-PL-032):
  *   - port 0 "video-frame" — zero-copy VideoFrameData wrapping the decoded
  *     QVideoFrame; emitted for every frame (no QImage conversion).
- *   - port 2 "sample" — SampledData (domain "audio"), wrapped from the decoded
+ *   - port 1 "sample" — SampledData (domain "audio"), wrapped from the decoded
  *     audio buffers (REQ-SW-PL-022).
  *
  * On Qt5 the node has two output ports (mirror of Qt6, NV12-direct):
  *   - port 0 "video-frame" — VideoFrameData wrapping an OWNED copy of the
  *     decoded frame (VideoCompat::frameToOwnedFrame), emitted for every frame
  *     (no QImage conversion).
- *   - port 2 "sample" — SampledData (domain "audio").
+ *   - port 1 "sample" — SampledData (domain "audio").
  *
- * The audio port is APPENDED LAST on both Qt versions so old saved graphs keep
- * their port indices (REQ-SW-PL-022 AC 8).
+ * The audio port is at index 1 (no gap) — REQ-SW-PL-022.
  */
 class VideoFileSourceNode : public QtNodes::NodeDelegateModel
 {
@@ -106,7 +105,7 @@ private:
     void updatePlayButton();
     static QtNodes::PortIndex audioPortIndex()
     {
-        return 2; // 0 = video-frame, 2 = audio (appended last)
+        return 1; // 0 = video-frame, 1 = audio (no gap)
     }
 
     QWidget *m_widget = nullptr;

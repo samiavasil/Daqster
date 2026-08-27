@@ -100,9 +100,9 @@ unsigned int VideoFileSourceNode::nPorts(PortType portType) const
 {
     switch (portType) {
     case PortType::Out:
-        // Port 0: "video-frame" (zero-copy), port 2: "sample" (audio,
-        // appended last — REQ-SW-PL-022).
-        return 3;
+        // Port 0: "video-frame" (zero-copy), port 1: "sample" (audio,
+        // no gap — REQ-SW-PL-022).
+        return 2;
     default:
         return 0;
     }
@@ -111,14 +111,14 @@ unsigned int VideoFileSourceNode::nPorts(PortType portType) const
 NodeDataType VideoFileSourceNode::dataType(PortType portType, PortIndex portIndex) const
 {
     Q_UNUSED(portType);
-    if (portIndex == 2)
+    if (portIndex == 1)
         return SampledData().type();
     return VideoFrameData().type();
 }
 
 std::shared_ptr<NodeData> VideoFileSourceNode::outData(PortIndex port)
 {
-    if (port == 2)
+    if (port == 1)
         return m_audioOut;
     return m_videoFrameOut;
 }
@@ -131,13 +131,13 @@ void VideoFileSourceNode::setInData(std::shared_ptr<NodeData> data, PortIndex po
 
 void VideoFileSourceNode::outputConnectionCreated(QtNodes::ConnectionId const &conId)
 {
-    if (conId.outPortIndex == 2)
+    if (conId.outPortIndex == 1)
         ++m_audioPortConnectionCount;
 }
 
 void VideoFileSourceNode::outputConnectionDeleted(QtNodes::ConnectionId const &conId)
 {
-    if (conId.outPortIndex == 2 && m_audioPortConnectionCount > 0)
+    if (conId.outPortIndex == 1 && m_audioPortConnectionCount > 0)
         --m_audioPortConnectionCount;
 }
 
