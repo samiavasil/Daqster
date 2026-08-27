@@ -11,6 +11,17 @@
 
 #include <QString>
 
+/// GLSL 120 compatibility shim: GLSL 120 has texture2D() but not the unified
+/// texture() overload introduced in GLSL 130. This thin shim lets user code
+/// that writes texture() — the modern / core-profile convention — work
+/// transparently on compatibility contexts as well. Reusable across the video
+/// GL shader builders (REQ-SW-PL-029).
+inline QString buildTextureCompatShim()
+{
+    return QStringLiteral(
+        "vec4 texture(sampler2D s, vec2 uv) { return texture2D(s, uv); }\n");
+}
+
 /// Vertex shader: fullscreen quad passthrough. Core profile (>= 3.0) uses
 /// "#version 150" + `in`/`out`; compatibility profile uses "#version 120" +
 /// `attribute`/`varying`.

@@ -13,10 +13,12 @@
 #include <QSurfaceFormat>
 #include <QVector2D>
 
+#include <array>
+
 namespace {
 
 // ── Quad: x, y, u, v (triangle strip) ────────────────────────────────────────
-const GLfloat kQuadVertices[] = {
+const std::array<GLfloat, 16> kQuadVertices = {
     -1.0f, -1.0f, 0.0f, 1.0f,
      1.0f, -1.0f, 1.0f, 1.0f,
     -1.0f,  1.0f, 0.0f, 0.0f,
@@ -78,7 +80,7 @@ bool CustomShaderGLProcessor::ensureContext()
         QOpenGLFunctions *f = mgr.context()->functions();
         f->glGenBuffers(1, &m_vbo);
         f->glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-        f->glBufferData(GL_ARRAY_BUFFER, sizeof(kQuadVertices), kQuadVertices, GL_STATIC_DRAW);
+        f->glBufferData(GL_ARRAY_BUFFER, sizeof(kQuadVertices), kQuadVertices.data(), GL_STATIC_DRAW);
         f->glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
     return true;
@@ -144,9 +146,9 @@ QString CustomShaderGLProcessor::buildFragmentSource(const QString &userSource,
     }
     // Compatibility profile: #version 120, varying, gl_FragColor.
     // GLSL 120 has texture2D() but not the unified texture() overload
-    // introduced in GLSL 130.  Provide a thin shim so user code that
-    // writes texture() — the modern / core-profile convention — works
-    // transparently on compatibility contexts as well.
+    // introduced in GLSL 130.  Provide a thin shim (see VideoGLShaders.h) so
+    // user code that writes texture() — the modern / core-profile convention —
+    // works transparently on compatibility contexts as well.
     return QStringLiteral(
         "#version 120\n"
         "uniform sampler2D u_tex;\n"
@@ -157,7 +159,7 @@ QString CustomShaderGLProcessor::buildFragmentSource(const QString &userSource,
         "uniform float u_param2;\n"
         "uniform float u_param3;\n"
         "varying vec2 v_texcoord;\n"
-        "vec4 texture(sampler2D s, vec2 uv) { return texture2D(s, uv); }\n"
+    ) + buildTextureCompatShim() + QStringLiteral(
         "void mainImage(out vec4 fragColor, in vec2 fragCoord);\n"
         "void main() {\n"
         "    mainImage(gl_FragColor, v_texcoord * u_resolution);\n"
