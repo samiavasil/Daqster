@@ -39,8 +39,10 @@
  * asTexture() lazily uploads the CPU frame once and caches the handle;
  * fromTexture() wraps an already GPU-resident RGBA texture (effect output).
  * The texture cache is invalidated by setFrame() and the owned textures are
- * deleted in the destructor. Copies do NOT take texture ownership (the copy
- * re-uploads on demand) — VideoFrameData is meant to be shared, not copied.
+ * deleted in the destructor. VideoFrameData is meant to be shared via
+ * std::shared_ptr, never copied — the copy ctor/assignment are deleted
+ * (a by-value copy would either double-delete the GL textures or silently
+ * drop them; the GpuRgba copies were a dead end).
  */
 class VideoFrameData : public QtNodes::NodeData
 {
@@ -54,28 +56,9 @@ public:
         releaseTextures();
     }
 
-    /// Copies share the frame payload but NOT the GL texture cache: the copy
-    /// does not own the textures (the original deletes them), so a copied
-    /// frame re-uploads on the next asTexture() call.
-    VideoFrameData(const VideoFrameData &other)
-        : QtNodes::NodeData(other)
-        , m_frame(other.m_frame)
-        , m_imageCache(other.m_imageCache)
-        , m_residency(other.m_residency)
-    {
-    }
-
-    VideoFrameData &operator=(const VideoFrameData &other)
-    {
-        if (this != &other) {
-            releaseTextures();
-            QtNodes::NodeData::operator=(other);
-            m_frame = other.m_frame;
-            m_imageCache = other.m_imageCache;
-            m_residency = other.m_residency;
-        }
-        return *this;
-    }
+    /// Frames are shared via std::shared_ptr — never copied by value.
+    VideoFrameData(const VideoFrameData &) = delete;
+    VideoFrameData &operator=(const VideoFrameData &) = delete;
 
     QtNodes::NodeDataType type() const override
     {
