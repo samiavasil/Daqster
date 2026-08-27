@@ -75,6 +75,13 @@
   Scene invalidation fix (2026-08-27): `d4a90ee`, `8418f53`.
   AC 1–3, 10–11 `[x]`; AC 4–7 частично; AC 9 (Фаза 2 еквивалентност) чака
   ръчна оценка от потребителя. Тестове отложени.
+- **REQ-SW-PL-034** — `VideoOutputNode` вградени ефекти (опционални, default
+  none): комбобокс с „No effect" + `QStackedWidget` параметърни страници;
+  ефект блокът в `setInData()` се пропуска изцяло при липса на ефект
+  (zero-copy passthrough byte-identical); GPU path (`processTexture`) при
+  хардуерен GL, CPU path/fallback (`cpuApply`); `save()`/`load()` с `"effect"`
+  id + параметри, backward compatible. Комит: `615f53e`. AC 1–5 `[x]`.
+  Тестове: `demo_nodeditor_videooutput_tests` 10/10 (Qt5 + Qt6).
 
 ## Състояние на имплементацията
 
@@ -93,6 +100,7 @@
 | REQ-SW-PL-030 | Имплементирано (тестове отложени) |
 | REQ-SW-PL-031 | Неимплементирано |
 | REQ-SW-PL-032 | Имплементирано — Фаза 3 завършена; AC 1–3, 10–11 `[x]`; AC 9 чака |
+| REQ-SW-PL-034 | Имплементирано (AC 1–5 `[x]`) — `615f53e`; тестове 10/10 (Qt5 + Qt6) |
 | REQ-SW-FW-008 | Имплементирано |
 | REQ-SW-FW-007 | Бъдещ лост (roadmap) |
 
