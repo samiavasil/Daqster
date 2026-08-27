@@ -55,6 +55,11 @@ public:
     QWidget *
     embeddedWidget() override { return m_wrapper; }
 
+    /// The node BODY (boundary, caption, ports) does not depend on data —
+    /// widget content self-repaints via Qt. The validation border self-repaints
+    /// via setValidationState(). Opts out of the per-frame body repaint.
+    bool dataArrivalChangesWidget() const override { return false; }
+
     QJsonObject save() const override;
     void load(QJsonObject const &p) override;
 

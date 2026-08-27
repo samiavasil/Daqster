@@ -46,6 +46,11 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, QtNodes::PortIndex const portIndex) override;
     QWidget *embeddedWidget() override;
 
+    /// The node BODY (boundary, caption, ports) does not depend on data —
+    /// widget content self-repaints via Qt. The validation border self-repaints
+    /// via setValidationState(). Opts out of the per-frame body repaint.
+    bool dataArrivalChangesWidget() const override { return false; }
+
     QtNodes::NodeValidationState validationState() const override
     { return m_validationState; }
 
