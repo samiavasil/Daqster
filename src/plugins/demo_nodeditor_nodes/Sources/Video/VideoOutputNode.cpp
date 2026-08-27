@@ -559,7 +559,6 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
 
             // Defensive: the widget may be null if the connection was just
             // removed while a frame was in flight.
-            bool softwareDisplayed = false;
             if (m_glWidget != nullptr) {
                 PERF_SCOPE("video", "output.present");
                 if (videoFrame->isGpuRgba()) {
@@ -611,35 +610,20 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                 const QImage image = videoFrame->asImage();
                 if (image.isNull())
                     return;
-                softwareDisplayed = true;
                 m_image = image;
                 updateDisplay();
             }
 
-            // Only do the expensive QImage conversion + VideoFrameData output
-            // when a downstream processing consumer is connected to the output
-            // port. Otherwise the GPU path handles display in the detached
-            // window and the in-node QLabel shows a static placeholder (no
-            // per-frame work).
+            // Only emit the output when a downstream processing consumer is
+            // connected to the output port. Otherwise the GPU path handles
+            // display in the detached window and the in-node QLabel shows a
+            // static placeholder (no per-frame work).
             if (m_outputConnectionCount > 0) {
-                // Reuse the frame conversion when the software display path
-                // just ran; otherwise convert here (GL display path with a
-                // downstream consumer — never reuse a stale m_image). Both
-                // paths go through the lazy QImage cache on the shared
-                // VideoFrameData (REQ-SW-PL-032) — at most one conversion
-                // per frame, shared between all consumers.
-                QImage image = softwareDisplayed
-                    ? m_image
-                    : videoFrame->asImage();
-                // Propagate only real frames — never a VideoFrameData wrapping
-                // a null QImage (would emit a bogus "empty" data update).
-                if (image.isNull())
-                    return;
-                m_image = image;
-                updateDisplay();
-                // Output chains emit the single video-frame type (REQ-SW-PL-032):
-                // wrap the converted QImage back into a VideoFrameData.
-                m_output = std::make_shared<VideoFrameData>(QVideoFrame(image));
+                // Zero-copy passthrough (REQ-SW-PL-032): hand the SAME shared
+                // VideoFrameData downstream — no QImage readback, no
+                // QVideoFrame re-wrap, no duplicate upload. Residency (CPU /
+                // GpuYuv / GpuRgba) is preserved for the consumer.
+                m_output = videoFrame;
                 Q_EMIT dataUpdated(0);
             }
         } else {
