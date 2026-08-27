@@ -555,7 +555,16 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
             }
 
             // Lazily create the detached display on the first frame.
-            ensureVideoWidget();
+            // Stage 2C (REQ-SW-PL-032): GpuRgba frames (effect outputs) must
+            // use the GL blit widget on Qt6 too — zero-copy presentTexture,
+            // no readback, no per-sink RHI upload. CPU/NV12 frames keep the
+            // per-Qt default backend (native QVideoWidget on Qt6, GL blit on
+            // Qt5).
+            const bool wantGlBlit = m_detachedEnabled && !m_glFailed
+                && (m_glEnabled
+                    || (videoFrame->isGpuRgba()
+                        && VideoGLContextManager::hasHardwareGL()));
+            ensureVideoWidget(wantGlBlit);
 
             // Defensive: the widget may be null if the connection was just
             // removed while a frame was in flight.
@@ -937,7 +946,7 @@ void VideoOutputNode::logPerfLine()
                           m_lastHandleType, m_lastPixelFormat);
 }
 
-void VideoOutputNode::ensureVideoWidget()
+void VideoOutputNode::ensureVideoWidget(bool wantGlBlit)
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     // In-scene mode (REQ-SW-PL-021, checkbox OFF): never create a detached
@@ -945,19 +954,42 @@ void VideoOutputNode::ensureVideoWidget()
     // display (with the software QLabel path as fallback).
     if (!m_detachedEnabled)
         return;
-    if (m_videoWidget != nullptr || m_glWidget != nullptr)
-        return;
+
+    // Stage 2C (REQ-SW-PL-032): the detached backend is selected PER FRAME.
+    // wantGlBlit == true → GL blit widget (GpuRgba effect output with
+    // hardware GL, or DAQSTER_GL_BLIT=1); wantGlBlit == false → native
+    // QVideoWidget (CPU/NV12). Switching between the two destroys the other
+    // widget so only one detached display exists at a time (no leak, no
+    // stale window, no crash).
+    if (wantGlBlit) {
+        if (m_glWidget != nullptr)
+            return;
+        if (m_videoWidget != nullptr) {
+            m_videoWidget->hide();
+            m_videoWidget->deleteLater();
+            m_videoWidget = nullptr;
+        }
+    } else {
+        if (m_videoWidget != nullptr)
+            return;
+        if (m_glWidget != nullptr) {
+            m_glWidget->hide();
+            m_glWidget->deleteLater();
+            m_glWidget = nullptr;
+        }
+    }
 #else
     if (m_glWidget != nullptr)
         return;
 #endif
 
-    // GL blit display path (default on Qt5; Qt6 only when DAQSTER_GL_BLIT=1):
-    // use the GL window instead of the QVideoWidget (Qt6) / software label
-    // path (Qt5) so the two display backends can be A/B tested. If the GL
-    // context cannot be created, ensureGlWidget() falls back to software and
-    // the label path in setInData() keeps the video visible.
-    if (m_glEnabled) {
+    // GL blit display path (default on Qt5; Qt6 for GpuRgba frames or when
+    // DAQSTER_GL_BLIT=1): use the GL window instead of the QVideoWidget
+    // (Qt6) / software label path (Qt5) so the two display backends can be
+    // A/B tested. If the GL context cannot be created, ensureGlWidget()
+    // falls back to software and the label path in setInData() keeps the
+    // video visible.
+    if (wantGlBlit) {
         ensureGlWidget();
         if (m_glWidget != nullptr) {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)

@@ -35,12 +35,17 @@ class QVideoWidget;
  * NV12-direct, single video-frame type REQ-SW-PL-032):
  *   - port 0 "video-frame" — zero-copy VideoFrameData; presented on the
  *     detached GL blit window (default on Qt5; Qt6 uses QVideoWidget unless
- *     DAQSTER_GL_BLIT=1). Qt5 frames are owned copies (frameToOwnedFrame),
- *     Qt6 frames are the decoded probe frames.
+ *     DAQSTER_GL_BLIT=1). GpuRgba effect outputs (REQ-SW-PL-032 Stage 2C)
+ *     use the GL blit widget on Qt6 too — zero-copy presentTexture, no
+ *     readback, no per-sink RHI upload. Qt5 frames are owned copies
+ *     (frameToOwnedFrame), Qt6 frames are the decoded probe frames.
  *
  * GL blit display selection (REQ-SW-PL-021):
  *   - Default per Qt version: Qt5 = GL blit ON (fastest measured display path,
  *     ~15% CPU vs ~34% software), Qt6 = native QVideoWidget (GL blit OFF).
+ *   - Stage 2C (REQ-SW-PL-032): GpuRgba frames (effect outputs) use the GL
+ *     blit widget on Qt6 too when hardware GL is available — the native
+ *     QVideoWidget path would readback (glReadPixels) + re-upload per sink.
  *   - Env override, applied at STARTUP only: `DAQSTER_GL_BLIT=0` forces the
  *     software path (also Qt5), `DAQSTER_GL_BLIT=1` forces the GL path (also
  *     Qt6). Unset → per-Qt default above. The VALUE matters: "0" disables
@@ -128,8 +133,11 @@ private:
 
     /// Frame to present on a native sink (Qt6 QVideoWidget / in-scene item).
     /// GPU-resident RGBA frames (effect output) cannot be consumed by the
-    /// native sinks — readback at the display boundary (Stage 2C will present
-    /// the texture directly). CPU / GpuYuv frames pass through zero-copy.
+    /// native sinks — readback at the display boundary. Stage 2C
+    /// (REQ-SW-PL-032) routes GpuRgba frames to the GL blit widget
+    /// (presentTexture) when hardware GL is available, so this readback only
+    /// runs on the fallback paths (no hardware GL / in-scene mode). CPU /
+    /// GpuYuv frames pass through zero-copy.
     QVideoFrame presentableFrame(const std::shared_ptr<VideoFrameData> &frame) const;
 
     /// Log the single-line console perf report (5 s timer, both Qt5 + Qt6).
@@ -153,12 +161,15 @@ private:
     /// Falls back to the software path when GL is unavailable.
     void ensureGlWidget();
 
-    /// Lazily create the detached display on the first video-frame input:
-    /// GL blit window when GL display is enabled (both Qt versions),
-    /// QVideoWidget fallback on Qt6 without GL blit, software label path on
-    /// Qt5 without GL. No-op in Qt6 in-scene mode (m_detachedEnabled == false)
-    /// — the in-scene QGraphicsVideoItem branch in setInData() handles display.
-    void ensureVideoWidget();
+    /// Lazily create the detached display on the first video-frame input.
+    /// wantGlBlit selects the backend for the CURRENT frame: true → GL blit
+    /// window (Qt5 default / DAQSTER_GL_BLIT=1 / GpuRgba effect output on
+    /// Qt6 with hardware GL), false → QVideoWidget on Qt6 (CPU/NV12) or the
+    /// software label path on Qt5. Switching between the two destroys the
+    /// other widget so only one detached display exists at a time. No-op in
+    /// Qt6 in-scene mode (m_detachedEnabled == false) — the in-scene
+    /// QGraphicsVideoItem branch in setInData() handles display.
+    void ensureVideoWidget(bool wantGlBlit);
 
     /// Select the embedded effect by combo index (REQ-SW-PL-034). Index 0 is
     /// the "No effect" placeholder (m_effectEnabled = false); indices 1..N map
@@ -251,7 +262,10 @@ private:
     /// Detached display backend selection. Qt5: identical to
     /// m_detachedEnabled (checkbox ON means GL blit). Qt6: initialized from
     /// glBlitStartupEnabled() — DAQSTER_GL_BLIT=1 forces the GL blit widget,
-    /// otherwise the native QVideoWidget is used when detached.
+    /// otherwise the native QVideoWidget is used when detached. Stage 2C
+    /// (REQ-SW-PL-032) additionally routes GpuRgba frames to the GL blit
+    /// widget on Qt6 regardless of this flag (see setInData /
+    /// ensureVideoWidget).
     bool m_glEnabled = false;
     /// True once a GL context could not be created in this session. GL is then
     /// not retried (re-checking the box falls back immediately) until the

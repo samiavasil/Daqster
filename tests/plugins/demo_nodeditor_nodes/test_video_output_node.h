@@ -22,4 +22,9 @@ private slots:
     void loadEffectPersistsSave();
     void loadAbsentEffectIsNoEffect();
     void loadAppliesEffectToFrame();
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // Stage 2C (REQ-SW-PL-032): GpuRgba → GL blit widget on Qt6.
+    void gpuRgbaRoutesToGlBlitWidget();
+#endif
 };
