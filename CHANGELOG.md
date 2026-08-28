@@ -236,6 +236,30 @@
 - **Video source порт преномерация на Qt5** — виж NV12-direct по-горе; стари Qt5 графи, свързващи source port 0 (беше "image") с ImageData консуматор, губят връзката.
 
 ### Fixed
+- **RGBA (FBO) input orientation bug в GPU ефект процесорите (REQ-SW-PL-032)** —
+  `VideoEffectGLProcessor` и `CustomShaderGLProcessor` семплираха bottom-up
+  FBO-произведени RGBA текстури със стандартния top-down quad → even-length
+  GPU ефект вериги (2 ефекта) и единичен CustomShaderNode pass се показваха
+  вертикално обърнати. Фикс: flipped-v quad (`kQuadVerticesFbo`, v' = 1 − v)
+  при семплиране на RGBA input / pre-pass intermediate, огледално на display
+  path-а (`VideoGLBlitWidget`). Single effect (YUV input) непроменен.
+- **Per-frame texture allocation в ефект пътя (REQ-SW-PL-032 Issue #7)** —
+  нов `TexturePool` (`src/plugins/common/GL/TexturePool.{h,cpp}`): `acquire(w,h)`
+  reuse-ва свободна текстура (преоразмерява storage-а при смяна на
+  резолюцията), `release(tex)` я връща в pool-а; `VideoFrameData::fromTexture()`
+  приема опционален release callback (shared_ptr към pool-а), който връща
+  текстурата при унищожаване на frame-а вместо `glDeleteTextures`. Ефект
+  пътят вече няма per-frame `glGenTextures`/`glDeleteTextures`.
+- **`setValidationState` re-trigger-ваше пълния път всеки кадър (nodeeditor
+  submodule)** — early-return при непроменено състояние (NumberDisplay-class
+  нодове викат `setValidationState` всеки кадър със същото състояние).
+- **Двойна `nodeUpdated` емисия (nodeeditor submodule)** — при
+  `NodeRole::ValidationState` през graph model API-то `setValidationState` →
+  `requestNodeUpdate` → `nodeUpdated` + директна `nodeUpdated` емисия; директната
+  емисия е премахната.
+- **Write-only `m_videoFrame` в `VideoOutputNode`** — премахнат (заменен с
+  `m_lastInput`, който `reprocessCurrentFrame()` ползва); `load()` вика
+  `reprocessCurrentFrame()` след зареждане (консистентно с `VideoEffectNode`).
 - **nPorts off-by-one на video source нодове (REQ-SW-PL-022)** — `VideoFileSourceNode` и `StreamSourceNode` имаха nPorts=2 вместо 3 (липсваше audio Sample port на индекс 2); поправен в комит `d5145c2` (`restore nPorts to 3 — audio Sample port was unreachable at index 2`); AC 8 (backward compat) засегнат и поправен — saved графове с audio port на индекс 2 вече работят коректно
 - **Конзолният `quit` не работеше от main app launcher-а (REQ-SW-APP-002, PUB-002)** —
   `QConsoleListener` се създаваше само вътре в `if (args.count() > 0)` клона на

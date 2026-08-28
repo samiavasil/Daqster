@@ -244,6 +244,30 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Video source port renumbering on Qt5** — see NV12-direct entry above; old Qt5 saved graphs that connected source port 0 (was "image") to an ImageData consumer lose that edge.
 
 ### Fixed
+- **RGBA (FBO) input orientation bug in the GPU effect processors (REQ-SW-PL-032)** —
+  `VideoEffectGLProcessor` and `CustomShaderGLProcessor` sampled bottom-up
+  FBO-produced RGBA textures with the standard top-down quad → even-length GPU
+  effect chains (2 effects) and a single CustomShaderNode pass displayed
+  vertically flipped. Fix: flipped-v quad (`kQuadVerticesFbo`, v' = 1 − v) when
+  sampling an RGBA input / pre-pass intermediate, mirroring the display path
+  (`VideoGLBlitWidget`). Single effect (YUV input) unchanged.
+- **Per-frame texture allocation in the effect path (REQ-SW-PL-032 Issue #7)** —
+  new `TexturePool` (`src/plugins/common/GL/TexturePool.{h,cpp}`): `acquire(w,h)`
+  reuses a free texture (re-allocates storage on resolution change),
+  `release(tex)` returns it to the pool; `VideoFrameData::fromTexture()` accepts
+  an optional release callback (shared_ptr to the pool) that returns the texture
+  on frame destruction instead of `glDeleteTextures`. The effect path no longer
+  does per-frame `glGenTextures`/`glDeleteTextures`.
+- **`setValidationState` re-triggered the full path every frame (nodeeditor
+  submodule)** — early-return when the state is unchanged (NumberDisplay-class
+  nodes call `setValidationState` every frame with the same state).
+- **Double `nodeUpdated` emission (nodeeditor submodule)** — for
+  `NodeRole::ValidationState` via the graph model API, `setValidationState` →
+  `requestNodeUpdate` → `nodeUpdated` plus a direct `nodeUpdated` emission; the
+  direct emission was removed.
+- **Write-only `m_videoFrame` in `VideoOutputNode`** — removed (replaced with
+  `m_lastInput`, used by `reprocessCurrentFrame()`); `load()` now calls
+  `reprocessCurrentFrame()` after loading (consistent with `VideoEffectNode`).
 - **Plugin launch fixes**:
   - Toolbar launches plugins by name instead of stale hash
   - Prune persisted plugin entries with mismatched file hash on load

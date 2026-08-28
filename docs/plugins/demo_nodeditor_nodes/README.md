@@ -42,6 +42,8 @@ demo_nodeditor_nodes/
 │       ├── VideoEffectOps.{h,cpp}        # EffectSpec регистър (ефекти, REQ-SW-PL-028)
 │       ├── VideoEffectGLProcessor.{h,cpp}# GPU backend (offscreen FBO, REQ-SW-PL-028)
 │       ├── VideoEffectNode.{h,cpp}       # Един VideoEffect нод с комбо (REQ-SW-PL-028)
+│       ├── CustomShaderGLProcessor.{h,cpp}# GPU backend за runtime GLSL (REQ-SW-PL-029)
+│       ├── CustomShaderNode.{h,cpp}      # Custom shader нод (REQ-SW-PL-029)
 │       ├── FrameSamplerNode.{h,cpp}      # Ресемплер (every-N / max-fps, REQ-SW-PL-030)
 │       └── OpenCVTransforms.cpp          # Само при HAVE_OPENCV
 ├── Displays/
@@ -232,6 +234,25 @@ CPU ефектите. Стари saved графи с `"VideoTransform"` registry
   `QOpenGLFramebufferObject` с размера на кадъра и чете резултата с
   `toImage()` (вграден вертикален флип). `hasHardwareGL()` различава
   хардуерен GL от `llvmpipe`/`softpipe`/`SwiftShader` (lazy кеширано).
+- **RGBA input orientation (2026-08-28, REQ-SW-PL-032):** FBO-произведените
+  RGBA текстури (изход на предишен ефект) са bottom-up — processor-ът ги
+  семплира с **flipped-v quad** (`kQuadVerticesFbo`, v' = 1 − v) при
+  `input.rgba`, огледално на display path-а (`VideoGLBlitWidget`). Без това
+  even-length GPU ефект вериги (2 ефекта) се показваха вертикално обърнати;
+  single effect (YUV input, top-down) остава непроменен.
+- **Texture pool (2026-08-28, REQ-SW-PL-032 Issue #7):** изходните RGBA
+  текстури идват от `TexturePool` (`src/plugins/common/GL/TexturePool.{h,cpp}`)
+  — `acquire(w,h)` reuse-ва свободна текстура (при смяна на резолюцията
+  преоразмерява storage-а на същия texture name), `release(tex)` я връща в
+  pool-а. `VideoFrameData::fromTexture()` приема опционален release callback
+  (shared_ptr към pool-а), който се вика при унищожаване на frame-а вместо
+  `glDeleteTextures` — **без per-frame glGenTextures/glDeleteTextures** в
+  ефект пътя. Без callback поведението остава delete-по подразбиране.
+- **`CustomShaderGLProcessor`** — същият orientation fix: custom pass-ът
+  семплира bottom-up RGBA (pre-pass intermediate или RGBA input) с flipped-v
+  quad, така че единичен CustomShaderNode pass стои прав; YUV→RGBA pre-pass
+  семплира top-down YUV input със стандартния quad. Изходните текстури също
+  идват от `TexturePool`.
 - **GLSL ефекти:** brightness (`rgb + u_brightness`), contrast
   (`(rgb − 0.5) * u_contrast + 0.5`), grayscale (dot luminance), invert,
   sepia (mat3 multiply), channelSwap (`rgb.bgr`), flip (празен body — флипът

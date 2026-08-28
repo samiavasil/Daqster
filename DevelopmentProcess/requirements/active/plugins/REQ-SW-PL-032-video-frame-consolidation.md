@@ -213,3 +213,26 @@
 - **Фаза 1 (AC 8) е завършена исторически** — `ImageData` остана през Фаза 1,
   новите нодове работеха паралелно; **Фаза 2 (AC 9)** чака ръчната визуална
   оценка от потребителя.
+
+## Бележки по имплементацията (актуално, 2026-08-28 — code review fixes)
+
+- **RGBA input orientation fix (AC 9 relevant):** FBO-произведените RGBA
+  текстури са bottom-up; `VideoEffectGLProcessor` и `CustomShaderGLProcessor`
+  ги семплираха със стандартния top-down quad → even-length GPU ефект вериги
+  (2 ефекта) и единичен CustomShaderNode pass се показваха вертикално
+  обърнати. Фикс: flipped-v quad (`kQuadVerticesFbo`, v' = 1 − v) при
+  семплиране на RGBA input / pre-pass intermediate, огледално на display
+  path-а (`VideoGLBlitWidget`). Single effect (YUV input) непроменен.
+- **Texture pool (Issue #7):** нов `TexturePool` (`src/plugins/common/GL/
+  TexturePool.{h,cpp}`) — `acquire(w,h)`/`release(tex)` с reuse на свободни
+  текстури и преоразмеряване на storage-а при смяна на резолюцията;
+  `VideoFrameData::fromTexture()` приема опционален release callback
+  (shared_ptr към pool-а), който връща текстурата в pool-а при унищожаване
+  на frame-а вместо `glDeleteTextures`. Ефект пътят вече няма per-frame
+  `glGenTextures`/`glDeleteTextures`.
+- **nodeeditor submodule:** `setValidationState` early-return при непроменено
+  състояние (NumberDisplay-class нодове викат всеки кадър) + премахната
+  двойната `nodeUpdated` емисия в `DataFlowGraphModel` (ValidationState case).
+- **VideoOutputNode:** write-only `m_videoFrame` премахнат (заменен с
+  `m_lastInput`, който `reprocessCurrentFrame()` ползва); `load()` вика
+  `reprocessCurrentFrame()` след зареждане (консистентно с `VideoEffectNode`).
