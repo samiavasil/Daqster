@@ -24,6 +24,20 @@ const GLfloat kQuadVertices[] = {
      1.0f,  1.0f, 1.0f, 0.0f,
 };
 
+// ── Quad for bottom-up FBO-produced RGBA inputs (v' = 1 - v) ─────────────────
+// FBO-attached textures are bottom-up (row 0 = scene bottom), so the v
+// coordinate is inverted relative to the top-down QImage/YUV quads above.
+// Drawing with v' = 1 - v compensates for the FBO convention — mirrors the
+// display path (VideoGLBlitWidget.cpp kQuadVerticesFbo). Without this an
+// even-length GPU effect chain (RGBA input sampled with the standard quad)
+// displays vertically flipped (REQ-SW-PL-032).
+const GLfloat kQuadVerticesFbo[] = {
+    -1.0f, -1.0f, 0.0f, 0.0f,
+     1.0f, -1.0f, 1.0f, 0.0f,
+    -1.0f,  1.0f, 0.0f, 1.0f,
+     1.0f,  1.0f, 1.0f, 1.0f,
+};
+
 void setupTextureParams(QOpenGLFunctions *f, GLuint id)
 {
     f->glBindTexture(GL_TEXTURE_2D, id);
@@ -59,6 +73,10 @@ VideoEffectGLProcessor::~VideoEffectGLProcessor()
             f->glDeleteBuffers(1, &m_vbo);
             m_vbo = 0;
         }
+        if (m_vboFbo != 0) {
+            f->glDeleteBuffers(1, &m_vboFbo);
+            m_vboFbo = 0;
+        }
         mgr.doneCurrent();
     }
 }
@@ -69,12 +87,19 @@ bool VideoEffectGLProcessor::ensureContext()
     if (!mgr.makeCurrent())
         return false;
 
-    // One-time GL resource setup (VBO + optional core VAO).
+    // One-time GL resource setup (VBOs + optional core VAO).
     if (m_vbo == 0) {
         QOpenGLFunctions *f = mgr.context()->functions();
         f->glGenBuffers(1, &m_vbo);
         f->glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
         f->glBufferData(GL_ARRAY_BUFFER, sizeof(kQuadVertices), kQuadVertices, GL_STATIC_DRAW);
+        f->glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        // Second VBO with the flipped-v quad for bottom-up FBO-produced RGBA
+        // inputs (REQ-SW-PL-032 orientation fix).
+        f->glGenBuffers(1, &m_vboFbo);
+        f->glBindBuffer(GL_ARRAY_BUFFER, m_vboFbo);
+        f->glBufferData(GL_ARRAY_BUFFER, sizeof(kQuadVerticesFbo), kQuadVerticesFbo, GL_STATIC_DRAW);
         f->glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
     return true;
@@ -188,7 +213,11 @@ bool VideoEffectGLProcessor::drawQuad(const EffectSpec &spec, const EffectParams
     if (m_vao != nullptr)
         m_vao->bind();
 
-    f->glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+    // RGBA inputs are bottom-up FBO-produced textures (previous effect output
+    // or the pre-pass intermediate) — sample them with the flipped-v quad so
+    // even-length GPU effect chains display upright (REQ-SW-PL-032). YUV
+    // inputs are top-down CPU uploads and keep the standard quad.
+    f->glBindBuffer(GL_ARRAY_BUFFER, input.rgba ? m_vboFbo : m_vbo);
     prog->enableAttributeArray(posLoc);
     prog->setAttributeBuffer(posLoc, GL_FLOAT, 0, 2, 4 * static_cast<int>(sizeof(GLfloat)));
     prog->enableAttributeArray(texLoc);

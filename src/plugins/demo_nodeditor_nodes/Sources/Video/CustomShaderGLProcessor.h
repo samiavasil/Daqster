@@ -70,7 +70,10 @@ private:
     bool ensureContext();
     bool ensureYuvProgram(bool nv12);
     bool ensureCustomProgram(const QString &userSource, bool core);
-    bool drawQuad(QOpenGLShaderProgram *prog);
+    /// Draws a fullscreen quad with the given program. useFboQuad == true
+    /// selects the flipped-v quad for bottom-up FBO-produced RGBA textures
+    /// (REQ-SW-PL-032 orientation fix).
+    bool drawQuad(QOpenGLShaderProgram *prog, bool useFboQuad);
     GLuint createOutputTexture(int w, int h);
 
     /// Build the wrapped fragment source around the user's mainImage body.
@@ -81,6 +84,9 @@ private:
     QOpenGLShaderProgram *m_customProgram = nullptr; // user shader
 
     GLuint m_vbo = 0;
+    /// Second VBO with the flipped-v quad (v' = 1 - v) for bottom-up
+    /// FBO-produced RGBA textures (REQ-SW-PL-032 orientation fix).
+    GLuint m_vboFbo = 0;
     QOpenGLVertexArrayObject *m_vao = nullptr;
 
     QString m_yuvProgramKey;    // cache key for YUV program

@@ -70,6 +70,9 @@ private:
     QOpenGLVertexArrayObject *m_vao = nullptr;
 
     GLuint m_vbo = 0;
+    /// Second VBO with the flipped-v quad (v' = 1 - v) for bottom-up
+    /// FBO-produced RGBA inputs (REQ-SW-PL-032 orientation fix).
+    GLuint m_vboFbo = 0;
 
     QString m_programKey;   // program cache key: "<effectId>:<layout>:<profile>"
     bool m_useCore = false; // core-profile path (GL_RED/RG + #version 150)

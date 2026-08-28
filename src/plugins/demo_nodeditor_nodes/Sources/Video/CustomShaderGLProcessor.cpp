@@ -25,6 +25,22 @@ const std::array<GLfloat, 16> kQuadVertices = {
      1.0f,  1.0f, 1.0f, 0.0f,
 };
 
+// ── Quad for bottom-up FBO-produced RGBA textures (v' = 1 - v) ───────────────
+// FBO-attached textures are bottom-up (row 0 = scene bottom), so the v
+// coordinate is inverted relative to the top-down QImage/YUV quads above.
+// Drawing with v' = 1 - v compensates for the FBO convention — mirrors the
+// display path (VideoGLBlitWidget.cpp kQuadVerticesFbo). The custom shader
+// pass samples either the YUV→RGBA pre-pass intermediate (an FBO) or an RGBA
+// input (a previous effect output, also FBO-produced) — both are bottom-up,
+// so the flipped quad keeps a single CustomShaderNode pass upright
+// (REQ-SW-PL-032).
+const std::array<GLfloat, 16> kQuadVerticesFbo = {
+    -1.0f, -1.0f, 0.0f, 0.0f,
+     1.0f, -1.0f, 1.0f, 0.0f,
+    -1.0f,  1.0f, 0.0f, 1.0f,
+     1.0f,  1.0f, 1.0f, 1.0f,
+};
+
 void setupTextureParams(QOpenGLFunctions *f, GLuint id)
 {
     f->glBindTexture(GL_TEXTURE_2D, id);
@@ -64,6 +80,10 @@ CustomShaderGLProcessor::~CustomShaderGLProcessor()
             f->glDeleteBuffers(1, &m_vbo);
             m_vbo = 0;
         }
+        if (m_vboFbo != 0) {
+            f->glDeleteBuffers(1, &m_vboFbo);
+            m_vboFbo = 0;
+        }
         mgr.doneCurrent();
     } else {
         qWarning() << "CustomShaderGLProcessor: could not make GL context current for cleanup";
@@ -81,6 +101,13 @@ bool CustomShaderGLProcessor::ensureContext()
         f->glGenBuffers(1, &m_vbo);
         f->glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
         f->glBufferData(GL_ARRAY_BUFFER, sizeof(kQuadVertices), kQuadVertices.data(), GL_STATIC_DRAW);
+        f->glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        // Second VBO with the flipped-v quad for bottom-up FBO-produced RGBA
+        // textures (REQ-SW-PL-032 orientation fix).
+        f->glGenBuffers(1, &m_vboFbo);
+        f->glBindBuffer(GL_ARRAY_BUFFER, m_vboFbo);
+        f->glBufferData(GL_ARRAY_BUFFER, sizeof(kQuadVerticesFbo), kQuadVerticesFbo.data(), GL_STATIC_DRAW);
         f->glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
     return true;
@@ -201,7 +228,7 @@ bool CustomShaderGLProcessor::ensureCustomProgram(const QString &userSource, boo
     return true;
 }
 
-bool CustomShaderGLProcessor::drawQuad(QOpenGLShaderProgram *prog)
+bool CustomShaderGLProcessor::drawQuad(QOpenGLShaderProgram *prog, bool useFboQuad)
 {
     if (prog == nullptr || m_fbo == nullptr)
         return false;
@@ -217,7 +244,11 @@ bool CustomShaderGLProcessor::drawQuad(QOpenGLShaderProgram *prog)
     if (m_vao != nullptr)
         m_vao->bind();
 
-    f->glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+    // useFboQuad == true when the sampled texture is bottom-up FBO-produced
+    // (the YUV→RGBA pre-pass intermediate or an RGBA input) — the flipped-v
+    // quad keeps the output upright (REQ-SW-PL-032). The YUV pre-pass itself
+    // samples top-down CPU uploads and uses the standard quad.
+    f->glBindBuffer(GL_ARRAY_BUFFER, useFboQuad ? m_vboFbo : m_vbo);
     prog->enableAttributeArray(posLoc);
     prog->setAttributeBuffer(posLoc, GL_FLOAT, 0, 2, 4 * static_cast<int>(sizeof(GLfloat)));
     prog->enableAttributeArray(texLoc);
@@ -340,7 +371,8 @@ bool CustomShaderGLProcessor::processTexture(const VideoTextureHandle &input,
         m_yuvProgram->setUniformValue("u_matrix", m_matrix);
         m_yuvProgram->setUniformValue("u_range", m_range);
 
-        drawQuad(m_yuvProgram);
+        // YUV inputs are top-down CPU uploads — standard quad.
+        drawQuad(m_yuvProgram, false);
         m_yuvProgram->release();
 
         // Restore the FBO's own texture and detach our intermediate.
@@ -384,7 +416,9 @@ bool CustomShaderGLProcessor::processTexture(const VideoTextureHandle &input,
     m_customProgram->setUniformValue("u_param2", params.param2);
     m_customProgram->setUniformValue("u_param3", params.param3);
 
-    drawQuad(m_customProgram);
+    // The custom pass samples a bottom-up FBO-produced RGBA texture (the
+    // pre-pass intermediate or an RGBA input) — flipped quad (REQ-SW-PL-032).
+    drawQuad(m_customProgram, true);
     m_customProgram->release();
 
     // Restore FBO's own texture.
