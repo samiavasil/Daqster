@@ -211,7 +211,12 @@ void CustomShaderNode::reprocessCurrentFrame()
     VideoTextureHandle out;
     if (m_processor.processTexture(input, m_glslEditor->toPlainText(), p, &out)) {
         m_errorLog->clear();
-        m_output = VideoFrameData::fromTexture(out);
+        // Texture-pool path (REQ-SW-PL-032 Issue #7): the output texture is
+        // returned to the pool when the frame dies instead of being deleted.
+        m_output = VideoFrameData::fromTexture(
+            out, [pool = m_processor.texturePool(), tex = out.texY]() {
+                pool->release(tex);
+            });
         Q_EMIT dataUpdated(0);
     } else {
         m_errorLog->setPlainText(m_processor.lastErrorLog());

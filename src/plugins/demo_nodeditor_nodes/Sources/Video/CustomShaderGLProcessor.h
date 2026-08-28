@@ -22,11 +22,14 @@
 // are part of Qt::Gui.
 
 #include "NodeDataTypes/VideoTextureHandle.h"
+#include "GL/TexturePool.h"
 
 #include <QHash>
 #include <QString>
 
 #include <QtGui/qopengl.h>
+
+#include <memory>
 
 class QOpenGLFramebufferObject;
 class QOpenGLShaderProgram;
@@ -66,6 +69,13 @@ public:
     /// Human-readable log from the last failed compile/link attempt.
     QString lastErrorLog() const;
 
+    /// The texture pool used for output textures (REQ-SW-PL-032 Issue #7).
+    /// Callers wrap a returned handle with
+    /// VideoFrameData::fromTexture(out, [pool = texturePool(), tex = out.texY]() {
+    ///     pool->release(tex);
+    /// }) so the texture is reused across frames instead of deleted per frame.
+    std::shared_ptr<TexturePool> texturePool() const { return m_texturePool; }
+
 private:
     bool ensureContext();
     bool ensureYuvProgram(bool nv12);
@@ -96,4 +106,9 @@ private:
     int m_range = 1;   // 0 = limited, 1 = full
 
     QString m_lastError;
+
+    /// Output texture pool (REQ-SW-PL-032 Issue #7): reuses RGBA output
+    /// textures across frames instead of a glGenTextures/glDeleteTextures
+    /// pair per frame. Shared with the frames via the release callback.
+    std::shared_ptr<TexturePool> m_texturePool;
 };

@@ -12,6 +12,8 @@
 #include <QOpenGLFunctions>
 #include <QSurfaceFormat>
 
+#include <functional>
+
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QtMultimedia/QVideoFrameFormat>
 #else
@@ -232,13 +234,22 @@ public:
     /// Wraps a GPU-resident RGBA texture (effect output) as a frame. The
     /// handle's textures are owned by the returned VideoFrameData and deleted
     /// on destruction. m_frame stays invalid; m_residency = GpuRgba.
-    static std::shared_ptr<VideoFrameData> fromTexture(const VideoTextureHandle &h)
+    ///
+    /// When releaseCallback is provided (texture-pool path, REQ-SW-PL-032
+    /// Issue #7), the callback is invoked instead of glDeleteTextures when the
+    /// frame is destroyed — it returns the texture to the pool. The callback
+    /// must capture a shared_ptr to the pool so the pool outlives the frame.
+    /// Without a callback the current delete behavior is kept.
+    static std::shared_ptr<VideoFrameData> fromTexture(
+        const VideoTextureHandle &h,
+        std::function<void()> releaseCallback = {})
     {
         auto data = std::make_shared<VideoFrameData>();
         data->m_textureCache = h;
         data->m_textureCache.rgba = true;
         data->m_textureValid = true;
         data->m_residency = VideoFrameResidency::GpuRgba;
+        data->m_releaseCallback = std::move(releaseCallback);
         return data;
     }
 
@@ -305,16 +316,28 @@ private:
 #endif
     }
 
-    /// Deletes the owned GL textures (if any) in the shared context.
+    /// Deletes the owned GL textures (if any) in the shared context — or, for
+    /// pooled textures (REQ-SW-PL-032 Issue #7), invokes the release callback
+    /// exactly once to return the texture to the pool.
     void releaseTextures()
     {
         if (!m_textureValid)
             return;
-        VideoGLContextManager &mgr = VideoGLContextManager::instance();
-        mgr.deleteTexture(m_textureCache.texY);
-        mgr.deleteTexture(m_textureCache.texUV);
-        mgr.deleteTexture(m_textureCache.texU);
-        mgr.deleteTexture(m_textureCache.texV);
+        if (m_releaseCallback) {
+            // Pooled texture: return it to the pool instead of deleting. Move
+            // the callback out first so it fires exactly once even if the
+            // pool's release() re-enters (it cannot — release() is a plain
+            // list push, but the guard is free).
+            auto cb = std::move(m_releaseCallback);
+            m_releaseCallback = nullptr;
+            cb();
+        } else {
+            VideoGLContextManager &mgr = VideoGLContextManager::instance();
+            mgr.deleteTexture(m_textureCache.texY);
+            mgr.deleteTexture(m_textureCache.texUV);
+            mgr.deleteTexture(m_textureCache.texU);
+            mgr.deleteTexture(m_textureCache.texV);
+        }
         m_textureValid = false;
         m_textureCache = VideoTextureHandle();
     }
@@ -330,4 +353,8 @@ private:
     mutable bool m_textureValid = false;
     /// Mutable: asTexture() promotes a CPU frame to GpuYuv on first upload.
     mutable VideoFrameResidency m_residency = VideoFrameResidency::Cpu;
+    /// Optional release callback for pooled textures (REQ-SW-PL-032 Issue #7):
+    /// invoked once in releaseTextures() instead of glDeleteTextures. Captures
+    /// a shared_ptr to the TexturePool so the pool outlives this frame.
+    std::function<void()> m_releaseCallback;
 };

@@ -50,6 +50,7 @@ void setupTextureParams(QOpenGLFunctions *f, GLuint id)
 } // namespace
 
 VideoEffectGLProcessor::VideoEffectGLProcessor()
+    : m_texturePool(std::make_shared<TexturePool>())
 {
     const QString matrixEnv = qEnvironmentVariable("DAQSTER_GL_MATRIX", QStringLiteral("bt709")).toLower();
     const QString rangeEnv = qEnvironmentVariable("DAQSTER_GL_RANGE", QStringLiteral("full")).toLower();
@@ -264,16 +265,19 @@ bool VideoEffectGLProcessor::processTexture(const VideoTextureHandle &input,
         }
     }
 
-    // Output texture: a NEW RGBA texture per call. Ownership is handed to the
-    // caller (VideoFrameData::fromTexture deletes it), so the processor must
-    // never reuse a texture it has handed off — the owner would delete it
-    // while the processor still references it.
+    // Output texture: acquired from the pool (REQ-SW-PL-032 Issue #7) — a
+    // texture is reused across frames instead of a glGenTextures per call.
+    // Ownership is handed to the caller (VideoFrameData::fromTexture with the
+    // pool release callback), so the processor must never reuse a texture it
+    // has handed off — the owner returns it to the pool on destruction.
     QOpenGLFunctions *f = mgr.context()->functions();
-    GLuint outTex = 0;
-    f->glGenTextures(1, &outTex);
+    GLuint outTex = m_texturePool->acquire(w, h);
+    if (outTex == 0) {
+        qWarning().noquote() << QStringLiteral("VideoEffectGLProcessor | texture pool acquire failed (%1x%2)").arg(w).arg(h);
+        return false;
+    }
     f->glBindTexture(GL_TEXTURE_2D, outTex);
     setupTextureParams(f, outTex);
-    f->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     f->glBindTexture(GL_TEXTURE_2D, 0);
 
     // Attach the output texture as the FBO's color attachment, draw, then
@@ -286,7 +290,7 @@ bool VideoEffectGLProcessor::processTexture(const VideoTextureHandle &input,
         qWarning().noquote() << QStringLiteral("VideoEffectGLProcessor | FBO incomplete (0x%1)").arg(status, 0, 16);
         f->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_fbo->texture(), 0);
         m_fbo->release();
-        f->glDeleteTextures(1, &outTex);
+        m_texturePool->release(outTex);
         return false;
     }
 
@@ -294,7 +298,7 @@ bool VideoEffectGLProcessor::processTexture(const VideoTextureHandle &input,
     f->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_fbo->texture(), 0);
     m_fbo->release();
     if (!drawn) {
-        f->glDeleteTextures(1, &outTex);
+        m_texturePool->release(outTex);
         return false;
     }
 

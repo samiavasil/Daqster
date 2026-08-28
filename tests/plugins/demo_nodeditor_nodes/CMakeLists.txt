@@ -160,6 +160,9 @@ set(VIDEO_OUTPUT_TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoEffectOps.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoTransformOps.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoEffectGLProcessor.cpp
+    # VideoEffectGLProcessor now uses the shared TexturePool (REQ-SW-PL-032
+    # Issue #7) — compile the pool source so the test binary links standalone.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
 )
 
 add_executable(demo_nodeditor_videooutput_tests ${VIDEO_OUTPUT_TEST_SOURCES})

@@ -83,6 +83,9 @@ set(VIDEO_NODES
     Sources/Video/CustomShaderNode.cpp
     Sources/Video/FrameSamplerNode.h
     Sources/Video/FrameSamplerNode.cpp
+    # Texture pool for GPU effect outputs (REQ-SW-PL-032 Issue #7) — lives in
+    # the shared GL helpers next to VideoGLContextManager.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
 )
 
 # ── Optional OpenCV transforms (compile-time auto-detect) ───────────

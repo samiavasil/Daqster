@@ -127,7 +127,13 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
         if (m_lastInput->asTexture(&input)) {
             VideoTextureHandle out;
             if (m_glProcessor.processTexture(input, spec, m_params, &out)) {
-                m_output = VideoFrameData::fromTexture(out);
+                // Texture-pool path (REQ-SW-PL-032 Issue #7): the output
+                // texture is returned to the pool when the frame dies instead
+                // of being deleted — no per-frame glGenTextures/glDeleteTextures.
+                m_output = VideoFrameData::fromTexture(
+                    out, [pool = m_glProcessor.texturePool(), tex = out.texY]() {
+                        pool->release(tex);
+                    });
                 Q_EMIT dataUpdated(0);
                 return;
             }

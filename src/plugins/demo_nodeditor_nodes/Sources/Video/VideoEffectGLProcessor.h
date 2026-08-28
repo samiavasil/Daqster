@@ -29,11 +29,14 @@
 
 #include "VideoEffectOps.h"
 #include "NodeDataTypes/VideoTextureHandle.h"
+#include "GL/TexturePool.h"
 
 #include <QImage>
 #include <QString>
 
 #include <QtGui/qopengl.h>
+
+#include <memory>
 
 class QOpenGLFramebufferObject;
 class QOpenGLShaderProgram;
@@ -54,6 +57,13 @@ public:
     /// a GL step fails — the caller falls back to the CPU backend.
     bool processTexture(const VideoTextureHandle &input, const EffectSpec &spec,
                         const EffectParams &params, VideoTextureHandle *out);
+
+    /// The texture pool used for output textures (REQ-SW-PL-032 Issue #7).
+    /// Callers wrap a returned handle with
+    /// VideoFrameData::fromTexture(out, [pool = texturePool(), tex = out.texY]() {
+    ///     pool->release(tex);
+    /// }) so the texture is reused across frames instead of deleted per frame.
+    std::shared_ptr<TexturePool> texturePool() const { return m_texturePool; }
 
 private:
     /// Input texture layout for program selection (program cache key layout
@@ -78,4 +88,9 @@ private:
     bool m_useCore = false; // core-profile path (GL_RED/RG + #version 150)
     int m_matrix = 1;       // 0 = BT.601, 1 = BT.709
     int m_range = 1;        // 0 = limited, 1 = full
+
+    /// Output texture pool (REQ-SW-PL-032 Issue #7): reuses RGBA output
+    /// textures across frames instead of a glGenTextures/glDeleteTextures
+    /// pair per frame. Shared with the frames via the release callback.
+    std::shared_ptr<TexturePool> m_texturePool;
 };
