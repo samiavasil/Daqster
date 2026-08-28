@@ -131,6 +131,11 @@ protected:
 private:
     void updateDisplay();
 
+    /// Re-run the port-0 processing on the last received frame (mirrors
+    /// VideoEffectNode::reprocessCurrentFrame). Called after load() so a
+    /// restored effect/parameter set is applied to the current frame.
+    void reprocessCurrentFrame();
+
     /// Frame to present on a native sink (Qt6 QVideoWidget / in-scene item).
     /// GPU-resident RGBA frames (effect output) cannot be consumed by the
     /// native sinks — readback at the display boundary. Stage 2C
@@ -272,7 +277,7 @@ private:
     /// application is restarted.
     bool m_glFailed = false;
 
-    std::shared_ptr<VideoFrameData> m_videoFrame;
+    std::shared_ptr<VideoFrameData> m_lastInput;
     int m_outputConnectionCount = 0;
     /// True while a port-0 "video-frame" edge exists. Guards setInData() so
     /// frames that keep flowing from a still-playing source after the edge is

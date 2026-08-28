@@ -89,7 +89,6 @@ bool glPlatformAvailable()
 } // namespace
 
 VideoOutputNode::VideoOutputNode()
-    : m_videoFrame(std::make_shared<VideoFrameData>())
 {
     // Display nodes must never get a graphics effect (perf): the shadow blur
     // runs per repaint and costs ~46% CPU during video playback (PERF results,
@@ -470,6 +469,18 @@ void VideoOutputNode::load(QJsonObject const &p)
         }
     }
     setEffectIndex(comboIndex);
+
+    // Re-apply the restored effect/parameters to the current frame (mirrors
+    // VideoEffectNode::load()). No-op when no frame has arrived yet or the
+    // input edge is not connected (the setInData guard returns early).
+    reprocessCurrentFrame();
+}
+
+void VideoOutputNode::reprocessCurrentFrame()
+{
+    if (!m_lastInput || !m_lastInput->hasFrame())
+        return;
+    setInData(m_lastInput, 0);
 }
 
 unsigned int VideoOutputNode::nPorts(PortType portType) const
@@ -523,7 +534,7 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                 m_lastPixelFormat = VideoCompat::pixelFormatInt(frame);
             }
 
-            m_videoFrame = videoFrame;
+            m_lastInput = videoFrame;
 
             // ── Embedded effect (REQ-SW-PL-034, optional, default none) ─────
             // When no effect is selected (m_effectEnabled == false) this block
@@ -651,7 +662,7 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                 Q_EMIT dataUpdated(0);
             }
         } else {
-            m_videoFrame.reset();
+            m_lastInput.reset();
             m_image = QImage();
             m_output.reset();
             updateDisplay();
@@ -722,7 +733,7 @@ void VideoOutputNode::inputConnectionDeleted(QtNodes::ConnectionId const &conId)
         m_perfBadge = nullptr;
     }
 #endif
-    m_videoFrame.reset();
+    m_lastInput.reset();
     m_image = QImage();
     m_output.reset();
     m_label->setText(tr("No video input"));
