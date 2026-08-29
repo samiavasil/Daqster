@@ -165,4 +165,13 @@ if(TARGET NodeEditorIde)
     set_target_properties(NodeEditorIde PROPERTIES
         OUTPUT_NAME "NodeEditorPluginIde"
     )
+    # Explicit ordering guarantee: NodeEditorPluginIde.dll links against
+    # NodeEditorLibrary's import library on Windows. The link already goes
+    # through the target name (link_component_dependencies), which makes
+    # Ninja track the import library as an implicit dependency — this
+    # add_dependencies() is a belt-and-braces order-only edge so the
+    # library is always built before the plugin links (LNK1181 guard).
+    if(TARGET NodeEditorLibrary)
+        add_dependencies(NodeEditorIde NodeEditorLibrary)
+    endif()
 endif()
