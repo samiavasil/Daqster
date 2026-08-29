@@ -1,6 +1,8 @@
 #include "VideoGLBlitWidget.h"
 
+#include "NodeDataTypes/VideoFrameData.h"
 #include "VideoCompat.h"
+#include "VideoGLShaders.h"
 
 #include <QElapsedTimer>
 #include <QOpenGLContext>
@@ -23,6 +25,18 @@ const GLfloat kQuadVertices[] = {
      1.0f, -1.0f, 1.0f, 1.0f,
     -1.0f,  1.0f, 0.0f, 0.0f,
      1.0f,  1.0f, 1.0f, 0.0f,
+};
+
+// ── Quad for GPU-resident FBO textures (effect / custom-shader output) ───────
+// FBO-attached textures are bottom-up (row 0 = scene bottom), so the v
+// coordinate is inverted relative to the top-down QImage/YUV quads above.
+// Drawing with v' = 1 - v compensates for the FBO convention; without this the
+// display inversion would cancel the flip effect's vertical flip (REQ-SW-PL-032).
+const GLfloat kQuadVerticesFbo[] = {
+    -1.0f, -1.0f, 0.0f, 0.0f,
+     1.0f, -1.0f, 1.0f, 0.0f,
+    -1.0f,  1.0f, 0.0f, 1.0f,
+     1.0f,  1.0f, 1.0f, 1.0f,
 };
 
 /// Classify a frame's pixel layout for the shader selection and report a
@@ -57,124 +71,6 @@ YuvLayout classifyYuv(const QVideoFrame &frame, QString *formatName)
         return YuvLayout::Other;
     }
 #endif
-}
-
-QString buildVertexSource(bool core)
-{
-    if (core) {
-        return QStringLiteral(
-            "#version 150 core\n"
-            "in vec2 a_position;\n"
-            "in vec2 a_texcoord;\n"
-            "out vec2 v_texcoord;\n"
-            "void main() {\n"
-            "  gl_Position = vec4(a_position, 0.0, 1.0);\n"
-            "  v_texcoord = a_texcoord;\n"
-            "}\n");
-    }
-    return QStringLiteral(
-        "#version 120\n"
-        "attribute vec2 a_position;\n"
-        "attribute vec2 a_texcoord;\n"
-        "varying vec2 v_texcoord;\n"
-        "void main() {\n"
-        "  gl_Position = vec4(a_position, 0.0, 1.0);\n"
-        "  v_texcoord = a_texcoord;\n"
-        "}\n");
-}
-
-/// YUV->RGB fragment shader. UV channel swizzle is baked per upload layout:
-/// core GL_RG => ".rg", compat GL_LUMINANCE_ALPHA => ".ra" (R=U, A=V).
-QString buildYuvFragmentSource(bool core, bool nv12)
-{
-    QString src;
-    if (core) {
-        src += QStringLiteral(
-            "#version 150 core\n"
-            "uniform sampler2D u_texY;\n");
-        if (nv12)
-            src += QStringLiteral("uniform sampler2D u_texUV;\n");
-        else
-            src += QStringLiteral("uniform sampler2D u_texU;\nuniform sampler2D u_texV;\n");
-        src += QStringLiteral(
-            "uniform int u_matrix;\n"
-            "uniform int u_range;\n"
-            "in vec2 v_texcoord;\n"
-            "out vec4 fragColor;\n");
-    } else {
-        src += QStringLiteral(
-            "#version 120\n"
-            "uniform sampler2D u_texY;\n");
-        if (nv12)
-            src += QStringLiteral("uniform sampler2D u_texUV;\n");
-        else
-            src += QStringLiteral("uniform sampler2D u_texU;\nuniform sampler2D u_texV;\n");
-        src += QStringLiteral(
-            "uniform int u_matrix;\n"
-            "uniform int u_range;\n"
-            "varying vec2 v_texcoord;\n");
-    }
-
-    src += QStringLiteral("void main() {\n");
-    if (core) {
-        if (nv12) {
-            src += QStringLiteral(
-                "  float y = texture(u_texY, v_texcoord).r;\n"
-                "  vec2 uv = texture(u_texUV, v_texcoord).rg;\n");
-        } else {
-            src += QStringLiteral(
-                "  float y = texture(u_texY, v_texcoord).r;\n"
-                "  vec2 uv = vec2(texture(u_texU, v_texcoord).r,\n"
-                "                 texture(u_texV, v_texcoord).r);\n");
-        }
-    } else {
-        if (nv12) {
-            src += QStringLiteral(
-                "  float y = texture2D(u_texY, v_texcoord).r;\n"
-                "  vec2 uv = texture2D(u_texUV, v_texcoord).ra;\n");
-        } else {
-            src += QStringLiteral(
-                "  float y = texture2D(u_texY, v_texcoord).r;\n"
-                "  vec2 uv = vec2(texture2D(u_texU, v_texcoord).r,\n"
-                "                 texture2D(u_texV, v_texcoord).r);\n");
-        }
-    }
-
-    src += QStringLiteral(
-        "  if (u_range == 0) {\n"
-        "    y = (y - 0.0627451) * 1.1643836;\n"
-        "    uv = (uv - vec2(0.5019608)) * 1.1383929;\n"
-        "  }\n"
-        "  vec3 rgb;\n"
-        "  if (u_matrix == 1) {\n"
-        "    rgb = vec3(y + 1.5748 * (uv.y - 0.5),\n"
-        "               y - 0.187324 * (uv.x - 0.5) - 0.468124 * (uv.y - 0.5),\n"
-        "               y + 1.8556 * (uv.x - 0.5));\n"
-        "  } else {\n"
-        "    rgb = vec3(y + 1.402 * (uv.y - 0.5),\n"
-        "               y - 0.344136 * (uv.x - 0.5) - 0.714136 * (uv.y - 0.5),\n"
-        "               y + 1.772 * (uv.x - 0.5));\n"
-        "  }\n");
-    src += core ? QStringLiteral("  fragColor = vec4(rgb, 1.0);\n}\n")
-                : QStringLiteral("  gl_FragColor = vec4(rgb, 1.0);\n}\n");
-    return src;
-}
-
-QString buildRgbaFragmentSource(bool core)
-{
-    if (core) {
-        return QStringLiteral(
-            "#version 150 core\n"
-            "uniform sampler2D u_tex;\n"
-            "in vec2 v_texcoord;\n"
-            "out vec4 fragColor;\n"
-            "void main() { fragColor = texture(u_tex, v_texcoord); }\n");
-    }
-    return QStringLiteral(
-        "#version 120\n"
-        "uniform sampler2D u_tex;\n"
-        "varying vec2 v_texcoord;\n"
-        "void main() { gl_FragColor = texture2D(u_tex, v_texcoord); }\n");
 }
 
 void setupTextureParams(QOpenGLFunctions *f, GLuint id)
@@ -214,6 +110,8 @@ void VideoGLBlitWidget::presentFrame(const QVideoFrame &frame)
     if (!frame.isValid())
         return;
 
+    m_textureOwner.reset();
+    m_textureHandle = VideoTextureHandle();
     m_frame = frame;
     m_image = QImage();
     m_yuvW = frame.width();
@@ -234,6 +132,9 @@ void VideoGLBlitWidget::presentFrame(const QVideoFrame &frame)
     default:
         // RGB formats or anything else: fall back to a CPU QImage conversion
         // inside the GL path (honest — the conversion cost lands in the blit).
+        // NOTE: this widget receives a raw QVideoFrame (not a VideoFrameData),
+        // so it cannot reuse the lazy asImage() cache (REQ-SW-PL-032) — the
+        // conversion here is per-presentation and unavoidable on this path.
         m_hasYuv = false;
         m_image = VideoCompat::frameToImage(frame);
         m_formatName += QStringLiteral(" -> toImage(%1)").arg(m_image.format());
@@ -246,10 +147,54 @@ void VideoGLBlitWidget::presentImage(const QImage &image)
 {
     if (image.isNull())
         return;
+    m_textureOwner.reset();
+    m_textureHandle = VideoTextureHandle();
     m_image = image;
     m_hasYuv = false;
     m_frame = QVideoFrame();
     m_formatName = QStringLiteral("QImage(%1)").arg(m_image.format());
+    update();
+}
+
+void VideoGLBlitWidget::presentTexture(const VideoTextureHandle &handle,
+                                       std::shared_ptr<VideoFrameData> owner)
+{
+    if (handle.texY == 0 || handle.width <= 0 || handle.height <= 0)
+        return;
+    // Hold the owning frame so the texture stays alive until the next present
+    // (the deferred repaint binds it in the shared GL context).
+    m_textureOwner = std::move(owner);
+    m_textureHandle = handle;
+    m_hasYuv = false;
+    m_image = QImage();
+    m_frame = QVideoFrame();
+    m_yuvW = handle.width;
+    m_yuvH = handle.height;
+    m_formatName = QStringLiteral("Texture(RGBA)");
+    update();
+}
+
+void VideoGLBlitWidget::presentYuvTexture(const VideoTextureHandle &handle,
+                                          std::shared_ptr<VideoFrameData> owner)
+{
+    if (handle.texY == 0 || handle.width <= 0 || handle.height <= 0) {
+        // Invalid handle — fall back to the CPU frame path.
+        if (owner && owner->hasFrame())
+            presentFrame(owner->frame());
+        return;
+    }
+    // Hold the owning frame so the cached textures stay alive until the next
+    // present (the deferred repaint binds them in the shared GL context).
+    m_textureOwner = std::move(owner);
+    m_textureHandle = handle;
+    m_hasYuv = true;
+    m_useNv12 = handle.nv12;
+    m_image = QImage();
+    m_frame = QVideoFrame();
+    m_yuvW = handle.width;
+    m_yuvH = handle.height;
+    m_formatName = handle.nv12 ? QStringLiteral("Texture(NV12)")
+                               : QStringLiteral("Texture(YUV420P)");
     update();
 }
 
@@ -292,6 +237,12 @@ void VideoGLBlitWidget::initializeGL()
     f->glBufferData(GL_ARRAY_BUFFER, sizeof(kQuadVertices), kQuadVertices, GL_STATIC_DRAW);
     f->glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+    // Flipped-v quad VBO for bottom-up FBO textures (REQ-SW-PL-032).
+    f->glGenBuffers(1, &m_vboFbo);
+    f->glBindBuffer(GL_ARRAY_BUFFER, m_vboFbo);
+    f->glBufferData(GL_ARRAY_BUFFER, sizeof(kQuadVerticesFbo), kQuadVerticesFbo, GL_STATIC_DRAW);
+    f->glBindBuffer(GL_ARRAY_BUFFER, 0);
+
     if (m_useCore) {
         m_vao = new QOpenGLVertexArrayObject(this);
         m_vao->create();
@@ -331,6 +282,9 @@ void VideoGLBlitWidget::paintGL()
     if (m_hasYuv) {
         srcW = m_yuvW;
         srcH = m_yuvH;
+    } else if (m_textureHandle.texY != 0) {
+        srcW = m_textureHandle.width;
+        srcH = m_textureHandle.height;
     } else if (!m_image.isNull()) {
         srcW = m_image.width();
         srcH = m_image.height();
@@ -360,6 +314,12 @@ void VideoGLBlitWidget::paintGL()
 
 void VideoGLBlitWidget::uploadFrame()
 {
+    if (m_textureHandle.texY != 0) {
+        // GPU-resident frame (RGBA effect output OR cached YUV planes from
+        // asTexture) — already on the GPU, nothing to upload
+        // (REQ-SW-PL-032 Stage 2A/2B).
+        return;
+    }
     if (m_hasYuv) {
         if (!m_frame.isValid())
             return;
@@ -447,7 +407,7 @@ void VideoGLBlitWidget::drawQuad()
     QOpenGLShaderProgram *prog = nullptr;
     if (m_hasYuv)
         prog = m_useNv12 ? m_programNv12 : m_program420p;
-    else if (!m_image.isNull())
+    else if (m_textureHandle.texY != 0 || !m_image.isNull())
         prog = m_programRgba;
 
     if (prog == nullptr)
@@ -456,7 +416,39 @@ void VideoGLBlitWidget::drawQuad()
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     prog->bind();
 
-    if (m_hasYuv) {
+    // GPU-resident FBO textures are bottom-up, so they use the flipped-v quad
+    // (REQ-SW-PL-032); QImage/YUV quads are top-down and use the standard quad.
+    bool useFboQuad = false;
+
+    if (m_textureHandle.texY != 0 && m_hasYuv) {
+        // GPU-resident YUV textures (asTexture cache, REQ-SW-PL-032): bind the
+        // cached planes directly — no duplicate upload. Uploaded from the
+        // top-down CPU frame, so the standard (non-FBO) quad is used.
+        f->glActiveTexture(GL_TEXTURE0);
+        f->glBindTexture(GL_TEXTURE_2D, m_textureHandle.texY);
+        prog->setUniformValue("u_texY", 0);
+        if (m_useNv12) {
+            f->glActiveTexture(GL_TEXTURE1);
+            f->glBindTexture(GL_TEXTURE_2D, m_textureHandle.texUV);
+            prog->setUniformValue("u_texUV", 1);
+        } else {
+            f->glActiveTexture(GL_TEXTURE1);
+            f->glBindTexture(GL_TEXTURE_2D, m_textureHandle.texU);
+            prog->setUniformValue("u_texU", 1);
+            f->glActiveTexture(GL_TEXTURE2);
+            f->glBindTexture(GL_TEXTURE_2D, m_textureHandle.texV);
+            prog->setUniformValue("u_texV", 2);
+        }
+        prog->setUniformValue("u_matrix", m_matrix);
+        prog->setUniformValue("u_range", m_range);
+    } else if (m_textureHandle.texY != 0) {
+        // GPU-resident RGBA texture (effect output): bind it directly — no
+        // upload (REQ-SW-PL-032 Stage 2B).
+        useFboQuad = true;
+        f->glActiveTexture(GL_TEXTURE0);
+        f->glBindTexture(GL_TEXTURE_2D, m_textureHandle.texY);
+        prog->setUniformValue("u_tex", 0);
+    } else if (m_hasYuv) {
         f->glActiveTexture(GL_TEXTURE0);
         f->glBindTexture(GL_TEXTURE_2D, m_texY);
         prog->setUniformValue("u_texY", 0);
@@ -486,7 +478,7 @@ void VideoGLBlitWidget::drawQuad()
     if (m_vao != nullptr)
         m_vao->bind();
 
-    f->glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+    f->glBindBuffer(GL_ARRAY_BUFFER, useFboQuad ? m_vboFbo : m_vbo);
     prog->enableAttributeArray(posLoc);
     prog->setAttributeBuffer(posLoc, GL_FLOAT, 0, 2, 4 * static_cast<int>(sizeof(GLfloat)));
     prog->enableAttributeArray(texLoc);

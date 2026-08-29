@@ -1,12 +1,20 @@
 #include "test_video_output_node.h"
 
-#include "NodeDataTypes/ImageData.h"
+#include "GL/VideoGLContextManager.h"
 #include "NodeDataTypes/VideoFrameData.h"
+#include "VideoGLBlitWidget.h"
 #include "VideoOutputNode.h"
 
+#include <QColor>
 #include <QImage>
+#include <QJsonObject>
 #include <QSignalSpy>
 #include <QVideoFrame>
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QApplication>
+#include <QVideoWidget>
+#endif
 
 using QtNodes::ConnectionId;
 using QtNodes::PortIndex;
@@ -23,86 +31,27 @@ static ConnectionId makeConId(PortIndex inPort, PortIndex outPort)
 
 // ── portTopology ─────────────────────────────────────────────────────────────
 //
-// On both Qt versions the node exposes two input ports (video-frame, image)
-// plus one output (REQ-SW-PL-020, NV12-direct).
+// On both Qt versions the node exposes a single input port (video-frame) plus
+// one output (REQ-SW-PL-020, NV12-direct, single video-frame type
+// REQ-SW-PL-032).
 void VideoOutputNodeTest::portTopology()
 {
     VideoOutputNode node;
 
-    QCOMPARE(node.nPorts(PortType::In), 2u);
+    QCOMPARE(node.nPorts(PortType::In), 1u);
     // Port 0: "video-frame"
     {
         const auto dt = node.dataType(PortType::In, 0);
         QCOMPARE(dt.id, QStringLiteral("video-frame"));
         QCOMPARE(dt.name, QStringLiteral("Video Frame"));
     }
-    // Port 1: "image"
-    {
-        const auto dt = node.dataType(PortType::In, 1);
-        QCOMPARE(dt.id, QStringLiteral("image"));
-        QCOMPARE(dt.name, QStringLiteral("Image"));
-    }
 
     QCOMPARE(node.nPorts(PortType::Out), 1u);
     {
         const auto dt = node.dataType(PortType::Out, 0);
-        QCOMPARE(dt.id, QStringLiteral("image"));
-        QCOMPARE(dt.name, QStringLiteral("Image"));
+        QCOMPARE(dt.id, QStringLiteral("video-frame"));
+        QCOMPARE(dt.name, QStringLiteral("Video Frame"));
     }
-}
-
-// ── imageData_passthrough ────────────────────────────────────────────────────
-//
-// Feeds a non-empty ImageData into the image port (port 1) and verifies it
-// propagates to outData(0).
-void VideoOutputNodeTest::imageData_passthrough()
-{
-    VideoOutputNode node;
-    QSignalSpy spy(&node, &QtNodes::NodeDelegateModel::dataUpdated);
-
-    QImage img(128, 128, QImage::Format_RGB32);
-    img.fill(Qt::green);
-    auto input = std::make_shared<ImageData>(img);
-
-    constexpr PortIndex imagePort = 1;
-
-    node.setInData(input, imagePort);
-
-    QCOMPARE(spy.count(), 1);
-    QCOMPARE(spy.at(0).at(0).toInt(), 0);
-
-    auto output = node.outData(0);
-    QVERIFY(output != nullptr);
-    auto outImage = std::dynamic_pointer_cast<ImageData>(output);
-    QVERIFY(outImage != nullptr);
-    QCOMPARE(outImage->width(), 128);
-    QCOMPARE(outImage->height(), 128);
-}
-
-// ── nullImageData_invalidates ────────────────────────────────────────────────
-//
-// Feeding an empty ImageData emits dataInvalidated(0) and sets outData(0) to
-// nullptr.
-void VideoOutputNodeTest::nullImageData_invalidates()
-{
-    VideoOutputNode node;
-    QSignalSpy spy(&node, &QtNodes::NodeDelegateModel::dataInvalidated);
-
-    constexpr PortIndex imagePort = 1;
-
-    // First feed a valid image so there is something to invalidate.
-    {
-        QImage img(64, 64, QImage::Format_RGB32);
-        img.fill(Qt::blue);
-        node.setInData(std::make_shared<ImageData>(img), imagePort);
-    }
-
-    spy.clear();
-    node.setInData(std::make_shared<ImageData>(), imagePort);
-
-    QCOMPARE(spy.count(), 1);
-    QCOMPARE(spy.at(0).at(0).toInt(), 0);
-    QVERIFY(node.outData(0) == nullptr);
 }
 
 // ── videoInputConnectionGuard ────────────────────────────────────────────────
@@ -150,7 +99,7 @@ void VideoOutputNodeTest::videoInputConnectionGuard()
 //
 // outputConnectionCreated/deleted(0) are tracked as a ref-count. The
 // counter controls whether the per-frame QImage conversion runs: only
-// when counter > 0 does setInData(port 0) produce an ImageData output.
+// when counter > 0 does setInData(port 0) produce a VideoFrameData output.
 // We verify indirectly via the presence of dataUpdated(0).
 void VideoOutputNodeTest::outputConnectionCounter()
 {
@@ -187,8 +136,8 @@ void VideoOutputNodeTest::outputConnectionCounter()
 // ── outputChain ──────────────────────────────────────────────────────────────
 //
 // With an output connection present, feeding a synthetic VideoFrameData
-// produces ImageData on outData(0) and emits dataUpdated(0). The output
-// image must match the source frame's dimensions.
+// produces VideoFrameData on outData(0) and emits dataUpdated(0). The output
+// frame must match the source frame's dimensions.
 void VideoOutputNodeTest::outputChain()
 {
     VideoOutputNode node;
@@ -208,13 +157,163 @@ void VideoOutputNodeTest::outputChain()
     QCOMPARE(spyUpdated.count(), 1);
     QCOMPARE(spyUpdated.at(0).at(0).toInt(), 0);
 
-    // outData(0) must contain the converted ImageData.
+    // outData(0) must contain the converted VideoFrameData.
     auto out = node.outData(0);
     QVERIFY(out != nullptr);
-    auto outImage = std::dynamic_pointer_cast<ImageData>(out);
-    QVERIFY(outImage != nullptr);
-    QCOMPARE(outImage->width(), frameSize.width());
-    QCOMPARE(outImage->height(), frameSize.height());
+    auto outFrame = std::dynamic_pointer_cast<VideoFrameData>(out);
+    QVERIFY(outFrame != nullptr);
+    QCOMPARE(outFrame->asImage().width(), frameSize.width());
+    QCOMPARE(outFrame->asImage().height(), frameSize.height());
 }
+
+// ── defaultNoEffectPassthrough ───────────────────────────────────────────────
+//
+// REQ-SW-PL-034 AC 1/2: the node defaults to "No effect" — save() must NOT
+// write an "effect" key, and the output frame must be byte-identical to the
+// input (zero-copy passthrough preserved when no effect is selected).
+void VideoOutputNodeTest::defaultNoEffectPassthrough()
+{
+    VideoOutputNode node;
+    node.inputConnectionCreated(makeConId(0, 0));
+    node.outputConnectionCreated(makeConId(0, 0));
+
+    // Default save: no "effect" key (backward compatible with old graphs).
+    const QJsonObject saved = node.save();
+    QVERIFY(!saved.contains(QStringLiteral("effect")));
+
+    // Feed a frame → output must equal the input pixels exactly.
+    QImage img(64, 48, QImage::Format_ARGB32);
+    img.fill(Qt::red);
+    QVideoFrame vf(img);
+    node.setInData(std::make_shared<VideoFrameData>(vf), 0);
+
+    auto out = std::dynamic_pointer_cast<VideoFrameData>(node.outData(0));
+    QVERIFY(out != nullptr);
+    // Qt6 asImage() normalizes to ARGB32 — compare pixel content, not format.
+    QCOMPARE(out->asImage().convertToFormat(img.format()), img);
+}
+
+// ── loadEffectPersistsSave ───────────────────────────────────────────────────
+//
+// REQ-SW-PL-034 AC 4: loading a graph with an "effect" key selects the effect
+// and save() round-trips the id + parameters.
+void VideoOutputNodeTest::loadEffectPersistsSave()
+{
+    VideoOutputNode node;
+
+    QJsonObject graph;
+    graph[QStringLiteral("effect")] = QStringLiteral("brightness");
+    graph[QStringLiteral("brightness")] = 42;
+    node.load(graph);
+
+    const QJsonObject saved = node.save();
+    QCOMPARE(saved.value(QStringLiteral("effect")).toString(),
+             QStringLiteral("brightness"));
+    QCOMPARE(saved.value(QStringLiteral("brightness")).toInt(), 42);
+}
+
+// ── loadAbsentEffectIsNoEffect ───────────────────────────────────────────────
+//
+// REQ-SW-PL-034 AC 4 (backward compatible): old graphs without the "effect"
+// key load as no-effect — save() omits the key again.
+void VideoOutputNodeTest::loadAbsentEffectIsNoEffect()
+{
+    VideoOutputNode node;
+
+    // Old graph: only display-related keys, no "effect".
+    QJsonObject graph;
+    graph[QStringLiteral("someOldKey")] = QStringLiteral("value");
+    node.load(graph);
+
+    const QJsonObject saved = node.save();
+    QVERIFY(!saved.contains(QStringLiteral("effect")));
+}
+
+// ── loadAppliesEffectToFrame ─────────────────────────────────────────────────
+//
+// REQ-SW-PL-034 AC 3: with an effect loaded, the output frame is transformed.
+// CPU brightness maps delta -100..+100 to -255..+255 (shift = delta*255/100),
+// so brightness=10 → shift=25 → 128+25 = 153.
+void VideoOutputNodeTest::loadAppliesEffectToFrame()
+{
+    VideoOutputNode node;
+    node.inputConnectionCreated(makeConId(0, 0));
+    node.outputConnectionCreated(makeConId(0, 0));
+
+    QJsonObject graph;
+    graph[QStringLiteral("effect")] = QStringLiteral("brightness");
+    graph[QStringLiteral("brightness")] = 10;
+    node.load(graph);
+
+    // Mid-gray input (128,128,128) → brightness +10 → (153,153,153).
+    QImage img(64, 48, QImage::Format_RGB32);
+    img.fill(QColor(128, 128, 128));
+    QVideoFrame vf(img);
+    node.setInData(std::make_shared<VideoFrameData>(vf), 0);
+
+    auto out = std::dynamic_pointer_cast<VideoFrameData>(node.outData(0));
+    QVERIFY(out != nullptr);
+    const QImage outImg = out->asImage();
+    QCOMPARE(outImg.pixelColor(0, 0).red(), 153);
+    QCOMPARE(outImg.pixelColor(0, 0).green(), 153);
+    QCOMPARE(outImg.pixelColor(0, 0).blue(), 153);
+}
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+// ── gpuRgbaRoutesToGlBlitWidget (REQ-SW-PL-032 Stage 2C) ─────────────────────
+//
+// On Qt6, GpuRgba frames (effect outputs) must route to the GL blit widget
+// (zero-copy presentTexture) instead of the native QVideoWidget (readback +
+// per-sink RHI upload). The routing requires hardware GL — on software
+// renderers (llvmpipe/softpipe/SwiftShader) the native path stays and the
+// test is skipped.
+void VideoOutputNodeTest::gpuRgbaRoutesToGlBlitWidget()
+{
+    if (!VideoGLContextManager::hasHardwareGL())
+        QSKIP("No hardware GL — GpuRgba routing to GL blit requires hardware GL");
+
+    VideoOutputNode node;
+    node.inputConnectionCreated(makeConId(0, 0));
+
+    // GpuRgba frame (effect output). The texture handle is a placeholder —
+    // the routing decision only needs isGpuRgba() + hardware GL.
+    VideoTextureHandle h;
+    h.width = 320;
+    h.height = 240;
+    h.rgba = true;
+    node.setInData(VideoFrameData::fromTexture(h), 0);
+
+    // The detached display must be the GL blit widget (top-level window).
+    bool foundGlBlit = false;
+    const QWidgetList topLevels = QApplication::topLevelWidgets();
+    for (QWidget *w : topLevels) {
+        if (qobject_cast<VideoGLBlitWidget *>(w) != nullptr) {
+            foundGlBlit = true;
+            break;
+        }
+    }
+    QVERIFY(foundGlBlit);
+
+    // Transition: a CPU frame must switch to the native QVideoWidget and
+    // destroy the GL blit window (only one detached display at a time).
+    QImage img(320, 240, QImage::Format_ARGB32);
+    img.fill(Qt::red);
+    QVideoFrame vf(img);
+    node.setInData(std::make_shared<VideoFrameData>(vf), 0);
+    QTest::qWait(10);  // flush the deferred delete of the GL blit window
+
+    bool foundNative = false;
+    bool glBlitGone = true;
+    const QWidgetList topLevels2 = QApplication::topLevelWidgets();
+    for (QWidget *w : topLevels2) {
+        if (qobject_cast<VideoGLBlitWidget *>(w) != nullptr)
+            glBlitGone = false;
+        if (qobject_cast<QVideoWidget *>(w) != nullptr)
+            foundNative = true;
+    }
+    QVERIFY(foundNative);
+    QVERIFY(glBlitGone);
+}
+#endif  // QT_VERSION >= 0x060000
 
 QTEST_MAIN(VideoOutputNodeTest)

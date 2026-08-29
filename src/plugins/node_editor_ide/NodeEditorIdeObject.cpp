@@ -219,6 +219,81 @@ void NodeEditorIdeObject::autoStartVideo()
         DEBUG << "autoStartVideo: connection NOT possible";
     }
 
+    // ── Dev driver: DAQSTER_AUTOSTART_EFFECT=<effectId> ─────────────────────
+    // Inserts a VideoEffect node between the source and the output (REQ-SW-PL-028
+    // smoke driver). The env value is the effect id ("brightness", "contrast",
+    // "grayscale", "invert", "sepia", "channelSwap", "flip"). The node is the
+    // single "VideoEffect" node with an effect combo; the effect is selected
+    // through load() (same path a saved graph uses).
+    // DAQSTER_AUTOSTART_EFFECT2=<effectId> inserts a SECOND effect after the
+    // first — the GPU-resident chain smoke (REQ-SW-PL-032 Stage 2B): the second
+    // effect consumes the first effect's texture directly (no upload/readback).
+    QtNodes::NodeId prevId = srcId;
+    const auto insertEffect = [&](const QString &effectId) {
+        if (effectId.isEmpty())
+            return;
+        const QtNodes::NodeId effectNodeId = gm->addNode(QStringLiteral("VideoEffect"));
+        DEBUG << "autoStartVideo: effect node created id=" << effectNodeId;
+
+        auto *effectModel = gm->delegateModel<QtNodes::NodeDelegateModel>(effectNodeId);
+        if (effectModel) {
+            QJsonObject cfg;
+            cfg[QStringLiteral("effect")] = effectId;
+            effectModel->load(cfg);
+            DEBUG << "autoStartVideo: effect set to " << effectId;
+        } else {
+            DEBUG << "autoStartVideo: effect model NOT available";
+        }
+
+        const QtNodes::ConnectionId oldConn{prevId, 0, outId, 0};
+        if (gm->connectionExists(oldConn))
+            gm->deleteConnection(oldConn);
+        const QtNodes::ConnectionId inConn{prevId, 0, effectNodeId, 0};
+        if (gm->connectionPossible(inConn)) {
+            gm->addConnection(inConn);
+            DEBUG << "autoStartVideo: connected prev -> effect";
+        } else {
+            DEBUG << "autoStartVideo: effect input connection NOT possible";
+        }
+        const QtNodes::ConnectionId outConn{effectNodeId, 0, outId, 0};
+        if (gm->connectionPossible(outConn)) {
+            gm->addConnection(outConn);
+            DEBUG << "autoStartVideo: connected effect -> output";
+        } else {
+            DEBUG << "autoStartVideo: effect output connection NOT possible";
+        }
+        prevId = effectNodeId;
+    };
+    insertEffect(qEnvironmentVariable("DAQSTER_AUTOSTART_EFFECT"));
+    insertEffect(qEnvironmentVariable("DAQSTER_AUTOSTART_EFFECT2"));
+
+    // ── Dev driver: DAQSTER_AUTOSTART_SAMPLER=1 ─────────────────────────────
+    // Inserts a FrameSampler node between the previous node and the output
+    // (REQ-SW-PL-030 smoke driver).
+    if (qEnvironmentVariableIsSet("DAQSTER_AUTOSTART_SAMPLER")
+        && qEnvironmentVariableIntValue("DAQSTER_AUTOSTART_SAMPLER") != 0) {
+        const QtNodes::NodeId samplerId = gm->addNode(QStringLiteral("FrameSampler"));
+        DEBUG << "autoStartVideo: sampler node created id=" << samplerId;
+
+        const QtNodes::ConnectionId oldConn{prevId, 0, outId, 0};
+        if (gm->connectionExists(oldConn))
+            gm->deleteConnection(oldConn);
+        const QtNodes::ConnectionId inConn{prevId, 0, samplerId, 0};
+        if (gm->connectionPossible(inConn)) {
+            gm->addConnection(inConn);
+            DEBUG << "autoStartVideo: connected prev -> sampler";
+        } else {
+            DEBUG << "autoStartVideo: sampler input connection NOT possible";
+        }
+        const QtNodes::ConnectionId outConn{samplerId, 0, outId, 0};
+        if (gm->connectionPossible(outConn)) {
+            gm->addConnection(outConn);
+            DEBUG << "autoStartVideo: connected sampler -> output";
+        } else {
+            DEBUG << "autoStartVideo: sampler output connection NOT possible";
+        }
+    }
+
     // Configure the source node and press its start button.
     auto* srcModel = gm->delegateModel<QtNodes::NodeDelegateModel>(srcId);
     if (srcModel != nullptr) {

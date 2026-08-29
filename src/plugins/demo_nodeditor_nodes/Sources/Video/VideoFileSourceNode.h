@@ -27,7 +27,6 @@ class QMediaPlayer;
 class QPushButton;
 class QWidget;
 
-class ImageData;
 class VideoFrameData;
 
 /**
@@ -35,27 +34,20 @@ class VideoFrameData;
  *
  * Uses QMediaPlayer with a VideoCompat frame probe attached.
  *
- * On Qt6 the node has three output ports (REQ-SW-PL-020/022):
+ * On Qt6 the node has two output ports (REQ-SW-PL-020/022, single video-frame
+ * type REQ-SW-PL-032):
  *   - port 0 "video-frame" — zero-copy VideoFrameData wrapping the decoded
  *     QVideoFrame; emitted for every frame (no QImage conversion).
- *   - port 1 "image" — ImageData, converted from the frame ONLY while a
- *     downstream processing consumer is connected.
- *   - port 2 "sample" — SampledData (domain "audio"), wrapped from the decoded
+ *   - port 1 "sample" — SampledData (domain "audio"), wrapped from the decoded
  *     audio buffers (REQ-SW-PL-022).
  *
- * On Qt5 the node has three output ports (mirror of Qt6, NV12-direct):
+ * On Qt5 the node has two output ports (mirror of Qt6, NV12-direct):
  *   - port 0 "video-frame" — VideoFrameData wrapping an OWNED copy of the
  *     decoded frame (VideoCompat::frameToOwnedFrame), emitted for every frame
  *     (no QImage conversion).
- *   - port 1 "image" — ImageData, converted from the frame ONLY while a
- *     downstream processing consumer is connected.
- *   - port 2 "sample" — SampledData (domain "audio").
+ *   - port 1 "sample" — SampledData (domain "audio").
  *
- * The audio port is APPENDED LAST on both Qt versions so old saved graphs keep
- * their port indices (REQ-SW-PL-022 AC 8). NOTE (NV12-direct renumbering): on
- * Qt5 the image port moved from 0 to 1 — old saved Qt5 graphs that connected
- * the source's port 0 (was "image") to an ImageData consumer will lose that
- * edge and must be re-connected to the new image port (port 1).
+ * The audio port is at index 1 (no gap) — REQ-SW-PL-022.
  */
 class VideoFileSourceNode : public QtNodes::NodeDelegateModel
 {
@@ -89,8 +81,8 @@ public:
 
     QWidget *embeddedWidget() override;
 
-    /// Track downstream "image"/"sample" connections so conversion/wrapping
-    /// is only emitted while a consumer is connected.
+    /// Track downstream "sample" connections so wrapping is only emitted
+    /// while a consumer is connected.
     void outputConnectionCreated(QtNodes::ConnectionId const &conId) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &conId) override;
 
@@ -113,7 +105,7 @@ private:
     void updatePlayButton();
     static QtNodes::PortIndex audioPortIndex()
     {
-        return 2; // 0 = video-frame, 1 = image, 2 = audio (appended last)
+        return 1; // 0 = video-frame, 1 = audio (no gap)
     }
 
     QWidget *m_widget = nullptr;
@@ -141,7 +133,6 @@ private:
     // On Qt5 the frame is an owned copy (frameToOwnedFrame); on Qt6 the decoded
     // probe frame (ref-count bump only).
     std::shared_ptr<VideoFrameData> m_videoFrameOut;
-    int m_imagePortConnectionCount = 0;
     // Runtime profiling (REQ-SW-PL-027): last-frame HW/SW markers
     // (handleType/pixelFormat) for source-side diagnostics.
     int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
@@ -155,7 +146,6 @@ private:
 #endif
     std::shared_ptr<SampledData> m_audioOut;
     int m_audioPortConnectionCount = 0;
-    std::shared_ptr<ImageData> m_output;
     QString m_loadedPath;
     bool m_isPlaying = false;
 };

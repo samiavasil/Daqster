@@ -13,9 +13,18 @@ class VideoOutputNodeTest : public QObject
 
 private slots:
     void portTopology();
-    void imageData_passthrough();
-    void nullImageData_invalidates();
     void videoInputConnectionGuard();
     void outputConnectionCounter();
     void outputChain();
+
+    // Embedded effects (REQ-SW-PL-034):
+    void defaultNoEffectPassthrough();
+    void loadEffectPersistsSave();
+    void loadAbsentEffectIsNoEffect();
+    void loadAppliesEffectToFrame();
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // Stage 2C (REQ-SW-PL-032): GpuRgba → GL blit widget on Qt6.
+    void gpuRgbaRoutesToGlBlitWidget();
+#endif
 };

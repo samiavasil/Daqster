@@ -7,6 +7,40 @@
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-028** (VideoEffectNode — GPU/CPU backend по ефект):
+  - `VideoGLShaders.h` — споделени GLSL source builder-и (`buildVertexSource`, `buildYuvFragmentSource`, `buildRgbaFragmentSource` извлечени от `VideoGLBlitWidget.cpp` + нов `buildEffectFragmentSource` с `u_flipY` и инжектируем effect body)
+  - `VideoEffectOps.{h,cpp}` — `EffectSpec` регистър (7 ефекта: brightness, contrast, grayscale, invert, sepia, channelSwap, flip) с CPU функции (делегират на `VideoTransformOps`) + GLSL body
+  - `VideoEffectGLProcessor.{h,cpp}` — GPU backend: `QOpenGLContext` + `QOffscreenSurface` + `QOpenGLFramebufferObject`, Y/U/V upload с `GL_UNPACK_ROW_LENGTH`, `hasHardwareGL()` (llvmpipe/softpipe/SwiftShader детекция, lazy кеширана)
+  - `VideoEffectNode.{h,cpp}` — нод модел (port 0 in/out `VideoFrameData`) + **един нод с комбобокс** за избор на ефект (комбо + `QStackedWidget`, като `VideoTransformNode`), runtime backend избор, параметър UI (slider/combo/info), save/load с clamp-ове (backward compatible: `"effect"` = id + параметри)
+  - **Blur + OpenCV ефекти (2026-08-26, комит `095981b`)** — добавени `blur` (box blur, radius 0..10) + `gaussianBlur`/`canny`/`threshold` (OpenCV, само при `HAVE_OPENCV`) като `CpuOnly` ефекти — общо 11 ефекта; покриват всички операции на премахнатия `VideoTransformNode`
+  - Регистрирани под категория "Video" в demo node editor plugin
+  - Комбобоксът на VideoEffectNode показва backend-а на всеки ефект като суфикс ((GPU)/(CPU)); registry ключът остава spec.id
+- **REQ-SW-PL-030** (FrameSampler — ресемплиране):
+  - `FrameSamplerNode.{h,cpp}` — отделен нод (port 0 in/out `VideoFrameData`), режими „Every N-th frame" (1..1000) / „Max FPS" (1..120), zero-copy passthrough (същият `shared_ptr`), gate без emit при не-pass, save/load + reset на брояча/таймера
+  - Регистриран под категория "Video" в demo node editor plugin
+- **REQ-SW-PL-032** (VideoFrameData lazy QImage кеш):
+  - `VideoFrameData::asImage()` — lazy CPU QImage кеш: конверсията става най-много веднъж на кадър, резултатът се кешира и се споделя между всички CPU консуматори (fan-out); `setFrame()` инвалидира кеша; GUI-thread only (без mutex)
+  - Консуматорите ползват кеша: `VideoEffectNode` CPU път + `VideoOutputNode` software display / downstream consumer път (`VideoCompat::frameToImage` → `asImage()`); `VideoGLBlitWidget` остава на `frameToImage` (raw `QVideoFrame`, не `VideoFrameData`)
+- **REQ-SW-PL-032** (GPU-resident транспорт, Stage 2A — споделен GL контекст + текстура транспорт):
+  - `VideoGLContextManager` (`src/plugins/common/GL/`) — process-wide споделен `QOpenGLContext` + `QOffscreenSurface` (share group с `QOpenGLWidget` display-а), lazy `hasHardwareGL()` (llvmpipe/softpipe/SwiftShader детекция), `deleteTexture()`; GUI-thread only
+  - `VideoFrameData::asTexture()` — lazy GPU текстура кеш: Y/U/V upload веднъж на кадър (NV12/YUV420P), handle-ът се кешира и се споделя между всички GPU консуматори; `fromTexture()` — wrap-ва GPU-resident RGBA текстура (ефект изход); `isGpuResident()`/`isGpuRgba()`; текстурите се изтриват в деструктора
+  - `VideoEffectGLProcessor` ползва споделения контекст (вместо собствен)
+- **REQ-SW-PL-032** (GPU-resident ефект верига, Stage 2B — текстура-вход/текстура-изход, без readback):
+  - `VideoEffectGLProcessor::processTexture()` — bind-ва входните текстури от `VideoTextureHandle` (без upload), избира програма по layout (nv12/420p/rgba), рендери в FBO и връща RGBA текстурата (без `toImage()`); нова `buildRgbaEffectFragmentSource()` (RGBA sampler + effect body + u_flipY/u_brightness/u_contrast); изходната текстура се създава на повикване и ownership-ът се предава на `fromTexture()`
+  - `VideoEffectNode` GPU път: `asTexture()` → `processTexture()` → `fromTexture()` — вторият ефект в синджир консумира текстурата директно (без upload/readback); CPU fallback-ът остава
+  - `VideoGLBlitWidget::presentTexture()` — zero-copy display на GPU-resident RGBA текстура (bind, без upload/readback); `VideoOutputNode` GL blit пътят я ползва за GpuRgba кадри; Qt6 native display прави readback на границата (`presentableFrame` → `asImage()`)
+  - Smoke driver: `DAQSTER_AUTOSTART_EFFECT2=<effectId>` вмъква втори VideoEffect нод (GPU-resident верига)
+- **Smoke drivers** (`NodeEditorIdeObject.cpp`): `DAQSTER_AUTOSTART_EFFECT=<effectId>` вмъква VideoEffect нод между source и output; `DAQSTER_AUTOSTART_EFFECT2=<effectId>` вмъква втори; `DAQSTER_AUTOSTART_SAMPLER=1` вмъква FrameSampler
+- **REQ-SW-PL-029** (CustomShaderNode — общ GPU compute нод с runtime GLSL):
+  - `CustomShaderNode.{h,cpp}` — node model (port 0 in/out `VideoFrameData`), GLSL редактор + compile button + error log + uniform controls, mainImage contract
+  - `CustomShaderGLProcessor.{h,cpp}` — GPU processor: runtime GLSL compile (`addShaderFromSourceCode`), per-(effect,layout,profile) program cache, YUV→RGBA pre-pass, error handling без crash
+  - `CustomShaderWidget.{h,cpp}` — UI widget (GLSL editor + compile button + error log + uniform parameter controls)
+  - `texture()` compat fix — GL profile detection и използване на `texture()` или `texture2D()` според GLSL version
+  - Комити: `42ba334` (feat: CustomShaderNode), `0682c1b` (fix: texture() compat)
+- **Scene invalidation fix (REQ-SW-PL-032):**
+  - `onNodeDataArrived` + `dataArrivalChangesGeometry` — nodeeditor scene invalidation fix, предотвратява ненужни repaint-и при пристигане на данни
+  - `CustomDataFlowScene` override + 3 video nodes opt-out — repaint-only optimization за video нодовете (VideoEffectNode, FrameSamplerNode, VideoOutputNode)
+  - Комити: `d4a90ee` (fix: onNodeDataArrived + dataArrivalChangesGeometry), `8418f53` (feat: CustomDataFlowScene override + 3 video nodes opt-out)
 - **Video нодове** (`src/plugins/demo_nodeditor_nodes/Sources/Video/`):
   - `VideoCompat.h` — Qt5/Qt6 multimedia абстракция (QVideoProbe ↔ QVideoSink, camera enumeration, media source assignment, playback-state сигнали)
   - `CameraSourceNode` — заснемане от QCamera (default или избран device)
@@ -150,8 +184,36 @@
 - **NV12-direct за Qt5 (REQ-SW-PL-020)** — `VideoFrameData` вече не е Qt6-gated; Qt5 source-ите емитират OWNED копие на декодирания кадър (`VideoCompat::frameToOwnedFrame` — NV12/YUV420P plane-ове memcpy в `QAbstractPlanarVideoBuffer`) на port 0 (video-frame), image port 1 конвертира on-demand, audio port 2 appended last. `VideoOutputNode` има dual input video-frame@0 / image@1 и на двете версии. **Преномерация:** на Qt5 image портът се мести от 0 на 1 — стари Qt5 графи с image@0 трябва да се пресвържат.
 - **Perf резултати doc** — `tests/performance/performance-video-display-2026-08-13.md`: пълна методология, числа преди/след shadow, perf анализ, промени и следващи лостове.
 - **Qt6 in-scene GPU video display (REQ-SW-PL-021)** — чекбоксът „GPU display" вече е **видим и на Qt6** (checked по подразбиране = detached `QVideoWidget`, запазено текущото поведение). При unchecked `VideoOutputNode` създава `QGraphicsVideoItem` като child на `NodeGraphicsObject`-а на node-а (`ensureSceneVideoItem()` — намира сцената през `QApplication::topLevelWidgets()` → `GraphicsView` → `DataFlowGraphicsScene`) и кадрите се подават през `VideoCompat::presentFrame(item->videoSink(), frame)` — GPU път без QImage копие; софтуерният QLabel път остава автоматичен fallback. Detached прозорците се затварят при unchecked; in-scene item-ът се трие при toggle/дисконект. Perf бейджът следва само detached прозорците. Qt5 пътищата са непроменени. Dev driver: `DAQSTER_SCENE_VIDEO=1` uncheck-ва чекбокса за headless проверка. Комити: `63c7f78`, `a04f05e`, `3a0686e`, `ba7561f`. Smoke: Qt6 in-scene (кадрите се рендерират в сцената) + Qt6 detached + Qt5 GL blit regression — PASS без crash; ctest 9/9 (Qt5 + Qt6).
+- **REQ-SW-PL-034** (VideoOutputNode embedded effects — optional, default none):
+  - `VideoOutputNode` получава **опционални вградени ефекти** — същите 11 ефекта като `VideoEffectNode` (brightness, contrast, grayscale, invert, sepia, channelSwap, flip, blur + gaussianBlur/canny/threshold при `HAVE_OPENCV`), **без ефект по подразбиране**
+  - Комбобокс с водещ „No effect" (index 0) + `QStackedWidget` с параметърни страници (slider/flip/OpenCV); backend суфикс „(GPU)"/„(CPU)" като `VideoEffectNode`
+  - Когато ефект не е избран, блокът в `setInData()` се **пропуска изцяло** — `asTexture()`/`asImage()` не се викат, zero-copy passthrough-ът е byte-identical (AC 2)
+  - GPU path: `asTexture()` → `VideoEffectGLProcessor::processTexture()` → `fromTexture()` (GpuRgba, zero-copy) при хардуерен GL; CPU path/fallback: `asImage()` → `EffectSpec::cpuApply` → `QVideoFrame`
+  - `save()`/`load()`: `"effect"` id + параметри (`brightness`/`contrast`/`flipMode`/`blurRadius`/`gaussianKernel`/`cannyLow`/`cannyHigh`/`thresholdValue`) с clamp-ове; стари графи без `"effect"` ключ → „no effect" (backward compatible)
+  - Тестове: `demo_nodeditor_videooutput_tests` +4 (default no-effect passthrough, load→save round-trip, backward compat, ефектът трансформира frame-а); Qt5/Qt6 builds PASS + ctest 9/9 green (и двете)
 
 ### Changed
+- **GpuRgba кадри → GL blit widget на Qt6 (REQ-SW-PL-032, Stage 2C, perf)** — `VideoOutputNode` маршрутизира GpuRgba кадри (ефект изходи) към GL blit widget-а (`presentTexture`, zero-copy bind, ~19 µs/display) и на Qt6, когато hardware GL е наличен (`VideoGLContextManager::hasHardwareGL()`) — вместо native `QVideoWidget` пътя (readback `glReadPixels` 8 MB + per-sink RHI upload 8 MB/display; 2 display-а на ефект изход → CPU 10% → 50%+). CPU/NV12 кадрите запазват per-Qt backend-а (Qt6: native `QVideoWidget`, Qt5: GL blit). `ensureVideoWidget(wantGlBlit)` избира backend-а per-frame и унищожава другия widget при превключване (без leak, без crash).
+- **Node body repaint on data arrival is now opt-out (REQ-SW-PL-032, perf)** — `dataArrivalChangesWidget()` virtual в nodeeditor: video/LLM/console нодовете (`VideoOutputNode`, `VideoEffectNode`, `CustomShaderNode`, `FrameSamplerNode`, `LLamaModelDataModel`, `ConsoleDataModel`) връщат `false` и пропускат per-frame `node->update()` repaint-а на тялото на нода (widget съдържанието се self-repaint-ва през Qt); нодовете с validation state (NumberDisplay, DaqDisplay, ...) запазват default-а `true`. nodeeditor комит: `43c1dea`
+- **Validation nodes opt out + self-invalidate (REQ-SW-PL-032, perf)** — `setValidationState()` в nodeeditor вече емитира `requestNodeUpdate()` (validation border-ът се self-repaint-ва само при реална промяна на state-а); `NumberDisplay`, `DaqDisplay`, `GenericDisplay`, `Modulo`, `ArithmeticLogic` връщат `dataArrivalChangesWidget() == false`. nodeeditor комит: `566f6ba`
+- **NumberDisplay geometry само при реален resize (REQ-SW-PL-032, perf)** — `dataArrivalChangesGeometry() == false` + event filter на `m_wrapper`: `requestNodeUpdate()` (recomputeSize + moveConnections) се емитира само при `QEvent::Resize`, не на всеки data arrival; `recomputeSize()` само чете widget size-а → без рекурсия
+- **VideoOutputNode output порт — zero-copy passthrough (REQ-SW-PL-032, fix)** — при свързан downstream consumer output-ът е `m_output = videoFrame` (същият shared `VideoFrameData`, residency-то се запазва) — без QImage readback, без `QVideoFrame` re-wrap, без double-present (`updateDisplay()` махнат от блока)
+- **`VideoGLBlitWidget::presentYuvTexture()` (REQ-SW-PL-032, perf)** — представя кешираните YUV текстури от `asTexture()` директно (NV12/YUV420P програми, стандартен top-down quad) — без дублиращ upload; fallback към `presentFrame()` при invalid handle
+- **`VideoFrameData` copy ctor/assignment = delete (REQ-SW-PL-032, fix)** — frame-ите се споделят само през `shared_ptr`, никога не се копират (GpuRgba копията бяха задънена улица); move семантика не е била налична
+- **`VideoEffectGLProcessor::process()` премахнат (REQ-SW-PL-032, refactor)** — dead code (FBO readback trap): няма callers, само `processTexture()` се ползва; `uploadFrame()`/`classifyYuv()`/текстурите `m_texY/U/V/UV`/`m_useNv12` също са махнати
+- **Design refinement (REQ-SW-PL-028/029/032, 2026-08-25)** — documentation-only:
+  - PL-028: рефакторинг към **ЕДИН** `VideoEffectNode` с комбобокс за избор на ефект + параметри/конфигурация (вместо 7 отделни subclass-а); EffectSpec-ите остават в `VideoEffectOps.h/.cpp`
+  - PL-032: уточнен дизайн — lazy кешове (`asImage()`/`asTexture()`), node residency предпочитания (Вариант C), GPU-resident транспорт (Път B), Qt6-първо/Qt5-после, формат NV12 → Y+UV → YUV→RGB+ефект → RGBA
+  - PL-029: потвърден отделен нод (не вграден в `VideoEffectNode`) — различно UI (GLSL редактор + compile + error log), разширяем към DAQ/други типове
+- **VideoEffectNode комбобокс рефакторинг (REQ-SW-PL-028 AC 4/5, имплементиран)** — 7-те per-effect subclass-а стават deprecated aliases; един `VideoEffectNode` с комбо + `QStackedWidget` (7 страници: brightness slider, contrast slider, grayscale/invert/sepia/channelSwap info, flip combo). `setEffect(id)` избира по id (непознат → индекс 0); `save()`/`load()` форматът е непроменен (`"effect"` = id + параметри) — backward compatible. Smoke driver-ът (`DAQSTER_AUTOSTART_EFFECT`) добавя един `VideoEffect` нод и задава ефекта през `load()`. Комити: `e84f6d0`, `42bb57a`, `9fb46b9`
+- **VideoFrameData lazy QImage кеш (REQ-SW-PL-032 AC 1/2/3 CPU част, имплементиран)** — `asImage()` конвертира веднъж на кадър и кешира; `setFrame()` чисти кеша; консуматорите (`VideoEffectNode` CPU път, `VideoOutputNode` software/consumer път) ползват кеша вместо `VideoCompat::frameToImage`. Комити: `3f9ec84`, `093b557`
+- **GPU-resident транспорт Stage 2A (REQ-SW-PL-032 AC 1/5, имплементиран)** — `VideoGLContextManager` (споделен GL контекст, share group с display-а), `VideoFrameData::asTexture()` (lazy Y/U/V upload, кеширан handle) + `fromTexture()` (GPU-resident RGBA wrap) + `isGpuResident()`; `VideoEffectGLProcessor` мигрира към споделения контекст. Комити: `6cb1aaa`, `803e4f6`, `9a39006`
+- **GPU-resident ефект верига Stage 2B (REQ-SW-PL-032 AC 5/7, имплементиран за ефект веригата)** — `VideoEffectGLProcessor::processTexture()` (текстура-вход → текстура-изход, без `toImage()` readback; program cache key с layout ∈ {nv12, 420p, rgba}; нова `buildRgbaEffectFragmentSource()`); `VideoEffectNode` GPU път `asTexture()` → `processTexture()` → `fromTexture()` — вторият ефект консумира текстурата директно; `VideoGLBlitWidget::presentTexture()` — zero-copy display на RGBA текстурата; Qt6 native display прави readback на границата (Stage 2C). **PERF (Qt5 GL blit, sepia): cpu 62.2% → 16.9%, present 7.1ms → 0.1ms, GLBLIT avg 322us → 18.8us (fmt=Texture(RGBA)); 2-ефекта (sepia+invert) cpu 19.0%; Qt6: 34% → 25% (1 ефект), 26.8% (2 ефекта).** Комити: `b6af20e`, `d1a5e7a`
+- **Фаза 3 — миграция към един VideoFrameData тип (REQ-SW-PL-032, 2026-08-26)**:
+  - **Image портовете премахнати** от video source-ите (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) — емитират само `VideoFrameData` (port 0) + `SampledData` (port 1, audio); `VideoOutputNode` приема само `VideoFrameData`. Комити: `63010f3`, `3fc51a3`
+  - **`VideoTransformNode` премахнат** — заменен от `VideoEffectNode`, който покрива всичките му операции (вкл. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` остават (ползвани от `VideoEffectOps`). Комит: `688c899`
+  - **`ImageData` типът изтрит** — единственият frame тип е `VideoFrameData`; grep `ImageData` в `src/` и `tests/` → 0. Комит: `817002e`
+  - **Saved-graph последици:** стари графи с `"VideoTransform"` registry ключ или image edges няма да се заредят — пресвържете към `VideoEffect` + `VideoFrameData` вериги (документирано в README-а)
 - **Directory Restructuring**:
   - `src/external_libs/` → `src/plugins/external_libs/` (всички external libs са под plugins)
   - `src/plugins/node_editor/` → разделяне на `node_editor_widget/` + `node_editor_app/`
@@ -174,6 +236,31 @@
 - **Video source порт преномерация на Qt5** — виж NV12-direct по-горе; стари Qt5 графи, свързващи source port 0 (беше "image") с ImageData консуматор, губят връзката.
 
 ### Fixed
+- **RGBA (FBO) input orientation bug в GPU ефект процесорите (REQ-SW-PL-032)** —
+  `VideoEffectGLProcessor` и `CustomShaderGLProcessor` семплираха bottom-up
+  FBO-произведени RGBA текстури със стандартния top-down quad → even-length
+  GPU ефект вериги (2 ефекта) и единичен CustomShaderNode pass се показваха
+  вертикално обърнати. Фикс: flipped-v quad (`kQuadVerticesFbo`, v' = 1 − v)
+  при семплиране на RGBA input / pre-pass intermediate, огледално на display
+  path-а (`VideoGLBlitWidget`). Single effect (YUV input) непроменен.
+- **Per-frame texture allocation в ефект пътя (REQ-SW-PL-032 Issue #7)** —
+  нов `TexturePool` (`src/plugins/common/GL/TexturePool.{h,cpp}`): `acquire(w,h)`
+  reuse-ва свободна текстура (преоразмерява storage-а при смяна на
+  резолюцията), `release(tex)` я връща в pool-а; `VideoFrameData::fromTexture()`
+  приема опционален release callback (shared_ptr към pool-а), който връща
+  текстурата при унищожаване на frame-а вместо `glDeleteTextures`. Ефект
+  пътят вече няма per-frame `glGenTextures`/`glDeleteTextures`.
+- **`setValidationState` re-trigger-ваше пълния път всеки кадър (nodeeditor
+  submodule)** — early-return при непроменено състояние (NumberDisplay-class
+  нодове викат `setValidationState` всеки кадър със същото състояние).
+- **Двойна `nodeUpdated` емисия (nodeeditor submodule)** — при
+  `NodeRole::ValidationState` през graph model API-то `setValidationState` →
+  `requestNodeUpdate` → `nodeUpdated` + директна `nodeUpdated` емисия; директната
+  емисия е премахната.
+- **Write-only `m_videoFrame` в `VideoOutputNode`** — премахнат (заменен с
+  `m_lastInput`, който `reprocessCurrentFrame()` ползва); `load()` вика
+  `reprocessCurrentFrame()` след зареждане (консистентно с `VideoEffectNode`).
+- **nPorts off-by-one на video source нодове (REQ-SW-PL-022)** — `VideoFileSourceNode` и `StreamSourceNode` имаха nPorts=2 вместо 3 (липсваше audio Sample port на индекс 2); поправен в комит `d5145c2` (`restore nPorts to 3 — audio Sample port was unreachable at index 2`); AC 8 (backward compat) засегнат и поправен — saved графове с audio port на индекс 2 вече работят коректно
 - **Конзолният `quit` не работеше от main app launcher-а (REQ-SW-APP-002, PUB-002)** —
   `QConsoleListener` се създаваше само вътре в `if (args.count() > 0)` клона на
   `main()` (след plugin load), затова при стартиране на Daqster без аргументи
@@ -234,6 +321,10 @@
 ### Removed
 - `src/plugins/node_editor/` — монолитен plugin (заменен от widget + app)
 - `src/external_libs/` — празна директория премахната
+- **7-те deprecated VideoEffect alias нода (REQ-SW-PL-028, 2026-08-26, решение на потребителя)** — `VideoEffectBrightnessNode`, `VideoEffectContrastNode`, `VideoEffectGrayscaleNode`, `VideoEffectInvertNode`, `VideoEffectSepiaNode`, `VideoEffectChannelSwapNode`, `VideoEffectFlipNode` премахнати от `VideoEffectNode.h` и регистрациите им от `DemoNodeEditorNodesObject.cpp`. Единственият регистриран ефект нод е `VideoEffect` (с комбобокс). **Стари saved графи, които реферират alias registry ключовете, вече няма да се зареждат** (прието последствие).
+- **`VideoTransformNode` (REQ-SW-PL-032 Фаза 3, 2026-08-26)** — премахнат от регистрацията, CMake и файловата система; заменен от `VideoEffectNode` (покрива всичките му операции вкл. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` остават (ползвани от `VideoEffectOps`). Комит: `688c899`
+- **`ImageData` тип (REQ-SW-PL-032 Фаза 3, 2026-08-26)** — `src/plugins/common/NodeDataTypes/ImageData.h` изтрит; единственият frame тип е `VideoFrameData`. Комит: `817002e`
+- **Image портове (REQ-SW-PL-032 Фаза 3, 2026-08-26)** — премахнати от video source-ите и `VideoOutputNode`; source-ите емитират само `VideoFrameData` + `SampledData` (audio). Комити: `63010f3`, `3fc51a3`
 
 - **Framework Architecture Refactoring** - голям рефакторинг за извличане на reusable компоненти:
   - **Platform Abstraction Layer** (`frame_work/base/src/platform/`):

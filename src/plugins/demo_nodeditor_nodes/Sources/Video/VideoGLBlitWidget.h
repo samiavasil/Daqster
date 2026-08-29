@@ -16,6 +16,10 @@
 //    frames are the decoded probe frames.
 //  - presentImage(QImage) uploads the QImage as an RGBA/BGRA texture (image
 //    port / RGB-format fallback).
+//  - presentTexture(VideoTextureHandle, owner) (REQ-SW-PL-032 Stage 2B)
+//    presents a GPU-resident RGBA texture (effect output) directly — no
+//    upload, no readback. The widget holds the owning VideoFrameData until the
+//    next present so the texture stays alive across the deferred repaint.
 //  - Shader selection is context-driven: GL 2.0 compatibility (Qt default) =>
 //    "#version 120" + texture2D() + GL_LUMINANCE/LUMINANCE_ALPHA; core profile
 //    (>= 3.0 CoreProfile) => "#version 150" + texture() + GL_RED/GL_RG.
@@ -33,8 +37,13 @@
 
 #include <QtMultimedia/QVideoFrame>
 
+#include "NodeDataTypes/VideoTextureHandle.h"
+
+#include <memory>
+
 class QOpenGLShaderProgram;
 class QOpenGLVertexArrayObject;
+class VideoFrameData;
 
 class VideoGLBlitWidget : public QOpenGLWidget
 {
@@ -48,6 +57,20 @@ public:
     void presentFrame(const QVideoFrame &frame);
     /// QImage fallback (image port / RGB formats): stores the image, schedules a repaint.
     void presentImage(const QImage &image);
+    /// Zero-copy present of a GPU-resident RGBA texture (effect output,
+    /// REQ-SW-PL-032 Stage 2B): stores the handle + the owning frame (keeps
+    /// the texture alive until the next present) and schedules a repaint.
+    /// No upload, no readback.
+    void presentTexture(const VideoTextureHandle &handle,
+                        std::shared_ptr<VideoFrameData> owner);
+
+    /// Zero-copy present of GPU-resident YUV textures (the asTexture() cache,
+    /// REQ-SW-PL-032): binds the cached Y/U/V planes directly — no duplicate
+    /// upload. Stores the handle + the owning frame (keeps the textures alive
+    /// until the next present) and schedules a repaint. Falls back to
+    /// presentFrame() when the handle is invalid.
+    void presentYuvTexture(const VideoTextureHandle &handle,
+                           std::shared_ptr<VideoFrameData> owner);
 
     QString lastFormatName() const { return m_formatName; }
     bool lastFrameYuv() const { return m_hasYuv; }
@@ -76,6 +99,7 @@ private:
     GLuint m_texUV = 0;
     GLuint m_texRgba = 0;
     GLuint m_vbo = 0;
+    GLuint m_vboFbo = 0;  // flipped-v quad for bottom-up FBO textures (REQ-SW-PL-032)
 
     bool m_useCore = false;   // core-profile path (GL_RED/RG + #version 150)
     bool m_useNv12 = false;   // interleaved UV plane (plane 1 = U,V pairs)
@@ -99,4 +123,8 @@ private:
 
     QVideoFrame m_frame;  // held until the next present (Qt6: probe frame, Qt5: owned copy)
     QImage m_image;       // QImage fallback payload
+    /// GPU-resident RGBA texture (effect output) + its owner — the owner keeps
+    /// the texture alive until the next present (REQ-SW-PL-032 Stage 2B).
+    std::shared_ptr<VideoFrameData> m_textureOwner;
+    VideoTextureHandle m_textureHandle;
 };

@@ -19,7 +19,9 @@
 #include "Sources/Video/VideoFileSourceNode.h"
 #include "Sources/Video/StreamSourceNode.h"
 #include "Sources/Video/VideoOutputNode.h"
-#include "Sources/Video/VideoTransformNode.h"
+#include "Sources/Video/VideoEffectNode.h"
+#include "Sources/Video/CustomShaderNode.h"
+#include "Sources/Video/FrameSamplerNode.h"
 #include <QDevIoDisplayModelObsolete.h>
 
 // ── Saved-graph alias registration (REQ-SW-PL-023 §7) ────────────────
@@ -109,12 +111,20 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     registry.registerModel<LLamaModelDataModel>("LLama");
     registry.registerModel<ConsoleDataModel>("LLama");
 
-    // Video nodes (ImageData / "image" flow)
+    // Video nodes (VideoFrameData / "video-frame" flow)
     registry.registerModel<CameraSourceNode>("Video");
     registry.registerModel<VideoFileSourceNode>("Video");
     registry.registerModel<StreamSourceNode>("Video");
     registry.registerModel<VideoOutputNode>("Video");
-    registry.registerModel<VideoTransformNode>("Video");
+
+    // Video effect nodes (VideoFrameData flow, REQ-SW-PL-028) — ONE node with
+    // an effect combo (REQ-SW-PL-028 AC 4) + the frame resampler (REQ-SW-PL-030).
+    // The 7 per-effect aliases (VideoEffectBrightnessNode, ...) were removed on
+    // 2026-08-26 (user decision) — old saved graphs referencing those registry
+    // keys no longer load; "VideoEffect" is the only registered effect node.
+    registry.registerModel<VideoEffectNode>("Video");
+    registry.registerModel<CustomShaderNode>("Video");
+    registry.registerModel<FrameSamplerNode>("Video");
 }
 
 void DemoNodeEditorNodesObject::DeInitialize()

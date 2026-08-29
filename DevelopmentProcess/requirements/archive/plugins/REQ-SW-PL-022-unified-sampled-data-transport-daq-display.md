@@ -183,7 +183,8 @@ QDevIO byte-stream. QDevIO mic path-ът остава както е засега
 - **Коммити:** `12076a2` (fix: Qt6 audible audio output), `cf5d0ae` (feat:
   SampledData + SampledStreamDescriptor + decoder overload), `6395220` (fix: unified
   decoder convention 32767+clamp), `75e291c` (feat: SampledData audio output port),
-  `c5559b0` (feat: DAQ Display node), `8c56e83` (fix: Qt5/Qt6 build fixes) —
+  `c5559b0` (feat: DAQ Display node), `8c56e83` (fix: Qt5/Qt6 build fixes),
+  `d5145c2` (fix: restore nPorts to 3 — audio Sample port was unreachable at index 2) —
   branch `feat/REQ-SW-PL-022-unified-sampled-data-transport-daq-display`
 - **Код:** `src/plugins/common/NodeDataTypes/SampledData.{h,cpp}`,
   `src/plugins/common/NodeDataTypes/SampledStreamDescriptor.h`,
@@ -236,6 +237,14 @@ QDevIO byte-stream. QDevIO mic path-ът остава както е засега
 `DONE` чака тестовете (по модела на PL-020 AC 6). Процесната клауза "branch per work
 item" (AGENTS.md) важи: работата се върши на нов branch
 `feat/REQ-SW-PL-022-unified-sampled-data-transport-daq-display`.
+
+## Амендамент (2026-08-27)
+
+nPorts off-by-one fix: `VideoFileSourceNode` и `StreamSourceNode` имаха nPorts=2
+вместо 3 (липсваше audio Sample port на индекс 2). Поправен в комит `d5145c2`
+(`fix (REQ-SW-PL-022): restore nPorts to 3 — audio Sample port was unreachable
+at index 2`). AC 8 (backward compat) е засегнат и поправен — saved графове с
+audio port на индекс 2 вече работят коректно.
 
 ## Амендамент (2026-08-10)
 

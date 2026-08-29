@@ -31,14 +31,20 @@ demo_nodeditor_nodes/
 │   │   ├── LLamaModelDataModel.{h,cpp}
 │   │   ├── ConsoleDataModel.{h,cpp}
 │   │   └── ChatBaseWidget.{h,cpp}
-│   └── Video/                            # Video нодове (ImageData / "image" flow)
+│   └── Video/                            # Video нодове (VideoFrameData / "video-frame" flow)
 │       ├── VideoCompat.h                 # Qt5/Qt6 multimedia compatibility shim
 │       ├── CameraSourceNode.{h,cpp}
 │       ├── VideoFileSourceNode.{h,cpp}
 │       ├── StreamSourceNode.{h,cpp}
 │       ├── VideoOutputNode.{h,cpp}
-│       ├── VideoTransformNode.{h,cpp}    # 8 базови операции + опционален OpenCV
 │       ├── VideoTransformOps.{h,cpp}     # Op engine (QImage + params → QImage)
+│       ├── VideoGLShaders.h              # Споделени GLSL source builder-и (blit + effect)
+│       ├── VideoEffectOps.{h,cpp}        # EffectSpec регистър (ефекти, REQ-SW-PL-028)
+│       ├── VideoEffectGLProcessor.{h,cpp}# GPU backend (offscreen FBO, REQ-SW-PL-028)
+│       ├── VideoEffectNode.{h,cpp}       # Един VideoEffect нод с комбо (REQ-SW-PL-028)
+│       ├── CustomShaderGLProcessor.{h,cpp}# GPU backend за runtime GLSL (REQ-SW-PL-029)
+│       ├── CustomShaderNode.{h,cpp}      # Custom shader нод (REQ-SW-PL-029)
+│       ├── FrameSamplerNode.{h,cpp}      # Ресемплер (every-N / max-fps, REQ-SW-PL-030)
 │       └── OpenCVTransforms.cpp          # Само при HAVE_OPENCV
 ├── Displays/
 │   ├── AudioDisplay/
@@ -90,7 +96,8 @@ DemoNodeEditorNodesObject → INodeProvider
         registry.registerModel<VideoFileSourceNode>("Video")
         registry.registerModel<StreamSourceNode>("Video")
         registry.registerModel<VideoOutputNode>("Video")
-        registry.registerModel<VideoTransformNode>("Video")
+        registry.registerModel<VideoEffectNode>("Video")   // един нод с комбо (REQ-SW-PL-028 AC 4)
+        registry.registerModel<FrameSamplerNode>("Video")
 ```
 
 **INodeProvider е standalone интерфейс** — не наследява други Daqster интерфейси.
@@ -126,13 +133,14 @@ DemoNodeEditorNodesObject → INodeProvider
 ### Video
 | Нод | Категория | Описание |
 |-----|-----------|----------|
-| CameraSourceNode | Video | Заснема кадри от локално camera устройство (избор на устройство + start/stop), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `ImageData` (on-demand) |
-| VideoFileSourceNode | Video | Възпроизвежда локален видео файл през `QMediaPlayer` + frame probe (browse + play/pause), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `ImageData` (on-demand) + port 2 `SampledData` (audio) |
-| StreamSourceNode | Video | Възпроизвежда HTTP/RTSP stream (URL поле + connect), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `ImageData` (on-demand) + port 2 `SampledData` (audio) |
-| VideoOutputNode | Video | Live preview на входящите кадри — два входа (port 0 `VideoFrameData` → GPU display; port 1 `ImageData` → `QLabel`), zero-copy GPU път. Qt6: чекбокс „GPU display" (checked по подразбиране) → detached прозорец (`QVideoWidget` или GL blit при `DAQSTER_GL_BLIT=1`); unchecked → in-scene `QGraphicsVideoItem` в node-а (REQ-SW-PL-021). Qt5: checked → detached GL blit прозорец, unchecked → софтуерен QLabel. Pass-through изходен порт за output вериги |
-| VideoTransformNode | Video | Прилага конфигурируема операция върху `ImageData` кадри (8 базови + опционални OpenCV операции) |
+| CameraSourceNode | Video | Заснема кадри от локално camera устройство (избор на устройство + start/stop), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) |
+| VideoFileSourceNode | Video | Възпроизвежда локален видео файл през `QMediaPlayer` + frame probe (browse + play/pause), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `SampledData` (audio) |
+| StreamSourceNode | Video | Възпроизвежда HTTP/RTSP stream (URL поле + connect), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `SampledData` (audio) |
+| VideoOutputNode | Video | Live preview на входящите кадри — един вход (port 0 `VideoFrameData` → GPU display), zero-copy GPU път. Qt6: чекбокс „GPU display" (checked по подразбиране) → detached прозорец (`QVideoWidget` или GL blit при `DAQSTER_GL_BLIT=1`); unchecked → in-scene `QGraphicsVideoItem` в node-а (REQ-SW-PL-021). Qt5: checked → detached GL blit прозорец, unchecked → софтуерен QLabel. Pass-through изходен порт за output вериги |
+| VideoEffectNode | Video | Единен ефект нод с **комбобокс** за избор на ефект (brightness, contrast, grayscale, invert, sepia, channelSwap, flip, blur, gaussianBlur, canny, threshold) + параметри за избрания — върху `VideoFrameData`, GPU/CPU backend (REQ-SW-PL-028) |
+| FrameSamplerNode | Video | Ресемплиране на `VideoFrameData` — всеки N-ти кадър или max FPS, zero-copy passthrough (REQ-SW-PL-030) |
 
-Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy) и port 1 `ImageData` ("image", конвертира се on-demand само при свързан processing потребител); видео source-ите имат и port 2 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема и двата типа — `VideoFrameData` се дисплейва през GPU (вж. „Qt6 in-scene toggle" по-долу; Qt5: detached GL blit прозорец при `DAQSTER_GL_BLIT=1`), `ImageData` през софтуерен път (`QLabel`). Същият `ImageData` тип частният AI Studio plugin консумира на входа на `FrameToTensorNode` (REQ-AI-006).
+Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy); видео source-ите имат и port 1 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема `VideoFrameData` и го дисплейва през GPU (вж. „Qt6 in-scene toggle" по-долу; Qt5: detached GL blit прозорец при `DAQSTER_GL_BLIT=1`). **Единственият frame тип е `VideoFrameData`** — `ImageData` е премахнат (Фаза 3, REQ-SW-PL-032); CPU обработката ползва lazy `VideoFrameData::asImage()` кеша. Частният AI Studio plugin консумира `VideoFrameData` на входа на `FrameToTensorNode` (REQ-AI-007).
 
 #### Qt6 in-scene GPU display toggle (REQ-SW-PL-021)
 
@@ -158,36 +166,122 @@ DemoNodeEditorNodesObject → INodeProvider
 
 > **Преномерация (NV12-direct, 2026-08-13):** на Qt5 източниковите нодове и
 > `VideoOutputNode` вече имат същата топология като Qt6 — port 0 е
-> "video-frame", а image портът е port 1 (беше port 0 на Qt5). Стари saved Qt5
+> "video-frame", а image портът беше port 1 (беше port 0 на Qt5). Стари saved Qt5
 > графи, които свързват source port 0 (беше "image") с ImageData консуматор,
-> **ще загубят връзката** и трябва да се пресвържат към новия image порт (1).
+> **загубиха връзката** и трябваше да се пресвържат към новия image порт (1).
 > Причина: Qt5 сега транспортира OWNED NV12/YUV420P копия (`VideoCompat::frameToOwnedFrame`),
 > така че `VideoFrameData` не е вече Qt6-only.
+>
+> **Фаза 3 (2026-08-26, REQ-SW-PL-032):** image портът е **премахнат изцяло** —
+> източниковите нодове емитират само `VideoFrameData` (port 0) + `SampledData`
+> (port 1, audio), `VideoOutputNode` приема само `VideoFrameData`, а типът
+> `ImageData` е изтрит. **Saved-graph последица:** стари графи, които свързват
+> image порт (port 1 на source / port 1 на output) с `ImageData` консуматори
+> (напр. `VideoTransformNode`), **няма да се заредят** — `VideoTransformNode` е
+> премахнат (заменен от `VideoEffectNode`), image edges-ите отпадат (type
+> mismatch), и графите трябва да се пресвържат към `VideoFrameData` вериги
+> (source → `VideoEffectNode` → output).
 
-#### VideoTransformNode — операции (REQ-SW-PL-019)
+#### VideoTransformNode — премахнат (REQ-SW-PL-032, Фаза 3)
 
-`VideoTransformNode` заменя стария фиксиран `VideoModifierNode` (само R↔B swap) с общ transform node. UI-то е operation combo + `QStackedWidget` с по една страница параметри за операция; текущата операция и параметрите се персистират чрез `save()`/`load()`.
+`VideoTransformNode` (REQ-SW-PL-019) беше **премахнат на 2026-08-26** — заменен
+от `VideoEffectNode` (REQ-SW-PL-028), който покрива всичките му операции върху
+`VideoFrameData`. Операционният engine (`VideoTransformOps.{h,cpp}`) и OpenCV
+функциите (`OpenCVTransforms.cpp`) **остават** — `VideoEffectOps` ги ползва за
+CPU ефектите. Стари saved графи с `"VideoTransform"` registry ключ **няма да се
+заредят**; пресвържете ги към `VideoEffect` (комбо = същата операция).
 
-**8 базови операции (QImage, винаги налични, без външни зависимости):**
+#### VideoEffectNode — един нод с комбобокс, GPU/CPU backend (REQ-SW-PL-028)
 
-| Операция | Параметри | Описание |
-|----------|-----------|----------|
-| RGB Channel Swap | — | Размяна на R↔B каналите на всеки пиксел |
-| Grayscale | — | Конвертиране към grayscale (luminance), изход RGB32 |
-| Invert | — | Инвертиране на цветовете на всеки пиксел |
-| Sepia | — | Sepia тон |
-| Brightness | slider −100..+100 (0 = без промяна) | Регулиране на яркостта |
-| Contrast | slider 0..200% (100 = без промяна) | Регулиране на контраста |
-| Blur | radius slider 0..10 (0 = без промяна) | Box blur |
-| Flip | combo horizontal/vertical | Обръщане хоризонтално или вертикално |
+`VideoEffectNode` е видео ефект нод с **runtime-избран backend по ефект**.
+Ефектът се избира от **комбобокс** (комбо + `QStackedWidget`) — **един нод
+тип**, не отделни subclass-а (решение 2026-08-25, REQ-SW-PL-028 AC 4). Работи
+върху `VideoFrameData` (port 0 in / port 0 out) — не тригерира lazy `asImage()`
+освен при CPU обработка.
 
-**3 опционални OpenCV операции (само при `HAVE_OPENCV`):**
+- **`EffectSpec`** (`VideoEffectOps.{h,cpp}`) — описание на ефекта: id,
+  displayName, backend (`CpuOnly` / `GpuOrCpu`), CPU функция (делегира на
+  `VideoTransformOps`) и опционален GLSL body за GPU backend-а. EffectSpec-ите
+  остават — комбобоксът избира между тях (REQ-SW-PL-028 AC 5).
+- **Ефекти (11):** brightness, contrast, grayscale, invert, sepia, channelSwap,
+  flip, **blur** (box blur, radius 0..10), **gaussianBlur** (OpenCV, kernel
+  1..31), **canny** (OpenCV, low/high 0..255), **threshold** (OpenCV, value
+  0..255) — последните три са `CpuOnly` и налични само при `HAVE_OPENCV`
+  (REQ-SW-PL-028, добавени 2026-08-26). Това покрива всички операции на
+  премахнатия `VideoTransformNode`.
+- **UI:** комбо с displayName-ите на ефектите + суфикс за backend-а
+  ((GPU)/(CPU), по `EffectSpec::Backend`) + `QStackedWidget` с по една
+  страница параметри за ефект (brightness slider −100..+100, contrast slider
+  0..200%, blur radius slider, gaussian kernel slider, canny/threshold sliders,
+  flip combo horizontal/vertical, info label за grayscale/invert/
+  sepia/channelSwap). `setEffect(id)` избира по id (непознат id → индекс 0);
+  `save()`/`load()` персистират `"effect"` = id + параметрите
+  с clamp-ове — форматът е **backward compatible** със старите графи.
+- **Deprecated aliases (премахнати 2026-08-26):** 7-те alias нода
+  (`VideoEffectBrightnessNode`, `VideoEffectContrastNode`,
+  `VideoEffectGrayscaleNode`, `VideoEffectInvertNode`, `VideoEffectSepiaNode`,
+  `VideoEffectChannelSwapNode`, `VideoEffectFlipNode`) бяха **премахнати** по
+  решение на потребителя — стари saved графи, които реферират тези registry
+  ключове, **вече няма да се зареждат**; единственият регистриран ефект нод е
+  `VideoEffect` (с комбобокс).
+- **Backend избор (runtime):** `CpuOnly` ефекти вървят на CPU навсякъде;
+  `GpuOrCpu` ефекти вървят на GPU когато има хардуерен GL и падат на CPU
+  иначе (включително при не-NV12/YUV420P формат на кадъра).
+- **`VideoEffectGLProcessor`** — GPU backend: собствен `QOpenGLContext` +
+  `QOffscreenSurface`, компилира `buildVertexSource` +
+  `buildEffectFragmentSource` (от `VideoGLShaders.h`), upload-ва Y/U/V
+  plane-овете с `GL_UNPACK_ROW_LENGTH = bytesPerLine`, рендерира в
+  `QOpenGLFramebufferObject` с размера на кадъра и чете резултата с
+  `toImage()` (вграден вертикален флип). `hasHardwareGL()` различава
+  хардуерен GL от `llvmpipe`/`softpipe`/`SwiftShader` (lazy кеширано).
+- **RGBA input orientation (2026-08-28, REQ-SW-PL-032):** FBO-произведените
+  RGBA текстури (изход на предишен ефект) са bottom-up — processor-ът ги
+  семплира с **flipped-v quad** (`kQuadVerticesFbo`, v' = 1 − v) при
+  `input.rgba`, огледално на display path-а (`VideoGLBlitWidget`). Без това
+  even-length GPU ефект вериги (2 ефекта) се показваха вертикално обърнати;
+  single effect (YUV input, top-down) остава непроменен.
+- **Texture pool (2026-08-28, REQ-SW-PL-032 Issue #7):** изходните RGBA
+  текстури идват от `TexturePool` (`src/plugins/common/GL/TexturePool.{h,cpp}`)
+  — `acquire(w,h)` reuse-ва свободна текстура (при смяна на резолюцията
+  преоразмерява storage-а на същия texture name), `release(tex)` я връща в
+  pool-а. `VideoFrameData::fromTexture()` приема опционален release callback
+  (shared_ptr към pool-а), който се вика при унищожаване на frame-а вместо
+  `glDeleteTextures` — **без per-frame glGenTextures/glDeleteTextures** в
+  ефект пътя. Без callback поведението остава delete-по подразбиране.
+- **`CustomShaderGLProcessor`** — същият orientation fix: custom pass-ът
+  семплира bottom-up RGBA (pre-pass intermediate или RGBA input) с flipped-v
+  quad, така че единичен CustomShaderNode pass стои прав; YUV→RGBA pre-pass
+  семплира top-down YUV input със стандартния quad. Изходните текстури също
+  идват от `TexturePool`.
+- **GLSL ефекти:** brightness (`rgb + u_brightness`), contrast
+  (`(rgb − 0.5) * u_contrast + 0.5`), grayscale (dot luminance), invert,
+  sepia (mat3 multiply), channelSwap (`rgb.bgr`), flip (празен body — флипът
+  става през `u_flipY` uniform-а, който обръща texture coordinate-а
+  вертикално; CPU пътят ползва horizontal/vertical combo).
+- **Lazy QImage кеш (REQ-SW-PL-032):** CPU пътят ползва `VideoFrameData::asImage()`
+  — конверсията става най-много веднъж на кадър и се споделя между всички
+  CPU консуматори (fan-out).
+- **Smoke driver:** `DAQSTER_AUTOSTART_EFFECT=<effectId>` добавя един
+  `VideoEffect` нод и задава ефекта през `load()` (същият път като saved
+  граф) между source и output в `autoStartVideo()`.
 
-| Операция | Параметри | Описание |
-|----------|-----------|----------|
-| GaussianBlur | kernel slider 1..31 (нечетен) | Gaussian blur |
-| Canny | low/high threshold sliders 0..255 | Canny edge detection |
-| Threshold | value slider 0..255 | Binary threshold |
+#### FrameSamplerNode — ресемплиране (REQ-SW-PL-030)
+
+`FrameSamplerNode` е отделен нод за ресемплиране на video кадри
+(`VideoFrameData` port 0 in / port 0 out):
+
+- **Режими:** „Every N-th frame" (N = 1..1000) или „Max FPS" (1..120) —
+  избираемо от combo + QSpinBox.
+- **Zero-copy, fan-out:** при pass нодът предава **същия**
+  `shared_ptr<VideoFrameData>` (ref-count bump) — без QImage конверсия, без
+  копие на frame-а; ресемплираният кадър стига до всички консуматори.
+- **Lazy конверсия:** нодът работи върху frame-а, никога не вика
+  `asImage()`/`frameToImage()`.
+- **Gate:** EveryNth → `++counter; pass = (N <= 1) || (counter % N == 0)`;
+  MaxFps → таймер стартира на първи кадър, `pass = elapsed >= 1e9 / maxFps`,
+  при pass `restart()`. При не-pass кадърът се изпуска без emit.
+- **Smoke driver:** `DAQSTER_AUTOSTART_SAMPLER=1` вмъква FrameSampler между
+  source (или effect) и output в `autoStartVideo()`.
 
 ## AudioSource — SampledData миграция (REQ-SW-PL-024)
 
@@ -254,16 +348,16 @@ Plugin-ът изисква следните Qt модули и библиоте�
 - **QtNodes** — node editor library
 - **NodeEditorLibrary** — споделена библиотека за node editor
 - **frame_work** — Daqster core framework
-- **OpenCV 4.x (ОПЦИОНАЛЕН)** — само за OpenCV video transform операциите (GaussianBlur, Canny, Threshold)
+- **OpenCV 4.x (ОПЦИОНАЛЕН)** — само за OpenCV video ефектите (GaussianBlur, Canny, Threshold)
 
 ### OpenCV (опционален)
 
 `find_package(OpenCV QUIET)` в `CMakeLists.txt` + `option(DAQSTER_USE_OPENCV ... ON)`. Когато `DAQSTER_USE_OPENCV=ON` и OpenCV е открит:
 - `OpenCVTransforms.cpp` се компилира и дефинира `HAVE_OPENCV`
-- OpenCV операциите (GaussianBlur, Canny, Threshold) се добавят към списъка на `VideoTransformNode`
+- OpenCV ефектите (GaussianBlur, Canny, Threshold) се добавят към комбо-то на `VideoEffectNode` (CpuOnly)
 - `${OpenCV_INCLUDE_DIRS}` / `${OpenCV_LIBS}` се подават към `create_plugin()`
 
-Когато OpenCV липсва или `DAQSTER_USE_OPENCV=OFF`, plugin-ът се build-ва нормално с 8-те базови QImage операции; OpenCV операциите отсъстват от списъка. Проверено: Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS и с двата варианта (OpenCV 4.6.0 / без OpenCV).
+Когато OpenCV липсва или `DAQSTER_USE_OPENCV=OFF`, plugin-ът се build-ва нормално с базовите QImage ефекти; OpenCV ефектите отсъстват от комбо-то. Проверено: Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS и с двата варианта (OpenCV 4.6.0 / без OpenCV).
 
 ## Qt5/Qt6 съвместимост (VideoCompat.h)
 
@@ -338,9 +432,12 @@ QObjectList providers = pm->instances(INodeProvider_IID);
 - [INodeProvider](../../Architecture/plugins/README.md) — capability discovery mechanism
 - [Node Editor IDE](../node_editor_ide/README.md) — потребителят на този плъгин
   - [REQ-SW-PL-018](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-018-video-source-and-processing-nodes.md) — Video Source & Processing Nodes (5-те video node модела + VideoCompat.h)
-  - [REQ-SW-PL-019](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-019-video-transform-node-configurable-operations.md) — Video Transform Node (8 базови + опционални OpenCV операции)
-  - [REQ-SW-PL-020](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-020-zero-copy-video-frame-display.md) — Zero-Copy Video Frame Transport & GPU Display (VideoFrameData, dual-port source/output nodes, Qt6 GPU display)
+  - [REQ-SW-PL-019](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-019-video-transform-node-configurable-operations.md) — Video Transform Node (премахнат 2026-08-26, операциите покрити от VideoEffectNode)
+  - [REQ-SW-PL-020](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-020-zero-copy-video-frame-display.md) — Zero-Copy Video Frame Transport & GPU Display (VideoFrameData, source/output nodes, Qt6 GPU display)
   - [REQ-SW-PL-024](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-024-audio-source-sampleddata-migration.md) — AudioSource (Mic) миграция от QDevIO към SampledData
+  - [REQ-SW-PL-028](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-028-video-effect-node.md) — VideoEffectNode (GPU/CPU backend по ефект, включва blur/OpenCV)
+  - [REQ-SW-PL-030](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-030-frame-sampler-node.md) — FrameSampler (ресемплиране)
+  - [REQ-SW-PL-032](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-032-video-frame-consolidation.md) — Video Frame Consolidation (един VideoFrameData тип, Фаза 3)
 
 ## _obsolete rename strategy_
 

@@ -7,6 +7,29 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-028** (VideoEffectNode — per-effect GPU/CPU backend):
+  - `VideoGLShaders.h` — shared GLSL source builders (`buildVertexSource`, `buildYuvFragmentSource`, `buildRgbaFragmentSource` extracted from `VideoGLBlitWidget.cpp` + new `buildEffectFragmentSource` with `u_flipY` and injectable effect body)
+  - `VideoEffectOps.{h,cpp}` — `EffectSpec` registry (7 effects: brightness, contrast, grayscale, invert, sepia, channelSwap, flip) with CPU functions (delegating to `VideoTransformOps`) + GLSL body
+  - `VideoEffectGLProcessor.{h,cpp}` — GPU backend: `QOpenGLContext` + `QOffscreenSurface` + `QOpenGLFramebufferObject`, Y/U/V upload with `GL_UNPACK_ROW_LENGTH`, `hasHardwareGL()` (llvmpipe/softpipe/SwiftShader detection, lazy cached)
+  - `VideoEffectNode.{h,cpp}` — node model (port 0 in/out `VideoFrameData`) + **single node with an effect combo** (combo + `QStackedWidget`, like `VideoTransformNode`), runtime backend selection, parameter UI (slider/combo/info), save/load with clamps (backward compatible: `"effect"` = id + params)
+  - **Blur + OpenCV effects (2026-08-26, commit `095981b`)** — added `blur` (box blur, radius 0..10) + `gaussianBlur`/`canny`/`threshold` (OpenCV, only with `HAVE_OPENCV`) as `CpuOnly` effects — 11 effects total; they cover all operations of the removed `VideoTransformNode`
+  - Registered under the "Video" category in the demo node editor plugin
+- **REQ-SW-PL-030** (FrameSampler — frame resampling):
+  - `FrameSamplerNode.{h,cpp}` — standalone node (port 0 in/out `VideoFrameData`), "Every N-th frame" (1..1000) / "Max FPS" (1..120) modes, zero-copy passthrough (same `shared_ptr`), gate without emit on drop, save/load + counter/timer reset
+  - Registered under the "Video" category in the demo node editor plugin
+- **REQ-SW-PL-032** (VideoFrameData lazy QImage cache):
+  - `VideoFrameData::asImage()` — lazy CPU QImage cache: converts at most once per frame, caches and shares the result between all CPU consumers (fan-out); `setFrame()` invalidates the cache; GUI-thread only (no mutex)
+  - Consumers use the cache: `VideoEffectNode` CPU path + `VideoOutputNode` software display / downstream consumer path (`VideoCompat::frameToImage` → `asImage()`); `VideoGLBlitWidget` stays on `frameToImage` (raw `QVideoFrame`, not `VideoFrameData`)
+- **REQ-SW-PL-032** (GPU-resident transport, Stage 2A — shared GL context + texture transport):
+  - `VideoGLContextManager` (`src/plugins/common/GL/`) — process-wide shared `QOpenGLContext` + `QOffscreenSurface` (share group with the `QOpenGLWidget` display), lazy `hasHardwareGL()` (llvmpipe/softpipe/SwiftShader detection), `deleteTexture()`; GUI-thread only
+  - `VideoFrameData::asTexture()` — lazy GPU texture cache: Y/U/V upload once per frame (NV12/YUV420P), the handle is cached and shared between all GPU consumers; `fromTexture()` wraps a GPU-resident RGBA texture (effect output); `isGpuResident()`/`isGpuRgba()`; textures are deleted in the destructor
+  - `VideoEffectGLProcessor` uses the shared context (instead of a private one)
+- **REQ-SW-PL-032** (GPU-resident effect chain, Stage 2B — texture-in/texture-out, no readback):
+  - `VideoEffectGLProcessor::processTexture()` — binds the input textures from a `VideoTextureHandle` (no upload), selects the program by layout (nv12/420p/rgba), renders into an FBO and returns the RGBA texture (no `toImage()`); new `buildRgbaEffectFragmentSource()` (RGBA sampler + effect body + u_flipY/u_brightness/u_contrast); the output texture is created per call and ownership is handed to `fromTexture()`
+  - `VideoEffectNode` GPU path: `asTexture()` → `processTexture()` → `fromTexture()` — a second effect in a chain consumes the texture directly (no upload/readback); the CPU fallback stays
+  - `VideoGLBlitWidget::presentTexture()` — zero-copy display of a GPU-resident RGBA texture (bind, no upload/readback); `VideoOutputNode` GL blit path uses it for GpuRgba frames; the Qt6 native display does a readback at the boundary (`presentableFrame` → `asImage()`)
+  - Smoke driver: `DAQSTER_AUTOSTART_EFFECT2=<effectId>` inserts a second VideoEffect node (GPU-resident chain)
+- **Smoke drivers** (`NodeEditorIdeObject.cpp`): `DAQSTER_AUTOSTART_EFFECT=<effectId>` inserts a VideoEffect node between source and output; `DAQSTER_AUTOSTART_EFFECT2=<effectId>` inserts a second one; `DAQSTER_AUTOSTART_SAMPLER=1` inserts a FrameSampler
 - **Video nodes** (`src/plugins/demo_nodeditor_nodes/Sources/Video/`):
   - `VideoCompat.h` — Qt5/Qt6 multimedia abstraction (QVideoProbe vs QVideoSink, camera enumeration, media source assignment, playback-state signals)
   - `CameraSourceNode` — QCamera capture from default or user-selected device
@@ -176,8 +199,36 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **GL blit display widget** (`VideoGLBlitWidget`, `DAQSTER_GL_BLIT=1`) — detached OpenGL display for `VideoOutputNode` that uploads decoded CPU frames as YUV textures (NV12 / YUV420P) and converts to RGB in a fragment shader (QImage fallback for RGB formats). Enabled on both Qt versions; measured CPU: Qt5 27.9% → 15.0-16.2%, Qt6 17.8-18.2%, GLBLIT ~50-330 µs, failures=0.
 - **NV12-direct for Qt5 (REQ-SW-PL-020)** — `VideoFrameData` is no longer Qt6-gated; Qt5 video sources emit an OWNED copy of the decoded frame (`VideoCompat::frameToOwnedFrame` — NV12/YUV420P planes memcpy'd into a `QAbstractPlanarVideoBuffer`) on port 0 (video-frame), image port 1 converts on demand, audio port 2 appended last. `VideoOutputNode` has the video-frame@0 / image@1 dual input on both Qt versions. **Renumbering note:** on Qt5 the image port moved from 0 to 1 — old saved Qt5 graphs with image@0 must reconnect.
 - **Video display perf results doc** — `tests/performance/performance-video-display-2026-08-13.md`: full methodology, before/after shadow numbers, perf bottleneck analysis, changes and next levers.
+- **REQ-SW-PL-034** (VideoOutputNode embedded effects — optional, default none):
+  - `VideoOutputNode` gains **optional embedded effects** — the same 11 effects as `VideoEffectNode` (brightness, contrast, grayscale, invert, sepia, channelSwap, flip, blur + gaussianBlur/canny/threshold with `HAVE_OPENCV`), **no effect by default**
+  - Combo with a leading "No effect" item (index 0) + `QStackedWidget` parameter pages (slider/flip/OpenCV); backend suffix "(GPU)"/"(CPU)" like `VideoEffectNode`
+  - When no effect is selected the block in `setInData()` is **skipped entirely** — `asTexture()`/`asImage()` are never called, the zero-copy passthrough is byte-identical (AC 2)
+  - GPU path: `asTexture()` → `VideoEffectGLProcessor::processTexture()` → `fromTexture()` (GpuRgba, zero-copy) with hardware GL; CPU path/fallback: `asImage()` → `EffectSpec::cpuApply` → `QVideoFrame`
+  - `save()`/`load()`: `"effect"` id + params (`brightness`/`contrast`/`flipMode`/`blurRadius`/`gaussianKernel`/`cannyLow`/`cannyHigh`/`thresholdValue`) with clamps; old graphs without the `"effect"` key → "no effect" (backward compatible)
+  - Tests: `demo_nodeditor_videooutput_tests` +4 (default no-effect passthrough, load→save round-trip, backward compat, effect transforms the frame); Qt5/Qt6 builds PASS + ctest 9/9 green (both)
 
 ### Changed
+- **GpuRgba frames → GL blit widget on Qt6 (REQ-SW-PL-032, Stage 2C, perf)** — `VideoOutputNode` routes GpuRgba frames (effect outputs) to the GL blit widget (`presentTexture`, zero-copy bind, ~19 µs/display) on Qt6 too when hardware GL is available (`VideoGLContextManager::hasHardwareGL()`) — instead of the native `QVideoWidget` path (readback `glReadPixels` 8 MB + per-sink RHI upload 8 MB/display; 2 displays on an effect output → CPU 10% → 50%+). CPU/NV12 frames keep the per-Qt backend (Qt6: native `QVideoWidget`, Qt5: GL blit). `ensureVideoWidget(wantGlBlit)` selects the backend per frame and destroys the other widget on switch (no leak, no crash).
+- **Node body repaint on data arrival is now opt-out (REQ-SW-PL-032, perf)** — `dataArrivalChangesWidget()` virtual in nodeeditor: video/LLM/console nodes (`VideoOutputNode`, `VideoEffectNode`, `CustomShaderNode`, `FrameSamplerNode`, `LLamaModelDataModel`, `ConsoleDataModel`) return `false` and skip the per-frame `node->update()` body repaint (widget content self-repaints via Qt); validation-state nodes (NumberDisplay, DaqDisplay, ...) keep the default `true`. nodeeditor commit: `43c1dea`
+- **Validation nodes opt out + self-invalidate (REQ-SW-PL-032, perf)** — `setValidationState()` in nodeeditor now emits `requestNodeUpdate()` (the validation border self-repaints only on an actual state change); `NumberDisplay`, `DaqDisplay`, `GenericDisplay`, `Modulo`, `ArithmeticLogic` return `dataArrivalChangesWidget() == false`. nodeeditor commit: `566f6ba`
+- **NumberDisplay geometry only on real resize (REQ-SW-PL-032, perf)** — `dataArrivalChangesGeometry() == false` + event filter on `m_wrapper`: `requestNodeUpdate()` (recomputeSize + moveConnections) is emitted only on `QEvent::Resize`, not on every data arrival; `recomputeSize()` only READS the widget size → no recursion
+- **VideoOutputNode output port — zero-copy passthrough (REQ-SW-PL-032, fix)** — with a downstream consumer attached the output is `m_output = videoFrame` (the SAME shared `VideoFrameData`, residency preserved) — no QImage readback, no `QVideoFrame` re-wrap, no double-present (`updateDisplay()` removed from the block)
+- **`VideoGLBlitWidget::presentYuvTexture()` (REQ-SW-PL-032, perf)** — presents the cached YUV textures from `asTexture()` directly (NV12/YUV420P programs, standard top-down quad) — no duplicate upload; falls back to `presentFrame()` on an invalid handle
+- **`VideoFrameData` copy ctor/assignment = delete (REQ-SW-PL-032, fix)** — frames are shared only via `shared_ptr`, never copied (GpuRgba copies were a dead end); no move semantics were present
+- **`VideoEffectGLProcessor::process()` removed (REQ-SW-PL-032, refactor)** — dead code (FBO readback trap): no callers, only `processTexture()` is used; `uploadFrame()`/`classifyYuv()`/the `m_texY/U/V/UV` textures/`m_useNv12` removed too
+- **Design refinement (REQ-SW-PL-028/029/032, 2026-08-25)** — documentation-only:
+  - PL-028: refactor to a SINGLE `VideoEffectNode` with a combobox for effect selection + parameters/config (instead of 7 separate subclasses); EffectSpecs stay in `VideoEffectOps.h/.cpp`
+  - PL-032: refined design — lazy caches (`asImage()`/`asTexture()`), node residency preferences (Option C), GPU-resident transport (Path B), Qt6-first/Qt5-after, format NV12 → Y+UV → YUV→RGB+effect → RGBA
+  - PL-029: confirmed standalone node (not embedded in `VideoEffectNode`) — different UI (GLSL editor + compile + error log), extensible to DAQ/other types
+- **VideoEffectNode combobox refactor (REQ-SW-PL-028 AC 4/5, implemented)** — the 7 per-effect subclasses become deprecated aliases; a single `VideoEffectNode` with combo + `QStackedWidget` (7 pages: brightness slider, contrast slider, grayscale/invert/sepia/channelSwap info, flip combo). `setEffect(id)` selects by id (unknown → index 0); `save()`/`load()` format unchanged (`"effect"` = id + params) — backward compatible. The smoke driver (`DAQSTER_AUTOSTART_EFFECT`) adds a single `VideoEffect` node and sets the effect via `load()`. Commits: `e84f6d0`, `42bb57a`, `9fb46b9`
+- **VideoFrameData lazy QImage cache (REQ-SW-PL-032 AC 1/2/3 CPU part, implemented)** — `asImage()` converts once per frame and caches; `setFrame()` clears the cache; consumers (`VideoEffectNode` CPU path, `VideoOutputNode` software/consumer path) use the cache instead of `VideoCompat::frameToImage`. Commits: `3f9ec84`, `093b557`
+- **GPU-resident transport Stage 2A (REQ-SW-PL-032 AC 1/5, implemented)** — `VideoGLContextManager` (shared GL context, share group with the display), `VideoFrameData::asTexture()` (lazy Y/U/V upload, cached handle) + `fromTexture()` (GPU-resident RGBA wrap) + `isGpuResident()`; `VideoEffectGLProcessor` migrated to the shared context. Commits: `6cb1aaa`, `803e4f6`, `9a39006`
+- **GPU-resident effect chain Stage 2B (REQ-SW-PL-032 AC 5/7, implemented for the effect chain)** — `VideoEffectGLProcessor::processTexture()` (texture-in → texture-out, no `toImage()` readback; program cache key with layout ∈ {nv12, 420p, rgba}; new `buildRgbaEffectFragmentSource()`); `VideoEffectNode` GPU path `asTexture()` → `processTexture()` → `fromTexture()` — a second effect consumes the texture directly; `VideoGLBlitWidget::presentTexture()` — zero-copy display of the RGBA texture; the Qt6 native display does a readback at the boundary (Stage 2C). **PERF (Qt5 GL blit, sepia): cpu 62.2% → 16.9%, present 7.1ms → 0.1ms, GLBLIT avg 322us → 18.8us (fmt=Texture(RGBA)); 2 effects (sepia+invert) cpu 19.0%; Qt6: 34% → 25% (1 effect), 26.8% (2 effects).** Commits: `b6af20e`, `d1a5e7a`
+- **Phase 3 — migration to a single VideoFrameData type (REQ-SW-PL-032, 2026-08-26)**:
+  - **Image ports removed** from the video source nodes (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) — they now emit only `VideoFrameData` (port 0) + `SampledData` (port 1, audio); `VideoOutputNode` accepts only `VideoFrameData`. Commits: `63010f3`, `3fc51a3`
+  - **`VideoTransformNode` removed** — superseded by `VideoEffectNode`, which covers all of its operations (incl. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` stay (used by `VideoEffectOps`). Commit: `688c899`
+  - **`ImageData` type deleted** — the only frame type is `VideoFrameData`; grep `ImageData` in `src/` and `tests/` → 0. Commit: `817002e`
+  - **Saved-graph consequences:** old graphs with the `"VideoTransform"` registry key or image edges no longer load — rewire to `VideoEffect` + `VideoFrameData` chains (documented in the README)
 - **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality
 - **Documentation**:
   - Plugins hub (`docs/plugins/README.md`) + fixed plugin documentation links in INDEX/Architecture (`b5c204f`)
@@ -193,6 +244,30 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Video source port renumbering on Qt5** — see NV12-direct entry above; old Qt5 saved graphs that connected source port 0 (was "image") to an ImageData consumer lose that edge.
 
 ### Fixed
+- **RGBA (FBO) input orientation bug in the GPU effect processors (REQ-SW-PL-032)** —
+  `VideoEffectGLProcessor` and `CustomShaderGLProcessor` sampled bottom-up
+  FBO-produced RGBA textures with the standard top-down quad → even-length GPU
+  effect chains (2 effects) and a single CustomShaderNode pass displayed
+  vertically flipped. Fix: flipped-v quad (`kQuadVerticesFbo`, v' = 1 − v) when
+  sampling an RGBA input / pre-pass intermediate, mirroring the display path
+  (`VideoGLBlitWidget`). Single effect (YUV input) unchanged.
+- **Per-frame texture allocation in the effect path (REQ-SW-PL-032 Issue #7)** —
+  new `TexturePool` (`src/plugins/common/GL/TexturePool.{h,cpp}`): `acquire(w,h)`
+  reuses a free texture (re-allocates storage on resolution change),
+  `release(tex)` returns it to the pool; `VideoFrameData::fromTexture()` accepts
+  an optional release callback (shared_ptr to the pool) that returns the texture
+  on frame destruction instead of `glDeleteTextures`. The effect path no longer
+  does per-frame `glGenTextures`/`glDeleteTextures`.
+- **`setValidationState` re-triggered the full path every frame (nodeeditor
+  submodule)** — early-return when the state is unchanged (NumberDisplay-class
+  nodes call `setValidationState` every frame with the same state).
+- **Double `nodeUpdated` emission (nodeeditor submodule)** — for
+  `NodeRole::ValidationState` via the graph model API, `setValidationState` →
+  `requestNodeUpdate` → `nodeUpdated` plus a direct `nodeUpdated` emission; the
+  direct emission was removed.
+- **Write-only `m_videoFrame` in `VideoOutputNode`** — removed (replaced with
+  `m_lastInput`, used by `reprocessCurrentFrame()`); `load()` now calls
+  `reprocessCurrentFrame()` after loading (consistent with `VideoEffectNode`).
 - **Plugin launch fixes**:
   - Toolbar launches plugins by name instead of stale hash
   - Prune persisted plugin entries with mismatched file hash on load
@@ -216,6 +291,12 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Known issues
 - **VC-1 Advanced video on Qt6 (known issue)** — VC-1 Advanced content (e.g. `50MB_1080P_THETESTDATA.COM_AVI.avi`, ASF container mislabelled .avi) shows a green screen on Qt6: the Qt FFmpeg backend (QFFmpegMediaPlugin, libavcodec 61/FFmpeg 7.1) delivers NV12 frames with an ENTIRELY zero chroma plane (Cb=Cr=0) → YCbCr→RGB = solid green (0,226,0). Proven with a standalone probe containing no Daqster presentation code (system FFmpeg decodes correctly; H.264 and Cinepak work on Qt6; Qt5 works via GStreamer). Not fixable in Daqster code — upstream Qt 6.9.2 bug. Discovered 2026-08-09.
+
+### Removed
+- **7 deprecated VideoEffect alias nodes (REQ-SW-PL-028, 2026-08-26, user decision)** — `VideoEffectBrightnessNode`, `VideoEffectContrastNode`, `VideoEffectGrayscaleNode`, `VideoEffectInvertNode`, `VideoEffectSepiaNode`, `VideoEffectChannelSwapNode`, `VideoEffectFlipNode` removed from `VideoEffectNode.h` and their registrations from `DemoNodeEditorNodesObject.cpp`. The single `VideoEffect` node (effect combo) is the only registered effect node. **Old saved graphs referencing the alias registry keys no longer load** (accepted consequence).
+- **`VideoTransformNode` (REQ-SW-PL-032 Phase 3, 2026-08-26)** — removed from registration, CMake and the filesystem; superseded by `VideoEffectNode` (covers all its operations incl. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` stay (used by `VideoEffectOps`). Commit: `688c899`
+- **`ImageData` type (REQ-SW-PL-032 Phase 3, 2026-08-26)** — `src/plugins/common/NodeDataTypes/ImageData.h` deleted; the only frame type is `VideoFrameData`. Commit: `817002e`
+- **Image ports (REQ-SW-PL-032 Phase 3, 2026-08-26)** — removed from the video source nodes and `VideoOutputNode`; sources emit only `VideoFrameData` + `SampledData` (audio). Commits: `63010f3`, `3fc51a3`
 
 ## [0.2.0] - 2025-09-18
 

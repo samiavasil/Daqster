@@ -51,7 +51,7 @@ set(LLAMA_SOURCE_NODES
     Sources/LLamaSource/ChatBaseWidget.cpp
 )
 
-# ── Video nodes (ImageData / "image" flow) ──────────────────────────
+# ── Video nodes (VideoFrameData / "video-frame" flow) ───────────────
 set(VIDEO_NODES
     Sources/Video/VideoCompat.h
     Sources/Video/CameraSourceNode.h
@@ -68,10 +68,24 @@ set(VIDEO_NODES
     Sources/Video/VideoPerfBadge.cpp
     Sources/Video/VideoGLBlitWidget.h
     Sources/Video/VideoGLBlitWidget.cpp
-    Sources/Video/VideoTransformNode.h
-    Sources/Video/VideoTransformNode.cpp
     Sources/Video/VideoTransformOps.h
     Sources/Video/VideoTransformOps.cpp
+    Sources/Video/VideoGLShaders.h
+    Sources/Video/VideoEffectOps.h
+    Sources/Video/VideoEffectOps.cpp
+    Sources/Video/VideoEffectGLProcessor.h
+    Sources/Video/VideoEffectGLProcessor.cpp
+    Sources/Video/VideoEffectNode.h
+    Sources/Video/VideoEffectNode.cpp
+    Sources/Video/CustomShaderGLProcessor.h
+    Sources/Video/CustomShaderGLProcessor.cpp
+    Sources/Video/CustomShaderNode.h
+    Sources/Video/CustomShaderNode.cpp
+    Sources/Video/FrameSamplerNode.h
+    Sources/Video/FrameSamplerNode.cpp
+    # Texture pool for GPU effect outputs (REQ-SW-PL-032 Issue #7) — lives in
+    # the shared GL helpers next to VideoGLContextManager.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
 )
 
 # ── Optional OpenCV transforms (compile-time auto-detect) ───────────

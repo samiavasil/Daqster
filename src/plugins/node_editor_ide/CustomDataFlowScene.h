@@ -3,16 +3,19 @@
 #include <QtNodes/DataFlowGraphicsScene>
 
 /**
- * Custom scene that overrides onNodeUpdated() to suppress
- * QGraphicsItem::update() for video nodes, eliminating the
- * scene repaint cascade triggered by data propagation.
+ * Custom scene that overrides onNodeDataArrived() to use a repaint-only fast
+ * path for nodes whose geometry does not change on data arrival (video
+ * pipeline nodes), eliminating the scene repaint cascade triggered by data
+ * propagation.
  *
- * When a video node receives data, it updates its display
- * directly in setInData() (GL blit, QVideoWidget, QGraphicsVideoItem).
- * The node->update() call in onNodeUpdated() only triggers
- * scene repaint of NodeGraphicsObject (frame, caption, ports)
- * which is unnecessary for video nodes and causes 49% CPU
- * overhead from QBezier bezier path rasterization.
+ * When a video node receives data, it updates its display directly in
+ * setInData() (GL blit, QVideoWidget, QGraphicsVideoItem). The full
+ * onNodeUpdated() path (recomputeSize + updateQWidgetEmbedPos +
+ * moveConnections) is unnecessary for video nodes and causes CPU overhead
+ * from QBezier bezier path rasterization.
+ *
+ * Models that DO resize on data arrival (NumberDisplay, DaqDisplay, ...)
+ * keep the full path via onNodeUpdated().
  */
 class CustomDataFlowScene : public QtNodes::DataFlowGraphicsScene
 {
@@ -20,6 +23,6 @@ class CustomDataFlowScene : public QtNodes::DataFlowGraphicsScene
 public:
     using DataFlowGraphicsScene::DataFlowGraphicsScene;
 
-protected slots:
-    void onNodeUpdated(QtNodes::NodeId const nodeId) override;
+public Q_SLOTS:
+    void onNodeDataArrived(QtNodes::NodeId const nodeId) override;
 };
