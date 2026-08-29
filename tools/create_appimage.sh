@@ -204,12 +204,22 @@ else
     echo "  (no plugins packaged)"
 fi
 
-# Detect Qt major version and layout (Qt6 preferred, Qt5 fallback)
+# Detect Qt major version and layout (Qt6 preferred, Qt5 fallback).
+# Two layouts are supported:
+#   - aqtinstall (CI Qt6):  $QT_DIR/lib/libQt6Core.so*, plugins in $QT_DIR/plugins
+#   - system packages:      $QT_DIR/libQt6Core.so*, plugins in $QT_DIR/qt6/plugins
 QT_LIB_PREFIX=""
+QT_LIB_SRC=""
 QT_PLUGIN_SRC=""
 QT_QML_SRC=""
-if ls "$QT_DIR"/libQt6Core.so* >/dev/null 2>&1; then
+if ls "$QT_DIR"/lib/libQt6Core.so* >/dev/null 2>&1; then
     QT_LIB_PREFIX="libQt6"
+    QT_LIB_SRC="$QT_DIR/lib"
+    QT_PLUGIN_SRC="$QT_DIR/plugins"
+    QT_QML_SRC="$QT_DIR/qml"
+elif ls "$QT_DIR"/libQt6Core.so* >/dev/null 2>&1; then
+    QT_LIB_PREFIX="libQt6"
+    QT_LIB_SRC="$QT_DIR"
     if [ -d "$QT_DIR/qt6" ]; then
         QT_PLUGIN_SRC="$QT_DIR/qt6/plugins"
         QT_QML_SRC="$QT_DIR/qt6/qml"
@@ -217,8 +227,14 @@ if ls "$QT_DIR"/libQt6Core.so* >/dev/null 2>&1; then
         QT_PLUGIN_SRC="$QT_DIR/plugins"
         QT_QML_SRC="$QT_DIR/qml"
     fi
+elif ls "$QT_DIR"/lib/libQt5Core.so* >/dev/null 2>&1; then
+    QT_LIB_PREFIX="libQt5"
+    QT_LIB_SRC="$QT_DIR/lib"
+    QT_PLUGIN_SRC="$QT_DIR/plugins"
+    QT_QML_SRC="$QT_DIR/qml"
 elif ls "$QT_DIR"/libQt5Core.so* >/dev/null 2>&1; then
     QT_LIB_PREFIX="libQt5"
+    QT_LIB_SRC="$QT_DIR"
     if [ -d "$QT_DIR/qt5" ]; then
         QT_PLUGIN_SRC="$QT_DIR/qt5/plugins"
         QT_QML_SRC="$QT_DIR/qt5/qml"
@@ -231,7 +247,7 @@ fi
 # Copy Qt libraries (blanket copy — see header note on why not ldd-based)
 if [ -n "$QT_LIB_PREFIX" ]; then
     echo "Copying Qt libraries ($QT_LIB_PREFIX)..."
-    cp -r "$QT_DIR"/${QT_LIB_PREFIX}* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+    cp -r "$QT_LIB_SRC"/${QT_LIB_PREFIX}* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
 else
     echo "Warning: no Qt libraries detected in $QT_DIR"
 fi
@@ -249,7 +265,11 @@ if [ -n "$QT_QML_SRC" ] && [ -d "$QT_QML_SRC" ]; then
 fi
 
 # Copy ICU libraries (if available)
+# aqtinstall Qt bundles its own ICU (libicuuc.so.56 etc.) in the Qt lib dir —
+# Qt6Core links against that exact version, so it must be bundled too. The
+# system ICU copy covers the system-package Qt layout.
 echo "Copying ICU libraries..."
+cp "$QT_LIB_SRC"/libicu*.so.* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
 cp /usr/lib/x86_64-linux-gnu/libicu*.so.* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
 
 # Copy GStreamer backends (needed by Qt Multimedia for audio/video)

@@ -24,30 +24,42 @@ jobs:
         run: |
           git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'
 
-      # ubuntu-24.04 (noble) is required: qt6-charts-dev does not exist in
-      # jammy (22.04). qt6-quickcontrols2-dev is not a noble package — Quick
-      # Controls 2 ships inside qt6-declarative-dev. The Qt6 SVG dev package
-      # is named qt6-svg-dev (libqt6svg6-dev does not exist in noble).
-      # GStreamer plugin runtimes are needed by the Qt6Multimedia backend
-      # (GStreamer on Qt 6.4) for the video-output tests.
-      - name: Install Qt6 + gstreamer dependencies
+      # System Qt on ubuntu-24.04 is 6.4.2 — too old for the codebase
+      # (QVideoFrame(QImage) ctor needs 6.8+, QImage::flipped() needs 6.5+).
+      # Install Qt 6.8.3 via aqtinstall (like the Windows job) instead.
+      # For 6.8.3 linux_gcc_64, qtdeclarative and qtsvg are part of the BASE
+      # package (verified: aqt list-qt --archives shows icu qtbase qtdeclarative
+      # qtsvg qttools qttranslations qtwayland) — passing them as modules makes
+      # aqt exit 1. Only qtcharts and qtmultimedia are real add-on modules.
+      # GStreamer dev + runtime packages are still needed by the Qt6Multimedia
+      # backend for the video-output tests. Mesa GL libs provide offscreen GL
+      # (llvmpipe) so the video-output tests can create a GL context headlessly.
+      - name: Install system deps (gstreamer, GL, ssl)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            qt6-base-dev \
-            qt6-multimedia-dev \
-            qt6-charts-dev \
-            qt6-declarative-dev \
-            qt6-svg-dev \
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev \
             gstreamer1.0-plugins-base \
             gstreamer1.0-plugins-good \
+            libgl1-mesa-dri \
+            libegl1 \
+            libgl1 \
+            libglx-mesa0 \
             libssl-dev
+
+      - name: Install Qt 6.8.3 (aqtinstall)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'gcc_64'
+          modules: 'qtcharts qtmultimedia'
 
       - name: Configure (Release, tests ON)
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDAQSTER_BUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDAQSTER_BUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
 
       - name: Build
         run: |
@@ -66,7 +78,7 @@ jobs:
       - name: Create AppImage
         run: |
           chmod +x ./tools/create_appimage.sh
-          ./tools/create_appimage.sh --mode ci
+          QT_DIR="$QT_ROOT_DIR" ./tools/create_appimage.sh --mode ci
           ls -la *.AppImage
           file *.AppImage
 
@@ -115,7 +127,10 @@ jobs:
       # All Qt5 packages exist in noble (5.15.13). libicu70 is jammy-only —
       # noble ships libicu74. GStreamer RUNTIME packages (not just dev) are
       # required: the Qt5Multimedia backend is GStreamer and the video-output
-      # tests fail at runtime without the plugins.
+      # tests fail at runtime without the plugins. Mesa GL libs provide
+      # offscreen GL (llvmpipe) so the video-output tests can create a GL
+      # context headlessly (without them QOpenGLContext::create() fails and
+      # the GL fallback path is exercised instead).
       - name: Install Qt5 from system packages
         run: |
           sudo apt-get update
@@ -128,6 +143,10 @@ jobs:
             libssl-dev \
             libqt5opengl5-dev \
             libicu74 \
+            libgl1-mesa-dri \
+            libegl1 \
+            libgl1 \
+            libglx-mesa0 \
             libgstreamer1.0-0 \
             libgstreamer-plugins-base1.0-0 \
             gstreamer1.0-plugins-base \
@@ -190,29 +209,39 @@ jobs:
           arch: 'win64_msvc2022_64'
           modules: 'qtcharts qtmultimedia'
 
+      # The VS generator ("Visual Studio 17 2022") failed to find a VS instance
+      # on windows-latest ("could not find any instance of Visual Studio" at
+      # project()). The robust fix: set up the MSVC environment explicitly with
+      # msvc-dev-cmd and use the Ninja generator (preinstalled on the runner).
+      # Ninja + MSVC avoids VS instance discovery entirely and works with
+      # WINDOWS_EXPORT_ALL_SYMBOLS (frame_work / qtrest_lib).
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Configure (Release, tests ON)
         run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DDAQSTER_BUILD_TESTS=ON
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DDAQSTER_BUILD_TESTS=ON -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
 
       - name: Build (Release)
         run: |
-          cmake --build build --config Release -j
+          cmake --build build -j
 
       - name: Run tests (offscreen)
         shell: pwsh
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          ctest --test-dir build -C Release --output-on-failure
+          ctest --test-dir build --output-on-failure
 
       - name: Install to staging
         run: |
-          cmake --install build --config Release --prefix "${{ github.workspace }}\stage-win"
+          cmake --install build --prefix "${{ github.workspace }}\stage-win"
 
       - name: Bundle Qt runtime (windeployqt)
         shell: pwsh
         run: |
-          $qtDir = if ($env:Qt6_Dir) { $env:Qt6_Dir } elseif ($env:Qt6_DIR) { $env:Qt6_DIR } else { throw "Qt6_Dir not set" }
+          $qtDir = $env:QT_ROOT_DIR
+          if (-not $qtDir) { throw "QT_ROOT_DIR not set" }
           Write-Host "Qt6 dir: $qtDir"
           $stage = "${{ github.workspace }}\stage-win"
           & "$qtDir\bin\windeployqt.exe" --release --no-translations --compiler-runtime "$stage\bin\Daqster.exe"
