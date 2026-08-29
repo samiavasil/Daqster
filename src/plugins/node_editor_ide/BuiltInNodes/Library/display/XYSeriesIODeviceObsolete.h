@@ -37,7 +37,9 @@
 #include<QMutex>
 #include "AudioFrameDecoder.h"
 
-class XYSeriesIODeviceObsolete : public QIODevice
+#include "NodeEditorLibraryExport.h"
+
+class NODE_EDITOR_LIBRARY_EXPORT XYSeriesIODeviceObsolete : public QIODevice
 {
     Q_OBJECT
 public:

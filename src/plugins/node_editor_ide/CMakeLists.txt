@@ -64,6 +64,13 @@ if(NODE_EDITOR_LIB_ENABLED)
         WINDOWS_EXPORT_ALL_SYMBOLS ON
     )
 
+    # When building NodeEditorLibrary itself, Q_OBJECT classes marked with
+    # NODE_EDITOR_LIBRARY_EXPORT expand to __declspec(dllexport) on Windows so
+    # their staticMetaObject data symbols are exported from the DLL. Consumers
+    # (NodeEditorIde, DemoNodeEditorNodes) do NOT define this macro, so the
+    # macro expands to __declspec(dllimport) there. No-op on Linux/macOS.
+    target_compile_definitions(NodeEditorLibrary PRIVATE NODE_EDITOR_LIBRARY_BUILD)
+
     target_include_directories(NodeEditorLibrary PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/connectors

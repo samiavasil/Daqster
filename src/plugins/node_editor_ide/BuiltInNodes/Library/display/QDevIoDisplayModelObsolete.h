@@ -9,6 +9,8 @@
 #include <QtNodes/NodeDelegateModel>
 #include <memory>
 
+#include "NodeEditorLibraryExport.h"
+
 class NodeDataModelToQIODeviceConnectorObsolete;
 class GenericQDevIoConnectorObsolete;
 class QStackedWidget;
@@ -29,7 +31,7 @@ class QWidget;
  *       Registered under its new name AND aliased under the old "QDevIoDisplay"
  *       key so old saved graphs still load.
  */
-class QDevIoDisplayModelObsolete : public QtNodes::NodeDelegateModel
+class NODE_EDITOR_LIBRARY_EXPORT QDevIoDisplayModelObsolete : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
