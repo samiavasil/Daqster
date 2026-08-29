@@ -89,10 +89,18 @@ add_subdirectory(src/plugins/node_editor_ide)
 add_subdirectory(src/plugins/demo_nodeditor_nodes)
 add_subdirectory(src/plugins/requirements_manager)
 add_subdirectory(src/plugins/QtCoinTrader)
-add_subdirectory(src/plugins/tests/plugin_main_test)
-add_subdirectory(src/plugins/tests/plugin_fancy_test)
-add_subdirectory(src/plugins/tests/plugin_uggly_test)
-add_subdirectory(src/plugins/tests/template_plugin_daqster)
+
+# Test plugins - gated behind their own option (default OFF) so they are not
+# part of normal packaging/release builds. Independent from DAQSTER_BUILD_TESTS:
+# unit tests still build with DAQSTER_BUILD_TESTS=ON; only the test PLUGINS are
+# gated here.
+option(DAQSTER_BUILD_TEST_PLUGINS "Build test plugins" OFF)
+if(DAQSTER_BUILD_TEST_PLUGINS)
+    add_subdirectory(src/plugins/tests/plugin_main_test)
+    add_subdirectory(src/plugins/tests/plugin_fancy_test)
+    add_subdirectory(src/plugins/tests/plugin_uggly_test)
+    add_subdirectory(src/plugins/tests/template_plugin_daqster)
+endif()
 
 # Apps - after plugins are processed (frame_work is built in plugins)
 add_subdirectory(src/apps/Daqster)
