@@ -214,6 +214,11 @@
   - **`VideoTransformNode` премахнат** — заменен от `VideoEffectNode`, който покрива всичките му операции (вкл. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` остават (ползвани от `VideoEffectOps`). Комит: `688c899`
   - **`ImageData` типът изтрит** — единственият frame тип е `VideoFrameData`; grep `ImageData` в `src/` и `tests/` → 0. Комит: `817002e`
   - **Saved-graph последици:** стари графи с `"VideoTransform"` registry ключ или image edges няма да се заредят — пресвържете към `VideoEffect` + `VideoFrameData` вериги (документирано в README-а)
+- **CI overhaul (Qt6 primary)** — `.github/workflows/ci.yml` пренаписан: Qt6 е PRIMARY (Linux + Windows), Qt5 е compat; добавени ctest (offscreen), AppImage smoke test, submodule reachability check, windeployqt вместо ръчен DLL copy; премахнати dead Debug стъпки и choco ninja
+- **Release workflow** — `.github/workflows/release.yml`: Qt6 builds, tarball + ZIP + SHA256SUMS, release body от CHANGELOG секцията, smoke tests
+- **AppImage packaging** — `tools/create_appimage.sh`: филтриране на test/private plugins, GStreamer backends bundled, Qt5/Qt6-aware Qt copy
+- **GitHub Pages** — `.github/workflows/pages.yml` за docs/ (Settings → Pages → GitHub Actions)
+- **Docs rename fix** — INDEX.md → index.md references актуализирани
 - **Directory Restructuring**:
   - `src/external_libs/` → `src/plugins/external_libs/` (всички external libs са под plugins)
   - `src/plugins/node_editor/` → разделяне на `node_editor_widget/` + `node_editor_app/`

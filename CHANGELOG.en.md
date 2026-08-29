@@ -229,6 +229,11 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - **`VideoTransformNode` removed** — superseded by `VideoEffectNode`, which covers all of its operations (incl. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` stay (used by `VideoEffectOps`). Commit: `688c899`
   - **`ImageData` type deleted** — the only frame type is `VideoFrameData`; grep `ImageData` in `src/` and `tests/` → 0. Commit: `817002e`
   - **Saved-graph consequences:** old graphs with the `"VideoTransform"` registry key or image edges no longer load — rewire to `VideoEffect` + `VideoFrameData` chains (documented in the README)
+- **CI overhaul (Qt6 primary)** — `.github/workflows/ci.yml` rewritten: Qt6 is PRIMARY (Linux + Windows), Qt5 is compat; added ctest (offscreen), AppImage smoke test, submodule reachability check, windeployqt instead of manual DLL copy; removed dead Debug steps and choco ninja
+- **Release workflow** — `.github/workflows/release.yml`: Qt6 builds, tarball + ZIP + SHA256SUMS, release body from the CHANGELOG section, smoke tests
+- **AppImage packaging** — `tools/create_appimage.sh`: test/private plugin filtering, GStreamer backends bundled, Qt5/Qt6-aware Qt copy
+- **GitHub Pages** — `.github/workflows/pages.yml` for docs/ (Settings → Pages → GitHub Actions)
+- **Docs rename fix** — INDEX.md → index.md references updated
 - **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality
 - **Documentation**:
   - Plugins hub (`docs/plugins/README.md`) + fixed plugin documentation links in INDEX/Architecture (`b5c204f`)
