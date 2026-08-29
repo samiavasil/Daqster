@@ -1,0 +1,9 @@
+# Jekyll configuration for the GitHub Pages docs site.
+# Served from https://samiavasil.github.io/Daqster/ (project site, baseurl below).
+
+title: Daqster
+description: >-
+  Daqster — Qt-based node editor framework and plugin ecosystem.
+  Documentation hub: architecture, plugins, development and operations topics.
+theme: jekyll-theme-slate
+baseurl: /Daqster/
