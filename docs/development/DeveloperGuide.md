@@ -16,6 +16,25 @@ and practical debugging entry points. For architectural structure use
 
 ## Getting started
 
+### Prerequisites
+
+- **Qt6 (primary): 6.8.3+** — the code requires Qt 6.8+ APIs: the
+  `QVideoFrame(QImage)` constructor (Qt 6.8+) and `QImage::flipped()` (Qt 6.5+).
+  Ubuntu 24.04's system Qt 6.4.2 is too old — use aqtinstall or a newer Qt.
+- **Qt5 (compat): 5.15.x** — supported for compatibility (5.15.13 on Ubuntu 24.04).
+- **Required Qt modules:** Core, Gui, Widgets, Multimedia, MultimediaWidgets,
+  Charts, Declarative (QuickControls2), Svg
+- **Linux system dependencies (Ubuntu 24.04):**
+  - GStreamer (dev + runtime — required for the QtMultimedia backend):
+    `libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev` and
+    `libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good`
+  - OpenSSL: `libssl-dev`
+  - ICU: `libicu74` (Ubuntu 24.04) / `libicu70` (Ubuntu 22.04)
+  - Mesa GL (for offscreen/headless testing): `libgl1-mesa-dri libegl1 libgl1 libglx-mesa0`
+  - CMake 3.20+, C++17 compiler (GCC/Clang)
+- **Windows:** Qt 6.8.3 (MSVC 2022) via aqtinstall — modules: qtcharts,
+  qtmultimedia (qtdeclarative and qtsvg are in the base package); MSVC 2022 + Ninja.
+
 1. Clone repository and init submodules:
 
 ```bash
@@ -117,7 +136,7 @@ selected explicitly with `-DUSE_QT6=OFF`):
 ```bash
 cmake -S . -B build_check \
 	-DDAQSTER_VERBOSE_DEPENDENCIES=ON \
-	-DCMAKE_PREFIX_PATH=/path/to/Qt/6.9.2/gcc_64
+	-DCMAKE_PREFIX_PATH=/path/to/Qt/6.8.3/gcc_64
 ```
 
 Qt5 example:

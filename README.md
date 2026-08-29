@@ -18,22 +18,43 @@ git submodule update --init --recursive
 
 ### 2) Конфигуриране и билд
 
+**Изисквани версии:**
+
+- **Qt6 (PRIMARY): 6.8.3+** — кодът изисква Qt 6.8+ API: конструктора `QVideoFrame(QImage)` (Qt 6.8+) и `QImage::flipped()` (Qt 6.5+). Системният Qt 6.4.2 на Ubuntu 24.04 е ТВЪРДЕ СТАР — използвайте aqtinstall или по-нова версия на Qt.
+- **Qt5 (COMPAT): 5.15.x** — поддържан за съвместимост (Qt 5.15.13 на Ubuntu 24.04, 5.15.2 локално).
+
+**Изисквани Qt модули:** Core, Gui, Widgets, Multimedia, MultimediaWidgets, Charts, Declarative (QuickControls2), Svg
+
+**Системни зависимости (Ubuntu 24.04):**
+
+- Qt6 чрез aqtinstall (6.8.3) или системни пакети, където са налични
+- GStreamer: `libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev` (dev) + `libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good` (runtime — ЗАДЪЛЖИТЕЛНИ за QtMultimedia backend)
+- OpenSSL: `libssl-dev`
+- ICU: `libicu74` (Ubuntu 24.04) / `libicu70` (Ubuntu 22.04)
+- Mesa GL (за offscreen/headless тестове): `libgl1-mesa-dri libegl1 libgl1 libglx-mesa0`
+- CMake 3.20+, C++17 компилатор (GCC/Clang)
+
+**Windows:**
+
+- Qt 6.8.3 (MSVC 2022) чрез aqtinstall — модули: qtcharts, qtmultimedia (qtdeclarative и qtsvg са в base пакета)
+- MSVC 2022 + Ninja
+
 **Qt6 (по подразбиране / препоръчително):**
 ```bash
-cmake -S . -B build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=<qt6-dir> -DDAQSTER_BUILD_TESTS=ON
 cmake --build build -j
 ```
 
 **Qt5 (compat):**
 ```bash
-cmake -S . -B build -DUSE_QT6=OFF
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=<qt5-dir> -DDAQSTER_BUILD_TESTS=ON
 cmake --build build -j
 ```
 
 **С конкретен Qt път:**
 ```bash
 cmake -S . -B build \
-  -DCMAKE_PREFIX_PATH=/path/to/Qt/6.9.2/gcc_64
+  -DCMAKE_PREFIX_PATH=/path/to/Qt/6.8.3/gcc_64
 cmake --build build -j
 ```
 
@@ -43,7 +64,14 @@ cmake -S . -B build -DDAQSTER_BUILD_TESTS=ON -DDAQSTER_BUILD_TEST_PLUGINS=ON
 cmake --build build -j
 ```
 
-**Debug Build (препоръчено за разработка):**
+**Пускане на тестовете (headless):**
+```bash
+QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
+```
+
+> **Забележка:** `DAQSTER_BUILD_TEST_PLUGINS` е по подразбиране OFF — включва се изрично с `-DDAQSTER_BUILD_TEST_PLUGINS=ON`.
+
+**Debug Build (препоръчано за разработка):**
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j

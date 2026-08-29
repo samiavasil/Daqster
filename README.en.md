@@ -18,22 +18,43 @@ git submodule update --init --recursive
 
 ### 2) Configure and build
 
+**Required versions:**
+
+- **Qt6 (PRIMARY): 6.8.3+** — the code requires Qt 6.8+ APIs: the `QVideoFrame(QImage)` constructor (Qt 6.8+) and `QImage::flipped()` (Qt 6.5+). Ubuntu 24.04's system Qt 6.4.2 is TOO OLD — use aqtinstall or a newer Qt.
+- **Qt5 (COMPAT): 5.15.x** — supported for compatibility (Qt 5.15.13 on Ubuntu 24.04, 5.15.2 locally).
+
+**Required Qt modules:** Core, Gui, Widgets, Multimedia, MultimediaWidgets, Charts, Declarative (QuickControls2), Svg
+
+**Linux system dependencies (Ubuntu 24.04):**
+
+- Qt6 via aqtinstall (6.8.3) OR system packages where available
+- GStreamer: `libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev` (dev) + `libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good` (runtime — REQUIRED for the QtMultimedia backend)
+- OpenSSL: `libssl-dev`
+- ICU: `libicu74` (Ubuntu 24.04) / `libicu70` (Ubuntu 22.04)
+- Mesa GL (for offscreen/headless testing): `libgl1-mesa-dri libegl1 libgl1 libglx-mesa0`
+- CMake 3.20+, C++17 compiler (GCC/Clang)
+
+**Windows:**
+
+- Qt 6.8.3 (MSVC 2022) via aqtinstall — modules: qtcharts, qtmultimedia (qtdeclarative and qtsvg are in the base package)
+- MSVC 2022 + Ninja
+
 **Qt6 (default / preferred):**
 ```bash
-cmake -S . -B build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=<qt6-dir> -DDAQSTER_BUILD_TESTS=ON
 cmake --build build -j
 ```
 
 **Qt5 (compat):**
 ```bash
-cmake -S . -B build -DUSE_QT6=OFF
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=<qt5-dir> -DDAQSTER_BUILD_TESTS=ON
 cmake --build build -j
 ```
 
 **With explicit Qt path:**
 ```bash
 cmake -S . -B build \
-  -DCMAKE_PREFIX_PATH=/path/to/Qt/6.9.2/gcc_64
+  -DCMAKE_PREFIX_PATH=/path/to/Qt/6.8.3/gcc_64
 cmake --build build -j
 ```
 
@@ -42,6 +63,13 @@ cmake --build build -j
 cmake -S . -B build -DDAQSTER_BUILD_TESTS=ON -DDAQSTER_BUILD_TEST_PLUGINS=ON
 cmake --build build -j
 ```
+
+**Run the tests (headless):**
+```bash
+QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
+```
+
+> **Note:** `DAQSTER_BUILD_TEST_PLUGINS` defaults to OFF — enable it explicitly with `-DDAQSTER_BUILD_TEST_PLUGINS=ON`.
 
 **Debug Build (recommended for development):**
 ```bash
