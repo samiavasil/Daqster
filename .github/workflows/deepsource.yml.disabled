@@ -1,3 +1,11 @@
+# DeepSource analyzer workflow — DISABLED.
+#
+# This file is intentionally named `deepsource.yml.disabled` so GitHub Actions
+# does not pick it up. To re-enable the analyzer:
+#   1. Rename this file back to `deepsource.yml`:
+#        git mv .github/workflows/deepsource.yml.disabled .github/workflows/deepsource.yml
+#   2. Make sure the DEEPSOURCE_DSN repository secret is set.
+#   3. Commit and push.
 name: DeepSource
 
 on:

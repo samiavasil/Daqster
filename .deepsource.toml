@@ -1,8 +1,11 @@
+# DeepSource configuration — currently DISABLED.
+# The analyzer workflow is parked at .github/workflows/deepsource.yml.disabled;
+# see the header comment there for how to re-enable it.
 version = 1
 
 exclude_patterns = [
   "build/**",
-  "src/external_libs/**",
+  "src/plugins/external_libs/**",
 ]
 
 [[analyzers]]
