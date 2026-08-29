@@ -252,7 +252,7 @@
 - **CI overhaul (Qt6 primary)** — `.github/workflows/ci.yml` пренаписан: Qt6 е PRIMARY (Linux + Windows), Qt5 е compat; добавени ctest (offscreen), AppImage smoke test, submodule reachability check, windeployqt вместо ръчен DLL copy; премахнати dead Debug стъпки и choco ninja
 - **Release workflow** — `.github/workflows/release.yml`: Qt6 builds, tarball + ZIP + SHA256SUMS, release body от CHANGELOG секцията, smoke tests
 - **AppImage packaging** — `tools/create_appimage.sh`: филтриране на test/private plugins, GStreamer backends bundled, Qt5/Qt6-aware Qt copy
-- **GitHub Pages** — `.github/workflows/pages.yml` за docs/ (Settings → Pages → GitHub Actions)
+- **GitHub Pages** — сайтът ползва UI-based deployment (Settings → Pages → Deploy from a branch: `master/docs`); `.github/workflows/pages.yml` е **изключен** (`pages.yml.disabled`, като DeepSource) — workflow не е нужен, опционален/re-enableable
 - **Docs rename fix** — INDEX.md → index.md references актуализирани
 - **Directory Restructuring**:
   - `src/external_libs/` → `src/plugins/external_libs/` (всички external libs са под plugins)

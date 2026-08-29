@@ -102,7 +102,7 @@ vX.Y.Z tag → hotfix/X.Y.(Z+1) → fix → merge master + tag vX.Y.(Z+1) → me
 | `ci.yml` | PR/push проверки — Qt6 primary (Linux + Windows), Qt5 compat (Linux), тестове, smoke |
 | `release.yml` | Tag-triggered release pipeline (`v*.*.*`) — build, тестове, smoke, пакетиране, checksums, GitHub Release |
 | `version-sync.yml` | Drift check — версията съвпада навсякъде |
-| `pages.yml` | Docs deploy — GitHub Pages от `docs/` (изисква UI switch: Settings → Pages → GitHub Actions) |
+| `pages.yml` | **Изключен** (`pages.yml.disabled`) — сайтът ползва UI-based deployment (Settings → Pages → Deploy from a branch: `master/docs`), workflow не е нужен; опционален, re-enableable |
 | `render-plantuml.yml` | Рендерира PlantUML диаграмите (`docs/diagrams/*.puml` → SVG) |
 | DeepSource | **Изключен** (`deepsource.yml.disabled`) — опционален, re-enableable |
 
