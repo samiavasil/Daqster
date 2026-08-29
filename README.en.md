@@ -1,7 +1,7 @@
 # Daqster
 [English](./README.en.md) | [Български](./README.md)
 
-Documentation index: [Docs/index.en.md](./docs/index.en.md)
+Documentation index: [docs/index.en.md](./docs/index.en.md)
 
 Daqster is a Qt-based platform for modular application development and management. It enables building various types of applications through a plugin architecture with graceful shutdown, process management, and automatic plugin discovery.
 
@@ -18,23 +18,28 @@ git submodule update --init --recursive
 
 ### 2) Configure and build
 
-**Qt5 (default):**
+**Qt6 (default / preferred):**
 ```bash
-cmake -S . -B build -DUSE_QT6=OFF
+cmake -S . -B build
 cmake --build build -j
 ```
 
-**Qt6:**
+**Qt5 (compat):**
 ```bash
-cmake -S . -B build -DUSE_QT6=ON
+cmake -S . -B build -DUSE_QT6=OFF
 cmake --build build -j
 ```
 
 **With explicit Qt path:**
 ```bash
 cmake -S . -B build \
-  -DUSE_QT6=OFF \
-  -DCMAKE_PREFIX_PATH=/path/to/Qt/5.15.2/gcc_64
+  -DCMAKE_PREFIX_PATH=/path/to/Qt/6.9.2/gcc_64
+cmake --build build -j
+```
+
+**With tests (unit + test plugins):**
+```bash
+cmake -S . -B build -DDAQSTER_BUILD_TESTS=ON -DDAQSTER_BUILD_TEST_PLUGINS=ON
 cmake --build build -j
 ```
 
@@ -49,6 +54,11 @@ cmake --build build -j
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
+
+> **Note:** Qt6 is detected automatically — `cmake/FindQtVersion.cmake` tries Qt6
+> first, then falls back to Qt5. `USE_QT6` is only a FORCE cache variable that
+> tells the external libraries (e.g. nodeeditor) which Qt version to build against
+> (`CMakeLists.txt:27-31`) — you don't need to set it manually.
 
 For more information see [DeveloperGuide.md](./docs/development/DeveloperGuide.md).
 
@@ -128,7 +138,7 @@ For details see [tools/create_appimage.sh](./tools/create_appimage.sh).
 - `src/plugins` - runtime and test plugins
 - `src/plugins/external_libs` - external libraries
 - `tools` - build and AppImage scripts
-- `Docs` - architecture, development, operations, porting and diagrams
+- `docs` - architecture, development, operations, porting and diagrams
 
 ## Debug and Diagnostics
 

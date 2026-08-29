@@ -59,7 +59,7 @@
 
 ## Фаза 3.14 — Video Frame Consolidation (REQ-SW-PL-028, PL-029, PL-030, PL-032)
 
-**Статус: Имплементирано (бранч `feat/REQ-SW-PL-028-032-video-frame-cache-combo`; не merge-нато в develop)**
+**Статус: Имплементирано (бранч `chore/ci-overhaul-docs-version`; не merge-нато в develop)**
 
 - **REQ-SW-PL-028** — `VideoEffectNode` (един нод с комбобокс, GPU/CPU backend):
   7 deprecated alias-а премахнати (`dd82f4e`); blur + OpenCV добавени (`095981b`).
@@ -80,8 +80,8 @@
   resize-only geometry (`f9bd7bb`), VideoOutputNode output zero-copy passthrough
   (`f758cd8`), presentYuvTexture reuse (`accc8aa`), VideoFrameData copy ctor
   deleted (`211034c`), dead `process()` removed (`460cbf1`).
-  AC 1–3, 10–11 `[x]`; AC 4–7 частично; AC 9 (Фаза 2 еквивалентност) чака
-  ръчна оценка от потребителя. Тестове отложени.
+  AC 1–3, 8–11 `[x]`; AC 4–7 частично; AC 9 (Фаза 2 еквивалентност) DONE
+  (2026-08-27, потребителят потвърди визуалната оценка). Тестове отложени.
 - **REQ-SW-PL-034** — `VideoOutputNode` вградени ефекти (опционални, default
   none): комбобокс с „No effect" + `QStackedWidget` параметърни страници;
   ефект блокът в `setInData()` се пропуска изцяло при липса на ефект
@@ -106,7 +106,7 @@
 | REQ-SW-PL-029 | **Имплементирано (DONE)** — `42ba334`, `0682c1b` |
 | REQ-SW-PL-030 | Имплементирано (тестове отложени) |
 | REQ-SW-PL-031 | Неимплементирано |
-| REQ-SW-PL-032 | Имплементирано — Фаза 3 завършена; **Stage 2C done** (GL blit Qt6, zero-copy, `cf5bf7c`); AC 1–3, 10–11 `[x]`; AC 9 чака |
+| REQ-SW-PL-032 | Имплементирано — Фаза 3 завършена; **Stage 2C done** (GL blit Qt6, zero-copy, `cf5bf7c`); AC 1–3, 8–11 `[x]`; AC 9 DONE (2026-08-27) |
 | REQ-SW-PL-034 | Имплементирано (AC 1–5 `[x]`) — `615f53e`; тестове 10/10 (Qt5 + Qt6) |
 | REQ-SW-FW-008 | Имплементирано |
 | REQ-SW-FW-007 | Бъдещ лост (roadmap) |
@@ -119,6 +119,6 @@
 | INC-002 | REQ-SW-PL-022/023/024/025 | REQ файловете остават ACTIVE в `active/`, докато RDD-STATUS ги води DONE | **Затворено (2026-08-27)** — 4 файла архивирани (PL-022/023/024/025) в `archive/plugins/`; PL-033→PL-022 дава приет validator Warning | — |
 | INC-003 | — | EmbeddingData няма консуматор | Отворено | — |
 | INC-004 | — | Qt5 преномерацията на image порта — **Затворено** (2026-08-26) | Затворено | — |
-| INC-005 | REQ-SW-PL-020 | Фаза 1 GPU flip е флипва вертикално (u_flipY) | Отворено | — |
+| INC-005 | REQ-SW-PL-020 | Фаза 1 GPU flip е флипва вертикално (u_flipY) | **Затворено (2026-08-28)** — кодът вече задава и `u_flipX` (хоризонтален) и `u_flipY` (вертикален) — `VideoEffectGLProcessor.cpp:204-209` | — |
 | INC-006 | REQ-SW-PL-022 | nPorts off-by-one: audio Sample port беше недостъпен на индекс 2 | **Затворено (2026-08-27)** — поправен в `d5145c2` | — |
 | INC-007 | REQ-SW-PL-033 | Qt6 камера аудио capture липсва — CameraSourceNode sample порт емитира invalid на Qt6 (Qt платформена лимитация: QAudioBufferOutput е playback-only, QAudioProbe е премахнат) | Отворен | FFmpeg аудио capture + device matching |

@@ -107,7 +107,9 @@
        консумира текстурата директно → GL blit display консумира текстурата
        директно (`presentTexture`, zero-copy). Qt6 native display
        (QVideoWidget) прави readback на границата (`presentableFrame` →
-       `asImage()`) — Stage 2C ще презентира текстурата директно.
+       `asImage()`); **Stage 2C (2026-08-27, `cf5bf7c`) е завършен** —
+       GpuRgba кадрите (ефект изходи) се презентират с GL blit на Qt6
+       (zero-copy `presentTexture`, без per-sink RHI upload).
 - [ ] 6. **Qt6 първо, Qt5 после.** GPU-resident транспортът се имплементира
        първо на Qt6 (`QVideoFrame::fromRhiTexture` нативно), верифицира се,
        после се портва на Qt5 (custom `QAbstractVideoBuffer` с GL texture
@@ -123,11 +125,17 @@
        **Частично (Stage 2B):** NV12 → 2 текстури (Y+UV) → `processTexture()`
        YUV→RGB + ефект → RGBA текстура → GL blit display семплира RGBA
        директно (`presentTexture`). Qt6 native display прави readback на
-       границата (Stage 2C).
-- [ ] 8. **Фаза 1.** `ImageData` остава; новите нодове работят редом без да
+       границата; **Stage 2C (2026-08-27, `cf5bf7c`) е завършен** — GpuRgba
+       кадрите се презентират с GL blit на Qt6 (zero-copy).
+- [x] 8. **Фаза 1.** `ImageData` остава; новите нодове работят редом без да
        чупят съществуващите графи.
-- [ ] 9. **Фаза 2.** Еквивалентност доказана — ръчна оценка от потребителя
+       **Завършена исторически** — `ImageData` остана през Фаза 1, новите
+       нодове (`VideoEffectNode`, `CustomShaderNode`, `FrameSampler`,
+       `LoadPicture`) работеха паралелно със старите (вж. бележките по-долу).
+- [x] 9. **Фаза 2.** Еквивалентност доказана — ръчна оценка от потребителя
        (визуално; без пиксел-диф харнес).
+       **DONE (2026-08-27)** — потребителят потвърди визуалната оценка
+       (2026-08-27-status.md §AC 9).
 - [x] 10. **Фаза 3.** `VideoTransformNode`, `FrameToTensorNode`,
         `VideoOutputNode` fallback, saved графи мигрирани.
         **Имплементирано (2026-08-26):** `VideoTransformNode` е премахнат
@@ -211,8 +219,8 @@
   image edges **няма да се заредят** — пресвържете към `VideoEffect` +
   `VideoFrameData` вериги. Документирано в README-а на demo_nodeditor_nodes.
 - **Фаза 1 (AC 8) е завършена исторически** — `ImageData` остана през Фаза 1,
-  новите нодове работеха паралелно; **Фаза 2 (AC 9)** чака ръчната визуална
-  оценка от потребителя.
+  новите нодове работеха паралелно; **Фаза 2 (AC 9) е DONE (2026-08-27)** —
+  потребителят потвърди визуалната оценка (2026-08-27-status.md §AC 9).
 
 ## Бележки по имплементацията (актуално, 2026-08-28 — code review fixes)
 

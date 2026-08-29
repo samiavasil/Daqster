@@ -53,8 +53,9 @@
 
 ## 4a. CustomShaderNode (REQ-SW-PL-029)
 
-- **Общ GPU compute нод** с pluggable `IDataAdapter` (data → текстура → шейдър →
-  текстура → data); v1 видео (`VideoFrameData`), v2+ SampledData/DAQ, TensorData.
+- **GPU compute нод** с runtime GLSL (data → текстура → шейдър → текстура →
+  data); v1 hardcoded към `VideoFrameData` (port 0 in/out) — **няма pluggable
+  `IDataAdapter` в кода**; v2+ SampledData/DAQ, TensorData остават бъдещ лост.
 - **`CustomShaderGLProcessor`** — runtime GLSL compile (`addShaderFromSourceCode`),
   per-(effect,layout,profile) program cache, YUV→RGBA pre-pass, error handling
   без crash.
@@ -62,7 +63,7 @@
 - **texture() compat fix** (`0682c1b`) — GL profile detection и използване на
   `texture()` (GLSL 130+) или `texture2D()` (GLSL 120) според GLSL version.
 - **UI:** GLSL редактор + compile button + error log + uniform controls
-  (`CustomShaderWidget`).
+  (строи се в `CustomShaderNode::buildWidget()`, `CustomShaderNode.cpp:117-188`).
 
 ## 4b. Video Frame Consolidation (Фаза 3 завършена 2026-08-26)
 

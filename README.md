@@ -1,7 +1,7 @@
 # Daqster
 [Български](./README.md) | [English](./README.en.md)
 
-Документация индекс: [Docs/index.md](./docs/index.md)
+Документация индекс: [docs/index.md](./docs/index.md)
 
 Daqster е Qt-базирана платформа за модулна разработка и управление на приложения. Позволява създаване на различни типове приложения чрез плъгин архитектура с graceful shutdown, process управление и auto plugin discovery.
 
@@ -18,23 +18,28 @@ git submodule update --init --recursive
 
 ### 2) Конфигуриране и билд
 
-**Qt5 (по подразбиране):**
+**Qt6 (по подразбиране / препоръчително):**
 ```bash
-cmake -S . -B build -DUSE_QT6=OFF
+cmake -S . -B build
 cmake --build build -j
 ```
 
-**Qt6:**
+**Qt5 (compat):**
 ```bash
-cmake -S . -B build -DUSE_QT6=ON
+cmake -S . -B build -DUSE_QT6=OFF
 cmake --build build -j
 ```
 
 **С конкретен Qt път:**
 ```bash
 cmake -S . -B build \
-  -DUSE_QT6=OFF \
-  -DCMAKE_PREFIX_PATH=/path/to/Qt/5.15.2/gcc_64
+  -DCMAKE_PREFIX_PATH=/path/to/Qt/6.9.2/gcc_64
+cmake --build build -j
+```
+
+**С тестове (unit + test plugins):**
+```bash
+cmake -S . -B build -DDAQSTER_BUILD_TESTS=ON -DDAQSTER_BUILD_TEST_PLUGINS=ON
 cmake --build build -j
 ```
 
@@ -49,6 +54,11 @@ cmake --build build -j
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
+
+> **Забележка:** Qt6 се открива автоматично — `cmake/FindQtVersion.cmake` първо
+> търси Qt6, после пада на Qt5. `USE_QT6` е само FORCE cache променлива, която
+> указва на външните библиотеки (напр. nodeeditor) с коя Qt версия да се build-ват
+> (`CMakeLists.txt:27-31`) — не е нужно да я задаваш ръчно.
 
 За повече информация вижте [DeveloperGuide.md](./docs/development/DeveloperGuide.md).
 
@@ -128,7 +138,7 @@ Daqster използва модулна архитектура с три клю�
 - `src/plugins` - runtime плъгини и тестови плъгини
 - `src/plugins/external_libs` - външни библиотеки
 - `tools` - скриптове за build и AppImage
-- `Docs` - архитектура, разработка, операции, портинг и диаграми
+- `docs` - архитектура, разработка, операции, портинг и диаграми
 
 ## Debug и диагностика
 

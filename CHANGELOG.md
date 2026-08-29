@@ -32,9 +32,8 @@
   - Smoke driver: `DAQSTER_AUTOSTART_EFFECT2=<effectId>` вмъква втори VideoEffect нод (GPU-resident верига)
 - **Smoke drivers** (`NodeEditorIdeObject.cpp`): `DAQSTER_AUTOSTART_EFFECT=<effectId>` вмъква VideoEffect нод между source и output; `DAQSTER_AUTOSTART_EFFECT2=<effectId>` вмъква втори; `DAQSTER_AUTOSTART_SAMPLER=1` вмъква FrameSampler
 - **REQ-SW-PL-029** (CustomShaderNode — общ GPU compute нод с runtime GLSL):
-  - `CustomShaderNode.{h,cpp}` — node model (port 0 in/out `VideoFrameData`), GLSL редактор + compile button + error log + uniform controls, mainImage contract
+  - `CustomShaderNode.{h,cpp}` — node model (port 0 in/out `VideoFrameData`), GLSL редактор + compile button + error log + uniform controls, mainImage contract (UI се строи в `buildWidget()`, `CustomShaderNode.cpp:117-188`)
   - `CustomShaderGLProcessor.{h,cpp}` — GPU processor: runtime GLSL compile (`addShaderFromSourceCode`), per-(effect,layout,profile) program cache, YUV→RGBA pre-pass, error handling без crash
-  - `CustomShaderWidget.{h,cpp}` — UI widget (GLSL editor + compile button + error log + uniform parameter controls)
   - `texture()` compat fix — GL profile detection и използване на `texture()` или `texture2D()` според GLSL version
   - Комити: `42ba334` (feat: CustomShaderNode), `0682c1b` (fix: texture() compat)
 - **Scene invalidation fix (REQ-SW-PL-032):**
@@ -68,12 +67,48 @@
   - `ExprParser` — recursive descent C++ expression evaluator (всички C/C++ оператори: `+`,`-`,`*`,`/`,`%`,`&`,`|`,`^`,`~`,`<<`,`>>`,`&&`,`||`,`!`,`==`,`!=`,`<`,`>`,`<=`,`>=`,`?:`)
   - `ArithmeticLogicModel` — конфигурируем нод: тип (int/double), 2–8 входа, expression field, optional strobe
   - Променливи `a`–`h` отговарят на входните портове
-- **NodeEditorWidget Shared Component** (`src/plugins/node_editor_widget/`):
-  - `NodeEditorWidget` - споделен Qt Widgets GUI за node-based редактори
+- **Framework Architecture Refactoring** - голям рефакторинг за извличане на reusable компоненти:
+  - **Platform Abstraction Layer** (`frame_work/base/src/platform/`):
+    - `ShutdownHandler` - абстрактен базов клас за graceful shutdown
+    - `UnixShutdownHandler` - SIGINT/SIGTERM signal handling за Unix/Linux (self-pipe)
+    - `WindowsShutdownHandler` - Windows console events (SetConsoleCtrlHandler)
+    - `QConsoleListener` - stdin-базиран quit/exit handler (крос-платформен, в Daqster приложението)
+  - **Process Management Layer** (`frame_work/base/src/process/`):
+    - `QProcessManager` - generic базов клас за управление на child процеси
+    - Handle-based process tracking
+    - Graceful terminate с force-kill fallback
+    - Virtual hooks за customization (setupProcessEnvironment, onAllProcessesFinished)
+  - **ApplicationsManager Refactoring**:
+    - Наследява от `Daqster::QProcessManager`
+    - Backward compatibility запазена (type aliases, event mappings)
+    - Daqster-specific environment setup (plugin paths, AppImage detection, XDG directories)
+    - Signal forwarding (ProcessEvent → ApplicationEvent)
+  - **Cross-platform Support**:
+    - Платформено-независим shutdown механизъм
+    - Правилно Ctrl+C handling на Windows и Unix
+    - Graceful процес терминация на всички платформи
+- **PluginDependencyManager System** - автоматична система за управление на plugin dependencies
+  - `cmake/PluginDependencyManager.cmake` - основна система за dependency management
+  - `cmake/PluginExamples.cmake` - примери за използване на системата
+  - `docs/PluginDependencyManagement.md` - подробна документация
+- **Automatic Plugin Management**:
+  - Автоматично откриване на Qt модули, external библиотеки и packages
+  - Условно компилиране на plugins според наличните dependencies
+  - Подробна debug информация за plugin статус
+  - Поддръжка за Qt5 (пълна функционалност) и Qt6 (ограничена функционалност)
+- **External Library Integration**:
+  - Qt5: NodeEditor + QtRest библиотеки включени
+  - Qt6: External библиотеки изключени заради compatibility проблеми
+- **Enhanced Build System**:
+  - `register_plugin()` функция за лесно регистриране на plugins
+  - Автоматично проверяване на dependencies
+  - Условно включване на plugin subdirectories
+  - Build configuration и plugin status summaries
+- **NodeEditorWidget Shared Component** (`src/plugins/node_editor_ide/NodeEditorWidget.{h,cpp}`):
+  - `NodeEditorWidget` - споделен Qt Widgets GUI за node-based редактори (използван от Node Editor IDE)
   - `ChatGraphModel` - loop-enabled графичен модел
-  - `node_editor_widget_global.h` - export macro (`NODE_EDITOR_WIDGET_EXPORT`)
   - Автоматична инжекция на стандартните Daqster ноди (Audio, Media, Graphs, AI, etc.)
-- **NodeEditorApp Plugin** (`src/plugins/node_editor_app/`):
+- **NodeEditorIDE Plugin** (`src/plugins/node_editor_ide/`):
   - Базов графичен плъгин използващ `NodeEditorWidget`
   - `APPLICATION_PLUGIN` тип с `create_plugin()` макро
 - **ChatGraphModel в споделената библиотека** — преместен от `node_editor_ide/` в `BuiltInNodes/Library/types/` за generality
@@ -221,11 +256,10 @@
 - **Docs rename fix** — INDEX.md → index.md references актуализирани
 - **Directory Restructuring**:
   - `src/external_libs/` → `src/plugins/external_libs/` (всички external libs са под plugins)
-  - `src/plugins/node_editor/` → разделяне на `node_editor_widget/` + `node_editor_app/`
   - `.gitmodules` paths актуализирани
 - **nodeeditor target**: Променен от `nodes` на `QtNodes` (pin commit `4709573`)
 - **cmake/ComponentTemplates.cmake**: `create_external_library()` path → `src/plugins/external_libs/`
-- **CI Workflow**: Добавени Python patch стъпки за qtrest install fix (cmake_install.cmake patching)
+- **CI Workflow**: Добавени Python patch стъпки за qtrest install fix (cmake_install.cmake patching) — вече не са нужни, upstream install правилата са поправени (вж. `docs/operations/UpstreamManagement.md`)
 - **Architecture docs** актуализирани за новата структура
 - **Documentation**:
   - Plugins hub (`docs/plugins/README.md`) + fix на plugin documentation links в INDEX/Architecture (`b5c204f`)
@@ -330,44 +364,6 @@
 - **`VideoTransformNode` (REQ-SW-PL-032 Фаза 3, 2026-08-26)** — премахнат от регистрацията, CMake и файловата система; заменен от `VideoEffectNode` (покрива всичките му операции вкл. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` остават (ползвани от `VideoEffectOps`). Комит: `688c899`
 - **`ImageData` тип (REQ-SW-PL-032 Фаза 3, 2026-08-26)** — `src/plugins/common/NodeDataTypes/ImageData.h` изтрит; единственият frame тип е `VideoFrameData`. Комит: `817002e`
 - **Image портове (REQ-SW-PL-032 Фаза 3, 2026-08-26)** — премахнати от video source-ите и `VideoOutputNode`; source-ите емитират само `VideoFrameData` + `SampledData` (audio). Комити: `63010f3`, `3fc51a3`
-
-- **Framework Architecture Refactoring** - голям рефакторинг за извличане на reusable компоненти:
-  - **Platform Abstraction Layer** (`frame_work/base/src/platform/`):
-    - `ShutdownHandler` - абстрактен базов клас за graceful shutdown
-    - `UnixShutdownHandler` - SIGINT/SIGTERM signal handling за Unix/Linux (self-pipe)
-    - `WindowsShutdownHandler` - Windows console events (SetConsoleCtrlHandler)
-    - `QConsoleListener` - stdin-базиран quit/exit handler (крос-платформен, в Daqster приложението)
-  - **Process Management Layer** (`frame_work/base/src/process/`):
-    - `QProcessManager` - generic базов клас за управление на child процеси
-    - Handle-based process tracking
-    - Graceful terminate с force-kill fallback
-    - Virtual hooks за customization (setupProcessEnvironment, onAllProcessesFinished)
-  - **ApplicationsManager Refactoring**:
-    - Наследява от `Daqster::QProcessManager`
-    - Backward compatibility запазена (type aliases, event mappings)
-    - Daqster-specific environment setup (plugin paths, AppImage detection, XDG directories)
-    - Signal forwarding (ProcessEvent → ApplicationEvent)
-  - **Cross-platform Support**:
-    - Платформено-независим shutdown механизъм
-    - Правилно Ctrl+C handling на Windows и Unix
-    - Graceful процес терминация на всички платформи
-- **PluginDependencyManager System** - автоматична система за управление на plugin dependencies
-  - `cmake/PluginDependencyManager.cmake` - основна система за dependency management
-  - `cmake/PluginExamples.cmake` - примери за използване на системата
-  - `docs/PluginDependencyManagement.md` - подробна документация
-- **Automatic Plugin Management**:
-  - Автоматично откриване на Qt модули, external библиотеки и packages
-  - Условно компилиране на plugins според наличните dependencies
-  - Подробна debug информация за plugin статус
-  - Поддръжка за Qt5 (пълна функционалност) и Qt6 (ограничена функционалност)
-- **External Library Integration**:
-  - Qt5: NodeEditor + QtRest библиотеки включени
-  - Qt6: External библиотеки изключени заради compatibility проблеми
-- **Enhanced Build System**:
-  - `register_plugin()` функция за лесно регистриране на plugins
-  - Автоматично проверяване на dependencies
-  - Условно включване на plugin subdirectories
-  - Build configuration и plugin status summaries
 
 ## [0.2.0] - 2025-09-18
 

@@ -111,7 +111,16 @@ The main project example is `ApplicationsManager` under `src/apps/Daqster`.
 - Use `QT_DEBUG_PLUGINS=1` when diagnosing plugin loading issues.
 - Configure with `-DDAQSTER_VERBOSE_DEPENDENCIES=ON` when debugging build-time dependency decisions.
 
-Example:
+Example (Qt6 is the default — `FindQtVersion.cmake` tries Qt6 first, Qt5 is
+selected explicitly with `-DUSE_QT6=OFF`):
+
+```bash
+cmake -S . -B build_check \
+	-DDAQSTER_VERBOSE_DEPENDENCIES=ON \
+	-DCMAKE_PREFIX_PATH=/path/to/Qt/6.9.2/gcc_64
+```
+
+Qt5 example:
 
 ```bash
 cmake -S . -B build_check \

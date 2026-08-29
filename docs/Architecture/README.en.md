@@ -19,7 +19,7 @@ This document describes the architecture of Daqster, its main components, data f
 
 ## 1. Overview
 
-Daqster is a modular, plugin-based platform developed with Qt5, designed for data acquisition and analysis applications. It provides a flexible framework that allows easy extension through dynamically loaded plugins.
+Daqster is a modular, plugin-based platform developed with Qt (Qt6 is the primary/preferred version, Qt5 is compat), designed for data acquisition and analysis applications. It provides a flexible framework that allows easy extension through dynamically loaded plugins.
 
 ## 2. Main Architectural Components
 
@@ -133,7 +133,7 @@ Directory for documentation.
 - Each plugin is launched as a separate child process, which increases stability and security. A problem in one plugin does not lead to a crash of the entire application.
 
 ### 4. Cross-platform
-- Qt5 for GUI and cross-platform compatibility
+- Qt6 for GUI and cross-platform compatibility (Qt5 as compat fallback)
 - CMake for build system
 - AppImage for Linux distribution
 
