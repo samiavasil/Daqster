@@ -12,7 +12,7 @@ jobs:
   # ============================================================
   linux-qt6:
     name: Linux Qt6 (primary)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout with submodules
         uses: actions/checkout@v4
@@ -24,6 +24,12 @@ jobs:
         run: |
           git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'
 
+      # ubuntu-24.04 (noble) is required: qt6-charts-dev does not exist in
+      # jammy (22.04). qt6-quickcontrols2-dev is not a noble package — Quick
+      # Controls 2 ships inside qt6-declarative-dev. The Qt6 SVG dev package
+      # is named qt6-svg-dev (libqt6svg6-dev does not exist in noble).
+      # GStreamer plugin runtimes are needed by the Qt6Multimedia backend
+      # (GStreamer on Qt 6.4) for the video-output tests.
       - name: Install Qt6 + gstreamer dependencies
         run: |
           sudo apt-get update
@@ -32,10 +38,11 @@ jobs:
             qt6-multimedia-dev \
             qt6-charts-dev \
             qt6-declarative-dev \
-            qt6-quickcontrols2-dev \
-            libqt6svg6-dev \
+            qt6-svg-dev \
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
             libssl-dev
 
       - name: Configure (Release, tests ON)
@@ -93,7 +100,7 @@ jobs:
   # ============================================================
   linux-qt5:
     name: Linux Qt5 (compat)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout with submodules
         uses: actions/checkout@v4
@@ -105,6 +112,10 @@ jobs:
         run: |
           git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'
 
+      # All Qt5 packages exist in noble (5.15.13). libicu70 is jammy-only —
+      # noble ships libicu74. GStreamer RUNTIME packages (not just dev) are
+      # required: the Qt5Multimedia backend is GStreamer and the video-output
+      # tests fail at runtime without the plugins.
       - name: Install Qt5 from system packages
         run: |
           sudo apt-get update
@@ -116,7 +127,11 @@ jobs:
             libqt5charts5-dev \
             libssl-dev \
             libqt5opengl5-dev \
-            libicu70 \
+            libicu74 \
+            libgstreamer1.0-0 \
+            libgstreamer-plugins-base1.0-0 \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
             qml-module-qtcharts \
             qml-module-qtquick2 \
             qml-module-qt-labs-platform \
@@ -160,6 +175,12 @@ jobs:
         run: |
           git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'
 
+      # aqtinstall fails when a "module" is not an add-on module for the
+      # version/arch. For 6.8.3 win64_msvc2022_64, qtdeclarative and qtsvg
+      # are part of the BASE package (verified: aqt list-qt --archives shows
+      # qtbase qtdeclarative qtsvg qttools qttranslations) — passing them as
+      # modules makes aqt exit 1. Only qtcharts and qtmultimedia are real
+      # add-on modules for this version/arch.
       - name: Install Qt6 (MSVC 2022)
         uses: jurplel/install-qt-action@v4
         with:
@@ -167,7 +188,7 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2022_64'
-          modules: 'qtcharts qtmultimedia qtdeclarative qtsvg'
+          modules: 'qtcharts qtmultimedia'
 
       - name: Configure (Release, tests ON)
         run: |
