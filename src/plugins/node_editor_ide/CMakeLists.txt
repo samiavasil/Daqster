@@ -55,6 +55,15 @@ if(NODE_EDITOR_LIB_ENABLED)
 
     add_library(NodeEditorLibrary SHARED ${LIB_SOURCES})
 
+    # Windows: NodeEditorLibrary has no __declspec(dllexport) markup, so without
+    # this the DLL exports nothing and no import library (.lib) is generated —
+    # plugins linking against it fail with LNK1181. WINDOWS_EXPORT_ALL_SYMBOLS
+    # makes the linker export all symbols and emit the import library. No-op on
+    # Linux/macOS (.so/.dylib export everything by default).
+    set_target_properties(NodeEditorLibrary PROPERTIES
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+    )
+
     target_include_directories(NodeEditorLibrary PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/connectors
