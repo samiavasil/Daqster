@@ -2,6 +2,16 @@
 
 # Daqster AppImage Creator Script (Unified)
 # This script creates an AppImage for both local and CI environments
+#
+# Packaging notes:
+# - Qt libraries are bundled with a blanket copy of the Qt tree (libs +
+#   plugins + QML). This is intentionally NOT ldd-based resolution: Qt
+#   plugins and QML modules carry their own transitive dependencies and a
+#   hand-picked subset is fragile. The blanket copy is larger but reliable.
+# - Test plugins (*test*plugin*.so / *plugin*test*.so) and private plugins
+#   (*AiStudio*) are always filtered out of the packaged plugin directory.
+# - GStreamer backends (libgstreamer*, libgst*, gstreamer-1.0 plugins) are
+#   bundled so Qt Multimedia can play audio/video inside the AppImage.
 
 set -e
 
@@ -151,26 +161,108 @@ cp -r "$SOURCE_BUILD_DIR/lib"/* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null
 # Copy plugins from build directory (local mode only)
 if [ "$MODE" = "local" ]; then
     echo "Copying plugins from build directory..."
-    cp "$SOURCE_BUILD_DIR/bin/"*plugin*".so" "$BUILD_DIR/Daqster.AppDir/usr/lib/daqster/plugins/" 2>/dev/null || true
+    for f in "$SOURCE_BUILD_DIR"/bin/*plugin*.so; do
+        [ -e "$f" ] || continue
+        name="$(basename "$f")"
+        case "$name" in
+            *AiStudio*|*test*plugin*.so|*plugin*test*.so)
+                echo "  Skipping (filtered): $name"
+                continue
+                ;;
+        esac
+        cp "$f" "$BUILD_DIR/Daqster.AppDir/usr/lib/daqster/plugins/"
+    done
 fi
 
-# Copy Qt libraries
-echo "Copying Qt libraries..."
-if [ "$MODE" = "ci" ]; then
-    # CI mode - copy from system Qt
-    cp -r "$QT_DIR"/libQt5* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
-    cp -r "$QT_DIR"/qt5/plugins/* "$BUILD_DIR/Daqster.AppDir/usr/lib/plugins/" 2>/dev/null || true
-    cp -r "$QT_DIR"/qt5/qml/* "$BUILD_DIR/Daqster.AppDir/usr/lib/qml/" 2>/dev/null || true
+# Filter test/private plugins out of the packaged plugin directory
+# (CI mode: plugins arrive via the lib/* copy above; local mode: copied above)
+PLUGIN_DIR="$BUILD_DIR/Daqster.AppDir/usr/lib/daqster/plugins"
+if [ -d "$PLUGIN_DIR" ]; then
+    echo "Filtering plugins (test/private)..."
+    for f in "$PLUGIN_DIR"/*; do
+        [ -e "$f" ] || continue
+        name="$(basename "$f")"
+        case "$name" in
+            *AiStudio*|*test*plugin*.so|*plugin*test*.so)
+                echo "  Skipping (filtered): $name"
+                rm -f "$f"
+                ;;
+        esac
+    done
+fi
+
+# Verify the packaged plugin set
+echo "Packaged plugins:"
+if [ -d "$PLUGIN_DIR" ] && ls "$PLUGIN_DIR"/* >/dev/null 2>&1; then
+    ls -la "$PLUGIN_DIR"
+    if ls "$PLUGIN_DIR"/*RequirementsManager* >/dev/null 2>&1; then
+        echo "requirements_manager plugin: INCLUDED"
+    else
+        echo "WARNING: requirements_manager plugin not found in staging tree"
+    fi
 else
-    # Local mode - copy from local Qt installation
-    cp -r "$QT_DIR/lib"/* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
-    cp -r "$QT_DIR/plugins"/* "$BUILD_DIR/Daqster.AppDir/usr/lib/plugins/" 2>/dev/null || true
-    cp -r "$QT_DIR/qml"/* "$BUILD_DIR/Daqster.AppDir/usr/lib/qml/" 2>/dev/null || true
+    echo "  (no plugins packaged)"
+fi
+
+# Detect Qt major version and layout (Qt6 preferred, Qt5 fallback)
+QT_LIB_PREFIX=""
+QT_PLUGIN_SRC=""
+QT_QML_SRC=""
+if ls "$QT_DIR"/libQt6Core.so* >/dev/null 2>&1; then
+    QT_LIB_PREFIX="libQt6"
+    if [ -d "$QT_DIR/qt6" ]; then
+        QT_PLUGIN_SRC="$QT_DIR/qt6/plugins"
+        QT_QML_SRC="$QT_DIR/qt6/qml"
+    else
+        QT_PLUGIN_SRC="$QT_DIR/plugins"
+        QT_QML_SRC="$QT_DIR/qml"
+    fi
+elif ls "$QT_DIR"/libQt5Core.so* >/dev/null 2>&1; then
+    QT_LIB_PREFIX="libQt5"
+    if [ -d "$QT_DIR/qt5" ]; then
+        QT_PLUGIN_SRC="$QT_DIR/qt5/plugins"
+        QT_QML_SRC="$QT_DIR/qt5/qml"
+    else
+        QT_PLUGIN_SRC="$QT_DIR/plugins"
+        QT_QML_SRC="$QT_DIR/qml"
+    fi
+fi
+
+# Copy Qt libraries (blanket copy — see header note on why not ldd-based)
+if [ -n "$QT_LIB_PREFIX" ]; then
+    echo "Copying Qt libraries ($QT_LIB_PREFIX)..."
+    cp -r "$QT_DIR"/${QT_LIB_PREFIX}* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+else
+    echo "Warning: no Qt libraries detected in $QT_DIR"
+fi
+
+# Copy Qt plugins
+if [ -n "$QT_PLUGIN_SRC" ] && [ -d "$QT_PLUGIN_SRC" ]; then
+    echo "Copying Qt plugins from $QT_PLUGIN_SRC..."
+    cp -r "$QT_PLUGIN_SRC"/* "$BUILD_DIR/Daqster.AppDir/usr/lib/plugins/" 2>/dev/null || true
+fi
+
+# Copy QML modules
+if [ -n "$QT_QML_SRC" ] && [ -d "$QT_QML_SRC" ]; then
+    echo "Copying QML modules from $QT_QML_SRC..."
+    cp -r "$QT_QML_SRC"/* "$BUILD_DIR/Daqster.AppDir/usr/lib/qml/" 2>/dev/null || true
 fi
 
 # Copy ICU libraries (if available)
 echo "Copying ICU libraries..."
 cp /usr/lib/x86_64-linux-gnu/libicu*.so.* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+
+# Copy GStreamer backends (needed by Qt Multimedia for audio/video)
+# Core libs + element plugins are bundled; the AppRun sets GST_PLUGIN_PATH.
+echo "Copying GStreamer backends..."
+cp -rL /usr/lib/x86_64-linux-gnu/libgst*.so* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+if [ -d /usr/lib/x86_64-linux-gnu/gstreamer-1.0 ]; then
+    mkdir -p "$BUILD_DIR/Daqster.AppDir/usr/lib/gstreamer-1.0"
+    cp -rL /usr/lib/x86_64-linux-gnu/gstreamer-1.0/*.so "$BUILD_DIR/Daqster.AppDir/usr/lib/gstreamer-1.0/" 2>/dev/null || true
+fi
+if [ -d /usr/lib/x86_64-linux-gnu/gstreamer1.0 ]; then
+    cp -rL /usr/lib/x86_64-linux-gnu/gstreamer1.0/gstreamer-1.0/* "$BUILD_DIR/Daqster.AppDir/usr/lib/gstreamer-1.0/" 2>/dev/null || true
+fi
 
 # Create AppRun script
 echo "Creating AppRun script..."
@@ -185,6 +277,10 @@ export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
 export QML2_IMPORT_PATH="${HERE}/usr/lib/qml:${QML2_IMPORT_PATH}"
 export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${QT_PLUGIN_PATH}"
 export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/lib/plugins/platforms"
+
+# Set GStreamer paths (Qt Multimedia backends)
+export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
+export GST_PLUGIN_SYSTEM_PATH="${HERE}/usr/lib/gstreamer-1.0"
 
 # Set plugin paths
 export DAQSTER_PLUGIN_DIR="${HERE}/usr/lib/daqster/plugins"
