@@ -243,7 +243,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **CI overhaul (Qt6 primary)** — `.github/workflows/ci.yml` rewritten: Qt6 is PRIMARY (Linux + Windows), Qt5 is compat; added ctest (offscreen), AppImage smoke test, submodule reachability check, windeployqt instead of manual DLL copy; removed dead Debug steps and choco ninja
 - **Release workflow** — `.github/workflows/release.yml`: Qt6 builds, tarball + ZIP + SHA256SUMS, release body from the CHANGELOG section, smoke tests
 - **AppImage packaging** — `tools/create_appimage.sh`: test/private plugin filtering, GStreamer backends bundled, Qt5/Qt6-aware Qt copy
-- **GitHub Pages** — `.github/workflows/pages.yml` for docs/ (Settings → Pages → GitHub Actions)
+- **GitHub Pages** — the site uses UI-based deployment (Settings → Pages → Deploy from a branch: `master/docs`); `.github/workflows/pages.yml` is **disabled** (`pages.yml.disabled`, like DeepSource) — the workflow is not needed, optional/re-enableable
 - **Docs rename fix** — INDEX.md → index.md references updated
 - **Directory Restructuring**:
   - `src/external_libs/` → `src/plugins/external_libs/` (all external libs live under plugins)

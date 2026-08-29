@@ -50,7 +50,7 @@ requirements (parents/dependents).
   (syncs all 15+ locations) + `version-sync.yml` CI drift check.
 - **CI:** `release.yml` is tag-triggered (`v*.*.*`) — Qt6 build (Linux + Windows),
   tests, smoke, AppImage/tarball/ZIP, SHA256SUMS, GitHub Release (body from changelog).
-- **Docs:** `master` = release docs — GitHub Pages builds from `master` (`pages.yml`).
+- **Docs:** `master` = release docs — GitHub Pages uses UI-based deployment from `master/docs` (`pages.yml` is disabled).
 - **Hotfix:** `hotfix/X.Y.(Z+1)` branched from the `vX.Y.Z` tag → fix → merge
   `master` + tag `vX.Y.(Z+1)` → merge `develop`.
 - **Full process:** [DevelopmentProcess/RELEASE-PROCESS.md](./DevelopmentProcess/RELEASE-PROCESS.md)

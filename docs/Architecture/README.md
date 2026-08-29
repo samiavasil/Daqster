@@ -65,7 +65,7 @@ Daqster/
 │   ├── ci.yml                    # Continuous Integration (Qt6 primary)
 │   ├── release.yml               # Release workflow
 │   ├── version-sync.yml          # Version sync check
-│   ├── pages.yml                 # GitHub Pages (docs/)
+│   ├── pages.yml.disabled        # GitHub Pages (disabled — UI-based deployment from master/docs)
 │   ├── render-plantuml.yml       # PlantUML diagram rendering
 │   └── deepsource.yml.disabled   # DeepSource (disabled)
 └── CMakeLists.txt                # Главен CMake файл
