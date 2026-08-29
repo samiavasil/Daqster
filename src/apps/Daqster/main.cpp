@@ -17,6 +17,14 @@
 #include "QConsoleListener.h"
 #include "main.h"
 
+// __BASE_FILE__ is a GCC/Clang predefined macro (the basename of the file
+// being compiled). MSVC does not define it, so fall back to __FILE__ there.
+#if defined(_MSC_VER)
+#define DAQSTER_BASE_FILE __FILE__
+#else
+#define DAQSTER_BASE_FILE __BASE_FILE__
+#endif
+
 void PluginsInit() {
   /*TODO:  Move this on some initialization routine*/
   Daqster::QPluginManager *PluginManager = Daqster::QPluginManager::instance();
@@ -295,7 +303,7 @@ int main(int argc, char *argv[]) {
     }
     res = a.exec();
   } else {
-    qCDebug(lcApp) << __BASE_FILE__ << __FILE__;
+    qCDebug(lcApp) << DAQSTER_BASE_FILE << __FILE__;
     QMainWindow mainWin;
     mainWin.setWindowTitle("Daqster");
     mainWin.resize(400, 60);
