@@ -25,8 +25,11 @@ jobs:
           git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'
 
       # System Qt on ubuntu-24.04 is 6.4.2 — too old for the codebase
-      # (QVideoFrame(QImage) ctor needs 6.8+, QImage::flipped() needs 6.5+).
+      # (QVideoFrame(QImage) ctor needs 6.8+, QImage::flipped() needs 6.9+).
       # Install Qt 6.8.3 via aqtinstall (like the Windows job) instead.
+      # The Linux desktop arch for Qt 6.7+ is "linux_gcc_64" — the older
+      # "gcc_64" name makes aqt fail with "packages were not found while
+      # parsing XML of package information".
       # For 6.8.3 linux_gcc_64, qtdeclarative and qtsvg are part of the BASE
       # package (verified: aqt list-qt --archives shows icu qtbase qtdeclarative
       # qtsvg qttools qttranslations qtwayland) — passing them as modules makes
@@ -54,7 +57,7 @@ jobs:
           version: '6.8.3'
           host: 'linux'
           target: 'desktop'
-          arch: 'gcc_64'
+          arch: 'linux_gcc_64'
           modules: 'qtcharts qtmultimedia'
 
       - name: Configure (Release, tests ON)
