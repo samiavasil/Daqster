@@ -1,6 +1,6 @@
 # Applications Subsystem
 
-Родител: [Architecture Overview](../README.md) | [Documentation Index](../../INDEX.md)
+Родител: [Architecture Overview](../README.md) | [Documentation Index](../../index.md)
 
 Съседни подсистеми: [Framework](../framework/README.md) | [Plugins](../plugins/README.md)
 

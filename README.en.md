@@ -1,7 +1,7 @@
 # Daqster
 [English](./README.en.md) | [Български](./README.md)
 
-Documentation index: [Docs/INDEX.en.md](./docs/INDEX.en.md)
+Documentation index: [Docs/index.en.md](./docs/index.en.md)
 
 Daqster is a Qt-based platform for modular application development and management. It enables building various types of applications through a plugin architecture with graceful shutdown, process management, and automatic plugin discovery.
 
@@ -113,7 +113,7 @@ For details see [tools/create_appimage.sh](./tools/create_appimage.sh).
 
 ## Documentation
 
-- [Documentation Index](./docs/INDEX.en.md)
+- [Documentation Index](./docs/index.en.md)
 - [Architecture Overview](./docs/Architecture/README.en.md)
 - [Development Topics](./docs/development/README.md)
 - [Operations Topics](./docs/operations/README.md)

@@ -1,7 +1,7 @@
 # Daqster
 [Български](./README.md) | [English](./README.en.md)
 
-Документация индекс: [Docs/INDEX.md](./docs/INDEX.md)
+Документация индекс: [Docs/index.md](./docs/index.md)
 
 Daqster е Qt-базирана платформа за модулна разработка и управление на приложения. Позволява създаване на различни типове приложения чрез плъгин архитектура с graceful shutdown, process управление и auto plugin discovery.
 
@@ -113,7 +113,7 @@ Daqster използва модулна архитектура с три клю�
 
 ## Документация
 
-- [Документация индекс](./docs/INDEX.md)
+- [Документация индекс](./docs/index.md)
 - [Architecture Overview](./docs/Architecture/README.md)
 - [Development Topics](./docs/development/README.md)
 - [Operations Topics](./docs/operations/README.md)

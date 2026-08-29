@@ -5,7 +5,7 @@ skinparam packageStyle rectangle
 skinparam shadowing false
 
 package "Ниво 1: Входни точки" {
-  [INDEX.md] as IDX
+  [index.md] as IDX
   [Architecture/README.md] as ARCH
   [development/README.md] as DEVTOP
   [operations/README.md] as OPS

@@ -1,6 +1,6 @@
 [Български](./BuildSystemArchitecture.md) | [English](./BuildSystemArchitecture.en.md)
 
-Parent: [Architecture Overview](./README.en.md) | [Documentation Index](../INDEX.en.md)
+Parent: [Architecture Overview](./README.en.md) | [Documentation Index](../index.en.md)
 
 # Daqster Build System Architecture
 
