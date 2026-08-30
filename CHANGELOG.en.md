@@ -16,6 +16,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - All plugins at **0.3.0**; `main.cpp` uses `DAQSTER_VERSION_STRING`
   - `scripts/version.sh` — `get`/`set`/`check` subcommand interface; `version-sync.yml` uses `version.sh check`
   - `scripts/suggest_version.sh` — release-time semver bump check (feat → minor, fix → patch, breaking → major)
+  - Plugin JSON metadata files (8) are now **generated** from `.json.in` templates via `configure_file()` with `@DAQSTER_VERSION@` (instead of hardcoded); `version.sh set` no longer edits them, `version.sh check` verifies templates + generated JSONs
 - **REQ-SW-PL-028** (VideoEffectNode — per-effect GPU/CPU backend):
   - `VideoGLShaders.h` — shared GLSL source builders (`buildVertexSource`, `buildYuvFragmentSource`, `buildRgbaFragmentSource` extracted from `VideoGLBlitWidget.cpp` + new `buildEffectFragmentSource` with `u_flipY` and injectable effect body)
   - `VideoEffectOps.{h,cpp}` — `EffectSpec` registry (7 effects: brightness, contrast, grayscale, invert, sepia, channelSwap, flip) with CPU functions (delegating to `VideoTransformOps`) + GLSL body
