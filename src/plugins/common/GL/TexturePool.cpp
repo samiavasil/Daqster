@@ -21,6 +21,13 @@ void setupTextureParams(QOpenGLFunctions *f, GLuint id)
 TexturePool::~TexturePool()
 {
     VideoGLContextManager &mgr = VideoGLContextManager::instance();
+    // GL never initialized (context creation failed — e.g. headless CI without
+    // mesa): nothing to delete. The wasCurrent comparison below would compare
+    // currentContext() against a null context and could evaluate true when no
+    // context is current, bypassing the makeCurrent() guard and null-derefing
+    // in context()->functions().
+    if (mgr.context() == nullptr)
+        return;
     const bool wasCurrent = (QOpenGLContext::currentContext() == mgr.context());
     if (!wasCurrent && !mgr.makeCurrent())
         return;
@@ -41,6 +48,10 @@ GLuint TexturePool::acquire(int w, int h)
         return 0;
 
     VideoGLContextManager &mgr = VideoGLContextManager::instance();
+    // GL unavailable (context creation failed): no textures can be allocated —
+    // the caller falls back to the CPU path.
+    if (mgr.context() == nullptr)
+        return 0;
     const bool wasCurrent = (QOpenGLContext::currentContext() == mgr.context());
     if (!wasCurrent && !mgr.makeCurrent())
         return 0;

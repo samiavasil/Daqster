@@ -6,123 +6,262 @@ on:
       - 'v*.*.*'
 
 jobs:
-  build-release-linux:
+  # ============================================================
+  # Linux Qt6 — build + tests + AppImage + tarball + checksums + smoke
+  # ============================================================
+  linux-qt6:
+    name: Linux Qt6
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Ensure submodules full history
+
+      - name: Verify submodule gitlinks are reachable
         run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive --depth=0
-      - name: Install Qt from system packages
+          git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'
+
+      - name: Install Qt6 + gstreamer dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            qtbase5-dev \
-            qtdeclarative5-dev \
-            qtquickcontrols2-5-dev \
-            qtmultimedia5-dev \
-            libqt5charts5-dev \
-            libssl-dev \
-            libicu70 \
-            qml-module-qtcharts \
-            qml-module-qtquick2 \
-            qml-module-qt-labs-platform \
-            qml-module-qt-labs-folderlistmodel \
-            qml-module-qt-labs-settings \
-            qml-module-qt-labs-sharedimage
-      - name: Configure
+            qt6-base-dev \
+            qt6-multimedia-dev \
+            qt6-charts-dev \
+            qt6-declarative-dev \
+            qt6-quickcontrols2-dev \
+            libqt6svg6-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libssl-dev
+
+      - name: Configure (Release, tests ON)
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDAQSTER_BUILD_TESTS=ON
+
       - name: Build
         run: |
           cmake --build build -j
+
+      - name: Run tests (offscreen)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          ctest --test-dir build --output-on-failure
+
       - name: Install to staging
-        run: cmake --install build --prefix "$PWD/stage"
-      - name: Create Release AppImage
+        run: |
+          sudo cmake --install build --prefix "$PWD/stage"
+
+      - name: Create AppImage
         run: |
           chmod +x ./tools/create_appimage.sh
           ./tools/create_appimage.sh --mode ci
           ls -la *.AppImage
           file *.AppImage
-      - name: Upload AppImage artifact
+
+      - name: Smoke test AppImage (offscreen)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          set +e
+          timeout 15 ./Daqster-x86_64.AppImage --appimage-extract-and-run > appimage-smoke.log 2>&1
+          EXIT_CODE=$?
+          set -e
+          if [ "$EXIT_CODE" -eq 124 ]; then
+            echo "Smoke test PASSED: app ran for the full 15s timeout without crashing"
+          elif [ "$EXIT_CODE" -eq 0 ]; then
+            echo "Smoke test PASSED: app started and exited cleanly"
+          else
+            echo "Smoke test FAILED: AppImage exited with code $EXIT_CODE"
+            cat appimage-smoke.log
+            exit 1
+          fi
+
+      - name: Create tarball + checksums
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          tar -czf "Daqster-Linux-x86_64-${VERSION}.tar.gz" -C stage .
+          sha256sum Daqster-x86_64.AppImage "Daqster-Linux-x86_64-${VERSION}.tar.gz" > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Daqster-x86_64.AppImage
-          path: Daqster-x86_64.AppImage
+          name: release-linux
+          path: |
+            Daqster-x86_64.AppImage
+            Daqster-Linux-x86_64-*.tar.gz
+            SHA256SUMS
           if-no-files-found: error
 
-  build-release-windows:
+  # ============================================================
+  # Windows Qt6 — build + tests + windeployqt ZIP + checksums + smoke
+  # Compiler: MSVC 2022 (see ci.yml for rationale).
+  # ============================================================
+  windows-qt6:
+    name: Windows Qt6
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Install Qt (5.15.2)
-        uses: jurplel/install-qt-action@v3
+
+      - name: Verify submodule gitlinks are reachable
+        shell: bash
+        run: |
+          git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'
+
+      - name: Install Qt6 (MSVC 2022)
+        uses: jurplel/install-qt-action@v4
         with:
-          version: '5.15.2'
+          version: '6.8.3'
           host: 'windows'
           target: 'desktop'
-          arch: 'win64_mingw81'
-          modules: 'qtcharts'
-      - name: Install Ninja
+          arch: 'win64_msvc2022_64'
+          modules: 'qtcharts qtmultimedia qtdeclarative qtsvg'
+
+      - name: Configure (Release, tests ON)
         run: |
-          choco install ninja -y
-      - name: Configure (Release)
-        run: |
-          cmake -S . -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DDAQSTER_BUILD_TESTS=ON
+
       - name: Build (Release)
         run: |
           cmake --build build --config Release -j
+
+      - name: Run tests (offscreen)
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          ctest --test-dir build -C Release --output-on-failure
+
       - name: Install to staging
         run: |
-          cmake --install build --prefix "${{ github.workspace }}\\stage-win"
+          cmake --install build --config Release --prefix "${{ github.workspace }}\stage-win"
+
       - name: Bundle Qt runtime (windeployqt)
         shell: pwsh
         run: |
+          $qtDir = if ($env:Qt6_Dir) { $env:Qt6_Dir } elseif ($env:Qt6_DIR) { $env:Qt6_DIR } else { throw "Qt6_Dir not set" }
+          Write-Host "Qt6 dir: $qtDir"
           $stage = "${{ github.workspace }}\stage-win"
-          Copy-Item "$env:Qt5_Dir\bin\Qt5*.dll" -Destination "$stage\bin" -Force
-          $mingwRuntime = @("libstdc++-6.dll","libgcc_s_seh-1.dll","libwinpthread-1.dll")
-          foreach ($dll in $mingwRuntime) {
-            $src = Join-Path "$env:Qt5_Dir\bin" $dll
-            if (Test-Path $src) { Copy-Item $src -Destination "$stage\bin" -Force }
+          & "$qtDir\bin\windeployqt.exe" --release --no-translations --compiler-runtime "$stage\bin\Daqster.exe"
+          if ($LASTEXITCODE -ne 0) { throw "windeployqt failed with exit code $LASTEXITCODE" }
+
+      - name: Smoke test (launch exe)
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $stage = "${{ github.workspace }}\stage-win"
+          $proc = Start-Process -FilePath "$stage\bin\Daqster.exe" -PassThru
+          if ($proc.WaitForExit(15000)) {
+            if ($proc.ExitCode -eq 0) {
+              Write-Host "Smoke test PASSED: app started and exited cleanly"
+            } else {
+              Write-Host "Smoke test FAILED: exit code $($proc.ExitCode)"
+              exit 1
+            }
+          } else {
+            Write-Host "Smoke test PASSED: app ran for 15s without crashing"
+            Stop-Process -Id $proc.Id -Force
           }
-          $destPlatforms = "$stage\bin\platforms"
-          New-Item -ItemType Directory -Path $destPlatforms -Force | Out-Null
-          Copy-Item "$env:Qt5_Dir\plugins\platforms\*.dll" -Destination $destPlatforms -Force
-      - name: Create portable ZIP
+
+      - name: Create portable ZIP + checksums
         shell: pwsh
         run: |
-          Compress-Archive -Path "${{ github.workspace }}\stage-win\*" -DestinationPath "${{ github.workspace }}\Daqster-Windows-x86_64.zip"
-      - name: Upload Windows artifact
+          $version = "$env:GITHUB_REF_NAME".Substring(1)
+          $zip = "Daqster-Windows-x86_64-$version.zip"
+          Compress-Archive -Path "${{ github.workspace }}\stage-win\*" -DestinationPath "$zip"
+          $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
+          # Standard sha256sum format: "<hash>  <filename>"
+          "$hash  $zip" | Out-File -FilePath SHA256SUMS -Encoding ascii
+          Get-Content SHA256SUMS
+
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Daqster-Windows-x86_64.zip
-          path: Daqster-Windows-x86_64.zip
+          name: release-windows
+          path: |
+            Daqster-Windows-x86_64-*.zip
+            SHA256SUMS
           if-no-files-found: error
 
+  # ============================================================
+  # Create the GitHub Release once both platforms are ready.
+  # Body is the CHANGELOG section for the tagged version.
+  # ============================================================
   create-release:
-    needs: [build-release-linux, build-release-windows]
+    name: Create GitHub Release
+    needs: [linux-qt6, windows-qt6]
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
     steps:
-      - name: Download Linux AppImage
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Linux artifacts
         uses: actions/download-artifact@v4
         with:
-          name: Daqster-x86_64.AppImage
-      - name: Download Windows ZIP
+          name: release-linux
+          path: release-linux
+
+      - name: Download Windows artifacts
         uses: actions/download-artifact@v4
         with:
-          name: Daqster-Windows-x86_64.zip
+          name: release-windows
+          path: release-windows
+
+      - name: Rename checksum files (avoid same-basename collision)
+        run: |
+          mv release-linux/SHA256SUMS release-linux/SHA256SUMS-linux
+          mv release-windows/SHA256SUMS release-windows/SHA256SUMS-windows
+
+      - name: Extract CHANGELOG section for release body
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Tag version: $VERSION"
+          # Extract the "## [X.Y.Z]" section (up to the next "## [" heading).
+          # Prefer the primary CHANGELOG.md, fall back to CHANGELOG.en.md.
+          for file in CHANGELOG.md CHANGELOG.en.md; do
+            if awk -v ver="$VERSION" '
+                $0 ~ "^## \\[" ver "\\]" { found=1 }
+                found && $0 ~ "^## \\[" && $0 !~ "^## \\[" ver "\\]" { exit }
+                found { print }
+              ' "$file" | grep -q .; then
+              awk -v ver="$VERSION" '
+                $0 ~ "^## \\[" ver "\\]" { found=1 }
+                found && $0 ~ "^## \\[" && $0 !~ "^## \\[" ver "\\]" { exit }
+                found { print }
+              ' "$file" > release-body.md
+              echo "Using $file for release body"
+              break
+            fi
+          done
+          if [ ! -s release-body.md ]; then
+            echo "WARNING: no CHANGELOG section found for $VERSION; using fallback body"
+            echo "Release $GITHUB_REF_NAME" > release-body.md
+          fi
+          echo "--- release body (first 20 lines) ---"
+          head -20 release-body.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          body_path: release-body.md
           files: |
-            Daqster-x86_64.AppImage
-            Daqster-Windows-x86_64.zip
+            release-linux/Daqster-x86_64.AppImage
+            release-linux/Daqster-Linux-x86_64-*.tar.gz
+            release-linux/SHA256SUMS-linux
+            release-windows/Daqster-Windows-x86_64-*.zip
+            release-windows/SHA256SUMS-windows
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

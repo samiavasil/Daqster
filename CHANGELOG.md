@@ -32,9 +32,8 @@
   - Smoke driver: `DAQSTER_AUTOSTART_EFFECT2=<effectId>` вмъква втори VideoEffect нод (GPU-resident верига)
 - **Smoke drivers** (`NodeEditorIdeObject.cpp`): `DAQSTER_AUTOSTART_EFFECT=<effectId>` вмъква VideoEffect нод между source и output; `DAQSTER_AUTOSTART_EFFECT2=<effectId>` вмъква втори; `DAQSTER_AUTOSTART_SAMPLER=1` вмъква FrameSampler
 - **REQ-SW-PL-029** (CustomShaderNode — общ GPU compute нод с runtime GLSL):
-  - `CustomShaderNode.{h,cpp}` — node model (port 0 in/out `VideoFrameData`), GLSL редактор + compile button + error log + uniform controls, mainImage contract
+  - `CustomShaderNode.{h,cpp}` — node model (port 0 in/out `VideoFrameData`), GLSL редактор + compile button + error log + uniform controls, mainImage contract (UI се строи в `buildWidget()`, `CustomShaderNode.cpp:117-188`)
   - `CustomShaderGLProcessor.{h,cpp}` — GPU processor: runtime GLSL compile (`addShaderFromSourceCode`), per-(effect,layout,profile) program cache, YUV→RGBA pre-pass, error handling без crash
-  - `CustomShaderWidget.{h,cpp}` — UI widget (GLSL editor + compile button + error log + uniform parameter controls)
   - `texture()` compat fix — GL profile detection и използване на `texture()` или `texture2D()` според GLSL version
   - Комити: `42ba334` (feat: CustomShaderNode), `0682c1b` (fix: texture() compat)
 - **Scene invalidation fix (REQ-SW-PL-032):**
@@ -68,12 +67,48 @@
   - `ExprParser` — recursive descent C++ expression evaluator (всички C/C++ оператори: `+`,`-`,`*`,`/`,`%`,`&`,`|`,`^`,`~`,`<<`,`>>`,`&&`,`||`,`!`,`==`,`!=`,`<`,`>`,`<=`,`>=`,`?:`)
   - `ArithmeticLogicModel` — конфигурируем нод: тип (int/double), 2–8 входа, expression field, optional strobe
   - Променливи `a`–`h` отговарят на входните портове
-- **NodeEditorWidget Shared Component** (`src/plugins/node_editor_widget/`):
-  - `NodeEditorWidget` - споделен Qt Widgets GUI за node-based редактори
+- **Framework Architecture Refactoring** - голям рефакторинг за извличане на reusable компоненти:
+  - **Platform Abstraction Layer** (`frame_work/base/src/platform/`):
+    - `ShutdownHandler` - абстрактен базов клас за graceful shutdown
+    - `UnixShutdownHandler` - SIGINT/SIGTERM signal handling за Unix/Linux (self-pipe)
+    - `WindowsShutdownHandler` - Windows console events (SetConsoleCtrlHandler)
+    - `QConsoleListener` - stdin-базиран quit/exit handler (крос-платформен, в Daqster приложението)
+  - **Process Management Layer** (`frame_work/base/src/process/`):
+    - `QProcessManager` - generic базов клас за управление на child процеси
+    - Handle-based process tracking
+    - Graceful terminate с force-kill fallback
+    - Virtual hooks за customization (setupProcessEnvironment, onAllProcessesFinished)
+  - **ApplicationsManager Refactoring**:
+    - Наследява от `Daqster::QProcessManager`
+    - Backward compatibility запазена (type aliases, event mappings)
+    - Daqster-specific environment setup (plugin paths, AppImage detection, XDG directories)
+    - Signal forwarding (ProcessEvent → ApplicationEvent)
+  - **Cross-platform Support**:
+    - Платформено-независим shutdown механизъм
+    - Правилно Ctrl+C handling на Windows и Unix
+    - Graceful процес терминация на всички платформи
+- **PluginDependencyManager System** - автоматична система за управление на plugin dependencies
+  - `cmake/PluginDependencyManager.cmake` - основна система за dependency management
+  - `cmake/PluginExamples.cmake` - примери за използване на системата
+  - `docs/PluginDependencyManagement.md` - подробна документация
+- **Automatic Plugin Management**:
+  - Автоматично откриване на Qt модули, external библиотеки и packages
+  - Условно компилиране на plugins според наличните dependencies
+  - Подробна debug информация за plugin статус
+  - Поддръжка за Qt5 (пълна функционалност) и Qt6 (ограничена функционалност)
+- **External Library Integration**:
+  - Qt5: NodeEditor + QtRest библиотеки включени
+  - Qt6: External библиотеки изключени заради compatibility проблеми
+- **Enhanced Build System**:
+  - `register_plugin()` функция за лесно регистриране на plugins
+  - Автоматично проверяване на dependencies
+  - Условно включване на plugin subdirectories
+  - Build configuration и plugin status summaries
+- **NodeEditorWidget Shared Component** (`src/plugins/node_editor_ide/NodeEditorWidget.{h,cpp}`):
+  - `NodeEditorWidget` - споделен Qt Widgets GUI за node-based редактори (използван от Node Editor IDE)
   - `ChatGraphModel` - loop-enabled графичен модел
-  - `node_editor_widget_global.h` - export macro (`NODE_EDITOR_WIDGET_EXPORT`)
   - Автоматична инжекция на стандартните Daqster ноди (Audio, Media, Graphs, AI, etc.)
-- **NodeEditorApp Plugin** (`src/plugins/node_editor_app/`):
+- **NodeEditorIDE Plugin** (`src/plugins/node_editor_ide/`):
   - Базов графичен плъгин използващ `NodeEditorWidget`
   - `APPLICATION_PLUGIN` тип с `create_plugin()` макро
 - **ChatGraphModel в споделената библиотека** — преместен от `node_editor_ide/` в `BuiltInNodes/Library/types/` за generality
@@ -214,13 +249,17 @@
   - **`VideoTransformNode` премахнат** — заменен от `VideoEffectNode`, който покрива всичките му операции (вкл. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` остават (ползвани от `VideoEffectOps`). Комит: `688c899`
   - **`ImageData` типът изтрит** — единственият frame тип е `VideoFrameData`; grep `ImageData` в `src/` и `tests/` → 0. Комит: `817002e`
   - **Saved-graph последици:** стари графи с `"VideoTransform"` registry ключ или image edges няма да се заредят — пресвържете към `VideoEffect` + `VideoFrameData` вериги (документирано в README-а)
+- **CI overhaul (Qt6 primary)** — `.github/workflows/ci.yml` пренаписан: Qt6 е PRIMARY (Linux + Windows), Qt5 е compat; добавени ctest (offscreen), AppImage smoke test, submodule reachability check, windeployqt вместо ръчен DLL copy; премахнати dead Debug стъпки и choco ninja
+- **Release workflow** — `.github/workflows/release.yml`: Qt6 builds, tarball + ZIP + SHA256SUMS, release body от CHANGELOG секцията, smoke tests
+- **AppImage packaging** — `tools/create_appimage.sh`: филтриране на test/private plugins, GStreamer backends bundled, Qt5/Qt6-aware Qt copy
+- **GitHub Pages** — сайтът ползва UI-based deployment (Settings → Pages → Deploy from a branch: `master/docs`); `.github/workflows/pages.yml` е **изключен** (`pages.yml.disabled`, като DeepSource) — workflow не е нужен, опционален/re-enableable
+- **Docs rename fix** — INDEX.md → index.md references актуализирани
 - **Directory Restructuring**:
   - `src/external_libs/` → `src/plugins/external_libs/` (всички external libs са под plugins)
-  - `src/plugins/node_editor/` → разделяне на `node_editor_widget/` + `node_editor_app/`
   - `.gitmodules` paths актуализирани
 - **nodeeditor target**: Променен от `nodes` на `QtNodes` (pin commit `4709573`)
 - **cmake/ComponentTemplates.cmake**: `create_external_library()` path → `src/plugins/external_libs/`
-- **CI Workflow**: Добавени Python patch стъпки за qtrest install fix (cmake_install.cmake patching)
+- **CI Workflow**: Добавени Python patch стъпки за qtrest install fix (cmake_install.cmake patching) — вече не са нужни, upstream install правилата са поправени (вж. `docs/operations/UpstreamManagement.md`)
 - **Architecture docs** актуализирани за новата структура
 - **Documentation**:
   - Plugins hub (`docs/plugins/README.md`) + fix на plugin documentation links в INDEX/Architecture (`b5c204f`)
@@ -314,6 +353,10 @@
 - **Perf overlay бейджът не се виждаше (REQ-SW-PL-027, Qt6)** — бейджът беше `QLabel` child на detached `QVideoWidget`; `QVideoWidget` рендерира видеото в отделен native слой (RHI swapchain) и не композира child widget-и върху него → бейджът оставаше невидим. Мигриран към отделен top-level frameless tool прозорец (`Qt::Tool | FramelessWindowHint | WindowStaysOnTopHint`, `WA_TransparentForMouseEvents`, полупрозрачен фон), който следва позицията на видео прозореца (горе-ляво, offset ~4,4) при създаване и на всеки ~500 ms refresh; `show()`/`hide()` според `domain.enabled()`; затваря се при `inputConnectionDeleted`/деструктор
 - **Detached GL blit прозорецът не се появяваше при повторно закачане (Qt5 + Qt6 image порт)** — разкачането криеше GL прозореца (null клон на `updateDisplay()`), но `ensureGlWidget()` връщаше рано при съществуващ-но-скрит widget, а Qt5 `inputConnectionDeleted()` беше no-op → прозорецът не се връщаше при повторно закачане. `ensureGlWidget()` вече re-show-ва скрит widget и Qt5 disconnect премахва прозореца като Qt6. Проверено ръчно и на двете версии.
 - **Qt5 видео throttled до 1 fps при видим GL прозорец** — на NVIDIA GLX default swap interval throttled `QOpenGLWidget` repaint-ите до ~1 Hz (възпроизведено с минимален standalone widget), което задушаваше видео пайплайна до 1 fps. `VideoGLBlitWidget` задава `QSurfaceFormat::setSwapInterval(0)` (+ default format) → свободни presents → 25 fps.
+- **CI round 2 — 3 failure fixes (2026-08-29)**:
+  - **Linux Qt5 videooutput тест crash (signal 11)** — `TexturePool` деструктор/`acquire()` сравняваха `QOpenGLContext::currentContext()` с `mgr.context()`; при неуспешно създаване на GL контекст (headless CI без mesa) `mgr.context()` е `nullptr` и при липсващ current context сравнението дава `true`, заобикаляйки `makeCurrent()` guard-а → null deref в `context()->functions()`. Фикс: явен `mgr.context() == nullptr` guard в `TexturePool::~TexturePool()` и `TexturePool::acquire()`. CI: добавени mesa GL пакети (`libgl1-mesa-dri libegl1 libgl1 libglx-mesa0`) към Linux Qt5 и Qt6 jobs (offscreen GL via llvmpipe).
+  - **Linux Qt6 build fail (Qt 6.4.2 твърде стар)** — system Qt на ubuntu-24.04 е 6.4.2, но кодът ползва `QVideoFrame(QImage)` ctor (6.8+) и `QImage::flipped()` (6.5+). Фикс: Qt 6.8.3 през `jurplel/install-qt-action@v4` (`linux/gcc_64`, modules `qtcharts qtmultimedia`; qtdeclarative/qtsvg са в base) + `-DCMAKE_PREFIX_PATH=$QT_ROOT_DIR`; `create_appimage.sh` поддържа aqtinstall layout (`lib/`, `plugins/`, bundled ICU).
+  - **Windows Qt6 configure fail (VS 2022 not found)** — `-G "Visual Studio 17 2022"` не откриваше VS instance на windows-latest. Фикс: `ilammy/msvc-dev-cmd@v1` + `-G Ninja` (single-config: build/test/install без `--config`); windeployqt ползва `QT_ROOT_DIR` (install-qt-action не задава `Qt6_DIR`).
 
 ### Known issues
 - **VC-1 Advanced видео на Qt6 (known issue)** — VC-1 Advanced профил съдържание (напр. `50MB_1080P_THETESTDATA.COM_AVI.avi`, ASF контейнер, mislabelled .avi) показва зелен екран на Qt6: Qt FFmpeg backend (QFFmpegMediaPlugin, libavcodec 61/FFmpeg 7.1) доставя NV12 кадри с изцяло нулева chroma плоскост (Cb=Cr=0) → YCbCr→RGB = плътен зелен (0,226,0). Доказано със standalone probe без Daqster presentation код (system FFmpeg декодира правилно; H.264 и Cinepak работят на Qt6; Qt5 работи via GStreamer). Не е fixable в Daqster код — upstream Qt 6.9.2 bug. Открито на 2026-08-09.
@@ -325,44 +368,6 @@
 - **`VideoTransformNode` (REQ-SW-PL-032 Фаза 3, 2026-08-26)** — премахнат от регистрацията, CMake и файловата система; заменен от `VideoEffectNode` (покрива всичките му операции вкл. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` остават (ползвани от `VideoEffectOps`). Комит: `688c899`
 - **`ImageData` тип (REQ-SW-PL-032 Фаза 3, 2026-08-26)** — `src/plugins/common/NodeDataTypes/ImageData.h` изтрит; единственият frame тип е `VideoFrameData`. Комит: `817002e`
 - **Image портове (REQ-SW-PL-032 Фаза 3, 2026-08-26)** — премахнати от video source-ите и `VideoOutputNode`; source-ите емитират само `VideoFrameData` + `SampledData` (audio). Комити: `63010f3`, `3fc51a3`
-
-- **Framework Architecture Refactoring** - голям рефакторинг за извличане на reusable компоненти:
-  - **Platform Abstraction Layer** (`frame_work/base/src/platform/`):
-    - `ShutdownHandler` - абстрактен базов клас за graceful shutdown
-    - `UnixShutdownHandler` - SIGINT/SIGTERM signal handling за Unix/Linux (self-pipe)
-    - `WindowsShutdownHandler` - Windows console events (SetConsoleCtrlHandler)
-    - `QConsoleListener` - stdin-базиран quit/exit handler (крос-платформен, в Daqster приложението)
-  - **Process Management Layer** (`frame_work/base/src/process/`):
-    - `QProcessManager` - generic базов клас за управление на child процеси
-    - Handle-based process tracking
-    - Graceful terminate с force-kill fallback
-    - Virtual hooks за customization (setupProcessEnvironment, onAllProcessesFinished)
-  - **ApplicationsManager Refactoring**:
-    - Наследява от `Daqster::QProcessManager`
-    - Backward compatibility запазена (type aliases, event mappings)
-    - Daqster-specific environment setup (plugin paths, AppImage detection, XDG directories)
-    - Signal forwarding (ProcessEvent → ApplicationEvent)
-  - **Cross-platform Support**:
-    - Платформено-независим shutdown механизъм
-    - Правилно Ctrl+C handling на Windows и Unix
-    - Graceful процес терминация на всички платформи
-- **PluginDependencyManager System** - автоматична система за управление на plugin dependencies
-  - `cmake/PluginDependencyManager.cmake` - основна система за dependency management
-  - `cmake/PluginExamples.cmake` - примери за използване на системата
-  - `docs/PluginDependencyManagement.md` - подробна документация
-- **Automatic Plugin Management**:
-  - Автоматично откриване на Qt модули, external библиотеки и packages
-  - Условно компилиране на plugins според наличните dependencies
-  - Подробна debug информация за plugin статус
-  - Поддръжка за Qt5 (пълна функционалност) и Qt6 (ограничена функционалност)
-- **External Library Integration**:
-  - Qt5: NodeEditor + QtRest библиотеки включени
-  - Qt6: External библиотеки изключени заради compatibility проблеми
-- **Enhanced Build System**:
-  - `register_plugin()` функция за лесно регистриране на plugins
-  - Автоматично проверяване на dependencies
-  - Условно включване на plugin subdirectories
-  - Build configuration и plugin status summaries
 
 ## [0.2.0] - 2025-09-18
 

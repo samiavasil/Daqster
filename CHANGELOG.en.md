@@ -30,6 +30,10 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `VideoGLBlitWidget::presentTexture()` — zero-copy display of a GPU-resident RGBA texture (bind, no upload/readback); `VideoOutputNode` GL blit path uses it for GpuRgba frames; the Qt6 native display does a readback at the boundary (`presentableFrame` → `asImage()`)
   - Smoke driver: `DAQSTER_AUTOSTART_EFFECT2=<effectId>` inserts a second VideoEffect node (GPU-resident chain)
 - **Smoke drivers** (`NodeEditorIdeObject.cpp`): `DAQSTER_AUTOSTART_EFFECT=<effectId>` inserts a VideoEffect node between source and output; `DAQSTER_AUTOSTART_EFFECT2=<effectId>` inserts a second one; `DAQSTER_AUTOSTART_SAMPLER=1` inserts a FrameSampler
+- **Scene invalidation fix (REQ-SW-PL-032):**
+  - `onNodeDataArrived` + `dataArrivalChangesGeometry` — nodeeditor scene invalidation fix, prevents unnecessary repaints on data arrival
+  - `CustomDataFlowScene` override + 3 video nodes opt-out — repaint-only optimization for the video nodes (VideoEffectNode, FrameSamplerNode, VideoOutputNode)
+  - Commits: `d4a90ee` (fix: onNodeDataArrived + dataArrivalChangesGeometry), `8418f53` (feat: CustomDataFlowScene override + 3 video nodes opt-out)
 - **Video nodes** (`src/plugins/demo_nodeditor_nodes/Sources/Video/`):
   - `VideoCompat.h` — Qt5/Qt6 multimedia abstraction (QVideoProbe vs QVideoSink, camera enumeration, media source assignment, playback-state signals)
   - `CameraSourceNode` — QCamera capture from default or user-selected device
@@ -57,6 +61,13 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `ExprParser` — recursive descent C++ expression evaluator (all C/C++ operators: `+`,`-`,`*`,`/`,`%`,`&`,`|`,`^`,`~`,`<<`,`>>`,`&&`,`||`,`!`,`==`,`!=`,`<`,`>`,`<=`,`>=`,`?:`)
   - `ArithmeticLogicModel` — configurable node: type (int/double), 2–8 inputs, expression field, optional strobe
   - Variables `a`–`h` map to input ports
+- **NodeEditorWidget Shared Component** (`src/plugins/node_editor_ide/NodeEditorWidget.{h,cpp}`):
+  - `NodeEditorWidget` - shared Qt Widgets GUI for node-based editors (used by Node Editor IDE)
+  - `ChatGraphModel` - loop-enabled graph model
+  - Auto-injects the standard Daqster nodes (Audio, Media, Graphs, AI, etc.)
+- **NodeEditorIDE Plugin** (`src/plugins/node_editor_ide/`):
+  - Base graphical plugin using `NodeEditorWidget`
+  - `APPLICATION_PLUGIN` type with `create_plugin()` macro
 - **Framework Architecture Refactoring** - major refactoring to extract reusable components:
   - **Platform Abstraction Layer** (`frame_work/base/src/platform/`):
     - `ShutdownHandler` - abstract base class for graceful shutdown
@@ -229,6 +240,18 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - **`VideoTransformNode` removed** — superseded by `VideoEffectNode`, which covers all of its operations (incl. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` stay (used by `VideoEffectOps`). Commit: `688c899`
   - **`ImageData` type deleted** — the only frame type is `VideoFrameData`; grep `ImageData` in `src/` and `tests/` → 0. Commit: `817002e`
   - **Saved-graph consequences:** old graphs with the `"VideoTransform"` registry key or image edges no longer load — rewire to `VideoEffect` + `VideoFrameData` chains (documented in the README)
+- **CI overhaul (Qt6 primary)** — `.github/workflows/ci.yml` rewritten: Qt6 is PRIMARY (Linux + Windows), Qt5 is compat; added ctest (offscreen), AppImage smoke test, submodule reachability check, windeployqt instead of manual DLL copy; removed dead Debug steps and choco ninja
+- **Release workflow** — `.github/workflows/release.yml`: Qt6 builds, tarball + ZIP + SHA256SUMS, release body from the CHANGELOG section, smoke tests
+- **AppImage packaging** — `tools/create_appimage.sh`: test/private plugin filtering, GStreamer backends bundled, Qt5/Qt6-aware Qt copy
+- **GitHub Pages** — the site uses UI-based deployment (Settings → Pages → Deploy from a branch: `master/docs`); `.github/workflows/pages.yml` is **disabled** (`pages.yml.disabled`, like DeepSource) — the workflow is not needed, optional/re-enableable
+- **Docs rename fix** — INDEX.md → index.md references updated
+- **Directory Restructuring**:
+  - `src/external_libs/` → `src/plugins/external_libs/` (all external libs live under plugins)
+  - `.gitmodules` paths updated
+- **nodeeditor target**: Changed from `nodes` to `QtNodes` (pin commit `4709573`)
+- **cmake/ComponentTemplates.cmake**: `create_external_library()` path → `src/plugins/external_libs/`
+- **CI Workflow**: Python patch steps for the qtrest install fix (cmake_install.cmake patching) — no longer needed since the upstream install rules were fixed (see `docs/operations/UpstreamManagement.md`)
+- **Architecture docs** updated for the new structure
 - **ChatGraphModel.h** moved from `node_editor_ide/` to `BuiltInNodes/Library/types/` (shared library) for generality
 - **Documentation**:
   - Plugins hub (`docs/plugins/README.md`) + fixed plugin documentation links in INDEX/Architecture (`b5c204f`)
@@ -239,7 +262,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Node drop shadows disabled (perf)** — `nodeeditor` default `DefaultStyle.json` ships `ShadowEnabled=false` and display nodes (`VideoOutputNode`, `DaqDisplayNode`, `NumberDisplayDataModel`, `QDevIoDisplayModelObsolete` incl. AudioDisplay) force it per-node. `QGraphicsDropShadowEffect` blur runs per scene repaint and cost ~46% CPU during video playback (Qt6 36% → 17.6% measured).
 - **GL blit is now the DEFAULT on Qt5 (REQ-SW-PL-021)** — `VideoOutputNode` selects the display backend: Qt5 = GL blit ON by default (fastest path), Qt6 = native `QVideoWidget` (GL blit OFF). `DAQSTER_GL_BLIT` is a startup-only debug override: `=0` forces the software path (also Qt5), `=1` forces GL (also Qt6). Fixed the "`=0` enables it" bug — the value now matters (`qEnvironmentVariableIntValue`).
 - **Auto-fallback when GL is unavailable (REQ-SW-PL-021)** — if the GL context cannot be created (`glPlatformAvailable()` pre-probe before constructing the widget + async `QOpenGLWidget::isValid()` check after show) `VideoOutputNode` logs `GL fallback: <reason>` and switches to the software path (Qt5: frame → QImage → QLabel; Qt6: native QVideoWidget). Video keeps displaying at 25 fps with no crash. The session guard `m_glFailed` prevents resurrecting a broken window.
-- **"GPU display" UI toggle (REQ-SW-PL-021)** — checkbox in `VideoOutputNode` (Qt5: visible + checked by default; Qt6: hidden because native QVideoWidget is already GPU). Users can toggle it live; it is applied at the next frame with no crash or video loss. Priority: the UI has the final word after startup; the env var only picks the initial state.
+- **"GPU display" UI toggle (REQ-SW-PL-021)** — checkbox in `VideoOutputNode`, visible + checked by default on BOTH Qt versions. Qt5: checked → detached GL blit, unchecked → software QLabel. Qt6: checked → detached window (`QVideoWidget` or GL blit with `DAQSTER_GL_BLIT=1`), unchecked → in-scene `QGraphicsVideoItem` (see "Qt6 in-scene GPU video display" in Added). Users can toggle it live; it is applied at the next frame with no crash or video loss. Priority: the UI has the final word after startup; the env var only picks the initial state.
 - **Qt5 software display path for the video-frame port** — before, Qt5 without GL blit did not display port-0 (video-frame) frames at all; now `frameToImage` → QLabel shows the video (measurable: `DAQSTER_GL_BLIT=0` ≈ 34-36% CPU).
 - **Video source port renumbering on Qt5** — see NV12-direct entry above; old Qt5 saved graphs that connected source port 0 (was "image") to an ImageData consumer lose that edge.
 
@@ -268,6 +291,45 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Write-only `m_videoFrame` in `VideoOutputNode`** — removed (replaced with
   `m_lastInput`, used by `reprocessCurrentFrame()`); `load()` now calls
   `reprocessCurrentFrame()` after loading (consistent with `VideoEffectNode`).
+- **nPorts off-by-one on the video source nodes (REQ-SW-PL-022)** —
+  `VideoFileSourceNode` and `StreamSourceNode` had nPorts=2 instead of 3 (the
+  audio Sample port at index 2 was unreachable); fixed in commit `d5145c2`
+  (`restore nPorts to 3 — audio Sample port was unreachable at index 2`); AC 8
+  (backward compat) affected and fixed — saved graphs with the audio port at
+  index 2 now load correctly
+- **Console `quit` did not work from the main app launcher (REQ-SW-APP-002, PUB-002)** —
+  `QConsoleListener` was created only inside the `if (args.count() > 0)` branch of
+  `main()` (after plugin load), so when starting Daqster without arguments (the
+  main launcher → `QMainWindow` + toolbar) stdin `quit\n` was ignored and the
+  application did not exit. Now `QConsoleListener` is created **unconditionally**
+  before `if (args.count() > 0)` — `quit` works on all startup paths (main
+  launcher, single-arg plugin, multi-arg spawner). Verified with a PTY harness
+  (self process, no child spawns, DISPLAY=:0): `quit\n` exits the process in
+  0.12-0.17 s (Qt5 + Qt6, with and without `NodeEditorIde`), exit 0. Commit `9893d35`.
+- **QConsoleListener busy-spin on stdin EOF (REQ-SW-APP-002, PUB-002)** — when
+  starting Daqster without blocking stdin (`< /dev/null`, stdin closed by an
+  IDE/launcher, or an exhausted pipe) the `QSocketNotifier` on `fileno(stdin)`
+  spun: EOF is permanently "readable", every activation read an empty line and
+  emitted an empty `newLine("")` → **busy-spin ~181-183% idle CPU**. Now on the
+  first empty read (`readLine()==0` ⇒ `read()` returned 0 ⇒ EOF) the notifier is
+  disabled; a live terminal/pipe with data is unaffected (with no input the fd is
+  not readable and the notifier is not activated). Windows: `QWinEventNotifier`
+  is disabled on `getline()==""` + `std::cin.eof()`. Measured after the fix: idle
+  CPU without blocking stdin **0.0%** (Qt6 and Qt5, instantaneous /proc stat
+  deltas; lifetime avg 3.8%/3.3% incl. startup), vs ~181-183% before. The
+  `tail -f /dev/null |` workaround is no longer needed. Commit `6900e2c`.
+- **Plugin-not-found / create-failure startup — the process exits by itself (REQ-SW-APP-003)** —
+  with `Daqster <plugin-name>` (single-arg) and a non-existent plugin (no hash, no
+  name match) or a found hash but a failed `CreatePluginObject` (nullptr),
+  `main.cpp` showed a `QMessageBox::critical` and then continued to `a.exec()` —
+  the process stayed alive as an EMPTY window with no functionality until closed
+  manually. Now in both failure paths, after the dialog is closed `main()` returns
+  `1` (exit code != 0) — the process (incl. child processes spawned by the
+  launcher via `ApplicationsManager::StartApplication`) exits by itself, without
+  an empty window. The success path (valid plugin) and the multi-arg spawner are
+  unchanged. Verified manually (Qt5 + Qt6, DISPLAY=:0): the dialog shows, after
+  Return/OK the process exits with code 1; `NodeEditorIDE` starts and the console
+  `quit` keeps working (REQ-SW-APP-002).
 - **Plugin launch fixes**:
   - Toolbar launches plugins by name instead of stale hash
   - Prune persisted plugin entries with mismatched file hash on load
@@ -288,11 +350,17 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Perf overlay badge not visible (REQ-SW-PL-027, Qt6)** — the badge was a `QLabel` child of the detached `QVideoWidget`; `QVideoWidget` renders the video in its own native layer (RHI swapchain) and does NOT composite child widgets on top of it → the badge stayed invisible. Migrated to a separate top-level frameless tool window (`Qt::Tool | FramelessWindowHint | WindowStaysOnTopHint`, `WA_TransparentForMouseEvents`, semi-transparent background) that tracks the video window position (top-left, ~4,4 offset) at creation and on every ~500 ms refresh; `show()`/`hide()` follow `domain.enabled()`; closed on `inputConnectionDeleted`/destructor
 - **Detached GL blit window did not reappear on re-connect (Qt5 + Qt6 image port)** — disconnecting hid the GL window (via `updateDisplay()`'s null branch) but `ensureGlWidget()` returned early on the existing-but-hidden widget, and Qt5 `inputConnectionDeleted()` was a no-op → the window never came back on re-connect. `ensureGlWidget()` now re-shows a hidden widget and Qt5 disconnects tear the window down like Qt6. Verified manually on both Qt versions.
 - **Qt5 video throttled to 1 fps when the GL window was visible** — on NVIDIA GLX the default swap interval throttles `QOpenGLWidget` repaints to ~1 Hz (reproduced with a minimal standalone widget), which starved the video pipeline to 1 fps. `VideoGLBlitWidget` now sets `QSurfaceFormat::setSwapInterval(0)` (+ default format) so presents are free-running → 25 fps.
+- **CI round 2 — 3 failure fixes (2026-08-29)**:
+  - **Linux Qt5 videooutput test crash (signal 11)** — `TexturePool` destructor/`acquire()` compared `QOpenGLContext::currentContext()` against `mgr.context()`; when GL context creation failed (headless CI without mesa) `mgr.context()` is `nullptr` and with no current context the comparison evaluates `true`, bypassing the `makeCurrent()` guard → null deref in `context()->functions()`. Fix: explicit `mgr.context() == nullptr` guard in `TexturePool::~TexturePool()` and `TexturePool::acquire()`. CI: added mesa GL packages (`libgl1-mesa-dri libegl1 libgl1 libglx-mesa0`) to the Linux Qt5 and Qt6 jobs (offscreen GL via llvmpipe).
+  - **Linux Qt6 build fail (Qt 6.4.2 too old)** — system Qt on ubuntu-24.04 is 6.4.2, but the code uses the `QVideoFrame(QImage)` ctor (6.8+) and `QImage::flipped()` (6.5+). Fix: Qt 6.8.3 via `jurplel/install-qt-action@v4` (`linux/gcc_64`, modules `qtcharts qtmultimedia`; qtdeclarative/qtsvg are in base) + `-DCMAKE_PREFIX_PATH=$QT_ROOT_DIR`; `create_appimage.sh` now supports the aqtinstall layout (`lib/`, `plugins/`, bundled ICU).
+  - **Windows Qt6 configure fail (VS 2022 not found)** — `-G "Visual Studio 17 2022"` could not find a VS instance on windows-latest. Fix: `ilammy/msvc-dev-cmd@v1` + `-G Ninja` (single-config: build/test/install without `--config`); windeployqt uses `QT_ROOT_DIR` (install-qt-action does not set `Qt6_DIR`).
 
 ### Known issues
 - **VC-1 Advanced video on Qt6 (known issue)** — VC-1 Advanced content (e.g. `50MB_1080P_THETESTDATA.COM_AVI.avi`, ASF container mislabelled .avi) shows a green screen on Qt6: the Qt FFmpeg backend (QFFmpegMediaPlugin, libavcodec 61/FFmpeg 7.1) delivers NV12 frames with an ENTIRELY zero chroma plane (Cb=Cr=0) → YCbCr→RGB = solid green (0,226,0). Proven with a standalone probe containing no Daqster presentation code (system FFmpeg decodes correctly; H.264 and Cinepak work on Qt6; Qt5 works via GStreamer). Not fixable in Daqster code — upstream Qt 6.9.2 bug. Discovered 2026-08-09.
 
 ### Removed
+- `src/plugins/node_editor/` — monolithic plugin (replaced by `node_editor_ide`, which contains `NodeEditorWidget`)
+- `src/external_libs/` — empty directory removed
 - **7 deprecated VideoEffect alias nodes (REQ-SW-PL-028, 2026-08-26, user decision)** — `VideoEffectBrightnessNode`, `VideoEffectContrastNode`, `VideoEffectGrayscaleNode`, `VideoEffectInvertNode`, `VideoEffectSepiaNode`, `VideoEffectChannelSwapNode`, `VideoEffectFlipNode` removed from `VideoEffectNode.h` and their registrations from `DemoNodeEditorNodesObject.cpp`. The single `VideoEffect` node (effect combo) is the only registered effect node. **Old saved graphs referencing the alias registry keys no longer load** (accepted consequence).
 - **`VideoTransformNode` (REQ-SW-PL-032 Phase 3, 2026-08-26)** — removed from registration, CMake and the filesystem; superseded by `VideoEffectNode` (covers all its operations incl. blur/OpenCV). `VideoTransformOps.{h,cpp}` + `OpenCVTransforms.cpp` stay (used by `VideoEffectOps`). Commit: `688c899`
 - **`ImageData` type (REQ-SW-PL-032 Phase 3, 2026-08-26)** — `src/plugins/common/NodeDataTypes/ImageData.h` deleted; the only frame type is `VideoFrameData`. Commit: `817002e`

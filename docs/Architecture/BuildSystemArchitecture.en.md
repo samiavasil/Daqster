@@ -1,6 +1,6 @@
 [Български](./BuildSystemArchitecture.md) | [English](./BuildSystemArchitecture.en.md)
 
-Parent: [Architecture Overview](./README.en.md) | [Documentation Index](../INDEX.en.md)
+Parent: [Architecture Overview](./README.en.md) | [Documentation Index](../index.en.md)
 
 # Daqster Build System Architecture
 
@@ -1058,9 +1058,8 @@ if (ENABLED) -> add_library(MyPlugin ...)
 
 ### Version 2.2 (Current - July 2026)
 - **Directory restructuring**: `src/external_libs/` → `src/plugins/external_libs/`
-- **NodeEditor split**: Monolithic `node_editor` plugin → `node_editor_widget` (SHARED) + `node_editor_app` (plugin)
 - **nodeeditor target**: Changed from `nodes` to `QtNodes` (pin commit `4709573`)
-- **CI improvements**: qtrest install fix, Python patching of cmake_install.cmake
+- **CI improvements**: qtrest install fix — no longer needed (upstream install rules fixed, see `docs/operations/UpstreamManagement.md`)
 
 ### Version 2.1 (October 2025)
 - **Elegant template parameters**: `INCLUDE_DIRECTORIES`, `COMPILE_DEFINITIONS`, `LINK_LIBRARIES`, `INSTALL_RPATH`

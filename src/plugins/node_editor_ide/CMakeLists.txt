@@ -55,6 +55,22 @@ if(NODE_EDITOR_LIB_ENABLED)
 
     add_library(NodeEditorLibrary SHARED ${LIB_SOURCES})
 
+    # Windows: NodeEditorLibrary has no __declspec(dllexport) markup, so without
+    # this the DLL exports nothing and no import library (.lib) is generated —
+    # plugins linking against it fail with LNK1181. WINDOWS_EXPORT_ALL_SYMBOLS
+    # makes the linker export all symbols and emit the import library. No-op on
+    # Linux/macOS (.so/.dylib export everything by default).
+    set_target_properties(NodeEditorLibrary PROPERTIES
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+    )
+
+    # When building NodeEditorLibrary itself, Q_OBJECT classes marked with
+    # NODE_EDITOR_LIBRARY_EXPORT expand to __declspec(dllexport) on Windows so
+    # their staticMetaObject data symbols are exported from the DLL. Consumers
+    # (NodeEditorIde, DemoNodeEditorNodes) do NOT define this macro, so the
+    # macro expands to __declspec(dllimport) there. No-op on Linux/macOS.
+    target_compile_definitions(NodeEditorLibrary PRIVATE NODE_EDITOR_LIBRARY_BUILD)
+
     target_include_directories(NodeEditorLibrary PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/connectors
@@ -165,4 +181,13 @@ if(TARGET NodeEditorIde)
     set_target_properties(NodeEditorIde PROPERTIES
         OUTPUT_NAME "NodeEditorPluginIde"
     )
+    # Explicit ordering guarantee: NodeEditorPluginIde.dll links against
+    # NodeEditorLibrary's import library on Windows. The link already goes
+    # through the target name (link_component_dependencies), which makes
+    # Ninja track the import library as an implicit dependency — this
+    # add_dependencies() is a belt-and-braces order-only edge so the
+    # library is always built before the plugin links (LNK1181 guard).
+    if(TARGET NodeEditorLibrary)
+        add_dependencies(NodeEditorIde NodeEditorLibrary)
+    endif()
 endif()

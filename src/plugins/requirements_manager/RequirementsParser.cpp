@@ -74,18 +74,24 @@ void appendReference(const QString &item, QStringList &bareIds,
 QString sectionOf(const QString &baseDir, const QString &absolutePath)
 {
     const QString dir = QDir(baseDir).absolutePath();
-    const QString sep = QDir::separator();
     // baseDir may point at the repo root (contains DevelopmentProcess/
     // requirements) or at the DevelopmentProcess/requirements/ directory itself.
     const QStringList candidates = {
-        dir + sep + QString::fromUtf8(kRequirementsSubdir),
+        QDir(dir).filePath(QString::fromUtf8(kRequirementsSubdir)),
         dir
     };
+    // Normalize the absolute path once for consistent comparison.
+    const QString cleanAbsolutePath = QDir::toNativeSeparators(QDir::cleanPath(absolutePath));
     for (const QString &candidate : candidates) {
-        const QString base = candidate + sep;
-        if (absolutePath.startsWith(base + QStringLiteral("active")))
+        const QString activePath = QDir::toNativeSeparators(QDir::cleanPath(QDir(candidate).filePath(QStringLiteral("active"))));
+        const QString archivePath = QDir::toNativeSeparators(QDir::cleanPath(QDir(candidate).filePath(QStringLiteral("archive"))));
+        const QString activePrefix = activePath + QDir::separator();
+        const QString archivePrefix = archivePath + QDir::separator();
+        // Use case-insensitive comparison for cross-platform compatibility
+        // (Windows FS is case-insensitive; harmless on Linux).
+        if (cleanAbsolutePath.startsWith(activePrefix, Qt::CaseInsensitive))
             return QStringLiteral("active");
-        if (absolutePath.startsWith(base + QStringLiteral("archive")))
+        if (cleanAbsolutePath.startsWith(archivePrefix, Qt::CaseInsensitive))
             return QStringLiteral("archive");
     }
     return QString();
@@ -365,7 +371,10 @@ QString RequirementsParser::archiveDirectory(const QString &baseDir)
 bool RequirementsParser::moveToArchive(const QString &filePath)
 {
     const QFileInfo info(filePath);
-    const QStringList dirParts = info.absolutePath().split(QDir::separator());
+    // Normalize path to native separators before splitting to handle
+    // cross-platform inconsistencies (e.g., forward slashes on Windows).
+    const QString cleanPath = QDir::toNativeSeparators(QDir::cleanPath(info.absolutePath()));
+    const QStringList dirParts = cleanPath.split(QDir::separator());
     const int activeIndex = dirParts.lastIndexOf(QStringLiteral("active"));
     if (activeIndex < 0)
         return false; // file is not inside an active/ directory
@@ -387,7 +396,10 @@ bool RequirementsParser::moveToArchive(const QString &filePath)
 bool RequirementsParser::moveToActive(const QString &filePath)
 {
     const QFileInfo info(filePath);
-    const QStringList dirParts = info.absolutePath().split(QDir::separator());
+    // Normalize path to native separators before splitting to handle
+    // cross-platform inconsistencies (e.g., forward slashes on Windows).
+    const QString cleanPath = QDir::toNativeSeparators(QDir::cleanPath(info.absolutePath()));
+    const QStringList dirParts = cleanPath.split(QDir::separator());
     const int archiveIndex = dirParts.lastIndexOf(QStringLiteral("archive"));
     if (archiveIndex < 0)
         return false; // file is not inside an archive/ directory

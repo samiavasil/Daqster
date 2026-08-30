@@ -1,7 +1,7 @@
 # Daqster
 [English](./README.en.md) | [Български](./README.md)
 
-Documentation index: [Docs/INDEX.en.md](./docs/INDEX.en.md)
+Documentation index: [docs/index.en.md](./docs/index.en.md)
 
 Daqster is a Qt-based platform for modular application development and management. It enables building various types of applications through a plugin architecture with graceful shutdown, process management, and automatic plugin discovery.
 
@@ -18,25 +18,58 @@ git submodule update --init --recursive
 
 ### 2) Configure and build
 
-**Qt5 (default):**
+**Required versions:**
+
+- **Qt6 (PRIMARY): 6.8.3+** — the code requires Qt 6.8+ APIs: the `QVideoFrame(QImage)` constructor (Qt 6.8+) and `QImage::flipped()` (Qt 6.5+). Ubuntu 24.04's system Qt 6.4.2 is TOO OLD — use aqtinstall or a newer Qt.
+- **Qt5 (COMPAT): 5.15.x** — supported for compatibility (Qt 5.15.13 on Ubuntu 24.04, 5.15.2 locally).
+
+**Required Qt modules:** Core, Gui, Widgets, Multimedia, MultimediaWidgets, Charts, Declarative (QuickControls2), Svg
+
+**Linux system dependencies (Ubuntu 24.04):**
+
+- Qt6 via aqtinstall (6.8.3) OR system packages where available
+- GStreamer: `libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev` (dev) + `libgstreamer1.0-0 libgstreamer-plugins-base1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good` (runtime — REQUIRED for the QtMultimedia backend)
+- OpenSSL: `libssl-dev`
+- ICU: `libicu74` (Ubuntu 24.04) / `libicu70` (Ubuntu 22.04)
+- Mesa GL (for offscreen/headless testing): `libgl1-mesa-dri libegl1 libgl1 libglx-mesa0`
+- CMake 3.20+, C++17 compiler (GCC/Clang)
+
+**Windows:**
+
+- Qt 6.8.3 (MSVC 2022) via aqtinstall — modules: qtcharts, qtmultimedia (qtdeclarative and qtsvg are in the base package)
+- MSVC 2022 + Ninja
+
+**Qt6 (default / preferred):**
 ```bash
-cmake -S . -B build -DUSE_QT6=OFF
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=<qt6-dir> -DDAQSTER_BUILD_TESTS=ON
 cmake --build build -j
 ```
 
-**Qt6:**
+**Qt5 (compat):**
 ```bash
-cmake -S . -B build -DUSE_QT6=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=<qt5-dir> -DDAQSTER_BUILD_TESTS=ON
 cmake --build build -j
 ```
 
 **With explicit Qt path:**
 ```bash
 cmake -S . -B build \
-  -DUSE_QT6=OFF \
-  -DCMAKE_PREFIX_PATH=/path/to/Qt/5.15.2/gcc_64
+  -DCMAKE_PREFIX_PATH=/path/to/Qt/6.8.3/gcc_64
 cmake --build build -j
 ```
+
+**With tests (unit + test plugins):**
+```bash
+cmake -S . -B build -DDAQSTER_BUILD_TESTS=ON -DDAQSTER_BUILD_TEST_PLUGINS=ON
+cmake --build build -j
+```
+
+**Run the tests (headless):**
+```bash
+QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
+```
+
+> **Note:** `DAQSTER_BUILD_TEST_PLUGINS` defaults to OFF — enable it explicitly with `-DDAQSTER_BUILD_TEST_PLUGINS=ON`.
 
 **Debug Build (recommended for development):**
 ```bash
@@ -49,6 +82,11 @@ cmake --build build -j
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
+
+> **Note:** Qt6 is detected automatically — `cmake/FindQtVersion.cmake` tries Qt6
+> first, then falls back to Qt5. `USE_QT6` is only a FORCE cache variable that
+> tells the external libraries (e.g. nodeeditor) which Qt version to build against
+> (`CMakeLists.txt:27-31`) — you don't need to set it manually.
 
 For more information see [DeveloperGuide.md](./docs/development/DeveloperGuide.md).
 
@@ -113,7 +151,7 @@ For details see [tools/create_appimage.sh](./tools/create_appimage.sh).
 
 ## Documentation
 
-- [Documentation Index](./docs/INDEX.en.md)
+- [Documentation Index](./docs/index.en.md)
 - [Architecture Overview](./docs/Architecture/README.en.md)
 - [Development Topics](./docs/development/README.md)
 - [Operations Topics](./docs/operations/README.md)
@@ -128,7 +166,7 @@ For details see [tools/create_appimage.sh](./tools/create_appimage.sh).
 - `src/plugins` - runtime and test plugins
 - `src/plugins/external_libs` - external libraries
 - `tools` - build and AppImage scripts
-- `Docs` - architecture, development, operations, porting and diagrams
+- `docs` - architecture, development, operations, porting and diagrams
 
 ## Debug and Diagnostics
 

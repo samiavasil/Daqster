@@ -53,7 +53,7 @@ threshold), но **без ефект по подразбиране**:
 
 ## Проследимост
 
-- **Коммити:** (този комит — `feat (REQ-SW-PL-034)`)
+- **Коммити:** `615f53e` (feat: VideoOutputNode embedded effects — optional, default no effect)
 - **Код:** `src/plugins/demo_nodeditor_nodes/Sources/Video/VideoOutputNode.{h,cpp}`,
   `tests/plugins/demo_nodeditor_nodes/test_video_output_node.{h,cpp}`,
   `tests/plugins/demo_nodeditor_nodes/CMakeLists.txt`

@@ -36,7 +36,11 @@ demo_nodeditor_nodes/
 │       ├── CameraSourceNode.{h,cpp}
 │       ├── VideoFileSourceNode.{h,cpp}
 │       ├── StreamSourceNode.{h,cpp}
+│       ├── StreamUrlValidator.{h,cpp}    # Stream URL валидация (http/https/rtsp)
+│       ├── AudioBufferToSampled.h        # Audio buffer → SampledData glue (REQ-SW-PL-024)
 │       ├── VideoOutputNode.{h,cpp}
+│       ├── VideoGLBlitWidget.{h,cpp}     # Detached GL blit display widget (DAQSTER_GL_BLIT)
+│       ├── VideoPerfBadge.{h,cpp}        # Perf badge/line форматър (REQ-SW-PL-027)
 │       ├── VideoTransformOps.{h,cpp}     # Op engine (QImage + params → QImage)
 │       ├── VideoGLShaders.h              # Споделени GLSL source builder-и (blit + effect)
 │       ├── VideoEffectOps.{h,cpp}        # EffectSpec регистър (ефекти, REQ-SW-PL-028)
@@ -48,14 +52,16 @@ demo_nodeditor_nodes/
 │       └── OpenCVTransforms.cpp          # Само при HAVE_OPENCV
 ├── Displays/
 │   ├── AudioDisplay/
-│   │   └── AudioDisplayModel.{h,cpp}
-│   └── DaqDisplay/
-│       └── DaqDisplayNode.{h,cpp}
+│   │   └── AudioDisplayModelObsolete.{h,cpp}  # Старият QDevIO audio display (rename-only)
+│   ├── DaqDisplay/
+│   │   └── DaqDisplayNode.{h,cpp}        # Реален Qt Charts waveform + FFT (REQ-SW-PL-022/025)
+│   └── GenericDisplay/
+│       └── GenericDisplayNode.{h,cpp}
 └── Routing/
     ├── Demux/
-    │   └── DemuxNode.{h,cpp}
+    │   └── DemuxNodeObsolete.{h,cpp}     # Старият QDevIO demux (rename-only)
     └── Mux/
-        └── MuxNode.{h,cpp}
+        └── MuxNodeObsolete.{h,cpp}       # Старият QDevIO mux (rename-only)
 ```
 
 ## Имплементирани интерфейси
@@ -82,21 +88,32 @@ DemoNodeEditorNodesObject → QBasePluginObject
 ### INodeProvider ( standalone interface )
 ```
 DemoNodeEditorNodesObject → INodeProvider
-  └── registerNodes(registry) →
-        registry.registerModel<AudioDisplayModel>("Displays")
-        registry.registerModel<DaqDisplayNode>("Displays")
+  └── registerNodes(registry) →   // 21 регистрации (DemoNodeEditorNodesObject.cpp:88-128)
+        // Displays (6)
+        registry.registerModel<AudioDisplayModelObsolete>("Displays")
+        registry.registerModel<AudioDisplayModelObsoleteAlias>("Displays") // old key "AudioDisplay"
         registry.registerModel<GenericDisplayNode>("Displays")
-        registry.registerModel<DemuxNode>("Routing")
-        registry.registerModel<MuxNode>("Routing")
+        registry.registerModel<DaqDisplayNode>("Displays")
+        registry.registerModel<QDevIoDisplayModelObsolete>("Displays")
+        registry.registerModel<QDevIoDisplayModelObsoleteAlias>("Displays") // old key "QDevIoDisplay"
+        // Routing (4)
+        registry.registerModel<DemuxNodeObsolete>("Routing")
+        registry.registerModel<DemuxNodeObsoleteAlias>("Routing") // old key "DemuxNode"
+        registry.registerModel<MuxNodeObsolete>("Routing")
+        registry.registerModel<MuxNodeObsoleteAlias>("Routing") // old key "MuxNode"
+        // Sources (2)
         registry.registerModel<AudioSourceDataModel>("Sources")
         registry.registerModel<AudioSourceDataModelObsolete>("Sources")
+        // LLama (2)
         registry.registerModel<LLamaModelDataModel>("LLama")
         registry.registerModel<ConsoleDataModel>("LLama")
+        // Video (7)
         registry.registerModel<CameraSourceNode>("Video")
         registry.registerModel<VideoFileSourceNode>("Video")
         registry.registerModel<StreamSourceNode>("Video")
         registry.registerModel<VideoOutputNode>("Video")
         registry.registerModel<VideoEffectNode>("Video")   // един нод с комбо (REQ-SW-PL-028 AC 4)
+        registry.registerModel<CustomShaderNode>("Video") // runtime GLSL (REQ-SW-PL-029)
         registry.registerModel<FrameSamplerNode>("Video")
 ```
 
@@ -114,15 +131,16 @@ DemoNodeEditorNodesObject → INodeProvider
 ### Displays
 | Нод | Категория | Описание |
 |-----|-----------|----------|
-| AudioDisplayModel | Displays | Аудио дисплей за визуализация на аудио данни |
+| AudioDisplayModelObsolete | Displays | Старият QDevIO аудио дисплей (rename-only, registered `AudioDisplayObsolete` + alias `AudioDisplay`) |
 | DaqDisplayNode | Displays | Реален Qt Charts waveform + FFT за всякarn плъгин с sampled данни (audio/DAQ/sензори). v2 (REQ-SW-PL-025): физически decode (`decodeToPhysical`, `raw × amplitudeScale + amplitudeOffset`), unit оси от дескриптора (Time (s)/Hz + мерна единица), worker-притежаван N-секунден ring buffer (default 10 s) с FFT от опашката; per-card `mode` (normalized/physical) + `unitAxes`, backward-compatible save/restore |
 | GenericDisplayNode | Displays | Универсален дисплей за generic данни |
+| QDevIoDisplayModelObsolete | Displays | Старият QDevIO display (rename-only, registered `QDevIoDisplayObsolete` + alias `QDevIoDisplay`) |
 
 ### Routing
 | Нод | Категория | Описание |
 |-----|-----------|----------|
-| DemuxNode | Routing | Demultiplexer — разделя един input stream на множество output-и |
-| MuxNode | Routing | Multiplexer — комбинира множество input streams в един output |
+| DemuxNodeObsolete | Routing | Старият QDevIO demultiplexer (rename-only, registered `DemuxNodeObsolete` + alias `DemuxNode`) |
+| MuxNodeObsolete | Routing | Старият QDevIO multiplexer (rename-only, registered `MuxNodeObsolete` + alias `MuxNode`) |
 
 ### LLama
 | Нод | Категория | Описание |
@@ -136,8 +154,9 @@ DemoNodeEditorNodesObject → INodeProvider
 | CameraSourceNode | Video | Заснема кадри от локално camera устройство (избор на устройство + start/stop), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) |
 | VideoFileSourceNode | Video | Възпроизвежда локален видео файл през `QMediaPlayer` + frame probe (browse + play/pause), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `SampledData` (audio) |
 | StreamSourceNode | Video | Възпроизвежда HTTP/RTSP stream (URL поле + connect), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `SampledData` (audio) |
-| VideoOutputNode | Video | Live preview на входящите кадри — един вход (port 0 `VideoFrameData` → GPU display), zero-copy GPU път. Qt6: чекбокс „GPU display" (checked по подразбиране) → detached прозорец (`QVideoWidget` или GL blit при `DAQSTER_GL_BLIT=1`); unchecked → in-scene `QGraphicsVideoItem` в node-а (REQ-SW-PL-021). Qt5: checked → detached GL blit прозорец, unchecked → софтуерен QLabel. Pass-through изходен порт за output вериги |
+| VideoOutputNode | Video | Live preview на входящите кадри — един вход (port 0 `VideoFrameData` → GPU display), zero-copy GPU път. Qt6: чекбокс „GPU display" (checked по подразбиране) → detached прозорец (`QVideoWidget` или GL blit при `DAQSTER_GL_BLIT=1`); unchecked → in-scene `QGraphicsVideoItem` в node-а (REQ-SW-PL-021). Qt5: checked → detached GL blit прозорец, unchecked → софтуерен QLabel. Pass-through изходен порт за output вериги. **Опционален вграден ефект комбо** (REQ-SW-PL-034): „No effect" по подразбиране + 11-те ефекта на `VideoEffectNode` (GPU/CPU по backend); при избран ефект GpuRgba кадрите се презентират с GL blit на Qt6 (Stage 2C, zero-copy `presentTexture`), а `presentYuvTexture` reuse-ва кешираните YUV текстури |
 | VideoEffectNode | Video | Единен ефект нод с **комбобокс** за избор на ефект (brightness, contrast, grayscale, invert, sepia, channelSwap, flip, blur, gaussianBlur, canny, threshold) + параметри за избрания — върху `VideoFrameData`, GPU/CPU backend (REQ-SW-PL-028) |
+| CustomShaderNode | Video | GPU-only runtime GLSL нод — Shadertoy-style `mainImage` contract, GLSL редактор + compile + error log + uniform контроли, port 0 in/out `VideoFrameData`, изисква хардуерен GL (REQ-SW-PL-029) |
 | FrameSamplerNode | Video | Ресемплиране на `VideoFrameData` — всеки N-ти кадър или max FPS, zero-copy passthrough (REQ-SW-PL-030) |
 
 Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy); видео source-ите имат и port 1 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема `VideoFrameData` и го дисплейва през GPU (вж. „Qt6 in-scene toggle" по-долу; Qt5: detached GL blit прозорец при `DAQSTER_GL_BLIT=1`). **Единственият frame тип е `VideoFrameData`** — `ImageData` е премахнат (Фаза 3, REQ-SW-PL-032); CPU обработката ползва lazy `VideoFrameData::asImage()` кеша. Частният AI Studio plugin консумира `VideoFrameData` на входа на `FrameToTensorNode` (REQ-AI-007).
@@ -256,8 +275,9 @@ CPU ефектите. Стари saved графи с `"VideoTransform"` registry
 - **GLSL ефекти:** brightness (`rgb + u_brightness`), contrast
   (`(rgb − 0.5) * u_contrast + 0.5`), grayscale (dot luminance), invert,
   sepia (mat3 multiply), channelSwap (`rgb.bgr`), flip (празен body — флипът
-  става през `u_flipY` uniform-а, който обръща texture coordinate-а
-  вертикално; CPU пътят ползва horizontal/vertical combo).
+  става през **двата** uniform-а `u_flipX` (хоризонтален) и `u_flipY`
+  (вертикален), които обръщат texture coordinate-а — `VideoEffectGLProcessor.cpp:204-209`;
+  CPU пътят ползва horizontal/vertical combo).
 - **Lazy QImage кеш (REQ-SW-PL-032):** CPU пътят ползва `VideoFrameData::asImage()`
   — конверсията става най-много веднъж на кадър и се споделя между всички
   CPU консуматори (fan-out).
@@ -436,8 +456,10 @@ QObjectList providers = pm->instances(INodeProvider_IID);
   - [REQ-SW-PL-020](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-020-zero-copy-video-frame-display.md) — Zero-Copy Video Frame Transport & GPU Display (VideoFrameData, source/output nodes, Qt6 GPU display)
   - [REQ-SW-PL-024](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-024-audio-source-sampleddata-migration.md) — AudioSource (Mic) миграция от QDevIO към SampledData
   - [REQ-SW-PL-028](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-028-video-effect-node.md) — VideoEffectNode (GPU/CPU backend по ефект, включва blur/OpenCV)
+  - [REQ-SW-PL-029](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-029-custom-shader-node.md) — CustomShaderNode (runtime GLSL, GPU-only)
   - [REQ-SW-PL-030](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-030-frame-sampler-node.md) — FrameSampler (ресемплиране)
   - [REQ-SW-PL-032](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-032-video-frame-consolidation.md) — Video Frame Consolidation (един VideoFrameData тип, Фаза 3)
+  - [REQ-SW-PL-034](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-034-video-output-node-embedded-effects.md) — VideoOutputNode embedded effects (опционални, default none)
 
 ## _obsolete rename strategy_
 

@@ -183,4 +183,11 @@ if(TARGET DemoNodeEditorNodes)
     set_target_properties(DemoNodeEditorNodes PROPERTIES
         OUTPUT_NAME "DemoNodeEditorNodesPlugin"
     )
+    # Explicit ordering guarantee: DemoNodeEditorNodesPlugin.dll links against
+    # NodeEditorLibrary's import library on Windows (same LNK1181 guard as
+    # NodeEditorIde). The link already goes through the target name; this
+    # add_dependencies() is a belt-and-braces order-only edge.
+    if(TARGET NodeEditorLibrary)
+        add_dependencies(DemoNodeEditorNodes NodeEditorLibrary)
+    endif()
 endif()
