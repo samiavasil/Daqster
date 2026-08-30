@@ -74,18 +74,18 @@ void appendReference(const QString &item, QStringList &bareIds,
 QString sectionOf(const QString &baseDir, const QString &absolutePath)
 {
     const QString dir = QDir(baseDir).absolutePath();
-    const QString sep = QDir::separator();
     // baseDir may point at the repo root (contains DevelopmentProcess/
     // requirements) or at the DevelopmentProcess/requirements/ directory itself.
     const QStringList candidates = {
-        dir + sep + QString::fromUtf8(kRequirementsSubdir),
+        QDir(dir).filePath(QString::fromUtf8(kRequirementsSubdir)),
         dir
     };
     for (const QString &candidate : candidates) {
-        const QString base = candidate + sep;
-        if (absolutePath.startsWith(base + QStringLiteral("active")))
+        const QString activePath = QDir(candidate).filePath(QStringLiteral("active"));
+        const QString archivePath = QDir(candidate).filePath(QStringLiteral("archive"));
+        if (absolutePath.startsWith(QDir::cleanPath(activePath) + QDir::separator()))
             return QStringLiteral("active");
-        if (absolutePath.startsWith(base + QStringLiteral("archive")))
+        if (absolutePath.startsWith(QDir::cleanPath(archivePath) + QDir::separator()))
             return QStringLiteral("archive");
     }
     return QString();
