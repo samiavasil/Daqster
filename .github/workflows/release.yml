@@ -19,6 +19,15 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Verify tag matches VERSION
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"          # e.g. v0.3.0
+          EXPECTED="v$(tr -d '[:space:]' < VERSION)"
+          if [ "$TAG" != "$EXPECTED" ]; then
+            echo "ERROR: tag $TAG does not match VERSION ($EXPECTED)"
+            exit 1
+          fi
+
       - name: Verify submodule gitlinks are reachable
         run: |
           git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'

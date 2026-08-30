@@ -24,19 +24,27 @@
 ### Източник на версията
 
 - **`VERSION` файл** (в корена на repo-то) е единственият източник на истината.
-- **`scripts/version.sh X.Y.Z`** обновява **всичките 15+ места**, които носят
+- **`scripts/version.sh set X.Y.Z`** обновява **всичките места**, които носят
   версията:
   - `VERSION` файла
-  - root `CMakeLists.txt` (`project(Daqster VERSION ...)`)
   - plugin `CMakeLists.txt` × 3 (`demo_nodeditor_nodes`, `node_editor_ide`, `requirements_manager`)
-  - plugin `*Interface.json` × 3 (`"Version": ...`)
-  - plugin `*Interface.cpp` × 3 (`PLUGIN_VERSION, "..."`)
+  - plugin `*Interface.json` × 8 (`"Version": ...` — вкл. legacy QtCoinTrader + тестовите)
   - plugin docs `README.md` × 2 (`PLUGIN_VERSION = "..."`)
   - `CHANGELOG.md` + `CHANGELOG.en.md` (добавя секция `## [X.Y.Z] - дата` под `## [Unreleased]`)
+  - Root `CMakeLists.txt` **не се пипа** — той чете версията от `VERSION` файла
+    при configure; `*Interface.cpp` файловете **не се пипат** — те ползват
+    `DAQSTER_PLUGIN_VERSION` compile definition-а от `create_plugin()`.
 - Скриптът е **идемпотентен** — местата, които вече са на целевата версия, не се пипат.
+- **`scripts/version.sh get`** — отпечатва текущата версия от `VERSION`.
+- **`scripts/version.sh check`** — проверява дали всички места съвпадат с `VERSION`
+  (exit 1 при drift).
+- **`scripts/suggest_version.sh`** — release-time semver bump check: чете текущата
+  версия от `VERSION`, инспектира git историята от последния `v*` tag и предлага
+  следващата версия (breaking → major, feat → minor, fix → patch). Флагове:
+  `--dry-run` (само proposal), `--yes` (прилага без prompt).
 - **CI drift check:** `version-sync.yml` проверява при всеки push/PR към
   `develop`/`master` дали всички места съвпадат с `VERSION` — **fail-ва** при
-  несъответствие (съобщението казва да се пусне `./scripts/version.sh X.Y.Z`).
+  несъответствие (съобщението казва да се пусне `./scripts/version.sh set X.Y.Z`).
 
 ## 2. Release flow (Option A — директно в master)
 
@@ -46,7 +54,8 @@ feature branches → develop (PR, CI проверки)
                         ▼  (когато сме готови)
              1. Feature freeze (само бъгфиксове)
              2. Stabilization + финална верификация
-             3. Version bump: ./scripts/version.sh X.Y.Z
+             3. Version bump: ./scripts/suggest_version.sh
+                → преглед на proposal-а → ./scripts/version.sh set X.Y.Z
                 + changelog [Unreleased] → [X.Y.Z]
              4. Merge develop → master
              5. Push таг vX.Y.Z (annotated)
@@ -59,10 +68,14 @@ feature branches → develop (PR, CI проверки)
 
 1. **Feature freeze** — спират се нови функционалности; в `develop` влизат само бъгфиксове.
 2. **Stabilization + финална верификация** — всички CI проверки зелени, release checklist-ът (долу) е изпълнен.
-3. **Version bump** — `./scripts/version.sh X.Y.Z` обновява всички места; changelog-ът получава секция `## [X.Y.Z] - дата` (Unreleased записите стават новия release, свеж `[Unreleased]` остава отгоре).
+3. **Version bump** — `./scripts/suggest_version.sh` предлага следващата semver версия
+   (breaking → major, feat → minor, fix → patch) с обосновка от git историята;
+   след преглед `./scripts/version.sh set X.Y.Z` обновява всички места; changelog-ът
+   получава секция `## [X.Y.Z] - дата` (Unreleased записите стават новия release,
+   свеж `[Unreleased]` остава отгоре).
 4. **Merge `develop` → `master`** — `master` вече е released state.
 5. **Push таг `vX.Y.Z`** — **annotated** таг (`git tag -a vX.Y.Z -m "..."`).
-6. **`release.yml`** се задейства автоматично от тага и прави: build Qt6 (Linux + Windows), тестове, smoke, пакетиране (AppImage + tarball за Linux, ZIP за Windows), `SHA256SUMS` и създава **GitHub Release** с body от съответната changelog секция.
+6. **`release.yml`** се задейства автоматично от тага и прави: build Qt6 (Linux + Windows), тестове, smoke, пакетиране (AppImage + tarball за Linux, ZIP за Windows), `SHA256SUMS` и създава **GitHub Release** с body от съответната changelog секция. Първата стъпка на workflow-а проверява дали тагът съвпада с `VERSION` файла (fail-ва при несъответствие).
 
 ## 3. Hotfix flow (критичен бъг в пуснат release)
 
@@ -82,6 +95,7 @@ vX.Y.Z tag → hotfix/X.Y.(Z+1) → fix → merge master + tag vX.Y.(Z+1) → me
 - [ ] Qt6 builds PASS (Linux + Windows, CI)
 - [ ] ctest green (всички test binaries)
 - [ ] Smoke тестове на пакетираните бинарки (AppImage/ZIP)
+- [ ] `./scripts/suggest_version.sh --dry-run` — proposal-ът е прегледан
 - [ ] version-sync check PASS (VERSION = X.Y.Z навсякъде)
 - [ ] Changelog BG + EN обновени с дата
 - [ ] Таг vX.Y.Z на master (annotated)
