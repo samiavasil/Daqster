@@ -11,7 +11,7 @@ PluginMainInterface::PluginMainInterface(QObject* parent ):QPluginInterface(pare
     m_PluginDescriptor.SetProperty( PLUGIN_NAME, "PluginMainTest" );
     m_PluginDescriptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN );
     m_PluginDescriptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
-    m_PluginDescriptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
+    m_PluginDescriptor.SetProperty( PLUGIN_VERSION, DAQSTER_PLUGIN_VERSION );
     m_PluginDescriptor.SetProperty( PLUGIN_DESCRIPTION, "Plugin Main Test" );
     char docstr[] = \
     "PluginMainTest is a basic Daqster plugin test. \n\

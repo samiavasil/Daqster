@@ -6,7 +6,17 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-30
+
 ### Added
+- **REQ-SW-PL-035** (Version Centralization — single source of truth & semver bump check):
+  - Нов `VERSION` файл в корена на repo-то — единствен източник на истина; root `CMakeLists.txt` чете версията от него (без хардкод)
+  - Генериран `daqster_version.h` (`DAQSTER_VERSION_MAJOR/MINOR/PATCH` + `DAQSTER_VERSION_STRING`) при configure
+  - `create_plugin()` разпространява версията до всички плъгини (вкл. legacy QtCoinTrader + тестовите) чрез include dir + `DAQSTER_PLUGIN_VERSION` compile definition
+  - Всички плъгини на **0.3.0**; `main.cpp` ползва `DAQSTER_VERSION_STRING`
+  - `scripts/version.sh` — subcommand интерфейс `get`/`set`/`check`; `version-sync.yml` ползва `version.sh check`
+  - `scripts/suggest_version.sh` — release-time semver bump check (feat → minor, fix → patch, breaking → major)
+  - Плъгин JSON metadata файловете (8) се **генерират** от `.json.in` шаблони чрез `configure_file()` с `@DAQSTER_VERSION@` (вместо хардкод); `version.sh set` вече не ги редактира, `version.sh check` проверява шаблоните + генерираните JSON-и
 - **REQ-SW-PL-028** (VideoEffectNode — GPU/CPU backend по ефект):
   - `VideoGLShaders.h` — споделени GLSL source builder-и (`buildVertexSource`, `buildYuvFragmentSource`, `buildRgbaFragmentSource` извлечени от `VideoGLBlitWidget.cpp` + нов `buildEffectFragmentSource` с `u_flipY` и инжектируем effect body)
   - `VideoEffectOps.{h,cpp}` — `EffectSpec` регистър (7 ефекта: brightness, contrast, grayscale, invert, sepia, channelSwap, flip) с CPU функции (делегират на `VideoTransformOps`) + GLSL body

@@ -1,168 +1,342 @@
 #!/usr/bin/env bash
 #
-# version.sh — bump the project version in every location that carries it.
+# version.sh — get / set / check the project version.
 #
-# Single source of truth: the root VERSION file. Run this script after updating
-# VERSION, or pass the new version directly:
+# Single source of truth: the root VERSION file.
 #
-#     ./scripts/version.sh 0.3.0
+#     ./scripts/version.sh get              # print the current version
+#     ./scripts/version.sh set 0.3.0        # bump every location that carries it
+#     ./scripts/version.sh check            # verify all locations match VERSION (exit 1 on drift)
 #
-# The script is idempotent: locations already at the target version are left
-# untouched and reported as "no change".
+# The set subcommand is idempotent: locations already at the target version are
+# left untouched and reported as "no change".
 
 set -euo pipefail
-
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <new-version>" >&2
-    echo "Example: $0 0.3.0" >&2
-    exit 1
-fi
-
-NEW_VERSION="$1"
-
-if ! printf '%s' "$NEW_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-    echo "ERROR: version must be in X.Y.Z format (got '$NEW_VERSION')" >&2
-    exit 1
-fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-CHANGED=0
-
-# update_version <file> <extract-sed> <update-sed> <description>
-#   extract-sed: prints the current version from the file (first match)
-#   update-sed:  rewrites the version in place
-update_version() {
-    local file="$1" extract_sed="$2" update_sed="$3" desc="$4"
-    if [ ! -f "$file" ]; then
-        echo "SKIP  $desc: $file not found"
-        return
+# ── get ──────────────────────────────────────────────────────────────────────
+cmd_get() {
+    if [ ! -f VERSION ]; then
+        echo "ERROR: VERSION file not found" >&2
+        exit 1
     fi
-    local current
-    current="$(sed -nE "$extract_sed" "$file" | head -n1 || true)"
-    if [ -z "$current" ]; then
-        echo "SKIP  $desc: no version pattern found in $file"
-        return
-    fi
-    if [ "$current" = "$NEW_VERSION" ]; then
-        echo "OK    $desc: already $NEW_VERSION ($file)"
-        return
-    fi
-    sed -i -E "$update_sed" "$file"
-    echo "UPDATED $desc: $current -> $NEW_VERSION ($file)"
-    CHANGED=$((CHANGED + 1))
+    tr -d '[:space:]' < VERSION
 }
 
-# update_changelog <file>
-#   Adds a "## [X.Y.Z] - YYYY-MM-DD" section below "## [Unreleased]" when the
-#   section does not already exist (Keep a Changelog release convention: the
-#   unreleased entries become the new release, a fresh [Unreleased] stays on top).
-update_changelog() {
-    local file="$1"
-    if [ ! -f "$file" ]; then
-        echo "SKIP  changelog: $file not found"
-        return
+# ── helpers shared by set/check ──────────────────────────────────────────────
+# read_version: prints the current version from VERSION (or exits)
+read_version() {
+    if [ ! -f VERSION ]; then
+        echo "ERROR: VERSION file not found" >&2
+        exit 1
     fi
-    if grep -q "^## \[$NEW_VERSION\]" "$file"; then
-        echo "OK    changelog: section [$NEW_VERSION] already present ($file)"
-        return
-    fi
-    local date
-    date="$(date +%Y-%m-%d)"
-    sed -i "0,/^## \[Unreleased\]/s//## [Unreleased]\n\n## [$NEW_VERSION] - $date/" "$file"
-    echo "UPDATED changelog: added [$NEW_VERSION] - $date section ($file)"
-    CHANGED=$((CHANGED + 1))
+    tr -d '[:space:]' < VERSION
 }
 
-echo "Bumping version to $NEW_VERSION"
-echo "----------------------------------------"
+# ── set ──────────────────────────────────────────────────────────────────────
+cmd_set() {
+    if [ "$#" -ne 1 ]; then
+        echo "Usage: $0 set <new-version>" >&2
+        echo "Example: $0 set 0.3.0" >&2
+        exit 1
+    fi
 
-# Root VERSION file (single source of truth)
-if [ -f VERSION ]; then
-    current="$(tr -d '[:space:]' < VERSION)"
-    if [ "$current" = "$NEW_VERSION" ]; then
-        echo "OK    VERSION: already $NEW_VERSION"
-    else
-        printf '%s\n' "$NEW_VERSION" > VERSION
-        echo "UPDATED VERSION: $current -> $NEW_VERSION"
+    NEW_VERSION="$1"
+
+    if ! printf '%s' "$NEW_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+        echo "ERROR: version must be in X.Y.Z format (got '$NEW_VERSION')" >&2
+        exit 1
+    fi
+
+    CHANGED=0
+
+    # update_version <file> <extract-sed> <update-sed> <description>
+    #   extract-sed: prints the current version from the file (first match)
+    #   update-sed:  rewrites the version in place
+    update_version() {
+        local file="$1" extract_sed="$2" update_sed="$3" desc="$4"
+        if [ ! -f "$file" ]; then
+            echo "SKIP  $desc: $file not found"
+            return
+        fi
+        local current
+        current="$(sed -nE "$extract_sed" "$file" | head -n1 || true)"
+        if [ -z "$current" ]; then
+            echo "SKIP  $desc: no version pattern found in $file"
+            return
+        fi
+        if [ "$current" = "$NEW_VERSION" ]; then
+            echo "OK    $desc: already $NEW_VERSION ($file)"
+            return
+        fi
+        sed -i -E "$update_sed" "$file"
+        echo "UPDATED $desc: $current -> $NEW_VERSION ($file)"
         CHANGED=$((CHANGED + 1))
+    }
+
+    # update_changelog <file>
+    #   Adds a "## [X.Y.Z] - YYYY-MM-DD" section below "## [Unreleased]" when the
+    #   section does not already exist (Keep a Changelog release convention: the
+    #   unreleased entries become the new release, a fresh [Unreleased] stays on top).
+    update_changelog() {
+        local file="$1"
+        if [ ! -f "$file" ]; then
+            echo "SKIP  changelog: $file not found"
+            return
+        fi
+        if grep -q "^## \[$NEW_VERSION\]" "$file"; then
+            echo "OK    changelog: section [$NEW_VERSION] already present ($file)"
+            return
+        fi
+        local date
+        date="$(date +%Y-%m-%d)"
+        sed -i "0,/^## \[Unreleased\]/s//## [Unreleased]\n\n## [$NEW_VERSION] - $date/" "$file"
+        echo "UPDATED changelog: added [$NEW_VERSION] - $date section ($file)"
+        CHANGED=$((CHANGED + 1))
+    }
+
+    echo "Bumping version to $NEW_VERSION"
+    echo "----------------------------------------"
+
+    # Root VERSION file (single source of truth)
+    if [ -f VERSION ]; then
+        current="$(tr -d '[:space:]' < VERSION)"
+        if [ "$current" = "$NEW_VERSION" ]; then
+            echo "OK    VERSION: already $NEW_VERSION"
+        else
+            printf '%s\n' "$NEW_VERSION" > VERSION
+            echo "UPDATED VERSION: $current -> $NEW_VERSION"
+            CHANGED=$((CHANGED + 1))
+        fi
+    else
+        echo "SKIP  VERSION: file not found"
     fi
-else
-    echo "SKIP  VERSION: file not found"
-fi
 
-# CMake project() declarations
-update_version "CMakeLists.txt" \
-    's/.*project\([a-zA-Z_]+ VERSION ([0-9.]+).*/\1/p' \
-    "s/(project\([a-zA-Z_]+ VERSION )[0-9.]+/\1$NEW_VERSION/" \
-    "root CMakeLists.txt"
+    # NOTE: root CMakeLists.txt is intentionally NOT updated here — it reads the
+    # VERSION file at configure time (single source of truth).
 
-update_version "src/plugins/demo_nodeditor_nodes/CMakeLists.txt" \
-    's/.*project\([a-zA-Z_]+ VERSION ([0-9.]+).*/\1/p' \
-    "s/(project\([a-zA-Z_]+ VERSION )[0-9.]+/\1$NEW_VERSION/" \
-    "demo_nodeditor_nodes CMakeLists.txt"
+    # Plugin CMakeLists project() declarations (3)
+    update_version "src/plugins/demo_nodeditor_nodes/CMakeLists.txt" \
+        's/.*project\([a-zA-Z_]+ VERSION ([0-9.]+).*/\1/p' \
+        "s/(project\([a-zA-Z_]+ VERSION )[0-9.]+/\1$NEW_VERSION/" \
+        "demo_nodeditor_nodes CMakeLists.txt"
 
-update_version "src/plugins/node_editor_ide/CMakeLists.txt" \
-    's/.*project\([a-zA-Z_]+ VERSION ([0-9.]+).*/\1/p' \
-    "s/(project\([a-zA-Z_]+ VERSION )[0-9.]+/\1$NEW_VERSION/" \
-    "node_editor_ide CMakeLists.txt"
+    update_version "src/plugins/node_editor_ide/CMakeLists.txt" \
+        's/.*project\([a-zA-Z_]+ VERSION ([0-9.]+).*/\1/p' \
+        "s/(project\([a-zA-Z_]+ VERSION )[0-9.]+/\1$NEW_VERSION/" \
+        "node_editor_ide CMakeLists.txt"
 
-update_version "src/plugins/requirements_manager/CMakeLists.txt" \
-    's/.*project\([a-zA-Z_]+ VERSION ([0-9.]+).*/\1/p' \
-    "s/(project\([a-zA-Z_]+ VERSION )[0-9.]+/\1$NEW_VERSION/" \
-    "requirements_manager CMakeLists.txt"
+    update_version "src/plugins/requirements_manager/CMakeLists.txt" \
+        's/.*project\([a-zA-Z_]+ VERSION ([0-9.]+).*/\1/p' \
+        "s/(project\([a-zA-Z_]+ VERSION )[0-9.]+/\1$NEW_VERSION/" \
+        "requirements_manager CMakeLists.txt"
 
-# Plugin Interface.json metadata
-update_version "src/plugins/demo_nodeditor_nodes/DemoNodeEditorNodesInterface.json" \
-    's/.*"Version": "([0-9.]+)".*/\1/p' \
-    "s/(\"Version\": \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-    "DemoNodeEditorNodesInterface.json"
+    # Plugin Interface.json metadata (8) — NOT edited here. The JSONs are
+    # GENERATED from .json.in templates by configure_file() at CMake configure
+    # time (REQ-SW-PL-035), substituting @DAQSTER_VERSION@ from the root VERSION
+    # file. Bumping VERSION and re-running cmake regenerates them; the committed
+    # JSONs are refreshed by the build. No sed editing needed.
 
-update_version "src/plugins/node_editor_ide/NodeEditorIdeInterface.json" \
-    's/.*"Version": "([0-9.]+)".*/\1/p' \
-    "s/(\"Version\": \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-    "NodeEditorIdeInterface.json"
+    # NOTE: *Interface.cpp files are intentionally NOT updated here — they use
+    # the DAQSTER_PLUGIN_VERSION compile definition from create_plugin().
 
-update_version "src/plugins/requirements_manager/RequirementsManagerInterface.json" \
-    's/.*"Version": "([0-9.]+)".*/\1/p' \
-    "s/(\"Version\": \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-    "RequirementsManagerInterface.json"
+    # Plugin docs READMEs (2)
+    update_version "docs/plugins/demo_nodeditor_nodes/README.md" \
+        's/.*PLUGIN_VERSION    = "([0-9.]+)".*/\1/p' \
+        "s/(PLUGIN_VERSION    = \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
+        "docs/plugins/demo_nodeditor_nodes/README.md"
 
-# Plugin Interface.cpp PLUGIN_VERSION
-update_version "src/plugins/demo_nodeditor_nodes/DemoNodeEditorNodesInterface.cpp" \
-    's/.*PLUGIN_VERSION, "([0-9.]+)".*/\1/p' \
-    "s/(PLUGIN_VERSION, \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-    "DemoNodeEditorNodesInterface.cpp"
+    update_version "docs/plugins/node_editor_ide/README.md" \
+        's/.*PLUGIN_VERSION    = "([0-9.]+)".*/\1/p' \
+        "s/(PLUGIN_VERSION    = \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
+        "docs/plugins/node_editor_ide/README.md"
 
-update_version "src/plugins/node_editor_ide/NodeEditorIdeInterface.cpp" \
-    's/.*PLUGIN_VERSION, "([0-9.]+)".*/\1/p' \
-    "s/(PLUGIN_VERSION, \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-    "NodeEditorIdeInterface.cpp"
+    # Changelogs (2)
+    update_changelog "CHANGELOG.md"
+    update_changelog "CHANGELOG.en.md"
 
-update_version "src/plugins/requirements_manager/RequirementsManagerInterface.cpp" \
-    's/.*PLUGIN_VERSION, "([0-9.]+)".*/\1/p' \
-    "s/(PLUGIN_VERSION, \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-    "RequirementsManagerInterface.cpp"
+    echo "----------------------------------------"
+    if [ "$CHANGED" -eq 0 ]; then
+        echo "No changes — every location is already at $NEW_VERSION."
+    else
+        echo "Done: $CHANGED location(s) updated to $NEW_VERSION."
+    fi
+}
 
-# Plugin docs READMEs
-update_version "docs/plugins/demo_nodeditor_nodes/README.md" \
-    's/.*PLUGIN_VERSION    = "([0-9.]+)".*/\1/p' \
-    "s/(PLUGIN_VERSION    = \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-    "docs/plugins/demo_nodeditor_nodes/README.md"
+# ── check ────────────────────────────────────────────────────────────────────
+cmd_check() {
+    local VERSION
+    VERSION="$(read_version)"
 
-update_version "docs/plugins/node_editor_ide/README.md" \
-    's/.*PLUGIN_VERSION    = "([0-9.]+)".*/\1/p' \
-    "s/(PLUGIN_VERSION    = \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-    "docs/plugins/node_editor_ide/README.md"
+    if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+        echo "FAIL  VERSION format: '$VERSION' is not X.Y.Z" >&2
+        exit 1
+    fi
+    echo "OK    VERSION: $VERSION"
 
-# Changelogs
-update_changelog "CHANGELOG.md"
-update_changelog "CHANGELOG.en.md"
+    local FAIL=0
 
-echo "----------------------------------------"
-if [ "$CHANGED" -eq 0 ]; then
-    echo "No changes — every location is already at $NEW_VERSION."
-else
-    echo "Done: $CHANGED location(s) updated to $NEW_VERSION."
-fi
+    check_absent() {
+        local file="$1" pattern="$2" desc="$3"
+        if [ ! -f "$file" ]; then
+            echo "MISSING: $file not found"
+            FAIL=1
+            return
+        fi
+        if grep -qE "$pattern" "$file"; then
+            echo "MISMATCH: $desc — hardcoded version pattern found in $file"
+            FAIL=1
+        else
+            echo "OK    $desc ($file)"
+        fi
+    }
+
+    check_present() {
+        local file="$1" pattern="$2" desc="$3"
+        if [ ! -f "$file" ]; then
+            echo "MISSING: $file not found"
+            FAIL=1
+            return
+        fi
+        if ! grep -qE "$pattern" "$file"; then
+            echo "MISMATCH: $desc — $file does not contain version $VERSION"
+            FAIL=1
+        else
+            echo "OK    $desc ($file)"
+        fi
+    }
+
+    # Root CMakeLists must NOT hardcode project(Daqster VERSION X.Y.Z) — it reads VERSION
+    check_absent "CMakeLists.txt" \
+        "project\(Daqster VERSION [0-9]" \
+        "root CMakeLists.txt reads VERSION (no hardcoded project version)"
+
+    # Plugin CMakeLists project() declarations (3)
+    check_present "src/plugins/demo_nodeditor_nodes/CMakeLists.txt" \
+        "project\(demo_nodeditor_nodes VERSION $VERSION" \
+        "demo_nodeditor_nodes CMakeLists.txt"
+    check_present "src/plugins/node_editor_ide/CMakeLists.txt" \
+        "project\(node_editor_ide VERSION $VERSION" \
+        "node_editor_ide CMakeLists.txt"
+    check_present "src/plugins/requirements_manager/CMakeLists.txt" \
+        "project\(requirements_manager VERSION $VERSION" \
+        "requirements_manager CMakeLists.txt"
+
+    # Plugin Interface.json metadata (8) — generated from .json.in templates
+    # by configure_file() (REQ-SW-PL-035). Check that:
+    #   1. each template contains @DAQSTER_VERSION@ (no hardcoded version), and
+    #   2. each generated JSON is committed and carries the current VERSION
+    #      (i.e. matches what configure_file would produce).
+    check_json_template() {
+        local template="$1" json="$2" desc="$3"
+        if [ ! -f "$template" ]; then
+            echo "MISSING: $desc template not found ($template)"
+            FAIL=1
+            return
+        fi
+        if ! grep -q '@DAQSTER_VERSION@' "$template"; then
+            echo "MISMATCH: $desc template does not contain @DAQSTER_VERSION@ ($template)"
+            FAIL=1
+        else
+            echo "OK    $desc template uses @DAQSTER_VERSION@ ($template)"
+        fi
+        if [ ! -f "$json" ]; then
+            echo "MISSING: $desc generated JSON not found ($json)"
+            FAIL=1
+            return
+        fi
+        if ! grep -q "\"Version\": \"$VERSION\"" "$json"; then
+            echo "MISMATCH: $desc generated JSON does not carry version $VERSION ($json)"
+            FAIL=1
+        else
+            echo "OK    $desc generated JSON carries version $VERSION ($json)"
+        fi
+    }
+
+    check_json_template "src/plugins/demo_nodeditor_nodes/DemoNodeEditorNodesInterface.json.in" \
+        "src/plugins/demo_nodeditor_nodes/DemoNodeEditorNodesInterface.json" \
+        "DemoNodeEditorNodesInterface"
+    check_json_template "src/plugins/node_editor_ide/NodeEditorIdeInterface.json.in" \
+        "src/plugins/node_editor_ide/NodeEditorIdeInterface.json" \
+        "NodeEditorIdeInterface"
+    check_json_template "src/plugins/requirements_manager/RequirementsManagerInterface.json.in" \
+        "src/plugins/requirements_manager/RequirementsManagerInterface.json" \
+        "RequirementsManagerInterface"
+    check_json_template "src/plugins/QtCoinTrader/QtCoinTraderInterface.json.in" \
+        "src/plugins/QtCoinTrader/QtCoinTraderInterface.json" \
+        "QtCoinTraderInterface"
+    check_json_template "src/plugins/tests/plugin_main_test/PluginMainTest.json.in" \
+        "src/plugins/tests/plugin_main_test/PluginMainTest.json" \
+        "PluginMainTest"
+    check_json_template "src/plugins/tests/plugin_fancy_test/PluginFancyTest.json.in" \
+        "src/plugins/tests/plugin_fancy_test/PluginFancyTest.json" \
+        "PluginFancyTest"
+    check_json_template "src/plugins/tests/plugin_uggly_test/UgglyTestPlugin.json.in" \
+        "src/plugins/tests/plugin_uggly_test/UgglyTestPlugin.json" \
+        "UgglyTestPlugin"
+    check_json_template "src/plugins/tests/template_plugin_daqster/DaqsterTeplateInterface.json.in" \
+        "src/plugins/tests/template_plugin_daqster/DaqsterTeplateInterface.json" \
+        "DaqsterTeplateInterface"
+
+    # No hardcoded PLUGIN_VERSION literal in any *Interface.cpp (must use the macro)
+    local cpp_hits
+    cpp_hits="$(grep -rEn 'PLUGIN_VERSION, "' src/plugins --include='*Interface.cpp' || true)"
+    if [ -n "$cpp_hits" ]; then
+        echo "MISMATCH: hardcoded PLUGIN_VERSION literal found in *Interface.cpp:"
+        echo "$cpp_hits"
+        FAIL=1
+    else
+        echo "OK    *Interface.cpp use DAQSTER_PLUGIN_VERSION (no hardcoded literals)"
+    fi
+
+    # Plugin docs READMEs (2)
+    check_present "docs/plugins/demo_nodeditor_nodes/README.md" \
+        "PLUGIN_VERSION    = \"$VERSION\"" \
+        "docs/plugins/demo_nodeditor_nodes/README.md"
+    check_present "docs/plugins/node_editor_ide/README.md" \
+        "PLUGIN_VERSION    = \"$VERSION\"" \
+        "docs/plugins/node_editor_ide/README.md"
+
+    # Changelogs (2)
+    check_present "CHANGELOG.md" "^## \[$VERSION\]" "CHANGELOG.md"
+    check_present "CHANGELOG.en.md" "^## \[$VERSION\]" "CHANGELOG.en.md"
+
+    # main.cpp uses the central version macro (no "0.1" literal)
+    check_present "src/apps/Daqster/main.cpp" \
+        "DAQSTER_VERSION_STRING" \
+        "main.cpp uses DAQSTER_VERSION_STRING"
+    check_absent "src/apps/Daqster/main.cpp" \
+        "setApplicationVersion\(\"0\.1\"\)" \
+        "main.cpp has no hardcoded \"0.1\" version"
+
+    if [ "$FAIL" -ne 0 ]; then
+        echo ""
+        echo "Version drift detected. Run ./scripts/version.sh set $VERSION to sync all locations."
+        exit 1
+    fi
+    echo ""
+    echo "All version locations match VERSION ($VERSION)."
+}
+
+# ── dispatch ─────────────────────────────────────────────────────────────────
+case "${1:-}" in
+    get)
+        cmd_get
+        ;;
+    set)
+        shift
+        cmd_set "$@"
+        ;;
+    check)
+        cmd_check
+        ;;
+    *)
+        echo "Usage: $0 {get|set <X.Y.Z>|check}" >&2
+        echo "  get    — print the current version from VERSION" >&2
+        echo "  set    — bump every location to <X.Y.Z>" >&2
+        echo "  check  — verify all locations match VERSION (exit 1 on drift)" >&2
+        exit 1
+        ;;
+esac

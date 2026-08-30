@@ -9,7 +9,7 @@ DemoNodeEditorNodesInterface::DemoNodeEditorNodesInterface(QObject* parent)
     m_PluginDescriptor.SetProperty(PLUGIN_NAME, "DemoNodeEditorNodes");
     m_PluginDescriptor.SetProperty(PLUGIN_TYPE, Daqster::PluginDescription::USER_DEFINED_TYPE);
     m_PluginDescriptor.SetProperty(PLUGIN_TYPE_NAME, "NODE_PROVIDER_PLUGIN");
-    m_PluginDescriptor.SetProperty(PLUGIN_VERSION, "0.2.0");
+    m_PluginDescriptor.SetProperty(PLUGIN_VERSION, DAQSTER_PLUGIN_VERSION);
     m_PluginDescriptor.SetProperty(PLUGIN_DESCRIPTION, "Demo node editor nodes: NumberSource, NumberDisplay, Modulo, Audio, LLM.");
     m_PluginDescriptor.SetProperty(PLUGIN_AUTHOR, "Vasil Vasilev");
 }

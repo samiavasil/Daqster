@@ -96,6 +96,7 @@ target_include_directories(frame_work
     base/src/registry
     base/src/gui
     base/src/perf
+    ${DAQSTER_VERSION_INCLUDE_DIR}
   PRIVATE
     base/src
 )

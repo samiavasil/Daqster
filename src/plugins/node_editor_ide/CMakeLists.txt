@@ -1,11 +1,22 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(node_editor_ide VERSION 0.2.0 LANGUAGES CXX)
+project(node_editor_ide VERSION 0.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
+
+# ── Plugin JSON metadata (generated from template) ──────────────────
+# REQ-SW-PL-035: the plugin metadata JSON is generated from a .json.in
+# template with @DAQSTER_VERSION@ substituted (single source of truth:
+# root VERSION file). Must run BEFORE create_plugin() so the JSON exists
+# when moc resolves Q_PLUGIN_METADATA FILE.
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/NodeEditorIdeInterface.json.in"
+    "${CMAKE_CURRENT_SOURCE_DIR}/NodeEditorIdeInterface.json"
+    @ONLY
+)
 
 # ══════════════════════════════════════════════════════════════════════
 # Shared Library: NodeEditorLibrary

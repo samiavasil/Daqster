@@ -48,7 +48,7 @@ NodeEditorIdeInterface → QPluginInterface
         PLUGIN_NAME       = "NodeEditorIDE"
         PLUGIN_TYPE       = APPLICATION_PLUGIN
         PLUGIN_TYPE_NAME  = "Applications"    ← използва се за групиране в PluginManager GUI
-        PLUGIN_VERSION    = "0.2.0"
+        PLUGIN_VERSION    = "0.3.0"
 ```
 
 ### QBasePluginObject ( frame_work )

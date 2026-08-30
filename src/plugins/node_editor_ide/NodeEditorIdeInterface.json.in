@@ -3,7 +3,7 @@
     "MetaData": {
         "Name": "NodeEditorIDE",
         "Type": "APPLICATION_PLUGIN",
-        "Version": "0.3.0",
+        "Version": "@DAQSTER_VERSION@",
         "Description": "Node editor IDE with built-in nodes and plugin-based node discovery."
     }
 }

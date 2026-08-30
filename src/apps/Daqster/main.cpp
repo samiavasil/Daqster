@@ -2,6 +2,7 @@
 #include "QPluginManager.h"
 #include "ShutdownHandler.h"
 #include "LogManager.h"
+#include "daqster_version.h"
 
 #include <AppToolbar.h>
 #include <QApplication>
@@ -73,7 +74,7 @@ int main(int argc, char *argv[]) {
   QApplication::setAttribute(Qt::AA_ShareOpenGLContexts, true);
   QApplication a(argc, argv);
   QApplication::setApplicationName("Daqster");
-  QApplication::setApplicationVersion("0.1");
+  QApplication::setApplicationVersion(DAQSTER_VERSION_STRING);
 
   auto *shutdownHandler = ShutdownHandler::create(&a);
   shutdownHandler->initialize();

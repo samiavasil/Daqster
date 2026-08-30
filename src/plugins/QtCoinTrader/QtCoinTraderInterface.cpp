@@ -11,7 +11,7 @@ DaqsterTemplateInterface::DaqsterTemplateInterface(QObject* parent ):QPluginInte
     m_PluginDescriptor.SetProperty( PLUGIN_NAME, "QtCoinTrader" );
     m_PluginDescriptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN );
     m_PluginDescriptor.SetProperty( PLUGIN_TYPE_NAME, "This is a plugin application for coin trading" );
-    m_PluginDescriptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
+    m_PluginDescriptor.SetProperty( PLUGIN_VERSION, DAQSTER_PLUGIN_VERSION );
     m_PluginDescriptor.SetProperty( PLUGIN_DESCRIPTION, "QtCoinTrader Plugin" );
     char docstr[] = \
     "This is a basic Daqster plugin template and can be used for implementing a new type daqster plugin \n\
