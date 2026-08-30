@@ -82,9 +82,21 @@ endfunction()
 # Template for Plugins (including test plugins)
 function(create_plugin COMPONENT_NAME)
     set(options)
-    set(oneValueArgs INSTALL_RPATH)
+    set(oneValueArgs INSTALL_RPATH VERSION)
     set(multiValueArgs REQUIRES_LIBRARIES SOURCES INCLUDE_DIRECTORIES COMPILE_DEFINITIONS LINK_LIBRARIES)
     cmake_parse_arguments(PLUGIN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    # Plugin version: explicit VERSION > DAQSTER_VERSION > VERSION file > PROJECT_VERSION
+    if(PLUGIN_VERSION)
+        set(PLUGIN_VERSION_STR "${PLUGIN_VERSION}")
+    elseif(DEFINED DAQSTER_VERSION)
+        set(PLUGIN_VERSION_STR "${DAQSTER_VERSION}")
+    elseif(EXISTS "${DAQSTER_SOURCE_DIR}/VERSION")
+        file(STRINGS "${DAQSTER_SOURCE_DIR}/VERSION" PLUGIN_VERSION_STR LIMIT_COUNT 1)
+        string(STRIP "${PLUGIN_VERSION_STR}" PLUGIN_VERSION_STR)
+    else()
+        set(PLUGIN_VERSION_STR "${PROJECT_VERSION}")
+    endif()
     
     # Register as component and check dependencies FIRST
     register_component(${COMPONENT_NAME}
@@ -120,6 +132,12 @@ function(create_plugin COMPONENT_NAME)
     if(PLUGIN_INCLUDE_DIRECTORIES)
         target_include_directories(${COMPONENT_NAME} PRIVATE ${PLUGIN_INCLUDE_DIRECTORIES})
     endif()
+
+    # Central version header (daqster_version.h) — single source of truth
+    if(DEFINED DAQSTER_VERSION_INCLUDE_DIR)
+        target_include_directories(${COMPONENT_NAME} PRIVATE ${DAQSTER_VERSION_INCLUDE_DIR})
+    endif()
+    target_compile_definitions(${COMPONENT_NAME} PRIVATE DAQSTER_PLUGIN_VERSION="${PLUGIN_VERSION_STR}")
     
     # Additional compile definitions if specified
     if(PLUGIN_COMPILE_DEFINITIONS)
