@@ -133,46 +133,11 @@ cmd_set() {
         "s/(project\([a-zA-Z_]+ VERSION )[0-9.]+/\1$NEW_VERSION/" \
         "requirements_manager CMakeLists.txt"
 
-    # Plugin Interface.json metadata (8)
-    update_version "src/plugins/demo_nodeditor_nodes/DemoNodeEditorNodesInterface.json" \
-        's/.*"Version": "([0-9.]+)".*/\1/p' \
-        "s/(\"Version\": \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-        "DemoNodeEditorNodesInterface.json"
-
-    update_version "src/plugins/node_editor_ide/NodeEditorIdeInterface.json" \
-        's/.*"Version": "([0-9.]+)".*/\1/p' \
-        "s/(\"Version\": \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-        "NodeEditorIdeInterface.json"
-
-    update_version "src/plugins/requirements_manager/RequirementsManagerInterface.json" \
-        's/.*"Version": "([0-9.]+)".*/\1/p' \
-        "s/(\"Version\": \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-        "RequirementsManagerInterface.json"
-
-    update_version "src/plugins/QtCoinTrader/QtCoinTraderInterface.json" \
-        's/.*"Version": "([0-9.]+)".*/\1/p' \
-        "s/(\"Version\": \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-        "QtCoinTraderInterface.json"
-
-    update_version "src/plugins/tests/plugin_main_test/PluginMainTest.json" \
-        's/.*"Version": "([0-9.]+)".*/\1/p' \
-        "s/(\"Version\": \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-        "PluginMainTest.json"
-
-    update_version "src/plugins/tests/plugin_fancy_test/PluginFancyTest.json" \
-        's/.*"Version": "([0-9.]+)".*/\1/p' \
-        "s/(\"Version\": \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-        "PluginFancyTest.json"
-
-    update_version "src/plugins/tests/plugin_uggly_test/UgglyTestPlugin.json" \
-        's/.*"Version": "([0-9.]+)".*/\1/p' \
-        "s/(\"Version\": \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-        "UgglyTestPlugin.json"
-
-    update_version "src/plugins/tests/template_plugin_daqster/DaqsterTeplateInterface.json" \
-        's/.*"Version": "([0-9.]+)".*/\1/p' \
-        "s/(\"Version\": \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-        "DaqsterTeplateInterface.json"
+    # Plugin Interface.json metadata (8) — NOT edited here. The JSONs are
+    # GENERATED from .json.in templates by configure_file() at CMake configure
+    # time (REQ-SW-PL-035), substituting @DAQSTER_VERSION@ from the root VERSION
+    # file. Bumping VERSION and re-running cmake regenerates them; the committed
+    # JSONs are refreshed by the build. No sed editing needed.
 
     # NOTE: *Interface.cpp files are intentionally NOT updated here — they use
     # the DAQSTER_PLUGIN_VERSION compile definition from create_plugin().
@@ -259,31 +224,61 @@ cmd_check() {
         "project\(requirements_manager VERSION $VERSION" \
         "requirements_manager CMakeLists.txt"
 
-    # Plugin Interface.json metadata (8)
-    check_present "src/plugins/demo_nodeditor_nodes/DemoNodeEditorNodesInterface.json" \
-        "\"Version\": \"$VERSION\"" \
-        "DemoNodeEditorNodesInterface.json"
-    check_present "src/plugins/node_editor_ide/NodeEditorIdeInterface.json" \
-        "\"Version\": \"$VERSION\"" \
-        "NodeEditorIdeInterface.json"
-    check_present "src/plugins/requirements_manager/RequirementsManagerInterface.json" \
-        "\"Version\": \"$VERSION\"" \
-        "RequirementsManagerInterface.json"
-    check_present "src/plugins/QtCoinTrader/QtCoinTraderInterface.json" \
-        "\"Version\": \"$VERSION\"" \
-        "QtCoinTraderInterface.json"
-    check_present "src/plugins/tests/plugin_main_test/PluginMainTest.json" \
-        "\"Version\": \"$VERSION\"" \
-        "PluginMainTest.json"
-    check_present "src/plugins/tests/plugin_fancy_test/PluginFancyTest.json" \
-        "\"Version\": \"$VERSION\"" \
-        "PluginFancyTest.json"
-    check_present "src/plugins/tests/plugin_uggly_test/UgglyTestPlugin.json" \
-        "\"Version\": \"$VERSION\"" \
-        "UgglyTestPlugin.json"
-    check_present "src/plugins/tests/template_plugin_daqster/DaqsterTeplateInterface.json" \
-        "\"Version\": \"$VERSION\"" \
-        "DaqsterTeplateInterface.json"
+    # Plugin Interface.json metadata (8) — generated from .json.in templates
+    # by configure_file() (REQ-SW-PL-035). Check that:
+    #   1. each template contains @DAQSTER_VERSION@ (no hardcoded version), and
+    #   2. each generated JSON is committed and carries the current VERSION
+    #      (i.e. matches what configure_file would produce).
+    check_json_template() {
+        local template="$1" json="$2" desc="$3"
+        if [ ! -f "$template" ]; then
+            echo "MISSING: $desc template not found ($template)"
+            FAIL=1
+            return
+        fi
+        if ! grep -q '@DAQSTER_VERSION@' "$template"; then
+            echo "MISMATCH: $desc template does not contain @DAQSTER_VERSION@ ($template)"
+            FAIL=1
+        else
+            echo "OK    $desc template uses @DAQSTER_VERSION@ ($template)"
+        fi
+        if [ ! -f "$json" ]; then
+            echo "MISSING: $desc generated JSON not found ($json)"
+            FAIL=1
+            return
+        fi
+        if ! grep -q "\"Version\": \"$VERSION\"" "$json"; then
+            echo "MISMATCH: $desc generated JSON does not carry version $VERSION ($json)"
+            FAIL=1
+        else
+            echo "OK    $desc generated JSON carries version $VERSION ($json)"
+        fi
+    }
+
+    check_json_template "src/plugins/demo_nodeditor_nodes/DemoNodeEditorNodesInterface.json.in" \
+        "src/plugins/demo_nodeditor_nodes/DemoNodeEditorNodesInterface.json" \
+        "DemoNodeEditorNodesInterface"
+    check_json_template "src/plugins/node_editor_ide/NodeEditorIdeInterface.json.in" \
+        "src/plugins/node_editor_ide/NodeEditorIdeInterface.json" \
+        "NodeEditorIdeInterface"
+    check_json_template "src/plugins/requirements_manager/RequirementsManagerInterface.json.in" \
+        "src/plugins/requirements_manager/RequirementsManagerInterface.json" \
+        "RequirementsManagerInterface"
+    check_json_template "src/plugins/QtCoinTrader/QtCoinTraderInterface.json.in" \
+        "src/plugins/QtCoinTrader/QtCoinTraderInterface.json" \
+        "QtCoinTraderInterface"
+    check_json_template "src/plugins/tests/plugin_main_test/PluginMainTest.json.in" \
+        "src/plugins/tests/plugin_main_test/PluginMainTest.json" \
+        "PluginMainTest"
+    check_json_template "src/plugins/tests/plugin_fancy_test/PluginFancyTest.json.in" \
+        "src/plugins/tests/plugin_fancy_test/PluginFancyTest.json" \
+        "PluginFancyTest"
+    check_json_template "src/plugins/tests/plugin_uggly_test/UgglyTestPlugin.json.in" \
+        "src/plugins/tests/plugin_uggly_test/UgglyTestPlugin.json" \
+        "UgglyTestPlugin"
+    check_json_template "src/plugins/tests/template_plugin_daqster/DaqsterTeplateInterface.json.in" \
+        "src/plugins/tests/template_plugin_daqster/DaqsterTeplateInterface.json" \
+        "DaqsterTeplateInterface"
 
     # No hardcoded PLUGIN_VERSION literal in any *Interface.cpp (must use the macro)
     local cpp_hits
