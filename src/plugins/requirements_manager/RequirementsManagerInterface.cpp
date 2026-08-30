@@ -9,7 +9,7 @@ RequirementsManagerInterface::RequirementsManagerInterface(QObject* parent)
     m_PluginDescriptor.SetProperty(PLUGIN_NAME, "RequirementsManager");
     m_PluginDescriptor.SetProperty(PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN);
     m_PluginDescriptor.SetProperty(PLUGIN_TYPE_NAME, "REQUIREMENTS");
-    m_PluginDescriptor.SetProperty(PLUGIN_VERSION, "0.2.0");
+    m_PluginDescriptor.SetProperty(PLUGIN_VERSION, DAQSTER_PLUGIN_VERSION);
     m_PluginDescriptor.SetProperty(PLUGIN_DESCRIPTION, "Requirements Viewer/Editor tool for Markdown-based traceable requirements.");
     char docstr[] =
         "Requirements Manager plugin.\n\n"

@@ -11,7 +11,7 @@ DaqsterTemplateInterface::DaqsterTemplateInterface(QObject* parent ):QPluginInte
     m_PluginDescriptor.SetProperty( PLUGIN_NAME, "PluginTemplate" );
     m_PluginDescriptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::SECOND_TYPE );
     m_PluginDescriptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
-    m_PluginDescriptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
+    m_PluginDescriptor.SetProperty( PLUGIN_VERSION, DAQSTER_PLUGIN_VERSION );
     m_PluginDescriptor.SetProperty( PLUGIN_DESCRIPTION, "MyPluginTemplate" );
     char docstr[] = \
     "This is a basic Daqster plugin template and can be used for implementing a new type daqster plugin \n\

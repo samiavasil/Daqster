@@ -12,7 +12,7 @@ NodeEditorIdeInterface::NodeEditorIdeInterface(QObject* parent)
     m_PluginDescriptor.SetProperty(PLUGIN_NAME, "NodeEditorIDE");
     m_PluginDescriptor.SetProperty(PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN);
     m_PluginDescriptor.SetProperty(PLUGIN_TYPE_NAME, "SOME_TYPE");
-    m_PluginDescriptor.SetProperty(PLUGIN_VERSION, "0.2.0");
+    m_PluginDescriptor.SetProperty(PLUGIN_VERSION, DAQSTER_PLUGIN_VERSION);
     m_PluginDescriptor.SetProperty(PLUGIN_DESCRIPTION, "Node editor IDE with built-in nodes and plugin-based node discovery.");
     char docstr[] =
         "Node Editor IDE plugin.\n\n"
