@@ -40,12 +40,12 @@ option(DAQSTER_AUTO_INIT_SUBMODULES "Automatically run 'git submodule update --i
 include(FindQtVersion)
 
 # Propagate QT_VERSION_MAJOR to parent scope when included via add_subdirectory()
-if(CMAKE_PARENT_SCOPE)
+if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(QT_VERSION_MAJOR ${QT_VERSION_MAJOR} PARENT_SCOPE)
 endif()
 
 # Propagate version to parent scope when included via add_subdirectory()
-if(CMAKE_PARENT_SCOPE)
+if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(DAQSTER_VERSION ${DAQSTER_VERSION} PARENT_SCOPE)
     set(DAQSTER_VERSION_MAJOR ${DAQSTER_VERSION_MAJOR} PARENT_SCOPE)
     set(DAQSTER_VERSION_MINOR ${DAQSTER_VERSION_MINOR} PARENT_SCOPE)
