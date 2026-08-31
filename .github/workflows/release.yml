@@ -11,7 +11,7 @@ jobs:
   # ============================================================
   linux-qt6:
     name: Linux Qt6
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout with submodules
         uses: actions/checkout@v4
@@ -32,23 +32,36 @@ jobs:
         run: |
           git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'
 
-      - name: Install Qt6 + gstreamer dependencies
+      # System Qt on ubuntu-24.04 is 6.4.2 — too old for the codebase.
+      # Install Qt 6.8.3 via aqtinstall (like ci.yml). GStreamer runtime +
+      # Mesa GL packages are needed by the Qt6Multimedia backend and for
+      # offscreen GL (llvmpipe) in the video-output tests.
+      - name: Install system deps (gstreamer, GL, ssl)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            qt6-base-dev \
-            qt6-multimedia-dev \
-            qt6-charts-dev \
-            qt6-declarative-dev \
-            qt6-quickcontrols2-dev \
-            libqt6svg6-dev \
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            libgl1-mesa-dri \
+            libegl1 \
+            libgl1 \
+            libglx-mesa0 \
             libssl-dev
+
+      - name: Install Qt 6.8.3 (aqtinstall)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'linux_gcc_64'
+          modules: 'qtcharts qtmultimedia qtwebsockets'
 
       - name: Configure (Release, tests ON)
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDAQSTER_BUILD_TESTS=ON
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDAQSTER_BUILD_TESTS=ON -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
 
       - name: Build
         run: |
@@ -67,7 +80,7 @@ jobs:
       - name: Create AppImage
         run: |
           chmod +x ./tools/create_appimage.sh
-          ./tools/create_appimage.sh --mode ci
+          QT_DIR="$QT_ROOT_DIR" ./tools/create_appimage.sh --mode ci
           ls -la *.AppImage
           file *.AppImage
 
@@ -132,7 +145,7 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2022_64'
-          modules: 'qtcharts qtmultimedia qtdeclarative qtsvg'
+          modules: 'qtcharts qtmultimedia qtwebsockets'
 
       - name: Configure (Release, tests ON)
         run: |
@@ -156,7 +169,8 @@ jobs:
       - name: Bundle Qt runtime (windeployqt)
         shell: pwsh
         run: |
-          $qtDir = if ($env:Qt6_Dir) { $env:Qt6_Dir } elseif ($env:Qt6_DIR) { $env:Qt6_DIR } else { throw "Qt6_Dir not set" }
+          $qtDir = $env:QT_ROOT_DIR
+          if (-not $qtDir) { throw "QT_ROOT_DIR not set" }
           Write-Host "Qt6 dir: $qtDir"
           $stage = "${{ github.workspace }}\stage-win"
           & "$qtDir\bin\windeployqt.exe" --release --no-translations --compiler-runtime "$stage\bin\Daqster.exe"
