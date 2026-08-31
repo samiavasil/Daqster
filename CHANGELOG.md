@@ -16,6 +16,9 @@
   - `.github/workflows/release.yml` Linux: `ubuntu-22.04` → `ubuntu-24.04`, system Qt → aqtinstall Qt 6.8.3, добавени GStreamer runtime + Mesa GL пакети, `-DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"`, `QT_DIR="$QT_ROOT_DIR"` към create_appimage.sh
   - `.github/workflows/release.yml` Windows: премахнати `qtdeclarative qtsvg` от modules (BASE пакети за 6.8.3), добавено `qtwebsockets`; windeployqt ползва `QT_ROOT_DIR` вместо `Qt6_Dir`
   - `CMakeLists.txt`: добавено `print_component_status_summary()` след `print_build_configuration_summary()`
+  - `tools/create_appimage.sh`: бандлване на FFmpeg библиотеките (`libav*`/`libsw*`) — Qt6 Multimedia FFmpeg backend-ът (`libffmpegmediaplugin.so`) линква срещу тях; без тях plugin-ът не може да се зареди (dlopen) и видео/аудио не е налично
+  - `tools/create_appimage.sh`: предупреждение когато Qt multimedia plugin директорията не е пакетирана
+  - `.github/workflows/ci.yml`: smoke test-ът върви с `QT_DEBUG_PLUGINS=1` и fail-ва при "No QtMultimedia backends" / "Cannot load library ... ffmpegmediaplugin"
 
 ## [0.3.0] - 2026-08-30
 

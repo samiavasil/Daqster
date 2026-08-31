@@ -274,10 +274,20 @@ else
     echo "Warning: no Qt libraries detected in $QT_DIR"
 fi
 
+# Copy FFmpeg libraries (Qt6 Multimedia FFmpeg backend — libffmpegmediaplugin.so
+# links against libavcodec/libavformat/libavutil/libswresample/libswscale).
+# The Qt lib copy above only matches libQt6*; FFmpeg libs must be copied explicitly.
+cp -r "$QT_LIB_SRC"/libav* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+cp -r "$QT_LIB_SRC"/libsw* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+
 # Copy Qt plugins
 if [ -n "$QT_PLUGIN_SRC" ] && [ -d "$QT_PLUGIN_SRC" ]; then
     echo "Copying Qt plugins from $QT_PLUGIN_SRC..."
     cp -r "$QT_PLUGIN_SRC"/* "$BUILD_DIR/Daqster.AppDir/usr/lib/plugins/" 2>/dev/null || true
+fi
+
+if [ ! -d "$BUILD_DIR/Daqster.AppDir/usr/lib/plugins/multimedia" ]; then
+    echo "WARNING: Qt multimedia plugin dir not packaged — video/audio will be unavailable"
 fi
 
 # Copy QML modules

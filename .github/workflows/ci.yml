@@ -88,6 +88,7 @@ jobs:
       - name: Smoke test AppImage (offscreen)
         env:
           QT_QPA_PLATFORM: offscreen
+          QT_DEBUG_PLUGINS: 1
         run: |
           set +e
           timeout 15 ./Daqster-x86_64.AppImage --appimage-extract-and-run > appimage-smoke.log 2>&1
@@ -99,6 +100,14 @@ jobs:
             echo "Smoke test PASSED: app started and exited cleanly"
           else
             echo "Smoke test FAILED: AppImage exited with code $EXIT_CODE"
+            cat appimage-smoke.log
+            exit 1
+          fi
+          # Fail if the Qt6 FFmpeg multimedia backend failed to load — the app
+          # would keep running but video/audio would be unavailable. QT_DEBUG_PLUGINS=1
+          # makes Qt print "Cannot load library ... ffmpegmediaplugin" on dlopen failure.
+          if grep -E "No QtMultimedia backends|Cannot load library.*ffmpegmediaplugin" appimage-smoke.log; then
+            echo "Smoke test FAILED: Qt multimedia backend failure detected"
             cat appimage-smoke.log
             exit 1
           fi
