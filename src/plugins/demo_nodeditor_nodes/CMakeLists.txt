@@ -1,10 +1,21 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(demo_nodeditor_nodes VERSION 0.2.0 LANGUAGES CXX)
+project(demo_nodeditor_nodes VERSION 0.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
+
+# ── Plugin JSON metadata (generated from template) ──────────────────
+# REQ-SW-PL-035: the plugin metadata JSON is generated from a .json.in
+# template with @DAQSTER_VERSION@ substituted (single source of truth:
+# root VERSION file). Must run BEFORE create_plugin() so the JSON exists
+# when moc resolves Q_PLUGIN_METADATA FILE.
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/DemoNodeEditorNodesInterface.json.in"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DemoNodeEditorNodesInterface.json"
+    @ONLY
+)
 
 # ── Plugin infrastructure (root level) ──────────────────────────────
 set(PLUGIN_SOURCES
@@ -15,19 +26,27 @@ set(PLUGIN_SOURCES
 )
 
 # ── Sources: AudioSource ────────────────────────────────────────────
+# REQ-SW-PL-024: the SampledData AudioSourceDataModel (new, takes the
+# "AudioSource" name, worker-thread capture via MicCaptureWorker) + shared
+# UI; the old QDevIO mic was renamed to _obsolete and keeps working
+# together with its helpers.
 set(AUDIO_SOURCE_NODES
     Sources/AudioSource/AudioSourceDataModel.h
     Sources/AudioSource/AudioSourceDataModel.cpp
+    Sources/AudioSource/MicCaptureWorker.h
+    Sources/AudioSource/MicCaptureWorker.cpp
+    Sources/AudioSource/AudioSourceDataModelObsolete.h
+    Sources/AudioSource/AudioSourceDataModelObsolete.cpp
     Sources/AudioSource/AudioSourceDataModelUI.h
     Sources/AudioSource/AudioSourceDataModelUI.cpp
     Sources/AudioSource/AudioSourceDataModelUI.ui
     Sources/AudioSource/AudioSourceConfig.h
     Sources/AudioSource/AudioSourceConfig.cpp
     Sources/AudioSource/AudioSourceConfig.ui
-    Sources/AudioSource/AudioWorker.h
-    Sources/AudioSource/AudioWorker.cpp
-    Sources/AudioSource/AudioNodeQdevIoConnector.h
-    Sources/AudioSource/AudioNodeQdevIoConnector.cpp
+    Sources/AudioSource/AudioWorkerObsolete.h
+    Sources/AudioSource/AudioWorkerObsolete.cpp
+    Sources/AudioSource/AudioNodeQdevIoConnectorObsolete.h
+    Sources/AudioSource/AudioNodeQdevIoConnectorObsolete.cpp
     Sources/AudioSource/AudioComboModel.h
     Sources/AudioSource/AudioComboModel.cpp
     Sources/AudioSource/node_editor.qrc
@@ -43,7 +62,7 @@ set(LLAMA_SOURCE_NODES
     Sources/LLamaSource/ChatBaseWidget.cpp
 )
 
-# ── Video nodes (ImageData / "image" flow) ──────────────────────────
+# ── Video nodes (VideoFrameData / "video-frame" flow) ───────────────
 set(VIDEO_NODES
     Sources/Video/VideoCompat.h
     Sources/Video/CameraSourceNode.h
@@ -56,10 +75,28 @@ set(VIDEO_NODES
     Sources/Video/StreamUrlValidator.cpp
     Sources/Video/VideoOutputNode.h
     Sources/Video/VideoOutputNode.cpp
-    Sources/Video/VideoTransformNode.h
-    Sources/Video/VideoTransformNode.cpp
+    Sources/Video/VideoPerfBadge.h
+    Sources/Video/VideoPerfBadge.cpp
+    Sources/Video/VideoGLBlitWidget.h
+    Sources/Video/VideoGLBlitWidget.cpp
     Sources/Video/VideoTransformOps.h
     Sources/Video/VideoTransformOps.cpp
+    Sources/Video/VideoGLShaders.h
+    Sources/Video/VideoEffectOps.h
+    Sources/Video/VideoEffectOps.cpp
+    Sources/Video/VideoEffectGLProcessor.h
+    Sources/Video/VideoEffectGLProcessor.cpp
+    Sources/Video/VideoEffectNode.h
+    Sources/Video/VideoEffectNode.cpp
+    Sources/Video/CustomShaderGLProcessor.h
+    Sources/Video/CustomShaderGLProcessor.cpp
+    Sources/Video/CustomShaderNode.h
+    Sources/Video/CustomShaderNode.cpp
+    Sources/Video/FrameSamplerNode.h
+    Sources/Video/FrameSamplerNode.cpp
+    # Texture pool for GPU effect outputs (REQ-SW-PL-032 Issue #7) — lives in
+    # the shared GL helpers next to VideoGLContextManager.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
 )
 
 # ── Optional OpenCV transforms (compile-time auto-detect) ───────────
@@ -83,24 +120,30 @@ else()
     message(STATUS "demo_nodeditor_nodes: OpenCV not found or disabled — using the 8 base video transform operations")
 endif()
 
-# ── Displays: AudioDisplay ──────────────────────────────────────────
+# ── Displays: AudioDisplay (QDevIO, obsolete — REQ-SW-PL-023 §7) ─────
 set(AUDIO_DISPLAY_NODES
-    Displays/AudioDisplay/AudioDisplayModel.h
-    Displays/AudioDisplay/AudioDisplayModel.cpp
+    Displays/AudioDisplay/AudioDisplayModelObsolete.h
+    Displays/AudioDisplay/AudioDisplayModelObsolete.cpp
 )
 
-# ── Displays: GenericDisplay ────────────────────────────────────────
+# ── Displays: DAQ Display (DataPlot, REQ-SW-PL-022) ─────────────────
+set(DAQ_DISPLAY_NODES
+    Displays/DaqDisplay/DaqDisplayNode.h
+    Displays/DaqDisplay/DaqDisplayNode.cpp
+)
+
+# ── Displays: GenericDisplay (legacy alias of DAQ Display) ──────────
 set(GENERIC_DISPLAY_NODES
     Displays/GenericDisplay/GenericDisplayNode.h
     Displays/GenericDisplay/GenericDisplayNode.cpp
 )
 
-# ── Routing: Demux + Mux ───────────────────────────────────────────
+# ── Routing: Demux + Mux (QDevIO, obsolete — REQ-SW-PL-023 §7) ──────
 set(ROUTING_NODES
-    Routing/Demux/DemuxNode.h
-    Routing/Demux/DemuxNode.cpp
-    Routing/Mux/MuxNode.h
-    Routing/Mux/MuxNode.cpp
+    Routing/Demux/DemuxNodeObsolete.h
+    Routing/Demux/DemuxNodeObsolete.cpp
+    Routing/Mux/MuxNodeObsolete.h
+    Routing/Mux/MuxNodeObsolete.cpp
 )
 
 # ── Shared types ────────────────────────────────────────────────────
@@ -117,6 +160,7 @@ create_plugin(DemoNodeEditorNodes
         ${VIDEO_OPENCV_SOURCES}
         ${GENERIC_DISPLAY_NODES}
         ${AUDIO_DISPLAY_NODES}
+        ${DAQ_DISPLAY_NODES}
         ${ROUTING_NODES}
         ${SHARED_TYPES}
     REQUIRES_LIBRARIES
@@ -139,6 +183,7 @@ create_plugin(DemoNodeEditorNodes
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/AudioDisplay
+        ${CMAKE_CURRENT_SOURCE_DIR}/Displays/DaqDisplay
         ${VIDEO_OPENCV_INCLUDE_DIRS}
     LINK_LIBRARIES
         ${VIDEO_OPENCV_LINK_LIBRARIES}
@@ -149,4 +194,11 @@ if(TARGET DemoNodeEditorNodes)
     set_target_properties(DemoNodeEditorNodes PROPERTIES
         OUTPUT_NAME "DemoNodeEditorNodesPlugin"
     )
+    # Explicit ordering guarantee: DemoNodeEditorNodesPlugin.dll links against
+    # NodeEditorLibrary's import library on Windows (same LNK1181 guard as
+    # NodeEditorIde). The link already goes through the target name; this
+    # add_dependencies() is a belt-and-braces order-only edge.
+    if(TARGET NodeEditorLibrary)
+        add_dependencies(DemoNodeEditorNodes NodeEditorLibrary)
+    endif()
 endif()

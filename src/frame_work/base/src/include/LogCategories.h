@@ -15,6 +15,7 @@ FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcDiscovery();
 FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcPersistence();
 FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcShutdown();
 FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcProcess();
+FRAME_WORKSHARED_EXPORT const QLoggingCategory &lcPerf();
 
 // ═══════════════════════════════════════════════════════════
 // Application categories

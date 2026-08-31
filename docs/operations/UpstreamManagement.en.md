@@ -1,6 +1,6 @@
 # Upstream Management Guide
 
-Parent: [Operations Topics](./README.md) | [Documentation Index](../INDEX.en.md)
+Parent: [Operations Topics](./README.md) | [Documentation Index](../index.en.md)
 
 This guide describes how to manage upstream tracking for external libraries used by Daqster.
 

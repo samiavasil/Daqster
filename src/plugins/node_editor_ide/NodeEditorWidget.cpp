@@ -1,5 +1,6 @@
 #include "NodeEditorWidget.h"
 #include "ChatGraphModel.h"
+#include "CustomDataFlowScene.h"
 
 #include <QVBoxLayout>
 
@@ -39,7 +40,7 @@ void NodeEditorWidget::buildCanvas()
         return;
 
     m_graphModel = new ChatGraphModel(m_registry);
-    m_scene = new DataFlowGraphicsScene(*m_graphModel, this);
+    m_scene = new CustomDataFlowScene(*m_graphModel, this);
     m_view = new GraphicsView(m_scene, this);
 
     m_layout->addWidget(m_view);

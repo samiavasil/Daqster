@@ -29,18 +29,38 @@ QConsoleListener::QConsoleListener()
                      [this]() {
                          std::string line;
                          std::getline(std::cin, line);
+                         if (line.empty() && std::cin.eof()) {
+                             // stdin reached EOF: the console handle stays
+                             // permanently signaled, which would make the
+                             // notifier fire endlessly (busy-spin). Stop it.
+                             m_notifier->setEnabled(false);
+                             return;
+                         }
                          QString strLine = QString::fromStdString(line);
                          Q_EMIT this->finishedGetLine(strLine);
                      });
 #else
     QObject::connect(m_notifier, &QSocketNotifier::activated,
-                     [this](QSocketDescriptor socket, QSocketNotifier::Type activationEvent) {
+                     [this](QSocketDescriptor socket, QSocketNotifier::Type /*activationEvent*/) {
                          std::string line;
                          QFile file;
-                         if(file.open(socket, QIODevice::ReadOnly))
-                         {
+                         if (file.open(socket, QIODevice::ReadOnly)) {
                              //std::getline(std::cin, line);
                              line = file.readLine().toStdString();
+                             if (line.empty()) {
+                                 // readLine() == 0 means the underlying read()
+                                 // returned 0: stdin reached EOF. EOF keeps the
+                                 // descriptor permanently "readable", so the
+                                 // notifier fires endlessly (busy-spin, ~180%
+                                 // idle CPU, REQ-SW-APP-002). Disable it after
+                                 // the first empty read. A live terminal/pipe
+                                 // with no input never reaches this branch: its
+                                 // fd is not readable, so the notifier does not
+                                 // fire at all.
+                                 m_notifier->setEnabled(false);
+                                 file.close();
+                                 return;
+                             }
                              QString strLine = QString::fromStdString(line);
                              Q_EMIT this->finishedGetLine(strLine);
                          }

@@ -12,6 +12,12 @@ NumberDisplayDataModel::
 NumberDisplayDataModel()
     : _label(new QLabel())
 {
+    // Display nodes must never get a graphics effect (perf): the shadow blur
+    // runs per repaint and costs ~46% CPU during video playback.
+    QtNodes::NodeStyle s = this->nodeStyle();
+    s.ShadowEnabled = false;
+    this->setNodeStyle(s);
+
     _label->setMargin(3);
 
     m_typeCombo = new QComboBox();
@@ -26,6 +32,11 @@ NumberDisplayDataModel()
     layout->setSpacing(2);
     layout->addWidget(m_typeCombo);
     layout->addWidget(_label);
+
+    // Geometry only changes on a REAL widget resize — the scene is notified
+    // via requestNodeUpdate() (recomputeSize + moveConnections), not on every
+    // data arrival (dataArrivalChangesGeometry() == false).
+    m_wrapper->installEventFilter(this);
 }
 
 unsigned int
@@ -93,6 +104,19 @@ setInData(std::shared_ptr<NodeData> data, PortIndex const)
     }
 
     _label->adjustSize();
+}
+
+bool
+NumberDisplayDataModel::
+eventFilter(QObject *object, QEvent *event)
+{
+    // A real resize of the embedded widget changes the node geometry — ask the
+    // scene to recompute size + move connections. recomputeSize() only READS
+    // the widget size (never resizes it), so this cannot recurse.
+    if (object == m_wrapper && event->type() == QEvent::Resize) {
+        Q_EMIT requestNodeUpdate();
+    }
+    return QObject::eventFilter(object, event);
 }
 
 QJsonObject NumberDisplayDataModel::save() const

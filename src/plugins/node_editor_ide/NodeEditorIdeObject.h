@@ -29,6 +29,12 @@ private:
     void registerBuiltInNodes();
     void discoverAndRegisterExternalNodes();
 
+    /// Dev driver (DAQSTER_AUTOSTART_VIDEO=1): builds a video source ->
+    /// VideoOutput graph, connects it, starts playback from DAQSTER_VIDEO_FILE /
+    /// DAQSTER_STREAM_URL and enables the "Perf" checkbox — no GUI interaction
+    /// needed (used by the PERF measurement harness).
+    void autoStartVideo();
+
     QMainWindow* m_Win;
     NodeEditorWidget* m_Widget;
 };

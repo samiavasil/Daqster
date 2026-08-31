@@ -11,7 +11,7 @@ PluginFancyInterface::PluginFancyInterface(QObject* parent ):QPluginInterface(pa
     m_PluginDescriptor.SetProperty( PLUGIN_NAME, "PluginFancyTest" );
     m_PluginDescriptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN );
     m_PluginDescriptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
-    m_PluginDescriptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
+    m_PluginDescriptor.SetProperty( PLUGIN_VERSION, DAQSTER_PLUGIN_VERSION );
     m_PluginDescriptor.SetProperty( PLUGIN_DESCRIPTION, "Plugin Fancy Test " );
     char docstr[] = \
     "This is a basic Daqster plugin template and can be used for implementing a new type daqster plugin \n\

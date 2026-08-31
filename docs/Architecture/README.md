@@ -2,7 +2,7 @@
 
 [Български](./README.md) | [English](./README.en.md)
 
-Родител: [Documentation Index](../INDEX.md)
+Родител: [Documentation Index](../index.md)
 
 ## Архитектурен хъб
 
@@ -17,7 +17,7 @@
 
 ## Общ преглед
 
-Daqster е Qt5-базирана рамка за създаване и зареждане на плъгини с хост приложение. Проектът използва модулна архитектура, която позволява лесно разширяване чрез динамично зареждане на плъгини.
+Daqster е Qt-базирана рамка за създаване и зареждане на плъгини с хост приложение (Qt6 е основната/preferred версия, Qt5 е compat). Проектът използва модулна архитектура, която позволява лесно разширяване чрез динамично зареждане на плъгини.
 
 ## Структура на проекта
 
@@ -36,7 +36,7 @@ Daqster/
 │       │   ├── capabilities/     # INodeProvider.h
 │       │   └── NodeDataTypes/    # TextData, FloatData, EmbeddingData, ...
 │       ├── node_editor_ide/      # Визуален node-based редактор + вградени нодове
-│       ├── demo_nodeditor_nodes/  # INodeProvider — AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux
+│       ├── demo_nodeditor_nodes/  # INodeProvider — AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux + Video нодове (Camera/File/Stream/Output/Effect/CustomShader/Sampler)
 │       ├── QtCoinTrader/         # QtCoinTrader плъгин
 │       └── tests/                # Тестови плъгини
 ├── tools/                        # Инструменти за билд
@@ -62,8 +62,12 @@ Daqster/
 │   └── porting/                  # Портинг и миграции
 │       └── QtRest_Qt6_Porting.md
 ├── .github/workflows/            # CI/CD
-│   ├── ci.yml                    # Continuous Integration
-│   └── release.yml               # Release workflow
+│   ├── ci.yml                    # Continuous Integration (Qt6 primary)
+│   ├── release.yml               # Release workflow
+│   ├── version-sync.yml          # Version sync check
+│   ├── pages.yml.disabled        # GitHub Pages (disabled — UI-based deployment from master/docs)
+│   ├── render-plantuml.yml       # PlantUML diagram rendering
+│   └── deepsource.yml.disabled   # DeepSource (disabled)
 └── CMakeLists.txt                # Главен CMake файл
 ```
 
@@ -161,7 +165,7 @@ public:
 - Независими конфигурационни файлове
 
 ### 4. Крос-платформеност
-- Qt5 за GUI и крос-платформеност
+- Qt6 за GUI и крос-платформеност (Qt5 като compat fallback)
 - CMake за build система
 - AppImage за Linux разпространение
 

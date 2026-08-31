@@ -50,9 +50,9 @@ void AudioSourceDataModelUI::AudioStateChanged(QAudio::State state)
 void AudioSourceDataModelUI::Start(bool start)
 {
     if(start)
-        emit Start(AudioSourceDataModel::ASDM_START);
+        emit Start(AudioSourceDataModelUI::ASDM_START);
     else
-        emit Start(AudioSourceDataModel::ASDM_STOP);
+        emit Start(AudioSourceDataModelUI::ASDM_STOP);
 }
 
 

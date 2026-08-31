@@ -1,6 +1,6 @@
 # Plugins
 
-Родител: [Индекс](../INDEX.md) | [Architecture](../Architecture/README.md)
+Родител: [Индекс](../index.md) | [Architecture](../Architecture/README.md)
 
 ## Преглед
 
@@ -32,4 +32,4 @@ docs/plugins/
 
 - [Architecture/plugins](../Architecture/plugins/README.md) — plugin подсистемата (QPluginInterface, INodeProvider, PluginManager)
 - [PluginDevelopment](../Architecture/plugins/PluginDevelopment.md) — стъпки за създаване на нов плъгин
-- [Индекс](../INDEX.md) — главна навигационна страница
+- [Индекс](../index.md) — главна навигационна страница

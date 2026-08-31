@@ -1,9 +1,14 @@
 # Use Qt detection from parent scope
 
 option(FRAME_WORK_BUILD_STATIC "Build frame_work as a static library" OFF)
+option(DAQSTER_ENABLE_PERF "Enable lightweight runtime profiling" ON)
 
 set(FRAME_WORK_SOURCES
   base/src/global.h
+  base/src/perf/PerfProfiler.h
+  base/src/perf/PerfProfiler.cpp
+  base/src/perf/ProcessCpu.h
+  base/src/perf/ProcessCpu.cpp
   base/src/PluginDescription.cpp
   base/src/PluginFilter.cpp
   base/src/QBasePluginObject.cpp
@@ -62,6 +67,7 @@ if(FRAME_WORK_BUILD_STATIC)
     ${FRAME_WORK_SOURCES}
   )
   target_compile_definitions(frame_work PUBLIC FRAME_WORK_STATIC)
+  target_compile_definitions(frame_work PUBLIC DAQSTER_ENABLE_PERF=$<BOOL:${DAQSTER_ENABLE_PERF}>)
 else()
   # Default/shared build: provide a shared framework library
   # with proper export/import decorations.
@@ -69,6 +75,7 @@ else()
     ${FRAME_WORK_SOURCES}
   )
   target_compile_definitions(frame_work PRIVATE FRAME_WORK_LIBRARY)
+  target_compile_definitions(frame_work PUBLIC DAQSTER_ENABLE_PERF=$<BOOL:${DAQSTER_ENABLE_PERF}>)
 
   # On Windows, also auto-export all public symbols from the
   # frame_work DLL so that classes without explicit
@@ -88,6 +95,8 @@ target_include_directories(frame_work
     base/src/persistence
     base/src/registry
     base/src/gui
+    base/src/perf
+    ${DAQSTER_VERSION_INCLUDE_DIR}
   PRIVATE
     base/src
 )

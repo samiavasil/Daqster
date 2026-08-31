@@ -1,27 +1,22 @@
-#ifndef SOURCEDATAMODEL_H
-#define SOURCEDATAMODEL_H
+#ifndef AUDIOSOURCEDATAMODEL_H
+#define AUDIOSOURCEDATAMODEL_H
 
 #include "AudioCompat.h"
+#include "AudioSourceDataModelUI.h"
+#include "MicCaptureWorker.h"
+#include "NodeDataTypes/SampledData.h"
 
-#include <QtCore/QObject>
+#include <QtCore/QThread>
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/internal/Definitions.hpp>
 
-class AudioNodeQdevIoConnector;
-class AudioSourceDataModelUI;
-class EventThreadPull;
+#include <memory>
 
 class AudioSourceDataModel : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
 public:
-    enum StartStop {
-        ASDM_STOP,
-        ASDM_START,
-        ASDM_RELOAD,
-    };
-
     AudioSourceDataModel();
 
     virtual
@@ -67,8 +62,6 @@ public:
     QWidget *
     embeddedWidget() override;
 
-    void IO_connect(std::shared_ptr<QIODevice> io);
-
     QtNodes::ConnectionPolicy portConnectionPolicy(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
         Q_UNUSED(portType);
@@ -76,21 +69,23 @@ public:
         return QtNodes::ConnectionPolicy::One;
     }
 
+    void outputConnectionCreated(QtNodes::ConnectionId const &) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &) override;
 
-signals:
-    void disconnected();
-    void StartAudio(AudioSourceDataModel::StartStop start);
-    void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
-
 private slots:
-    void destroyedObj(QObject *obj);
+    void onUiStart(AudioSourceDataModelUI::StartStop start);
+    void onSamplesReady(std::shared_ptr<SampledData> data);
 
 private:
-    std::shared_ptr<AudioNodeQdevIoConnector> m_connector;
-    AudioSourceDataModelUI* m_Widget;
+    void setCaptureEnabled(bool enabled);
+
+    QThread *m_thread = nullptr;
+    MicCaptureWorker *m_worker = nullptr; // moveToThread'ed into m_thread; freed via QThread::finished → deleteLater
+    AudioSourceDataModelUI *m_Widget = nullptr;
     QAudioDeviceInfo m_DevInfo;
     QAudioFormat m_FormatAudio;
+    std::shared_ptr<SampledData> m_lastData;
+    int m_connectionCount = 0;
 };
 
-#endif // SOURCEDATAMODEL_H
+#endif // AUDIOSOURCEDATAMODEL_H

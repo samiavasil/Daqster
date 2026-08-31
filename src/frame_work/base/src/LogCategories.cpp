@@ -11,6 +11,7 @@ DAQSTER_LOGGING_CATEGORY(lcDiscovery,    "daqster.framework.discovery", "Plugin 
 DAQSTER_LOGGING_CATEGORY(lcPersistence,  "daqster.framework.persistence","Plugin persistence/settings")
 DAQSTER_LOGGING_CATEGORY(lcShutdown,     "daqster.framework.shutdown",  "Shutdown handlers")
 DAQSTER_LOGGING_CATEGORY(lcProcess,      "daqster.framework.process",   "Process management")
+DAQSTER_LOGGING_CATEGORY(lcPerf,         "daqster.perf",                "Runtime profiling")
 
 // ═══════════════════════════════════════════════════════════
 // Application

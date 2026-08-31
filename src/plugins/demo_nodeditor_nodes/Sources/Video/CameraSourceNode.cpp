@@ -1,6 +1,6 @@
 #include "CameraSourceNode.h"
 
-#include "NodeDataTypes/ImageData.h"
+#include "AudioBufferToSampled.h"
 #include "NodeDataTypes/VideoFrameData.h"
 
 #include <QCamera>
@@ -17,10 +17,7 @@ using QtNodes::PortIndex;
 using QtNodes::PortType;
 
 CameraSourceNode::CameraSourceNode()
-    : m_output(std::make_shared<ImageData>())
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    , m_videoFrameOut(std::make_shared<VideoFrameData>())
-#endif
+    : m_videoFrameOut(std::make_shared<VideoFrameData>())
 {
     buildWidget();
     refreshDeviceList();
@@ -63,12 +60,9 @@ unsigned int CameraSourceNode::nPorts(PortType portType) const
 {
     switch (portType) {
     case PortType::Out:
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        // Port 0: "video-frame" (zero-copy), port 1: "image" (converted on demand).
+        // Port 0: "video-frame" (zero-copy), port 1: "sample" (audio,
+        // no gap — REQ-SW-PL-022).
         return 2;
-#else
-        return 1;
-#endif
     default:
         return 0;
     }
@@ -77,26 +71,16 @@ unsigned int CameraSourceNode::nPorts(PortType portType) const
 NodeDataType CameraSourceNode::dataType(PortType portType, PortIndex portIndex) const
 {
     Q_UNUSED(portType);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (portIndex == 1)
-        return ImageData().type();
+        return SampledData().type();
     return VideoFrameData().type();
-#else
-    Q_UNUSED(portIndex);
-    return ImageData().type();
-#endif
 }
 
 std::shared_ptr<NodeData> CameraSourceNode::outData(PortIndex port)
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (port == 1)
-        return m_output;
+        return m_audioOut;
     return m_videoFrameOut;
-#else
-    Q_UNUSED(port);
-    return m_output;
-#endif
 }
 
 void CameraSourceNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
@@ -107,22 +91,14 @@ void CameraSourceNode::setInData(std::shared_ptr<NodeData> data, PortIndex portI
 
 void CameraSourceNode::outputConnectionCreated(QtNodes::ConnectionId const &conId)
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     if (conId.outPortIndex == 1)
-        ++m_imagePortConnectionCount;
-#else
-    Q_UNUSED(conId);
-#endif
+        ++m_audioPortConnectionCount;
 }
 
 void CameraSourceNode::outputConnectionDeleted(QtNodes::ConnectionId const &conId)
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    if (conId.outPortIndex == 1 && m_imagePortConnectionCount > 0)
-        --m_imagePortConnectionCount;
-#else
-    Q_UNUSED(conId);
-#endif
+    if (conId.outPortIndex == 1 && m_audioPortConnectionCount > 0)
+        --m_audioPortConnectionCount;
 }
 
 QWidget *CameraSourceNode::embeddedWidget()
@@ -205,6 +181,20 @@ void CameraSourceNode::startCamera()
         m_frameProbe, this,
         [this](const QVideoFrame &frame) { onFrameAvailable(frame); });
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    // Qt5: capture camera audio via QAudioProbe (QCamera is a QMediaObject).
+    // Qt6 does not expose captured audio buffers on QMediaCaptureSession, so
+    // the sample port emits invalid data there (see header doc).
+    m_audioProbe = new QAudioProbe(this);
+    if (m_audioProbe->setSource(m_camera)) {
+        connect(m_audioProbe, &QAudioProbe::audioBufferProbed,
+                this, &CameraSourceNode::onAudioBufferReceived);
+    } else {
+        m_audioProbe->deleteLater();
+        m_audioProbe = nullptr;
+    }
+#endif
+
     VideoCompat::connectCameraError(
         m_camera, this,
         [this](int error, const QString &errorString) {
@@ -231,6 +221,12 @@ void CameraSourceNode::stopCamera()
         m_frameProbe->deleteLater();
         m_frameProbe = nullptr;
     }
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    if (m_audioProbe != nullptr) {
+        m_audioProbe->deleteLater();
+        m_audioProbe = nullptr;
+    }
+#endif
 
     m_running = false;
     m_startStopButton->setText(tr("Start"));
@@ -258,30 +254,69 @@ void CameraSourceNode::onStartStopClicked()
 void CameraSourceNode::onFrameAvailable(const QVideoFrame &frame)
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // Runtime profiling (REQ-SW-PL-027): inter-frame gap is a proxy for the
+    // decode cadence (the backend decodes before onFrameAvailable) and the
+    // HW/SW markers tag the actual frame path. Everything is a no-op while the
+    // "video" domain is disabled — the PERF_ENABLED guard avoids the clock read.
+    if (PERF_ENABLED("video")) {
+        const std::int64_t gapNs = m_perfWatch.mark();
+        if (!m_perfFirstFrame && gapNs > 0)
+            Daqster::Perf::Domain::get("video").record("source.frame_interval", gapNs);
+        m_perfFirstFrame = false;
+
+        m_lastHandleType = static_cast<int>(frame.handleType());
+        m_lastPixelFormat = static_cast<int>(frame.surfaceFormat().pixelFormat());
+    }
+
     // Zero-copy transport: wrap the decoded frame (ref-count bump only) and
     // emit it downstream (REQ-SW-PL-020 AC 2). No QImage conversion in the
-    // hot path — the "image" port is converted only when a processing
-    // consumer is connected.
-    m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
-    Q_EMIT dataUpdated(0);
-
-    if (m_imagePortConnectionCount <= 0)
-        return;
-
-    const QImage image = VideoCompat::frameToImage(frame);
-    if (image.isNull())
-        return;
-
-    m_output = std::make_shared<ImageData>(image);
-    Q_EMIT dataUpdated(1);
+    // hot path — the single video-frame port carries the frame (REQ-SW-PL-032).
+    {
+        PERF_SCOPE("video", "source.wrap_emit");
+        m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
+        Q_EMIT dataUpdated(0);
+    }
 #else
-    const QImage image = VideoCompat::frameToImage(frame);
-    if (image.isNull())
+    // Qt5 (NV12-direct, mirror of the Qt6 branch): the decoded probe frame is
+    // wrapped as an OWNED copy (frameToOwnedFrame) and emitted on the
+    // video-frame port (0). No QImage conversion in the hot path.
+    if (PERF_ENABLED("video")) {
+        const std::int64_t gapNs = m_perfWatch.mark();
+        if (!m_perfFirstFrame && gapNs > 0)
+            Daqster::Perf::Domain::get("video").record("source.frame_interval", gapNs);
+        m_perfFirstFrame = false;
+
+        m_lastHandleType = static_cast<int>(frame.handleType());
+        m_lastPixelFormat = VideoCompat::pixelFormatInt(frame);
+    }
+
+    {
+        PERF_SCOPE("video", "source.wrap_emit");
+        m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
+        if (m_videoFrameOut->hasFrame())
+            Q_EMIT dataUpdated(0);
+    }
+#endif
+}
+
+void CameraSourceNode::onAudioBufferReceived(const QAudioBuffer &buffer)
+{
+    // Invalid/empty buffer (end-of-stream flush): ignore — no EOS type is
+    // emitted (REQ-SW-PL-022 §4).
+    if (!buffer.isValid() || buffer.byteCount() <= 0)
         return;
 
-    m_output = std::make_shared<ImageData>(image);
-    Q_EMIT dataUpdated(0);
-#endif
+    // Wrap only — no sample conversion in the handler (REQ-SW-PL-022 §4).
+    m_audioOut = AudioBufferToSampled::wrapBuffer(buffer, name(), 10.0);
+    if (!m_audioOut)
+        return;
+
+    // Emit only while a downstream consumer is connected (connection-count
+    // model, like the video-frame port).
+    if (m_audioPortConnectionCount <= 0)
+        return;
+
+    Q_EMIT dataUpdated(audioPortIndex());
 }
 
 void CameraSourceNode::setStatus(const QString &text, bool ok)

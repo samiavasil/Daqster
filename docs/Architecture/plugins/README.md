@@ -1,6 +1,6 @@
 # Plugins
 
-Родител: [Architecture Overview](../README.md) | [Documentation Index](../../INDEX.md)
+Родител: [Architecture Overview](../README.md) | [Documentation Index](../../index.md)
 
 Съседни подсистеми: [Applications](../apps/README.md) | [Framework](../framework/README.md)
 
@@ -10,8 +10,8 @@
 
 | Plugin | Локация | Тип | Описание |
 |--------|---------|-----|----------|
-| **Node Editor IDE** | `src/plugins/node_editor_ide/` | APPLICATION_PLUGIN | Визуален node-based редактор с вградени Audio/LLaMA нодове |
-| **Demo NodeEditor Nodes** | `src/plugins/demo_nodeditor_nodes/` | Node Provider | INodeProvider — доставя AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux нодове |
+| **Node Editor IDE** | `src/plugins/node_editor_ide/` | APPLICATION_PLUGIN | Визуален node-based редактор с вградени нодове (NumberSource, NumberDisplay, Modulo, ArithmeticLogic) |
+| **Demo NodeEditor Nodes** | `src/plugins/demo_nodeditor_nodes/` | Node Provider | INodeProvider — доставя AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux + Video нодове (Camera/File/Stream/Output/Effect/CustomShader/Sampler) |
 | **QtCoinTrader** | `src/plugins/QtCoinTrader/` | APPLICATION_PLUGIN | Cryptocurrency trading plugin |
 | **Requirements Manager** | `src/plugins/requirements_manager/` | APPLICATION_PLUGIN | Markdown-based traceable requirements viewer/editor (REQ-SW-PL-*) |
 

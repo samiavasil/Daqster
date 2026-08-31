@@ -1,11 +1,11 @@
 # REQ-SW-PL-020: Zero-Copy Video Frame Transport & GPU Display (VideoFrameData)
 
-- **Статус:** ACTIVE
+- **Статус:** DONE
 - **Приоритет:** P1
 - **Отговорник (роля):** Ivan (Implementation)
 - **Дата:** 2026-08-07
-- **Родител:** REQ-SW-PL-018
-- **Зависи от:** REQ-SW-PL-018, REQ-SW-PL-013
+- **Родител:** REQ-SW-PL-018 (архив: archive/plugins/REQ-SW-PL-018-video-source-and-processing-nodes.md)
+- **Зависи от:** REQ-SW-PL-018 (архив: archive/plugins/REQ-SW-PL-018-video-source-and-processing-nodes.md), REQ-SW-PL-013 (архив: archive/plugins/REQ-SW-PL-013-shared-node-api.md)
 
 ## Описание
 
@@ -61,10 +61,9 @@ throttling. При 1080p30 това насища едно ядро (наблюд
        QImage конверсия само когато са свързани.
 - [x] 5. **Qt5 поведение непроменено.** Qt5 остава на QImage/`ImageData` пътя
        (GStreamer probe, безопасна незабавна конверсия).
-- [ ] 6. **Qt5 + Qt6 builds PASS + app smoke.** Приложенията стартират без
-       crash; и двете версии се build-ват. Unit тестовете са **отложени по
-       решение на потребителя** (standing instruction — status → `DONE` чака
-       тестовете).
+- [x] 6. **Qt5 + Qt6 builds PASS + app smoke.** Приложенията стартират без
+        crash; и двете версии се build-ват. Unit тестовете са **завършени**
+        (PL-020 AC6).
 - [x] 7. **Windows документация.** `docs/plugins/demo_nodeditor_nodes/README.md`
        документира Windows особеностите на video пайплайна: Qt6 FFmpeg backend
        работи из-кутия (RTSP нативно, без допълнителни инсталации); Qt5 ползва
@@ -107,9 +106,20 @@ throttling. При 1080p30 това насища едно ядро (наблюд
   само backend → source (вече текущата архитектура).
 - **`VideoCompat.h`** е designated shim за Qt5/Qt6 multimedia — всички
   version-разлики (вкл. present/QVideoSink helper) отиват там.
-- **Qt5 gotcha:** `QVideoProbe` frames не трябва да се държат извън сигнала;
-  `flush()` съществува точно за освобождаване на задържани референции. Затова
-  нулево-копийният път е Qt6-only.
+- **Qt5 gotcha:** `QVideoProbe` frames не трябва да се държат извън сигнала
+  (backend-ът рециклира буферите); `flush()` съществува точно за освобождаване
+  на задържани референции.
+- **NV12-direct за Qt5 (2026-08-13, Variante A):** Qt5 source-ите вече
+  транспортират **OWNED** копия на декодираните кадри
+  (`VideoCompat::frameToOwnedFrame` — map + memcpy по plane-ове за NV12/YUV420P
+  в QByteArray, построени в `QAbstractPlanarVideoBuffer` subclass), така че
+  `VideoFrameData` вече не е Qt6-gated. `VideoOutputNode` има два входа и на Qt5
+  (video-frame@0 → GL blit, image@1 → SW). Неподдържан формат → invalid frame →
+  source пада на QImage. **Преномерация (append-last нарушен):** Qt5 порт 0
+  стана "video-frame" (беше "image") — стари saved Qt5 графи, които свързват
+  source порт 0 с ImageData консуматор, **ще загубят връзката** и трябва да се
+  пресвържат към новия image порт (порт 1). Това е документирано в header-ите
+  на трите source-а, `VideoOutputNode.h` и `docs/plugins/demo_nodeditor_nodes/README.md`.
 - **QGraphicsProxyWidget не може да хостингне `QVideoWidget`** (QTBUG-35299 на
   Qt5 — "can't work, and never will"; Qt6 `QVideoWindow` = native QWindow със
   собствен RHI swapchain). Решението е detached top-level прозорец (съществува
@@ -130,6 +140,5 @@ throttling. При 1080p30 това насища едно ядро (наблюд
 клауза "branch per work item" (AGENTS.md) важи: работата се върши на нов
 branch `feat/REQ-SW-PL-020-video-frame-display`.
 
-**Статус:** ACTIVE (имплементация завършена 2026-08-07; unit тестовете
-отложени по решение на потребителя). AC 1–5, 7 `[x]`; AC 6 `[ ]` (tests
-deferred).
+**Статус:** DONE (имплементация завършена 2026-08-07; unit тестовете
+завършени 2026-08-12). AC 1–7 `[x]`.

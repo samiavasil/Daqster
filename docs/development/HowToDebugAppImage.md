@@ -1,6 +1,6 @@
 # Как да дебъгваме Daqster AppImage
 
-Родител: [Development Topics](./README.md) | [Documentation Index](../INDEX.md)
+Родител: [Development Topics](./README.md) | [Documentation Index](../index.md)
 
 Този документ описва различните начини за дебъгване на Daqster приложението, когато то е пакетирано като AppImage.
 
@@ -21,7 +21,10 @@
 
 ## Debug AppImage (Най-лесно)
 
-**Най-лесният начин** за дебъгване е да използваш Debug AppImage-а, който се създава автоматично в CI.
+**Най-лесният начин** за дебъгване е да използваш Debug AppImage-а. Забележка:
+CI build-ва само **Release** AppImage (`.github/workflows/ci.yml`, `release.yml`),
+така че Debug AppImage-ът трябва да се създаде **локално** с
+`./tools/create_appimage.sh` (Debug build).
 
 ### Какво е Debug AppImage?
 
@@ -35,7 +38,7 @@
 ### Използване:
 
 ```bash
-# Debug AppImage има debug символи
+# Debug AppImage има debug символи (създава се локално — CI build-ва само Release)
 ./Daqster-Debug-x86_64.AppImage
 
 # Можеш да го дебъгваш директно с GDB
