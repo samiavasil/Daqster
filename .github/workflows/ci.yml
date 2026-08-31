@@ -58,7 +58,7 @@ jobs:
           host: 'linux'
           target: 'desktop'
           arch: 'linux_gcc_64'
-          modules: 'qtcharts qtmultimedia'
+          modules: 'qtcharts qtmultimedia qtwebsockets'
 
       - name: Configure (Release, tests ON)
         run: |
@@ -88,6 +88,7 @@ jobs:
       - name: Smoke test AppImage (offscreen)
         env:
           QT_QPA_PLATFORM: offscreen
+          QT_DEBUG_PLUGINS: 1
         run: |
           set +e
           timeout 15 ./Daqster-x86_64.AppImage --appimage-extract-and-run > appimage-smoke.log 2>&1
@@ -102,6 +103,34 @@ jobs:
             cat appimage-smoke.log
             exit 1
           fi
+          # Fail if the Qt6 FFmpeg multimedia backend failed to load — the app
+          # would keep running but video/audio would be unavailable. QT_DEBUG_PLUGINS=1
+          # makes Qt print "Cannot load library ... ffmpegmediaplugin" on dlopen failure.
+          if grep -E "No QtMultimedia backends|Cannot load library.*ffmpegmediaplugin" appimage-smoke.log; then
+            echo "Smoke test FAILED: Qt multimedia backend failure detected"
+            cat appimage-smoke.log
+            exit 1
+          fi
+
+      - name: Verify bundled Qt version (6.8.x)
+        run: |
+          ./Daqster-x86_64.AppImage --appimage-extract >/dev/null 2>&1
+          QT_LIB=$(ls squashfs-root/usr/lib/libQt6Core.so.* 2>/dev/null | head -n1)
+          if [ -z "$QT_LIB" ]; then
+            echo "FAIL: libQt6Core not found in AppImage"
+            exit 1
+          fi
+          QT_VERSION=$(strings "$QT_LIB" | grep -oE '6\.8\.[0-9]+' | head -n1)
+          echo "Bundled Qt version: $QT_VERSION"
+          case "$QT_VERSION" in
+            6.8.*)
+              echo "PASS: bundled Qt is 6.8.x"
+              ;;
+            *)
+              echo "FAIL: expected Qt 6.8.x, got '$QT_VERSION'"
+              exit 1
+              ;;
+          esac
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
@@ -143,6 +172,7 @@ jobs:
             qtquickcontrols2-5-dev \
             qtmultimedia5-dev \
             libqt5charts5-dev \
+            libqt5websockets5-dev \
             libssl-dev \
             libqt5opengl5-dev \
             libicu74 \
@@ -210,7 +240,7 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2022_64'
-          modules: 'qtcharts qtmultimedia'
+          modules: 'qtcharts qtmultimedia qtwebsockets'
 
       # The VS generator ("Visual Studio 17 2022") failed to find a VS instance
       # on windows-latest ("could not find any instance of Visual Studio" at

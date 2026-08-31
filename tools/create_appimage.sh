@@ -16,8 +16,10 @@
 set -e
 
 # Default values
+# NOTE: QT_DIR is intentionally NOT initialized here. It comes from the
+# environment variable QT_DIR or the --qt-dir flag, so that CI can pass the
+# correct Qt installation (e.g. aqtinstall Qt 6.8.3) without it being clobbered.
 MODE="local"
-QT_DIR=""
 SOURCE_BUILD_DIR=""
 BUILD_DIR=""
 APPIMAGE_NAME="Daqster-x86_64.AppImage"
@@ -28,7 +30,7 @@ show_usage() {
     echo ""
     echo "Options:"
     echo "  --mode MODE          Mode: 'local' or 'ci' (default: local)"
-    echo "  --qt-dir DIR         Qt installation directory"
+    echo "  --qt-dir DIR         Qt installation directory (or env var QT_DIR)"
     echo "  --source-dir DIR     Source build directory"
     echo "  --build-dir DIR      Build output directory"
     echo "  --name NAME          AppImage name (default: Daqster-x86_64.AppImage)"
@@ -191,6 +193,26 @@ if [ -d "$PLUGIN_DIR" ]; then
     done
 fi
 
+# Post-build ldd verification — fail if any shared library is missing
+echo "=== Post-build ldd verification ==="
+LDD_FAILURE=0
+for binary in "$BUILD_DIR/Daqster.AppDir/usr/bin/Daqster" "$PLUGIN_DIR"/*.so; do
+    [ -f "$binary" ] || continue
+    name="$(basename "$binary")"
+    missing=$(LD_LIBRARY_PATH="$BUILD_DIR/Daqster.AppDir/usr/lib:$LD_LIBRARY_PATH" ldd "$binary" 2>/dev/null | grep "not found" || true)
+    if [ -n "$missing" ]; then
+        echo "FAIL: $name — missing libraries:"
+        echo "$missing"
+        LDD_FAILURE=1
+    else
+        echo "OK: $name"
+    fi
+done
+if [ "$LDD_FAILURE" -eq 1 ]; then
+    echo "ERROR: Some binaries have unresolved dependencies. Aborting."
+    exit 1
+fi
+
 # Verify the packaged plugin set
 echo "Packaged plugins:"
 if [ -d "$PLUGIN_DIR" ] && ls "$PLUGIN_DIR"/* >/dev/null 2>&1; then
@@ -247,10 +269,16 @@ fi
 # Copy Qt libraries (blanket copy — see header note on why not ldd-based)
 if [ -n "$QT_LIB_PREFIX" ]; then
     echo "Copying Qt libraries ($QT_LIB_PREFIX)..."
-    cp -r "$QT_LIB_SRC"/${QT_LIB_PREFIX}* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+    cp -r "$QT_LIB_SRC"/${QT_LIB_PREFIX}*.so* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
 else
     echo "Warning: no Qt libraries detected in $QT_DIR"
 fi
+
+# Copy FFmpeg libraries (Qt6 Multimedia FFmpeg backend — libffmpegmediaplugin.so
+# links against libavcodec/libavformat/libavutil/libswresample/libswscale).
+# The Qt lib copy above only matches libQt6*; FFmpeg libs must be copied explicitly.
+cp -r "$QT_LIB_SRC"/libav*.so* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+cp -r "$QT_LIB_SRC"/libsw*.so* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
 
 # Copy Qt plugins
 if [ -n "$QT_PLUGIN_SRC" ] && [ -d "$QT_PLUGIN_SRC" ]; then
@@ -258,10 +286,17 @@ if [ -n "$QT_PLUGIN_SRC" ] && [ -d "$QT_PLUGIN_SRC" ]; then
     cp -r "$QT_PLUGIN_SRC"/* "$BUILD_DIR/Daqster.AppDir/usr/lib/plugins/" 2>/dev/null || true
 fi
 
+if [ ! -d "$BUILD_DIR/Daqster.AppDir/usr/lib/plugins/multimedia" ]; then
+    echo "WARNING: Qt multimedia plugin dir not packaged — video/audio will be unavailable"
+fi
+
 # Copy QML modules
 if [ -n "$QT_QML_SRC" ] && [ -d "$QT_QML_SRC" ]; then
     echo "Copying QML modules from $QT_QML_SRC..."
     cp -r "$QT_QML_SRC"/* "$BUILD_DIR/Daqster.AppDir/usr/lib/qml/" 2>/dev/null || true
+    # QML module dirs may contain static archives (e.g. libqmlassetdownloaderplugin.a);
+    # they are useless at runtime and only bloat the AppImage.
+    find "$BUILD_DIR/Daqster.AppDir/usr/lib/qml" -name '*.a' -delete 2>/dev/null || true
 fi
 
 # Copy ICU libraries (if available)
@@ -271,6 +306,11 @@ fi
 echo "Copying ICU libraries..."
 cp "$QT_LIB_SRC"/libicu*.so.* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
 cp /usr/lib/x86_64-linux-gnu/libicu*.so.* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+
+# Copy OpenSSL libraries (needed by QtCoinTrader plugin)
+echo "Copying OpenSSL libraries..."
+cp -L /usr/lib/x86_64-linux-gnu/libssl.so* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+cp -L /usr/lib/x86_64-linux-gnu/libcrypto.so* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
 
 # Copy GStreamer backends (needed by Qt Multimedia for audio/video)
 # Core libs + element plugins are bundled; the AppRun sets GST_PLUGIN_PATH.

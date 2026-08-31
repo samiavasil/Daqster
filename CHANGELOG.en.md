@@ -6,6 +6,20 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **REQ-SW-PL-036** (Deploy & Artifact-Packaging Fixes):
+  - `tools/create_appimage.sh`: removed the `QT_DIR=""` clobber — `QT_DIR` now comes from the env var / `--qt-dir` flag (CI can pass the correct Qt installation)
+  - `tools/create_appimage.sh`: bundle OpenSSL (`libssl.so.*` + `libcrypto.so.*`) — needed by the QtCoinTrader plugin at runtime in the AppImage
+  - `tools/create_appimage.sh`: post-build ldd verification of `usr/bin/Daqster` and every plugin `.so` — fails on unknown shared library dependencies
+  - `.github/workflows/ci.yml`: added `qtwebsockets` to aqtinstall modules (Qt6 Linux + Windows) and `libqt5websockets5-dev` to apt (Qt5 Linux)
+  - `.github/workflows/ci.yml`: Qt version smoke check — extracts the AppImage and verifies the bundled Qt is 6.8.x
+  - `.github/workflows/release.yml` Linux: `ubuntu-22.04` → `ubuntu-24.04`, system Qt → aqtinstall Qt 6.8.3, added GStreamer runtime + Mesa GL packages, `-DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"`, `QT_DIR="$QT_ROOT_DIR"` to create_appimage.sh
+  - `.github/workflows/release.yml` Windows: removed `qtdeclarative qtsvg` from modules (BASE packages for 6.8.3), added `qtwebsockets`; windeployqt uses `QT_ROOT_DIR` instead of `Qt6_Dir`
+  - `CMakeLists.txt`: added `print_component_status_summary()` after `print_build_configuration_summary()`
+  - `tools/create_appimage.sh`: bundle FFmpeg libraries (`libav*`/`libsw*`) — the Qt6 Multimedia FFmpeg backend (`libffmpegmediaplugin.so`) links against them; without them the plugin fails to dlopen and video/audio is unavailable
+  - `tools/create_appimage.sh`: warning when the Qt multimedia plugin dir is not packaged
+  - `.github/workflows/ci.yml`: smoke test runs with `QT_DEBUG_PLUGINS=1` and fails on "No QtMultimedia backends" / "Cannot load library ... ffmpegmediaplugin"
+
 ## [0.3.0] - 2026-08-30
 
 ### Added

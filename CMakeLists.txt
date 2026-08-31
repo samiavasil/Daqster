@@ -147,4 +147,5 @@ endif()
 
 # Print final build configuration summary
 print_build_configuration_summary()
+print_component_status_summary()
 
