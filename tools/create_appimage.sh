@@ -16,8 +16,10 @@
 set -e
 
 # Default values
+# NOTE: QT_DIR is intentionally NOT initialized here. It comes from the
+# environment variable QT_DIR or the --qt-dir flag, so that CI can pass the
+# correct Qt installation (e.g. aqtinstall Qt 6.8.3) without it being clobbered.
 MODE="local"
-QT_DIR=""
 SOURCE_BUILD_DIR=""
 BUILD_DIR=""
 APPIMAGE_NAME="Daqster-x86_64.AppImage"
@@ -28,7 +30,7 @@ show_usage() {
     echo ""
     echo "Options:"
     echo "  --mode MODE          Mode: 'local' or 'ci' (default: local)"
-    echo "  --qt-dir DIR         Qt installation directory"
+    echo "  --qt-dir DIR         Qt installation directory (or env var QT_DIR)"
     echo "  --source-dir DIR     Source build directory"
     echo "  --build-dir DIR      Build output directory"
     echo "  --name NAME          AppImage name (default: Daqster-x86_64.AppImage)"
@@ -191,6 +193,26 @@ if [ -d "$PLUGIN_DIR" ]; then
     done
 fi
 
+# Post-build ldd verification — fail if any shared library is missing
+echo "=== Post-build ldd verification ==="
+LDD_FAILURE=0
+for binary in "$BUILD_DIR/Daqster.AppDir/usr/bin/Daqster" "$PLUGIN_DIR"/*.so; do
+    [ -f "$binary" ] || continue
+    name="$(basename "$binary")"
+    missing=$(LD_LIBRARY_PATH="$BUILD_DIR/Daqster.AppDir/usr/lib:$LD_LIBRARY_PATH" ldd "$binary" 2>/dev/null | grep "not found" || true)
+    if [ -n "$missing" ]; then
+        echo "FAIL: $name — missing libraries:"
+        echo "$missing"
+        LDD_FAILURE=1
+    else
+        echo "OK: $name"
+    fi
+done
+if [ "$LDD_FAILURE" -eq 1 ]; then
+    echo "ERROR: Some binaries have unresolved dependencies. Aborting."
+    exit 1
+fi
+
 # Verify the packaged plugin set
 echo "Packaged plugins:"
 if [ -d "$PLUGIN_DIR" ] && ls "$PLUGIN_DIR"/* >/dev/null 2>&1; then
@@ -271,6 +293,11 @@ fi
 echo "Copying ICU libraries..."
 cp "$QT_LIB_SRC"/libicu*.so.* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
 cp /usr/lib/x86_64-linux-gnu/libicu*.so.* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+
+# Copy OpenSSL libraries (needed by QtCoinTrader plugin)
+echo "Copying OpenSSL libraries..."
+cp -L /usr/lib/x86_64-linux-gnu/libssl.so* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+cp -L /usr/lib/x86_64-linux-gnu/libcrypto.so* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
 
 # Copy GStreamer backends (needed by Qt Multimedia for audio/video)
 # Core libs + element plugins are bundled; the AppRun sets GST_PLUGIN_PATH.
