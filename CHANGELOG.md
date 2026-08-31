@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+### Fixed
+- **REQ-SW-PL-036** (Deploy & Artifact-Packaging Fixes):
+  - `tools/create_appimage.sh`: премахнат `QT_DIR=""` clobber-ът — `QT_DIR` вече идва от env var / `--qt-dir` (CI може да подаде правилната Qt инсталация)
+  - `tools/create_appimage.sh`: бандлване на OpenSSL (`libssl.so.*` + `libcrypto.so.*`) — нужни на QtCoinTrader plugin-а при runtime в AppImage
+  - `tools/create_appimage.sh`: post-build ldd верификация на `usr/bin/Daqster` и всеки plugin `.so` — fail-ва при неизвестни shared library зависимости
+  - `.github/workflows/ci.yml`: `qtwebsockets` добавен към aqtinstall modules (Qt6 Linux + Windows) и `libqt5websockets5-dev` към apt (Qt5 Linux)
+  - `.github/workflows/ci.yml`: Qt version smoke check — извлича AppImage-а и верифицира че бандлнатият Qt е 6.8.x
+  - `.github/workflows/release.yml` Linux: `ubuntu-22.04` → `ubuntu-24.04`, system Qt → aqtinstall Qt 6.8.3, добавени GStreamer runtime + Mesa GL пакети, `-DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"`, `QT_DIR="$QT_ROOT_DIR"` към create_appimage.sh
+  - `.github/workflows/release.yml` Windows: премахнати `qtdeclarative qtsvg` от modules (BASE пакети за 6.8.3), добавено `qtwebsockets`; windeployqt ползва `QT_ROOT_DIR` вместо `Qt6_Dir`
+  - `CMakeLists.txt`: добавено `print_component_status_summary()` след `print_build_configuration_summary()`
+
 ## [0.3.0] - 2026-08-30
 
 ### Added
