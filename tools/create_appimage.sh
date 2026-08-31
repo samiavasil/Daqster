@@ -269,7 +269,7 @@ fi
 # Copy Qt libraries (blanket copy — see header note on why not ldd-based)
 if [ -n "$QT_LIB_PREFIX" ]; then
     echo "Copying Qt libraries ($QT_LIB_PREFIX)..."
-    cp -r "$QT_LIB_SRC"/${QT_LIB_PREFIX}* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+    cp -r "$QT_LIB_SRC"/${QT_LIB_PREFIX}*.so* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
 else
     echo "Warning: no Qt libraries detected in $QT_DIR"
 fi
@@ -277,8 +277,8 @@ fi
 # Copy FFmpeg libraries (Qt6 Multimedia FFmpeg backend — libffmpegmediaplugin.so
 # links against libavcodec/libavformat/libavutil/libswresample/libswscale).
 # The Qt lib copy above only matches libQt6*; FFmpeg libs must be copied explicitly.
-cp -r "$QT_LIB_SRC"/libav* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
-cp -r "$QT_LIB_SRC"/libsw* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+cp -r "$QT_LIB_SRC"/libav*.so* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
+cp -r "$QT_LIB_SRC"/libsw*.so* "$BUILD_DIR/Daqster.AppDir/usr/lib/" 2>/dev/null || true
 
 # Copy Qt plugins
 if [ -n "$QT_PLUGIN_SRC" ] && [ -d "$QT_PLUGIN_SRC" ]; then
@@ -294,6 +294,9 @@ fi
 if [ -n "$QT_QML_SRC" ] && [ -d "$QT_QML_SRC" ]; then
     echo "Copying QML modules from $QT_QML_SRC..."
     cp -r "$QT_QML_SRC"/* "$BUILD_DIR/Daqster.AppDir/usr/lib/qml/" 2>/dev/null || true
+    # QML module dirs may contain static archives (e.g. libqmlassetdownloaderplugin.a);
+    # they are useless at runtime and only bloat the AppImage.
+    find "$BUILD_DIR/Daqster.AppDir/usr/lib/qml" -name '*.a' -delete 2>/dev/null || true
 fi
 
 # Copy ICU libraries (if available)
