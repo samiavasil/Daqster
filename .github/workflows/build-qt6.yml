@@ -1,0 +1,302 @@
+name: Build Qt6 (reusable)
+
+# Reusable workflow — single source of truth for the Linux Qt6 and Windows Qt6
+# pipelines shared by ci.yml and release.yml. Based on the PROVEN working
+# version in ci.yml (NOT the older release.yml copy):
+#   - Windows uses Ninja + ilammy/msvc-dev-cmd + CMAKE_PREFIX_PATH (the fix
+#     that avoids VS instance discovery failures on windows-latest).
+#   - Linux smoke test runs with QT_DEBUG_PLUGINS=1 and fails on Qt6 FFmpeg
+#     multimedia backend load failures.
+# Inputs control the CI-vs-release differences:
+#   - upload-artifact-name: artifact name (CI and release use different names)
+#   - create-checksums:     release-only — tarball/ZIP + SHA256SUMS packaging
+#   - verify-qt-version:    verify the bundled Qt inside the AppImage is 6.8.x
+#   - export-compile-commands: add -DCMAKE_EXPORT_COMPILE_COMMANDS=ON (CI only)
+
+on:
+  workflow_call:
+    inputs:
+      upload-artifact-name:
+        description: 'Name of the uploaded artifact'
+        required: true
+        type: string
+      create-checksums:
+        description: 'Create tarball/ZIP + SHA256SUMS (release mode)'
+        required: false
+        default: false
+        type: boolean
+      verify-qt-version:
+        description: 'Verify bundled Qt version inside the AppImage is 6.8.x'
+        required: false
+        default: false
+        type: boolean
+      export-compile-commands:
+        description: 'Export compile_commands.json (CI only)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  # ============================================================
+  # Linux Qt6 — build + tests + AppImage + smoke (+ tarball/checksums)
+  # ============================================================
+  linux-qt6:
+    name: Linux Qt6
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Verify submodule gitlinks are reachable
+        run: |
+          git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'
+
+      # System Qt on ubuntu-24.04 is 6.4.2 — too old for the codebase
+      # (QVideoFrame(QImage) ctor needs 6.8+, QImage::flipped() needs 6.9+).
+      # Install Qt 6.8.3 via aqtinstall (like the Windows job) instead.
+      # The Linux desktop arch for Qt 6.7+ is "linux_gcc_64" — the older
+      # "gcc_64" name makes aqt fail with "packages were not found while
+      # parsing XML of package information".
+      # For 6.8.3 linux_gcc_64, qtdeclarative and qtsvg are part of the BASE
+      # package (verified: aqt list-qt --archives shows icu qtbase qtdeclarative
+      # qtsvg qttools qttranslations qtwayland) — passing them as modules makes
+      # aqt exit 1. Only qtcharts and qtmultimedia are real add-on modules.
+      # GStreamer dev + runtime packages are still needed by the Qt6Multimedia
+      # backend for the video-output tests. Mesa GL libs provide offscreen GL
+      # (llvmpipe) so the video-output tests can create a GL context headlessly.
+      - name: Install system deps (gstreamer, GL, ssl)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            libgl1-mesa-dri \
+            libegl1 \
+            libgl1 \
+            libglx-mesa0 \
+            libssl-dev
+
+      - name: Install Qt 6.8.3 (aqtinstall)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'linux_gcc_64'
+          modules: 'qtcharts qtmultimedia qtwebsockets'
+
+      - name: Configure (Release, tests ON)
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDAQSTER_BUILD_TESTS=ON ${{ inputs.export-compile-commands && '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON' || '' }} -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+
+      - name: Build
+        run: |
+          cmake --build build -j
+
+      - name: Run tests (offscreen)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          ctest --test-dir build --output-on-failure
+
+      - name: Install to staging
+        run: |
+          sudo cmake --install build --prefix "$PWD/stage"
+
+      - name: Create AppImage
+        run: |
+          chmod +x ./tools/create_appimage.sh
+          QT_DIR="$QT_ROOT_DIR" ./tools/create_appimage.sh --mode ci
+          ls -la *.AppImage
+          file *.AppImage
+
+      - name: Smoke test AppImage (offscreen)
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_DEBUG_PLUGINS: 1
+        run: |
+          set +e
+          timeout 15 ./Daqster-x86_64.AppImage --appimage-extract-and-run > appimage-smoke.log 2>&1
+          EXIT_CODE=$?
+          set -e
+          if [ "$EXIT_CODE" -eq 124 ]; then
+            echo "Smoke test PASSED: app ran for the full 15s timeout without crashing"
+          elif [ "$EXIT_CODE" -eq 0 ]; then
+            echo "Smoke test PASSED: app started and exited cleanly"
+          else
+            echo "Smoke test FAILED: AppImage exited with code $EXIT_CODE"
+            cat appimage-smoke.log
+            exit 1
+          fi
+          # Fail if the Qt6 FFmpeg multimedia backend failed to load — the app
+          # would keep running but video/audio would be unavailable. QT_DEBUG_PLUGINS=1
+          # makes Qt print "Cannot load library ... ffmpegmediaplugin" on dlopen failure.
+          if grep -E "No QtMultimedia backends|Cannot load library.*ffmpegmediaplugin" appimage-smoke.log; then
+            echo "Smoke test FAILED: Qt multimedia backend failure detected"
+            cat appimage-smoke.log
+            exit 1
+          fi
+
+      - name: Verify bundled Qt version (6.8.x)
+        if: inputs.verify-qt-version
+        run: |
+          ./Daqster-x86_64.AppImage --appimage-extract >/dev/null 2>&1
+          QT_LIB=$(ls squashfs-root/usr/lib/libQt6Core.so.* 2>/dev/null | head -n1)
+          if [ -z "$QT_LIB" ]; then
+            echo "FAIL: libQt6Core not found in AppImage"
+            exit 1
+          fi
+          QT_VERSION=$(strings "$QT_LIB" | grep -oE '6\.8\.[0-9]+' | head -n1)
+          echo "Bundled Qt version: $QT_VERSION"
+          case "$QT_VERSION" in
+            6.8.*)
+              echo "PASS: bundled Qt is 6.8.x"
+              ;;
+            *)
+              echo "FAIL: expected Qt 6.8.x, got '$QT_VERSION'"
+              exit 1
+              ;;
+          esac
+
+      - name: Create tarball + checksums
+        if: inputs.create-checksums
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          tar -czf "Daqster-Linux-x86_64-${VERSION}.tar.gz" -C stage .
+          sha256sum Daqster-x86_64.AppImage "Daqster-Linux-x86_64-${VERSION}.tar.gz" > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.upload-artifact-name }}
+          path: |
+            Daqster-x86_64.AppImage
+            Daqster-Linux-x86_64-*.tar.gz
+            SHA256SUMS
+          if-no-files-found: error
+
+  # ============================================================
+  # Windows Qt6 — build + tests + windeployqt ZIP + smoke (+ checksums)
+  # Compiler: MSVC 2022 (win64_msvc2022_64). Qt ships official MSVC
+  # binaries for every 6.x release and VS 2022 is preinstalled on
+  # windows-latest, so this avoids the MinGW ABI-mismatch risk
+  # (Qt's MinGW build must match the exact MinGW toolchain version).
+  # ============================================================
+  windows-qt6:
+    name: Windows Qt6
+    runs-on: windows-latest
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Verify submodule gitlinks are reachable
+        shell: bash
+        run: |
+          git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'
+
+      # aqtinstall fails when a "module" is not an add-on module for the
+      # version/arch. For 6.8.3 win64_msvc2022_64, qtdeclarative and qtsvg
+      # are part of the BASE package (verified: aqt list-qt --archives shows
+      # qtbase qtdeclarative qtsvg qttools qttranslations) — passing them as
+      # modules makes aqt exit 1. Only qtcharts and qtmultimedia are real
+      # add-on modules for this version/arch.
+      - name: Install Qt6 (MSVC 2022)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2022_64'
+          modules: 'qtcharts qtmultimedia qtwebsockets'
+
+      # The VS generator ("Visual Studio 17 2022") failed to find a VS instance
+      # on windows-latest ("could not find any instance of Visual Studio" at
+      # project()). The robust fix: set up the MSVC environment explicitly with
+      # msvc-dev-cmd and use the Ninja generator (preinstalled on the runner).
+      # Ninja + MSVC avoids VS instance discovery entirely and works with
+      # WINDOWS_EXPORT_ALL_SYMBOLS (frame_work / qtrest_lib).
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure (Release, tests ON)
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DDAQSTER_BUILD_TESTS=ON -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+
+      - name: Build (Release)
+        run: |
+          cmake --build build -j
+
+      - name: Run tests (offscreen)
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          ctest --test-dir build --output-on-failure
+
+      - name: Install to staging
+        run: |
+          cmake --install build --prefix "${{ github.workspace }}\stage-win"
+
+      - name: Bundle Qt runtime (windeployqt)
+        shell: pwsh
+        run: |
+          $qtDir = $env:QT_ROOT_DIR
+          if (-not $qtDir) { throw "QT_ROOT_DIR not set" }
+          Write-Host "Qt6 dir: $qtDir"
+          $stage = "${{ github.workspace }}\stage-win"
+          & "$qtDir\bin\windeployqt.exe" --release --no-translations --compiler-runtime "$stage\bin\Daqster.exe"
+          if ($LASTEXITCODE -ne 0) { throw "windeployqt failed with exit code $LASTEXITCODE" }
+
+      - name: Smoke test (launch exe)
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $stage = "${{ github.workspace }}\stage-win"
+          $proc = Start-Process -FilePath "$stage\bin\Daqster.exe" -PassThru
+          if ($proc.WaitForExit(15000)) {
+            if ($proc.ExitCode -eq 0) {
+              Write-Host "Smoke test PASSED: app started and exited cleanly"
+            } else {
+              Write-Host "Smoke test FAILED: exit code $($proc.ExitCode)"
+              exit 1
+            }
+          } else {
+            Write-Host "Smoke test PASSED: app ran for 15s without crashing"
+            Stop-Process -Id $proc.Id -Force
+          }
+
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "${{ github.workspace }}\stage-win\*" -DestinationPath "${{ github.workspace }}\Daqster-Windows-x86_64.zip"
+
+      - name: Create versioned ZIP + checksums
+        if: inputs.create-checksums
+        shell: pwsh
+        run: |
+          $version = "$env:GITHUB_REF_NAME".Substring(1)
+          $zip = "Daqster-Windows-x86_64-$version.zip"
+          Move-Item -Force "Daqster-Windows-x86_64.zip" $zip
+          $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
+          # Standard sha256sum format: "<hash>  <filename>"
+          "$hash  $zip" | Out-File -FilePath SHA256SUMS -Encoding ascii
+          Get-Content SHA256SUMS
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.upload-artifact-name }}
+          path: |
+            Daqster-Windows-x86_64*.zip
+            SHA256SUMS
+          if-no-files-found: error
