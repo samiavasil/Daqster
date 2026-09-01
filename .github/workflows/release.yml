@@ -37,6 +37,7 @@ jobs:
     needs: verify-tag
     uses: ./.github/workflows/build-qt6.yml
     with:
+      platform: 'linux'
       upload-artifact-name: 'release-linux'
       create-checksums: true
       verify-qt-version: true
@@ -50,6 +51,7 @@ jobs:
     needs: verify-tag
     uses: ./.github/workflows/build-qt6.yml
     with:
+      platform: 'windows'
       upload-artifact-name: 'release-windows'
       create-checksums: true
 
@@ -86,6 +88,20 @@ jobs:
           mv release-linux/SHA256SUMS release-linux/SHA256SUMS-linux
           mv release-windows/SHA256SUMS release-windows/SHA256SUMS-windows
 
+      # Hard-fail before creating the release if any expected asset is missing.
+      # Guards against the reusable-workflow bug where both platform jobs ran in
+      # each caller and the Linux artifact was silently dropped from the release.
+      # Each `test -f` glob below expands to exactly one file on success; a
+      # missing file leaves the pattern unexpanded and the test fails.
+      - name: Verify release assets present
+        run: |
+          test -f release-linux/Daqster-x86_64.AppImage
+          test -f release-linux/Daqster-Linux-x86_64-*.tar.gz
+          test -f release-linux/SHA256SUMS-linux
+          test -f release-windows/Daqster-Windows-x86_64-*.zip
+          test -f release-windows/SHA256SUMS-windows
+          echo "All release assets present"
+
       - name: Extract CHANGELOG section for release body
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -118,6 +134,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           body_path: release-body.md
+          fail_on_unmatched_files: true
           files: |
             release-linux/Daqster-x86_64.AppImage
             release-linux/Daqster-Linux-x86_64-*.tar.gz
