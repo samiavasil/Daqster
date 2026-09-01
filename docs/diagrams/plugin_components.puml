@@ -3,24 +3,33 @@ skinparam packageStyle rectangle
 skinparam shadowing false
 skinparam componentStyle uml2
 
-title Plugin Component Architecture (v2.2)
+title Plugin Component Architecture (v2.3)
 
 package "src/plugins/external_libs/" {
   [nodeeditor\n(QtNodes)] as NODEEDITOR
   [qtrest_lib] as QTREST
 }
 
-package "src/plugins/node_editor_widget/" <<Rectangle>> {
+package "src/plugins/node_editor_ide/" <<Rectangle>> {
+  [NodeEditorIde\n(NodeEditorPluginIde)] as IDE
   [NodeEditorWidget] as NEW
-  [ChatGraphModel] as CGM
+  [NodeEditorLibrary] as NEL
 }
 
-package "src/plugins/node_editor_app/" <<Rectangle>> {
-  [NodeEditorApp] as APP
+package "src/plugins/demo_nodeditor_nodes/" <<Rectangle>> {
+  [DemoNodeEditorNodes\n(DemoNodeEditorNodesPlugin)] as DEMO
+}
+
+package "src/plugins/requirements_manager/" <<Rectangle>> {
+  [RequirementsManager\n(RequirementsManagerPlugin)] as RM
 }
 
 package "src/plugins/QtCoinTrader/" <<Rectangle>> {
   [QtCoinTraderPlugin] as QCT
+}
+
+package "src/plugins/tests/" <<Rectangle>> {
+  [test plugins\n(DAQSTER_BUILD_TEST_PLUGINS)] as TEST
 }
 
 package "src/frame_work/" <<Rectangle>> {
@@ -34,28 +43,51 @@ package "src/apps/Daqster/" <<Rectangle>> {
 
 ' Dependencies
 NEW --> NODEEDITOR : links PUBLIC\n(QtNodes)
-APP --> NEW : links\n(node_editor_widget)
-APP --> NODEEDITOR : links PUBLIC\n(QtNodes)
-APP --> FW : links
+IDE --> NEL : links
+IDE --> NODEEDITOR : links PUBLIC\n(QtNodes)
+IDE --> FW : links
+NEL --> NODEEDITOR : links PUBLIC\n(QtNodes)
+NEL --> FW : links
+
+DEMO --> NEL : links
+DEMO --> NODEEDITOR : links PUBLIC\n(QtNodes)
+DEMO --> FW : links
+
+RM --> FW : links
 
 QCT --> QTREST : links
 QCT --> FW : links
 
 HOST --> QPM : uses
-QPM ..> APP : discovers
+QPM ..> IDE : discovers
+QPM ..> DEMO : discovers
+QPM ..> RM : discovers
 QPM ..> QCT : discovers
+QPM ..> TEST : discovers (optional)
 
 note right of NEW
-  SHARED library
-  Provides ready-made
+  Part of node_editor_ide
+  NodeEditorWidget.{h,cpp}
   Qt Widgets GUI for
   node-based editors
 end note
 
-note right of APP
+note right of IDE
   APPLICATION_PLUGIN
-  Basic graph app
-  using NodeEditorWidget
+  IDE shell + built-in nodes
+  (NumberSource, NumberDisplay,
+  Modulo, ArithmeticLogic)
+end note
+
+note right of NEL
+  SHARED library
+  ChatGraphModel + shared
+  node types/decoders
+end note
+
+note right of TEST
+  Built only when
+  DAQSTER_BUILD_TEST_PLUGINS=ON
 end note
 
 @enduml

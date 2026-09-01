@@ -2,25 +2,49 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [develop, master]
   pull_request:
-    branches: [ master ]
+    branches: [develop, master]
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-22.04
+  # ============================================================
+  # PRIMARY: Linux Qt6 — full pipeline: build + tests + AppImage + smoke
+  # Implemented by the shared reusable workflow (build-qt6.yml).
+  # ============================================================
+  linux-qt6:
+    name: Linux Qt6 (primary)
+    uses: ./.github/workflows/build-qt6.yml
+    with:
+      platform: 'linux'
+      upload-artifact-name: 'Daqster-Linux-Qt6-x86_64.AppImage'
+      verify-qt-version: true
+      export-compile-commands: true
+
+  # ============================================================
+  # COMPAT: Linux Qt5 — build + tests (no packaging)
+  # ============================================================
+  linux-qt5:
+    name: Linux Qt5 (compat)
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout with submodules
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
-      
-      - name: Ensure submodules full history
+
+      - name: Verify submodule gitlinks are reachable
         run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive --depth=0
-      
-      - name: Install Qt from system packages
+          git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'
+
+      # All Qt5 packages exist in noble (5.15.13). libicu70 is jammy-only —
+      # noble ships libicu74. GStreamer RUNTIME packages (not just dev) are
+      # required: the Qt5Multimedia backend is GStreamer and the video-output
+      # tests fail at runtime without the plugins. Mesa GL libs provide
+      # offscreen GL (llvmpipe) so the video-output tests can create a GL
+      # context headlessly (without them QOpenGLContext::create() fails and
+      # the GL fallback path is exercised instead).
+      - name: Install Qt5 from system packages
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -29,272 +53,46 @@ jobs:
             qtquickcontrols2-5-dev \
             qtmultimedia5-dev \
             libqt5charts5-dev \
+            libqt5websockets5-dev \
             libssl-dev \
             libqt5opengl5-dev \
-            libicu70 \
+            libicu74 \
+            libgl1-mesa-dri \
+            libegl1 \
+            libgl1 \
+            libglx-mesa0 \
+            libgstreamer1.0-0 \
+            libgstreamer-plugins-base1.0-0 \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
             qml-module-qtcharts \
             qml-module-qtquick2 \
             qml-module-qt-labs-platform \
             qml-module-qt-labs-folderlistmodel \
             qml-module-qt-labs-settings \
             qml-module-qt-labs-sharedimage
-      
-      - name: Debug Qt installation
+
+      - name: Configure (Release, tests ON)
         run: |
-          echo "Qt installation debug info:"
-          echo "PATH: $PATH"
-          
-          # Set Qt environment
-          export QT_DIR="$HOME/Qt/5.15.2/gcc_64"
-          export PATH="$HOME/.local/bin:$QT_DIR/bin:$PATH"
-          export LD_LIBRARY_PATH="$QT_DIR/lib:$LD_LIBRARY_PATH"
-          
-          which qmake || echo "qmake not found"
-          which qtpaths || echo "qtpaths not found"
-          
-          # Check Qt version
-          qmake --version || echo "qmake version not available"
-          
-          # Check Qt paths
-          qmake -query QT_INSTALL_PREFIX || echo "QT_INSTALL_PREFIX not available"
-          qmake -query QT_INSTALL_LIBS || echo "QT_INSTALL_LIBS not available"
-          qmake -query QT_INSTALL_QML || echo "QT_INSTALL_QML not available"
-          qmake -query QT_INSTALL_PLUGINS || echo "QT_INSTALL_PLUGINS not available"
-          
-          # Check available Qt modules
-          echo "Checking Qt modules:"
-          ls -la "$QT_DIR/qml/" || echo "QML modules not found"
-          ls -la "$QT_DIR/plugins/" || echo "Qt plugins not found"
-      
-      - name: Configure (Release)
-        run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-      
-      - name: Build (Release)
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDAQSTER_BUILD_TESTS=ON
+
+      - name: Build
         run: |
           cmake --build build -j
-          
-      - name: Configure (Debug)
+
+      - name: Run tests (offscreen)
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
-          cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug
-      
-      - name: Build (Debug)
-        run: |
-          cmake --build build-debug -j
-      
-      - name: Install to staging (Release)
-        run: |
-          sudo cmake --install build --prefix "$PWD/stage"
-          
-      - name: Install to staging (Debug)
-        run: |
-          sudo cmake --install build-debug --prefix "$PWD/stage-debug"
-      
-      - name: Create Release AppImage
-        run: |
-          # Make script executable and use our unified AppImage creation script in CI mode
-          chmod +x ./tools/create_appimage.sh
-          ./tools/create_appimage.sh --mode ci
-          
-      - name: Create Debug AppImage
-        run: |
-          # Create debug AppImage using similar approach as release
-          mkdir -p Daqster-Debug.AppDir/{usr/{bin,lib,share},usr/share/applications,usr/share/icons/hicolor/256x256/apps}
-          mkdir -p Daqster-Debug.AppDir/usr/lib/{plugins,qml,daqster/plugins}
-          
-          # Copy debug executable
-          cp stage-debug/bin/Daqster Daqster-Debug.AppDir/usr/bin/
-          
-          # Copy libraries
-          cp -r stage-debug/lib/* Daqster-Debug.AppDir/usr/lib/
-          
-          # Copy plugins to correct location
-          cp -r stage-debug/bin/plugins/* Daqster-Debug.AppDir/usr/lib/daqster/plugins/ || true
-          
-          # Copy Qt libraries and modules from system
-          cp -r /usr/lib/x86_64-linux-gnu/libQt5* Daqster-Debug.AppDir/usr/lib/ || true
-          cp -r /usr/lib/x86_64-linux-gnu/qt5/plugins/* Daqster-Debug.AppDir/usr/lib/plugins/ || true
-          cp -r /usr/lib/x86_64-linux-gnu/qt5/qml/* Daqster-Debug.AppDir/usr/lib/qml/ || true
-          
-          # Copy ICU libraries (required by Qt)
-          cp /usr/lib/x86_64-linux-gnu/libicu*.so.* Daqster-Debug.AppDir/usr/lib/ || true
-          
-          # Create debug icon
-          convert -size 256x256 xc:lightblue -pointsize 20 -fill black -gravity center -annotate +0+0 "Daqster\nDebug" Daqster-Debug.AppDir/daqster.png || echo "Icon creation failed, continuing without icon"
-          cp Daqster-Debug.AppDir/daqster.png Daqster-Debug.AppDir/usr/share/icons/hicolor/256x256/apps/
-          
-          # Create desktop file
-          cat > Daqster-Debug.AppDir/daqster.desktop << 'EOF'
-          [Desktop Entry]
-          Type=Application
-          Name=Daqster Debug
-          Comment=Data Acquisition and Analysis Tool - Debug Version
-          Exec=daqster
-          Icon=daqster
-          Categories=Development;Science;
-          Terminal=false
-          StartupNotify=true
-          EOF
-          
-          # Also create in usr/share/applications
-          cp Daqster-Debug.AppDir/daqster.desktop Daqster-Debug.AppDir/usr/share/applications/
-          
-          # Create AppRun script (same as release)
-          cat > Daqster-Debug.AppDir/AppRun << 'EOF'
-          #!/bin/bash
-          HERE="$(dirname "$(readlink -f "${0}")")"
-          
-          # Set library paths
-          export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
-          
-          # Set Qt paths
-          export QML2_IMPORT_PATH="${HERE}/usr/lib/qml:${QML2_IMPORT_PATH}"
-          export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${QT_PLUGIN_PATH}"
-          export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/lib/plugins/platforms"
-          
-          # Set plugin paths
-          export DAQSTER_PLUGIN_DIR="${HERE}/usr/lib/daqster/plugins"
-          export DAQSTER_PLUGIN_PATH="${HERE}/usr/lib/daqster/plugins:${HOME}/.local/share/daqster/plugins"
-          
-          # Writable directories (outside AppImage)
-          export XDG_CONFIG_HOME="${HOME}/.config/daqster"
-          export XDG_DATA_HOME="${HOME}/.local/share/daqster"
-          export XDG_CACHE_HOME="${HOME}/.cache/daqster"
-          
-          # Create directories
-          mkdir -p "${XDG_CONFIG_HOME}"
-          mkdir -p "${XDG_DATA_HOME}"
-          mkdir -p "${XDG_CACHE_HOME}"
-          
-          # Start application
-          exec "${HERE}/usr/bin/Daqster" "$@"
-          EOF
-          
-          chmod +x Daqster-Debug.AppDir/AppRun
-          
-          # Create Debug AppImage using extracted tool
-          ./squashfs-root/AppRun Daqster-Debug.AppDir Daqster-Debug-x86_64.AppImage
-          
-          # Check Debug AppImage
-          file Daqster-Debug-x86_64.AppImage
-          ls -la Daqster-Debug-x86_64.AppImage
-      
-      - name: Upload AppImages
-        uses: actions/upload-artifact@v4
-        with:
-          name: Daqster-AppImages
-          path: |
-            Daqster-x86_64.AppImage
-            Daqster-Debug-x86_64.AppImage
+          ctest --test-dir build --output-on-failure
 
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Install Qt (5.15.2)
-        uses: jurplel/install-qt-action@v3
-        with:
-          version: '5.15.2'
-          host: 'windows'
-          target: 'desktop'
-          # Use MinGW toolchain to match the default compiler
-          # (C:\mingw64\bin\c++.exe) used by CMake/Ninja in CI.
-          # This avoids ABI mismatches between MSVC-built Qt and
-          # MinGW binaries.
-          arch: 'win64_mingw81'
-          # Install Qt Charts explicitly; other optional modules
-          # (Qml, Quick, QuickControls2, Multimedia, Network) are
-          # detected at CMake time and missing ones will simply
-          # disable the corresponding plugins instead of failing
-          # the entire build.
-          modules: 'qtcharts'
-
-      - name: Install Ninja
-        run: |
-          choco install ninja -y
-
-      - name: Configure (Release)
-        run: |
-          cmake -S . -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build (Release)
-        run: |
-          cmake --build build --config Release -j
-
-      - name: Install to staging (Release)
-        run: |
-          cmake --install build --prefix "${{ github.workspace }}\\stage-win"
-
-      - name: Bundle Qt runtime (windeployqt)
-        shell: pwsh
-        run: |
-          # Show where Qt is installed and whether the platform plugin exists
-          Write-Host "Qt5_Dir=$env:Qt5_Dir"
-          Write-Host "Qt plugins dir: $env:Qt5_Dir\plugins"
-          Write-Host "Qt platforms dir contents:"
-          Get-ChildItem "$env:Qt5_Dir\plugins\platforms" -ErrorAction SilentlyContinue || Write-Host "No platforms directory found"
-
-          # Remove any pre-existing Qt plugin/QML paths from the environment
-          # that might confuse the deployed application.
-          Remove-Item Env:QT_PLUGIN_PATH -ErrorAction SilentlyContinue
-          Remove-Item Env:QML2_IMPORT_PATH -ErrorAction SilentlyContinue
-          Remove-Item Env:QT_QPA_PLATFORM_PLUGIN_PATH -ErrorAction SilentlyContinue
-          Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
-
-          # Ensure Qt binaries are on PATH so that the deployed application
-          # uses the correct Qt runtime.
-          $env:PATH = "$env:Qt5_Dir\bin;${env:PATH}"
-
-          # Manually copy the core Qt runtime and MinGW runtime DLLs, plus the
-          # platform plugins, into the staging tree. This avoids relying on
-          # windeployqt, which can be fragile in headless CI.
-          $stage = "${{ github.workspace }}\stage-win"
-
-          # Core Qt DLLs (Qt5Core/Gui/Widgets and friends)
-          Copy-Item "$env:Qt5_Dir\bin\Qt5*.dll" -Destination "$stage\bin" -Force
-
-          # MinGW runtime DLLs commonly required by Qt MinGW builds
-          $mingwRuntime = @(
-            "libstdc++-6.dll",
-            "libgcc_s_seh-1.dll",
-            "libwinpthread-1.dll"
-          )
-          foreach ($dll in $mingwRuntime) {
-            $src = Join-Path "$env:Qt5_Dir\bin" $dll
-            if (Test-Path $src) {
-              Copy-Item $src -Destination "$stage\bin" -Force
-            } else {
-              Write-Host "Optional runtime DLL not found: $dll"
-            }
-          }
-
-          # Platform plugins (qwindows, qminimal, qoffscreen, etc.) under
-          # bin\platforms so that Qt can locate them next to the executable.
-          $destPlatforms = "$stage\bin\platforms"
-          New-Item -ItemType Directory -Path $destPlatforms -Force | Out-Null
-          Copy-Item "$env:Qt5_Dir\plugins\platforms\*.dll" -Destination $destPlatforms -Force
-
-          # Try to locate and bundle the NodeEditor runtime DLL (libnodes.dll)
-          # so that NodeEditorPlugin can be loaded on Windows.
-          $nodesDll = Get-ChildItem "${{ github.workspace }}" -Recurse -Filter "libnodes.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($nodesDll) {
-            Write-Host "Found libnodes.dll at: $($nodesDll.FullName)"
-            Copy-Item $nodesDll.FullName -Destination "$stage\\bin" -Force
-          } else {
-            Write-Host "libnodes.dll not found; NodeEditorPlugin may not load at runtime."
-          }
-
-      - name: Create portable ZIP
-        shell: pwsh
-        run: |
-          Compress-Archive -Path "${{ github.workspace }}\stage-win\*" -DestinationPath "${{ github.workspace }}\Daqster-Windows-x86_64.zip"
-
-      - name: Upload Windows package
-        uses: actions/upload-artifact@v4
-        with:
-          name: Daqster-Windows-x86_64
-          path: Daqster-Windows-x86_64.zip
+  # ============================================================
+  # PRIMARY: Windows Qt6 — build + tests + windeployqt ZIP + smoke
+  # Implemented by the shared reusable workflow (build-qt6.yml).
+  # ============================================================
+  windows-qt6:
+    name: Windows Qt6 (primary)
+    uses: ./.github/workflows/build-qt6.yml
+    with:
+      platform: 'windows'
+      upload-artifact-name: 'Daqster-Windows-x86_64'

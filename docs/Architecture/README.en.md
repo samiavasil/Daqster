@@ -2,7 +2,7 @@
 
 [Български](./README.md) | [English](./README.en.md)
 
-Parent: [Documentation Index](../INDEX.en.md)
+Parent: [Documentation Index](../index.en.md)
 
 ## Architecture Hub
 
@@ -19,7 +19,7 @@ This document describes the architecture of Daqster, its main components, data f
 
 ## 1. Overview
 
-Daqster is a modular, plugin-based platform developed with Qt5, designed for data acquisition and analysis applications. It provides a flexible framework that allows easy extension through dynamically loaded plugins.
+Daqster is a modular, plugin-based platform developed with Qt (Qt6 is the primary/preferred version, Qt5 is compat), designed for data acquisition and analysis applications. It provides a flexible framework that allows easy extension through dynamically loaded plugins.
 
 ## 2. Main Architectural Components
 
@@ -59,12 +59,9 @@ The main application that provides user interface and manages plugin launching.
 Examples of plugins that demonstrate the framework's capabilities.
 
 *   **`node_editor_ide/`**:
-    *   Shared GUI component for node-based editors (SHARED library, not a plugin).
+    *   Visual node-based editor plugin (IDE shell + built-in nodes).
     *   Uses the `nodeeditor` external library (`QtNodes` target).
-    *   Provides `NodeEditorWidget` and `ChatGraphModel`.
-*   **`node_editor_app/`**:
-    *   Basic graphical app plugin demonstrating `NodeEditorWidget` usage.
-    *   Auto-injects standard nodes and shows a full-screen canvas.
+    *   Contains `NodeEditorWidget` (in `NodeEditorWidget.{h,cpp}`) and the `NodeEditorLibrary` shared library (from `BuiltInNodes/Library/`).
     *   Built as an `APPLICATION_PLUGIN` using `create_plugin()` macro.
 *   **`QtCoinTrader`**:
     *   Plugin for cryptocurrency trading, using QML for user interface.
@@ -85,10 +82,10 @@ External libraries integrated as git submodules under the plugins directory.
     *   Library for REST API communication.
     *   Can be used by plugins that require HTTP requests.
 
-### 2.5. NodeEditorWidget (Shared GUI Component)
-**Location:** `src/plugins/libs/node_editor_ide/`
+### 2.5. NodeEditorWidget & NodeEditorLibrary (Shared GUI Components)
+**Location:** `src/plugins/node_editor_ide/` — `NodeEditorWidget.{h,cpp}` and `BuiltInNodes/Library/` (builds the `NodeEditorLibrary` shared library)
 
-A shared SHARED library providing a ready-made Qt Widgets GUI for node-based editors. Any Daqster-based GUI node application should use this component instead of building GUI from scratch.
+Shared Qt Widgets GUI components for node-based editors, built and installed from the `node_editor_ide` plugin directory. Any Daqster-based GUI node application should use these components instead of building GUI from scratch.
 
 *   **`NodeEditorWidget`**:
     *   Main QWidget with `getInjectedRegistry()`, `buildCanvas()`, `setConnectionStyle()`.
@@ -136,7 +133,7 @@ Directory for documentation.
 - Each plugin is launched as a separate child process, which increases stability and security. A problem in one plugin does not lead to a crash of the entire application.
 
 ### 4. Cross-platform
-- Qt5 for GUI and cross-platform compatibility
+- Qt6 for GUI and cross-platform compatibility (Qt5 as compat fallback)
 - CMake for build system
 - AppImage for Linux distribution
 

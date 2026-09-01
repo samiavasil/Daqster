@@ -10,6 +10,7 @@
 #include <QFile>
 #include <QDir>
 #include <QApplication>
+#include <algorithm>
 #include <QSettings>
 #include <QShowEvent>
 #include <QWindow>
@@ -145,16 +146,33 @@ void AppToolbar::buildPluginButtons() {
     settings.beginGroup("AppSelection");
 
     QList<Daqster::PluginDescription> list = GetAppPluginList();
+    // Prioritize plugins from the current build directory so a freshly
+    // built .so is preferred over stale copies from other builds.
+    const QString appDir = QDir::toNativeSeparators(qApp->applicationDirPath());
+    std::stable_sort(list.begin(), list.end(),
+                     [&appDir](const Daqster::PluginDescription& a,
+                               const Daqster::PluginDescription& b) {
+                         const QString locA = QDir::toNativeSeparators(
+                             a.GetProperty(PLUGIN_LOCATION).toString());
+                         const QString locB = QDir::toNativeSeparators(
+                             b.GetProperty(PLUGIN_LOCATION).toString());
+                         const bool aInAppDir = locA.startsWith(appDir);
+                         const bool bInAppDir = locB.startsWith(appDir);
+                         return aInAppDir && !bInAppDir;
+                     });
+
     foreach (const Daqster::PluginDescription& val, list) {
-        QString hash = val.GetProperty(PLUGIN_HASH).toString();
-        bool visible = settings.value(hash, true).toBool();
+        // Visibility is keyed by NAME so the user's "hidden" choice survives
+        // rebuilds (a hash changes on every rebuild, a name does not).
+        QString name = val.GetProperty(PLUGIN_NAME).toString();
+        bool visible = settings.value(name, true).toBool();
         if (!visible) continue;
 
         QAction* act = new QAction(this);
-        act->setText(val.GetProperty(PLUGIN_NAME).toString());
-        act->setObjectName("__plugin_" + hash);
+        act->setText(name);
+        act->setObjectName("__plugin_" + name);
         act->setToolTip(QString("%1\n%2")
-            .arg(val.GetProperty(PLUGIN_NAME).toString())
+            .arg(name)
             .arg(val.GetProperty(PLUGIN_DESCRIPTION).toString()));
         if (!val.GetIcon().isNull())
             act->setIcon(val.GetIcon());
@@ -262,7 +280,10 @@ void AppToolbar::OnActionTrigered() {
     QAction* sender = qobject_cast<QAction*>(QObject::sender());
     if (sender == nullptr) return;
 
-    QString pluginHash = sender->objectName().replace("__plugin_", "");
+    // objectName is "__plugin_<name>" — pass the plugin NAME to the child so
+    // the launch survives rebuilds (a hash changes on every rebuild, a name
+    // does not).
+    QString pluginName = sender->objectName().replace("__plugin_", "");
 
     QString executablePath;
     QString appImageEnv = qgetenv("APPIMAGE");
@@ -274,5 +295,5 @@ void AppToolbar::OnActionTrigered() {
     if (executablePath.isEmpty())
         executablePath = qApp->applicationDirPath() + "/Daqster";
 
-    emit PleaseRunApplication(executablePath, QStringList(pluginHash));
+    emit PleaseRunApplication(executablePath, QStringList(pluginName));
 }

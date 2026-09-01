@@ -1,5 +1,4 @@
 #include "GenericNumericTypes.h"
-#include <cstring>
 
 void MultiplexedBuffer::decodeToNormalized(
     QVector<QVector<double>>& outChannels) const
@@ -22,47 +21,11 @@ void MultiplexedBuffer::decodeToNormalized(
             const auto& desc = config.channels[ch];
             int byteSize = sampleTypeByteSize(desc.sampleType);
 
-            double value = 0.0;
-            switch (desc.sampleType) {
-                case SampleType::INT16: {
-                    int16_t raw;
-                    std::memcpy(&raw, ptr, 2);
-                    value = raw / 32768.0;
-                    break;
-                }
-                case SampleType::UINT16: {
-                    uint16_t raw;
-                    std::memcpy(&raw, ptr, 2);
-                    value = (raw - 32768.0) / 32768.0;
-                    break;
-                }
-                case SampleType::INT32: {
-                    int32_t raw;
-                    std::memcpy(&raw, ptr, 4);
-                    value = raw / 2147483648.0;
-                    break;
-                }
-                case SampleType::UINT32: {
-                    uint32_t raw;
-                    std::memcpy(&raw, ptr, 4);
-                    value = (raw - 2147483648.0) / 2147483648.0;
-                    break;
-                }
-                case SampleType::FLOAT32: {
-                    float raw;
-                    std::memcpy(&raw, ptr, 4);
-                    value = static_cast<double>(raw);
-                    break;
-                }
-                case SampleType::FLOAT64: {
-                    double raw;
-                    std::memcpy(&raw, ptr, 8);
-                    value = raw;
-                    break;
-                }
-            }
-
-            outChannels[ch][frame] = value;
+            // Unified SampledDecoder convention (REQ-SW-PL-022 AC 3):
+            // signed/unsigned ÷ (2^(bits-1) − 1), clamp to [-1, 1]; floats clamped.
+            outChannels[ch][frame] =
+                SampledDecoder::decodeNormalizedSample(ptr, desc.sampleType,
+                                                       SampleEndian::LittleEndian);
             ptr += byteSize;
         }
     }

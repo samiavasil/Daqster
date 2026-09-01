@@ -6,56 +6,140 @@ on:
       - 'v*.*.*'
 
 jobs:
-  build-release-linux:
-    runs-on: ubuntu-22.04
+  # ============================================================
+  # Verify the pushed tag matches the VERSION file before spending
+  # CI minutes on the build jobs (fail fast).
+  # ============================================================
+  verify-tag:
+    name: Verify tag matches VERSION
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
-      - name: Ensure submodules full history
+
+      - name: Verify tag matches VERSION
         run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive --depth=0
-      - name: Install Qt from system packages
+          TAG="${GITHUB_REF#refs/tags/}"          # e.g. v0.3.0
+          EXPECTED="v$(tr -d '[:space:]' < VERSION)"
+          if [ "$TAG" != "$EXPECTED" ]; then
+            echo "ERROR: tag $TAG does not match VERSION ($EXPECTED)"
+            exit 1
+          fi
+
+  # ============================================================
+  # Linux Qt6 — build + tests + AppImage + tarball + checksums + smoke
+  # Implemented by the shared reusable workflow (build-qt6.yml).
+  # ============================================================
+  linux-qt6:
+    name: Linux Qt6
+    needs: verify-tag
+    uses: ./.github/workflows/build-qt6.yml
+    with:
+      platform: 'linux'
+      upload-artifact-name: 'release-linux'
+      create-checksums: true
+      verify-qt-version: true
+
+  # ============================================================
+  # Windows Qt6 — build + tests + windeployqt ZIP + checksums + smoke
+  # Implemented by the shared reusable workflow (build-qt6.yml).
+  # ============================================================
+  windows-qt6:
+    name: Windows Qt6
+    needs: verify-tag
+    uses: ./.github/workflows/build-qt6.yml
+    with:
+      platform: 'windows'
+      upload-artifact-name: 'release-windows'
+      create-checksums: true
+
+  # ============================================================
+  # Create the GitHub Release once both platforms are ready.
+  # Body is the CHANGELOG section for the tagged version.
+  # ============================================================
+  create-release:
+    name: Create GitHub Release
+    needs: [linux-qt6, windows-qt6]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-linux
+          path: release-linux
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-windows
+          path: release-windows
+
+      - name: Rename checksum files (avoid same-basename collision)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            qtbase5-dev \
-            qtdeclarative5-dev \
-            qtquickcontrols2-5-dev \
-            qtmultimedia5-dev \
-            libqt5charts5-dev \
-            libssl-dev \
-            libicu70 \
-            qml-module-qtcharts \
-            qml-module-qtquick2 \
-            qml-module-qt-labs-platform \
-            qml-module-qt-labs-folderlistmodel \
-            qml-module-qt-labs-settings \
-            qml-module-qt-labs-sharedimage
-      - name: Configure
+          mv release-linux/SHA256SUMS release-linux/SHA256SUMS-linux
+          mv release-windows/SHA256SUMS release-windows/SHA256SUMS-windows
+
+      # Hard-fail before creating the release if any expected asset is missing.
+      # Guards against the reusable-workflow bug where both platform jobs ran in
+      # each caller and the Linux artifact was silently dropped from the release.
+      # Each `test -f` glob below expands to exactly one file on success; a
+      # missing file leaves the pattern unexpanded and the test fails.
+      - name: Verify release assets present
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-      - name: Build
+          test -f release-linux/Daqster-x86_64.AppImage
+          test -f release-linux/Daqster-Linux-x86_64-*.tar.gz
+          test -f release-linux/SHA256SUMS-linux
+          test -f release-windows/Daqster-Windows-x86_64-*.zip
+          test -f release-windows/SHA256SUMS-windows
+          echo "All release assets present"
+
+      - name: Extract CHANGELOG section for release body
         run: |
-          cmake --build build -j
-      - name: Install to staging
-        run: cmake --install build --prefix "$PWD/stage"
-      - name: Create Release AppImage
-        run: |
-          # Make script executable and use our unified AppImage creation script in CI mode
-          chmod +x ./tools/create_appimage.sh
-          ./tools/create_appimage.sh --mode ci
-          
-          # Show result
-          ls -la *.AppImage
-          file *.AppImage
-      
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Tag version: $VERSION"
+          # Extract the "## [X.Y.Z]" section (up to the next "## [" heading).
+          # Prefer the primary CHANGELOG.md, fall back to CHANGELOG.en.md.
+          for file in CHANGELOG.md CHANGELOG.en.md; do
+            if awk -v ver="$VERSION" '
+                $0 ~ "^## \\[" ver "\\]" { found=1 }
+                found && $0 ~ "^## \\[" && $0 !~ "^## \\[" ver "\\]" { exit }
+                found { print }
+              ' "$file" | grep -q .; then
+              awk -v ver="$VERSION" '
+                $0 ~ "^## \\[" ver "\\]" { found=1 }
+                found && $0 ~ "^## \\[" && $0 !~ "^## \\[" ver "\\]" { exit }
+                found { print }
+              ' "$file" > release-body.md
+              echo "Using $file for release body"
+              break
+            fi
+          done
+          if [ ! -s release-body.md ]; then
+            echo "WARNING: no CHANGELOG section found for $VERSION; using fallback body"
+            echo "Release $GITHUB_REF_NAME" > release-body.md
+          fi
+          echo "--- release body (first 20 lines) ---"
+          head -20 release-body.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          body_path: release-body.md
+          fail_on_unmatched_files: true
           files: |
-            Daqster-x86_64.AppImage
+            release-linux/Daqster-x86_64.AppImage
+            release-linux/Daqster-Linux-x86_64-*.tar.gz
+            release-linux/SHA256SUMS-linux
+            release-windows/Daqster-Windows-x86_64-*.zip
+            release-windows/SHA256SUMS-windows
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

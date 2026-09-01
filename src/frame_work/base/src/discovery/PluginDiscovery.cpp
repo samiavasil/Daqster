@@ -7,6 +7,7 @@
 #include <QLibrary>
 #include <QCryptographicHash>
 #include <QFile>
+#include <QPluginLoader>
 
 namespace Daqster {
 
@@ -21,9 +22,17 @@ PluginDiscovery::~PluginDiscovery()
 
 void PluginDiscovery::addSearchPath(const QString& directory)
 {
-    if (!m_searchPaths.contains(directory)) {
-        m_searchPaths.append(directory);
+    QDir dir(directory);
+    QString absPath = dir.absolutePath();
+    if (m_searchPaths.contains(absPath))
+        return;
+
+    if (!dir.exists()) {
+        qCDebug(lcFramework) << "PluginDiscovery: skipping non-existent search path:" << directory;
+        return;
     }
+
+    m_searchPaths.append(absPath);
 }
 
 QList<QString> PluginDiscovery::searchPaths() const
@@ -59,7 +68,21 @@ bool PluginDiscovery::isCandidatePluginFile(const QString& filePath)
     }
 
     const QString baseName = info.fileName().toLower();
-    return baseName.contains("plugin");
+    if (baseName.contains("plugin")) {
+        return true;
+    }
+
+    const QString jsonPath = info.absolutePath() + "/" + info.completeBaseName() + ".json";
+    if (QFile::exists(jsonPath)) {
+        return true;
+    }
+
+    QPluginLoader loader(filePath);
+    if (!loader.metaData().isEmpty()) {
+        return true;
+    }
+
+    return false;
 }
 
 bool PluginDiscovery::isInSearchPath(const QString& filePath) const

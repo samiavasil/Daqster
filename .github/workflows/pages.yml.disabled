@@ -1,0 +1,50 @@
+# GitHub Pages deployment for the docs/ site — DISABLED.
+#
+# This file is intentionally named `pages.yml.disabled` so GitHub Actions does
+# not pick it up. The site uses UI-based deployment
+# (Settings → Pages → Deploy from a branch: master/docs), so no workflow is
+# needed. To switch to workflow-based deployment:
+#   1. Rename this file back to `pages.yml`:
+#        git mv .github/workflows/pages.yml.disabled .github/workflows/pages.yml
+#   2. One-time UI switch: Settings → Pages → Source: GitHub Actions.
+#   3. Commit and push.
+#
+# When enabled, every push to master (or a manual workflow_dispatch run)
+# publishes the contents of docs/ to https://<owner>.github.io/<repo>/.
+
+name: Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

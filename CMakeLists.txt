@@ -1,6 +1,27 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(Daqster VERSION 0.2.0 LANGUAGES CXX)
+# Single source of truth: root VERSION file (X.Y.Z)
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
+    message(FATAL_ERROR "VERSION file not found at ${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
+endif()
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" DAQSTER_VERSION LIMIT_COUNT 1)
+string(STRIP "${DAQSTER_VERSION}" DAQSTER_VERSION)
+if(NOT DAQSTER_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+    message(FATAL_ERROR "VERSION must be X.Y.Z (got '${DAQSTER_VERSION}')")
+endif()
+string(REPLACE "." ";" _daqster_version_parts "${DAQSTER_VERSION}")
+list(GET _daqster_version_parts 0 DAQSTER_VERSION_MAJOR)
+list(GET _daqster_version_parts 1 DAQSTER_VERSION_MINOR)
+list(GET _daqster_version_parts 2 DAQSTER_VERSION_PATCH)
+project(Daqster VERSION ${DAQSTER_VERSION} LANGUAGES CXX)
+
+# Generate daqster_version.h from the VERSION file (single source of truth)
+set(DAQSTER_VERSION_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/daqster_version.h.in"
+    "${DAQSTER_VERSION_INCLUDE_DIR}/daqster_version.h"
+    @ONLY
+)
 
 set(DAQSTER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -19,8 +40,17 @@ option(DAQSTER_AUTO_INIT_SUBMODULES "Automatically run 'git submodule update --i
 include(FindQtVersion)
 
 # Propagate QT_VERSION_MAJOR to parent scope when included via add_subdirectory()
-if(CMAKE_PARENT_SCOPE)
+if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(QT_VERSION_MAJOR ${QT_VERSION_MAJOR} PARENT_SCOPE)
+endif()
+
+# Propagate version to parent scope when included via add_subdirectory()
+if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(DAQSTER_VERSION ${DAQSTER_VERSION} PARENT_SCOPE)
+    set(DAQSTER_VERSION_MAJOR ${DAQSTER_VERSION_MAJOR} PARENT_SCOPE)
+    set(DAQSTER_VERSION_MINOR ${DAQSTER_VERSION_MINOR} PARENT_SCOPE)
+    set(DAQSTER_VERSION_PATCH ${DAQSTER_VERSION_PATCH} PARENT_SCOPE)
+    set(DAQSTER_VERSION_INCLUDE_DIR ${DAQSTER_VERSION_INCLUDE_DIR} PARENT_SCOPE)
 endif()
 
 # Propagate Qt version choice to external libraries (e.g. nodeeditor)
@@ -87,15 +117,35 @@ create_external_library(qtrest_lib)
 # Plugins - dependency система автоматично изключва неподдържани
 add_subdirectory(src/plugins/node_editor_ide)
 add_subdirectory(src/plugins/demo_nodeditor_nodes)
+add_subdirectory(src/plugins/requirements_manager)
 add_subdirectory(src/plugins/QtCoinTrader)
-add_subdirectory(src/plugins/tests/plugin_main_test)
-add_subdirectory(src/plugins/tests/plugin_fancy_test)
-add_subdirectory(src/plugins/tests/plugin_uggly_test)
-add_subdirectory(src/plugins/tests/template_plugin_daqster)
+
+# Test plugins - gated behind their own option (default OFF) so they are not
+# part of normal packaging/release builds. Independent from DAQSTER_BUILD_TESTS:
+# unit tests still build with DAQSTER_BUILD_TESTS=ON; only the test PLUGINS are
+# gated here.
+option(DAQSTER_BUILD_TEST_PLUGINS "Build test plugins" OFF)
+if(DAQSTER_BUILD_TEST_PLUGINS)
+    add_subdirectory(src/plugins/tests/plugin_main_test)
+    add_subdirectory(src/plugins/tests/plugin_fancy_test)
+    add_subdirectory(src/plugins/tests/plugin_uggly_test)
+    add_subdirectory(src/plugins/tests/template_plugin_daqster)
+endif()
 
 # Apps - after plugins are processed (frame_work is built in plugins)
 add_subdirectory(src/apps/Daqster)
 
+# Unit tests - gated behind their own option (default OFF).
+# We intentionally do NOT set BUILD_TESTING / include(CTest) here: nodeeditor
+# defines its own BUILD_TESTING option and enabling it would pull in its
+# Catch2 dependency download.
+option(DAQSTER_BUILD_TESTS "Build unit tests" OFF)
+if(DAQSTER_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
 # Print final build configuration summary
 print_build_configuration_summary()
+print_component_status_summary()
 

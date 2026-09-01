@@ -5,7 +5,6 @@
 
 #include <QWidget>
 #include "AudioSourceConfig.h"
-#include "AudioSourceDataModel.h"
 
 namespace Ui {
 class AudioSourceDataModelUI;
@@ -16,6 +15,16 @@ class AudioSourceDataModelUI : public QWidget
     Q_OBJECT
 
 public:
+    // Shared Start/Stop command type used by both the SampledData
+    // AudioSourceDataModel and the obsolete QDevIO AudioSourceDataModelObsolete
+    // (REQ-SW-PL-024). Previously it lived in the model header; it was moved
+    // here so the shared UI defines the single contract both nodes wire to.
+    enum StartStop {
+        ASDM_STOP,
+        ASDM_START,
+        ASDM_RELOAD,
+    };
+
     explicit AudioSourceDataModelUI(QAudioDeviceInfo* devInfo,
                                     QAudioFormat* formatAudio,
                                     QWidget *parent = nullptr);
@@ -26,7 +35,7 @@ public:
 
 signals:
     void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
-    void Start(AudioSourceDataModel::StartStop start);
+    void Start(AudioSourceDataModelUI::StartStop start);
 
 public slots:
     void AudioStateChanged(QAudio::State state);

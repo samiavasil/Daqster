@@ -2,6 +2,7 @@
 #include "QPluginManager.h"
 #include "ShutdownHandler.h"
 #include "LogManager.h"
+#include "daqster_version.h"
 
 #include <AppToolbar.h>
 #include <QApplication>
@@ -13,8 +14,17 @@
 #include "LogCategories.h"
 #include <QSettings>
 #include <QLoggingCategory>
+#include <QMessageBox>
 #include "QConsoleListener.h"
 #include "main.h"
+
+// __BASE_FILE__ is a GCC/Clang predefined macro (the basename of the file
+// being compiled). MSVC does not define it, so fall back to __FILE__ there.
+#if defined(_MSC_VER)
+#define DAQSTER_BASE_FILE __FILE__
+#else
+#define DAQSTER_BASE_FILE __BASE_FILE__
+#endif
 
 void PluginsInit() {
   /*TODO:  Move this on some initialization routine*/
@@ -64,7 +74,7 @@ int main(int argc, char *argv[]) {
   QApplication::setAttribute(Qt::AA_ShareOpenGLContexts, true);
   QApplication a(argc, argv);
   QApplication::setApplicationName("Daqster");
-  QApplication::setApplicationVersion("0.1");
+  QApplication::setApplicationVersion(DAQSTER_VERSION_STRING);
 
   auto *shutdownHandler = ShutdownHandler::create(&a);
   shutdownHandler->initialize();
@@ -181,6 +191,18 @@ int main(int argc, char *argv[]) {
 
   }
 
+  // Console listener: stdin "quit" handler — created unconditionally so it is
+  // available on ALL startup paths (main app launcher, single- and multi-arg).
+  QConsoleListener *console = new QConsoleListener();
+  QObject::connect(
+      console, &QConsoleListener::newLine, [&a](const QString &strNewLine) {
+        // quit
+        if (strNewLine.trimmed().compare("quit", Qt::CaseInsensitive) == 0) {
+          qCDebug(lcApp) << "Goodbye";
+          a.quit();
+        }
+      });
+
   if (args.count() > 0) {
     if (args.count() > 1) {
       foreach (auto Name, args) {
@@ -256,21 +278,33 @@ int main(int argc, char *argv[]) {
           qCDebug(lcApp) << "Plugin " << input << " founded! Run it.";
           obj->Initialize();
           QApplication::setApplicationName(matchedHash);
+        } else {
+          qCCritical(lcApp) << "Plugin " << input << " (hash " << matchedHash
+                            << ") found but failed to create plugin object";
+          QMessageBox::critical(
+              nullptr, "Daqster",
+              QString("Application plugin \"%1\" was found but failed to load.")
+                  .arg(input));
+          // Plugin creation failed: do NOT stay alive as an empty window.
+          // Exit with non-zero code after the user dismisses the dialog.
+          return 1;
         }
+      } else {
+        qCCritical(lcApp) << "Plugin " << input << " not found";
+        QMessageBox::critical(
+            nullptr, "Daqster",
+            QString("Application plugin \"%1\" was not found. Rebuild the "
+                    "plugin or launch the Daqster main window and use the "
+                    "toolbar.")
+                .arg(input));
+        // Plugin not found: do NOT stay alive as an empty window. Exit with
+        // non-zero code after the user dismisses the dialog.
+        return 1;
       }
-      QConsoleListener *console = new QConsoleListener();
-      QObject::connect(
-          console, &QConsoleListener::newLine, [&a](const QString &strNewLine) {
-            // quit
-            if (strNewLine.trimmed().compare("quit", Qt::CaseInsensitive) == 0) {
-              qCDebug(lcApp) << "Goodbye";
-              a.quit();
-            }
-          });
     }
     res = a.exec();
   } else {
-    qCDebug(lcApp) << __BASE_FILE__ << __FILE__;
+    qCDebug(lcApp) << DAQSTER_BASE_FILE << __FILE__;
     QMainWindow mainWin;
     mainWin.setWindowTitle("Daqster");
     mainWin.resize(400, 60);

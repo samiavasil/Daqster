@@ -22,6 +22,10 @@ public:
 
     QtNodes::NodeDelegateModelRegistry* getInjectedRegistry() const;
 
+    /// Accessor used by the DAQSTER_AUTOSTART_VIDEO dev driver to build a video
+    /// source -> VideoOutput graph programmatically.
+    QtNodes::DataFlowGraphModel* graphModel() const { return m_graphModel; }
+
     void setConnectionStyle(const QString& json);
 
     void buildCanvas();

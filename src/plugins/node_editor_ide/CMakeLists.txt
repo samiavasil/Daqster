@@ -1,11 +1,22 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(node_editor_ide VERSION 0.3.0 LANGUAGES CXX)
+project(node_editor_ide VERSION 0.3.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
+
+# ── Plugin JSON metadata (generated from template) ──────────────────
+# REQ-SW-PL-035: the plugin metadata JSON is generated from a .json.in
+# template with @DAQSTER_VERSION@ substituted (single source of truth:
+# root VERSION file). Must run BEFORE create_plugin() so the JSON exists
+# when moc resolves Q_PLUGIN_METADATA FILE.
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/NodeEditorIdeInterface.json.in"
+    "${CMAKE_CURRENT_SOURCE_DIR}/NodeEditorIdeInterface.json"
+    @ONLY
+)
 
 # ══════════════════════════════════════════════════════════════════════
 # Shared Library: NodeEditorLibrary
@@ -30,30 +41,46 @@ if(NODE_EDITOR_LIB_ENABLED)
     set(LIB_SOURCES
         BuiltInNodes/Library/types/GenericNumericTypes.h
         BuiltInNodes/Library/types/GenericNumericTypes.cpp
-        BuiltInNodes/Library/types/IStreamDecoder.h
-        BuiltInNodes/Library/types/QDevIOStreamConfig.h
-        BuiltInNodes/Library/types/StreamChannel.h
+        BuiltInNodes/Library/types/IStreamDecoderObsolete.h
+        BuiltInNodes/Library/types/QDevIOStreamConfigObsolete.h
+        BuiltInNodes/Library/types/StreamChannelObsolete.h
         BuiltInNodes/Library/types/ChatGraphModel.h
-        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.h
-        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnector.cpp
-        BuiltInNodes/Library/connectors/GenericQDevIoConnector.h
-        BuiltInNodes/Library/connectors/GenericQDevIoConnector.cpp
+        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnectorObsolete.h
+        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnectorObsolete.cpp
+        BuiltInNodes/Library/connectors/GenericQDevIoConnectorObsolete.h
+        BuiltInNodes/Library/connectors/GenericQDevIoConnectorObsolete.cpp
         BuiltInNodes/Library/decoders/AudioFrameDecoder.h
         BuiltInNodes/Library/decoders/AudioFrameDecoder.cpp
-        BuiltInNodes/Library/display/QDevIoDisplayModel.h
-        BuiltInNodes/Library/display/QDevIoDisplayModel.cpp
-        BuiltInNodes/Library/display/QDevioDisplayModelUi.h
-        BuiltInNodes/Library/display/QDevioDisplayModelUi.cpp
-        BuiltInNodes/Library/display/QDevioDisplayModelUi.ui
-        BuiltInNodes/Library/display/XYSeriesIODevice.h
-        BuiltInNodes/Library/display/XYSeriesIODevice.cpp
+        BuiltInNodes/Library/display/QDevIoDisplayModelObsolete.h
+        BuiltInNodes/Library/display/QDevIoDisplayModelObsolete.cpp
+        BuiltInNodes/Library/display/QDevioDisplayModelUiObsolete.h
+        BuiltInNodes/Library/display/QDevioDisplayModelUiObsolete.cpp
+        BuiltInNodes/Library/display/QDevioDisplayModelUiObsolete.ui
+        BuiltInNodes/Library/display/XYSeriesIODeviceObsolete.h
+        BuiltInNodes/Library/display/XYSeriesIODeviceObsolete.cpp
         BuiltInNodes/Library/display/AudioCompat.h
         BuiltInNodes/Library/display/QtChartsCompat.h
-        BuiltInNodes/Library/threading/EventThreadPull.h
-        BuiltInNodes/Library/threading/EventThreadPull.cpp
+        BuiltInNodes/Library/threading/EventThreadPullObsolete.h
+        BuiltInNodes/Library/threading/EventThreadPullObsolete.cpp
     )
 
     add_library(NodeEditorLibrary SHARED ${LIB_SOURCES})
+
+    # Windows: NodeEditorLibrary has no __declspec(dllexport) markup, so without
+    # this the DLL exports nothing and no import library (.lib) is generated —
+    # plugins linking against it fail with LNK1181. WINDOWS_EXPORT_ALL_SYMBOLS
+    # makes the linker export all symbols and emit the import library. No-op on
+    # Linux/macOS (.so/.dylib export everything by default).
+    set_target_properties(NodeEditorLibrary PROPERTIES
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+    )
+
+    # When building NodeEditorLibrary itself, Q_OBJECT classes marked with
+    # NODE_EDITOR_LIBRARY_EXPORT expand to __declspec(dllexport) on Windows so
+    # their staticMetaObject data symbols are exported from the DLL. Consumers
+    # (NodeEditorIde, DemoNodeEditorNodes) do NOT define this macro, so the
+    # macro expands to __declspec(dllimport) there. No-op on Linux/macOS.
+    target_compile_definitions(NodeEditorLibrary PRIVATE NODE_EDITOR_LIBRARY_BUILD)
 
     target_include_directories(NodeEditorLibrary PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
@@ -74,6 +101,13 @@ if(NODE_EDITOR_LIB_ENABLED)
 
     set_target_properties(NodeEditorLibrary PROPERTIES
         OUTPUT_NAME "NodeEditorLibrary"
+    )
+
+    # Install library (dependency for NodeEditorPluginIde)
+    install(TARGETS NodeEditorLibrary
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 
     message(STATUS "Created internal library: NodeEditorLibrary")
@@ -122,6 +156,8 @@ set(IDE_SOURCES
     NodeEditorIdeObject.h
     NodeEditorWidget.cpp
     NodeEditorWidget.h
+    CustomDataFlowScene.cpp
+    CustomDataFlowScene.h
 )
 
 create_plugin(NodeEditorIde
@@ -156,4 +192,13 @@ if(TARGET NodeEditorIde)
     set_target_properties(NodeEditorIde PROPERTIES
         OUTPUT_NAME "NodeEditorPluginIde"
     )
+    # Explicit ordering guarantee: NodeEditorPluginIde.dll links against
+    # NodeEditorLibrary's import library on Windows. The link already goes
+    # through the target name (link_component_dependencies), which makes
+    # Ninja track the import library as an implicit dependency — this
+    # add_dependencies() is a belt-and-braces order-only edge so the
+    # library is always built before the plugin links (LNK1181 guard).
+    if(TARGET NodeEditorLibrary)
+        add_dependencies(NodeEditorIde NodeEditorLibrary)
+    endif()
 endif()

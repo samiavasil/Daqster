@@ -11,7 +11,7 @@ PluginUgglyInterface::PluginUgglyInterface(QObject* parent ):QPluginInterface(pa
     m_PluginDescriptor.SetProperty( PLUGIN_NAME, "UgglyTestPlugin" );
     m_PluginDescriptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::DETECT_BY_TYPE_NAME );
     m_PluginDescriptor.SetProperty( PLUGIN_TYPE_NAME, "SOME_TYPE" );
-    m_PluginDescriptor.SetProperty( PLUGIN_VERSION, "0.0.1" );
+    m_PluginDescriptor.SetProperty( PLUGIN_VERSION, DAQSTER_PLUGIN_VERSION );
     m_PluginDescriptor.SetProperty( PLUGIN_DESCRIPTION, "Uggly Test Plugin" );
     char docstr[] = \
     "UgglyTestPlugin is a basic Daqster plugin template and can be used for implementing a new type daqster plugin \n\

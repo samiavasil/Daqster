@@ -130,16 +130,16 @@ void AppSelectionDialog::LoadPlugins()
         item->setText(0, desc.GetProperty(PLUGIN_NAME).toString());
         item->setText(1, desc.GetProperty(PLUGIN_VERSION).toString());
         item->setText(2, desc.GetProperty(PLUGIN_LOCATION).toString());
-        item->setData(0, Qt::UserRole, desc.GetProperty(PLUGIN_HASH).toString());
+        item->setData(0, Qt::UserRole, desc.GetProperty(PLUGIN_NAME).toString());
         item->setCheckState(0, Qt::Checked);
     }
 }
 
-bool AppSelectionDialog::IsPluginVisible(const QString& pluginHash) const
+bool AppSelectionDialog::IsPluginVisible(const QString& pluginName) const
 {
     for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
         QTreeWidgetItem* item = m_tree->topLevelItem(i);
-        if (item->data(0, Qt::UserRole).toString() == pluginHash) {
+        if (item->data(0, Qt::UserRole).toString() == pluginName) {
             return item->checkState(0) == Qt::Checked;
         }
     }
@@ -163,13 +163,14 @@ void AppSelectionDialog::SaveState()
         qApp->setStyleSheet("");
     }
 
-    // Save plugin visibility
+    // Save plugin visibility. Keyed by NAME so the user's "hidden" choice
+    // survives rebuilds (a hash changes on every rebuild, a name does not).
     m_settings.beginGroup("AppSelection");
     for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
         QTreeWidgetItem* item = m_tree->topLevelItem(i);
-        QString hash = item->data(0, Qt::UserRole).toString();
+        QString name = item->data(0, Qt::UserRole).toString();
         bool visible = (item->checkState(0) == Qt::Checked);
-        m_settings.setValue(hash, visible);
+        m_settings.setValue(name, visible);
     }
     m_settings.endGroup();
     m_settings.sync();
@@ -180,9 +181,9 @@ void AppSelectionDialog::RestoreState()
     m_settings.beginGroup("AppSelection");
     for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
         QTreeWidgetItem* item = m_tree->topLevelItem(i);
-        QString hash = item->data(0, Qt::UserRole).toString();
-        if (m_settings.contains(hash)) {
-            bool visible = m_settings.value(hash, true).toBool();
+        QString name = item->data(0, Qt::UserRole).toString();
+        if (m_settings.contains(name)) {
+            bool visible = m_settings.value(name, true).toBool();
             item->setCheckState(0, visible ? Qt::Checked : Qt::Unchecked);
         }
     }

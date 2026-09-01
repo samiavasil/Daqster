@@ -1,6 +1,6 @@
 [Български](./BuildSystemArchitecture.md) | [English](./BuildSystemArchitecture.en.md)
 
-Родител: [Architecture Overview](./README.md) | [Documentation Index](../INDEX.md)
+Родител: [Architecture Overview](./README.md) | [Documentation Index](../index.md)
 
 # Архитектура на build системата на Daqster
 
@@ -131,10 +131,8 @@ create_internal_library(frame_work
 
 ```cmake
 # В root CMakeLists.txt
-# NodeEditor остава Qt5-only
-if(QT_VERSION_MAJOR EQUAL 5)
-    create_external_library(nodeeditor)   # target: QtNodes
-endif()
+# NodeEditor - Qt5/Qt6 (upstream има unified Qt${QT_VERSION_MAJOR} handling)
+create_external_library(nodeeditor)       # target: QtNodes
 
 # QtRest e Qt5/Qt6 compatible
 create_external_library(qtrest_lib)       # target: qtrest_lib
@@ -281,7 +279,7 @@ add_library(${COMPONENT_NAME} SHARED ${PLUGIN_SOURCES})
 
 ### CMake Configuration
 - **Minimum version:** 3.16
-- **Qt version:** 5.15.2
+- **Qt version:** Qt6 preferred (6.9.2 local / 6.8.3 CI), Qt5 fallback (5.15.2)
 - **Build types:** Debug, Release
 - **Install targets:** bin, lib, plugins
 
@@ -311,19 +309,29 @@ if(DEFINED USE_QT6)
         set(QT_PREFER_QT5 TRUE)
     endif()
 # 2. Проверка на CMAKE_PREFIX_PATH
-elseif(CMAKE_PREFIX_PATH MATCHES "qt/5\\.")
+elseif(CMAKE_PREFIX_PATH MATCHES "qt/5\\.|qt5|Qt/5\\.|Qt5|5\\.15|5\\.14|5\\.13|5\\.12")
     set(QT_PREFER_QT5 TRUE)
-elseif(CMAKE_PREFIX_PATH MATCHES "qt/6\\.")
+elseif(CMAKE_PREFIX_PATH MATCHES "qt/6\\.|qt6|Qt/6\\.|Qt6|6\\.")
     set(QT_PREFER_QT6 TRUE)
 endif()
 
-# 3. Find Qt version
+# 3. Find Qt version — Qt6 first by default, Qt5 fallback
 if(QT_PREFER_QT5)
-    find_package(Qt5 REQUIRED COMPONENTS Core Widgets Gui)
-    set(QT_VERSION_MAJOR 5)
+    find_package(Qt5 QUIET COMPONENTS Core Widgets Gui)
+    if(Qt5_FOUND)
+        set(QT_VERSION_MAJOR 5)
+    else()
+        find_package(Qt6 QUIET COMPONENTS Core Widgets Gui)   # fallback
+        set(QT_VERSION_MAJOR 6)
+    endif()
 else()
-    find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui)
-    set(QT_VERSION_MAJOR 6)
+    find_package(Qt6 QUIET COMPONENTS Core Widgets Gui)       # default: Qt6 first
+    if(Qt6_FOUND)
+        set(QT_VERSION_MAJOR 6)
+    else()
+        find_package(Qt5 REQUIRED COMPONENTS Core Widgets Gui) # fallback
+        set(QT_VERSION_MAJOR 5)
+    endif()
 endif()
 ```
 
@@ -383,17 +391,15 @@ include(ComponentTemplates)
 add_subdirectory(src/frame_work)
 
 # 3. External libraries
-# NodeEditor е Qt5-only
-if(QT_VERSION_MAJOR EQUAL 5)
-    create_external_library(nodeeditor)   # -> target: QtNodes
-endif()
+# NodeEditor - Qt5/Qt6 (upstream има unified Qt${QT_VERSION_MAJOR} handling)
+create_external_library(nodeeditor)   # -> target: QtNodes
 
 # QtRest работи на Qt5/Qt6
 create_external_library(qtrest_lib)       # -> target: qtrest_lib
 
 # 4. Plugins — всички се добавят; dependency системата ги изключва автоматично
 add_subdirectory(src/plugins/node_editor_ide)     # Visual node-based editor (plugin)
-add_subdirectory(src/plugins/QtCoinTrader)       # Qt5-only (изисква qtrest_lib)
+add_subdirectory(src/plugins/QtCoinTrader)       # Qt5/Qt6 (изисква qtrest_lib)
 add_subdirectory(src/plugins/tests/plugin_main_test)
 add_subdirectory(src/plugins/tests/plugin_fancy_test)
 add_subdirectory(src/plugins/tests/plugin_uggly_test)
@@ -414,10 +420,10 @@ print_build_configuration_summary()
 
 ```
 Qt5 build:  NodeEditorPlugin включен, QtCoinTraderPlugin включен, test plugins включени
-Qt6 build:  NodeEditorPlugin изключен, QtCoinTraderPlugin включен, test plugins включени
+Qt6 build:  NodeEditorPlugin включен, QtCoinTraderPlugin включен, test plugins включени
 ```
 
-> Qt6 ограничение: `NodeEditorPlugin` не се компилира при Qt6 (външната библиотека `nodeeditor` все още е Qt5-only). `QtCoinTraderPlugin` се компилира при Qt6, защото `qtrest_lib` вече е портната за Qt6.
+> И `NodeEditorPlugin`, и `QtCoinTraderPlugin` се компилират при Qt5 и Qt6: `nodeeditor` има `USE_QT6` опция (задава се от root CMakeLists), а `qtrest_lib` е Qt5/Qt6 dual-mode. Компонентите се изключват само ако конкретни Qt модули или външни библиотеки липсват.
 
 ### Според зависимости (автоматично)
 Компонентът се изключва автоматично ако dependencies липсват:
@@ -944,9 +950,7 @@ set_target_properties(${COMPONENT_NAME} PROPERTIES
     add_subdirectory(src/frame_work)
     
     # External libraries
-    if(QT_VERSION_MAJOR EQUAL 5)
-        create_external_library(nodeeditor)
-    endif()
+    create_external_library(nodeeditor)   # Qt5/Qt6 — upstream handle-ва Qt${QT_VERSION_MAJOR}
     create_external_library(qtrest_lib)
     
     # Plugins
@@ -1064,9 +1068,9 @@ if (ENABLED) -> add_library(MyPlugin ...)
 
 ### Версия 2.2 (текуща - юли 2026)
 - **Реструктуриране на директориите**: `src/external_libs/` → `src/plugins/external_libs/`
-- **Разделяне на NodeEditor**: Монолитният `node_editor` plugin → `node_editor_widget` (SHARED) + `node_editor_app` (plugin)
 - **nodeeditor target**: Променен от `nodes` на `QtNodes` (pin commit `4709573`)
-- **CI подобрения**: qtrest install fix, Python patching на cmake_install.cmake
+- **CI подобрения**: qtrest install fix — вече не е нужен (upstream install
+  правилата са поправени, вж. `docs/operations/UpstreamManagement.md`)
 
 ### Версия 2.1 (October 2025)
 - **Елегантни template параметри**: `INCLUDE_DIRECTORIES`, `COMPILE_DEFINITIONS`, `LINK_LIBRARIES`, `INSTALL_RPATH`
