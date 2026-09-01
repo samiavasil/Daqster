@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-01
+
 ### Fixed
 - **REQ-SW-PL-036** (Deploy & Artifact-Packaging Fixes):
   - `tools/create_appimage.sh`: премахнат `QT_DIR=""` clobber-ът — `QT_DIR` вече идва от env var / `--qt-dir` (CI може да подаде правилната Qt инсталация)

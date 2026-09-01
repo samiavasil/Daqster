@@ -6,6 +6,8 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-01
+
 ### Fixed
 - **REQ-SW-PL-036** (Deploy & Artifact-Packaging Fixes):
   - `tools/create_appimage.sh`: removed the `QT_DIR=""` clobber — `QT_DIR` now comes from the env var / `--qt-dir` flag (CI can pass the correct Qt installation)
