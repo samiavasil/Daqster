@@ -59,9 +59,10 @@ feature branches → develop (PR, CI проверки)
                 + changelog [Unreleased] → [X.Y.Z]
              4. Merge develop → master
              5. Push таг vX.Y.Z (annotated)
-             6. release.yml автоматично: build Qt6 (Linux+Windows)
-                + тестове + smoke + AppImage/tarball/ZIP
-                + SHA256SUMS + GitHub Release (body от changelog)
+              6. release.yml автоматично (build-овете през build-qt6.yml):
+                 verify-tag → build Qt6 (Linux+Windows) + тестове + smoke
+                 + AppImage/tarball/ZIP + SHA256SUMS
+                 + GitHub Release (body от changelog)
 ```
 
 ### Стъпките подробно
@@ -73,9 +74,41 @@ feature branches → develop (PR, CI проверки)
    след преглед `./scripts/version.sh set X.Y.Z` обновява всички места; changelog-ът
    получава секция `## [X.Y.Z] - дата` (Unreleased записите стават новия release,
    свеж `[Unreleased]` остава отгоре).
-4. **Merge `develop` → `master`** — `master` вече е released state.
+   - За release-и, при които версията **вече е зададена** (напр. hotfix на същата
+     версия или повторен release след failure recovery), остават само тагването и
+     push-ът — `version.sh set` не е нужен.
+   - Ако след като секцията `## [X.Y.Z]` е била "отрязана" от `[Unreleased]` са
+     merge-нати нови записи в `[Unreleased]`, те трябва да бъдат преместени
+     (folded) в release секцията, за да са точни release notes-ите.
+4. **Merge `develop` → `master`** — `master` вече е released state. Ако `master`
+   е protected branch и няма други reviewers освен собственика (solo-owner
+   проект), merge-ът става през PR с admin bypass — бутонът "Merge pull request"
+   е активен с бележката *"As an administrator, you may still merge this pull
+   request"*.
 5. **Push таг `vX.Y.Z`** — **annotated** таг (`git tag -a vX.Y.Z -m "..."`).
-6. **`release.yml`** се задейства автоматично от тага и прави: build Qt6 (Linux + Windows), тестове, smoke, пакетиране (AppImage + tarball за Linux, ZIP за Windows), `SHA256SUMS` и създава **GitHub Release** с body от съответната changelog секция. Първата стъпка на workflow-а проверява дали тагът съвпада с `VERSION` файла (fail-ва при несъответствие).
+6. **`release.yml`** се задейства автоматично от тага (`v*.*.*`). Build-овете
+   (Qt6 Linux + Windows: тестове, smoke, пакетиране — AppImage + tarball за
+   Linux, ZIP за Windows, `SHA256SUMS`) са **делегирани на reusable workflow-а
+   `build-qt6.yml`** чрез `workflow_call`. Отделен **`verify-tag`** job
+   (fail-fast, преди build-овете) сравнява тага с `VERSION` файла и fail-ва при
+   несъответствие. След като и двата build-а са зелени, `create-release` job-ът
+   създава **GitHub Release** с body от съответната changelog секция.
+
+### Възстановяване при неуспешен release (Release failure recovery)
+
+Ако release pipeline-ът fail-не след като тагът е бил пушнат (напр. Windows
+configure/build failure), release-ът може да бъде поправен и пре-пуснат без да
+се чака следваща версия:
+
+1. Изтриване на remote тага: `git push origin :refs/tags/vX.Y.Z`
+2. Изтриване на локалния таг: `git tag -d vX.Y.Z`
+3. Фикс → commit в `develop` → merge в `master` → `git checkout master && git pull`
+4. Повторно тагване: `git tag -a vX.Y.Z -m "..."` → `git push origin vX.Y.Z`
+
+Мотивиращ пример: **2026-08-31, v0.3.0** — Windows configure job-ът в
+`release.yml` fail-на (aqtinstall module грешка + VS instance discovery failure),
+което наложи изнасянето на build-овете в reusable workflow-а `build-qt6.yml`
+(REQ-SW-PL-036).
 
 ## 3. Hotfix flow (критичен бъг в пуснат release)
 
@@ -92,13 +125,20 @@ vX.Y.Z tag → hotfix/X.Y.(Z+1) → fix → merge master + tag vX.Y.(Z+1) → me
 
 Преди тагване на `vX.Y.Z`:
 
+- [ ] `git fetch origin --tags --prune` — локалните тагове са синхронизирани
+- [ ] `master == origin/master` (след `git pull`)
+- [ ] `git log --oneline master..develop` е празен (develop е напълно merge-нат)
 - [ ] Qt6 builds PASS (Linux + Windows, CI)
 - [ ] ctest green (всички test binaries)
 - [ ] Smoke тестове на пакетираните бинарки (AppImage/ZIP)
 - [ ] `./scripts/suggest_version.sh --dry-run` — proposal-ът е прегледан
+- [ ] `./scripts/version.sh check` PASS (VERSION = X.Y.Z навсякъде)
 - [ ] version-sync check PASS (VERSION = X.Y.Z навсякъде)
+- [ ] CHANGELOG съдържа `## [X.Y.Z]` heading (нужен за release body extraction)
 - [ ] Changelog BG + EN обновени с дата
 - [ ] Таг vX.Y.Z на master (annotated)
+- [ ] Post-push Actions мониторинг: `verify-tag` → `linux-qt6` → `windows-qt6` → `create-release` — всички зелени
+- [ ] Verify Release assets: AppImage + tar.gz + ZIP + SHA256SUMS
 - [ ] GitHub Release с артефакти + SHA256SUMS
 
 ## 5. Документацията
@@ -114,6 +154,7 @@ vX.Y.Z tag → hotfix/X.Y.(Z+1) → fix → merge master + tag vX.Y.(Z+1) → me
 | Workflow | Роля |
 |----------|------|
 | `ci.yml` | PR/push проверки — Qt6 primary (Linux + Windows), Qt5 compat (Linux), тестове, smoke |
+| `build-qt6.yml` | Reusable workflow (`workflow_call`) — единна Qt6 Linux/Windows pipeline; вика се от `ci.yml` и `release.yml` |
 | `release.yml` | Tag-triggered release pipeline (`v*.*.*`) — build, тестове, smoke, пакетиране, checksums, GitHub Release |
 | `version-sync.yml` | Drift check — версията съвпада навсякъде |
 | `pages.yml` | **Изключен** (`pages.yml.disabled`) — сайтът ползва UI-based deployment (Settings → Pages → Deploy from a branch: `master/docs`), workflow не е нужен; опционален, re-enableable |
