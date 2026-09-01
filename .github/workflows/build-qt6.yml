@@ -8,6 +8,10 @@ name: Build Qt6 (reusable)
 #   - Linux smoke test runs with QT_DEBUG_PLUGINS=1 and fails on Qt6 FFmpeg
 #     multimedia backend load failures.
 # Inputs control the CI-vs-release differences:
+#   - platform:             required — "linux" or "windows"; gates which job runs.
+#                           A reusable workflow executes ALL jobs it defines, so
+#                           without this gate each caller would build both
+#                           platforms (4 builds, artifact-name collisions).
 #   - upload-artifact-name: artifact name (CI and release use different names)
 #   - create-checksums:     release-only — tarball/ZIP + SHA256SUMS packaging
 #   - verify-qt-version:    verify the bundled Qt inside the AppImage is 6.8.x
@@ -16,6 +20,10 @@ name: Build Qt6 (reusable)
 on:
   workflow_call:
     inputs:
+      platform:
+        description: 'Target platform — "linux" or "windows"; gates the job that runs'
+        required: true
+        type: string
       upload-artifact-name:
         description: 'Name of the uploaded artifact'
         required: true
@@ -42,6 +50,7 @@ jobs:
   # ============================================================
   linux-qt6:
     name: Linux Qt6
+    if: inputs.platform == 'linux'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout with submodules
@@ -190,6 +199,7 @@ jobs:
   # ============================================================
   windows-qt6:
     name: Windows Qt6
+    if: inputs.platform == 'windows'
     runs-on: windows-latest
     steps:
       - name: Checkout with submodules
