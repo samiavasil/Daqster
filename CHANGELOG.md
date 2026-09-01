@@ -20,6 +20,13 @@
   - `tools/create_appimage.sh`: предупреждение когато Qt multimedia plugin директорията не е пакетирана
   - `.github/workflows/ci.yml`: smoke test-ът върви с `QT_DEBUG_PLUGINS=1` и fail-ва при "No QtMultimedia backends" / "Cannot load library ... ffmpegmediaplugin"
 
+### Changed
+- **REQ-SW-PL-036** (CI/CD — shared Qt6 build pipeline):
+  - Нов `.github/workflows/build-qt6.yml` — reusable workflow (`workflow_call`) със `linux-qt6` + `windows-qt6` jobs, извлечени от доказаната версия в `ci.yml` (Windows: Ninja + `ilammy/msvc-dev-cmd` + `CMAKE_PREFIX_PATH`; Linux smoke test с `QT_DEBUG_PLUGINS=1` + FFmpeg backend check)
+  - Inputs: `upload-artifact-name` (required), `create-checksums`, `verify-qt-version`, `export-compile-commands` (boolean, default false)
+  - `.github/workflows/ci.yml`: `linux-qt6` и `windows-qt6` вече викат reusable workflow-а (една source of truth, без drift); `linux-qt5` compat job-ът остава както е
+  - `.github/workflows/release.yml`: `linux-qt6` и `windows-qt6` викат reusable workflow-а с `create-checksums: true`; tag-verification step-ът е изнесен в отделен `verify-tag` job (fail-fast преди build-овете); `create-release` job-ът е непроменен (artifact names съвпадат)
+
 ## [0.3.0] - 2026-08-30
 
 ### Added

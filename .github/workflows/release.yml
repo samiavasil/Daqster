@@ -7,16 +7,16 @@ on:
 
 jobs:
   # ============================================================
-  # Linux Qt6 — build + tests + AppImage + tarball + checksums + smoke
+  # Verify the pushed tag matches the VERSION file before spending
+  # CI minutes on the build jobs (fail fast).
   # ============================================================
-  linux-qt6:
-    name: Linux Qt6
+  verify-tag:
+    name: Verify tag matches VERSION
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout with submodules
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
 
       - name: Verify tag matches VERSION
@@ -28,192 +28,30 @@ jobs:
             exit 1
           fi
 
-      - name: Verify submodule gitlinks are reachable
-        run: |
-          git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'
-
-      # System Qt on ubuntu-24.04 is 6.4.2 — too old for the codebase.
-      # Install Qt 6.8.3 via aqtinstall (like ci.yml). GStreamer runtime +
-      # Mesa GL packages are needed by the Qt6Multimedia backend and for
-      # offscreen GL (llvmpipe) in the video-output tests.
-      - name: Install system deps (gstreamer, GL, ssl)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgstreamer1.0-dev \
-            libgstreamer-plugins-base1.0-dev \
-            gstreamer1.0-plugins-base \
-            gstreamer1.0-plugins-good \
-            libgl1-mesa-dri \
-            libegl1 \
-            libgl1 \
-            libglx-mesa0 \
-            libssl-dev
-
-      - name: Install Qt 6.8.3 (aqtinstall)
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.8.3'
-          host: 'linux'
-          target: 'desktop'
-          arch: 'linux_gcc_64'
-          modules: 'qtcharts qtmultimedia qtwebsockets'
-
-      - name: Configure (Release, tests ON)
-        run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDAQSTER_BUILD_TESTS=ON -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
-
-      - name: Build
-        run: |
-          cmake --build build -j
-
-      - name: Run tests (offscreen)
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          ctest --test-dir build --output-on-failure
-
-      - name: Install to staging
-        run: |
-          sudo cmake --install build --prefix "$PWD/stage"
-
-      - name: Create AppImage
-        run: |
-          chmod +x ./tools/create_appimage.sh
-          QT_DIR="$QT_ROOT_DIR" ./tools/create_appimage.sh --mode ci
-          ls -la *.AppImage
-          file *.AppImage
-
-      - name: Smoke test AppImage (offscreen)
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          set +e
-          timeout 15 ./Daqster-x86_64.AppImage --appimage-extract-and-run > appimage-smoke.log 2>&1
-          EXIT_CODE=$?
-          set -e
-          if [ "$EXIT_CODE" -eq 124 ]; then
-            echo "Smoke test PASSED: app ran for the full 15s timeout without crashing"
-          elif [ "$EXIT_CODE" -eq 0 ]; then
-            echo "Smoke test PASSED: app started and exited cleanly"
-          else
-            echo "Smoke test FAILED: AppImage exited with code $EXIT_CODE"
-            cat appimage-smoke.log
-            exit 1
-          fi
-
-      - name: Create tarball + checksums
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          tar -czf "Daqster-Linux-x86_64-${VERSION}.tar.gz" -C stage .
-          sha256sum Daqster-x86_64.AppImage "Daqster-Linux-x86_64-${VERSION}.tar.gz" > SHA256SUMS
-          cat SHA256SUMS
-
-      - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-linux
-          path: |
-            Daqster-x86_64.AppImage
-            Daqster-Linux-x86_64-*.tar.gz
-            SHA256SUMS
-          if-no-files-found: error
+  # ============================================================
+  # Linux Qt6 — build + tests + AppImage + tarball + checksums + smoke
+  # Implemented by the shared reusable workflow (build-qt6.yml).
+  # ============================================================
+  linux-qt6:
+    name: Linux Qt6
+    needs: verify-tag
+    uses: ./.github/workflows/build-qt6.yml
+    with:
+      upload-artifact-name: 'release-linux'
+      create-checksums: true
+      verify-qt-version: true
 
   # ============================================================
   # Windows Qt6 — build + tests + windeployqt ZIP + checksums + smoke
-  # Compiler: MSVC 2022 (see ci.yml for rationale).
+  # Implemented by the shared reusable workflow (build-qt6.yml).
   # ============================================================
   windows-qt6:
     name: Windows Qt6
-    runs-on: windows-latest
-    steps:
-      - name: Checkout with submodules
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Verify submodule gitlinks are reachable
-        shell: bash
-        run: |
-          git submodule foreach 'git ls-remote origin | grep -q $(git rev-parse HEAD) || exit 1'
-
-      - name: Install Qt6 (MSVC 2022)
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.8.3'
-          host: 'windows'
-          target: 'desktop'
-          arch: 'win64_msvc2022_64'
-          modules: 'qtcharts qtmultimedia qtwebsockets'
-
-      - name: Configure (Release, tests ON)
-        run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DDAQSTER_BUILD_TESTS=ON
-
-      - name: Build (Release)
-        run: |
-          cmake --build build --config Release -j
-
-      - name: Run tests (offscreen)
-        shell: pwsh
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          ctest --test-dir build -C Release --output-on-failure
-
-      - name: Install to staging
-        run: |
-          cmake --install build --config Release --prefix "${{ github.workspace }}\stage-win"
-
-      - name: Bundle Qt runtime (windeployqt)
-        shell: pwsh
-        run: |
-          $qtDir = $env:QT_ROOT_DIR
-          if (-not $qtDir) { throw "QT_ROOT_DIR not set" }
-          Write-Host "Qt6 dir: $qtDir"
-          $stage = "${{ github.workspace }}\stage-win"
-          & "$qtDir\bin\windeployqt.exe" --release --no-translations --compiler-runtime "$stage\bin\Daqster.exe"
-          if ($LASTEXITCODE -ne 0) { throw "windeployqt failed with exit code $LASTEXITCODE" }
-
-      - name: Smoke test (launch exe)
-        shell: pwsh
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          $stage = "${{ github.workspace }}\stage-win"
-          $proc = Start-Process -FilePath "$stage\bin\Daqster.exe" -PassThru
-          if ($proc.WaitForExit(15000)) {
-            if ($proc.ExitCode -eq 0) {
-              Write-Host "Smoke test PASSED: app started and exited cleanly"
-            } else {
-              Write-Host "Smoke test FAILED: exit code $($proc.ExitCode)"
-              exit 1
-            }
-          } else {
-            Write-Host "Smoke test PASSED: app ran for 15s without crashing"
-            Stop-Process -Id $proc.Id -Force
-          }
-
-      - name: Create portable ZIP + checksums
-        shell: pwsh
-        run: |
-          $version = "$env:GITHUB_REF_NAME".Substring(1)
-          $zip = "Daqster-Windows-x86_64-$version.zip"
-          Compress-Archive -Path "${{ github.workspace }}\stage-win\*" -DestinationPath "$zip"
-          $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLower()
-          # Standard sha256sum format: "<hash>  <filename>"
-          "$hash  $zip" | Out-File -FilePath SHA256SUMS -Encoding ascii
-          Get-Content SHA256SUMS
-
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-windows
-          path: |
-            Daqster-Windows-x86_64-*.zip
-            SHA256SUMS
-          if-no-files-found: error
+    needs: verify-tag
+    uses: ./.github/workflows/build-qt6.yml
+    with:
+      upload-artifact-name: 'release-windows'
+      create-checksums: true
 
   # ============================================================
   # Create the GitHub Release once both platforms are ready.
