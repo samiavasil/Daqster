@@ -15,7 +15,6 @@ jobs:
     name: Linux Qt6 (primary)
     uses: ./.github/workflows/build-qt6.yml
     with:
-      platform: 'linux'
       upload-artifact-name: 'Daqster-Linux-Qt6-x86_64.AppImage'
       verify-qt-version: true
       export-compile-commands: true
@@ -94,5 +93,4 @@ jobs:
     name: Windows Qt6 (primary)
     uses: ./.github/workflows/build-qt6.yml
     with:
-      platform: 'windows'
       upload-artifact-name: 'Daqster-Windows-x86_64'
