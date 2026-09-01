@@ -3,7 +3,7 @@
     "MetaData": {
         "Name": "RequirementsManager",
         "Type": "APPLICATION_PLUGIN",
-        "Version": "0.3.0",
+        "Version": "0.3.1",
         "Description": "Requirements Viewer/Editor tool for Markdown-based traceable requirements."
     }
 }
