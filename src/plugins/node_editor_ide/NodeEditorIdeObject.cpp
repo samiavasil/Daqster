@@ -10,8 +10,19 @@
 #include <QLayout>
 #include <QPushButton>
 #include <QMenu>
+#include <QMenuBar>
+#include <QAction>
 #include <QCheckBox>
 #include <QJsonObject>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QFile>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QSet>
+#include <QDir>
+
+#include <exception>
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
@@ -91,6 +102,23 @@ bool NodeEditorIdeObject::Initialize()
 
     // Build canvas AFTER all nodes are registered
     m_Widget->buildCanvas();
+
+    // ── File menu (REQ-SW-PL-037): Save/Load scene ─────────────────────────
+    // Save uses QtNodes' native DataFlowGraphicsScene::save() (opens its own
+    // file dialog, writes .flow JSON). Load uses the tolerant path that skips
+    // unregistered node types instead of crashing.
+    QMenu* fileMenu = m_Win->menuBar()->addMenu(tr("&File"));
+
+    QAction* saveAction = fileMenu->addAction(tr("Save Scene…"));
+    saveAction->setShortcut(QKeySequence::Save);
+    connect(saveAction, &QAction::triggered, this, [this]() {
+        if (m_Widget->scene() != nullptr)
+            m_Widget->scene()->save();
+    });
+
+    QAction* loadAction = fileMenu->addAction(tr("Load Scene…"));
+    loadAction->setShortcut(QKeySequence::Open);
+    connect(loadAction, &QAction::triggered, this, &NodeEditorIdeObject::loadSceneTolerant);
 
     l->addWidget(m_Widget);
     l->setContentsMargins(0, 0, 0, 0);
@@ -181,6 +209,97 @@ void NodeEditorIdeObject::ShowPlugins()
         DEBUG << "Plugin Manager: " << pm;
         pm->ShowPluginManagerGui(m_Win);
     }
+}
+
+// ── Tolerant scene load (REQ-SW-PL-037) ─────────────────────────────────────
+// QtNodes' DataFlowGraphModel::loadNode() throws std::logic_error when a saved
+// scene references a model type that is not registered in the current
+// environment (e.g. the providing plugin is not loaded). Instead of crashing,
+// this method:
+//   1. opens a .flow file dialog,
+//   2. parses the JSON scene,
+//   3. drops nodes whose "internal-data"."model-name" is not registered,
+//   4. drops connections referencing any dropped node id (no dangling edges),
+//   5. loads the cleaned scene and warns the user about the skipped types.
+bool NodeEditorIdeObject::loadSceneTolerant()
+{
+    const QString fileName = QFileDialog::getOpenFileName(
+        m_Win, tr("Open Flow Scene"), QDir::homePath(), tr("Flow Scene Files (*.flow)"));
+    if (fileName.isEmpty())
+        return false;
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qCWarning(lcNodeEditor) << "loadSceneTolerant: cannot open" << fileName;
+        return false;
+    }
+
+    const QByteArray wholeFile = file.readAll();
+    QJsonParseError parseError{};
+    const QJsonDocument sceneDocument = QJsonDocument::fromJson(wholeFile, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !sceneDocument.isObject()) {
+        qCWarning(lcNodeEditor) << "loadSceneTolerant: invalid JSON in" << fileName
+                                << ":" << parseError.errorString();
+        return false;
+    }
+
+    QJsonObject sceneJson = sceneDocument.object();
+    const QJsonArray nodesJsonArray = sceneJson["nodes"].toArray();
+
+    auto* registry = m_Widget->getInjectedRegistry();
+    const auto& creators = registry->registeredModelCreators();
+
+    QStringList skippedTypes;
+    QSet<QtNodes::NodeId> skippedNodeIds;
+
+    QJsonArray cleanedNodes;
+    for (const auto& nodeValue : nodesJsonArray) {
+        const QJsonObject nodeJson = nodeValue.toObject();
+        const QString modelName = nodeJson["internal-data"].toObject()["model-name"].toString();
+        if (modelName.isEmpty() || creators.count(modelName) == 0) {
+            skippedTypes << (modelName.isEmpty() ? tr("<unnamed>") : modelName);
+            skippedNodeIds.insert(static_cast<QtNodes::NodeId>(nodeJson["id"].toInt()));
+            continue;
+        }
+        cleanedNodes.append(nodeJson);
+    }
+    sceneJson["nodes"] = cleanedNodes;
+
+    if (!skippedNodeIds.isEmpty()) {
+        QJsonArray cleanedConnections;
+        const QJsonArray connJsonArray = sceneJson["connections"].toArray();
+        for (const auto& connValue : connJsonArray) {
+            const QJsonObject connJson = connValue.toObject();
+            const QtNodes::NodeId outNodeId =
+                static_cast<QtNodes::NodeId>(connJson["outNodeId"].toInt());
+            const QtNodes::NodeId inNodeId =
+                static_cast<QtNodes::NodeId>(connJson["inNodeId"].toInt());
+            if (skippedNodeIds.contains(outNodeId) || skippedNodeIds.contains(inNodeId))
+                continue;
+            cleanedConnections.append(connJson);
+        }
+        sceneJson["connections"] = cleanedConnections;
+    }
+
+    try {
+        m_Widget->scene()->clearScene();
+        m_Widget->graphModel()->load(sceneJson);
+    } catch (const std::exception& e) {
+        qCWarning(lcNodeEditor) << "loadSceneTolerant: load failed:" << e.what();
+        return false;
+    }
+
+    if (!skippedTypes.isEmpty()) {
+        qCWarning(lcNodeEditor) << "loadSceneTolerant: skipped unregistered node types:"
+                                << skippedTypes.join(QStringLiteral(", "));
+        QMessageBox::warning(m_Win,
+                             tr("Load Scene"),
+                             tr("The following node types are not registered in this "
+                                "environment and were skipped:\n%1")
+                                 .arg(skippedTypes.join(QLatin1Char('\n'))));
+    }
+
+    return true;
 }
 
 // ── Dev driver: DAQSTER_AUTOSTART_VIDEO=1 ────────────────────────────────────
