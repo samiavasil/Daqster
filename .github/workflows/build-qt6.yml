@@ -305,6 +305,34 @@ jobs:
             $targets
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed with exit code $LASTEXITCODE" }
 
+          # Explicitly copy required Qt DLLs (windeployqt may miss plugin transitive deps)
+          $requiredQtDlls = @(
+            'Qt6Multimedia.dll', 'Qt6MultimediaWidgets.dll', 'Qt6Charts.dll',
+            'Qt6OpenGL.dll', 'Qt6OpenGLWidgets.dll', 'Qt6Qml.dll', 'Qt6Quick.dll',
+            'Qt6QuickControls2.dll', 'Qt6WebSockets.dll', 'Qt6Network.dll'
+          )
+          foreach ($dll in $requiredQtDlls) {
+            $src = Join-Path $qtDir 'bin' $dll
+            if (Test-Path $src) {
+              Copy-Item $src $bin -Force
+              Write-Host "Copied $dll"
+            } else {
+              Write-Host "WARNING: $dll not found in Qt bin dir: $src"
+            }
+          }
+
+          # OpenSSL DLLs (QtCoinTrader + TLS backend)
+          $opensslSrc = if (Test-Path "$env:IQTA_TOOLS\OpenSSLv3\Win_x64\bin") { "$env:IQTA_TOOLS\OpenSSLv3\Win_x64\bin" } else { Join-Path $qtDir 'bin' }
+          foreach ($dll in @('libssl-3-x64.dll', 'libcrypto-3-x64.dll')) {
+            $src = Join-Path $opensslSrc $dll
+            if (Test-Path $src) {
+              Copy-Item $src $bin -Force
+              Write-Host "Copied $dll"
+            } else {
+              Write-Host "WARNING: $dll not found at $src"
+            }
+          }
+
           # Verify the deploy dir has all required Qt modules + OpenSSL + plugin dirs.
           $required = @(
             "Qt6Multimedia.dll", "Qt6MultimediaWidgets.dll", "Qt6Charts.dll",
