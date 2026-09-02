@@ -1,0 +1,38 @@
+{
+    "nodes": [
+        {
+            "id": 0,
+            "internal-data": {
+                "model-name": "AudioSource",
+                "name": "AudioSource"
+            },
+            "label": "AudioSource",
+            "labelVisible": true,
+            "position": {
+                "x": -200.0,
+                "y": 0.0
+            }
+        },
+        {
+            "id": 1,
+            "internal-data": {
+                "model-name": "AudioDisplay",
+                "name": "AudioDisplay"
+            },
+            "label": "AudioDisplay",
+            "labelVisible": true,
+            "position": {
+                "x": 0.0,
+                "y": 0.0
+            }
+        }
+    ],
+    "connections": [
+        {
+            "outNodeId": 0,
+            "outPortIndex": 0,
+            "inNodeId": 1,
+            "inPortIndex": 0
+        }
+    ]
+}

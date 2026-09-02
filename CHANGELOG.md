@@ -13,6 +13,8 @@
   - Save ползва нативния `DataFlowGraphicsScene::save()` (QtNodes файлов диалог, `.flow` JSON)
   - `NodeEditorIdeObject::loadSceneTolerant()` — толерантно зареждане: непознати нод типове се пропускат (вместо `std::logic_error` crash), връзките към тях се премахват, потребителят получава `QMessageBox::warning` с имената на пропуснатите типове
   - Тестови сцени: `tests/data/video_graph.flow` (VideoFileSource → VideoEffect → VideoOutput) и `tests/data/missing_node.flow` (познат + нерегистриран нод)
+  - Допълнителни регресионни сценарии в `tests/data/`: `number_graph.flow` (NumberSource → NumberResult), `audio_graph.flow` (AudioSource → AudioDisplay), `llm_graph.flow` (LLamaModel → Console), `empty_scene.flow` (празна сцена), `malformed.flow` (скъсан JSON — трябва да не crash-ва), `multi_effect_video.flow` (два VideoEffect-а в серия)
+  - `DevelopmentProcess/TEST-STRATEGY.md` — тестова стратегия: scene save/load регресионно тестване (как се ползват `.flow` сценариите, edge case-и, как се открива регресия), референция към video perf тестването и verification gate-а от RDD-PROCESS.md
 
 ## [0.3.2] - 2026-09-02
 
