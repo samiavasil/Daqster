@@ -25,19 +25,20 @@ NodeEditor IDE-то трябва да позволява запазване и �
 
 ## Acceptance Criteria
 
-- [ ] 1. `NodeEditorWidget` излага `scene()` accessor (DataFlowGraphicsScene*).
-- [ ] 2. IDE-то има File меню с "Save Scene…" и "Load Scene…" действия.
-- [ ] 3. Save записва `.flow` JSON файл; Load го чете и възстановява сцената.
-- [ ] 4. Ctrl+S / Ctrl+O shortcut-и работят.
-- [ ] 5. Зареждане на файл с нерегистриран нод тип НЕ crash-ва.
-- [ ] 6. Непознатите нодове се пропускат; познатите + връзките им се зареждат.
-- [ ] 7. Предупреждение (диалог или лог) изброява пропуснатите нод типове.
-- [ ] 8. Връзки, рефериращи пропуснати нодове, се премахват (не остават dangling).
-- [ ] 9. Qt5 + Qt6 builds PASS.
+- [x] 1. `NodeEditorWidget` излага `scene()` accessor (DataFlowGraphicsScene*).
+- [x] 2. IDE-то има File меню с "Save Scene…" и "Load Scene…" действия.
+- [x] 3. Save записва `.flow` JSON файл; Load го чете и възстановява сцената.
+- [x] 4. Ctrl+S / Ctrl+O shortcut-и работят.
+- [x] 5. Зареждане на файл с нерегистриран нод тип НЕ crash-ва.
+- [x] 6. Непознатите нодове се пропускат; познатите + връзките им се зареждат.
+- [x] 7. Предупреждение (диалог или лог) изброява пропуснатите нод типове.
+- [x] 8. Връзки, рефериращи пропуснати нодове, се премахват (не остават dangling).
+- [x] 9. Qt5 + Qt6 builds PASS.
 
 ## Проследимост
 
-- **Коммити:** — (след имплементация)
+- **Коммити:** `46980b6` (scene() accessor), `fad495b` (File menu + tolerant load),
+  `9328afd` (test .flow files), `7d2c98c` (changelog), `d4c646b` (include fix)
 - **Код:** `src/plugins/node_editor_ide/NodeEditorWidget.h/.cpp`,
   `src/plugins/node_editor_ide/NodeEditorIdeObject.h/.cpp`
 - **Документация:** `CHANGELOG.md`
