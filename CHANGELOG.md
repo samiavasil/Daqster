@@ -22,6 +22,15 @@
     `DAQSTER_VIDEO_FILE` е зададен)
   - `DevelopmentProcess/TEST-STRATEGY.md` — `DAQSTER_AUTOSTART_FLOW` добавен към
     env var списъка на headless тестването
+  - `tests/data/video_1view.flow`, `video_2views.flow`, `video_4views.flow`,
+    `video_effect_chain.flow` — тестови сцени за scene-cost измервания с
+    ПУСНАТО видео (VideoFileSource → N× VideoOutput fan-out / effect chain)
+  - `tools/measure_flow_memory.sh` — харнес за RSS/CPU измерване на flow сцени
+    с `DAQSTER_VIDEO_FILE` (видео върви + Perf включен), PERF-верификация
+    (`[PERF] video … fps=25`), 2 s RSS/CPU семпли, blocking stdin
+  - `tests/performance/flow-memory-perf-2026-09-02.md` — резултати: scene cost
+    с видео (Qt5 + Qt6), per-view cost (~7.8 MB Qt5 / ~11.4 MB Qt6), node
+    deletion memory release, Qt5 vs Qt6 сравнение
 - **REQ-SW-PL-037** (NodeEditor scene save/load with missing-node handling):
   - `NodeEditorWidget::scene()` accessor — излага `DataFlowGraphicsScene*` (заедно със съществуващия `graphModel()`)
   - File меню в NodeEditor IDE-то: "Save Scene…" (Ctrl+S, `QKeySequence::Save`) и "Load Scene…" (Ctrl+O, `QKeySequence::Open`)
