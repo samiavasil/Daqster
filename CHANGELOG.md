@@ -6,8 +6,19 @@
 
 ## [Unreleased]
 
+### Added
+- **REQ-SW-PL-037** (NodeEditor scene save/load with missing-node handling):
+  - `NodeEditorWidget::scene()` accessor — излага `DataFlowGraphicsScene*` (заедно със съществуващия `graphModel()`)
+  - File меню в NodeEditor IDE-то: "Save Scene…" (Ctrl+S, `QKeySequence::Save`) и "Load Scene…" (Ctrl+O, `QKeySequence::Open`)
+  - Save ползва нативния `DataFlowGraphicsScene::save()` (QtNodes файлов диалог, `.flow` JSON)
+  - `NodeEditorIdeObject::loadSceneTolerant()` — толерантно зареждане: непознати нод типове се пропускат (вместо `std::logic_error` crash), връзките към тях се премахват, потребителят получава `QMessageBox::warning` с имената на пропуснатите типове
+  - Тестови сцени: `tests/data/video_graph.flow` (VideoFileSource → VideoEffect → VideoOutput) и `tests/data/missing_node.flow` (познат + нерегистриран нод)
+
 ## [0.3.2] - 2026-09-02
 
+### Fixed
+- **REQ-SW-PL-036** (deploy all Qt modules + OpenSSL in Windows release packaging)
+- **REQ-SW-PL-036** (explicitly copy Qt WebSockets + required Qt DLLs in Windows packaging)
 ## [0.3.1] - 2026-09-01
 
 ### Fixed
