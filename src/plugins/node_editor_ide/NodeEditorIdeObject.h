@@ -40,7 +40,21 @@ private:
     /// of crashing on DataFlowGraphModel::loadNode's std::logic_error), removes
     /// connections referencing the skipped nodes and warns the user about the
     /// skipped types. Returns true on success (including partial loads).
-    bool loadSceneTolerant();
+    /// When `fileName` is empty a file dialog is shown; otherwise the given
+    /// path is loaded directly (used by DAQSTER_AUTOSTART_FLOW, REQ-SW-PL-038).
+    bool loadSceneTolerant(const QString& fileName = QString());
+
+    /// Shared tolerant-load body: parses `fileName`, drops unregistered nodes
+    /// and their connections, loads the cleaned scene and warns about skipped
+    /// types. Returns true on success (including partial loads).
+    bool loadSceneFromFile(const QString& fileName);
+
+    /// Dev driver (DAQSTER_AUTOSTART_VIDEO=1 / DAQSTER_AUTOSTART_FLOW +
+    /// DAQSTER_VIDEO_FILE, REQ-SW-PL-038): finds the VideoFileSource and
+    /// VideoOutput nodes in the current graph by model-name, configures the
+    /// source with DAQSTER_VIDEO_FILE, presses its "Play" button and enables
+    /// the "Perf" checkbox on the output (plus DAQSTER_SCENE_VIDEO handling).
+    void startVideoPlayback();
 
     QMainWindow* m_Win;
     NodeEditorWidget* m_Widget;

@@ -7,6 +7,21 @@
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-038** (DAQSTER_AUTOSTART_FLOW — headless .flow scene load at startup):
+  - `DAQSTER_AUTOSTART_FLOW=<path>` env var: NodeEditor IDE-то зарежда `.flow` сцената
+    при старт без файлов диалог (за автоматизирано perf/памет тестване)
+  - Зареждането минава по tolerant-пътя от REQ-SW-PL-037 — нерегистрирани нод
+    типове се пропускат вместо crash; логва се `nodes=`/`connections=` бройка
+  - `NodeEditorIdeObject::loadSceneTolerant(const QString& fileName = QString())` —
+    празен `fileName` отваря файлов диалог (старо поведение), непразен зарежда
+    директно; JSON-parse/clean/load тялото е изнесено в `loadSceneFromFile()`
+  - `NodeEditorIdeObject::startVideoPlayback()` — преизползваем helper, който
+    намира `VideoFileSource`/`VideoOutput` по model-name в графа, конфигурира
+    source-а с `DAQSTER_VIDEO_FILE`, натиска "Play" и включва "Perf" checkbox-а;
+    вика се и от `autoStartVideo()`, и от flow autostart пътя (когато
+    `DAQSTER_VIDEO_FILE` е зададен)
+  - `DevelopmentProcess/TEST-STRATEGY.md` — `DAQSTER_AUTOSTART_FLOW` добавен към
+    env var списъка на headless тестването
 - **REQ-SW-PL-037** (NodeEditor scene save/load with missing-node handling):
   - `NodeEditorWidget::scene()` accessor — излага `DataFlowGraphicsScene*` (заедно със съществуващия `graphModel()`)
   - File меню в NodeEditor IDE-то: "Save Scene…" (Ctrl+S, `QKeySequence::Save`) и "Load Scene…" (Ctrl+O, `QKeySequence::Open`)

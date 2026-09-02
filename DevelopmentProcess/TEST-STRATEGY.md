@@ -119,6 +119,9 @@
   - `DAQSTER_AUTOSTART_SAMPLER=1` — вмъква `FrameSampler`;
   - `DAQSTER_SCENE_VIDEO=1` — in-scene video (Qt6, REQ-SW-PL-021);
   - `DAQSTER_GL_BLIT=1` — GL blit път (вж. perf документа).
+  - `DAQSTER_AUTOSTART_FLOW=<path>` — headless зареждане на `.flow` сцена при
+    старт (REQ-SW-PL-038); ако `DAQSTER_VIDEO_FILE` е зададен, върху заредената
+    сцена се изпълнява `startVideoPlayback()` (configure source + Play + Perf).
 
 ---
 

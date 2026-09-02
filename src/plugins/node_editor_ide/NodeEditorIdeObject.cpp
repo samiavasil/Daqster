@@ -119,7 +119,9 @@ bool NodeEditorIdeObject::Initialize()
 
     QAction* loadAction = fileMenu->addAction(tr("Load Scene…"));
     loadAction->setShortcut(QKeySequence::Open);
-    connect(loadAction, &QAction::triggered, this, &NodeEditorIdeObject::loadSceneTolerant);
+    connect(loadAction, &QAction::triggered, this, [this]() {
+        loadSceneTolerant();
+    });
 
     l->addWidget(m_Widget);
     l->setContentsMargins(0, 0, 0, 0);
@@ -134,6 +136,18 @@ bool NodeEditorIdeObject::Initialize()
     // measurement harness (tests/performance/performance-video-display-2026-08-13.md).
     if (qEnvironmentVariableIsSet("DAQSTER_AUTOSTART_VIDEO"))
         autoStartVideo();
+
+    // Dev driver (DAQSTER_AUTOSTART_FLOW=<path>, REQ-SW-PL-038): loads a .flow
+    // scene headlessly at startup (tolerant path — unregistered nodes are
+    // skipped instead of crashing). If DAQSTER_VIDEO_FILE is also set, the
+    // loaded VideoFileSource/VideoOutput nodes are configured and playback +
+    // Perf are started (same logic as autoStartVideo).
+    if (qEnvironmentVariableIsSet("DAQSTER_AUTOSTART_FLOW")) {
+        if (loadSceneTolerant(qEnvironmentVariable("DAQSTER_AUTOSTART_FLOW"))
+            && qEnvironmentVariableIsSet("DAQSTER_VIDEO_FILE")) {
+            startVideoPlayback();
+        }
+    }
 
     connect(m_Widget, &NodeEditorWidget::nodeDoubleClicked,
             this, &NodeEditorIdeObject::nodeDoubleClicked);
@@ -217,21 +231,30 @@ void NodeEditorIdeObject::ShowPlugins()
 // scene references a model type that is not registered in the current
 // environment (e.g. the providing plugin is not loaded). Instead of crashing,
 // this method:
-//   1. opens a .flow file dialog,
+//   1. opens a .flow file dialog (or uses the path from DAQSTER_AUTOSTART_FLOW,
+//      REQ-SW-PL-038),
 //   2. parses the JSON scene,
 //   3. drops nodes whose "internal-data"."model-name" is not registered,
 //   4. drops connections referencing any dropped node id (no dangling edges),
 //   5. loads the cleaned scene and warns the user about the skipped types.
-bool NodeEditorIdeObject::loadSceneTolerant()
+bool NodeEditorIdeObject::loadSceneTolerant(const QString& fileName)
 {
-    const QString fileName = QFileDialog::getOpenFileName(
-        m_Win, tr("Open Flow Scene"), QDir::homePath(), tr("Flow Scene Files (*.flow)"));
-    if (fileName.isEmpty())
-        return false;
+    QString path = fileName;
+    if (path.isEmpty()) {
+        path = QFileDialog::getOpenFileName(
+            m_Win, tr("Open Flow Scene"), QDir::homePath(), tr("Flow Scene Files (*.flow)"));
+        if (path.isEmpty())
+            return false;
+    }
 
+    return loadSceneFromFile(path);
+}
+
+bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
+{
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly)) {
-        qCWarning(lcNodeEditor) << "loadSceneTolerant: cannot open" << fileName;
+        qCWarning(lcNodeEditor) << "loadSceneFromFile: cannot open" << fileName;
         return false;
     }
 
@@ -239,7 +262,7 @@ bool NodeEditorIdeObject::loadSceneTolerant()
     QJsonParseError parseError{};
     const QJsonDocument sceneDocument = QJsonDocument::fromJson(wholeFile, &parseError);
     if (parseError.error != QJsonParseError::NoError || !sceneDocument.isObject()) {
-        qCWarning(lcNodeEditor) << "loadSceneTolerant: invalid JSON in" << fileName
+        qCWarning(lcNodeEditor) << "loadSceneFromFile: invalid JSON in" << fileName
                                 << ":" << parseError.errorString();
         return false;
     }
@@ -286,12 +309,19 @@ bool NodeEditorIdeObject::loadSceneTolerant()
         m_Widget->scene()->clearScene();
         m_Widget->graphModel()->load(sceneJson);
     } catch (const std::exception& e) {
-        qCWarning(lcNodeEditor) << "loadSceneTolerant: load failed:" << e.what();
+        qCWarning(lcNodeEditor) << "loadSceneFromFile: load failed:" << e.what();
         return false;
     }
 
+    const int loadedNodeCount = static_cast<int>(m_Widget->graphModel()->allNodeIds().size());
+    const int loadedConnCount = static_cast<int>(
+        sceneJson["connections"].toArray().size());
+    qCInfo(lcNodeEditor) << "loadSceneFromFile: loaded" << fileName
+                         << "nodes=" << loadedNodeCount
+                         << "connections=" << loadedConnCount;
+
     if (!skippedTypes.isEmpty()) {
-        qCWarning(lcNodeEditor) << "loadSceneTolerant: skipped unregistered node types:"
+        qCWarning(lcNodeEditor) << "loadSceneFromFile: skipped unregistered node types:"
                                 << skippedTypes.join(QStringLiteral(", "));
         QMessageBox::warning(m_Win,
                              tr("Load Scene"),
@@ -414,6 +444,55 @@ void NodeEditorIdeObject::autoStartVideo()
         }
     }
 
+    // Configure the source node, press its start button and enable Perf on the
+    // output (shared with the DAQSTER_AUTOSTART_FLOW path, REQ-SW-PL-038).
+    startVideoPlayback();
+}
+
+// ── Shared video playback driver (REQ-SW-PL-038) ────────────────────────────
+// Finds the VideoFileSource (or StreamSource) and VideoOutput nodes in the
+// current graph by model-name, configures the source with DAQSTER_VIDEO_FILE /
+// DAQSTER_STREAM_URL, presses its "Play"/"Connect" button and enables the
+// "Perf" checkbox on the output (drives the [PERF] console line + badge).
+// Used both by autoStartVideo() (nodes created programmatically) and by the
+// DAQSTER_AUTOSTART_FLOW path (nodes loaded from a .flow scene).
+void NodeEditorIdeObject::startVideoPlayback()
+{
+    QtNodes::DataFlowGraphModel* gm = m_Widget->graphModel();
+    if (gm == nullptr) {
+        DEBUG << "startVideoPlayback: no graph model";
+        return;
+    }
+
+    // DAQSTER_VIDEO_FILE (file source) takes precedence over DAQSTER_STREAM_URL
+    // (rtsp/http stream source).
+    const QString videoFile = qEnvironmentVariable("DAQSTER_VIDEO_FILE");
+    const QString streamUrl = qEnvironmentVariable(
+        "DAQSTER_STREAM_URL", QStringLiteral("rtsp://192.168.33.233:554/stream1"));
+    const bool useFile = !videoFile.isEmpty();
+    const QString srcNodeName = useFile
+        ? QStringLiteral("VideoFileSource") : QStringLiteral("StreamSource");
+
+    // Find the source and output nodes by model-name in the current graph.
+    QtNodes::NodeId srcId = QtNodes::InvalidNodeId;
+    QtNodes::NodeId outId = QtNodes::InvalidNodeId;
+    for (const QtNodes::NodeId nodeId : gm->allNodeIds()) {
+        const QString type = gm->nodeData(nodeId, QtNodes::NodeRole::Type).toString();
+        if (type == srcNodeName)
+            srcId = nodeId;
+        else if (type == QStringLiteral("VideoOutput"))
+            outId = nodeId;
+    }
+
+    if (srcId == QtNodes::InvalidNodeId) {
+        DEBUG << "startVideoPlayback: no" << srcNodeName << "node in graph";
+        return;
+    }
+    if (outId == QtNodes::InvalidNodeId) {
+        DEBUG << "startVideoPlayback: no VideoOutput node in graph";
+        return;
+    }
+
     // Configure the source node and press its start button.
     auto* srcModel = gm->delegateModel<QtNodes::NodeDelegateModel>(srcId);
     if (srcModel != nullptr) {
@@ -431,7 +510,7 @@ void NodeEditorIdeObject::autoStartVideo()
             const auto buttons = w->findChildren<QPushButton*>();
             for (QPushButton* b : buttons) {
                 if (b->text() == buttonText) {
-                    DEBUG << "autoStartVideo: pressing " << buttonText;
+                    DEBUG << "startVideoPlayback: pressing " << buttonText;
                     b->click();
                     break;
                 }
@@ -448,7 +527,7 @@ void NodeEditorIdeObject::autoStartVideo()
             const auto checks = w->findChildren<QCheckBox*>();
             for (QCheckBox* c : checks) {
                 if (c->text() == tr("Perf")) {
-                    DEBUG << "autoStartVideo: enabling Perf";
+                    DEBUG << "startVideoPlayback: enabling Perf";
                     c->setChecked(true);
                     break;
                 }
@@ -463,7 +542,7 @@ void NodeEditorIdeObject::autoStartVideo()
                 const auto sceneChecks = w->findChildren<QCheckBox*>();
                 for (QCheckBox* c : sceneChecks) {
                     if (c->text() == tr("GPU display")) {
-                        DEBUG << "autoStartVideo: enabling in-scene video (DAQSTER_SCENE_VIDEO=1)";
+                        DEBUG << "startVideoPlayback: enabling in-scene video (DAQSTER_SCENE_VIDEO=1)";
                         c->setChecked(false);
                         break;
                     }

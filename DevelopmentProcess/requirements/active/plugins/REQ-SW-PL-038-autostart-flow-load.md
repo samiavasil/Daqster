@@ -29,16 +29,16 @@ NodeEditor IDE-то трябва да поддържа headless зареждан
 
 ## Acceptance Criteria
 
-- [ ] 1. `DAQSTER_AUTOSTART_FLOW=<path>` зарежда `.flow` сцената при старт.
-- [ ] 2. Нерегистрирани нодове се пропускат (tolerant path, REQ-SW-PL-037).
-- [ ] 3. Ако `DAQSTER_VIDEO_FILE` е зададен, `VideoFileSource` се конфигурира
+- [x] 1. `DAQSTER_AUTOSTART_FLOW=<path>` зарежда `.flow` сцената при старт.
+- [x] 2. Нерегистрирани нодове се пропускат (tolerant path, REQ-SW-PL-037).
+- [x] 3. Ако `DAQSTER_VIDEO_FILE` е зададен, `VideoFileSource` се конфигурира
        + Play + Perf.
-- [ ] 4. Qt5 + Qt6 builds PASS.
-- [ ] 5. Без crash на malformed/missing-node flow-ве.
+- [x] 4. Qt5 + Qt6 builds PASS.
+- [x] 5. Без crash на malformed/missing-node flow-ве.
 
 ## Проследимост
 
-- **Коммити:** (ще се попълни)
+- **Коммити:** `858da63` (REQ файл), `(feat commit — ще се попълни)`
 - **Код:** `src/plugins/node_editor_ide/NodeEditorIdeObject.h/.cpp`
 - **Документация:** `CHANGELOG.md`, `DevelopmentProcess/TEST-STRATEGY.md`
 - **Тестове:** Qt5 + Qt6 builds + headless smoke на 8-те `.flow` файла в
