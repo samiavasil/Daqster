@@ -26,6 +26,11 @@ public:
     /// source -> VideoOutput graph programmatically.
     QtNodes::DataFlowGraphModel* graphModel() const { return m_graphModel; }
 
+    /// Accessor used by the IDE File menu (REQ-SW-PL-037) to save/load the
+    /// scene. The concrete scene is a CustomDataFlowScene, exposed through the
+    /// base DataFlowGraphicsScene interface.
+    QtNodes::DataFlowGraphicsScene* scene() const { return m_scene; }
+
     void setConnectionStyle(const QString& json);
 
     void buildCanvas();

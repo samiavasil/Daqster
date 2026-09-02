@@ -35,6 +35,13 @@ private:
     /// needed (used by the PERF measurement harness).
     void autoStartVideo();
 
+    /// Tolerant scene load (REQ-SW-PL-037): opens a .flow file, skips nodes
+    /// whose model type is not registered in the current environment (instead
+    /// of crashing on DataFlowGraphModel::loadNode's std::logic_error), removes
+    /// connections referencing the skipped nodes and warns the user about the
+    /// skipped types. Returns true on success (including partial loads).
+    bool loadSceneTolerant();
+
     QMainWindow* m_Win;
     NodeEditorWidget* m_Widget;
 };

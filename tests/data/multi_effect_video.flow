@@ -1,0 +1,90 @@
+{
+    "nodes": [
+        {
+            "id": 0,
+            "internal-data": {
+                "model-name": "VideoFileSource"
+            },
+            "label": "VideoFileSource",
+            "labelVisible": true,
+            "position": {
+                "x": -300.0,
+                "y": 0.0
+            }
+        },
+        {
+            "id": 1,
+            "internal-data": {
+                "model-name": "VideoEffect",
+                "effect": "brightness",
+                "brightness": 15,
+                "contrast": 100,
+                "flipMode": "horizontal",
+                "blurRadius": 0,
+                "gaussianKernel": 3,
+                "cannyLow": 50,
+                "cannyHigh": 150,
+                "thresholdValue": 128
+            },
+            "label": "VideoEffect",
+            "labelVisible": true,
+            "position": {
+                "x": -100.0,
+                "y": 0.0
+            }
+        },
+        {
+            "id": 2,
+            "internal-data": {
+                "model-name": "VideoEffect",
+                "effect": "contrast",
+                "brightness": 0,
+                "contrast": 140,
+                "flipMode": "horizontal",
+                "blurRadius": 0,
+                "gaussianKernel": 3,
+                "cannyLow": 50,
+                "cannyHigh": 150,
+                "thresholdValue": 128
+            },
+            "label": "VideoEffect",
+            "labelVisible": true,
+            "position": {
+                "x": 100.0,
+                "y": 0.0
+            }
+        },
+        {
+            "id": 3,
+            "internal-data": {
+                "model-name": "VideoOutput"
+            },
+            "label": "VideoOutput",
+            "labelVisible": true,
+            "position": {
+                "x": 300.0,
+                "y": 0.0
+            }
+        }
+    ],
+    "connections": [
+        {
+            "outNodeId": 0,
+            "outPortIndex": 0,
+            "inNodeId": 1,
+            "inPortIndex": 0
+        },
+        {
+            "outNodeId": 1,
+            "outPortIndex": 0,
+            "inNodeId": 2,
+            "inPortIndex": 0
+        },
+        {
+            "outNodeId": 2,
+            "outPortIndex": 0,
+            "inNodeId": 3,
+            "inPortIndex": 0
+        }
+    ]
+}
