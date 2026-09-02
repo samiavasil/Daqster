@@ -75,7 +75,7 @@ DemoNodeEditorNodesInterface → QPluginInterface
         PLUGIN_NAME       = "DemoNodeEditorNodes"
         PLUGIN_TYPE       = APPLICATION_PLUGIN
         PLUGIN_TYPE_NAME  = "Node Providers"   ← групиране в PluginManager GUI
-        PLUGIN_VERSION    = "0.3.1"
+        PLUGIN_VERSION    = "0.3.2"
 ```
 
 ### QBasePluginObject ( frame_work )
