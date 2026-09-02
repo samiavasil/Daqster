@@ -227,6 +227,15 @@ jobs:
           target: 'desktop'
           arch: 'win64_msvc2022_64'
           modules: 'qtcharts qtmultimedia qtwebsockets'
+          # OpenSSL 3 runtime DLLs (libssl-3-x64 / libcrypto-3-x64) that
+          # QtCoinTrader links against (OpenSSL::SSL / OpenSSL::Crypto) and
+          # Qt's TLS backend loads at runtime. The official Qt Windows binary
+          # packages do NOT ship these in the Qt bin dir — they come from the
+          # separate OpenSSLv3 tool, unpacked to Tools/OpenSSLv3/Win_x64 and
+          # exposed via $IQTA_TOOLS. windeployqt does not copy them, so without
+          # bundling them the plugin fails with "The specified module could not
+          # be found" (error 126).
+          tools: 'tools_opensslv3_x64'
 
       # The VS generator ("Visual Studio 17 2022") failed to find a VS instance
       # on windows-latest ("could not find any instance of Visual Studio" at
@@ -263,8 +272,58 @@ jobs:
           if (-not $qtDir) { throw "QT_ROOT_DIR not set" }
           Write-Host "Qt6 dir: $qtDir"
           $stage = "${{ github.workspace }}\stage-win"
-          & "$qtDir\bin\windeployqt.exe" --release --no-translations --compiler-runtime "$stage\bin\Daqster.exe"
+          $bin = "$stage\bin"
+
+          # windeployqt on Daqster.exe alone only deploys what the exe directly
+          # links (Core, Gui, Widgets). The plugins link additional Qt modules
+          # (Multimedia, MultimediaWidgets, Charts, OpenGL, Qml, Quick,
+          # QuickControls2, WebSockets), so pass each plugin DLL as an extra
+          # target to make windeployqt analyze its dependencies and deploy the
+          # needed Qt modules + plugins. Plugins install to bin/ on Windows
+          # (RUNTIME DESTINATION = CMAKE_INSTALL_BINDIR).
+          $targets = @(
+            "$bin\Daqster.exe",
+            "$bin\DemoNodeEditorNodesPlugin.dll",
+            "$bin\QtCoinTraderPlugin.dll",
+            "$bin\NodeEditorPluginIde.dll",
+            "$bin\RequirementsManagerPlugin.dll"
+          )
+
+          # QtCoinTrader uses QML (QQmlApplicationEngine / QQuickStyle), so point
+          # --qmldir at the Qt QML dir to deploy the qml/ tree (QtQuick, QtQml,
+          # QtQuick.Controls, etc.).
+          $opensslRoot = "$env:IQTA_TOOLS\OpenSSLv3\Win_x64"
+          if (-not (Test-Path "$opensslRoot\bin\libssl-3-x64.dll")) {
+            Write-Host "WARNING: OpenSSL DLLs not found at $opensslRoot\bin; will try Qt bin dir"
+            $opensslRoot = $qtDir
+          }
+
+          & "$qtDir\bin\windeployqt.exe" --release --no-translations `
+            --no-system-d3d-compiler --no-opengl-sw `
+            --qmldir "$qtDir\qml" `
+            --openssl-root "$opensslRoot" `
+            $targets
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed with exit code $LASTEXITCODE" }
+
+          # Verify the deploy dir has all required Qt modules + OpenSSL + plugin dirs.
+          $required = @(
+            "Qt6Multimedia.dll", "Qt6MultimediaWidgets.dll", "Qt6Charts.dll",
+            "Qt6OpenGL.dll", "Qt6Qml.dll", "Qt6Quick.dll", "Qt6QuickControls2.dll",
+            "Qt6WebSockets.dll", "libssl-3-x64.dll", "libcrypto-3-x64.dll"
+          )
+          $missing = @()
+          foreach ($dll in $required) {
+            if (-not (Test-Path "$bin\$dll")) { $missing += $dll }
+          }
+          foreach ($dir in @("multimedia", "qml")) {
+            if (-not (Test-Path "$bin\$dir")) { $missing += "$dir/ (plugin dir)" }
+          }
+          if ($missing.Count -gt 0) {
+            Write-Host "FAIL: missing required Qt/OpenSSL files in $bin :"
+            $missing | ForEach-Object { Write-Host "  - $_" }
+            throw "windeployqt verification failed: missing $($missing -join ', ')"
+          }
+          Write-Host "windeployqt verification PASSED: all required Qt modules + OpenSSL present"
 
       - name: Smoke test (launch exe)
         shell: pwsh
@@ -272,6 +331,26 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           $stage = "${{ github.workspace }}\stage-win"
+          # Verify the plugin DLLs are present in the deploy dir — they are
+          # loaded by Daqster at startup via QPluginManager, and a missing
+          # plugin (or one whose Qt deps are missing) would fail to load with
+          # error 126.
+          $plugins = @(
+            "DemoNodeEditorNodesPlugin.dll",
+            "QtCoinTraderPlugin.dll",
+            "NodeEditorPluginIde.dll",
+            "RequirementsManagerPlugin.dll"
+          )
+          $missingPlugins = @()
+          foreach ($p in $plugins) {
+            if (-not (Test-Path "$stage\bin\$p")) { $missingPlugins += $p }
+          }
+          if ($missingPlugins.Count -gt 0) {
+            Write-Host "FAIL: plugin DLLs missing from deploy dir: $($missingPlugins -join ', ')"
+            exit 1
+          }
+          Write-Host "Plugin DLLs present in deploy dir: $($plugins -join ', ')"
+
           $proc = Start-Process -FilePath "$stage\bin\Daqster.exe" -PassThru
           if ($proc.WaitForExit(15000)) {
             if ($proc.ExitCode -eq 0) {
