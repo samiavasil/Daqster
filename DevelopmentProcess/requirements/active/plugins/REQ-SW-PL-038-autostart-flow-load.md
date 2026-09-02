@@ -38,7 +38,7 @@ NodeEditor IDE-то трябва да поддържа headless зареждан
 
 ## Проследимост
 
-- **Коммити:** `858da63` (REQ файл), `(feat commit — ще се попълни)`
+- **Коммити:** `858da63` (REQ файл), `4233836` (feat: DAQSTER_AUTOSTART_FLOW)
 - **Код:** `src/plugins/node_editor_ide/NodeEditorIdeObject.h/.cpp`
 - **Документация:** `CHANGELOG.md`, `DevelopmentProcess/TEST-STRATEGY.md`
 - **Тестове:** Qt5 + Qt6 builds + headless smoke на 8-те `.flow` файла в
