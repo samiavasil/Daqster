@@ -27,6 +27,7 @@
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtNodes/DataFlowGraphModel>
+#include <QtNodes/DataFlowGraphicsScene>
 #include <QtNodes/ConnectionStyle>
 
 #include <QtWidgets/QVBoxLayout>
