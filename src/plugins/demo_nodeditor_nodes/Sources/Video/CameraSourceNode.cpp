@@ -273,7 +273,10 @@ void CameraSourceNode::onFrameAvailable(const QVideoFrame &frame)
     // hot path — the single video-frame port carries the frame (REQ-SW-PL-032).
     {
         PERF_SCOPE("video", "source.wrap_emit");
-        m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
+        // Fresh VideoFrameData per frame — never mutate the shared object a
+        // consumer may still hold (frame aliasing: setFrame() would delete GL
+        // textures a deferred paintGL could still use).
+        m_videoFrameOut = std::make_shared<VideoFrameData>(VideoCompat::frameToFrame(frame));
         Q_EMIT dataUpdated(0);
     }
 #else
@@ -292,7 +295,10 @@ void CameraSourceNode::onFrameAvailable(const QVideoFrame &frame)
 
     {
         PERF_SCOPE("video", "source.wrap_emit");
-        m_videoFrameOut->setFrame(VideoCompat::frameToFrame(frame));
+        // Fresh VideoFrameData per frame — never mutate the shared object a
+        // consumer may still hold (frame aliasing: setFrame() would delete GL
+        // textures a deferred paintGL could still use).
+        m_videoFrameOut = std::make_shared<VideoFrameData>(VideoCompat::frameToFrame(frame));
         if (m_videoFrameOut->hasFrame())
             Q_EMIT dataUpdated(0);
     }
