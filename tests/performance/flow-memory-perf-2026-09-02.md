@@ -74,6 +74,19 @@ All runs use the same harness (`tools/measure_flow_memory.sh`):
 | `video_4views.flow` | 5 | 4 | VideoFileSource → 4× VideoOutput (fan-out) |
 | `video_effect_chain.flow` | 4 | 3 | VideoFileSource → VideoEffect → VideoEffect → VideoOutput |
 
+### 1.4 CPU metric semantics (IRIX mode)
+
+Both CPU metrics in this document are **IRIX-like**: they measure total
+process CPU time across ALL threads/cores and can exceed 100%.
+
+- **Max = 800%** on this machine (i7-11370H, 4 cores / 8 threads).
+- **PERF `cpu=`** is a **steady-state interval** value (5 s deltas between
+  `[PERF] video` lines) — the pipeline CPU cost during playback.
+- **`ps -o pcpu=`** is a **lifetime average** (cputime/realtime since process
+  start) — it includes the startup spike (scene load, GL context creation,
+  shader compile, decode ramp) and is NOT comparable to the PERF interval
+  values.
+
 ---
 
 ## 2. Baseline (empty scene, no video)
@@ -128,6 +141,20 @@ All video flows ran with `DAQSTER_VIDEO_FILE` set; playback verified via
 (decoder + frame buffers + textures ≈ 250-280 MB once playback starts), NOT the
 number of view nodes. Going from 1 view to 4 views adds only ~24 MB (Qt5) /
 ~35 MB (Qt6).
+
+### 3.4 Memory breakdown
+
+| Component | Size | Notes |
+|-----------|------|-------|
+| Baseline (empty scene) | ~136-150 MB | Qt5 ~136 MB, Qt6 ~150 MB |
+| Video pipeline delta (1 view) | ~230-290 MB | Qt multimedia backend frame buffering + decoder DPB + Qt5 owned-copy + GL textures |
+| Per additional view | +8-11 MB | Qt5 ~8 MB, Qt6 ~11 MB (widget/framebuffer/GL resources) |
+| Per VideoEffect node | +20-25 MB | Effect intermediate frame buffers |
+
+The ~400 MB total (baseline + video pipeline) is **dominated by the video
+pipeline's decoded-frame buffering**, NOT the scene graph. The scene graph
+itself (nodes/connections/widgets) contributes only the small per-view/per-node
+deltas above.
 
 ---
 
@@ -221,9 +248,10 @@ comparing 4-view vs 1-view scenes (3 views deleted):
 6. **Recommendation:** for REQ-SW-PL-038 autostart flows, prefer Qt6 for
    video-heavy scenes; keep per-scene view counts bounded (each view ≈ 8-11 MB;
    PERF steady-state CPU grows ~0.9 pp/view on Qt5, but Qt6's 4-view fan-out
-   jumps to ~15.6%). If memory is critical, consider sharing decoded frames
-   across views (single decode + N textures) instead of N independent
-   pipelines.
+jumps to ~15.6%). Frames are already shared across views (single decode +
+    shared VideoFrameData via shared_ptr). The per-view cost (~8MB Qt5 / ~11MB
+    Qt6) is the present surface (widget/framebuffer/GL resources), not
+    duplicated frames.
 
 ---
 
