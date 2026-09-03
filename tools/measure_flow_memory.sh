@@ -10,7 +10,16 @@
 #   DAQSTER_VIDEO_FILE=<video>           (starts video playback + Perf)
 # samples RSS (VmRSS from /proc/<pid>/status) and CPU (ps pcpu) every 2 s,
 # then kills the app and prints:
-#   LABEL | RSS_MIN_KB | RSS_MAX_KB | RSS_AVG_KB | RSS_DELTA_KB | CPU_AVG_PCT | PERF_LINES | PERF_FPS
+#   LABEL | RSS_MIN_KB | RSS_MAX_KB | RSS_AVG_KB | RSS_DELTA_KB | CPU_AVG_PCT | CPU_PERF_PCT | PERF_LINES | PERF_FPS
+#
+# CPU metrics:
+#   CPU_AVG_PCT  — ps -o pcpu= lifetime average (cputime/realtime since process
+#                  start). Includes the startup spike (scene load, GL context
+#                  creation, shader compile, decode ramp). NOT comparable to
+#                  the PERF cpu= steady-state values.
+#   CPU_PERF_PCT — last 3 PERF cpu= interval values from the log (steady-state
+#                  pipeline CPU during playback). Use this for apples-to-apples
+#                  CPU comparisons.
 #
 # PERF verification: the log is scanned for `[PERF] video` lines (fps=25).
 # If a video flow produced NO PERF lines, the video did not start and the
@@ -151,7 +160,11 @@ CPU_AVG=$(awk -v s="$CPU_SUM" -v n="${#CPU_SAMPLES[@]}" 'BEGIN { printf "%.2f", 
 PERF_LINES=$(grep -c "\[PERF\] video" "$LOG_FILE" 2>/dev/null || true)
 PERF_FPS=$(grep -o "fps=[0-9.]*" "$LOG_FILE" 2>/dev/null | sort -u | tr '\n' ',' | sed 's/,$//')
 
-echo "$LABEL | $RSS_MIN | $RSS_MAX | $RSS_AVG | $RSS_DELTA | $CPU_AVG | PERF_LINES=$PERF_LINES | FPS=$PERF_FPS"
+# PERF steady-state CPU: last 3 cpu= interval values from the log.
+PERF_CPU=$(grep -o 'cpu=[0-9.]*%' "$LOG_FILE" 2>/dev/null | tail -3 | tr '\n' ' ')
+[ -n "$PERF_CPU" ] || PERF_CPU="n/a"
+
+echo "$LABEL | $RSS_MIN | $RSS_MAX | $RSS_AVG | $RSS_DELTA | $CPU_AVG | CPU_PERF_PCT=$PERF_CPU | PERF_LINES=$PERF_LINES | FPS=$PERF_FPS"
 
 # A video flow with zero PERF lines means playback never started → invalid.
 if [ "$PERF_LINES" -eq 0 ] && ! grep -q "VideoFileSource" "$FLOW_FILE"; then

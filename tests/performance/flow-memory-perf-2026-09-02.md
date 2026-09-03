@@ -47,6 +47,14 @@ All runs use the same harness (`tools/measure_flow_memory.sh`):
   duration (first sample 3 s after process start, after scene load + playback
   ramp).
 - **CPU sampling:** `ps -o pcpu= -p <pid>` every 2 s (process self CPU).
+  **`ps -o pcpu=` is a LIFETIME average** (cputime/realtime since process start)
+  — it includes the startup spike (scene load, GL context creation, shader
+  compile, decode ramp) and is **NOT comparable** to the PERF `cpu=`
+  steady-state interval values. For apples-to-apples CPU, use the PERF `cpu=`
+  column.
+- **PERF steady-state CPU:** `cpu=` values from the `[PERF] video` log lines
+  (per-frame interval CPU, last 3 values of each run) — this is the pipeline
+  CPU cost during steady-state playback.
 - **Duration:** 20 s per run (≈ 9-10 RSS samples per run).
 
 ### 1.2 Video source
@@ -89,23 +97,23 @@ All video flows ran with `DAQSTER_VIDEO_FILE` set; playback verified via
 
 ### 3.1 Qt5
 
-| Flow | RSS_MIN_KB | RSS_MAX_KB | RSS_AVG_KB | RSS_DELTA_KB | CPU_AVG_PCT | PERF |
-|------|-----------|-----------|-----------|-------------|-------------|------|
-| empty_scene (baseline) | 136,392 | 136,392 | 136,392 | 0 | 9.34 | n/a |
-| video_1view | 423,788 | 425,884 | 425,668 | +2,096 | 30.06 | fps=25 ✓ |
-| video_2views | 430,520 | 432,616 | 432,400 | +2,096 | 31.66 | fps=25 ✓ |
-| video_4views | 447,724 | 449,820 | 449,605 | +2,096 | 33.67 | fps=24→25 ✓ |
-| video_effect_chain | 464,840 | 466,936 | 466,720 | +2,096 | 31.21 | fps=25 ✓ |
+| Flow | RSS_MIN_KB | RSS_MAX_KB | RSS_AVG_KB | RSS_DELTA_KB | CPU_AVG_PCT | CPU_PERF_PCT | PERF |
+|------|-----------|-----------|-----------|-------------|-------------|--------------|------|
+| empty_scene (baseline) | 136,392 | 136,392 | 136,392 | 0 | 9.34 | n/a | n/a |
+| video_1view | 423,788 | 425,884 | 425,668 | +2,096 | 30.06 | ~7.9 | fps=25 ✓ |
+| video_2views | 430,520 | 432,616 | 432,400 | +2,096 | 31.66 | ~9.4 | fps=25 ✓ |
+| video_4views | 447,724 | 449,820 | 449,605 | +2,096 | 33.67 | ~10.5 | fps=24→25 ✓ |
+| video_effect_chain | 464,840 | 466,936 | 466,720 | +2,096 | 31.21 | ~8.3 | fps=25 ✓ |
 
 ### 3.2 Qt6
 
-| Flow | RSS_MIN_KB | RSS_MAX_KB | RSS_AVG_KB | RSS_DELTA_KB | CPU_AVG_PCT | PERF |
-|------|-----------|-----------|-----------|-------------|-------------|------|
-| empty_scene (baseline) | 150,140 | 150,140 | 150,140 | 0 | 11.32 | n/a |
-| video_1view | 409,620 | 409,856 | 409,774 | +236 | 20.36 | fps=25 ✓ |
-| video_2views | 421,040 | 421,260 | 421,180 | +220 | 22.43 | fps=25 ✓ |
-| video_4views | 444,496 | 444,728 | 444,643 | +232 | 30.78 | fps=25 ✓ |
-| video_effect_chain | 457,708 | 459,972 | 459,685 | +2,264 | 23.42 | fps=25 ✓ |
+| Flow | RSS_MIN_KB | RSS_MAX_KB | RSS_AVG_KB | RSS_DELTA_KB | CPU_AVG_PCT | CPU_PERF_PCT | PERF |
+|------|-----------|-----------|-----------|-------------|-------------|--------------|------|
+| empty_scene (baseline) | 150,140 | 150,140 | 150,140 | 0 | 11.32 | n/a | n/a |
+| video_1view | 409,620 | 409,856 | 409,774 | +236 | 20.36 | ~5.3 | fps=25 ✓ |
+| video_2views | 421,040 | 421,260 | 421,180 | +220 | 22.43 | ~7.4 | fps=25 ✓ |
+| video_4views | 444,496 | 444,728 | 444,643 | +232 | 30.78 | ~15.6 | fps=25 ✓ |
+| video_effect_chain | 457,708 | 459,972 | 459,685 | +2,264 | 23.42 | ~7.2 | fps=25 ✓ |
 
 ### 3.3 Scene cost vs baseline (RSS_AVG − baseline)
 
@@ -170,15 +178,25 @@ comparing 4-view vs 1-view scenes (3 views deleted):
 | Effect chain RSS | 466,720 KB | 459,685 KB | Qt6 −7,035 KB (−1.5%) |
 | Video pipeline cost (1v − baseline) | 289,276 KB | 259,634 KB | Qt6 −29,642 KB (−10.2%) |
 | Per-view cost | ~7.8 MB | ~11.4 MB | Qt6 +46% per view |
-| CPU (1-view) | 30.06% | 20.36% | Qt6 −9.7 pp |
-| CPU (4-view) | 33.67% | 30.78% | Qt6 −2.9 pp |
+| CPU_AVG_PCT (ps lifetime avg, 1-view) | 30.06% | 20.36% | Qt6 −9.7 pp |
+| CPU_AVG_PCT (ps lifetime avg, 4-view) | 33.67% | 30.78% | Qt6 −2.9 pp |
+| CPU_PERF_PCT (PERF steady-state, 1-view) | ~7.9% | ~5.3% | Qt6 −2.6 pp |
+| CPU_PERF_PCT (PERF steady-state, 4-view) | ~10.5% | ~15.6% | Qt6 +5.1 pp |
 
-- **Qt6 has a leaner video pipeline** (−10% scene cost, −10 pp CPU at 1 view)
-  despite a higher empty-scene baseline (+10%).
+> **Known-good comparison:** PERF `cpu=` steady state is **~2x BELOW** the
+> 2026-08-13 known-good (Qt5 7.9% vs 16.0-17.6%; Qt6 5.3% vs 17.0-17.4%) — the
+> ps `CPU_AVG_PCT` column is **not comparable** to the known-good reference.
+
+- **Qt6 has a leaner video pipeline** (−10% scene cost, −2.6 pp PERF
+  steady-state CPU at 1 view) despite a higher empty-scene baseline (+10%).
 - **Qt6 per-view cost is higher** (+46%) — each additional VideoOutput keeps a
   larger per-view footprint in Qt6's QVideoSink/QRhi texture path.
-- **CPU scales with view count** on both: Qt5 30.1% → 33.7%, Qt6 20.4% → 30.8%
-  (1→4 views). Qt6 stays below Qt5 at every view count.
+- **PERF steady-state CPU scales with view count** on both: Qt5 ~7.9% → ~10.5%,
+  Qt6 ~5.3% → ~15.6% (1→4 views). Qt6 is below Qt5 at 1-2 views but **above**
+  at 4 views (the 4-view fan-out is the most expensive Qt6 scenario).
+- The ps `CPU_AVG_PCT` values (30.1% → 33.7% Qt5, 20.4% → 30.8% Qt6) are
+  **lifetime averages** that include the startup spike — use the PERF `cpu=`
+  column for pipeline CPU comparisons.
 
 ---
 
@@ -194,30 +212,34 @@ comparing 4-view vs 1-view scenes (3 views deleted):
 3. **Node deletion releases memory immediately.** Deleting 3 views frees
    ~23 MB (Qt5) / ~34 MB (Qt6); no RSS growth/leak within a 20 s run.
 4. **Qt6 is the better target for video-heavy scenes:** ~10% lower pipeline
-   memory and ~10 pp lower CPU at 1 view, at the cost of a higher baseline and
-   higher per-view footprint.
+   memory and ~2.6 pp lower PERF steady-state CPU at 1 view (5.3% vs 7.9%), at
+   the cost of a higher baseline and higher per-view footprint. (The ps
+   `CPU_AVG_PCT` lifetime averages — 30.06% vs 20.36% — are NOT the pipeline
+   CPU cost; they include the startup spike.)
 5. **Effect chains are the most expensive scene element per node** (~20-25 MB
    per VideoEffect node) — worth optimizing if effect-heavy flows are a target.
 6. **Recommendation:** for REQ-SW-PL-038 autostart flows, prefer Qt6 for
-   video-heavy scenes; keep per-scene view counts bounded (each view ≈ 8-11 MB
-   + CPU 1-3 pp). If memory is critical, consider sharing decoded frames across
-   views (single decode + N textures) instead of N independent pipelines.
+   video-heavy scenes; keep per-scene view counts bounded (each view ≈ 8-11 MB;
+   PERF steady-state CPU grows ~0.9 pp/view on Qt5, but Qt6's 4-view fan-out
+   jumps to ~15.6%). If memory is critical, consider sharing decoded frames
+   across views (single decode + N textures) instead of N independent
+   pipelines.
 
 ---
 
 ## Appendix: raw run output
 
 ```
-qt5_empty_scene        | 136392 | 136392 | 136392 | 0     | 9.34  | PERF_LINES=0
-qt5_video_1view        | 423788 | 425884 | 425668 | 2096  | 30.06 | PERF_LINES=4 fps=25
-qt5_video_2views       | 430520 | 432616 | 432400 | 2096  | 31.66 | PERF_LINES=4 fps=25
-qt5_video_4views       | 447724 | 449820 | 449605 | 2096  | 33.67 | PERF_LINES=4 fps=24,25
-qt5_video_effect_chain | 464840 | 466936 | 466720 | 2096  | 31.21 | PERF_LINES=4 fps=25
-qt6_empty_scene        | 150140 | 150140 | 150140 | 0     | 11.32 | PERF_LINES=0
-qt6_video_1view        | 409620 | 409856 | 409774 | 236   | 20.36 | PERF_LINES=4 fps=25
-qt6_video_2views       | 421040 | 421260 | 421180 | 220   | 22.43 | PERF_LINES=4 fps=25
-qt6_video_4views       | 444496 | 444728 | 444643 | 232   | 30.78 | PERF_LINES=4 fps=25
-qt6_video_effect_chain | 457708 | 459972 | 459685 | 2264  | 23.42 | PERF_LINES=4 fps=25
+qt5_empty_scene        | 136392 | 136392 | 136392 | 0     | 9.34  | CPU_PERF_PCT=n/a | PERF_LINES=0
+qt5_video_1view        | 423788 | 425884 | 425668 | 2096  | 30.06 | CPU_PERF_PCT=cpu=8.0% cpu=8.0% cpu=7.6% | PERF_LINES=4 fps=25
+qt5_video_2views       | 430520 | 432616 | 432400 | 2096  | 31.66 | CPU_PERF_PCT=cpu=9.3% cpu=9.4% cpu=9.4% | PERF_LINES=4 fps=25
+qt5_video_4views       | 447724 | 449820 | 449605 | 2096  | 33.67 | CPU_PERF_PCT=cpu=10.6% cpu=10.4% cpu=10.4% | PERF_LINES=4 fps=24,25
+qt5_video_effect_chain | 464840 | 466936 | 466720 | 2096  | 31.21 | CPU_PERF_PCT=cpu=8.4% cpu=8.2% cpu=8.2% | PERF_LINES=4 fps=25
+qt6_empty_scene        | 150140 | 150140 | 150140 | 0     | 11.32 | CPU_PERF_PCT=n/a | PERF_LINES=0
+qt6_video_1view        | 409620 | 409856 | 409774 | 236   | 20.36 | CPU_PERF_PCT=cpu=5.0% cpu=5.4% cpu=5.4% | PERF_LINES=4 fps=25
+qt6_video_2views       | 421040 | 421260 | 421180 | 220   | 22.43 | CPU_PERF_PCT=cpu=7.6% cpu=7.2% cpu=7.4% | PERF_LINES=4 fps=25
+qt6_video_4views       | 444496 | 444728 | 444643 | 232   | 30.78 | CPU_PERF_PCT=cpu=15.6% cpu=15.4% cpu=15.8% | PERF_LINES=4 fps=25
+qt6_video_effect_chain | 457708 | 459972 | 459685 | 2264  | 23.42 | CPU_PERF_PCT=cpu=7.6% cpu=7.4% cpu=6.6% | PERF_LINES=4 fps=25
 ```
 
 Sample PERF line (Qt5, 1 view):
