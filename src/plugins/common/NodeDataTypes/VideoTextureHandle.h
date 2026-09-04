@@ -13,6 +13,12 @@
 // The handle is a plain value type: it does NOT own the textures. Ownership
 // lives in VideoFrameData (which deletes them in its destructor) or in the
 // producer that created them via fromTexture().
+//
+// pooled (REQ-SW-PL-038): true when the texture ids came from the global
+// TexturePool (VideoFrameData::asTexture uploads and the effect processors'
+// output textures). On destruction such textures are returned to the pool
+// (TexturePool::release) instead of being glDeleteTextures'd. Owned textures
+// (pooled == false, legacy glGenTextures path) are deleted as before.
 
 #include <QtGui/qopengl.h>
 
@@ -27,6 +33,7 @@ struct VideoTextureHandle
     int height = 0;
     bool nv12 = false;  // interleaved UV layout (texUV valid)
     bool rgba = false;  // true = single RGBA texture in texY
+    bool pooled = false;  // true = textures owned by the global TexturePool
 };
 
 /// Where the frame payload currently lives.

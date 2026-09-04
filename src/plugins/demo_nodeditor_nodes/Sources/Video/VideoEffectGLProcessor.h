@@ -17,9 +17,10 @@
 //  - processTexture() (REQ-SW-PL-032 Stage 2B): binds the input textures from
 //    a VideoTextureHandle — no upload — renders the effect into an offscreen
 //    FBO and returns the FBO's RGBA texture wrapped in a new VideoTextureHandle
-//    — no toImage() readback. The output texture is created per call and
-//    ownership is handed to the caller (VideoFrameData::fromTexture deletes
-//    it), so the processor never reuses a texture it has handed off.
+//    — no toImage() readback. The output texture is acquired from the global
+//    TexturePool (REQ-SW-PL-038) and ownership is handed to the caller
+//    (VideoFrameData::fromTexture returns it to the pool), so the processor
+//    never reuses a texture it has handed off.
 //  - hasHardwareGL() distinguishes hardware GL from the software renderers
 //    (llvmpipe / softpipe / SwiftShader) so the node can pick the CPU backend
 //    headlessly. Moved to VideoGLContextManager.
@@ -58,13 +59,6 @@ public:
     bool processTexture(const VideoTextureHandle &input, const EffectSpec &spec,
                         const EffectParams &params, VideoTextureHandle *out);
 
-    /// The texture pool used for output textures (REQ-SW-PL-032 Issue #7).
-    /// Callers wrap a returned handle with
-    /// VideoFrameData::fromTexture(out, [pool = texturePool(), tex = out.texY]() {
-    ///     pool->release(tex);
-    /// }) so the texture is reused across frames instead of deleted per frame.
-    std::shared_ptr<TexturePool> texturePool() const { return m_texturePool; }
-
 private:
     /// Input texture layout for program selection (program cache key layout
     /// component: nv12 / 420p / rgba).
@@ -88,9 +82,4 @@ private:
     bool m_useCore = false; // core-profile path (GL_RED/RG + #version 150)
     int m_matrix = 1;       // 0 = BT.601, 1 = BT.709
     int m_range = 1;        // 0 = limited, 1 = full
-
-    /// Output texture pool (REQ-SW-PL-032 Issue #7): reuses RGBA output
-    /// textures across frames instead of a glGenTextures/glDeleteTextures
-    /// pair per frame. Shared with the frames via the release callback.
-    std::shared_ptr<TexturePool> m_texturePool;
 };

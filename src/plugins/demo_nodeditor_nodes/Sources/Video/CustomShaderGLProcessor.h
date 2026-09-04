@@ -16,7 +16,9 @@
 //    `u_tex` directly.
 //  - Compiles one program per (userSource hash, core/compat) key.
 //  - processTexture() returns a new RGBA texture per call (same ownership
-//    contract as VideoEffectGLProcessor::processTexture()).
+//    contract as VideoEffectGLProcessor::processTexture()): the output is
+//    acquired from the global TexturePool (REQ-SW-PL-038) and handed to the
+//    caller via VideoFrameData::fromTexture, which returns it to the pool.
 //
 // No new CMake dependencies: QOpenGLFramebufferObject / QOffscreenSurface
 // are part of Qt::Gui.
@@ -69,13 +71,6 @@ public:
     /// Human-readable log from the last failed compile/link attempt.
     QString lastErrorLog() const;
 
-    /// The texture pool used for output textures (REQ-SW-PL-032 Issue #7).
-    /// Callers wrap a returned handle with
-    /// VideoFrameData::fromTexture(out, [pool = texturePool(), tex = out.texY]() {
-    ///     pool->release(tex);
-    /// }) so the texture is reused across frames instead of deleted per frame.
-    std::shared_ptr<TexturePool> texturePool() const { return m_texturePool; }
-
 private:
     bool ensureContext();
     bool ensureYuvProgram(bool nv12);
@@ -106,9 +101,4 @@ private:
     int m_range = 1;   // 0 = limited, 1 = full
 
     QString m_lastError;
-
-    /// Output texture pool (REQ-SW-PL-032 Issue #7): reuses RGBA output
-    /// textures across frames instead of a glGenTextures/glDeleteTextures
-    /// pair per frame. Shared with the frames via the release callback.
-    std::shared_ptr<TexturePool> m_texturePool;
 };

@@ -1,5 +1,6 @@
 #include "CustomShaderNode.h"
 
+#include "GL/TexturePool.h"
 #include "GL/VideoGLContextManager.h"
 #include "NodeDataTypes/VideoFrameData.h"
 
@@ -211,11 +212,12 @@ void CustomShaderNode::reprocessCurrentFrame()
     VideoTextureHandle out;
     if (m_processor.processTexture(input, m_glslEditor->toPlainText(), p, &out)) {
         m_errorLog->clear();
-        // Texture-pool path (REQ-SW-PL-032 Issue #7): the output texture is
-        // returned to the pool when the frame dies instead of being deleted.
+        // Texture-pool path (REQ-SW-PL-032 Issue #7 / REQ-SW-PL-038):
+        // the output texture is returned to the global pool when the frame
+        // dies instead of being deleted.
         m_output = VideoFrameData::fromTexture(
-            out, [pool = m_processor.texturePool(), tex = out.texY]() {
-                pool->release(tex);
+            out, [tex = out.texY]() {
+                TexturePool::instance().release(tex);
             });
         Q_EMIT dataUpdated(0);
     } else {

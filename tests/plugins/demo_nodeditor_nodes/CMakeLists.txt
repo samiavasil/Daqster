@@ -115,6 +115,10 @@ set_tests_properties(demo_nodeditor_display_tests PROPERTIES
 set(VIDEO_FRAME_TEST_SOURCES
     test_video_frame_data.cpp
     test_video_frame_data.h
+    # VideoFrameData::releaseTextures() now returns pooled textures to the
+    # global TexturePool (REQ-SW-PL-038) — compile the pool source so the test
+    # binary links standalone.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
 )
 
 add_executable(demo_nodeditor_videoframe_tests ${VIDEO_FRAME_TEST_SOURCES})

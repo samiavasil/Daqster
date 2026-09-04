@@ -6,6 +6,7 @@
 #include <QImage>
 #include <QtMultimedia/QVideoFrame>
 
+#include "GL/TexturePool.h"
 #include "GL/VideoGLContextManager.h"
 #include "NodeDataTypes/VideoTextureHandle.h"
 
@@ -128,6 +129,11 @@ public:
     /// texture ids, so N GPU consumers share a single upload. The cache is
     /// invalidated by setFrame().
     ///
+    /// The textures are acquired from the global TexturePool (REQ-SW-PL-038)
+    /// and marked pooled — releaseTextures() returns them to the pool instead
+    /// of deleting them, so the display path no longer does a
+    /// glGenTextures/glDeleteTextures pair per frame.
+    ///
     /// Returns false (and leaves *out untouched) for non NV12/YUV420P frames,
     /// missing GL support, or a failed map/upload — the caller falls back to
     /// the CPU representation.
@@ -185,13 +191,34 @@ public:
         const int chromaW = (w + 1) / 2;
         const int chromaH = (h + 1) / 2;
 
-        GLuint texY = 0, texUV = 0, texU = 0, texV = 0;
-        f->glGenTextures(1, &texY);
-        if (nv12)
-            f->glGenTextures(1, &texUV);
-        else {
-            f->glGenTextures(1, &texU);
-            f->glGenTextures(1, &texV);
+        // Textures come from the global TexturePool (REQ-SW-PL-038) instead of
+        // a glGenTextures per frame — the same pool the effect processors use,
+        // so every video texture in the process is reused across frames. The
+        // handle is marked pooled so releaseTextures() returns the textures to
+        // the pool instead of deleting them. acquire() returns 0 on GL failure
+        // — release the partial set and fall back to the CPU path.
+        TexturePool &pool = TexturePool::instance();
+        GLuint texY = pool.acquire(w, h);
+        if (texY == 0)
+            return false;
+        GLuint texUV = 0, texU = 0, texV = 0;
+        if (nv12) {
+            texUV = pool.acquire(chromaW, chromaH);
+            if (texUV == 0) {
+                pool.release(texY);
+                return false;
+            }
+        } else {
+            texU = pool.acquire(chromaW, chromaH);
+            texV = pool.acquire(chromaW, chromaH);
+            if (texU == 0 || texV == 0) {
+                if (texU != 0)
+                    pool.release(texU);
+                if (texV != 0)
+                    pool.release(texV);
+                pool.release(texY);
+                return false;
+            }
         }
 
         f->glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -223,7 +250,7 @@ public:
         f->glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         mappable.unmap();
 
-        m_textureCache = VideoTextureHandle{texY, texUV, texU, texV, w, h, nv12, false};
+        m_textureCache = VideoTextureHandle{texY, texUV, texU, texV, w, h, nv12, false, true};
         m_textureValid = true;
         m_residency = VideoFrameResidency::GpuYuv;
         if (out != nullptr)
@@ -237,9 +264,16 @@ public:
     ///
     /// When releaseCallback is provided (texture-pool path, REQ-SW-PL-032
     /// Issue #7), the callback is invoked instead of glDeleteTextures when the
-    /// frame is destroyed — it returns the texture to the pool. The callback
-    /// must capture a shared_ptr to the pool so the pool outlives the frame.
-    /// Without a callback the current delete behavior is kept.
+    /// frame is destroyed — it returns the texture to the pool. With the
+    /// global pool (REQ-SW-PL-038) the callback calls TexturePool::instance().
+    /// release() — the singleton is intentionally leaked, so no capture is
+    /// needed to keep the pool alive.
+    ///
+    /// The handle is always marked pooled (REQ-SW-PL-038): effect output
+    /// textures come from the global TexturePool, so even without a release
+    /// callback releaseTextures() returns the texture to the pool instead of
+    /// deleting it (a pooled texture must never be glDeleteTextures'd — the
+    /// pool still owns it).
     static std::shared_ptr<VideoFrameData> fromTexture(
         const VideoTextureHandle &h,
         std::function<void()> releaseCallback = {})
@@ -247,6 +281,7 @@ public:
         auto data = std::make_shared<VideoFrameData>();
         data->m_textureCache = h;
         data->m_textureCache.rgba = true;
+        data->m_textureCache.pooled = true;
         data->m_textureValid = true;
         data->m_residency = VideoFrameResidency::GpuRgba;
         data->m_releaseCallback = std::move(releaseCallback);
@@ -317,8 +352,9 @@ private:
     }
 
     /// Deletes the owned GL textures (if any) in the shared context — or, for
-    /// pooled textures (REQ-SW-PL-032 Issue #7), invokes the release callback
-    /// exactly once to return the texture to the pool.
+    /// pooled textures (REQ-SW-PL-032 Issue #7 / REQ-SW-PL-038), returns them
+    /// to the pool: the release callback (effect outputs) or the global pool
+    /// directly (asTexture uploads, pooled flag on the handle).
     void releaseTextures()
     {
         if (!m_textureValid)
@@ -331,6 +367,15 @@ private:
             auto cb = std::move(m_releaseCallback);
             m_releaseCallback = nullptr;
             cb();
+        } else if (m_textureCache.pooled) {
+            // Pooled textures (REQ-SW-PL-038): return them to the global pool
+            // for reuse instead of deleting. release() ignores 0 ids, unknown
+            // ids and double-releases, so this is safe for any handle state.
+            TexturePool &pool = TexturePool::instance();
+            pool.release(m_textureCache.texY);
+            pool.release(m_textureCache.texUV);
+            pool.release(m_textureCache.texU);
+            pool.release(m_textureCache.texV);
         } else {
             VideoGLContextManager &mgr = VideoGLContextManager::instance();
             mgr.deleteTexture(m_textureCache.texY);
@@ -354,7 +399,9 @@ private:
     /// Mutable: asTexture() promotes a CPU frame to GpuYuv on first upload.
     mutable VideoFrameResidency m_residency = VideoFrameResidency::Cpu;
     /// Optional release callback for pooled textures (REQ-SW-PL-032 Issue #7):
-    /// invoked once in releaseTextures() instead of glDeleteTextures. Captures
-    /// a shared_ptr to the TexturePool so the pool outlives this frame.
+    /// invoked once in releaseTextures() instead of glDeleteTextures. With the
+    /// global pool (REQ-SW-PL-038) the callback calls TexturePool::instance().
+    /// release() — the singleton is intentionally leaked, so no capture is
+    /// needed to keep the pool alive.
     std::function<void()> m_releaseCallback;
 };
