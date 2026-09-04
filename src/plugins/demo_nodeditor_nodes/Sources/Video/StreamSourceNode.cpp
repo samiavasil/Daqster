@@ -181,36 +181,10 @@ void StreamSourceNode::onConnectClicked()
 
 void StreamSourceNode::onFrameAvailable(const QVideoFrame &frame)
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     // Runtime profiling (REQ-SW-PL-027): inter-frame gap is a proxy for the
     // decode cadence (the backend decodes before onFrameAvailable) and the
     // HW/SW markers tag the actual frame path. Everything is a no-op while the
     // "video" domain is disabled — the PERF_ENABLED guard avoids the clock read.
-    if (PERF_ENABLED("video")) {
-        const std::int64_t gapNs = m_perfWatch.mark();
-        if (!m_perfFirstFrame && gapNs > 0)
-            Daqster::Perf::Domain::get("video").record("source.frame_interval", gapNs);
-        m_perfFirstFrame = false;
-
-        m_lastHandleType = static_cast<int>(frame.handleType());
-        m_lastPixelFormat = static_cast<int>(frame.surfaceFormat().pixelFormat());
-    }
-
-    // Zero-copy transport: wrap the decoded frame (ref-count bump only) and
-    // emit it downstream (REQ-SW-PL-020 AC 2). No QImage conversion in the
-    // hot path — the single video-frame port carries the frame (REQ-SW-PL-032).
-    {
-        PERF_SCOPE("video", "source.wrap_emit");
-        // Fresh VideoFrameData per frame — never mutate the shared object a
-        // consumer may still hold (frame aliasing: setFrame() would delete GL
-        // textures a deferred paintGL could still use).
-        m_videoFrameOut = std::make_shared<VideoFrameData>(VideoCompat::frameToFrame(frame));
-        Q_EMIT dataUpdated(0);
-    }
-#else
-    // Qt5 (NV12-direct, mirror of the Qt6 branch): the decoded probe frame is
-    // wrapped as an OWNED copy (frameToOwnedFrame) and emitted on the
-    // video-frame port (0). No QImage conversion in the hot path.
     if (PERF_ENABLED("video")) {
         const std::int64_t gapNs = m_perfWatch.mark();
         if (!m_perfFirstFrame && gapNs > 0)
@@ -224,13 +198,13 @@ void StreamSourceNode::onFrameAvailable(const QVideoFrame &frame)
     {
         PERF_SCOPE("video", "source.wrap_emit");
         // Fresh VideoFrameData per frame — never mutate the shared object a
-        // consumer may still hold (frame aliasing: setFrame() would delete GL
-        // textures a deferred paintGL could still use).
+        // consumer may still hold (frame aliasing). VideoCompat::frameToFrame()
+        // dispatches internally: Qt6 = identity (ref-count bump), Qt5 = owned
+        // copy (frameToOwnedFrame, may fail for unsupported formats).
         m_videoFrameOut = std::make_shared<VideoFrameData>(VideoCompat::frameToFrame(frame));
         if (m_videoFrameOut->hasFrame())
             Q_EMIT dataUpdated(0);
     }
-#endif
 }
 
 void StreamSourceNode::onAudioBufferReceived(const QAudioBuffer &buffer)
