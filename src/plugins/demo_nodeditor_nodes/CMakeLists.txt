@@ -97,6 +97,9 @@ set(VIDEO_NODES
     # Texture pool for GPU effect outputs (REQ-SW-PL-032 Issue #7) — lives in
     # the shared GL helpers next to VideoGLContextManager.
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
+    # Common compute thread pool (REQ-SW-PL-039) — shared by all nodes, not
+    # per-node; per-key latest-wins submission + per-key serialization.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ComputePool.cpp
 )
 
 # ── Optional OpenCV transforms (compile-time auto-detect) ───────────
