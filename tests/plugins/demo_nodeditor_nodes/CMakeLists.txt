@@ -81,6 +81,10 @@ set(DISPLAY_TEST_SOURCES
     test_daq_display_node.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Displays/DaqDisplay/DaqDisplayNode.cpp
+    # DaqDisplayNode now submits compute to the shared ComputePool
+    # (REQ-SW-PL-039) — compile the pool source so the test binary links
+    # standalone.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ComputePool.cpp
 )
 
 add_executable(demo_nodeditor_display_tests ${DISPLAY_TEST_SOURCES})
@@ -208,3 +212,83 @@ add_test(NAME demo_nodeditor_videooutput_tests
          COMMAND demo_nodeditor_videooutput_tests)
 set_tests_properties(demo_nodeditor_videooutput_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# ── VideoEffectNode CPU-path tests (REQ-SW-PL-039) ───────────────────────────
+#
+# QTEST_MAIN provides QApplication; the binary runs headless via the offscreen
+# platform plugin. VideoEffectNode.cpp is compiled directly into the test
+# binary (same pattern as demo_nodeditor_videooutput_tests) so the async CPU
+# path on the shared ComputePool can be exercised without linking the plugin
+# .so. The test binary compiles WITHOUT HAVE_OPENCV (the 8 base effects only).
+set(VIDEO_EFFECT_TEST_SOURCES
+    test_video_effect_node.cpp
+    test_video_effect_node.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoEffectNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoEffectOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoTransformOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoEffectGLProcessor.cpp
+    # VideoEffectGLProcessor uses the shared TexturePool (REQ-SW-PL-032
+    # Issue #7) and the CPU path uses the shared ComputePool (REQ-SW-PL-039) —
+    # compile both pool sources so the test binary links standalone.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ComputePool.cpp
+)
+
+add_executable(demo_nodeditor_videoeffect_tests ${VIDEO_EFFECT_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_videoeffect_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+)
+
+target_link_libraries(demo_nodeditor_videoeffect_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Multimedia
+    QtNodes
+    # VideoEffectNode.cpp instruments via Daqster::Perf (REQ-SW-PL-027):
+    # frame_work supplies the PerfProfiler symbols.
+    frame_work
+)
+
+if(QT_VERSION_MAJOR GREATER_EQUAL 6)
+    target_link_libraries(demo_nodeditor_videoeffect_tests PRIVATE
+        Qt${QT_VERSION_MAJOR}::OpenGLWidgets
+        Qt${QT_VERSION_MAJOR}::OpenGL)
+else()
+    target_link_libraries(demo_nodeditor_videoeffect_tests PRIVATE
+        Qt${QT_VERSION_MAJOR}::OpenGL)
+endif()
+
+add_test(NAME demo_nodeditor_videoeffect_tests
+         COMMAND demo_nodeditor_videoeffect_tests)
+set_tests_properties(demo_nodeditor_videoeffect_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# ── ComputePool unit tests (REQ-SW-PL-039) ───────────────────────────────────
+#
+# QtCore-only (QTEST_GUILESS_MAIN, no widgets). The pool source is compiled
+# directly into the test binary.
+set(COMPUTE_POOL_TEST_SOURCES
+    test_compute_pool.cpp
+    test_compute_pool.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ComputePool.cpp
+)
+
+add_executable(demo_nodeditor_computepool_tests ${COMPUTE_POOL_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_computepool_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+)
+
+target_link_libraries(demo_nodeditor_computepool_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+)
+
+add_test(NAME demo_nodeditor_computepool_tests
+         COMMAND demo_nodeditor_computepool_tests)

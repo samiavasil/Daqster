@@ -3,6 +3,8 @@
 #include "GL/TexturePool.h"
 #include "GL/VideoGLContextManager.h"
 #include "NodeDataTypes/VideoFrameData.h"
+#include "PerfProfiler.h"
+#include "Threading/ComputePool.h"
 
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -11,6 +13,7 @@
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -20,14 +23,38 @@ using QtNodes::NodeDataType;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 
+using Daqster::ComputePool;
+
 VideoEffectNode::VideoEffectNode()
 {
     m_specs = VideoEffectOps::allSpecs();
+
+    // Per-node key into the shared ComputePool (REQ-SW-PL-039): per-key
+    // latest-wins submission + serialization for the CPU path.
+    m_poolKey = QByteArray::number(reinterpret_cast<quintptr>(this));
+
     buildWidget();
+
+    // Optional [PERF] effect console line (5 s timer, mirrors
+    // VideoOutputNode::logPerfLine). No-op unless the "video" perf domain is
+    // enabled (VideoOutputNode's Perf checkbox).
+    m_perfTimer = new QTimer(this);
+    m_perfTimer->setInterval(5000);
+    connect(m_perfTimer, &QTimer::timeout, this, &VideoEffectNode::logPerfLine);
+    m_perfTimer->start();
 }
 
 VideoEffectNode::~VideoEffectNode()
 {
+    m_shuttingDown = true; // worker tasks check before posting results
+
+    // Cancel queued/pending CPU tasks for this key and wait for the running
+    // one (≤ 500 ms) so no worker touches `this` after destruction.
+    ComputePool::instance().cancel(m_poolKey);
+
+    if (m_perfTimer)
+        m_perfTimer->stop();
+
     // Widget lifetime is owned by the node/view framework.
     m_widget = nullptr;
 }
@@ -112,6 +139,8 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
         return;
     }
 
+    ++m_totalFrames;
+
     const EffectSpec &spec = m_specs[m_effectIndex];
 
     // Runtime backend selection (REQ-SW-PL-028 AC 2/3): CPU-only effects always
@@ -120,6 +149,7 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
         && VideoGLContextManager::hasHardwareGL();
 
     if (useGpu) {
+        // GPU path UNCHANGED — stays on the GUI thread (GL-bound).
         // GPU-resident transport (REQ-SW-PL-032 AC 5): when the input is
         // already GPU-resident (previous effect output / asTexture cache) the
         // handle is taken directly — no upload, no readback. A CPU frame is
@@ -136,6 +166,8 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                     out, [tex = out.texY]() {
                         TexturePool::instance().release(tex);
                     });
+                if (m_metricLabel)
+                    m_metricLabel->setText(tr("GPU (GUI thread)"));
                 Q_EMIT dataUpdated(0);
                 return;
             }
@@ -144,19 +176,49 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
         // asTexture failed (unsupported format / GL error) — CPU fallback below.
     }
 
-    // CPU path: reuse the lazy QImage cache on the shared VideoFrameData
-    // (REQ-SW-PL-032) — the conversion happens at most once per frame and is
-    // shared between all CPU consumers. m_lastInput is non-null here (checked
-    // above), so asImage() is safe.
-    const QImage img = m_lastInput->asImage();
-    const QImage transformed = applyCpu(img);
-    if (transformed.isNull()) {
-        Q_EMIT dataInvalidated(0);
-        return;
+    // CPU path (REQ-SW-PL-039): snapshot on the GUI thread, compute on the
+    // shared ComputePool. The worker NEVER touches the shared VideoFrameData —
+    // it converts its own frame copy (or uses the pre-readback QImage).
+    QImage preReadback;   // GpuRgba input: readback on the GUI thread (as today)
+    QVideoFrame frameCopy; // CPU-resident input: implicit-share copy (cheap)
+    if (m_lastInput->isGpuRgba()) {
+        preReadback = m_lastInput->asImage();
+    } else {
+        frameCopy = m_lastInput->frame();
     }
 
-    m_output = std::make_shared<VideoFrameData>(QVideoFrame(transformed));
-    Q_EMIT dataUpdated(0);
+    // Snapshot the effect spec + params by value — the worker must not read
+    // node members (the user may change the effect/params concurrently).
+    const EffectSpec specCopy = spec;
+    const EffectParams paramsCopy = m_params;
+
+    ComputePool::instance().submitLatest(
+        m_poolKey,
+        [this, specCopy, paramsCopy, frameCopy, preReadback]() {
+            if (m_shuttingDown.load())
+                return;
+
+            // Convert the worker's OWN frame copy (never the shared
+            // VideoFrameData) — or use the GUI-thread pre-readback QImage.
+            QImage source = preReadback;
+            if (source.isNull() && frameCopy.isValid()) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+                source = frameCopy.toImage();
+#else
+                source = frameCopy.image();
+#endif
+            }
+            const QImage transformed = applyCpu(source, specCopy, paramsCopy);
+
+            // Do not post after shutdown has begun — the node may be gone.
+            if (m_shuttingDown.load())
+                return;
+            if (transformed.isNull())
+                return;
+
+            QMetaObject::invokeMethod(this, "onCpuResult", Qt::QueuedConnection,
+                                      Q_ARG(QImage, transformed));
+        });
 }
 
 QWidget *VideoEffectNode::embeddedWidget()
@@ -256,6 +318,12 @@ void VideoEffectNode::buildWidget()
         }));
 #endif
     layout->addWidget(m_stack, 1);
+
+    // CPU metric label (REQ-SW-PL-039): refreshed on each CPU result with the
+    // pool's per-key counters; shows "GPU (GUI thread)" for GPU-path results.
+    m_metricLabel = new QLabel(QStringLiteral("CPU --"), m_widget);
+    m_metricLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    layout->addWidget(m_metricLabel);
 
     connect(m_effectCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             [this](int index) {
@@ -428,10 +496,66 @@ void VideoEffectNode::reprocessCurrentFrame()
     setInData(m_lastInput, 0);
 }
 
-QImage VideoEffectNode::applyCpu(const QImage &source) const
+QImage VideoEffectNode::applyCpu(const QImage &source, const EffectSpec &spec,
+                                 const EffectParams &params) const
 {
-    const EffectSpec &spec = m_specs[m_effectIndex];
+    // Reads ONLY the passed spec/params — never node members — so this is safe
+    // to call from a ComputePool worker thread (REQ-SW-PL-039).
     if (!spec.cpuApply)
         return source;
-    return spec.cpuApply(source, m_params);
+    return spec.cpuApply(source, params);
+}
+
+void VideoEffectNode::onCpuResult(QImage result)
+{
+    // GUI thread (Qt::QueuedConnection from the pool worker).
+    if (m_shuttingDown.load())
+        return;
+    if (result.isNull())
+        return;
+
+    m_output = std::make_shared<VideoFrameData>(QVideoFrame(result));
+    updateMetricLabel();
+    Q_EMIT dataUpdated(0);
+}
+
+void VideoEffectNode::updateMetricLabel()
+{
+    if (!m_metricLabel)
+        return;
+
+    // Pool per-key counters (REQ-SW-PL-039): completed/submitted/skipped +
+    // completed/sec over the rolling 1 s window.
+    const quint64 submitted = ComputePool::instance().submitted(m_poolKey);
+    const quint64 completed = ComputePool::instance().completed(m_poolKey);
+    const quint64 skipped = ComputePool::instance().skipped(m_poolKey);
+    const double fps = ComputePool::instance().fps(m_poolKey);
+
+    m_metricLabel->setText(QStringLiteral("CPU %1/%2 · %3 skipped · %4 fps out")
+                               .arg(completed)
+                               .arg(submitted)
+                               .arg(skipped)
+                               .arg(fps, 0, 'f', 1));
+}
+
+void VideoEffectNode::logPerfLine()
+{
+    // Optional [PERF] effect console line — mirrors VideoOutputNode::logPerfLine
+    // (qInfo() without a category so it is always visible when Perf is on).
+    auto &domain = Daqster::Perf::Domain::get("video");
+    if (!domain.enabled())
+        return;
+
+    const quint64 submitted = ComputePool::instance().submitted(m_poolKey);
+    const quint64 completed = ComputePool::instance().completed(m_poolKey);
+    const quint64 skipped = ComputePool::instance().skipped(m_poolKey);
+    const double fps = ComputePool::instance().fps(m_poolKey);
+
+    qInfo().noquote()
+        << QStringLiteral("[PERF] effect | submitted=%1 | completed=%2 | skipped=%3 | fps=%4 | total=%5")
+               .arg(submitted)
+               .arg(completed)
+               .arg(skipped)
+               .arg(fps, 0, 'f', 1)
+               .arg(m_totalFrames);
 }

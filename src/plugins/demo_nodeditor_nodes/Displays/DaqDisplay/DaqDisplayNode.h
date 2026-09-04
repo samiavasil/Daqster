@@ -7,6 +7,7 @@
 
 #include <QtNodes/NodeDelegateModel>
 
+#include <QByteArray>
 #include <QMetaType>
 #include <QPair>
 #include <QPointF>
@@ -22,7 +23,6 @@ class QLabel;
 class QPushButton;
 class QScrollArea;
 class QTimer;
-class QThreadPool;
 class QVBoxLayout;
 class QWidget;
 
@@ -88,9 +88,11 @@ private:
  * NEVER run on the GUI thread. setInData() only keeps the latest shared_ptr
  * (immutable buffer) and marks dirty. A 30 Hz GUI timer snapshots the data +
  * per-card {processingType, channelIndex, mode, unitAxes} config and submits a
- * QRunnable to a node-owned QThreadPool (maxThreadCount=1). The ring buffer
- * (m_ring) is owned by the worker side — only ComputeTask touches it, never the
- * GUI thread — so no data mutex is required (same immutable-copy model as v1).
+ * task to the shared ComputePool (REQ-SW-PL-039) under a per-node key — the
+ * pool's per-key "latest-wins" submission + per-key serialization preserves the
+ * worker-only ring contract. The ring buffer (m_ring) is owned by the worker
+ * side — only the submitted task touches it, never the GUI thread — so no data
+ * mutex is required (same immutable-copy model as v1).
  * Results are delivered back via a queued invoke to the GUI-thread bridge;
  * onComputeDone performs ONLY series->replace() + axis->setRange() (AC 4).
  *
@@ -191,7 +193,7 @@ private:
     using PreprocessFn = std::function<QVector<float>(const SampledData &)>;
 
     /// Worker-owned rolling history (REQ-SW-PL-025 §3). Touched ONLY by the
-    /// worker thread (node-owned QThreadPool, maxThreadCount=1) — never by the
+    /// worker thread (shared ComputePool, per-key serialization) — never by the
     /// GUI thread, so no data mutex is required (v1 immutable-copy model).
     struct RingChannel {
         QByteArray bytes; // rolling raw sample bytes for one channel
@@ -206,9 +208,6 @@ private:
         int bytesPerFrame = 0;                    // descriptor signature (AC 4)
         quint64 lastAppendedGeneration = 0;       // identity of last appended block
     };
-
-    /// QRunnable running on the node-owned QThreadPool (off GUI thread).
-    class ComputeTask;
 
     void setupUi();
     void removeCardAt(int index);
@@ -266,10 +265,9 @@ private:
     QLabel *m_domainLabel = nullptr;
     QVector<PlotCard> m_cards;
 
-    QThreadPool *m_pool = nullptr;      // node-owned, maxThreadCount=1
     QTimer *m_refreshTimer = nullptr;   // ~30 Hz refresh throttle (REQ-SW-PL-023 §5)
     DaqDisplayResultBridge *m_bridge = nullptr;
-    std::atomic<bool> m_computeInFlight{false};
+    QByteArray m_poolKey;               // per-node key into the shared ComputePool
     std::atomic<bool> m_shuttingDown{false};
     bool m_dataDirty = false;
 

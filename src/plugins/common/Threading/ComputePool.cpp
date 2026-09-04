@@ -79,6 +79,12 @@ bool ComputePool::submitLatest(const QByteArray &key, std::function<void()> task
     KeyState &st = m_states[key];
     st.submitted++;
 
+    // A new submission means the key is alive again — clear a stale
+    // `cancelled` flag left by a previous cancel() (e.g. a new node allocated
+    // at the same address as a destroyed one). Without this, the reused key
+    // would silently drop every submission forever.
+    st.cancelled = false;
+
     if (st.queued) {
         // A task is queued but not started — replace it (latest wins).
         st.queued = std::move(task);

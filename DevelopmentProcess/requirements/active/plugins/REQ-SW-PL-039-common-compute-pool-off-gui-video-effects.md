@@ -28,19 +28,19 @@
 
 ## Acceptance Criteria
 
-- [ ] 1. `ComputePool` singleton съществува в `src/plugins/common/Threading/`.
-- [ ] 2. `submitLatest(key, task)` — latest-wins: queued се заменя, running →
+- [x] 1. `ComputePool` singleton съществува в `src/plugins/common/Threading/`.
+- [x] 2. `submitLatest(key, task)` — latest-wins: queued се заменя, running →
        pending; per-key сериализация.
-- [ ] 3. `cancel(key)` премахва queued задачи и чака running (≤ timeout) —
+- [x] 3. `cancel(key)` премахва queued задачи и чака running (≤ timeout) —
        безопасно унищожаване на нод.
-- [ ] 4. DaqDisplayNode ползва общия пул; ring buffer-ът остава worker-only.
-- [ ] 5. VideoEffectNode CPU ефекти никога не вървят на GUI thread.
-- [ ] 6. Frame skipping: при натоварване изходът е подредица на входа
+- [x] 4. DaqDisplayNode ползва общия пул; ring buffer-ът остава worker-only.
+- [x] 5. VideoEffectNode CPU ефекти никога не вървят на GUI thread.
+- [x] 6. Frame skipping: при натоварване изходът е подредица на входа
        (latest-wins), без растяща опашка.
-- [ ] 7. Метриката показва total/processed/skipped + реален fps.
-- [ ] 8. `asImage()` не се вика от worker; worker-ът конвертира свой copy.
-- [ ] 9. Qt5 + Qt6 builds PASS.
-- [ ] 10. Unit тестове: `test_compute_pool` + `test_video_effect_node` green.
+- [x] 7. Метриката показва total/processed/skipped + реален fps.
+- [x] 8. `asImage()` не се вика от worker; worker-ът конвертира свой copy.
+- [x] 9. Qt5 + Qt6 builds PASS.
+- [x] 10. Unit тестове: `test_compute_pool` + `test_video_effect_node` green.
 
 ## Проследимост
 

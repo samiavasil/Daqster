@@ -39,6 +39,12 @@
   - Тестови сцени: `tests/data/video_graph.flow` (VideoFileSource → VideoEffect → VideoOutput) и `tests/data/missing_node.flow` (познат + нерегистриран нод)
   - Допълнителни регресионни сценарии в `tests/data/`: `number_graph.flow` (NumberSource → NumberResult), `audio_graph.flow` (AudioSource → AudioDisplay), `llm_graph.flow` (LLamaModel → Console), `empty_scene.flow` (празна сцена), `malformed.flow` (скъсан JSON — трябва да не crash-ва), `multi_effect_video.flow` (два VideoEffect-а в серия)
   - `DevelopmentProcess/TEST-STRATEGY.md` — тестова стратегия: scene save/load регресионно тестване (как се ползват `.flow` сценариите, edge case-и, как се открива регресия), референция към video perf тестването и verification gate-а от RDD-PROCESS.md
+- **REQ-SW-PL-039** (common compute pool — споделен ComputePool + миграция на CPU пътищата):
+  - `src/plugins/common/Threading/ComputePool.{h,cpp}` — процесно-споделен `QThreadPool` singleton (вместо per-node pool-ове); per-key "latest-wins" submission (frame skipping) + per-key serialization, така че worker-only ring buffer contract-ът на DaqDisplayNode се запазва; `submitLatest(key, task)` / `cancel(key, timeout)` / per-key метрики (`submitted`/`started`/`completed`/`skipped`/`fps`); `DAQSTER_COMPUTE_THREADS` env var за брой worker нишки
+  - `DaqDisplayNode` мигриран от node-owned `QThreadPool(maxThreadCount=1)` към споделения pool с per-node key — `onRefreshTick()` подава lambda към `ComputePool::instance().submitLatest()`, деструкторът вика `cancel(key)` вместо `clear()+waitForDone()`; `m_computeInFlight` махнат (pool-ът следи busy-ness per key)
+  - `VideoEffectNode` CPU path мигриран към pool-а: GPU path-ът остава на GUI thread (GL-bound); CPU path snapshot-ва input-а на GUI thread (implicit-share `QVideoFrame` copy за CPU-resident, `asImage()` readback за GpuRgba) и подава `applyCpu()` към pool-а — worker-ът конвертира собственото си копие и връща резултата през queued `onCpuResult()` slot
+  - `VideoEffectNode` метрики: `m_totalFrames` брояч, widget label `CPU <completed>/<submitted> · <skipped> skipped · <fps> fps out` (refresh на всеки CPU резултат) и optional `[PERF] effect` console line (5 s timer, само когато "video" perf domain е enabled)
+  - Тестове: `demo_nodeditor_videoeffect_tests` (CPU path async резултат, GpuOrCpu fallback, metric label, totalFrames); `ComputePool.cpp` добавен към display test target
 
 ## [0.3.2] - 2026-09-02
 
