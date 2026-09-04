@@ -52,6 +52,10 @@
   - `VideoFrameData::asImage()` Qt5: NV12/YUV420P → QImage ръчна BT.601 конверсия (`yuvToImage()`) — Qt5 `QVideoFrame::image()` връща null за YUV формати, така че CPU ефектите и software display path-ът не работеха върху реални (NV12 owned-copy) кадри
   - `VideoOutputNode` effect combo: смяната на ефекта вече вика `reprocessCurrentFrame()` (като `VideoEffectNode`) — при paused source ефектът се прилага веднага, не чак на следващия кадър
   - Тестове: `demo_nodeditor_videoframe_tests` (Qt5 NV12 + YUV420P → QImage), `demo_nodeditor_videooutput_tests` (CPU ефект върху GpuRgba вход с реален GL texture readback)
+- **REQ-SW-PL-039** (Qt6 worker frame conversion — thread-safe CPU converter):
+  - `VideoFrameData::frameToImageCpu()` — нов public static converter: pure-CPU QVideoFrame→QImage от ВСЯКА нишка (без GL/RHI). NV12/YUV420P през BT.601 `yuvToImage()` (вече public static и version-agnostic — Qt5 и Qt6); RGB формати (RGB32/ARGB32/RGB888 и др.) чрез директно wrapping на mapped bits + deep copy (без pixel conversion). Връща null само за неподдържани формати или failed map
+  - `VideoEffectNode` ComputePool worker: `frameCopy.toImage()` (Qt6 — RHI/GPU conversion на worker нишката, забранено от Qt, QTBUG-131107) / `frameCopy.image()` (Qt5 — null за NV12) заменени с `VideoFrameData::frameToImageCpu()` и на двата Qt; GpuRgba pre-readback fast path-ът е непроменен
+  - Тестове: `demo_nodeditor_videoframe_tests` — `frameToImageCpu_*` (RGB32/ARGB32 wrap, NV12/YUV420P BT.601, unsupported → null) и на Qt5, и на Qt6
 
 ## [0.3.2] - 2026-09-02
 

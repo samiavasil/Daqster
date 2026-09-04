@@ -20,6 +20,14 @@ private slots:
 
     void setFrame_replaces();
 
+    // frameToImageCpu (REQ-SW-PL-039): thread-safe CPU conversion for the
+    // ComputePool worker — RGB wrap + NV12/YUV420P BT.601 (both Qt versions).
+    void frameToImageCpu_rgb32_wraps();
+    void frameToImageCpu_argb32_wraps();
+    void frameToImageCpu_nv12_converts();
+    void frameToImageCpu_yuv420p_converts();
+    void frameToImageCpu_unsupported_returnsNull();
+
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     void qt5_wrapsOwnedFrames();
     void qt5_nv12_asImage_converts();

@@ -200,13 +200,12 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
 
             // Convert the worker's OWN frame copy (never the shared
             // VideoFrameData) — or use the GUI-thread pre-readback QImage.
+            // frameToImageCpu() is pure CPU (no GL/RHI): Qt6 toImage() would
+            // create a GL context on the worker thread (QTBUG-131107) and Qt5
+            // image() returns null for NV12/YUV420P.
             QImage source = preReadback;
             if (source.isNull() && frameCopy.isValid()) {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-                source = frameCopy.toImage();
-#else
-                source = frameCopy.image();
-#endif
+                source = VideoFrameData::frameToImageCpu(frameCopy);
             }
             const QImage transformed = applyCpu(source, specCopy, paramsCopy);
 
