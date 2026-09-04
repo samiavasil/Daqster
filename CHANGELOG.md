@@ -46,6 +46,13 @@
   - `VideoEffectNode` метрики: `m_totalFrames` брояч, widget label `CPU <completed>/<submitted> · <skipped> skipped · <fps> fps out` (refresh на всеки CPU резултат) и optional `[PERF] effect` console line (5 s timer, само когато "video" perf domain е enabled)
   - Тестове: `demo_nodeditor_videoeffect_tests` (CPU path async резултат, GpuOrCpu fallback, metric label, totalFrames); `ComputePool.cpp` добавен към display test target
 
+### Fixed
+- **REQ-SW-PL-039** (CPU effects work in the display — VideoOutputNode embedded effects):
+  - `VideoOutputNode` embedded effect block: CPU-only ефекти (blur/gaussianBlur/canny/threshold) вече работят и върху GpuRgba вход — `gpuApplied` флаг следи дали GPU path-ът е произвел output-а и CPU path-ът (с `asImage()` readback, като `VideoEffectNode`) се изпълнява винаги, когато GPU path-ът не е приложен (преди `if (!videoFrame->isGpuRgba())` пропускаше CPU ефекта за GPU-resident вход)
+  - `VideoFrameData::asImage()` Qt5: NV12/YUV420P → QImage ръчна BT.601 конверсия (`yuvToImage()`) — Qt5 `QVideoFrame::image()` връща null за YUV формати, така че CPU ефектите и software display path-ът не работеха върху реални (NV12 owned-copy) кадри
+  - `VideoOutputNode` effect combo: смяната на ефекта вече вика `reprocessCurrentFrame()` (като `VideoEffectNode`) — при paused source ефектът се прилага веднага, не чак на следващия кадър
+  - Тестове: `demo_nodeditor_videoframe_tests` (Qt5 NV12 + YUV420P → QImage), `demo_nodeditor_videooutput_tests` (CPU ефект върху GpuRgba вход с реален GL texture readback)
+
 ## [0.3.2] - 2026-09-02
 
 ### Fixed

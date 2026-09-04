@@ -230,7 +230,13 @@ void VideoOutputNode::buildEffectControls()
     m_layout->addWidget(m_effectStack, 1);
 
     connect(m_effectCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            &VideoOutputNode::setEffectIndex);
+            [this](int index) {
+                setEffectIndex(index);
+                // Re-apply the newly selected effect to the last frame so a
+                // paused source updates immediately (mirrors
+                // VideoEffectNode.cpp:328-332, REQ-SW-PL-039).
+                reprocessCurrentFrame();
+            });
 
     // Default: no effect (index 0).
     setEffectIndex(0);
@@ -548,6 +554,12 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                 // effects run on the GPU only with hardware GL.
                 const bool useGpu = (spec.backend == EffectSpec::Backend::GpuOrCpu)
                     && VideoGLContextManager::hasHardwareGL();
+                // Tracks whether the GPU path produced the output. When it did
+                // NOT (CpuOnly effect, no hardware GL, or a failed
+                // asTexture/processTexture) the CPU path below runs — INCLUDING
+                // for GpuRgba inputs, whose asImage() readback mirrors
+                // VideoEffectNode.cpp:184-188 (REQ-SW-PL-039).
+                bool gpuApplied = false;
                 if (useGpu) {
                     VideoTextureHandle input;
                     if (videoFrame->asTexture(&input)) {
@@ -560,12 +572,15 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                                 out, [tex = out.texY]() {
                                     TexturePool::instance().release(tex);
                                 });
+                            gpuApplied = true;
                         }
                     }
                 }
                 // CPU path (or GPU fallback when asTexture/processTexture
-                // failed): convert, apply, re-wrap.
-                if (!videoFrame->isGpuRgba()) {
+                // failed): convert, apply, re-wrap. Runs whenever the GPU path
+                // did NOT produce the output — including GpuRgba inputs, which
+                // asImage() reads back (mirrors VideoEffectNode.cpp:184-188).
+                if (!gpuApplied) {
                     const QImage img = videoFrame->asImage();
                     const QImage transformed = spec.cpuApply ? spec.cpuApply(img, m_params) : img;
                     if (!transformed.isNull())

@@ -22,5 +22,7 @@ private slots:
 
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     void qt5_wrapsOwnedFrames();
+    void qt5_nv12_asImage_converts();
+    void qt5_yuv420p_asImage_converts();
 #endif
 };

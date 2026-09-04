@@ -115,7 +115,13 @@ public:
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
                 m_imageCache = m_frame.toImage();
 #else
+                // Qt5: QVideoFrame::image() only wraps RGB formats — NV12 /
+                // YUV420P return a null QImage. Real video frames on Qt5 are
+                // NV12 owned copies, so convert the YUV planes manually
+                // (REQ-SW-PL-039).
                 m_imageCache = m_frame.image();
+                if (m_imageCache.isNull())
+                    m_imageCache = yuvToImage(m_frame);
 #endif
             }
         }
@@ -306,6 +312,75 @@ private:
         return frame.pixelFormat() == QVideoFrame::Format_YUV420P;
 #endif
     }
+
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    /// Qt5: QVideoFrame::image() only wraps RGB formats — NV12/YUV420P return
+    /// a null QImage. Convert the YUV planes manually (BT.601) so CPU effects
+    /// and the software display path work on real video frames (REQ-SW-PL-039).
+    /// Returns a null QImage for unsupported formats or a failed map.
+    static QImage yuvToImage(const QVideoFrame &frame)
+    {
+        const QVideoFrame::PixelFormat pf = frame.pixelFormat();
+        if (pf != QVideoFrame::Format_NV12 && pf != QVideoFrame::Format_YUV420P)
+            return QImage();
+
+        const int w = frame.width();
+        const int h = frame.height();
+        if (w <= 0 || h <= 0)
+            return QImage();
+
+        // Qt5 map()/bits() are non-const — implicit-share local copy (the
+        // owned frame itself is never modified).
+        QVideoFrame mappable = frame;
+        if (!mappable.map(QAbstractVideoBuffer::ReadOnly))
+            return QImage();
+
+        const uchar *yPlane = mappable.bits(0);
+        const uchar *uPlane = mappable.bits(1);
+        const uchar *vPlane = (pf == QVideoFrame::Format_NV12)
+            ? nullptr
+            : mappable.bits(2);
+        const int yStride = mappable.bytesPerLine(0);
+        const int uStride = mappable.bytesPerLine(1);
+        const int vStride = (pf == QVideoFrame::Format_NV12)
+            ? 0
+            : mappable.bytesPerLine(2);
+        const int chromaW = (w + 1) / 2;
+        const int chromaH = (h + 1) / 2;
+
+        QImage img(w, h, QImage::Format_RGB32);
+        for (int row = 0; row < h; ++row) {
+            QRgb *dst = reinterpret_cast<QRgb *>(img.scanLine(row));
+            const uchar *yRow = yPlane + row * yStride;
+            const int chromaRow = row / 2;
+            const uchar *uvRow = (pf == QVideoFrame::Format_NV12)
+                ? (uPlane + chromaRow * uStride)
+                : nullptr;
+            for (int col = 0; col < w; ++col) {
+                const int y = yRow[col];
+                const int chromaCol = col / 2;
+                int u, v;
+                if (pf == QVideoFrame::Format_NV12) {
+                    u = uvRow[chromaCol * 2];
+                    v = uvRow[chromaCol * 2 + 1];
+                } else {
+                    u = uPlane[chromaRow * uStride + chromaCol];
+                    v = vPlane[chromaRow * vStride + chromaCol];
+                }
+                // BT.601 limited-range YUV → RGB.
+                const int c = y - 16;
+                const int d = u - 128;
+                const int e = v - 128;
+                const int r = qBound(0, (298 * c + 409 * e + 128) >> 8, 255);
+                const int g = qBound(0, (298 * c - 100 * d - 208 * e + 128) >> 8, 255);
+                const int b = qBound(0, (298 * c + 516 * d + 128) >> 8, 255);
+                dst[col] = qRgb(r, g, b);
+            }
+        }
+        mappable.unmap();
+        return img;
+    }
+#endif
 
     static void setupTextureParams(QOpenGLFunctions *f, GLuint id)
     {
