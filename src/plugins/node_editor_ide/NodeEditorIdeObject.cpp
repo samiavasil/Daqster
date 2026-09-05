@@ -160,10 +160,10 @@ void NodeEditorIdeObject::registerBuiltInNodes()
 {
     auto* registry = m_Widget->getInjectedRegistry();
 
-    registry->registerModel<NumberSourceDataModel>("Sources");
-    registry->registerModel<NumberDisplayDataModel>("Displays");
-    registry->registerModel<ModuloModel>("Operators");
-    registry->registerModel<ArithmeticLogicModel>("Operators");
+    registry->registerModel<NumberSourceDataModel>("General/Sources");
+    registry->registerModel<NumberDisplayDataModel>("General/Display");
+    registry->registerModel<ModuloModel>("General/Processing");
+    registry->registerModel<ArithmeticLogicModel>("General/Processing");
 }
 
 void NodeEditorIdeObject::discoverAndRegisterExternalNodes()

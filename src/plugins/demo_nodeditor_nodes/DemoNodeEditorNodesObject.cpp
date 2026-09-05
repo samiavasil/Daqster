@@ -88,43 +88,43 @@ bool DemoNodeEditorNodesObject::Initialize()
 void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
 {
     // Display nodes
-    registry.registerModel<AudioDisplayModelObsolete>("Displays");
-    registry.registerModel<AudioDisplayModelObsoleteAlias>("Displays"); // old key "AudioDisplay"
-    registry.registerModel<GenericDisplayNode>("Displays");
-    registry.registerModel<DaqDisplayNode>("Displays");
-    registry.registerModel<QDevIoDisplayModelObsolete>("Displays");
-    registry.registerModel<QDevIoDisplayModelObsoleteAlias>("Displays"); // old key "QDevIoDisplay"
+    registry.registerModel<AudioDisplayModelObsolete>("Obsolete");
+    registry.registerModel<AudioDisplayModelObsoleteAlias>("Obsolete"); // old key "AudioDisplay"
+    registry.registerModel<GenericDisplayNode>("Daq/Display");
+    registry.registerModel<DaqDisplayNode>("Daq/Display");
+    registry.registerModel<QDevIoDisplayModelObsolete>("Obsolete");
+    registry.registerModel<QDevIoDisplayModelObsoleteAlias>("Obsolete"); // old key "QDevIoDisplay"
 
     // Stream routing nodes
-    registry.registerModel<DemuxNodeObsolete>("Routing");
-    registry.registerModel<DemuxNodeObsoleteAlias>("Routing"); // old key "DemuxNode"
-    registry.registerModel<MuxNodeObsolete>("Routing");
-    registry.registerModel<MuxNodeObsoleteAlias>("Routing"); // old key "MuxNode"
+    registry.registerModel<DemuxNodeObsolete>("Obsolete");
+    registry.registerModel<DemuxNodeObsoleteAlias>("Obsolete"); // old key "DemuxNode"
+    registry.registerModel<MuxNodeObsolete>("Obsolete");
+    registry.registerModel<MuxNodeObsoleteAlias>("Obsolete"); // old key "MuxNode"
 
     // Audio source + LLama source (moved from node_editor_ide)
     // REQ-SW-PL-024: the SampledData AudioSource takes the "AudioSource" key;
     // the old QDevIO mic is registered as "AudioSourceObsolete" (no alias
     // under "AudioSource" — old saved graphs instantiate the new node and
     // QDevIO edges drop, documented consequence).
-    registry.registerModel<AudioSourceDataModel>("Sources");
-    registry.registerModel<AudioSourceDataModelObsolete>("Sources");
-    registry.registerModel<LLamaModelDataModel>("LLama");
-    registry.registerModel<ConsoleDataModel>("LLama");
+    registry.registerModel<AudioSourceDataModel>("Audio/Sources");
+    registry.registerModel<AudioSourceDataModelObsolete>("Obsolete");
+    registry.registerModel<LLamaModelDataModel>("AI/LLM");
+    registry.registerModel<ConsoleDataModel>("General/Display");
 
     // Video nodes (VideoFrameData / "video-frame" flow)
-    registry.registerModel<CameraSourceNode>("Video");
-    registry.registerModel<VideoFileSourceNode>("Video");
-    registry.registerModel<StreamSourceNode>("Video");
-    registry.registerModel<VideoOutputNode>("Video");
+    registry.registerModel<CameraSourceNode>("Video/Sources");
+    registry.registerModel<VideoFileSourceNode>("Video/Sources");
+    registry.registerModel<StreamSourceNode>("Video/Sources");
+    registry.registerModel<VideoOutputNode>("Video/Display");
 
     // Video effect nodes (VideoFrameData flow, REQ-SW-PL-028) — ONE node with
     // an effect combo (REQ-SW-PL-028 AC 4) + the frame resampler (REQ-SW-PL-030).
     // The 7 per-effect aliases (VideoEffectBrightnessNode, ...) were removed on
     // 2026-08-26 (user decision) — old saved graphs referencing those registry
     // keys no longer load; "VideoEffect" is the only registered effect node.
-    registry.registerModel<VideoEffectNode>("Video");
-    registry.registerModel<CustomShaderNode>("Video");
-    registry.registerModel<FrameSamplerNode>("Video");
+    registry.registerModel<VideoEffectNode>("Video/Processing");
+    registry.registerModel<CustomShaderNode>("Video/Processing");
+    registry.registerModel<FrameSamplerNode>("Video/Processing");
 }
 
 void DemoNodeEditorNodesObject::DeInitialize()
