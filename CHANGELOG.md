@@ -45,6 +45,9 @@
   - `VideoEffectNode` CPU path мигриран към pool-а: GPU path-ът остава на GUI thread (GL-bound); CPU path snapshot-ва input-а на GUI thread (implicit-share `QVideoFrame` copy за CPU-resident, `asImage()` readback за GpuRgba) и подава `applyCpu()` към pool-а — worker-ът конвертира собственото си копие и връща резултата през queued `onCpuResult()` slot
   - `VideoEffectNode` метрики: `m_totalFrames` брояч, widget label `CPU <completed>/<submitted> · <skipped> skipped · <fps> fps out` (refresh на всеки CPU резултат) и optional `[PERF] effect` console line (5 s timer, само когато "video" perf domain е enabled)
   - Тестове: `demo_nodeditor_videoeffect_tests` (CPU path async резултат, GpuOrCpu fallback, metric label, totalFrames); `ComputePool.cpp` добавен към display test target
+- **Node palette (nested categories + Simulink-style scheme)**:
+  - `nodeeditor` submodule: `DataFlowGraphicsScene::createSceneMenu()` строи nested категорийно дърво — category string-ове се split-ват на `/` (напр. `AI/LLM` → AI → LLM); node имената никога не се split-ват (защита за имена, съдържащи `/`, като `Arithmetic/Logic`); филтърът работи с произволна дълбочина (parent walk-up)
+  - Нодовете са прекатегоризирани по Simulink-style схема: Daq (DaqDisplay, GenericDisplay → `Daq/Display`), Audio (AudioSource → `Audio/Sources`), Video (Camera/VideoFile/Stream → `Video/Sources`; VideoEffect/CustomShader/FrameSampler → `Video/Processing`; VideoOutput → `Video/Display`), AI (FrameToTensor → `AI/Preprocessing`, LLamaModel → `AI/LLM`), General (NumberSource → `General/Sources`; Modulo/ArithmeticLogic → `General/Processing`; NumberDisplay/Console → `General/Display`), Obsolete (всички obsolete нодове → `Obsolete`)
 
 ### Fixed
 - **REQ-SW-PL-039** (CPU effects work in the display — VideoOutputNode embedded effects):
