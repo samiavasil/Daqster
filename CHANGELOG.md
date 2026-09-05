@@ -60,6 +60,14 @@
   - `VideoEffectNode` ComputePool worker: `frameCopy.toImage()` (Qt6 — RHI/GPU conversion на worker нишката, забранено от Qt, QTBUG-131107) / `frameCopy.image()` (Qt5 — null за NV12) заменени с `VideoFrameData::frameToImageCpu()` и на двата Qt; GpuRgba pre-readback fast path-ът е непроменен
   - Тестове: `demo_nodeditor_videoframe_tests` — `frameToImageCpu_*` (RGB32/ARGB32 wrap, NV12/YUV420P BT.601, unsupported → null) и на Qt5, и на Qt6
 
+### Refactored
+- **Display consolidation (SampledData display world → DaqDisplayNode)**:
+  - `AudioDisplayAlias` (DemoNodeEditorNodesObject.cpp) — нов тънък alias на `DaqDisplayNode` (само `name()` → `"AudioDisplay"`), заменя `AudioDisplayModelObsoleteAlias`; регистрацията на ключа `"AudioDisplay"` е преместена от `Obsolete` в `Daq/Display` — старите saved графи вече разрешават към реалния multi-plot/FFT/ring-buffer SampledData display, а не към QDevIO obsolete нода
+  - `AudioDisplayModelObsolete` (name `"AudioDisplayObsolete"`, категория `Obsolete`) остава непроменен — QDevIO display world-ът живее за старите QDevIO графи
+  - `GenericDisplayNode.h` — премахнат redundant `dataArrivalChangesWidget()` override (базата `DaqDisplayNode` вече връща `false`)
+  - Тестове: `demo_nodeditor_display_tests` — `genericDisplay_aliasBehavior()` (name/save/restore parity) + `registry_aliasResolution()` (registry `create("GenericDisplay")`/`create("AudioDisplay")` връщат DaqDisplayNode-производни модели); `GenericDisplayNode.cpp` добавен към display test target
+  - Нов `.flow` fixture: `tests/data/display_aliases.flow` — `AudioSource` → `DaqDisplay` + `GenericDisplay` + `AudioDisplay` (4 нода, 3 връзки)
+
 ## [0.3.2] - 2026-09-02
 
 ### Fixed

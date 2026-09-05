@@ -34,7 +34,12 @@
 // the historical key; old saved graphs resolve to the same working model.
 // No Q_OBJECT here: the aliases add no signals/slots — they only override the
 // virtual name() (their QObject meta-object is inherited from the base class).
-class AudioDisplayModelObsoleteAlias : public AudioDisplayModelObsolete
+// The "AudioDisplay" key is consolidated onto the SampledData display world:
+// the alias now derives from DaqDisplayNode (canonical SampledData display),
+// NOT the QDevIO obsolete node — old saved graphs resolve to the real
+// multi-plot/FFT/ring-buffer display. The QDevIO world stays alive under
+// "AudioDisplayObsolete" for old QDevIO graphs.
+class AudioDisplayAlias : public DaqDisplayNode
 {
 public:
     QString name() const override
@@ -89,7 +94,7 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
 {
     // Display nodes
     registry.registerModel<AudioDisplayModelObsolete>("Obsolete");
-    registry.registerModel<AudioDisplayModelObsoleteAlias>("Obsolete"); // old key "AudioDisplay"
+    registry.registerModel<AudioDisplayAlias>("Daq/Display"); // old key "AudioDisplay" -> SampledData display
     registry.registerModel<GenericDisplayNode>("Daq/Display");
     registry.registerModel<DaqDisplayNode>("Daq/Display");
     registry.registerModel<QDevIoDisplayModelObsolete>("Obsolete");

@@ -81,6 +81,9 @@ set(DISPLAY_TEST_SOURCES
     test_daq_display_node.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Displays/DaqDisplay/DaqDisplayNode.cpp
+    # GenericDisplayNode is a thin DaqDisplayNode subclass (name/caption only) —
+    # compiled so the alias behavior + registry resolution tests link standalone.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Displays/GenericDisplay/GenericDisplayNode.cpp
     # DaqDisplayNode now submits compute to the shared ComputePool
     # (REQ-SW-PL-039) — compile the pool source so the test binary links
     # standalone.
@@ -93,6 +96,7 @@ target_include_directories(demo_nodeditor_display_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Displays/DaqDisplay
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Displays/GenericDisplay
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
 )

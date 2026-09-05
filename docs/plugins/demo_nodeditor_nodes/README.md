@@ -90,31 +90,31 @@ DemoNodeEditorNodesObject → QBasePluginObject
 DemoNodeEditorNodesObject → INodeProvider
   └── registerNodes(registry) →   // 21 регистрации (DemoNodeEditorNodesObject.cpp:88-128)
         // Displays (6)
-        registry.registerModel<AudioDisplayModelObsolete>("Displays")
-        registry.registerModel<AudioDisplayModelObsoleteAlias>("Displays") // old key "AudioDisplay"
-        registry.registerModel<GenericDisplayNode>("Displays")
-        registry.registerModel<DaqDisplayNode>("Displays")
-        registry.registerModel<QDevIoDisplayModelObsolete>("Displays")
-        registry.registerModel<QDevIoDisplayModelObsoleteAlias>("Displays") // old key "QDevIoDisplay"
+        registry.registerModel<AudioDisplayModelObsolete>("Obsolete")
+        registry.registerModel<AudioDisplayAlias>("Daq/Display") // old key "AudioDisplay" -> SampledData display
+        registry.registerModel<GenericDisplayNode>("Daq/Display")
+        registry.registerModel<DaqDisplayNode>("Daq/Display")
+        registry.registerModel<QDevIoDisplayModelObsolete>("Obsolete")
+        registry.registerModel<QDevIoDisplayModelObsoleteAlias>("Obsolete") // old key "QDevIoDisplay"
         // Routing (4)
-        registry.registerModel<DemuxNodeObsolete>("Routing")
-        registry.registerModel<DemuxNodeObsoleteAlias>("Routing") // old key "DemuxNode"
-        registry.registerModel<MuxNodeObsolete>("Routing")
-        registry.registerModel<MuxNodeObsoleteAlias>("Routing") // old key "MuxNode"
+        registry.registerModel<DemuxNodeObsolete>("Obsolete")
+        registry.registerModel<DemuxNodeObsoleteAlias>("Obsolete") // old key "DemuxNode"
+        registry.registerModel<MuxNodeObsolete>("Obsolete")
+        registry.registerModel<MuxNodeObsoleteAlias>("Obsolete") // old key "MuxNode"
         // Sources (2)
-        registry.registerModel<AudioSourceDataModel>("Sources")
-        registry.registerModel<AudioSourceDataModelObsolete>("Sources")
+        registry.registerModel<AudioSourceDataModel>("Audio/Sources")
+        registry.registerModel<AudioSourceDataModelObsolete>("Obsolete")
         // LLama (2)
-        registry.registerModel<LLamaModelDataModel>("LLama")
-        registry.registerModel<ConsoleDataModel>("LLama")
+        registry.registerModel<LLamaModelDataModel>("AI/LLM")
+        registry.registerModel<ConsoleDataModel>("General/Display")
         // Video (7)
-        registry.registerModel<CameraSourceNode>("Video")
-        registry.registerModel<VideoFileSourceNode>("Video")
-        registry.registerModel<StreamSourceNode>("Video")
-        registry.registerModel<VideoOutputNode>("Video")
-        registry.registerModel<VideoEffectNode>("Video")   // един нод с комбо (REQ-SW-PL-028 AC 4)
-        registry.registerModel<CustomShaderNode>("Video") // runtime GLSL (REQ-SW-PL-029)
-        registry.registerModel<FrameSamplerNode>("Video")
+        registry.registerModel<CameraSourceNode>("Video/Sources")
+        registry.registerModel<VideoFileSourceNode>("Video/Sources")
+        registry.registerModel<StreamSourceNode>("Video/Sources")
+        registry.registerModel<VideoOutputNode>("Video/Display")
+        registry.registerModel<VideoEffectNode>("Video/Processing")   // един нод с комбо (REQ-SW-PL-028 AC 4)
+        registry.registerModel<CustomShaderNode>("Video/Processing") // runtime GLSL (REQ-SW-PL-029)
+        registry.registerModel<FrameSamplerNode>("Video/Processing")
 ```
 
 **INodeProvider е standalone интерфейс** — не наследява други Daqster интерфейси.
@@ -131,10 +131,11 @@ DemoNodeEditorNodesObject → INodeProvider
 ### Displays
 | Нод | Категория | Описание |
 |-----|-----------|----------|
-| AudioDisplayModelObsolete | Displays | Старият QDevIO аудио дисплей (rename-only, registered `AudioDisplayObsolete` + alias `AudioDisplay`) |
-| DaqDisplayNode | Displays | Реален Qt Charts waveform + FFT за всякarn плъгин с sampled данни (audio/DAQ/sензори). v2 (REQ-SW-PL-025): физически decode (`decodeToPhysical`, `raw × amplitudeScale + amplitudeOffset`), unit оси от дескриптора (Time (s)/Hz + мерна единица), worker-притежаван N-секунден ring buffer (default 10 s) с FFT от опашката; per-card `mode` (normalized/physical) + `unitAxes`, backward-compatible save/restore |
-| GenericDisplayNode | Displays | Универсален дисплей за generic данни |
-| QDevIoDisplayModelObsolete | Displays | Старият QDevIO display (rename-only, registered `QDevIoDisplayObsolete` + alias `QDevIoDisplay`) |
+| DaqDisplayNode | Daq/Display | **Каноничният SampledData дисплей** — реален Qt Charts waveform + FFT за всеки плъгин с sampled данни (audio/DAQ/сензори). v2 (REQ-SW-PL-025): физически decode (`decodeToPhysical`, `raw × amplitudeScale + amplitudeOffset`), unit оси от дескриптора (Time (s)/Hz + мерна единица), worker-притежаван N-секунден ring buffer (default 10 s) с FFT от опашката; per-card `mode` (normalized/physical) + `unitAxes`, backward-compatible save/restore |
+| GenericDisplayNode | Daq/Display | Тънък alias на DaqDisplayNode (само name/caption) — legacy key "GenericDisplay" |
+| AudioDisplayAlias | Daq/Display | Тънък alias на DaqDisplayNode (само name) — legacy key "AudioDisplay", консолидиран върху SampledData display-а |
+| AudioDisplayModelObsolete | Obsolete | Старият QDevIO аудио дисплей (rename-only, registered `AudioDisplayObsolete`) — за стари QDevIO графи |
+| QDevIoDisplayModelObsolete | Obsolete | Старият QDevIO display (rename-only, registered `QDevIoDisplayObsolete` + alias `QDevIoDisplay`) |
 
 ### Routing
 | Нод | Категория | Описание |
@@ -473,12 +474,19 @@ QObjectList providers = pm->instances(INodeProvider_IID);
 Since REQ-SW-PL-023/PL-024, all legacy QDevIO components are renamed with an `_obsolete` suffix
 (class `XxxObsolete`, files `XxxObsolete.{h,cpp,ui}`, registered name `XxxObsolete`, caption "(obsolete)")
 but keep their original working implementation. Alias subclasses keep the old registered names where
-the key is not taken by a new node (e.g. `AudioDisplayModelObsoleteAlias` → "AudioDisplay").
-The new `DaqDisplayNode` (SampledData) and the new `AudioSourceDataModel` (SampledData) take the
-current names. Both worlds coexist so capabilities and speed can be benchmarked head-to-head;
-the _obsolete components are deleted at the very end. No data work happens on the GUI thread:
-capture runs in a QThread worker, decode/FFT/point-build in a node-owned QThreadPool (maxThreadCount=1),
-and the GUI thread only does `series->replace()` + `axis->setRange()` via a queued result bridge.
+the key is not taken by a new node. The new `DaqDisplayNode` (SampledData) and the new
+`AudioSourceDataModel` (SampledData) take the current names. Both worlds coexist so capabilities and
+speed can be benchmarked head-to-head; the _obsolete components are deleted at the very end.
+
+**Display consolidation:** the SampledData display world is consolidated onto `DaqDisplayNode` as the
+single canonical implementation. `GenericDisplayNode` (legacy key "GenericDisplay") and
+`AudioDisplayAlias` (legacy key "AudioDisplay") are thin subclasses that override only name()/caption()
+and inherit the full multi-plot/FFT/ring-buffer behavior. The "AudioDisplay" key therefore resolves to
+the real SampledData display — NOT the QDevIO obsolete node. The QDevIO world stays alive under
+"AudioDisplayObsolete" / "QDevIoDisplayObsolete" for old QDevIO graphs. No data work happens on the
+GUI thread: capture runs in a QThread worker, decode/FFT/point-build in the shared ComputePool
+(REQ-SW-PL-039), and the GUI thread only does `series->replace()` + `axis->setRange()` via a queued
+result bridge.
 
 ### DAQ Display v2 (REQ-SW-PL-025)
 - **Physical decode** — `SampledData::decodeToPhysical()` (header-only): `raw × amplitudeScale + amplitudeOffset`

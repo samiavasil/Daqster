@@ -29,7 +29,8 @@
 | `video_graph.flow` | Основен video pipeline: source → effect → output | 3 | 2 |
 | `multi_effect_video.flow` | Два ефекта в серия (GPU-resident chain): source → effect → effect → output; параметри на двата ефекта (`effect` id + brightness/contrast) | 4 | 3 |
 | `number_graph.flow` | Built-in numeric нодове: `NumberSource` → `NumberResult`; параметри (`type`, `randomEnabled`, `interval`, `number`) | 2 | 1 |
-| `audio_graph.flow` | Аудио pipeline: `AudioSource` → `AudioDisplay` (obsolete alias key) | 2 | 1 |
+| `audio_graph.flow` | Аудио pipeline: `AudioSource` → `AudioDisplay` (alias key → SampledData display) | 2 | 1 |
+| `display_aliases.flow` | Display consolidation: `AudioSource` → 3 display-а (`DaqDisplay`, `GenericDisplay`, `AudioDisplay`) — и трите разрешават към DaqDisplayNode-базирани модели | 4 | 3 |
 | `llm_graph.flow` | LLM pipeline: `LLamaModel` → `Console`; параметри (`host`, `port`, `ctxSize`, `useGpu`) | 2 | 1 |
 | `empty_scene.flow` | Празна сцена (`nodes: []`, `connections: []`) — load не трябва да crash-ва и да дава празна сцена | 0 | 0 |
 | `missing_node.flow` | Нерегистриран нод тип (`BogusUnregisteredNode`) — толерантно зареждане: warn + skip, без crash | 3 (1 невалиден) | 3 (2 остават) |
@@ -42,7 +43,7 @@
 - `NumberSourceDataModel::name()` → `"NumberSource"`;
 - `NumberDisplayDataModel::name()` → `"NumberResult"` (НЕ `"NumberDisplay"`);
 - `AudioSourceDataModel::name()` → `"AudioSource"`;
-- `AudioDisplayModelObsoleteAlias::name()` → `"AudioDisplay"` (alias за стар key);
+- `AudioDisplayAlias::name()` → `"AudioDisplay"` (alias на `DaqDisplayNode` — SampledData display);
 - `LLamaModelDataModel::name()` → `"LLamaModel"`;
 - `ConsoleDataModel::name()` → `"Console"`;
 - `VideoFileSourceNode::name()` → `"VideoFileSource"`;

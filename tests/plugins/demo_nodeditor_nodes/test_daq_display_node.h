@@ -21,4 +21,11 @@ private slots:
     // through the friend-declared static appendRingBlock() + ComputeState.
     void ringBuffer_rollingWindowDropsOldest();
     void ringBuffer_descriptorChangeReset();
+
+    // Display-world consolidation: GenericDisplayNode is a thin DaqDisplayNode
+    // subclass (name/caption only) with behavioral parity (save/restore), and
+    // the "AudioDisplay" registry key resolves to a DaqDisplayNode-derived
+    // alias (not the QDevIO obsolete node).
+    void genericDisplay_aliasBehavior();
+    void registry_aliasResolution();
 };
