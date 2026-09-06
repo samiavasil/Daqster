@@ -28,6 +28,9 @@
 #ifdef HAVE_SYSTEM_MONITOR
 #include "Sources/SystemMonitor/SystemMonitorModel.h"
 #endif
+#ifdef HAVE_GAMEPAD
+#include "Sources/Gamepad/GamepadModel.h"
+#endif
 #include <QDevIoDisplayModelObsolete.h>
 
 // ── Saved-graph alias registration (REQ-SW-PL-023 §7) ────────────────
@@ -126,6 +129,10 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
 #ifdef HAVE_SYSTEM_MONITOR
     // System Monitor source node (REQ-SW-PL-041) — Linux /proc + /sys telemetry.
     registry.registerModel<SystemMonitorModel>("Daq/Sources");
+#endif
+#ifdef HAVE_GAMEPAD
+    // Gamepad input source node (REQ-SW-PL-042) — Linux joystick API.
+    registry.registerModel<GamepadModel>("Daq/Sources");
 #endif
     registry.registerModel<LLamaModelDataModel>("AI/LLM");
     registry.registerModel<ConsoleDataModel>("General/Display");

@@ -183,6 +183,28 @@ else()
     message(STATUS "demo_nodeditor_nodes: System Monitor source node disabled (Windows)")
 endif()
 
+# ── Optional Gamepad source node (Linux joystick API) ────────────────
+# REQ-SW-PL-042: reads axes + buttons from a USB gamepad via the Linux
+# joystick API (/dev/input/js0) and emits them as SampledData domain="gamepad".
+# Linux-only v1 — guarded by if(NOT WIN32) so Windows builds pass without the
+# node (Windows XInput/DirectInput support is a future requirement).
+set(GAMEPAD_SOURCES)
+set(GAMEPAD_DEFINITIONS)
+if(NOT WIN32)
+    message(STATUS "demo_nodeditor_nodes: Gamepad source node enabled (Linux joystick API)")
+    list(APPEND GAMEPAD_SOURCES
+        Sources/Gamepad/GamepadEngine.h
+        Sources/Gamepad/GamepadEngine.cpp
+        Sources/Gamepad/GamepadModel.h
+        Sources/Gamepad/GamepadModel.cpp
+        Sources/Gamepad/GamepadWidget.h
+        Sources/Gamepad/GamepadWidget.cpp
+    )
+    list(APPEND GAMEPAD_DEFINITIONS HAVE_GAMEPAD)
+else()
+    message(STATUS "demo_nodeditor_nodes: Gamepad source node disabled (Windows)")
+endif()
+
 # ── Displays: AudioDisplay (QDevIO, obsolete — REQ-SW-PL-023 §7) ─────
 set(AUDIO_DISPLAY_NODES
     Displays/AudioDisplay/AudioDisplayModelObsolete.h
@@ -223,6 +245,7 @@ create_plugin(DemoNodeEditorNodes
         ${VIDEO_OPENCV_SOURCES}
         ${PLUTOSDR_SOURCES}
         ${SYSTEM_MONITOR_SOURCES}
+        ${GAMEPAD_SOURCES}
         ${GENERIC_DISPLAY_NODES}
         ${AUDIO_DISPLAY_NODES}
         ${DAQ_DISPLAY_NODES}
@@ -243,6 +266,7 @@ create_plugin(DemoNodeEditorNodes
         ${VIDEO_OPENCV_DEFINITIONS}
         ${PLUTOSDR_DEFINITIONS}
         ${SYSTEM_MONITOR_DEFINITIONS}
+        ${GAMEPAD_DEFINITIONS}
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${DAQSTER_SOURCE_DIR}/src/plugins/common
@@ -250,6 +274,7 @@ create_plugin(DemoNodeEditorNodes
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/SystemMonitor
+        ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Gamepad
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/AudioDisplay
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/DaqDisplay
         ${VIDEO_OPENCV_INCLUDE_DIRS}
