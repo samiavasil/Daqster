@@ -7,6 +7,37 @@
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-044** (UDP/TCP Source + Sink network DAQ nodes — MSSD framing):
+  - `NetworkSourceModel` — нов **source** нод в `demo_nodeditor_nodes`,
+    регистриран под `"Daq/Sources"`; 1 изходен порт `SampledData`
+    (`{"sample","Sample"}`); `QUdpSocket` (UDP) / `QTcpServer` + `QTcpSocket`
+    (TCP) слуша на порт; при пристигане на frame реконструира `SampledData` с
+    UI-конфигурирания дескриптор (sampleRate, channels, тип INT16/FLOAT32) и
+    емитира `dataUpdated(0)`; connection-count гейт (Start + поне една връзка;
+    последната връзка махната → auto-stop); статус bytes received
+  - `NetworkSourceWidget` — протокол (UDP/TCP), порт, sampleRate (Hz),
+    channels (брой + тип), Start/Stop, статус label
+  - `NetworkSinkModel` — нов **sink** нод в `demo_nodeditor_nodes`,
+    регистриран под `"Daq/Sinks"`; 1 входен порт `SampledData`; при всяко
+    пристигане на данни сериализира raw bytes в MSSD frame и изпраща —
+    `QUdpSocket::writeDatagram` (UDP) / `QTcpSocket::write` (TCP, асинхронен
+    connect); статус bytes sent
+  - `NetworkSinkWidget` — протокол (UDP/TCP), адрес + порт, Start/Stop,
+    статус label
+  - `shared/NetworkFrame.h` — wire framing helpers: `[4-byte magic "MSSD"]
+    [4-byte sampleCount][4-byte bytesPerSample][raw bytes]`, little-endian;
+    UDP: 1 datagram = 1 frame; TCP: същият framing като byte stream (partial
+    frames се обработват); дескрипторът се конфигурира в UI-то на двете
+    страни (без out-of-band exchange за v1)
+  - **Cross-platform**: Qt Network модулът е част от Qt5/Qt6 — без platform
+    guard, без външни зависимости
+  - `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-044-*.md` —
+    изискването (RDD gate)
+  - Верификация: Qt5/Qt6 builds PASS + ctest 11/11 green (both) + headless
+    smoke PASS (offscreen, plugin loads, no crash) + round-trip smoke PASS
+    (реалните NetworkSinkModel/NetworkSourceModel класове, UDP + TCP на
+    localhost, bytes match); unit тестове отложени (стоящата инструкция
+    „НОВИ ТЕСТОВЕ СТОП“)
 - **REQ-SW-PL-043** (File Record + File Playback DAQ nodes — raw bytes + JSON sidecar):
   - `FileRecordModel` — нов **sink** нод в `demo_nodeditor_nodes`, регистриран под
     `"Daq/Sinks"`; 1 входен порт `SampledData` (`{"sample","Sample"}`); при всяко

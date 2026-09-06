@@ -220,6 +220,21 @@ set(FILE_IO_NODES
     Sources/FilePlayback/FilePlaybackWidget.cpp
 )
 
+# ── Network Source + Sink (REQ-SW-PL-044) ─────────────────────────────
+# UDP/TCP transport of SampledData streams over the network. Cross-platform —
+# Qt Network module is part of Qt5/Qt6, no external deps, no platform guard.
+set(NETWORK_NODES
+    Sources/NetworkSource/NetworkSourceModel.h
+    Sources/NetworkSource/NetworkSourceModel.cpp
+    Sources/NetworkSource/NetworkSourceWidget.h
+    Sources/NetworkSource/NetworkSourceWidget.cpp
+    Sinks/NetworkSink/NetworkSinkModel.h
+    Sinks/NetworkSink/NetworkSinkModel.cpp
+    Sinks/NetworkSink/NetworkSinkWidget.h
+    Sinks/NetworkSink/NetworkSinkWidget.cpp
+    shared/NetworkFrame.h
+)
+
 # ── Displays: AudioDisplay (QDevIO, obsolete — REQ-SW-PL-023 §7) ─────
 set(AUDIO_DISPLAY_NODES
     Displays/AudioDisplay/AudioDisplayModelObsolete.h
@@ -262,6 +277,7 @@ create_plugin(DemoNodeEditorNodes
         ${SYSTEM_MONITOR_SOURCES}
         ${GAMEPAD_SOURCES}
         ${FILE_IO_NODES}
+        ${NETWORK_NODES}
         ${GENERIC_DISPLAY_NODES}
         ${AUDIO_DISPLAY_NODES}
         ${DAQ_DISPLAY_NODES}
@@ -291,6 +307,7 @@ create_plugin(DemoNodeEditorNodes
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/SystemMonitor
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Gamepad
+        ${CMAKE_CURRENT_SOURCE_DIR}/shared
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/AudioDisplay
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/DaqDisplay
         ${VIDEO_OPENCV_INCLUDE_DIRS}

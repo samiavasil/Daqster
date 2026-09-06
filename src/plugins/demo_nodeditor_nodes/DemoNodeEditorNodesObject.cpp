@@ -33,6 +33,8 @@
 #endif
 #include "Sinks/FileRecord/FileRecordModel.h"
 #include "Sources/FilePlayback/FilePlaybackModel.h"
+#include "Sources/NetworkSource/NetworkSourceModel.h"
+#include "Sinks/NetworkSink/NetworkSinkModel.h"
 #include <QDevIoDisplayModelObsolete.h>
 
 // ── Saved-graph alias registration (REQ-SW-PL-023 §7) ────────────────
@@ -140,6 +142,10 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     // JSON sidecar on disk; cross-platform, always compiled.
     registry.registerModel<FileRecordModel>("Daq/Sinks");
     registry.registerModel<FilePlaybackModel>("Daq/Sources");
+    // Network Source + Sink (REQ-SW-PL-044) — UDP/TCP transport of SampledData
+    // streams; cross-platform, always compiled.
+    registry.registerModel<NetworkSourceModel>("Daq/Sources");
+    registry.registerModel<NetworkSinkModel>("Daq/Sinks");
     registry.registerModel<LLamaModelDataModel>("AI/LLM");
     registry.registerModel<ConsoleDataModel>("General/Display");
 

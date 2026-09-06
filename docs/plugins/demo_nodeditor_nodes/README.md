@@ -57,10 +57,18 @@ demo_nodeditor_nodes/
 │   └── FilePlayback/                     # File Playback source (REQ-SW-PL-043)
 │       ├── FilePlaybackModel.{h,cpp}     # Source node model (reads .sdf + .sdf.json, QTimer tempo)
 │       └── FilePlaybackWidget.{h,cpp}    # Config UI (file path, Play/Stop, position/duration)
+│   └── NetworkSource/                    # Network Source (REQ-SW-PL-044)
+│       ├── NetworkSourceModel.{h,cpp}    # Source node model (UDP/TCP listener, MSSD framing)
+│       └── NetworkSourceWidget.{h,cpp}   # Config UI (protocol, port, sampleRate, channels)
 ├── Sinks/
-│   └── FileRecord/                       # File Record sink (REQ-SW-PL-043)
-│       ├── FileRecordModel.{h,cpp}       # Sink node model (writes raw bytes + JSON sidecar)
-│       └── FileRecordWidget.{h,cpp}      # Config UI (file path, Start/Stop, bytes written)
+│   ├── FileRecord/                       # File Record sink (REQ-SW-PL-043)
+│   │   ├── FileRecordModel.{h,cpp}       # Sink node model (writes raw bytes + JSON sidecar)
+│   │   └── FileRecordWidget.{h,cpp}      # Config UI (file path, Start/Stop, bytes written)
+│   └── NetworkSink/                      # Network Sink (REQ-SW-PL-044)
+│       ├── NetworkSinkModel.{h,cpp}      # Sink node model (UDP/TCP sender, MSSD framing)
+│       └── NetworkSinkWidget.{h,cpp}     # Config UI (protocol, host, port, Start/Stop)
+├── shared/
+│   └── NetworkFrame.h                    # MSSD wire framing helpers (REQ-SW-PL-044)
 ├── Displays/
 │   ├── AudioDisplay/
 │   │   └── AudioDisplayModelObsolete.{h,cpp}  # Старият QDevIO audio display (rename-only)
@@ -115,13 +123,15 @@ DemoNodeEditorNodesObject → INodeProvider
         // Sources (2)
         registry.registerModel<AudioSourceDataModel>("Audio/Sources")
         registry.registerModel<AudioSourceDataModelObsolete>("Obsolete")
-        // Daq/Sources (4) — PlutoSDR (HAVE_LIBIIO), System Monitor (HAVE_SYSTEM_MONITOR), Gamepad (HAVE_GAMEPAD), File Playback (always)
+        // Daq/Sources (5) — PlutoSDR (HAVE_LIBIIO), System Monitor (HAVE_SYSTEM_MONITOR), Gamepad (HAVE_GAMEPAD), File Playback (always), Network Source (always)
         registry.registerModel<PlutoSdrModel>("Daq/Sources")          // само с libiio
         registry.registerModel<SystemMonitorModel>("Daq/Sources")     // Linux-only
         registry.registerModel<GamepadModel>("Daq/Sources")           // Linux-only
         registry.registerModel<FilePlaybackModel>("Daq/Sources")      // cross-platform (REQ-SW-PL-043)
-        // Daq/Sinks (1) — File Record (always, REQ-SW-PL-043)
+        registry.registerModel<NetworkSourceModel>("Daq/Sources")     // cross-platform (REQ-SW-PL-044)
+        // Daq/Sinks (2) — File Record (always, REQ-SW-PL-043), Network Sink (always, REQ-SW-PL-044)
         registry.registerModel<FileRecordModel>("Daq/Sinks")          // cross-platform
+        registry.registerModel<NetworkSinkModel>("Daq/Sinks")         // cross-platform
         // LLama (2)
         registry.registerModel<LLamaModelDataModel>("AI/LLM")
         registry.registerModel<ConsoleDataModel>("General/Display")
@@ -149,11 +159,13 @@ DemoNodeEditorNodesObject → INodeProvider
 | SystemMonitorModel | Daq/Sources | **System Monitor source нод** (REQ-SW-PL-041) — Linux системна телеметрия от `/proc` + `/sys` (CPU/RAM/temp/network), `SampledData` с `domain="system"` (5 канала FLOAT32); Linux-only (HAVE_SYSTEM_MONITOR, `if(NOT WIN32)`) |
 | GamepadModel | Daq/Sources | **Gamepad input source нод** (REQ-SW-PL-042) — чете оси + бутони от USB gamepad през Linux joystick API (`/dev/input/js0`), `SampledData` с `domain="gamepad"` (12 канала FLOAT32: 4 оси + 8 бутона); Linux-only (HAVE_GAMEPAD, `if(NOT WIN32)`) |
 | FilePlaybackModel | Daq/Sources | **File Playback source нод** (REQ-SW-PL-043) — чете `*.sdf` + `*.sdf.json`, реконструира `SampledStreamDescriptor`, емитира `SampledData` на записания sample rate (QTimer-базирано темпо); cross-platform |
+| NetworkSourceModel | Daq/Sources | **Network Source нод** (REQ-SW-PL-044) — слуша на порт (UDP/TCP), приема MSSD frames, реконструира `SampledData` с UI-конфигурирания дескриптор (sampleRate, channels), емитира `dataUpdated(0)`; Start/Stop, статус bytes received; cross-platform |
 
 ### Sinks
 | Нод | Категория | Описание |
 |-----|-----------|----------|
 | FileRecordModel | Daq/Sinks | **File Record sink нод** (REQ-SW-PL-043) — консумира `SampledData`, записва raw bytes във `*.sdf` + JSON sidecar `*.sdf.json`; Start/Stop запис, статус bytes written; cross-platform |
+| NetworkSinkModel | Daq/Sinks | **Network Sink нод** (REQ-SW-PL-044) — консумира `SampledData`, сериализира raw bytes в MSSD frame, изпраща по UDP/TCP; Start/Stop, статус bytes sent; cross-platform |
 
 ### Displays
 | Нод | Категория | Описание |
@@ -584,6 +596,71 @@ platform guard, за разлика от Linux-only System Monitor/Gamepad).
    (`Daq/Display`) и натисни **Play** — данните се възпроизвеждат на записания
    sample rate.
 5. В DAQ Display добави plot карта: канал 0 (I) или 1 (Q), Time Domain.
+
+## Network Source + Network Sink DAQ нодове (REQ-SW-PL-044)
+
+Двойка нодове за предаване на `SampledData` потоци по мрежа:
+
+- **Network Source** (Source, `"Daq/Sources"`) — слуша на порт (UDP/TCP),
+  приема frames, реконструира `SampledData` с UI-конфигурирания дескриптор и
+  го емитира в графа;
+- **Network Sink** (Sink, `"Daq/Sinks"`) — консумира `SampledData` от графа,
+  сериализира го и го изпраща по UDP/TCP.
+
+### Wire формат (MSSD framing)
+
+Length-prefixed framing, базиран на Qt (всички цели числа little-endian):
+
+```
+[4-byte magic "MSSD"][4-byte sampleCount][4-byte bytesPerSample][raw sample bytes]
+```
+
+- **UDP:** всеки datagram носи точно един frame.
+- **TCP:** същият framing като byte stream — приемникът обработва partial
+  frames (frame може да премине през няколко read-а / няколко frames в един
+  read). Дължината на frame-а се извлича от header-а:
+  `12 + sampleCount × bytesPerSample`.
+- Дескрипторът (sampleRate, channels) **не** се носи на wire-а — конфигурира
+  се в UI-то на двете страни (v1, без out-of-band exchange). Wire-ът носи само
+  raw sample bytes.
+
+### Архитектура — Model → Widget
+
+- **`NetworkSourceModel`** — тънък контролер (Source): 1 изходен порт
+  `{"sample","Sample"}`; `QUdpSocket` (UDP) / `QTcpServer` + `QTcpSocket`
+  (TCP) слуша на порт; при пристигане на frame реконструира `SampledData` с
+  UI-конфигурирания дескриптор (sampleRate, channels, тип INT16/FLOAT32) и
+  емитира `dataUpdated(0)`. Connection-count гейт (моделът на
+  SystemMonitorModel) — listener-ът върви само докато потребителят е натиснал
+  Start И има поне една връзка; последната връзка махната → auto-stop.
+  `save()`/`load()` персистират protocol/port/sampleRate/channels.
+- **`NetworkSourceWidget`** — протокол (UDP/TCP), порт, sampleRate (Hz),
+  channels (брой + тип), Start/Stop, статус label (bytes received).
+- **`NetworkSinkModel`** — тънък контролер (Sink): 1 входен порт
+  `{"sample","Sample"}`; при всяко пристигане на данни сериализира raw bytes
+  в MSSD frame и изпраща — `QUdpSocket::writeDatagram` (UDP) /
+  `QTcpSocket::write` (TCP, асинхронен connect). `save()`/`load()` персистират
+  protocol/host/port.
+- **`NetworkSinkWidget`** — протокол (UDP/TCP), адрес + порт, Start/Stop,
+  статус label (bytes sent).
+
+### Платформена поддръжка
+
+Qt Network модулът е част от Qt5/Qt6 — нодовете са **cross-platform** (без
+platform guard, без външни зависимости).
+
+### Как се ползва
+
+1. Добави `Network Source` от палитрата (`Daq/Sources`) и `Network Sink`
+   (`Daq/Sinks`).
+2. Настрой Source-а: протокол (UDP/TCP), порт (напр. 5000), sampleRate,
+   channels (брой + тип) — и натисни **Start**.
+3. Настрой Sink-а: същия протокол, адрес (напр. `127.0.0.1`) + порт — и
+   натисни **Start**.
+4. Свържи източник (напр. `PlutoSDR RX` или `System Monitor`) → `Network Sink`
+   и `Network Source` → `DAQ Display` (`Daq/Display`).
+5. Дескрипторът на Source-а трябва да съвпада с дескриптора на изпращача
+   (sampleRate, channels, тип) — wire-ът носи само raw bytes.
 
 ## Зависимости
 
