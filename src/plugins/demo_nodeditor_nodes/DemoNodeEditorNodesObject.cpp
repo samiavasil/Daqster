@@ -38,6 +38,9 @@
 #ifdef HAVE_NVML
 #include "Sources/GpuMonitor/GpuMonitorModel.h"
 #endif
+#ifdef HAVE_JACK_DETECT
+#include "Sources/JackDetect/JackDetectModel.h"
+#endif
 #include <QDevIoDisplayModelObsolete.h>
 
 // ── Saved-graph alias registration (REQ-SW-PL-023 §7) ────────────────
@@ -170,6 +173,10 @@ registry.registerModel<VideoEffectNode>("Video/Processing");
 #ifdef HAVE_NVML
     // GPU Monitor source (REQ-SW-PL-045) — only when NVML is available.
     registry.registerModel<GpuMonitorModel>("Daq/Sources");
+#endif
+#ifdef HAVE_JACK_DETECT
+    // Jack Detect source (REQ-SW-PL-046) — Linux HDA /proc/asound only.
+    registry.registerModel<JackDetectModel>("Daq/Sources");
 #endif
 }
 

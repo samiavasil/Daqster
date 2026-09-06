@@ -190,6 +190,13 @@
   - Регистрация като `"Daq/Sources"` в `registerNodes()` (охранена с `#ifdef HAVE_NVML`)
   - NVML — опционална зависимост (`find_library` + `find_path`, модел на OpenCV): без NVML build-ът минава без нода
   - Код: `src/plugins/demo_nodeditor_nodes/Sources/GpuMonitor/`
+- **REQ-SW-PL-046** (Jack-detect source node — HDA jack events):
+  - `JackDetectEngine` — сканира `/proc/asound/card*/codec#*/jack*`, парсва jack имената и състоянията (`Pin 0x21 (Headphone): present = No`), QTimer polling (default 500ms), детектира промени (event-driven `jacksChanged()`)
+  - `JackDetectModel` (`NodeDelegateModel`) — 1 изходен порт `SampledData` ("sample"), connection-count gating (auto start/stop), обвива jack-овете в `SampledData` с `SampledStreamDescriptor` (domain="jack", deviceId="hda", sourceName="HDA Jack Detect", динамични FLOAT32 канали — по един на jack, стойности 0.0/1.0), емитира `dataUpdated(0)`; save/load на interval
+  - `JackDetectWidget` — UI: polling interval (0.1–5s, default 0.5), Start/Stop, статус (списък на jack-овете и състоянията им)
+  - Регистрация като `"Daq/Sources"` в `registerNodes()` (охранена с `#ifdef HAVE_JACK_DETECT`)
+  - Linux-only платформен guard (`if(NOT WIN32)` → `HAVE_JACK_DETECT`): на Windows build-ът минава без нода; без jack файлове нодът репортва празен статус без crash
+  - Код: `src/plugins/demo_nodeditor_nodes/Sources/JackDetect/`
 
 ### Fixed
 - **REQ-SW-PL-039** (CPU effects work in the display — VideoOutputNode embedded effects):

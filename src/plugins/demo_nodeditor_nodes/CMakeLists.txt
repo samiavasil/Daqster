@@ -260,6 +260,26 @@ if(NVML_LIBRARY AND NVML_INCLUDE_DIR)
 else()
     message(STATUS "demo_nodeditor_nodes: NVML not found — GPU Monitor source node disabled")
 endif()
+
+# ── Optional Jack-detect source (Linux HDA /proc/asound) ─────────────
+# REQ-SW-PL-046: on non-Windows platforms the JackDetect source node is
+# compiled and HAVE_JACK_DETECT is defined, exposing a SampledData
+# (domain="jack") source that polls /proc/asound/card*/codec#*/jack*.
+# On Windows the plugin builds normally without the node (platform guard).
+set(JACK_DETECT_SOURCES)
+set(JACK_DETECT_DEFINITIONS)
+if(NOT WIN32)
+    message(STATUS "demo_nodeditor_nodes: Jack-detect source node enabled (Linux HDA /proc/asound)")
+    list(APPEND JACK_DETECT_SOURCES
+        Sources/JackDetect/JackDetectEngine.cpp
+        Sources/JackDetect/JackDetectModel.cpp
+        Sources/JackDetect/JackDetectWidget.cpp
+    )
+    list(APPEND JACK_DETECT_DEFINITIONS HAVE_JACK_DETECT)
+else()
+    message(STATUS "demo_nodeditor_nodes: Jack-detect source node disabled (Windows)")
+endif()
+
 # ── Displays: AudioDisplay (QDevIO, obsolete — REQ-SW-PL-023 §7) ─────
 set(AUDIO_DISPLAY_NODES
     Displays/AudioDisplay/AudioDisplayModelObsolete.h
@@ -304,6 +324,7 @@ ${PLUTOSDR_SOURCES}
         ${FILE_IO_NODES}
         ${NETWORK_NODES}
         ${GPU_MONITOR_SOURCES}
+        ${JACK_DETECT_SOURCES}
         ${GENERIC_DISPLAY_NODES}
         ${AUDIO_DISPLAY_NODES}
         ${DAQ_DISPLAY_NODES}
@@ -326,6 +347,7 @@ ${PLUTOSDR_SOURCES}
         ${SYSTEM_MONITOR_DEFINITIONS}
         ${GAMEPAD_DEFINITIONS}
         ${GPU_MONITOR_DEFINITIONS}
+        ${JACK_DETECT_DEFINITIONS}
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${DAQSTER_SOURCE_DIR}/src/plugins/common

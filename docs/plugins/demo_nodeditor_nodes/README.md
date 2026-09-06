@@ -161,6 +161,7 @@ DemoNodeEditorNodesObject → INodeProvider
 | FilePlaybackModel | Daq/Sources | **File Playback source нод** (REQ-SW-PL-043) — чете `*.sdf` + `*.sdf.json`, реконструира `SampledStreamDescriptor`, емитира `SampledData` на записания sample rate (QTimer-базирано темпо); cross-platform |
 | NetworkSourceModel | Daq/Sources | **Network Source нод** (REQ-SW-PL-044) — слуша на порт (UDP/TCP), приема MSSD frames, реконструира `SampledData` с UI-конфигурирания дескриптор (sampleRate, channels), емитира `dataUpdated(0)`; Start/Stop, статус bytes received; cross-platform |
 | GpuMonitorModel | Daq/Sources | GPU Monitor (REQ-SW-PL-045) — чете NVIDIA GPU телеметрия през NVML и я емитира като `SampledData` (domain="gpu", 6 FLOAT32 канала: gpu_util/mem_used/gpu_temp_c/power_w/fan_pct/clock_mhz). Опционална зависимост (HAVE_NVML) — без NVML нодът не се компилира |
+| JackDetectModel | Daq/Sources | Jack Detect (REQ-SW-PL-046) — следи състоянието на аудио jack-овете (headphone, mic, line-in) през HDA jack файловете в `/proc/asound/card*/codec#*/jack*` и емитира промените като `SampledData` (domain="jack", динамични FLOAT32 канали — по един на jack, стойности 0.0/1.0). Linux-only (HAVE_JACK_DETECT, `if(NOT WIN32)`) — на Windows нодът не се компилира |
 
 ### Sinks
 | Нод | Категория | Описание |
@@ -676,6 +677,7 @@ Plugin-ът изисква следните Qt модули и библиоте�
 - **frame_work** — Daqster core framework
 - **OpenCV 4.x (ОПЦИОНАЛЕН)** — само за OpenCV video ефектите (GaussianBlur, Canny, Threshold)
 - **NVML (ОПЦИОНАЛЕН)** — само за GPU Monitor нода (REQ-SW-PL-045)
+- **Linux-only (платформен guard)** — Jack Detect нода (REQ-SW-PL-046) се компилира само на non-Windows (`if(NOT WIN32)` → `HAVE_JACK_DETECT`); няма външна библиотека — чете `/proc/asound`
 
 ### OpenCV (опционален)
 
@@ -694,6 +696,15 @@ Plugin-ът изисква следните Qt модули и библиоте�
 - `${NVML_INCLUDE_DIR}` / `${NVML_LIBRARY}` се подават към `create_plugin()`
 
 Когато NVML липсва, plugin-ът се build-ва нормално без GPU Monitor нода (същият опционален модел като OpenCV). Проверено: Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS с NVML (RTX 3070 Laptop GPU); hardware smoke — метриките (util/mem/temp/power/fan/clock) се четат коректно през NVML API.
+
+### Jack Detect (Linux-only платформен guard — REQ-SW-PL-046)
+
+`if(NOT WIN32)` в `CMakeLists.txt`:
+- `Sources/JackDetect/` (`JackDetectEngine`, `JackDetectModel`, `JackDetectWidget`) се компилира и дефинира `HAVE_JACK_DETECT`
+- `JackDetectModel` се регистрира като `"Daq/Sources"` в `registerNodes()`
+- На Windows plugin-ът се build-ва нормално без Jack Detect нода (няма външна зависимост — чете се `/proc/asound`)
+
+`JackDetectEngine` poll-ва `/proc/asound/card*/codec#*/jack*` (QTimer, default 500ms), парсва редове `Pin 0x21 (Headphone): present = No` и емитира `jacksChanged()` само при промяна (event-driven). `JackDetectModel` обвива jack-овете в `SampledData` с `SampledStreamDescriptor` (domain="jack", deviceId="hda", sourceName="HDA Jack Detect", динамични FLOAT32 канали — по един на jack, стойности 0.0/1.0). Когато jack файлове липсват (ядрото не ги експонира), нодът репортва празен статус без crash. Проверено: Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS; headless smoke PASS (offscreen, без jack файлове — празен статус, без crash).
 
 ## Qt5/Qt6 съвместимост (VideoCompat.h)
 
