@@ -160,6 +160,7 @@ DemoNodeEditorNodesObject → INodeProvider
 | GamepadModel | Daq/Sources | **Gamepad input source нод** (REQ-SW-PL-042) — чете оси + бутони от USB gamepad през Linux joystick API (`/dev/input/js0`), `SampledData` с `domain="gamepad"` (12 канала FLOAT32: 4 оси + 8 бутона); Linux-only (HAVE_GAMEPAD, `if(NOT WIN32)`) |
 | FilePlaybackModel | Daq/Sources | **File Playback source нод** (REQ-SW-PL-043) — чете `*.sdf` + `*.sdf.json`, реконструира `SampledStreamDescriptor`, емитира `SampledData` на записания sample rate (QTimer-базирано темпо); cross-platform |
 | NetworkSourceModel | Daq/Sources | **Network Source нод** (REQ-SW-PL-044) — слуша на порт (UDP/TCP), приема MSSD frames, реконструира `SampledData` с UI-конфигурирания дескриптор (sampleRate, channels), емитира `dataUpdated(0)`; Start/Stop, статус bytes received; cross-platform |
+| GpuMonitorModel | Daq/Sources | GPU Monitor (REQ-SW-PL-045) — чете NVIDIA GPU телеметрия през NVML и я емитира като `SampledData` (domain="gpu", 6 FLOAT32 канала: gpu_util/mem_used/gpu_temp_c/power_w/fan_pct/clock_mhz). Опционална зависимост (HAVE_NVML) — без NVML нодът не се компилира |
 
 ### Sinks
 | Нод | Категория | Описание |
@@ -674,6 +675,7 @@ Plugin-ът изисква следните Qt модули и библиоте�
 - **NodeEditorLibrary** — споделена библиотека за node editor
 - **frame_work** — Daqster core framework
 - **OpenCV 4.x (ОПЦИОНАЛЕН)** — само за OpenCV video ефектите (GaussianBlur, Canny, Threshold)
+- **NVML (ОПЦИОНАЛЕН)** — само за GPU Monitor нода (REQ-SW-PL-045)
 
 ### OpenCV (опционален)
 
@@ -683,6 +685,15 @@ Plugin-ът изисква следните Qt модули и библиоте�
 - `${OpenCV_INCLUDE_DIRS}` / `${OpenCV_LIBS}` се подават към `create_plugin()`
 
 Когато OpenCV липсва или `DAQSTER_USE_OPENCV=OFF`, plugin-ът се build-ва нормално с базовите QImage ефекти; OpenCV ефектите отсъстват от комбо-то. Проверено: Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS и с двата варианта (OpenCV 4.6.0 / без OpenCV).
+
+### NVML (опционален — GPU Monitor, REQ-SW-PL-045)
+
+`find_library(NVML_LIBRARY nvidia-ml)` + `find_path(NVML_INCLUDE_DIR nvml.h)` в `CMakeLists.txt`. Когато и двете са открити:
+- `Sources/GpuMonitor/` (`GpuMonitorEngine`, `GpuMonitorModel`, `GpuMonitorWidget`) се компилира и дефинира `HAVE_NVML`
+- `GpuMonitorModel` се регистрира като `"Daq/Sources"` в `registerNodes()`
+- `${NVML_INCLUDE_DIR}` / `${NVML_LIBRARY}` се подават към `create_plugin()`
+
+Когато NVML липсва, plugin-ът се build-ва нормално без GPU Monitor нода (същият опционален модел като OpenCV). Проверено: Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS с NVML (RTX 3070 Laptop GPU); hardware smoke — метриките (util/mem/temp/power/fan/clock) се четат коректно през NVML API.
 
 ## Qt5/Qt6 съвместимост (VideoCompat.h)
 

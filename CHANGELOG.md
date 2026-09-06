@@ -183,6 +183,13 @@
 - **Node palette (nested categories + Simulink-style scheme)**:
   - `nodeeditor` submodule: `DataFlowGraphicsScene::createSceneMenu()` строи nested категорийно дърво — category string-ове се split-ват на `/` (напр. `AI/LLM` → AI → LLM); node имената никога не се split-ват (защита за имена, съдържащи `/`, като `Arithmetic/Logic`); филтърът работи с произволна дълбочина (parent walk-up)
   - Нодовете са прекатегоризирани по Simulink-style схема: Daq (DaqDisplay, GenericDisplay → `Daq/Display`), Audio (AudioSource → `Audio/Sources`), Video (Camera/VideoFile/Stream → `Video/Sources`; VideoEffect/CustomShader/FrameSampler → `Video/Processing`; VideoOutput → `Video/Display`), AI (FrameToTensor → `AI/Preprocessing`, LLamaModel → `AI/LLM`), General (NumberSource → `General/Sources`; Modulo/ArithmeticLogic → `General/Processing`; NumberDisplay/Console → `General/Display`), Obsolete (всички obsolete нодове → `Obsolete`)
+- **REQ-SW-PL-045** (GPU Monitor source node — NVIDIA NVML):
+  - `GpuMonitorEngine` — NVML обвивка: `nvmlInit()`, handle за GPU 0, QTimer polling (default 1s), `nvmlShutdown()` при stop; чете utilization/memory/temperature/power/fan/clock
+  - `GpuMonitorModel` (`NodeDelegateModel`) — 1 изходен порт `SampledData` ("sample"), connection-count gating (auto start/stop), обвива метриките в `SampledData` с `SampledStreamDescriptor` (domain="gpu", 6 FLOAT32 канала: gpu_util/mem_used/gpu_temp_c/power_w/fan_pct/clock_mhz, sampleRate=1/interval), емитира `dataUpdated(0)`; save/load на interval
+  - `GpuMonitorWidget` — UI: polling interval (0.1–5s), Start/Stop, статус (GPU name + metrics)
+  - Регистрация като `"Daq/Sources"` в `registerNodes()` (охранена с `#ifdef HAVE_NVML`)
+  - NVML — опционална зависимост (`find_library` + `find_path`, модел на OpenCV): без NVML build-ът минава без нода
+  - Код: `src/plugins/demo_nodeditor_nodes/Sources/GpuMonitor/`
 
 ### Fixed
 - **REQ-SW-PL-039** (CPU effects work in the display — VideoOutputNode embedded effects):

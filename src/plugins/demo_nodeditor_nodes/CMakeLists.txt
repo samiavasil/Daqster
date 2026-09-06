@@ -235,6 +235,31 @@ set(NETWORK_NODES
     shared/NetworkFrame.h
 )
 
+# ── Optional NVML GPU Monitor source (compile-time auto-detect) ──────
+# REQ-SW-PL-045: when NVML (NVIDIA Management Library) is found, the
+# GpuMonitor source node is compiled and HAVE_NVML is defined, exposing a
+# SampledData (domain="gpu") source that reads GPU telemetry. Without NVML the
+# plugin builds normally without the node (same optional-dependency model as
+# OpenCV above).
+set(GPU_MONITOR_SOURCES)
+set(GPU_MONITOR_DEFINITIONS)
+set(GPU_MONITOR_INCLUDE_DIRS)
+set(GPU_MONITOR_LINK_LIBRARIES)
+find_library(NVML_LIBRARY NAMES nvidia-ml)
+find_path(NVML_INCLUDE_DIR NAMES nvml.h)
+if(NVML_LIBRARY AND NVML_INCLUDE_DIR)
+    message(STATUS "demo_nodeditor_nodes: NVML found — enabling GPU Monitor source node")
+    list(APPEND GPU_MONITOR_SOURCES
+        Sources/GpuMonitor/GpuMonitorEngine.cpp
+        Sources/GpuMonitor/GpuMonitorModel.cpp
+        Sources/GpuMonitor/GpuMonitorWidget.cpp
+    )
+    list(APPEND GPU_MONITOR_DEFINITIONS HAVE_NVML)
+    list(APPEND GPU_MONITOR_INCLUDE_DIRS ${NVML_INCLUDE_DIR})
+    list(APPEND GPU_MONITOR_LINK_LIBRARIES ${NVML_LIBRARY})
+else()
+    message(STATUS "demo_nodeditor_nodes: NVML not found — GPU Monitor source node disabled")
+endif()
 # ── Displays: AudioDisplay (QDevIO, obsolete — REQ-SW-PL-023 §7) ─────
 set(AUDIO_DISPLAY_NODES
     Displays/AudioDisplay/AudioDisplayModelObsolete.h
@@ -273,11 +298,12 @@ create_plugin(DemoNodeEditorNodes
         ${LLAMA_SOURCE_NODES}
         ${VIDEO_NODES}
         ${VIDEO_OPENCV_SOURCES}
-        ${PLUTOSDR_SOURCES}
+${PLUTOSDR_SOURCES}
         ${SYSTEM_MONITOR_SOURCES}
         ${GAMEPAD_SOURCES}
         ${FILE_IO_NODES}
         ${NETWORK_NODES}
+        ${GPU_MONITOR_SOURCES}
         ${GENERIC_DISPLAY_NODES}
         ${AUDIO_DISPLAY_NODES}
         ${DAQ_DISPLAY_NODES}
@@ -299,6 +325,7 @@ create_plugin(DemoNodeEditorNodes
         ${PLUTOSDR_DEFINITIONS}
         ${SYSTEM_MONITOR_DEFINITIONS}
         ${GAMEPAD_DEFINITIONS}
+        ${GPU_MONITOR_DEFINITIONS}
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${DAQSTER_SOURCE_DIR}/src/plugins/common
@@ -312,9 +339,11 @@ create_plugin(DemoNodeEditorNodes
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/DaqDisplay
         ${VIDEO_OPENCV_INCLUDE_DIRS}
         ${PLUTOSDR_INCLUDE_DIRS}
+        ${GPU_MONITOR_INCLUDE_DIRS}
     LINK_LIBRARIES
         ${VIDEO_OPENCV_LINK_LIBRARIES}
         ${PLUTOSDR_LINK_LIBRARIES}
+        ${GPU_MONITOR_LINK_LIBRARIES}
 )
 
 # ── Output name must contain "plugin" substring ──────────────────────

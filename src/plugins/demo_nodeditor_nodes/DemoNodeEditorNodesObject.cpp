@@ -35,6 +35,9 @@
 #include "Sources/FilePlayback/FilePlaybackModel.h"
 #include "Sources/NetworkSource/NetworkSourceModel.h"
 #include "Sinks/NetworkSink/NetworkSinkModel.h"
+#ifdef HAVE_NVML
+#include "Sources/GpuMonitor/GpuMonitorModel.h"
+#endif
 #include <QDevIoDisplayModelObsolete.h>
 
 // ── Saved-graph alias registration (REQ-SW-PL-023 §7) ────────────────
@@ -160,9 +163,14 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     // The 7 per-effect aliases (VideoEffectBrightnessNode, ...) were removed on
     // 2026-08-26 (user decision) — old saved graphs referencing those registry
     // keys no longer load; "VideoEffect" is the only registered effect node.
-    registry.registerModel<VideoEffectNode>("Video/Processing");
+registry.registerModel<VideoEffectNode>("Video/Processing");
     registry.registerModel<CustomShaderNode>("Video/Processing");
     registry.registerModel<FrameSamplerNode>("Video/Processing");
+
+#ifdef HAVE_NVML
+    // GPU Monitor source (REQ-SW-PL-045) — only when NVML is available.
+    registry.registerModel<GpuMonitorModel>("Daq/Sources");
+#endif
 }
 
 void DemoNodeEditorNodesObject::DeInitialize()
