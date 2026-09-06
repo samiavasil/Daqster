@@ -128,6 +128,7 @@ DemoNodeEditorNodesObject → INodeProvider
 | AudioSourceDataModel | Sources | Аудио вход (микрофон) — SampledData поток `{"sample","Sample"}`; каптурата е в dedicated worker thread, GUI нишката само пази последния `shared_ptr` и емитира `dataUpdated` |
 | AudioSourceDataModelObsolete | Sources | Старият QDevIO аудио вход (rename-only, работи) — излъчва QDevIO byte-stream за legacy графите и benchmarking |
 | PlutoSdrModel | Daq/Sources | **PlutoSDR RX DAQ нод** (REQ-SW-PL-040) — IQ стрийминг през libiio, `SampledData` с `domain="iq"` (I/Q int16 interleaved); опционална компилация (само с libiio) |
+| SystemMonitorModel | Daq/Sources | **System Monitor source нод** (REQ-SW-PL-041) — Linux системна телеметрия от `/proc` + `/sys` (CPU/RAM/temp/network), `SampledData` с `domain="system"` (5 канала FLOAT32); Linux-only (HAVE_SYSTEM_MONITOR, `if(NOT WIN32)`) |
 
 ### Displays
 | Нод | Категория | Описание |
@@ -405,6 +406,47 @@ I/Q каналите + FFT на канал) БЕЗ промени по display-�
 2. Свържи изхода към `DAQ Display` (`Daq/Display`).
 3. Настрой URI/честота/sample rate/gain и натисни **Start**.
 4. В DAQ Display добави plot карта: канал 0 (I) или 1 (Q), Time Domain или FFT.
+
+## System Monitor source нод (REQ-SW-PL-041)
+
+**Linux-only** source нод: чете системна телеметрия от `/proc` и `/sys`
+(CPU usage, RAM, температура, мрежа) на QTimer и я емитира като `SampledData` с
+`domain="system"` — консумируем от `DaqDisplayNode` (waveform на CPU/RAM/temp
+каналите) БЕЗ промени по display-а.
+
+### Архитектура — Engine → Model → Widget
+
+- **`SystemMonitorEngine`** — чете `/proc/stat` (CPU delta: user+nice+system+idle+
+  iowait+irq+softirq+steal), `/proc/meminfo` (RAM%: `(MemTotal-MemAvailable)/
+  MemTotal*100`), `/sys/class/hwmon/*/temp*_input` (първият намерен сензор,
+  милиградуси → °C) и `/proc/net/dev` (RX/TX bytes delta → kbps, без loopback).
+  Timer-based (QTimer), не worker thread — четенето на /proc е <1 ms.
+- **`SystemMonitorModel`** — тънък контролер: 1 изходен порт `{"sample","Sample"}`,
+  connection-count гейт (моделът на PlutoSdrModel) — polling-ва само докато
+  потребителят е натиснал Start И има поне една връзка; последната връзка
+  махната → auto-stop. Всяка poll стойност се обвива в `shared_ptr<SampledData>`
+  с дескриптор: `sampleRate` = 1/interval (Hz), `channels` =
+  `[{"cpu_percent",FLOAT32}, {"ram_percent",FLOAT32}, {"cpu_temp_c",FLOAT32},
+  {"net_rx_kbps",FLOAT32}, {"net_tx_kbps",FLOAT32}]`, `endianness` = LittleEndian,
+  `unit` = "percent", `domain` = "system", `deviceId` = "sysmon",
+  `sourceName` = "Linux System Monitor".
+- **`SystemMonitorWidget`** — polling interval (0.1–5.0 s, default 1.0 s), чекбокси
+  за метрики (CPU/RAM/Temp/Network), Start/Stop, статус label (текущи стойности
+  или "Idle").
+
+### Платформена поддръжка
+
+Първа версия — **Linux-only** (четене от `/proc` и `/sys`). Връзката се охранява
+чрез `HAVE_SYSTEM_MONITOR` (CMake: `if(NOT WIN32)`) — на Windows build-ът минава
+без нода. Windows поддръжка (PDH/WMI) е бъдещо изискване.
+
+### Как се ползва
+
+1. Добави `System Monitor` от палитрата (`Daq/Sources`).
+2. Свържи изхода към `DAQ Display` (`Daq/Display`).
+3. Настрой polling interval и метриките, натисни **Start**.
+4. В DAQ Display добави plot карта: канал 0 (CPU%), 1 (RAM%), 2 (temp °C),
+   3 (RX kbps) или 4 (TX kbps), Time Domain.
 
 ## Зависимости
 

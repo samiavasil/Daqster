@@ -7,6 +7,31 @@
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-041** (System Monitor source node — Linux /proc + /sys telemetry):
+  - `SystemMonitorModel` — нов source нод в `demo_nodeditor_nodes`, регистриран под
+    `"Daq/Sources"`; 1 изходен порт `SampledData` (`{"sample","Sample"}`),
+    connection-count гейт (polling-ва само докато потребителят е натиснал Start И
+    има поне една връзка; последната връзка махната → auto-stop)
+  - `SystemMonitorEngine` — чете `/proc/stat` (CPU delta), `/proc/meminfo` (RAM%),
+    `/sys/class/hwmon/*/temp*_input` (първият намерен сензор, милиградуси → °C) и
+    `/proc/net/dev` (RX/TX bytes delta → kbps, без loopback) на QTimer (не worker
+    thread — /proc четенето е <1 ms)
+  - `SystemMonitorWidget` — polling interval (0.1–5.0 s, default 1.0 s), чекбокси
+    за метрики (CPU/RAM/Temp/Network), Start/Stop, статус label
+  - Данните са `SampledData` с `domain="system"` (5 канала FLOAT32:
+    cpu_percent/ram_percent/cpu_temp_c/net_rx_kbps/net_tx_kbps,
+    `deviceId="sysmon"`, `sourceName="Linux System Monitor"`) — консумируеми от
+    `DaqDisplayNode` БЕЗ промени (waveform)
+  - **Linux-only v1**: `HAVE_SYSTEM_MONITOR` се дефинира в CMake чрез
+    `if(NOT WIN32)` — на Windows build-ът минава без нода (PDH/WMI е бъдещо
+    изискване)
+  - `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-041-*.md` —
+    изискването (RDD gate)
+  - Верификация: Qt5/Qt6 builds PASS + ctest 11/11 green (both) + headless
+    smoke PASS (offscreen) + hardware smoke PASS (Linux: /proc/stat,
+    /proc/meminfo, /sys/class/hwmon, /proc/net/dev readable; RAM 68.8%,
+    temp 84.0°C); unit тестове отложени (стоящата инструкция „НОВИ
+    ТЕСТОВЕ СТОП“)
 - **REQ-SW-PL-040** (PlutoSDR RX DAQ node — IQ streaming via libiio):
   - `PlutoSdrModel` — нов source нод в `demo_nodeditor_nodes`, регистриран под
     `"Daq/Sources"`; 1 изходен порт `SampledData` (`{"sample","Sample"}`),

@@ -73,7 +73,7 @@ DaqDisplayNode консумира нода без промени — waveform н
 
 ## Проследимост
 
-- **Коммити:** —
+- **Коммити:** `997eb62` (docs: REQ file), *(feat: System Monitor node — this branch)*
 - **Код:** `src/plugins/demo_nodeditor_nodes/Sources/SystemMonitor/`
   (`SystemMonitorEngine.{h,cpp}`, `SystemMonitorModel.{h,cpp}`,
   `SystemMonitorWidget.{h,cpp}`), `DemoNodeEditorNodesObject.cpp`, `CMakeLists.txt`

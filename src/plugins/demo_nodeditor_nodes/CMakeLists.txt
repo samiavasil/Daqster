@@ -161,6 +161,28 @@ else()
     message(STATUS "demo_nodeditor_nodes: libiio not found — PlutoSDR RX DAQ node disabled")
 endif()
 
+# ── Optional System Monitor source node (Linux /proc + /sys) ─────────
+# REQ-SW-PL-041: reads Linux system telemetry (/proc/stat, /proc/meminfo,
+# /sys/class/hwmon, /proc/net/dev) and emits it as SampledData domain="system".
+# Linux-only v1 — guarded by if(NOT WIN32) so Windows builds pass without the
+# node (Windows PDH/WMI support is a future requirement).
+set(SYSTEM_MONITOR_SOURCES)
+set(SYSTEM_MONITOR_DEFINITIONS)
+if(NOT WIN32)
+    message(STATUS "demo_nodeditor_nodes: System Monitor source node enabled (Linux /proc + /sys)")
+    list(APPEND SYSTEM_MONITOR_SOURCES
+        Sources/SystemMonitor/SystemMonitorEngine.h
+        Sources/SystemMonitor/SystemMonitorEngine.cpp
+        Sources/SystemMonitor/SystemMonitorModel.h
+        Sources/SystemMonitor/SystemMonitorModel.cpp
+        Sources/SystemMonitor/SystemMonitorWidget.h
+        Sources/SystemMonitor/SystemMonitorWidget.cpp
+    )
+    list(APPEND SYSTEM_MONITOR_DEFINITIONS HAVE_SYSTEM_MONITOR)
+else()
+    message(STATUS "demo_nodeditor_nodes: System Monitor source node disabled (Windows)")
+endif()
+
 # ── Displays: AudioDisplay (QDevIO, obsolete — REQ-SW-PL-023 §7) ─────
 set(AUDIO_DISPLAY_NODES
     Displays/AudioDisplay/AudioDisplayModelObsolete.h
@@ -200,6 +222,7 @@ create_plugin(DemoNodeEditorNodes
         ${VIDEO_NODES}
         ${VIDEO_OPENCV_SOURCES}
         ${PLUTOSDR_SOURCES}
+        ${SYSTEM_MONITOR_SOURCES}
         ${GENERIC_DISPLAY_NODES}
         ${AUDIO_DISPLAY_NODES}
         ${DAQ_DISPLAY_NODES}
@@ -219,12 +242,14 @@ create_plugin(DemoNodeEditorNodes
     COMPILE_DEFINITIONS
         ${VIDEO_OPENCV_DEFINITIONS}
         ${PLUTOSDR_DEFINITIONS}
+        ${SYSTEM_MONITOR_DEFINITIONS}
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${DAQSTER_SOURCE_DIR}/src/plugins/common
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/AudioSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video
+        ${CMAKE_CURRENT_SOURCE_DIR}/Sources/SystemMonitor
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/AudioDisplay
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/DaqDisplay
         ${VIDEO_OPENCV_INCLUDE_DIRS}

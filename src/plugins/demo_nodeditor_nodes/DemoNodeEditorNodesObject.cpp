@@ -25,6 +25,9 @@
 #ifdef HAVE_LIBIIO
 #include "Sources/PlutoSdr/PlutoSdrModel.h"
 #endif
+#ifdef HAVE_SYSTEM_MONITOR
+#include "Sources/SystemMonitor/SystemMonitorModel.h"
+#endif
 #include <QDevIoDisplayModelObsolete.h>
 
 // ── Saved-graph alias registration (REQ-SW-PL-023 §7) ────────────────
@@ -119,6 +122,10 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
 #ifdef HAVE_LIBIIO
     // PlutoSDR RX DAQ node (REQ-SW-PL-040) — compiled only when libiio is found.
     registry.registerModel<PlutoSdrModel>("Daq/Sources");
+#endif
+#ifdef HAVE_SYSTEM_MONITOR
+    // System Monitor source node (REQ-SW-PL-041) — Linux /proc + /sys telemetry.
+    registry.registerModel<SystemMonitorModel>("Daq/Sources");
 #endif
     registry.registerModel<LLamaModelDataModel>("AI/LLM");
     registry.registerModel<ConsoleDataModel>("General/Display");
