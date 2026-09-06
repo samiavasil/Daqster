@@ -50,6 +50,17 @@ demo_nodeditor_nodes/
 │       ├── CustomShaderNode.{h,cpp}      # Custom shader нод (REQ-SW-PL-029)
 │       ├── FrameSamplerNode.{h,cpp}      # Ресемплер (every-N / max-fps, REQ-SW-PL-030)
 │       └── OpenCVTransforms.cpp          # Само при HAVE_OPENCV
+│   ├── Gamepad/                          # Gamepad input source (REQ-SW-PL-042)
+│   │   ├── GamepadEngine.{h,cpp}         # Linux joystick API wrapper
+│   │   ├── GamepadModel.{h,cpp}          # Source node model (SampledData domain="gamepad")
+│   │   └── GamepadWidget.{h,cpp}         # Config UI (device path, poll rate, axes/buttons)
+│   └── FilePlayback/                     # File Playback source (REQ-SW-PL-043)
+│       ├── FilePlaybackModel.{h,cpp}     # Source node model (reads .sdf + .sdf.json, QTimer tempo)
+│       └── FilePlaybackWidget.{h,cpp}    # Config UI (file path, Play/Stop, position/duration)
+├── Sinks/
+│   └── FileRecord/                       # File Record sink (REQ-SW-PL-043)
+│       ├── FileRecordModel.{h,cpp}       # Sink node model (writes raw bytes + JSON sidecar)
+│       └── FileRecordWidget.{h,cpp}      # Config UI (file path, Start/Stop, bytes written)
 ├── Displays/
 │   ├── AudioDisplay/
 │   │   └── AudioDisplayModelObsolete.{h,cpp}  # Старият QDevIO audio display (rename-only)
@@ -104,10 +115,13 @@ DemoNodeEditorNodesObject → INodeProvider
         // Sources (2)
         registry.registerModel<AudioSourceDataModel>("Audio/Sources")
         registry.registerModel<AudioSourceDataModelObsolete>("Obsolete")
-        // Daq/Sources (3) — PlutoSDR (HAVE_LIBIIO), System Monitor (HAVE_SYSTEM_MONITOR), Gamepad (HAVE_GAMEPAD)
+        // Daq/Sources (4) — PlutoSDR (HAVE_LIBIIO), System Monitor (HAVE_SYSTEM_MONITOR), Gamepad (HAVE_GAMEPAD), File Playback (always)
         registry.registerModel<PlutoSdrModel>("Daq/Sources")          // само с libiio
         registry.registerModel<SystemMonitorModel>("Daq/Sources")     // Linux-only
         registry.registerModel<GamepadModel>("Daq/Sources")           // Linux-only
+        registry.registerModel<FilePlaybackModel>("Daq/Sources")      // cross-platform (REQ-SW-PL-043)
+        // Daq/Sinks (1) — File Record (always, REQ-SW-PL-043)
+        registry.registerModel<FileRecordModel>("Daq/Sinks")          // cross-platform
         // LLama (2)
         registry.registerModel<LLamaModelDataModel>("AI/LLM")
         registry.registerModel<ConsoleDataModel>("General/Display")
@@ -134,6 +148,12 @@ DemoNodeEditorNodesObject → INodeProvider
 | PlutoSdrModel | Daq/Sources | **PlutoSDR RX DAQ нод** (REQ-SW-PL-040) — IQ стрийминг през libiio, `SampledData` с `domain="iq"` (I/Q int16 interleaved); опционална компилация (само с libiio) |
 | SystemMonitorModel | Daq/Sources | **System Monitor source нод** (REQ-SW-PL-041) — Linux системна телеметрия от `/proc` + `/sys` (CPU/RAM/temp/network), `SampledData` с `domain="system"` (5 канала FLOAT32); Linux-only (HAVE_SYSTEM_MONITOR, `if(NOT WIN32)`) |
 | GamepadModel | Daq/Sources | **Gamepad input source нод** (REQ-SW-PL-042) — чете оси + бутони от USB gamepad през Linux joystick API (`/dev/input/js0`), `SampledData` с `domain="gamepad"` (12 канала FLOAT32: 4 оси + 8 бутона); Linux-only (HAVE_GAMEPAD, `if(NOT WIN32)`) |
+| FilePlaybackModel | Daq/Sources | **File Playback source нод** (REQ-SW-PL-043) — чете `*.sdf` + `*.sdf.json`, реконструира `SampledStreamDescriptor`, емитира `SampledData` на записания sample rate (QTimer-базирано темпо); cross-platform |
+
+### Sinks
+| Нод | Категория | Описание |
+|-----|-----------|----------|
+| FileRecordModel | Daq/Sinks | **File Record sink нод** (REQ-SW-PL-043) — консумира `SampledData`, записва raw bytes във `*.sdf` + JSON sidecar `*.sdf.json`; Start/Stop запис, статус bytes written; cross-platform |
 
 ### Displays
 | Нод | Категория | Описание |
@@ -499,6 +519,72 @@ Windows поддръжка (XInput/DirectInput) е бъдещо изискван
 5. В DAQ Display добави plot карта: канал 0–3 (оси X/Y/Z/Rz) или 4–11
    (бутони A/B/X/Y/LB/RB/Back/Start), Time Domain.
 
+## File Record + File Playback DAQ нодове (REQ-SW-PL-043)
+
+Двойка нодове за запис и възпроизвеждане на `SampledData` потоци на диск:
+
+- **File Record** (Sink, `"Daq/Sinks"`) — консумира `SampledData` от графа и го
+  записва на диск като raw bytes + JSON sidecar (метаданни);
+- **File Playback** (Source, `"Daq/Sources"`) — чете записания файл + sidecar,
+  реконструира `SampledStreamDescriptor` и емитира `SampledData` на записания
+  sample rate.
+
+### Файлов формат
+
+Два файла с еднаква база:
+
+- `*.sdf` — raw interleaved sample bytes (точно както идват от източника);
+- `*.sdf.json` — JSON sidecar с `SampledStreamDescriptor`:
+  `{"sampleRate": 2400000, "channels": [{"name":"I","type":"INT16"},
+  {"name":"Q","type":"INT16"}], "domain": "iq", "deviceId": "plutosdr",
+  "sourceName": "PlutoSky 7020-SDR", "endianness": "LittleEndian"}`.
+
+Форматът е прост и debuggable: raw bytes + JSON метаданни. Няма custom binary
+header — sidecar-ът е човешки четим.
+
+### Архитектура — Model → Widget
+
+- **`FileRecordModel`** — тънък контролер (Sink): 1 входен порт
+  `{"sample","Sample"}`; при всяко пристигане на данни записва raw bytes във
+  файла; при Start записва sidecar JSON (дескрипторът се взема от първия
+  chunk); при Stop flush + close. `save()`/`load()` персистират файловия път.
+- **`FileRecordWidget`** — файлов път (Browse), Start/Stop запис, статус label
+  (bytes written).
+- **`FilePlaybackModel`** — тънък контролер (Source): 1 изходен порт
+  `{"sample","Sample"}`; чете `*.sdf` + `*.sdf.json`, реконструира
+  дескриптора, емитира данните на записания sample rate (QTimer-базирано
+  темпо, chunk 4096 семпла). Connection-count гейт (моделът на
+  SystemMonitorModel) — таймерът върви само докато потребителят е натиснал
+  Play И има поне една връзка; последната връзка махната → auto-stop.
+  `save()`/`load()` персистират файловия път.
+- **`FilePlaybackWidget`** — файлов път (Browse), Play/Stop, статус label
+  (position/duration, напр. "1.2s / 10.0s").
+
+### Темпо на Playback
+
+QTimer с интервал = chunkSize / sampleRate. Всеки тик емитира един chunk
+(напр. 4096 семпла). Ако sampleRate е 2.4 MSPS и chunk е 4096 → интервал
+~1.7ms. За ниски sample rates (System Monitor 1 Hz) chunk-ът е 1 семпъл →
+интервал 1s. При sub-ms интервали (високи sample rates) интервалът се
+clamp-ва до 1 ms — темпото е приблизително, но данните се емитират в ред.
+
+### Платформена поддръжка
+
+Файловият I/O е **cross-platform** — нодовете се компилират навсякъде (без
+platform guard, за разлика от Linux-only System Monitor/Gamepad).
+
+### Как се ползва
+
+1. Добави `File Record` от палитрата (`Daq/Sinks`) и `File Playback`
+   (`Daq/Sources`).
+2. Свържи източник (напр. `PlutoSDR RX` или `System Monitor`) → `File Record`.
+3. Задай файлов път (напр. `/tmp/iq.sdf`) и натисни **Start** — записва се
+   `iq.sdf` + `iq.sdf.json`; натисни **Stop** за финализиране.
+4. Добави `File Playback`, задай същия път, свържи изхода към `DAQ Display`
+   (`Daq/Display`) и натисни **Play** — данните се възпроизвеждат на записания
+   sample rate.
+5. В DAQ Display добави plot карта: канал 0 (I) или 1 (Q), Time Domain.
+
 ## Зависимости
 
 Plugin-ът изисква следните Qt модули и библиотеки:
@@ -602,6 +688,7 @@ QObjectList providers = pm->instances(INodeProvider_IID);
   - [REQ-SW-PL-030](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-030-frame-sampler-node.md) — FrameSampler (ресемплиране)
   - [REQ-SW-PL-032](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-032-video-frame-consolidation.md) — Video Frame Consolidation (един VideoFrameData тип, Фаза 3)
   - [REQ-SW-PL-034](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-034-video-output-node-embedded-effects.md) — VideoOutputNode embedded effects (опционални, default none)
+  - [REQ-SW-PL-043](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-043-file-record-playback-nodes.md) — File Record + File Playback DAQ nodes (raw bytes + JSON sidecar)
 
 ## _obsolete rename strategy_
 

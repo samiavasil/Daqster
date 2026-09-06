@@ -31,6 +31,8 @@
 #ifdef HAVE_GAMEPAD
 #include "Sources/Gamepad/GamepadModel.h"
 #endif
+#include "Sinks/FileRecord/FileRecordModel.h"
+#include "Sources/FilePlayback/FilePlaybackModel.h"
 #include <QDevIoDisplayModelObsolete.h>
 
 // ── Saved-graph alias registration (REQ-SW-PL-023 §7) ────────────────
@@ -134,6 +136,10 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     // Gamepad input source node (REQ-SW-PL-042) — Linux joystick API.
     registry.registerModel<GamepadModel>("Daq/Sources");
 #endif
+    // File Record sink + File Playback source (REQ-SW-PL-043) — raw bytes +
+    // JSON sidecar on disk; cross-platform, always compiled.
+    registry.registerModel<FileRecordModel>("Daq/Sinks");
+    registry.registerModel<FilePlaybackModel>("Daq/Sources");
     registry.registerModel<LLamaModelDataModel>("AI/LLM");
     registry.registerModel<ConsoleDataModel>("General/Display");
 

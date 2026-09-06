@@ -7,6 +7,33 @@
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-043** (File Record + File Playback DAQ nodes — raw bytes + JSON sidecar):
+  - `FileRecordModel` — нов **sink** нод в `demo_nodeditor_nodes`, регистриран под
+    `"Daq/Sinks"`; 1 входен порт `SampledData` (`{"sample","Sample"}`); при всяко
+    пристигане на данни записва raw bytes във `*.sdf`; при Start записва JSON
+    sidecar `*.sdf.json` (SampledStreamDescriptor); при Stop flush + close;
+    статус с bytes written
+  - `FileRecordWidget` — файлов път (Browse), Start/Stop запис, статус label
+  - `FilePlaybackModel` — нов **source** нод в `demo_nodeditor_nodes`,
+    регистриран под `"Daq/Sources"`; 1 изходен порт `SampledData`; чете
+    `*.sdf` + `*.sdf.json`, реконструира `SampledStreamDescriptor`, емитира
+    данните на записания sample rate (QTimer-базирано темпо, chunk 4096
+    семпла); connection-count гейт (Play + поне една връзка; последната връзка
+    махната → auto-stop); статус position/duration
+  - `FilePlaybackWidget` — файлов път (Browse), Play/Stop, статус label
+  - Файловият формат е прост и debuggable: raw interleaved sample bytes +
+    човешки четим JSON sidecar (без custom binary header) — предпоставка за TX
+    пътя на PlutoSDR (записан сигнал → Playback → TX)
+  - **Cross-platform**: файлов I/O — без platform guard, нодовете се компилират
+    навсякъде (за разлика от Linux-only System Monitor/Gamepad)
+  - `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-043-*.md` —
+    изискването (RDD gate)
+  - Верификация: Qt5/Qt6 builds PASS + ctest 11/11 green (both) + headless
+    smoke PASS (offscreen, plugin loads, no crash) + round-trip smoke PASS
+    (запис на генериран поток → Playback → валидация на bytes, дескрипторът
+    се възстановява) + model round-trip PASS (реалните FileRecordModel/
+    FilePlaybackModel класове); unit тестове отложени (стоящата инструкция
+    „НОВИ ТЕСТОВЕ СТОП“)
 - **REQ-SW-PL-042** (Gamepad input source node — Linux joystick API):
   - `GamepadModel` — нов source нод в `demo_nodeditor_nodes`, регистриран под
     `"Daq/Sources"`; 1 изходен порт `SampledData` (`{"sample","Sample"}`),

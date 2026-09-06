@@ -205,6 +205,21 @@ else()
     message(STATUS "demo_nodeditor_nodes: Gamepad source node disabled (Windows)")
 endif()
 
+# ── File Record sink + File Playback source (REQ-SW-PL-043) ──────────
+# File I/O is cross-platform — no platform guard needed. The pair records
+# SampledData streams to disk as raw bytes + JSON sidecar and plays them back
+# at the recorded sample rate.
+set(FILE_IO_NODES
+    Sinks/FileRecord/FileRecordModel.h
+    Sinks/FileRecord/FileRecordModel.cpp
+    Sinks/FileRecord/FileRecordWidget.h
+    Sinks/FileRecord/FileRecordWidget.cpp
+    Sources/FilePlayback/FilePlaybackModel.h
+    Sources/FilePlayback/FilePlaybackModel.cpp
+    Sources/FilePlayback/FilePlaybackWidget.h
+    Sources/FilePlayback/FilePlaybackWidget.cpp
+)
+
 # ── Displays: AudioDisplay (QDevIO, obsolete — REQ-SW-PL-023 §7) ─────
 set(AUDIO_DISPLAY_NODES
     Displays/AudioDisplay/AudioDisplayModelObsolete.h
@@ -246,6 +261,7 @@ create_plugin(DemoNodeEditorNodes
         ${PLUTOSDR_SOURCES}
         ${SYSTEM_MONITOR_SOURCES}
         ${GAMEPAD_SOURCES}
+        ${FILE_IO_NODES}
         ${GENERIC_DISPLAY_NODES}
         ${AUDIO_DISPLAY_NODES}
         ${DAQ_DISPLAY_NODES}
