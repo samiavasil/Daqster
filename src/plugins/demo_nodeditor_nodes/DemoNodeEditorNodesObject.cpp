@@ -41,6 +41,9 @@
 #ifdef HAVE_JACK_DETECT
 #include "Sources/JackDetect/JackDetectModel.h"
 #endif
+#ifdef HAVE_PCAP
+#include "Sources/Pcap/PcapModel.h"
+#endif
 #include <QDevIoDisplayModelObsolete.h>
 
 // ── Saved-graph alias registration (REQ-SW-PL-023 §7) ────────────────
@@ -177,6 +180,10 @@ registry.registerModel<VideoEffectNode>("Video/Processing");
 #ifdef HAVE_JACK_DETECT
     // Jack Detect source (REQ-SW-PL-046) — Linux HDA /proc/asound only.
     registry.registerModel<JackDetectModel>("Daq/Sources");
+#endif
+#ifdef HAVE_PCAP
+    // pcap Packet Capture source (REQ-SW-PL-047) — libpcap packet capture.
+    registry.registerModel<PcapModel>("Daq/Sources");
 #endif
 }
 

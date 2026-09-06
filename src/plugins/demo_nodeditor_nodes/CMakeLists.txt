@@ -280,6 +280,36 @@ else()
     message(STATUS "demo_nodeditor_nodes: Jack-detect source node disabled (Windows)")
 endif()
 
+# ── Optional libpcap Packet Capture source (compile-time auto-detect) ──
+# REQ-SW-PL-047: when libpcap is found, the PcapCapture source node is
+# compiled and HAVE_PCAP is defined, exposing a SampledData (domain="pcap")
+# source that captures network packets. Without libpcap the plugin builds
+# normally without the node (same optional-dependency model as NVML/OpenCV).
+set(PCAP_SOURCES)
+set(PCAP_DEFINITIONS)
+set(PCAP_INCLUDE_DIRS)
+set(PCAP_LINK_LIBRARIES)
+if(WIN32)
+    find_library(PCAP_LIBRARY NAMES wpcap Packet)
+    find_path(PCAP_INCLUDE_DIR NAMES pcap.h)
+else()
+    find_library(PCAP_LIBRARY NAMES pcap)
+    find_path(PCAP_INCLUDE_DIR NAMES pcap/pcap.h)
+endif()
+if(PCAP_LIBRARY AND PCAP_INCLUDE_DIR)
+    message(STATUS "demo_nodeditor_nodes: libpcap found — enabling Pcap Capture source node")
+    list(APPEND PCAP_SOURCES
+        Sources/Pcap/PcapEngine.cpp
+        Sources/Pcap/PcapModel.cpp
+        Sources/Pcap/PcapWidget.cpp
+    )
+    list(APPEND PCAP_DEFINITIONS HAVE_PCAP)
+    list(APPEND PCAP_INCLUDE_DIRS ${PCAP_INCLUDE_DIR})
+    list(APPEND PCAP_LINK_LIBRARIES ${PCAP_LIBRARY})
+else()
+    message(STATUS "demo_nodeditor_nodes: libpcap not found — Pcap Capture source node disabled")
+endif()
+
 # ── Displays: AudioDisplay (QDevIO, obsolete — REQ-SW-PL-023 §7) ─────
 set(AUDIO_DISPLAY_NODES
     Displays/AudioDisplay/AudioDisplayModelObsolete.h
@@ -325,6 +355,7 @@ ${PLUTOSDR_SOURCES}
         ${NETWORK_NODES}
         ${GPU_MONITOR_SOURCES}
         ${JACK_DETECT_SOURCES}
+        ${PCAP_SOURCES}
         ${GENERIC_DISPLAY_NODES}
         ${AUDIO_DISPLAY_NODES}
         ${DAQ_DISPLAY_NODES}
@@ -348,24 +379,28 @@ ${PLUTOSDR_SOURCES}
         ${GAMEPAD_DEFINITIONS}
         ${GPU_MONITOR_DEFINITIONS}
         ${JACK_DETECT_DEFINITIONS}
+        ${PCAP_DEFINITIONS}
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${DAQSTER_SOURCE_DIR}/src/plugins/common
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/AudioSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video
-        ${CMAKE_CURRENT_SOURCE_DIR}/Sources/SystemMonitor
+${CMAKE_CURRENT_SOURCE_DIR}/Sources/SystemMonitor
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Gamepad
+        ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Pcap
         ${CMAKE_CURRENT_SOURCE_DIR}/shared
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/AudioDisplay
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/DaqDisplay
         ${VIDEO_OPENCV_INCLUDE_DIRS}
         ${PLUTOSDR_INCLUDE_DIRS}
         ${GPU_MONITOR_INCLUDE_DIRS}
+        ${PCAP_INCLUDE_DIRS}
     LINK_LIBRARIES
         ${VIDEO_OPENCV_LINK_LIBRARIES}
         ${PLUTOSDR_LINK_LIBRARIES}
         ${GPU_MONITOR_LINK_LIBRARIES}
+        ${PCAP_LINK_LIBRARIES}
 )
 
 # ── Output name must contain "plugin" substring ──────────────────────
