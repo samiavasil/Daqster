@@ -7,6 +7,33 @@
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-042** (Gamepad input source node — Linux joystick API):
+  - `GamepadModel` — нов source нод в `demo_nodeditor_nodes`, регистриран под
+    `"Daq/Sources"`; 1 изходен порт `SampledData` (`{"sample","Sample"}`),
+    connection-count гейт (polling-ва само докато потребителят е натиснал Start И
+    има поне една връзка; последната връзка махната → auto-stop)
+  - `GamepadEngine` — Linux joystick API wrapper: `open("/dev/input/js0",
+    O_RDONLY|O_NONBLOCK)`, `ioctl(JSIOCGAXES/JSIOCGBUTTONS)` capability query,
+    QTimer polling (30–120 Hz, default 60); осите нормализирани от
+    `int16 [-32767, 32767]` до `float [-1.0, 1.0]`, бутоните `0.0` (натиснат) /
+    `1.0` (отпуснат) по Linux joystick конвенцията
+  - `GamepadWidget` — device path (default `/dev/input/js0`), poll rate
+    (30–120 Hz, default 60), 4 axis value label-а (X/Y/Z/Rz), 8 button state
+    индикатора (green = натиснат, gray = отпуснат), Start/Stop, статус label
+  - Данните са `SampledData` с `domain="gamepad"` (12 канала FLOAT32:
+    4 оси + 8 бутона, `sampleRate` = poll rate, `deviceId="gamepad"`,
+    `sourceName="USB Gamepad"`) — консумируеми от `DaqDisplayNode` БЕЗ промени
+    (waveform)
+  - **Linux-only v1**: `HAVE_GAMEPAD` се дефинира в CMake чрез
+    `if(NOT WIN32)` — на Windows build-ът минава без нода (XInput/DirectInput
+    е бъдещо изискване)
+  - `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-042-*.md` —
+    изискването (RDD gate)
+  - Верификация: Qt5/Qt6 builds PASS + ctest 11/11 green (both) + headless
+    smoke PASS (offscreen, plugin loads, no crash) + hardware smoke PASS
+    (ShanWan USB WirelessGamepad present at /dev/input/js0, raw js_event
+    stream readable); unit тестове отложени (стоящата инструкция „НОВИ
+    ТЕСТОВЕ СТОП“)
 - **REQ-SW-PL-041** (System Monitor source node — Linux /proc + /sys telemetry):
   - `SystemMonitorModel` — нов source нод в `demo_nodeditor_nodes`, регистриран под
     `"Daq/Sources"`; 1 изходен порт `SampledData` (`{"sample","Sample"}`),

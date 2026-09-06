@@ -104,6 +104,10 @@ DemoNodeEditorNodesObject → INodeProvider
         // Sources (2)
         registry.registerModel<AudioSourceDataModel>("Audio/Sources")
         registry.registerModel<AudioSourceDataModelObsolete>("Obsolete")
+        // Daq/Sources (3) — PlutoSDR (HAVE_LIBIIO), System Monitor (HAVE_SYSTEM_MONITOR), Gamepad (HAVE_GAMEPAD)
+        registry.registerModel<PlutoSdrModel>("Daq/Sources")          // само с libiio
+        registry.registerModel<SystemMonitorModel>("Daq/Sources")     // Linux-only
+        registry.registerModel<GamepadModel>("Daq/Sources")           // Linux-only
         // LLama (2)
         registry.registerModel<LLamaModelDataModel>("AI/LLM")
         registry.registerModel<ConsoleDataModel>("General/Display")
@@ -129,6 +133,7 @@ DemoNodeEditorNodesObject → INodeProvider
 | AudioSourceDataModelObsolete | Sources | Старият QDevIO аудио вход (rename-only, работи) — излъчва QDevIO byte-stream за legacy графите и benchmarking |
 | PlutoSdrModel | Daq/Sources | **PlutoSDR RX DAQ нод** (REQ-SW-PL-040) — IQ стрийминг през libiio, `SampledData` с `domain="iq"` (I/Q int16 interleaved); опционална компилация (само с libiio) |
 | SystemMonitorModel | Daq/Sources | **System Monitor source нод** (REQ-SW-PL-041) — Linux системна телеметрия от `/proc` + `/sys` (CPU/RAM/temp/network), `SampledData` с `domain="system"` (5 канала FLOAT32); Linux-only (HAVE_SYSTEM_MONITOR, `if(NOT WIN32)`) |
+| GamepadModel | Daq/Sources | **Gamepad input source нод** (REQ-SW-PL-042) — чете оси + бутони от USB gamepad през Linux joystick API (`/dev/input/js0`), `SampledData` с `domain="gamepad"` (12 канала FLOAT32: 4 оси + 8 бутона); Linux-only (HAVE_GAMEPAD, `if(NOT WIN32)`) |
 
 ### Displays
 | Нод | Категория | Описание |
@@ -447,6 +452,52 @@ I/Q каналите + FFT на канал) БЕЗ промени по display-�
 3. Настрой polling interval и метриките, натисни **Start**.
 4. В DAQ Display добави plot карта: канал 0 (CPU%), 1 (RAM%), 2 (temp °C),
    3 (RX kbps) или 4 (TX kbps), Time Domain.
+
+## Gamepad source нод (REQ-SW-PL-042)
+
+**Linux-only** source нод: чете оси и бутони от USB gamepad през Linux joystick
+API (`/dev/input/js0`, non-blocking `read()` на `struct js_event`) на QTimer
+poll (default 60 Hz) и ги емитира като `SampledData` с `domain="gamepad"` —
+консумируем от `DaqDisplayNode` (waveform на осите/бутоните) БЕЗ промени по
+display-а. Тестван с ShanWan USB gamepad (VID:081f, PID:e001).
+
+### Архитектура — Engine → Model → Widget
+
+- **`GamepadEngine`** — Linux joystick API wrapper: `open("/dev/input/js0",
+  O_RDONLY|O_NONBLOCK)`, `ioctl(JSIOCGAXES/JSIOCGBUTTONS)` за capability query,
+  QTimer polling (30–120 Hz, default 60). Всяка poll дренира pending
+  `js_event`-ите: осите се нормализират от `int16 [-32767, 32767]` до
+  `float [-1.0, 1.0]`, бутоните са `0.0` (натиснат) / `1.0` (отпуснат) по
+  Linux joystick конвенцията. След дренажа емитира `stateReady(state)`.
+- **`GamepadModel`** — тънък контролер: 1 изходен порт `{"sample","Sample"}`,
+  connection-count гейт (моделът на SystemMonitorModel) — polling-ва само
+  докато потребителят е натиснал Start И има поне една връзка; последната
+  връзка махната → auto-stop. Всяко състояние се обвива в
+  `shared_ptr<SampledData>` с дескриптор: `sampleRate` = poll rate (Hz),
+  `channels` = `[{"axis_x",FLOAT32}, {"axis_y",FLOAT32}, {"axis_z",FLOAT32},
+  {"axis_rz",FLOAT32}, {"button_a",FLOAT32}, {"button_b",FLOAT32},
+  {"button_x",FLOAT32}, {"button_y",FLOAT32}, {"button_lb",FLOAT32},
+  {"button_rb",FLOAT32}, {"button_back",FLOAT32}, {"button_start",FLOAT32}]`,
+  `endianness` = LittleEndian, `unit` = "normalized", `domain` = "gamepad",
+  `deviceId` = "gamepad", `sourceName` = "USB Gamepad".
+- **`GamepadWidget`** — device path (default `/dev/input/js0`), poll rate
+  (30–120 Hz, default 60), 4 axis value label-а (X/Y/Z/Rz), 8 button state
+  индикатора (green = натиснат, gray = отпуснат), Start/Stop, статус label.
+
+### Платформена поддръжка
+
+Първа версия — **Linux-only** (Linux joystick API). Връзката се охранява чрез
+`HAVE_GAMEPAD` (CMake: `if(NOT WIN32)`) — на Windows build-ът минава без нода.
+Windows поддръжка (XInput/DirectInput) е бъдещо изискване.
+
+### Как се ползва
+
+1. Свържи USB gamepad-а (появява се като `/dev/input/js0`).
+2. Добави `Gamepad Input` от палитрата (`Daq/Sources`).
+3. Свържи изхода към `DAQ Display` (`Daq/Display`).
+4. Настрой device path/poll rate (по желание), натисни **Start**.
+5. В DAQ Display добави plot карта: канал 0–3 (оси X/Y/Z/Rz) или 4–11
+   (бутони A/B/X/Y/LB/RB/Back/Start), Time Domain.
 
 ## Зависимости
 
