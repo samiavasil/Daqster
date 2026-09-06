@@ -123,6 +123,44 @@ else()
     message(STATUS "demo_nodeditor_nodes: OpenCV not found or disabled — using the 8 base video transform operations")
 endif()
 
+# ── Optional libiio PlutoSDR node (compile-time auto-detect) ─────────
+# REQ-SW-PL-040: when libiio is found, the PlutoSdr sources are compiled and
+# HAVE_LIBIIO is defined, exposing the PlutoSDR RX DAQ node (IQ streaming via
+# libiio, SampledData domain="iq"). Without libiio the plugin builds normally
+# without the node (model of the OpenCV block above) — keeps Qt5/Qt6 builds
+# green on machines without libiio (CI, Windows).
+set(PLUTOSDR_SOURCES)
+set(PLUTOSDR_DEFINITIONS)
+set(PLUTOSDR_INCLUDE_DIRS)
+set(PLUTOSDR_LINK_LIBRARIES)
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(IIO QUIET libiio)
+endif()
+if(NOT IIO_FOUND)
+    find_package(libiio QUIET)
+endif()
+if(IIO_FOUND)
+    message(STATUS "demo_nodeditor_nodes: libiio ${IIO_VERSION} found — enabling PlutoSDR RX DAQ node")
+    list(APPEND PLUTOSDR_SOURCES
+        Sources/PlutoSdr/PlutoSdrEngine.h
+        Sources/PlutoSdr/PlutoSdrEngine.cpp
+        Sources/PlutoSdr/PlutoSdrModel.h
+        Sources/PlutoSdr/PlutoSdrModel.cpp
+        Sources/PlutoSdr/PlutoSdrWidget.h
+        Sources/PlutoSdr/PlutoSdrWidget.cpp
+    )
+    list(APPEND PLUTOSDR_DEFINITIONS HAVE_LIBIIO)
+    list(APPEND PLUTOSDR_INCLUDE_DIRS ${IIO_INCLUDE_DIRS})
+    if(TARGET IIO::IIO)
+        list(APPEND PLUTOSDR_LINK_LIBRARIES IIO::IIO)
+    else()
+        list(APPEND PLUTOSDR_LINK_LIBRARIES ${IIO_LIBRARIES})
+    endif()
+else()
+    message(STATUS "demo_nodeditor_nodes: libiio not found — PlutoSDR RX DAQ node disabled")
+endif()
+
 # ── Displays: AudioDisplay (QDevIO, obsolete — REQ-SW-PL-023 §7) ─────
 set(AUDIO_DISPLAY_NODES
     Displays/AudioDisplay/AudioDisplayModelObsolete.h
@@ -161,6 +199,7 @@ create_plugin(DemoNodeEditorNodes
         ${LLAMA_SOURCE_NODES}
         ${VIDEO_NODES}
         ${VIDEO_OPENCV_SOURCES}
+        ${PLUTOSDR_SOURCES}
         ${GENERIC_DISPLAY_NODES}
         ${AUDIO_DISPLAY_NODES}
         ${DAQ_DISPLAY_NODES}
@@ -179,6 +218,7 @@ create_plugin(DemoNodeEditorNodes
         frame_work
     COMPILE_DEFINITIONS
         ${VIDEO_OPENCV_DEFINITIONS}
+        ${PLUTOSDR_DEFINITIONS}
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${DAQSTER_SOURCE_DIR}/src/plugins/common
@@ -188,8 +228,10 @@ create_plugin(DemoNodeEditorNodes
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/AudioDisplay
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/DaqDisplay
         ${VIDEO_OPENCV_INCLUDE_DIRS}
+        ${PLUTOSDR_INCLUDE_DIRS}
     LINK_LIBRARIES
         ${VIDEO_OPENCV_LINK_LIBRARIES}
+        ${PLUTOSDR_LINK_LIBRARIES}
 )
 
 # ── Output name must contain "plugin" substring ──────────────────────

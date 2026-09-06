@@ -7,6 +7,31 @@
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-040** (PlutoSDR RX DAQ node — IQ streaming via libiio):
+  - `PlutoSdrModel` — нов source нод в `demo_nodeditor_nodes`, регистриран под
+    `"Daq/Sources"`; 1 изходен порт `SampledData` (`{"sample","Sample"}`),
+    connection-count гейт (стриймва само докато потребителят е натиснал Start И
+    има поне една връзка; последната връзка махната → auto-stop)
+  - `PlutoSdrEngine` — libiio обвивка: `iio_create_context_from_uri(uri)` →
+    `ad9361-phy` (RX LO frequency / sampling frequency / RF bandwidth / gain
+    mode / hardwaregain) + `cf-ad9361-lpc` (enable `voltage0`(I)+`voltage1`(Q)) →
+    `iio_buffer_refill()` в worker thread; чисто спиране с атомарен stop флаг +
+    `iio_buffer_cancel()` (libiio ≥ 0.24) + thread join
+  - `PlutoSdrWidget` — URI (default `ip:192.168.2.1`), честота (MHz, 70–6000),
+    sample rate (MSPS, 0.2–7.5), gain mode (manual/fast_attack/slow_attack) +
+    gain, Start/Stop, статус label
+  - Данните са `SampledData` с `domain="iq"` (I/Q int16 interleaved,
+    `deviceId="plutosdr"`, `sourceName="PlutoSky 7020-SDR"`) — консумируеми от
+    `DaqDisplayNode` БЕЗ промени (waveform + FFT)
+  - libiio е **опционална** зависимост (pkg-config + `find_package(libiio)`
+    fallback, моделът на OpenCV): без libiio plugin-ът се build-ва без нода;
+    с libiio се дефинира `HAVE_LIBIIO` и нодът се компилира + регистрира
+  - `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-040-*.md` —
+    изискването (RDD gate)
+  - Верификация: Qt5/Qt6 builds PASS + ctest 11/11 green (both) + headless
+    smoke PASS + hardware smoke PASS (PlutoSDR Rev.C fw v0.38, iio_readdev
+    2.4 MSPS streamed); unit тестове отложени (стоящата инструкция „НОВИ
+    ТЕСТОВЕ СТОП“)
 - **REQ-SW-PL-038** (DAQSTER_AUTOSTART_FLOW — headless .flow scene load at startup):
   - `DAQSTER_AUTOSTART_FLOW=<path>` env var: NodeEditor IDE-то зарежда `.flow` сцената
     при старт без файлов диалог (за автоматизирано perf/памет тестване)

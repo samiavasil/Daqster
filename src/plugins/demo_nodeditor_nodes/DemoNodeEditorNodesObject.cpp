@@ -22,6 +22,9 @@
 #include "Sources/Video/VideoEffectNode.h"
 #include "Sources/Video/CustomShaderNode.h"
 #include "Sources/Video/FrameSamplerNode.h"
+#ifdef HAVE_LIBIIO
+#include "Sources/PlutoSdr/PlutoSdrModel.h"
+#endif
 #include <QDevIoDisplayModelObsolete.h>
 
 // ── Saved-graph alias registration (REQ-SW-PL-023 §7) ────────────────
@@ -113,6 +116,10 @@ void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     // QDevIO edges drop, documented consequence).
     registry.registerModel<AudioSourceDataModel>("Audio/Sources");
     registry.registerModel<AudioSourceDataModelObsolete>("Obsolete");
+#ifdef HAVE_LIBIIO
+    // PlutoSDR RX DAQ node (REQ-SW-PL-040) — compiled only when libiio is found.
+    registry.registerModel<PlutoSdrModel>("Daq/Sources");
+#endif
     registry.registerModel<LLamaModelDataModel>("AI/LLM");
     registry.registerModel<ConsoleDataModel>("General/Display");
 

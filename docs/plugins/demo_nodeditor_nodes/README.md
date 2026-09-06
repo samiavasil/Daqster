@@ -127,6 +127,7 @@ DemoNodeEditorNodesObject → INodeProvider
 |-----|-----------|----------|
 | AudioSourceDataModel | Sources | Аудио вход (микрофон) — SampledData поток `{"sample","Sample"}`; каптурата е в dedicated worker thread, GUI нишката само пази последния `shared_ptr` и емитира `dataUpdated` |
 | AudioSourceDataModelObsolete | Sources | Старият QDevIO аудио вход (rename-only, работи) — излъчва QDevIO byte-stream за legacy графите и benchmarking |
+| PlutoSdrModel | Daq/Sources | **PlutoSDR RX DAQ нод** (REQ-SW-PL-040) — IQ стрийминг през libiio, `SampledData` с `domain="iq"` (I/Q int16 interleaved); опционална компилация (само с libiio) |
 
 ### Displays
 | Нод | Категория | Описание |
@@ -357,6 +358,53 @@ edges-ите към AudioDisplay/Mux/Demux отпадат (type mismatch). Ст�
 `"AudioDisplay"`/`"MuxNode"`/`"DemuxNode"` (QDevIO свят, alias към `_obsolete`
 версиите по REQ-SW-PL-023) работят с `AudioSourceObsolete`. Новите графи
 свързват `AudioSource` → DAQ Display (SampledData поток).
+
+## PlutoSDR RX DAQ нод (REQ-SW-PL-040)
+
+SDR source нод: стриймва IQ семпли от OpenSourceSDRLab PlutoSky 7020-SDR
+(AD9363, pre-hacked до AD9361 режим 70 MHz–6 GHz) през **libiio** и ги емитира
+като `SampledData` с `domain="iq"` — консумируем от `DaqDisplayNode` (waveform на
+I/Q каналите + FFT на канал) БЕЗ промени по display-а.
+
+### Архитектура — Engine → Model → Widget
+
+- **`PlutoSdrEngine`** — libiio обвивка: `iio_create_context_from_uri(uri)` →
+  `ad9361-phy` (RX LO frequency / sampling frequency / RF bandwidth / gain mode /
+  hardwaregain) + `cf-ad9361-lpc` (enable `voltage0`(I) + `voltage1`(Q)) →
+  `iio_device_create_buffer(rx, 4096)` → `iio_buffer_refill()` в worker thread.
+  Спиране: атомарен stop флаг + `iio_buffer_cancel()` (libiio ≥ 0.24) + thread
+  join — без deadlock при затваряне на графа по време на стрийминг.
+- **`PlutoSdrModel`** — тънък контролер: 1 изходен порт `{"sample","Sample"}`,
+  connection-count гейт (моделът на VideoFileSourceNode) — стриймва само докато
+  потребителят е натиснал Start И има поне една връзка; последната връзка
+  махната → auto-stop. Всеки refill-нат буфер се обвива в `shared_ptr<SampledData>`
+  с дескриптор: `sampleRate` = конфигурираният (Hz), `channels` = `[{"I",INT16},
+  {"Q",INT16}]`, `endianness` = LittleEndian, `unit` = "raw", `domain` = "iq",
+  `deviceId` = "plutosdr", `sourceName` = "PlutoSky 7020-SDR".
+- **`PlutoSdrWidget`** — URI (default `ip:192.168.2.1`), честота (MHz, 70–6000),
+  sample rate (MSPS, 0.2–7.5), gain mode (manual/fast_attack/slow_attack) + gain,
+  Start/Stop, статус label (connected/streaming/error).
+
+### URI — USB или Ethernet
+
+Същата URI работи и за USB gadget-а, и за Ethernet-а: `ip:192.168.2.1`
+(Ethernet, default) или `usb:` (USB auto-detect). USB throughput-ът е
+**~5–7.5 MSPS** (не 61.44 MSPS) — практическият лимит за USB gadget-а; UI
+ограничава sample rate до 7.5 MSPS.
+
+### libiio зависимост (опционална)
+
+`find_package(PkgConfig QUIET)` + `pkg_check_modules(IIO QUIET libiio)` с
+`find_package(libiio QUIET)` fallback (моделът на OpenCV). Без libiio plugin-ът
+се build-ва нормално без нода; с libiio се дефинира `HAVE_LIBIIO` и нодът се
+компилира + регистрира под `"Daq/Sources"`.
+
+### Как се ползва
+
+1. Добави `PlutoSDR RX` от палитрата (`Daq/Sources`).
+2. Свържи изхода към `DAQ Display` (`Daq/Display`).
+3. Настрой URI/честота/sample rate/gain и натисни **Start**.
+4. В DAQ Display добави plot карта: канал 0 (I) или 1 (Q), Time Domain или FFT.
 
 ## Зависимости
 
