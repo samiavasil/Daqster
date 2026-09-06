@@ -6,6 +6,29 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **REQ-SW-PL-047** (pcap Packet Capture source node — libpcap):
+  - `PcapEngine` — libpcap wrapper: `pcap_open_live()`, `pcap_compile()`/`pcap_setfilter()` for BPF, `pcap_loop()` in worker thread (QThread), `pcap_breakloop()` for stop, `pcap_close()` in destructor; thread-safe packet queue to Model
+  - `PcapModel` (`NodeDelegateModel`) — 1 output port `SampledData` ("packet"), connection-count gating (auto start/stop) + user Start/Stop, wraps packets in `SampledData` with `SampledStreamDescriptor` (domain="pcap", deviceId=interface name, sourceName="pcap capture", BYTES channel for payload, sampleRate=0 event-driven), metadata (timestamp, caplen, len) in packet; emits `dataUpdated(0)`; save/load of interface/filter/snaplen/promiscuous
+  - `PcapWidget` — UI: interface selector (dropdown from `pcap_findalldevs()`), BPF filter text field (e.g. "tcp port 80"), snaplen spin box, promiscuous checkbox, Start/Stop, status (packets captured, kernel drops, interface drops)
+  - Registered as `"Daq/Sources"` in `registerNodes()` (guarded by `#ifdef HAVE_PCAP`)
+  - libpcap — optional dependency (`find_library` + `find_path`, NVML/OpenCV model): without libpcap build passes without node; Windows guard for WinPcap/Npcap (`wpcap`/`Packet` libraries)
+  - Code: `src/plugins/demo_nodeditor_nodes/Sources/Pcap/`
+- **REQ-SW-PL-046** (Jack-detect source node — HDA jack events):
+  - `JackDetectEngine` — scans `/proc/asound/card*/codec#*/jack*`, parses jack names and states (`Pin 0x21 (Headphone): present = No`), QTimer polling (default 500ms), detects changes (event-driven `jacksChanged()`)
+  - `JackDetectModel` (`NodeDelegateModel`) — 1 output port `SampledData` ("sample"), connection-count gating (auto start/stop), wraps jacks in `SampledData` with `SampledStreamDescriptor` (domain="jack", deviceId="hda", sourceName="HDA Jack Detect", dynamic FLOAT32 channels — one per jack, values 0.0/1.0), emits `dataUpdated(0)`; save/load of interval
+  - `JackDetectWidget` — UI: polling interval (0.1–5s, default 0.5), Start/Stop, status (list of jacks and their states)
+  - Registered as `"Daq/Sources"` in `registerNodes()` (guarded by `#ifdef HAVE_JACK_DETECT`)
+  - Linux-only platform guard (`if(NOT WIN32)` → `HAVE_JACK_DETECT`): on Windows build passes without node; without jack files node reports empty status without crash
+  - Code: `src/plugins/demo_nodeditor_nodes/Sources/JackDetect/`
+- **REQ-SW-PL-045** (GPU Monitor source node — NVIDIA NVML):
+  - `GpuMonitorEngine` — NVML wrapper: `nvmlInit()`, handle for GPU 0, QTimer polling (default 1s), `nvmlShutdown()` on stop; reads utilization/memory/temperature/power/fan/clock
+  - `GpuMonitorModel` (`NodeDelegateModel`) — 1 output port `SampledData` ("sample"), connection-count gating (auto start/stop), wraps metrics in `SampledData` with `SampledStreamDescriptor` (domain="gpu", 6 FLOAT32 channels: gpu_util/mem_used/gpu_temp_c/power_w/fan_pct/clock_mhz, sampleRate=1/interval), emits `dataUpdated(0)`; save/load of interval
+  - `GpuMonitorWidget` — UI: polling interval (0.1–5s), Start/Stop, status (GPU name + metrics)
+  - Registered as `"Daq/Sources"` in `registerNodes()` (guarded by `#ifdef HAVE_NVML`)
+  - NVML — optional dependency (`find_library` + `find_path`, OpenCV model): without NVML build passes without node
+  - Code: `src/plugins/demo_nodeditor_nodes/Sources/GpuMonitor/`
+
 ## [0.3.2] - 2026-09-02
 
 ## [0.3.1] - 2026-09-01

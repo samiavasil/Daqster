@@ -197,6 +197,13 @@
   - Регистрация като `"Daq/Sources"` в `registerNodes()` (охранена с `#ifdef HAVE_JACK_DETECT`)
   - Linux-only платформен guard (`if(NOT WIN32)` → `HAVE_JACK_DETECT`): на Windows build-ът минава без нода; без jack файлове нодът репортва празен статус без crash
   - Код: `src/plugins/demo_nodeditor_nodes/Sources/JackDetect/`
+- **REQ-SW-PL-047** (pcap Packet Capture source node — libpcap):
+  - `PcapEngine` — libpcap обвивка: `pcap_open_live()`, `pcap_compile()`/`pcap_setfilter()` за BPF, `pcap_loop()` в worker thread (QThread), `pcap_breakloop()` за спиране, `pcap_close()` при деструктор; thread-safe packet queue към Model
+  - `PcapModel` (`NodeDelegateModel`) — 1 изходен порт `SampledData` ("packet"), connection-count gating (auto start/stop) + user Start/Stop, обвива пакетите в `SampledData` с `SampledStreamDescriptor` (domain="pcap", deviceId=interface name, sourceName="pcap capture", BYTES канал за payload, sampleRate=0 event-driven), metadata (timestamp, caplen, len) в пакета; емитира `dataUpdated(0)`; save/load на interface/filter/snaplen/promiscuous
+  - `PcapWidget` — UI: interface selector (dropdown от `pcap_findalldevs()`), BPF filter text field (напр. "tcp port 80"), snaplen spin box, promiscuous checkbox, Start/Stop, статус (packets captured, kernel drops, interface drops)
+  - Регистрация като `"Daq/Sources"` в `registerNodes()` (охранена с `#ifdef HAVE_PCAP`)
+  - libpcap — опционална зависимост (`find_library` + `find_path`, модел на NVML/OpenCV): без libpcap build-ът минава без нода; Windows guard за WinPcap/Npcap (`wpcap`/`Packet` библиотеки)
+  - Код: `src/plugins/demo_nodeditor_nodes/Sources/Pcap/`
 
 ### Fixed
 - **REQ-SW-PL-039** (CPU effects work in the display — VideoOutputNode embedded effects):
