@@ -90,10 +90,32 @@
   id + параметри, backward compatible. Комит: `615f53e`. AC 1–5 `[x]`.
   Тестове: `demo_nodeditor_videooutput_tests` 10/10 (Qt5 + Qt6).
 
+## Фаза 4 — Runtime Mode (REQ-SW-PL-048..052)
+
+**Статус: PLANNED** 📋 (2026-09-07)
+
+Архитектурно предложение: `docs/Architecture/runtime-mode-architecture.md`.
+Визия: "Node diagram = application" — `Daqster --run <flow.flow>` стартира
+runtime режим, деембеднатите виджети формират UI-то на приложението.
+
+- **REQ-SW-PL-048** — Runtime режим на приложението (--run, presentation toggle) — **PLANNED** (Фаза 1)
+- **REQ-SW-PL-049** — .flow ui секция (deembedded, geometry, autoStart) — **PLANNED** (Фаза 1)
+- **REQ-SW-PL-050** — Thread lifecycle протокол (stop/wait) — **PLANNED** (Фаза 1)
+- **REQ-SW-PL-051** — Core/GUI разделение + headless — **PLANNED** (Фаза 2)
+- **REQ-SW-PL-052** — Пакетиране (Flatpak/AppImage) — **PLANNED** (Фаза 3)
+
+Бранч: `docs/REQ-SW-PL-048-runtime-mode-architecture` (от PL-047 tip).
+**НОВА ИМПЛЕМЕНТАЦИЯ НЕ Е СТАРТИРАНА** — само изисквания + архитектура.
+
 ## Състояние на имплементацията
 
 | REQ | Имплементация |
 |-----|---------------|
+| REQ-SW-PL-048 | Планирано (Фаза 1 — Runtime режим) |
+| REQ-SW-PL-049 | Планирано (Фаза 1 — .flow ui секция) |
+| REQ-SW-PL-050 | Планирано (Фаза 1 — thread lifecycle) |
+| REQ-SW-PL-051 | Планирано (Фаза 2 — headless) |
+| REQ-SW-PL-052 | Планирано (Фаза 3 — дистрибуция) |
 | REQ-SW-PL-020 | Имплементирано |
 | REQ-SW-PL-021 | Частично (AC 1-3); AC 4/6/7 отворени |
 | REQ-SW-PL-022 | Имплементирано; nPorts fix (`d5145c2`) поправи AC 8 |
