@@ -48,6 +48,15 @@ public:
     /// Reflect the running state in the Start/Stop button.
     void setRunning(bool running);
 
+    /// Set the BPF filter text.
+    void setFilter(const QString &filter);
+
+    /// Set the snaplen value.
+    void setSnaplen(int snaplen);
+
+    /// Set the promiscuous mode checkbox.
+    void setPromiscuous(bool promiscuous);
+
 signals:
     void startRequested();
     void stopRequested();

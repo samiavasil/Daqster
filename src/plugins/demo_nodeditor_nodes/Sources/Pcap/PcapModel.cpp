@@ -3,6 +3,10 @@
 #include <QJsonObject>
 #include <QTimer>
 
+#ifdef HAVE_PCAP
+#include <pcap/pcap.h>
+#endif
+
 PcapModel::PcapModel()
 {
     m_engine = new PcapEngine(this);

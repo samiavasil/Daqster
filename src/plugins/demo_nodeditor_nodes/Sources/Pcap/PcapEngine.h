@@ -7,6 +7,10 @@
 #include <QMutex>
 #include <QWaitCondition>
 
+#ifdef HAVE_PCAP
+#include <pcap/pcap.h>
+#endif
+
 class QThread;
 
 /**
@@ -85,7 +89,7 @@ private:
     void updateStats();
 
 #ifdef HAVE_PCAP
-    struct pcap_t *m_handle = nullptr;
+    pcap_t *m_handle = nullptr;
 #else
     void *m_handle = nullptr;
 #endif

@@ -1,9 +1,13 @@
 #include "PcapWidget.h"
 
 #include <QCheckBox>
+#include <QComboBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QSpinBox>
 #include <QVBoxLayout>
 
 PcapWidget::PcapWidget(QWidget *parent)
@@ -112,4 +116,24 @@ void PcapWidget::setRunning(bool running)
     m_interfaceCombo->setEnabled(!running);
     m_filterEdit->setEnabled(!running);
     m_snaplenSpin->setEnabled(!running);
+}
+
+void PcapWidget::setFilter(const QString &filter)
+{
+    m_filterEdit->setText(filter);
+}
+
+void PcapWidget::setSnaplen(int snaplen)
+{
+    m_snaplenSpin->setValue(snaplen);
+}
+
+void PcapWidget::setPromiscuous(bool promiscuous)
+{
+    for (auto *w : findChildren<QCheckBox *>()) {
+        if (w->text() == QStringLiteral("Promiscuous mode")) {
+            w->setChecked(promiscuous);
+            break;
+        }
+    }
 }

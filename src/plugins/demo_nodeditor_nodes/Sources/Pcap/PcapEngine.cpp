@@ -181,7 +181,7 @@ void PcapEngine::runCapture()
         return;
 
     const u_char *packetData;
-    struct pcap_pkthdr header;
+    struct pcap_pkthdr *header = nullptr;
 
     // Stats update timer
     QTimer statsTimer;
@@ -194,11 +194,11 @@ void PcapEngine::runCapture()
         if (result == 1) {
             // Packet captured
             Packet pkt;
-            pkt.data = QByteArray(reinterpret_cast<const char *>(packetData), header.caplen);
-            pkt.timestampUs = static_cast<qint64>(header.ts.tv_sec) * 1000000LL
-                            + static_cast<qint64>(header.ts.tv_usec);
-            pkt.caplen = header.caplen;
-            pkt.len = header.len;
+            pkt.data = QByteArray(reinterpret_cast<const char *>(packetData), header->caplen);
+            pkt.timestampUs = static_cast<qint64>(header->ts.tv_sec) * 1000000LL
+                            + static_cast<qint64>(header->ts.tv_usec);
+            pkt.caplen = header->caplen;
+            pkt.len = header->len;
 
             ++m_packetsCaptured;
             emit packetCaptured(pkt);

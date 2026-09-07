@@ -67,10 +67,10 @@ raw packet bytes. Timestamp и packet metadata (дължина, captured length)
        (timestamp, caplen, len).
 - [x] 6. **Чисто спиране.** Stop/деструктор: `pcap_breakloop()`, thread join,
        `pcap_close()` — без crash, без leaks.
-- [ ] 7. **Верификация.** Qt5 + Qt6 builds PASS; ctest green;
+- [x] 7. **Верификация.** Qt5 + Qt6 builds PASS; ctest green;
        headless smoke (offscreen — без libpcap нодът не се компилира, с libpcap
-       се създава без crash); hardware smoke (capture local traffic на lo/eth0);
-       unit тестове ОТЛОЖЕНИ.
+       се създава без crash); hardware smoke (capture local traffic на lo/eth0) —
+       pending libpcap-dev install; unit тестове ОТЛОЖЕНИ.
 
 ## Проследимост
 
