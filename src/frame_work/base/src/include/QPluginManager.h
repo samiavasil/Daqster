@@ -16,19 +16,18 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
 Initial version of this file was created on 16.03.2017 at 11:40:20
-**************************************************************************/
+*************************************************************************/
 #ifndef QPLUGINMANAGER_H
 #define QPLUGINMANAGER_H
-#include "build_cfg.h"
+#include "framework_core_export.h"
 #include "PluginFilter.h"
 #include "PluginDescription.h"
+#include <capabilities/INodeProvider.h>
 #include <QObject>
 #include <QList>
 #include <QMap>
 #include <QString>
 #include <memory>
-
-class QDialog;
 
 namespace Daqster {
 
@@ -51,7 +50,7 @@ class PluginPersistence;
  * Note: Please don't use instance of this class directly on your code.
  * Instead get global instance with QPluginManager::instance().
  */
-class FRAME_WORKSHARED_EXPORT QPluginManager : public QObject // skipcq: CXX-W2009
+class FRAMEWORK_CORE_EXPORT QPluginManager : public QObject // skipcq: CXX-W2009
 {
     Q_OBJECT
 public:
@@ -84,28 +83,29 @@ public:
    */
   void AddPluginsDirectory (const QString& Directory);
 
-   /**
-    * Show plugin manager GUI widget. In this GUI you can see available plugins,
-    * rescan for new plugins, dynamic unload , enable/disable plugin loading.
-    * Implementation is in frame_work library.
-    */
-  void ShowPluginManagerGui ( QWidget *Parent = nullptr );
+  QBasePluginObject *CreatePluginObject(const QString &KeyHash, QObject *Parent = nullptr);
 
-   QBasePluginObject *CreatePluginObject(const QString &KeyHash, QObject *Parent = nullptr);
+  /**
+   * @brief Return all plugin instances that implement a given interface (by IID).
+   */
+  QObjectList instances(const char* iid);
 
-   /**
-    * @brief Return all plugin instances that implement a given interface (by IID).
-    */
-   QObjectList instances(const char* iid);
+  /**
+   * @brief Return all plugin objects that provide node types (INodeProvider).
+   *
+   * Preferred over instances(INodeProvider_IID): INodeProvider is a non-QObject
+   * interface and therefore invisible to qt_metacast-based lookup.
+   */
+  QList<Daqster::INodeProvider*> nodeProviders();
 
 public slots:
-   void EnableDisablePlugin( const QString& Hash, bool Enable );
+  void EnableDisablePlugin( const QString& Hash, bool Enable );
 
-   void EnableDisablePluginList( const QList<QString>& HashList, bool Enable );
+  void EnableDisablePluginList( const QList<QString>& HashList, bool Enable );
 
-   void AllPluginObjectsDestroyed( const QString& Hash );
+  void AllPluginObjectsDestroyed( const QString& Hash );
 
-   void ShutdownPluginManager();
+  void ShutdownPluginManager();
 
 signals:
   void PluginsListChangeDetected();

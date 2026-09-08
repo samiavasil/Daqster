@@ -18,12 +18,92 @@ configure_file(
     @ONLY
 )
 
-# ══════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════════
+# Shared Library: NodeEditorBuiltInNodes
+# Contains only the built-in node models (no GUI dependencies)
+# This can be used by FrameworkCore (for headless) and NodeEditorLibrary
+# ══════════════════════════════════════════════════════════════════════════
+
+register_component(NodeEditorBuiltInNodes
+    REQUIRES_LIBRARIES
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Gui
+        Qt${QT_VERSION_MAJOR}::Widgets
+        QtNodes
+)
+
+get_property(NODE_EDITOR_BUILTIN_NODES_ENABLED GLOBAL PROPERTY COMPONENT_NodeEditorBuiltInNodes_ENABLED)
+
+if(NODE_EDITOR_BUILTIN_NODES_ENABLED)
+    set(BUILTIN_NODES_SOURCES
+        BuiltInNodes/Sources/NumberSource/NumberSourceDataModel.cpp
+        BuiltInNodes/Sources/NumberSource/NumberSourceDataUi.cpp
+        BuiltInNodes/Displays/NumberDisplay/NumberDisplayDataModel.cpp
+        BuiltInNodes/Operators/Modulo/ModuloModel.cpp
+        BuiltInNodes/Operators/ArithmeticLogic/ArithmeticLogicModel.cpp
+        BuiltInNodes/Operators/ArithmeticLogic/ExprParser.cpp
+    )
+
+    add_library(NodeEditorBuiltInNodes SHARED ${BUILTIN_NODES_SOURCES})
+
+    # Windows: export all symbols
+    set_target_properties(NodeEditorBuiltInNodes PROPERTIES
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+    )
+
+    target_compile_definitions(NodeEditorBuiltInNodes PRIVATE NODE_EDITOR_BUILTIN_NODES_BUILD)
+
+    target_include_directories(NodeEditorBuiltInNodes PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
+        ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    )
+
+    # Link Qt dependencies
+    target_link_libraries(NodeEditorBuiltInNodes PUBLIC
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Gui
+        QtNodes
+    )
+
+    set_target_properties(NodeEditorBuiltInNodes PROPERTIES
+        OUTPUT_NAME "NodeEditorBuiltInNodes"
+    )
+
+    # Install library
+    install(TARGETS NodeEditorBuiltInNodes
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+
+    install(FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Sources/NumberSource/NumberSourceDataModel.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Sources/NumberSource/NumberSourceDataUi.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Displays/NumberDisplay/NumberDisplayDataModel.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/Modulo/ModuloModel.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/ArithmeticLogic/ArithmeticLogicModel.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/ArithmeticLogic/ExprParser.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/NodeEditorBuiltInNodes
+    )
+
+    message(STATUS "Created library: NodeEditorBuiltInNodes (built-in node models)")
+else()
+    get_property(REASONS GLOBAL PROPERTY COMPONENT_NodeEditorBuiltInNodes_REASONS)
+    message(STATUS "Skipping library NodeEditorBuiltInNodes - dependencies not met:")
+    foreach(REASON ${REASONS})
+        message(STATUS "  - ${REASON}")
+    endforeach()
+endif()
+
+# ═════════════════════════════════════════════════════════════════════════
 # Shared Library: NodeEditorLibrary
 # Extracted so both NodeEditorIde and DemoNodeEditorNodes plugins
 # can link against it without cross-plugin symbol resolution issues.
 # Conditional on required Qt modules being available.
-# ══════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════════
 
 register_component(NodeEditorLibrary
     REQUIRES_LIBRARIES
@@ -32,7 +112,8 @@ register_component(NodeEditorLibrary
         Qt${QT_VERSION_MAJOR}::Multimedia
         Qt${QT_VERSION_MAJOR}::Charts
         QtNodes
-        frame_work
+        FrameworkGui
+        NodeEditorBuiltInNodes
 )
 
 get_property(NODE_EDITOR_LIB_ENABLED GLOBAL PROPERTY COMPONENT_NodeEditorLibrary_ENABLED)
@@ -91,8 +172,17 @@ if(NODE_EDITOR_LIB_ENABLED)
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/decoders
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/display
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/threading
-        ${DAQSTER_SOURCE_DIR}/src/plugins/common
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Sources/NumberSource
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Displays/NumberDisplay
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/Modulo
+        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/ArithmeticLogic
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/gui
+        ${DAQSTER_SOURCE_DIR}/src/plugins/common
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
+        # framework_core_export.h is generated in the public daqster build tree
+        ${CMAKE_BINARY_DIR}/daqster/src/frame_work
     )
 
     link_component_dependencies(NodeEditorLibrary)
@@ -122,9 +212,9 @@ else()
     endforeach()
 endif()
 
-# ══════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════
 # Plugin: NodeEditorIde (IDE shell + built-in nodes)
-# ══════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════
 
 set(BUILTIN_SOURCE_NODES
     BuiltInNodes/Sources/NumberSource/NumberSourceDataModel.h
@@ -174,37 +264,10 @@ create_plugin(NodeEditorIde
         ${PLUGIN_RESOURCES}
     REQUIRES_LIBRARIES
         NodeEditorLibrary
-        Qt${QT_VERSION_MAJOR}::Core
-        Qt${QT_VERSION_MAJOR}::Gui
-        Qt${QT_VERSION_MAJOR}::Network
-        Qt${QT_VERSION_MAJOR}::Multimedia
-        Qt${QT_VERSION_MAJOR}::Charts
-        Qt${QT_VERSION_MAJOR}::OpenGL
         QtNodes
-        frame_work
-    INCLUDE_DIRECTORIES
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${DAQSTER_SOURCE_DIR}/src/plugins/common
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Sources/NumberSource
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Displays/NumberDisplay
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/Modulo
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/ArithmeticLogic
-        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes
-    COMPILE_DEFINITIONS
-        NODE_EDITOR_SHARED
 )
 
-if(TARGET NodeEditorIde)
-    set_target_properties(NodeEditorIde PROPERTIES
-        OUTPUT_NAME "NodeEditorPluginIde"
-    )
-    # Explicit ordering guarantee: NodeEditorPluginIde.dll links against
-    # NodeEditorLibrary's import library on Windows. The link already goes
-    # through the target name (link_component_dependencies), which makes
-    # Ninja track the import library as an implicit dependency — this
-    # add_dependencies() is a belt-and-braces order-only edge so the
-    # library is always built before the plugin links (LNK1181 guard).
-    if(TARGET NodeEditorLibrary)
-        add_dependencies(NodeEditorIde NodeEditorLibrary)
-    endif()
-endif()
+# ══════════════════════════════════════════════════════════════════════════
+# Built-in nodes are now in NodeEditorBuiltInNodes library
+# The plugin just uses them via NodeEditorLibrary
+# ═══════════════════════════════════════════════════════════════════════════

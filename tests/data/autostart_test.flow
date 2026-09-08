@@ -1,80 +1,96 @@
 {
-    "nodes": [
+    "connections": [
         {
-            "id": 0,
-            "internal-data": {
-                "model-name": "AudioSource",
-                "name": "AudioSource"
-            },
-            "label": "AudioSource",
-            "labelVisible": true,
-            "position": {
-                "x": -200.0,
-                "y": 0.0
-            }
-        },
+            "inNodeId": 1,
+            "inPortIndex": 0,
+            "outNodeId": 2,
+            "outPortIndex": 0
+        }
+    ],
+    "nodes": [
         {
             "id": 1,
             "internal-data": {
                 "model-name": "AudioDisplay",
-                "name": "AudioDisplay"
+                "plots": [
+                    {
+                        "channel": 0,
+                        "mode": "normalized",
+                        "processing": "time",
+                        "title": "Plot 1",
+                        "unitAxes": true
+                    },
+                    {
+                        "channel": 0,
+                        "mode": "normalized",
+                        "processing": "fft",
+                        "title": "Plot 2",
+                        "unitAxes": true
+                    }
+                ],
+                "ringSeconds": 5
             },
             "label": "AudioDisplay",
             "labelVisible": true,
             "position": {
-                "x": 200.0,
-                "y": 0.0
+                "x": 200,
+                "y": 0
             }
-        }
-    ],
-    "connections": [
+        },
         {
-            "outNodeId": 0,
-            "outPortIndex": 0,
-            "inNodeId": 1,
-            "inPortIndex": 0
+            "id": 2,
+            "internal-data": {
+                "model-name": "AudioSource",
+                "name": "AudioSource"
+            },
+            "label": "",
+            "labelVisible": true,
+            "position": {
+                "x": -274,
+                "y": -189
+            }
         }
     ],
     "ui": {
+        "nodes": {
+            "1": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 544,
+                    "maximized": false,
+                    "w": 1852,
+                    "x": 370,
+                    "y": 168
+                },
+                "workspace": 0
+            },
+            "2": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 55,
+                    "maximized": false,
+                    "w": 301,
+                    "x": 69,
+                    "y": 168
+                },
+                "workspace": 0
+            }
+        },
         "version": 1,
         "workspaces": [
             {
-                "id": 0,
-                "tabbed": true,
                 "geometry": {
-                    "x": 100,
-                    "y": 100,
-                    "w": 800,
                     "h": 600,
-                    "maximized": false
-                }
-            }
-        ],
-        "nodes": {
-            "0": {
-                "deembedded": true,
-                "workspace": 0,
-                "geometry": {
-                    "x": 150,
-                    "y": 150,
-                    "w": 300,
-                    "h": 200,
-                    "maximized": false
+                    "maximized": false,
+                    "w": 800,
+                    "x": 100,
+                    "y": 100
                 },
-                "autoStart": true
-            },
-            "1": {
-                "deembedded": true,
-                "workspace": 0,
-                "geometry": {
-                    "x": 500,
-                    "y": 150,
-                    "w": 300,
-                    "h": 200,
-                    "maximized": false
-                },
-                "autoStart": false
+                "id": 0,
+                "tabbed": true
             }
-        }
+        ]
     }
 }

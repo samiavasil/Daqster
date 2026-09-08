@@ -1,0 +1,14 @@
+{
+  "Name": "DemoNodeEditorNodesGui",
+  "Version": "0.3.2",
+  "Description": "GUI widgets for Daqster demo node editor core nodes",
+  "Author": "Vasil Vasilev",
+  "License": "GPL-3.0",
+  "Type": "Application",
+  "TypeName": "GUI Nodes",
+  "Hash": "",
+  "Location": "",
+  "Enabled": true,
+  "HealthyState": 0,
+  "IconPath": ""
+}

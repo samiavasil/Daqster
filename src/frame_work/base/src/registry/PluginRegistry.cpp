@@ -2,6 +2,7 @@
 #include "QPluginInterface.h"
 #include "QBasePluginObject.h"
 #include "LogCategories.h"
+#include <capabilities/INodeProvider.h>
 
 namespace Daqster {
 
@@ -180,6 +181,34 @@ QList<QObject*> PluginRegistry::instances(const char* iid)
             if (obj && obj->qt_metacast(iid)) {
                 obj->setProperty("_daqster_hash", it.key());
                 result.append(obj);
+            }
+        }
+    }
+
+    return result;
+}
+
+QList<Daqster::INodeProvider*> PluginRegistry::nodeProviders()
+{
+    QList<Daqster::INodeProvider*> result;
+
+    for (auto it = m_pluginMap.constBegin(); it != m_pluginMap.constEnd(); ++it) {
+        QPluginInterface* iface = it.value();
+        if (!iface || !iface->IsEnabled()) {
+            continue;
+        }
+
+        // Lazy init — create instance if none exist yet
+        if (iface->GetPluginInstances().isEmpty()) {
+            createPluginObject(it.key());
+        }
+
+        // INodeProvider is a non-QObject interface, so it cannot be matched by
+        // qt_metacast()/Q_INTERFACES. dynamic_cast is the correct probe here.
+        for (QBasePluginObject* obj : iface->GetPluginInstances()) {
+            if (auto* provider = dynamic_cast<Daqster::INodeProvider*>(obj)) {
+                obj->setProperty("_daqster_hash", it.key());
+                result.append(provider);
             }
         }
     }

@@ -16,9 +16,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
 Initial version of this file was created on 16.03.2017 at 11:40:20
-**************************************************************************/
+*************************************************************************/
 #include "LogCategories.h"
-#include"QBasePluginObject.h"
+#include "QBasePluginObject.h"
 #include "QPluginManager.h"
 #include "PluginFilter.h"
 #include "QPluginInterface.h"
@@ -26,19 +26,16 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include "PluginDiscovery.h"
 #include "PluginRegistry.h"
 #include "PluginPersistence.h"
-#include "gui/QPluginManagerGui.h"
 
 #include <QDir>
-#include <QApplication>
+#include <QCoreApplication>
 #include <QSharedPointer>
 #include <QStandardPaths>
-#include<QFile>
+#include <QFile>
 #include <QFileInfo>
 #include <QLibrary>
 #include <QSet>
-#include<QThread>
-#include <QWidget>
-
+#include <QThread>
 
 namespace Daqster {
 
@@ -127,14 +124,14 @@ QPluginManager::~QPluginManager () {
  */
 QPluginManager *QPluginManager::instance()
 {
-    Q_ASSERT( QApplication::instance()->thread() == QThread::currentThread() );
+    Q_ASSERT( QCoreApplication::instance()->thread() == QThread::currentThread() );
     static QPluginManager instance;
     return &instance;
 }
 
 bool QPluginManager::Initialize()
 {
-    connect( QApplication::instance() ,SIGNAL(aboutToQuit()), QPluginManager::instance(),SLOT(ShutdownPluginManager()) );
+    connect( QCoreApplication::instance() ,SIGNAL(aboutToQuit()), QPluginManager::instance(),SLOT(ShutdownPluginManager()) );
     return true;
 }
 
@@ -268,8 +265,16 @@ void QPluginManager::SearchForPlugins ()
         }
     }
 
-    // 2. Discover new plugins
-    QMap<QString, QString> discovered = m_discovery->discoverPlugins(m_registry->allDescriptions());
+    // 2. Discover new plugins.
+    // Filter against the plugins that are actually LOADED in this process, not
+    // against the persisted descriptions. LoadPluginsInfoFromPersistency() has
+    // already seeded the description map with every plugin recorded in the
+    // .ini file, and those entries survive process restarts — using them here
+    // made every run after the first one treat each plugin as "already known",
+    // so nothing was discovered and nothing was ever loaded again.
+    const QList<QString> registered = m_registry->registeredHashes();
+    const QSet<QString> loadedHashes(registered.begin(), registered.end());
+    QMap<QString, QString> discovered = m_discovery->discoverPlugins(loadedHashes);
     for (auto it = discovered.constBegin(); it != discovered.constEnd(); ++it) {
         if (LoadPluginInterfaceObject(it.value(), it.key())) {
             Changed = true;
@@ -300,14 +305,6 @@ void QPluginManager::AddPluginsDirectory (const QString& Directory)
     m_discovery->addSearchPath(Directory);
 }
 
-
-// ShowPluginManagerGui — direct instantiation (GUI is part of frame_work)
-void QPluginManager::ShowPluginManagerGui(QWidget *Parent)
-{
-    auto* dlg = new QPluginManagerGui(Parent);
-    dlg->setAttribute(Qt::WA_DeleteOnClose);
-    dlg->show();
-}
 
 /**
  * @brief QPluginManager::LoadPluginsInfoFromPersistency Load plugins information from persistency
@@ -458,5 +455,9 @@ QObjectList QPluginManager::instances(const char* iid)
     return m_registry->instances(iid);
 }
 
-}//End of Daqster namespace
+QList<Daqster::INodeProvider*> QPluginManager::nodeProviders()
+{
+    return m_registry->nodeProviders();
+}
 
+}//End of Daqster namespace

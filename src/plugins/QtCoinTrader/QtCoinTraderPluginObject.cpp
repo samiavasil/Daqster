@@ -1,5 +1,6 @@
 #include "QtCoinTraderPluginObject.h"
 #include "QPluginManager.h"
+#include "QPluginManagerGui.h"
 #include "debug.h"
 #include "LogCategories.h"
 #include<QMainWindow>
@@ -208,6 +209,8 @@ void QtCoinTraderPluginObject::ShowPlugins()
     {
         DEBUG << "Plugin Manager: " << pm;
         //     pm->SearchForPlugins();
-        pm->ShowPluginManagerGui( m_Win );
+        auto* managerDialog = new Daqster::QPluginManagerGui(m_Win);
+        managerDialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        managerDialog->show();
     }
 }

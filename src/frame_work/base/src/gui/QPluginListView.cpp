@@ -23,6 +23,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include "ui_pluginlistview.h"
 #include "QPluginManager.h"
 #include <QMap>
+#include <QIcon>
 #include <QTreeWidgetItem>
 #include "PluginDetails.h"
 
@@ -106,7 +107,7 @@ static void addPluginToRoot(QTreeWidgetItem* root_it, const Daqster::PluginDescr
     Qt::CheckState RootCheckState = root_it->checkState(1);
     int childCounter = root_it->data(0, CHECK_ROOT_HELPER).toInt();
 
-    it->setIcon(0, Desc.GetIcon());
+    it->setIcon(0, QIcon(Desc.GetIconPath()));
     it->setData(0, Qt::DisplayRole, Desc.GetProperty(PLUGIN_NAME).toString());
     it->setCheckState(1, CheckState);
     it->setData(1, TREE_DATA_ROLE, Desc.GetProperty(PLUGIN_HASH));

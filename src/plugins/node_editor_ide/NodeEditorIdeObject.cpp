@@ -1,6 +1,7 @@
 #include "NodeEditorIdeObject.h"
 #include "NodeEditorWidget.h"
 #include "QPluginManager.h"
+#include "QPluginManagerGui.h"
 #include "capabilities/INodeProvider.h"
 #include "debug.h"
 #include "LogCategories.h"
@@ -209,15 +210,12 @@ void NodeEditorIdeObject::discoverAndRegisterExternalNodes()
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
     if (!pm) return;
 
-    QObjectList providers = pm->instances(INodeProvider_IID);
     auto* registry = m_Widget->getInjectedRegistry();
 
-    for (QObject* obj : providers) {
-        auto* provider = qobject_cast<Daqster::INodeProvider*>(obj);
+    for (Daqster::INodeProvider* provider : pm->nodeProviders()) {
         if (!provider) continue;
 
-        QString name = obj->property("name").toString();
-        DEBUG << "Discovered INodeProvider plugin:" << name;
+        DEBUG << "Discovered INodeProvider plugin";
 
         provider->registerNodes(*registry);
     }
@@ -264,7 +262,9 @@ void NodeEditorIdeObject::ShowPlugins()
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
     if (nullptr != pm) {
         DEBUG << "Plugin Manager: " << pm;
-        pm->ShowPluginManagerGui(m_Win);
+        auto* managerDialog = new Daqster::QPluginManagerGui(m_Win);
+        managerDialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        managerDialog->show();
     }
 }
 

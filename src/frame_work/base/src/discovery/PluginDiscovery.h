@@ -1,7 +1,7 @@
 #ifndef PLUGINDISCOVERY_H
 #define PLUGINDISCOVERY_H
 
-#include "build_cfg.h"
+#include "framework_core_export.h"
 #include <QObject>
 #include <QList>
 #include <QString>
@@ -19,7 +19,7 @@ class PluginDescription;
  * - Computing file hashes for integrity checking
  * - Determining if a file is a candidate plugin
  */
-class FRAME_WORKSHARED_EXPORT PluginDiscovery : public QObject
+class FRAMEWORK_CORE_EXPORT PluginDiscovery : public QObject
 {
     Q_OBJECT
 
@@ -63,10 +63,19 @@ public:
 
     /**
      * @brief Discover plugins in all search paths
-     * @param existingPlugins Map of already known plugins (by hash)
+     *
+     * @param loadedHashes Hashes of plugins whose QPluginInterface instance is
+     *        already alive in THIS process and must therefore be skipped.
+     *
+     * Note: this must be the set of *loaded* plugins, never the set of
+     * *persisted descriptions*. Persisted descriptions survive across process
+     * restarts and say nothing about whether the interface object exists, so
+     * filtering on them makes every run after the first one skip all plugins
+     * as "already known" and silently load nothing.
+     *
      * @return Map of newly discovered plugins (hash -> file path)
      */
-    QMap<QString, QString> discoverPlugins(const QMap<QString, PluginDescription>& existingPlugins);
+    QMap<QString, QString> discoverPlugins(const QSet<QString>& loadedHashes);
 
 private:
     QList<QString> m_searchPaths;

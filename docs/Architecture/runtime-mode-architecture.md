@@ -70,9 +70,56 @@
 
 ### Фаза 2 — Headless/Server (REQ-SW-PL-051)
 
-- Core/GUI разделение per node (SDRangel модел)
-- `--run --headless <flow>`: QCoreApplication, без widgets
-- (Опционално) REST API
+**4.4 Core/GUI разделение (REQ-SW-PL-051)**
+
+- **Библиотеки:**
+  - `DaqsterCore` — QtCore only: plugin infrastructure, platform, logging, process, perf, capabilities (INodeProvider, IStoppable, IStartable), ALL NodeData types, HeadlessEngine, FlowLoader
+  - `DaqsterGui` — QtWidgets: QPluginManagerGui, NodeEditorWidget, RuntimeShell, built-in nodes, merged NodeEditorLibrary
+  
+- **Плъгини:**
+  - `demo_nodeditor_nodes_core` — Core node models (24+), NO widgets, `embeddedWidget() = nullptr`, implements IStoppable/IStartable
+  - `demo_nodeditor_nodes_gui` — GUI widgets + NodeWidgetFactory, registers `modelName → widget creator` lambdas
+  - `node_editor_ide` — IDE shell, depends on DaqsterGui
+
+- **NodeWidgetFactory контракт:**
+  ```cpp
+  // In demo_nodeditor_nodes_gui plugin
+  factory->registerWidgetCreator("AudioSource", [](NodeDelegateModel* m) {
+      return new AudioSourceDataModelUI(qobject_cast<AudioSourceDataModel*>(m));
+  });
+  factory->registerWidgetCreator("DaqDisplay", [](NodeDelegateModel* m) {
+      return new DaqDisplayNodeUI(qobject_cast<DaqDisplayNode*>(m));
+  });
+  // ... all 24+ models
+  ```
+
+- **Editor/Runtime интеграция:**
+  ```cpp
+  // NodeEditorWidget / RuntimeShell uses factory instead of model->embeddedWidget()
+  QWidget* widget = factory ? factory->createWidget(model) : model->embeddedWidget();
+  // In headless: factory is null → embeddedWidget() returns nullptr → no widgets created
+  ```
+
+**4.5 Headless исполнение**
+
+- **DaqsterHeadless** executable: QtCore only, links DaqsterCore
+- **CLI:** `DaqsterHeadless --run <flow.flow>` (or `Daqster --headless --run <flow.flow>`)
+- **HeadlessEngine:** QCoreApplication event loop, loads .flow via FlowLoader, instantiates core models, connects via DataFlowGraphModel, auto-starts via IStartable, stops via IStoppable on shutdown
+- **FlowLoader:** Tolerant loading (skips unregistered node types, logs warning), parses UI section for autoStart
+
+**Verification:**
+```bash
+# Headless binary - no QtWidgets/QtGui
+ldd build_qt5/bin/DaqsterHeadless | grep -E "Qt5Widgets|Qt5Gui"  # EMPTY
+
+# Core library - no QtWidgets/QtGui  
+ldd build_qt5/bin/libDaqsterCore.so | grep -E "Qt5Widgets|Qt5Gui"  # EMPTY
+
+# Headless smoke test
+./build_qt5/bin/DaqsterHeadless --run test.flow  # runs, data flows, clean exit
+```
+
+- (Опционално) REST API за remote control — документирано като разширение
 
 ### Фаза 3 — Дистрибуция (REQ-SW-PL-052)
 

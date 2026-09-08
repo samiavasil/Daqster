@@ -43,6 +43,13 @@ namespace Daqster {
  *
  * The node_editor_ide plugin calls registerNodes() on each discovered
  * INodeProvider to populate its NodeDelegateModelRegistry.
+ *
+ * NOTE: this is deliberately a plain (non-QObject) interface and must stay one.
+ * Implementers already inherit QObject through QBasePluginObject, so deriving
+ * this interface from QObject as well would make QObject an ambiguous base and
+ * break moc. A non-QObject interface cannot be listed in Q_INTERFACES and is
+ * never matched by QObject::qt_metacast(), so discovery uses dynamic_cast via
+ * QPluginManager::nodeProviders() rather than instances(INodeProvider_IID).
  */
 class INodeProvider {
 public:

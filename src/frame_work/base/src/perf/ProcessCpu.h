@@ -3,6 +3,8 @@
 #include <chrono>
 #include <cstdint>
 
+#include "framework_core_export.h"
+
 namespace Daqster::Perf {
 
 // Self-CPU sampler for the current process.
@@ -16,7 +18,7 @@ namespace Daqster::Perf {
 // sysconf(_SC_CLK_TCK)); Windows uses GetProcessTimes() (KernelTime +
 // UserTime, 100-ns FILETIME units). The platform-specific implementation lives
 // in ProcessCpu.cpp behind #ifdef Q_OS_WIN.
-class ProcessCpu {
+class FRAMEWORK_CORE_EXPORT ProcessCpu {
 public:
     double sample();
 

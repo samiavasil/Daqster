@@ -1,7 +1,7 @@
 #ifndef PLUGINREGISTRY_H
 #define PLUGINREGISTRY_H
 
-#include "build_cfg.h"
+#include "framework_core_export.h"
 #include "PluginDescription.h"
 #include <QObject>
 #include <QMap>
@@ -13,6 +13,7 @@ namespace Daqster {
 
 class QPluginInterface;
 class QBasePluginObject;
+class INodeProvider;
 
 /**
  * @brief Handles runtime plugin registration and instance management.
@@ -23,7 +24,7 @@ class QBasePluginObject;
  * - Managing plugin lifecycle (enable/disable, shutdown)
  * - Providing capability discovery via instances()
  */
-class FRAME_WORKSHARED_EXPORT PluginRegistry : public QObject
+class FRAMEWORK_CORE_EXPORT PluginRegistry : public QObject
 {
     Q_OBJECT
 
@@ -131,6 +132,17 @@ public:
      * @return List of QObject pointers implementing the interface
      */
     QList<QObject*> instances(const char* iid);
+
+    /**
+     * @brief Find all plugin objects implementing the INodeProvider capability.
+     *
+     * INodeProvider is a non-QObject interface (implementers already inherit
+     * QObject via QBasePluginObject), so it cannot participate in
+     * Q_INTERFACES/qt_metacast. Use this instead of instances(INodeProvider_IID).
+     *
+     * @return List of INodeProvider pointers (lazily instantiating plugins)
+     */
+    QList<Daqster::INodeProvider*> nodeProviders();
 
     // ── Additional methods for full QPluginManager delegation ─────
 

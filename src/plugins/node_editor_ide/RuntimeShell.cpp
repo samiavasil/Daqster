@@ -162,13 +162,10 @@ bool RuntimeShell::registerNodes()
     // Discover and register external nodes (same as NodeEditorIdeObject::discoverAndRegisterExternalNodes)
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
     if (pm) {
-        QObjectList providers = pm->instances(INodeProvider_IID);
-        for (QObject* obj : providers) {
-            auto* provider = qobject_cast<Daqster::INodeProvider*>(obj);
+        for (Daqster::INodeProvider* provider : pm->nodeProviders()) {
             if (!provider) continue;
 
-            QString name = obj->property("name").toString();
-            DEBUG << "RuntimeShell: Discovered INodeProvider plugin:" << name;
+            DEBUG << "RuntimeShell: Discovered INodeProvider plugin";
             provider->registerNodes(*registry);
         }
     }

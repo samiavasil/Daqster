@@ -99,7 +99,7 @@ bool PluginDiscovery::isInSearchPath(const QString& filePath) const
 }
 
 QMap<QString, QString> PluginDiscovery::discoverPlugins(
-    const QMap<QString, PluginDescription>& existingPlugins)
+    const QSet<QString>& loadedHashes)
 {
     QMap<QString, QString> newPlugins;
     QDir pluginsDir;
@@ -115,7 +115,7 @@ QMap<QString, QString> PluginDiscovery::discoverPlugins(
                 QString hash;
                 computeFileHash(fileName, hash);
 
-                if (!hash.isEmpty() && !existingPlugins.contains(hash)) {
+                if (!hash.isEmpty() && !loadedHashes.contains(hash)) {
                     newPlugins[hash] = fileName;
                 }
             }

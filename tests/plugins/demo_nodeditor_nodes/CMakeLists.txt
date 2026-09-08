@@ -36,15 +36,15 @@ set(TEST_SOURCES
     test_audio_buffer_to_sampled.cpp test_audio_buffer_to_sampled.h
     test_video_perf_badge.cpp test_video_perf_badge.h
     # plugin logic under test (compiled directly into the test binary):
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoTransformOps.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/StreamUrlValidator.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoPerfBadge.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoTransformOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/StreamUrlValidator.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoPerfBadge.cpp
 )
 
 add_executable(demo_nodeditor_nodes_tests ${TEST_SOURCES})
 
 target_include_directories(demo_nodeditor_nodes_tests PRIVATE
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
 )
@@ -80,10 +80,10 @@ set(DISPLAY_TEST_SOURCES
     test_daq_display_node.cpp
     test_daq_display_node.h
     # plugin logic under test (compiled directly into the test binary):
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Displays/DaqDisplay/DaqDisplayNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/DaqDisplay/DaqDisplayNode.cpp
     # GenericDisplayNode is a thin DaqDisplayNode subclass (name/caption only) —
     # compiled so the alias behavior + registry resolution tests link standalone.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Displays/GenericDisplay/GenericDisplayNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/GenericDisplay/GenericDisplayNode.cpp
     # DaqDisplayNode now submits compute to the shared ComputePool
     # (REQ-SW-PL-039) — compile the pool source so the test binary links
     # standalone.
@@ -95,9 +95,9 @@ add_executable(demo_nodeditor_display_tests ${DISPLAY_TEST_SOURCES})
 target_include_directories(demo_nodeditor_display_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Displays/DaqDisplay
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Displays/GenericDisplay
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/DaqDisplay
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/GenericDisplay
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
 )
@@ -109,6 +109,7 @@ target_link_libraries(demo_nodeditor_display_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Charts
     QtNodes
+    NodeEditorLibrary
 )
 
 add_test(NAME demo_nodeditor_display_tests
@@ -143,6 +144,7 @@ target_link_libraries(demo_nodeditor_videoframe_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Gui
     Qt${QT_VERSION_MAJOR}::Multimedia
     QtNodes
+    NodeEditorLibrary
 )
 
 add_test(NAME demo_nodeditor_videoframe_tests
@@ -159,20 +161,20 @@ set_tests_properties(demo_nodeditor_videoframe_tests PROPERTIES
 set(VIDEO_OUTPUT_TEST_SOURCES
     test_video_output_node.cpp
     test_video_output_node.h
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoOutputNode.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoPerfBadge.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoOutputNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoPerfBadge.cpp
     # VideoOutputNode references VideoGLBlitWidget (DAQSTER_GL_BLIT display path);
     # compile the widget source so the test binary links standalone:
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoGLBlitWidget.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoGLBlitWidget.cpp
     # Embedded effects (REQ-SW-PL-034): VideoOutputNode now uses
     # VideoEffectOps::allSpecs() + VideoEffectGLProcessor::processTexture().
     # VideoEffectOps.cpp delegates to VideoTransformOps.cpp for the CPU apply
     # functions; VideoEffectGLProcessor.cpp is the GPU backend. The test binary
     # compiles WITHOUT HAVE_OPENCV (the 8 base effects only) — the plugin .so
     # keeps the OpenCV-backed effects.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoEffectOps.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoTransformOps.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoEffectGLProcessor.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoEffectOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoTransformOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoEffectGLProcessor.cpp
     # VideoEffectGLProcessor now uses the shared TexturePool (REQ-SW-PL-032
     # Issue #7) — compile the pool source so the test binary links standalone.
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
@@ -181,11 +183,12 @@ set(VIDEO_OUTPUT_TEST_SOURCES
 add_executable(demo_nodeditor_videooutput_tests ${VIDEO_OUTPUT_TEST_SOURCES})
 
 target_include_directories(demo_nodeditor_videooutput_tests PRIVATE
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/perf
 )
 
 target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
@@ -198,7 +201,10 @@ target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
     # VideoOutputNode.cpp now instruments via Daqster::Perf (REQ-SW-PL-027):
     # frame_work supplies the PerfProfiler symbols, the base/src/perf PUBLIC
     # include dir, and the DAQSTER_ENABLE_PERF compile definition.
-    frame_work
+    # Built-in nodes (NumberSource, NumberDisplay, Modulo, ArithmeticLogic) 
+    # are in NodeEditorLibrary from node_editor_ide plugin.
+    NodeEditorLibrary
+    FrameworkCore
 )
 
 # QVideoWidget lives in Qt6::MultimediaWidgets (Qt5 bundles it in Multimedia).
@@ -229,10 +235,10 @@ set_tests_properties(demo_nodeditor_videooutput_tests PROPERTIES
 set(VIDEO_EFFECT_TEST_SOURCES
     test_video_effect_node.cpp
     test_video_effect_node.h
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoEffectNode.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoEffectOps.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoTransformOps.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoEffectGLProcessor.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoEffectNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoEffectOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoTransformOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoEffectGLProcessor.cpp
     # VideoEffectGLProcessor uses the shared TexturePool (REQ-SW-PL-032
     # Issue #7) and the CPU path uses the shared ComputePool (REQ-SW-PL-039) —
     # compile both pool sources so the test binary links standalone.
@@ -243,8 +249,8 @@ set(VIDEO_EFFECT_TEST_SOURCES
 add_executable(demo_nodeditor_videoeffect_tests ${VIDEO_EFFECT_TEST_SOURCES})
 
 target_include_directories(demo_nodeditor_videoeffect_tests PRIVATE
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
@@ -257,9 +263,8 @@ target_link_libraries(demo_nodeditor_videoeffect_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Multimedia
     QtNodes
-    # VideoEffectNode.cpp instruments via Daqster::Perf (REQ-SW-PL-027):
-    # frame_work supplies the PerfProfiler symbols.
-    frame_work
+    NodeEditorLibrary
+    FrameworkCore
 )
 
 if(QT_VERSION_MAJOR GREATER_EQUAL 6)

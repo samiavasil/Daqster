@@ -7,6 +7,8 @@
 
 #include <unistd.h>
 
+namespace Daqster {
+
 UnixShutdownHandler *UnixShutdownHandler::s_instance = nullptr; // skipcq: CXX-W2009
 std::array<int, 2> UnixShutdownHandler::s_sigPipe{{-1, -1}}; // skipcq: CXX-W2009
 
@@ -77,3 +79,5 @@ void UnixShutdownHandler::onSignalActivated(int fd)
     qCDebug(lcShutdown) << "UnixShutdownHandler: shutdown signal received, emitting shutdownRequested()";
     Q_EMIT shutdownRequested();
 }
+
+} // namespace Daqster
