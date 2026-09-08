@@ -41,7 +41,7 @@
 
 ## Проследимост
 
-- **Коммити:** (pending commit)
+- **Коммити:** `13e2dbe` (feat: add ui section to .flow schema — deembed state, geometry, autoStart)
 - **Код:** `src/plugins/node_editor_ide/` (FlowUiSection.{h,cpp}, NodeEditorIdeObject.{h,cpp} save/load)
 
 ## Бележка
