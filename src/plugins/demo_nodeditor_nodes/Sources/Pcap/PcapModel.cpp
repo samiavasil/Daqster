@@ -149,6 +149,12 @@ void PcapModel::onStartRequested()
     setCaptureEnabled(true);
 }
 
+void PcapModel::start()
+{
+    m_userStarted = true;
+    setCaptureEnabled(true);
+}
+
 void PcapModel::onStopRequested()
 {
     m_userStarted = false;

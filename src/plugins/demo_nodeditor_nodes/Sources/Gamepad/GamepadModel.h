@@ -5,6 +5,7 @@
 #include "GamepadEngine.h"
 #include "GamepadWidget.h"
 #include "shared/IStoppable.h"
+#include "shared/IStartable.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -24,7 +25,7 @@
  * connection exists; removing the last connection auto-stops the polling
  * (clean teardown).
  */
-class GamepadModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
+class GamepadModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 
@@ -59,6 +60,9 @@ public:
     /// Stop the polling timer + close the fd. Idempotent — safe to call
     /// multiple times (REQ-SW-PL-050).
     void stop() override;
+
+    /// Start polling programmatically (runtime autoStart, REQ-SW-PL-048).
+    void start() override;
 
     void outputConnectionCreated(QtNodes::ConnectionId const &) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &) override;

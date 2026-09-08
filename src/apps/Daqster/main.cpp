@@ -15,6 +15,7 @@
 #include <QSettings>
 #include <QLoggingCategory>
 #include <QMessageBox>
+#include <QMetaObject>
 #include "QConsoleListener.h"
 #include "main.h"
 
@@ -133,6 +134,13 @@ int main(int argc, char *argv[]) {
       "rules");
   parser.addOption(logRulesOption);
 
+  // Runtime mode: --run <flow.flow> (REQ-SW-PL-048)
+  QCommandLineOption runOption(
+      QStringList() << "run",
+      QCoreApplication::translate("main", "Run <flow.flow> in runtime mode (REQ-SW-PL-048)"),
+      QCoreApplication::translate("main", "flow"));
+  parser.addOption(runOption);
+
   // Process the actual command line arguments given by the user
   parser.process(a);
 
@@ -202,6 +210,74 @@ int main(int argc, char *argv[]) {
           a.quit();
         }
       });
+
+  // Runtime mode: --run <flow.flow> (REQ-SW-PL-048)
+  // This path takes precedence over positional arguments.
+  if (parser.isSet(runOption)) {
+    QString flowPath = parser.value(runOption);
+    qCDebug(lcApp) << "Runtime mode requested with flow:" << flowPath;
+
+    // Resolve the node_editor_ide plugin (same matching as existing)
+    QString matchedHash;
+    QString currentDir = QCoreApplication::applicationDirPath();
+    foreach (const Daqster::PluginDescription &Desc, PluginsList) {
+      if (0 == Desc.GetProperty(PLUGIN_NAME).toString().compare("NodeEditorIDE", Qt::CaseInsensitive)) {
+        QString location = Desc.GetProperty(PLUGIN_LOCATION).toString();
+        // Prefer plugin from current directory
+        if (location.startsWith(currentDir)) {
+          matchedHash = Desc.GetProperty(PLUGIN_HASH).toString();
+          qCDebug(lcApp) << "  Found node_editor_ide (current dir): " << matchedHash;
+          break;
+        }
+        // First match if no current dir match found
+        if (matchedHash.isEmpty()) {
+          matchedHash = Desc.GetProperty(PLUGIN_HASH).toString();
+          qCDebug(lcApp) << "  Found node_editor_ide: " << matchedHash;
+        }
+      }
+    }
+
+    if (!matchedHash.isEmpty()) {
+      Daqster::QBasePluginObject *obj = PluginManager->CreatePluginObject(matchedHash, nullptr);
+      if (nullptr != obj) {
+        qCDebug(lcApp) << "node_editor_ide plugin created for runtime mode";
+        // Cast to NodeEditorIdeObject to call RunRuntime
+        // We need to include the header or use dynamic_cast with the interface
+        // For now, use the fact that RunRuntime is a public method
+        // We'll need to include the header or use a different approach
+        // Let's use a dynamic approach - call via meta-object
+        bool success = false;
+        QMetaObject::invokeMethod(obj, "RunRuntime",
+                                  Q_RETURN_ARG(bool, success),
+                                  Q_ARG(QString, flowPath));
+        if (!success) {
+          qCCritical(lcApp) << "Runtime mode failed to load flow:" << flowPath;
+          obj->deleteLater();
+          return 1;
+        }
+        QApplication::setApplicationName("Daqster Runtime");
+        res = a.exec();
+        obj->deleteLater();
+        Daqster::QPluginManager::instance()->ShutdownPluginManager();
+        Daqster::LogManager::instance()->shutdown();
+        return res;
+      } else {
+        qCCritical(lcApp) << "node_editor_ide plugin found but failed to create object";
+        QMessageBox::critical(
+            nullptr, "Daqster",
+            QString("Runtime mode: node_editor_ide plugin was found but failed to load."));
+        return 1;
+      }
+    } else {
+      qCCritical(lcApp) << "node_editor_ide plugin not found for runtime mode";
+      QMessageBox::critical(
+          nullptr, "Daqster",
+          QString("Runtime mode: node_editor_ide plugin was not found. Rebuild the "
+                  "plugin or launch the Daqster main window and use the "
+                  "toolbar."));
+      return 1;
+    }
+  }
 
   if (args.count() > 0) {
     if (args.count() > 1) {

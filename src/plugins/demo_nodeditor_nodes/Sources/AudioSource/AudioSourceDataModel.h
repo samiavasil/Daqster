@@ -6,6 +6,7 @@
 #include "MicCaptureWorker.h"
 #include "NodeDataTypes/SampledData.h"
 #include "shared/IStoppable.h"
+#include "shared/IStartable.h"
 
 #include <QtCore/QThread>
 #include <QtNodes/NodeDelegateModel>
@@ -13,7 +14,7 @@
 
 #include <memory>
 
-class AudioSourceDataModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
+class AudioSourceDataModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 
@@ -66,6 +67,9 @@ public:
     /// Stop the capture thread cleanly. Idempotent — safe to call multiple
     /// times (REQ-SW-PL-050).
     void stop() override;
+
+    /// Start capture programmatically (runtime autoStart, REQ-SW-PL-048).
+    void start() override;
 
     QtNodes::ConnectionPolicy portConnectionPolicy(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {

@@ -68,6 +68,13 @@ void FileRecordModel::stop()
     stopRecording();
 }
 
+/// Start recording programmatically (runtime autoStart, REQ-SW-PL-048).
+/// Delegates to the same logic as onStartRequested().
+void FileRecordModel::start()
+{
+    startRecording();
+}
+
 QJsonObject FileRecordModel::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();

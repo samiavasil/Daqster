@@ -161,6 +161,8 @@ set(IDE_SOURCES
     NodeEditorWidget.h
     CustomDataFlowScene.cpp
     CustomDataFlowScene.h
+    RuntimeShell.cpp
+    RuntimeShell.h
 )
 
 create_plugin(NodeEditorIde
@@ -187,6 +189,7 @@ create_plugin(NodeEditorIde
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Displays/NumberDisplay
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/Modulo
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/ArithmeticLogic
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes
     COMPILE_DEFINITIONS
         NODE_EDITOR_SHARED
 )

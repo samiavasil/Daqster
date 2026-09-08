@@ -4,6 +4,7 @@
 #include "NodeDataTypes/SampledData.h"
 #include "NetworkSinkWidget.h"
 #include "shared/IStoppable.h"
+#include "shared/IStartable.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -20,7 +21,7 @@ class QUdpSocket;
  * each incoming SampledData is serialized into a length-prefixed frame (magic
  * "MSSD") and sent. Status shows bytes sent.
  */
-class NetworkSinkModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
+class NetworkSinkModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 
@@ -55,6 +56,9 @@ public:
     /// Stop sending and close the socket. Idempotent — safe to call multiple
     /// times (REQ-SW-PL-050).
     void stop() override;
+
+    /// Start sending programmatically (runtime autoStart, REQ-SW-PL-048).
+    void start() override;
 
 private slots:
     void onStartRequested();

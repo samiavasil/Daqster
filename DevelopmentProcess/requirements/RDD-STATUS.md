@@ -92,28 +92,28 @@
 
 ## Фаза 4 — Runtime Mode (REQ-SW-PL-048..052)
 
-**Статус: PLANNED** 📋 (2026-09-07)
+**Статус: DONE (Phase 1)** ✅ (2026-09-09)
 
 Архитектурно предложение: `docs/Architecture/runtime-mode-architecture.md`.
 Визия: "Node diagram = application" — `Daqster --run <flow.flow>` стартира
 runtime режим, деембеднатите виджети формират UI-то на приложението.
 
-- **REQ-SW-PL-048** — Runtime режим на приложението (--run, presentation toggle) — **PLANNED** (Фаза 1)
-- **REQ-SW-PL-049** — .flow ui секция (deembedded, geometry, autoStart) — **PLANNED** (Фаза 1)
-- **REQ-SW-PL-050** — Thread lifecycle протокол (stop/wait) — **PLANNED** (Фаза 1)
+- **REQ-SW-PL-048** — Runtime режим на приложението (--run, presentation toggle) — **DONE** (Фаза 1)
+- **REQ-SW-PL-049** — .flow ui секция (deembedded, geometry, autoStart) — **DONE** (Фаза 1)
+- **REQ-SW-PL-050** — Thread lifecycle протокол (stop/wait) — **DONE** (Фаза 1)
 - **REQ-SW-PL-051** — Core/GUI разделение + headless — **PLANNED** (Фаза 2)
 - **REQ-SW-PL-052** — Пакетиране (Flatpak/AppImage) — **PLANNED** (Фаза 3)
 
-Бранч: `docs/REQ-SW-PL-048-runtime-mode-architecture` (от PL-047 tip).
-**НОВА ИМПЛЕМЕНТАЦИЯ НЕ Е СТАРТИРАНА** — само изисквания + архитектура.
+Бранч: `feat/REQ-SW-PL-048-runtime-mode` (от PL-049 tip `13e2dbe`).
+Имплементация завършена и верифицирана: Qt5/Qt6 builds PASS + --run smoke PASS + MDI layout PASS + autoStart PASS + window flags PASS (Qt5/Qt6) + clean exit PASS + invalid flow PASS + F11 toggle PASS.
 
 ## Състояние на имплементацията
 
 | REQ | Имплементация |
 |-----|---------------|
-| REQ-SW-PL-048 | Планирано (Фаза 1 — Runtime режим) |
-| REQ-SW-PL-049 | Планирано (Фаза 1 — .flow ui секция) |
-| REQ-SW-PL-050 | Планирано (Фаза 1 — thread lifecycle) |
+| REQ-SW-PL-048 | **DONE** (Фаза 1 — Runtime режим) |
+| REQ-SW-PL-049 | **DONE** (Фаза 1 — .flow ui секция) |
+| REQ-SW-PL-050 | **DONE** (Фаза 1 — thread lifecycle) |
 | REQ-SW-PL-051 | Планирано (Фаза 2 — headless) |
 | REQ-SW-PL-052 | Планирано (Фаза 3 — дистрибуция) |
 | REQ-SW-PL-020 | Имплементирано |

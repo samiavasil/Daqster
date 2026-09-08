@@ -83,6 +83,14 @@ void GamepadModel::stop()
     m_userStarted = false;
 }
 
+/// Start polling programmatically (runtime autoStart, REQ-SW-PL-048).
+/// Delegates to the same logic as onStartRequested().
+void GamepadModel::start()
+{
+    m_userStarted = true;
+    setPollingEnabled(m_connectionCount > 0);
+}
+
 QJsonObject GamepadModel::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();

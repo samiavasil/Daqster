@@ -37,6 +37,15 @@ void CameraSourceNode::stop()
     stopCamera();
 }
 
+/// Start camera capture programmatically (runtime autoStart, REQ-SW-PL-048).
+/// Delegates to the same logic as onStartStopClicked() when not running.
+void CameraSourceNode::start()
+{
+    if (m_running)
+        return;
+    startCamera();
+}
+
 QJsonObject CameraSourceNode::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();

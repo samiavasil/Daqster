@@ -1,0 +1,144 @@
+{
+    "connections": [
+        {
+            "inNodeId": 3,
+            "inPortIndex": 0,
+            "outNodeId": 2,
+            "outPortIndex": 0
+        },
+        {
+            "inNodeId": 2,
+            "inPortIndex": 0,
+            "outNodeId": 1,
+            "outPortIndex": 0
+        },
+        {
+            "inNodeId": 1,
+            "inPortIndex": 0,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        }
+    ],
+    "nodes": [
+        {
+            "id": 0,
+            "internal-data": {
+                "filePath": "/mnt/Data/Pictures/Video/converted/VID_20180810_203733.mp4",
+                "model-name": "VideoFileSource"
+            },
+            "label": "VideoFileSource",
+            "labelVisible": true,
+            "position": {
+                "x": -400,
+                "y": 0
+            }
+        },
+        {
+            "id": 1,
+            "internal-data": {
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "effect": "brightness",
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoEffect",
+                "thresholdValue": 128
+            },
+            "label": "VideoEffect",
+            "labelVisible": true,
+            "position": {
+                "x": -130,
+                "y": 0
+            }
+        },
+        {
+            "id": 2,
+            "internal-data": {
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "effect": "brightness",
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoEffect",
+                "thresholdValue": 128
+            },
+            "label": "VideoEffect",
+            "labelVisible": true,
+            "position": {
+                "x": 130,
+                "y": 0
+            }
+        },
+        {
+            "id": 3,
+            "internal-data": {
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoOutput",
+                "thresholdValue": 128
+            },
+            "label": "VideoOutput",
+            "labelVisible": true,
+            "position": {
+                "x": 400,
+                "y": 0
+            }
+        }
+    ],
+    "ui": {
+        "nodes": {
+            "0": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 91,
+                    "maximized": false,
+                    "w": 332,
+                    "x": 1468,
+                    "y": 1087
+                },
+                "workspace": 0
+            },
+            "1": {
+                "autoStart": false,
+                "deembedded": false,
+                "workspace": 0
+            },
+            "2": {
+                "autoStart": false,
+                "deembedded": false,
+                "workspace": 0
+            },
+            "3": {
+                "autoStart": false,
+                "deembedded": false,
+                "workspace": 0
+            }
+        },
+        "version": 1,
+        "workspaces": [
+            {
+                "geometry": {
+                    "h": 768,
+                    "maximized": false,
+                    "w": 1024,
+                    "x": 1400,
+                    "y": 869
+                },
+                "id": 0,
+                "tabbed": true
+            }
+        ]
+    }
+}

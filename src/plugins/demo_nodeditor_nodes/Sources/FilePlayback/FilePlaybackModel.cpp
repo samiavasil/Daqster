@@ -90,6 +90,15 @@ void FilePlaybackModel::stop()
     m_userStarted = false;
 }
 
+/// Start playback programmatically (runtime autoStart, REQ-SW-PL-048).
+/// Delegates to the same logic as onPlayRequested().
+void FilePlaybackModel::start()
+{
+    m_userStarted = true;
+    if (m_connectionCount > 0)
+        startPlayback();
+}
+
 QJsonObject FilePlaybackModel::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
