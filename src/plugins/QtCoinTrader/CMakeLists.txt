@@ -34,5 +34,5 @@ create_plugin(QtCoinTraderPlugin
         qtrest_lib
         OpenSSL::SSL
         OpenSSL::Crypto
-        frame_work
+        DaqsterGui
 )

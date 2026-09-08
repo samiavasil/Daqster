@@ -1,0 +1,45 @@
+#pragma once
+
+#include "build_cfg.h"
+
+#include <QObject>
+
+namespace Daqster {
+
+/**
+ * @brief Abstract base class for handling application shutdown signals
+ * 
+ * Provides platform-independent interface for graceful application shutdown.
+ * Implementations handle OS-specific shutdown mechanisms (signals on Unix,
+ * console events on Windows, or stdin commands).
+ */
+class DAQSTER_CORE_EXPORT ShutdownHandler : public QObject // skipcq: CXX-W2009
+{
+    Q_OBJECT
+
+public:
+    explicit ShutdownHandler(QObject *parent = nullptr) : QObject(parent) {}
+    virtual ~ShutdownHandler() = default;
+
+    /**
+     * @brief Initialize the shutdown handler
+     * @return true if initialization successful, false otherwise
+     */
+    virtual bool initialize() = 0;
+
+    /**
+     * @brief Factory method — returns the platform-appropriate handler.
+     *
+     * On Unix/Linux returns UnixShutdownHandler (self-pipe + signals).
+     * On Windows returns WindowsShutdownHandler (SetConsoleCtrlHandler).
+     */
+    static ShutdownHandler* create(QObject *parent = nullptr);
+
+Q_SIGNALS:
+    /**
+     * @brief Emitted when shutdown is requested
+     */
+    void shutdownRequested();
+};
+
+} // namespace Daqster

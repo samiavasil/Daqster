@@ -23,7 +23,7 @@ configure_file(
 # Extracted so both NodeEditorIde and DemoNodeEditorNodes plugins
 # can link against it without cross-plugin symbol resolution issues.
 # Conditional on required Qt modules being available.
-# ══════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════
 
 register_component(NodeEditorLibrary
     REQUIRES_LIBRARIES
@@ -32,7 +32,7 @@ register_component(NodeEditorLibrary
         Qt${QT_VERSION_MAJOR}::Multimedia
         Qt${QT_VERSION_MAJOR}::Charts
         QtNodes
-        frame_work
+        DaqsterGui
 )
 
 get_property(NODE_EDITOR_LIB_ENABLED GLOBAL PROPERTY COMPONENT_NodeEditorLibrary_ENABLED)
@@ -91,8 +91,8 @@ if(NODE_EDITOR_LIB_ENABLED)
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/decoders
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/display
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/threading
-        ${DAQSTER_SOURCE_DIR}/src/plugins/common
-        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+        ${DAQSTER_SOURCE_DIR}/src/core
+        ${DAQSTER_SOURCE_DIR}/src/gui
     )
 
     link_component_dependencies(NodeEditorLibrary)
@@ -122,7 +122,7 @@ else()
     endforeach()
 endif()
 
-# ══════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════
 # Plugin: NodeEditorIde (IDE shell + built-in nodes)
 # ══════════════════════════════════════════════════════════════════════
 
@@ -176,20 +176,24 @@ create_plugin(NodeEditorIde
         NodeEditorLibrary
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
+        Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Network
         Qt${QT_VERSION_MAJOR}::Multimedia
         Qt${QT_VERSION_MAJOR}::Charts
         Qt${QT_VERSION_MAJOR}::OpenGL
         QtNodes
-        frame_work
+        DaqsterGui
+        DaqsterCore
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${DAQSTER_SOURCE_DIR}/src/plugins/common
+        ${DAQSTER_SOURCE_DIR}/src/core
+        ${DAQSTER_SOURCE_DIR}/src/gui
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Sources/NumberSource
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Displays/NumberDisplay
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/Modulo
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/ArithmeticLogic
-        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
+        ${DAQSTER_SOURCE_DIR}/src/plugins/common
     COMPILE_DEFINITIONS
         NODE_EDITOR_SHARED
 )

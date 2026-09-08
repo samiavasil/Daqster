@@ -34,8 +34,6 @@ void PluginsInit() {
   if (nullptr != PluginManager) {
     PluginManager->SearchForPlugins();
     qCDebug(lcApp) << "Plugin Manager: " << PluginManager;
-    //  PluginManager->SearchForPlugins();
-    // PluginManager->ShowPluginManagerGui();
     QList<Daqster::PluginDescription> PluginsList =
         PluginManager->GetPluginList();
     /*Just try to load/unload all plugins in initialization phase*/
@@ -51,7 +49,6 @@ void PluginsInit() {
 }
 
 int main(int argc, char *argv[]) {
-
   int res = 0;
 
   Daqster::LogManager::instance()->initialize();
@@ -59,27 +56,152 @@ int main(int argc, char *argv[]) {
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
-  //  // detach from the current console window
-  //   // if launched from a console window, that will still run waiting for the
-  //   new console (below) to close
-  //   // it is useful to detach from Qt Creator's <Application output> panel
-  //   FreeConsole();
 
-  //   // create a separate new console window
-  //   AllocConsole();
+  // Early argument parsing for --headless (must be done BEFORE QApplication creation)
+  QCommandLineParser earlyParser;
+  earlyParser.setApplicationDescription("Daqster - Early argument parsing");
+  earlyParser.addHelpOption();
+  earlyParser.addVersionOption();
 
-  //   // attach the new console to this application's process
-  //   AttachConsole(GetCurrentProcessId());
+  QCommandLineOption headlessOption(
+      QStringList() << "headless",
+      QCoreApplication::translate("main", "Run in headless mode (no GUI, QtCore only)"));
+  earlyParser.addOption(headlessOption);
 
-  // TODO: Check argument parser: http://doc.qt.io/qt-5/qcommandlineparser.html
+  QCommandLineOption runOption(
+      QStringList() << "run",
+      QCoreApplication::translate("main", "Run <flow.flow> in runtime/headless mode"),
+      QCoreApplication::translate("main", "flow"));
+  earlyParser.addOption(runOption);
+
+  // Parse only known options, ignore unknown ones
+  earlyParser.parse(QCoreApplication::arguments());
+
+  bool headlessMode = earlyParser.isSet(headlessOption);
+  bool runMode = earlyParser.isSet(runOption);
+
+  // If headless mode with --run, use QCoreApplication and HeadlessEngine
+  if (headlessMode && runMode) {
+    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts, true);
+    QCoreApplication a(argc, argv);
+    QCoreApplication::setApplicationName("DaqsterHeadless");
+    QCoreApplication::setApplicationVersion(DAQSTER_VERSION_STRING);
+
+    auto* shutdownHandler = Daqster::ShutdownHandler::create(&a);
+    shutdownHandler->initialize();
+    QObject::connect(shutdownHandler, &Daqster::ShutdownHandler::shutdownRequested, &a, &QCoreApplication::quit);
+
+    // Full argument parsing for headless mode
+    QCommandLineParser parser;
+    parser.setApplicationDescription("Daqster Headless - Run flow files without GUI");
+    parser.addHelpOption();
+    parser.addVersionOption();
+
+    parser.addOption(headlessOption);
+    parser.addOption(runOption);
+
+    QCommandLineOption logConsoleOption(
+        QStringList() << "log-console-enabled",
+        "Enable console logging",
+        "0|1");
+    parser.addOption(logConsoleOption);
+
+    QCommandLineOption logLevelOption(
+        QStringList() << "log-level",
+        "Minimum console log level",
+        "level");
+    parser.addOption(logLevelOption);
+
+    QCommandLineOption logRulesOption(
+        QStringList() << "log-rules",
+        "Qt logging category rules",
+        "rules");
+    parser.addOption(logRulesOption);
+
+    QCommandLineOption instanceIdOption(
+        QStringList() << "instance-id",
+        "Child process instance identifier",
+        "id");
+    parser.addOption(instanceIdOption);
+
+    parser.process(a);
+
+    if (parser.isSet(instanceIdOption)) {
+        Daqster::LogManager::instance()->setInstanceId(parser.value(instanceIdOption));
+    }
+
+    if (parser.isSet(logConsoleOption)) {
+        bool enabled = parser.value(logConsoleOption) == "1";
+        Daqster::LogManager::instance()->setConsoleEnabled(enabled);
+    }
+
+    if (parser.isSet(logLevelOption)) {
+        QString levelName = parser.value(logLevelOption);
+        Daqster::LogLevel level = Daqster::LogLevel::Warning;
+        if (levelName == "Debug") level = Daqster::LogLevel::Debug;
+        else if (levelName == "Info") level = Daqster::LogLevel::Info;
+        else if (levelName == "Warning") level = Daqster::LogLevel::Warning;
+        else if (levelName == "Critical") level = Daqster::LogLevel::Critical;
+        else if (levelName == "Fatal") level = Daqster::LogLevel::Fatal;
+        Daqster::LogManager::instance()->setConsoleLogLevel(level);
+    }
+
+    if (parser.isSet(logRulesOption)) {
+        QLoggingCategory::setFilterRules(parser.value(logRulesOption));
+    }
+
+    // Initialize plugin manager
+    Daqster::QPluginManager* pluginManager = Daqster::QPluginManager::instance();
+    if (!pluginManager->Initialize()) {
+        qCCritical(lcApp) << "QPluginManager initialization failed";
+        return 1;
+    }
+
+    pluginManager->SearchForPlugins();
+
+    QString flowPath = parser.value(runOption);
+    if (flowPath.isEmpty()) {
+        qCCritical(lcApp) << "No flow file specified. Use --run <flow.flow>";
+        return 1;
+    }
+
+    qCInfo(lcApp) << "Headless mode: loading flow" << flowPath;
+
+    if (!QFile::exists(flowPath)) {
+        qCCritical(lcApp) << "Flow file not found:" << flowPath;
+        return 1;
+    }
+
+    // Create headless engine
+    Daqster::HeadlessEngine engine;
+    bool success = engine.loadFlow(flowPath);
+
+    if (!success) {
+        qCCritical(lcApp) << "Failed to load flow:" << flowPath;
+        return 1;
+    }
+
+    qCInfo(lcApp) << "Flow loaded successfully, entering event loop";
+
+    res = a.exec();
+
+    // Cleanup
+    engine.stopAllNodes();
+    Daqster::QPluginManager::instance()->ShutdownPluginManager();
+    Daqster::LogManager::instance()->shutdown();
+
+    return res;
+  }
+
+  // Normal GUI mode
   QApplication::setAttribute(Qt::AA_ShareOpenGLContexts, true);
   QApplication a(argc, argv);
   QApplication::setApplicationName("Daqster");
   QApplication::setApplicationVersion(DAQSTER_VERSION_STRING);
 
-  auto *shutdownHandler = ShutdownHandler::create(&a);
+  auto* shutdownHandler = Daqster::ShutdownHandler::create(&a);
   shutdownHandler->initialize();
-  QObject::connect(shutdownHandler, &ShutdownHandler::shutdownRequested, &a, &QCoreApplication::quit);
+  QObject::connect(shutdownHandler, &Daqster::ShutdownHandler::shutdownRequested, &a, &QCoreApplication::quit);
 
   // Load theme if configured (default: system/light)
   QSettings appSettings("Daqster", "Daqster");
@@ -135,11 +257,10 @@ int main(int argc, char *argv[]) {
   parser.addOption(logRulesOption);
 
   // Runtime mode: --run <flow.flow> (REQ-SW-PL-048)
-  QCommandLineOption runOption(
-      QStringList() << "run",
-      QCoreApplication::translate("main", "Run <flow.flow> in runtime mode (REQ-SW-PL-048)"),
-      QCoreApplication::translate("main", "flow"));
   parser.addOption(runOption);
+
+  // Headless mode: --headless (must be used with --run)
+  parser.addOption(headlessOption);
 
   // Process the actual command line arguments given by the user
   parser.process(a);
@@ -172,7 +293,7 @@ int main(int argc, char *argv[]) {
 
   qCDebug(lcApp) << "Positional Argumments: " << args;
 
-  Daqster::QPluginManager *PluginManager = Daqster::QPluginManager::instance();
+  Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
   // For correct plugoins shutdown behaviour QPluginManager initialization
   // should be called.
   if (!PluginManager->Initialize()) {
@@ -201,9 +322,9 @@ int main(int argc, char *argv[]) {
 
   // Console listener: stdin "quit" handler — created unconditionally so it is
   // available on ALL startup paths (main app launcher, single- and multi-arg).
-  QConsoleListener *console = new QConsoleListener();
+  QConsoleListener* console = new QConsoleListener();
   QObject::connect(
-      console, &QConsoleListener::newLine, [&a](const QString &strNewLine) {
+      console, &QConsoleListener::newLine, [&a](const QString& strNewLine) {
         // quit
         if (strNewLine.trimmed().compare("quit", Qt::CaseInsensitive) == 0) {
           qCDebug(lcApp) << "Goodbye";
@@ -238,14 +359,9 @@ int main(int argc, char *argv[]) {
     }
 
     if (!matchedHash.isEmpty()) {
-      Daqster::QBasePluginObject *obj = PluginManager->CreatePluginObject(matchedHash, nullptr);
+      Daqster::QBasePluginObject* obj = PluginManager->CreatePluginObject(matchedHash, nullptr);
       if (nullptr != obj) {
         qCDebug(lcApp) << "node_editor_ide plugin created for runtime mode";
-        // Cast to NodeEditorIdeObject to call RunRuntime
-        // We need to include the header or use dynamic_cast with the interface
-        // For now, use the fact that RunRuntime is a public method
-        // We'll need to include the header or use a different approach
-        // Let's use a dynamic approach - call via meta-object
         bool success = false;
         QMetaObject::invokeMethod(obj, "RunRuntime",
                                   Q_RETURN_ARG(bool, success),
@@ -306,7 +422,7 @@ int main(int argc, char *argv[]) {
       }
     } else {
       QString input = args[0];
-      Daqster::QBasePluginObject *obj = nullptr;
+      Daqster::QBasePluginObject* obj = nullptr;
       qCDebug(lcApp) << "\nSearch for plugin: " << input;
       int ctr = 0;
       QString matchedHash;

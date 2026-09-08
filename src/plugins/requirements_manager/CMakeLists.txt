@@ -59,10 +59,11 @@ create_plugin(RequirementsManager
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
         Qt${QT_VERSION_MAJOR}::Widgets
-        frame_work
+        DaqsterGui
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${DAQSTER_SOURCE_DIR}/src/plugins/common
+        ${DAQSTER_SOURCE_DIR}/src/core
+        ${DAQSTER_SOURCE_DIR}/src/gui
 )
 
 if(TARGET RequirementsManager)

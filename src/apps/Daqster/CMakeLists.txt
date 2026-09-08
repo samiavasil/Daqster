@@ -1,4 +1,4 @@
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            # Use template system for application
+# Use template system for application
 create_application(Daqster
     SOURCES
         main.cpp
@@ -18,7 +18,7 @@ create_application(Daqster
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Gui
-        frame_work
+        DaqsterGui
 )
 
 #add_definitions(-D_STDSTREAM_DEFINED)
@@ -26,4 +26,6 @@ create_application(Daqster
 target_include_directories(Daqster
 PRIVATE
     ./
+    ${DAQSTER_SOURCE_DIR}/src/core
+    ${DAQSTER_SOURCE_DIR}/src/gui
 )
