@@ -39,6 +39,8 @@ get_property(NODE_EDITOR_LIB_ENABLED GLOBAL PROPERTY COMPONENT_NodeEditorLibrary
 
 if(NODE_EDITOR_LIB_ENABLED)
     set(LIB_SOURCES
+        FlowUiSection.h
+        FlowUiSection.cpp
         BuiltInNodes/Library/types/GenericNumericTypes.h
         BuiltInNodes/Library/types/GenericNumericTypes.cpp
         BuiltInNodes/Library/types/IStreamDecoderObsolete.h
@@ -83,6 +85,7 @@ if(NODE_EDITOR_LIB_ENABLED)
     target_compile_definitions(NodeEditorLibrary PRIVATE NODE_EDITOR_LIBRARY_BUILD)
 
     target_include_directories(NodeEditorLibrary PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/connectors
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/decoders

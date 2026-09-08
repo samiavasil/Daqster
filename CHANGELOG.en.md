@@ -7,6 +7,26 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-049** (.flow "ui" section — runtime layout of deembedded widgets):
+  - `FlowUiSection.{h,cpp}` — plain structs (no Q_OBJECT): `FlowUi::Geometry`
+    `{x,y,w,h,maximized}`, `FlowUi::NodeUi` (deembedded, workspace, geometry,
+    autoStart), `FlowUi::WorkspaceUi` (id, geometry, tabbed), `FlowUi::UiSection`
+    (version, workspaces, nodes) with `toJson()`/`fromJson()`
+  - Save (`NodeEditorIdeObject::saveSceneToFile()`): graph JSON + groups
+    (byte-identical to `DataFlowGraphicsScene::save()`) + `"ui"` section;
+    file written indented; geometry key emitted only for deembedded nodes;
+    custom format `{x,y,w,h,maximized}` (NOT `QWidget::saveGeometry`)
+  - Load (`loadSceneFromFile()` + `applyUiSection()`): the "ui" section is
+    extracted before the node-cleaning loop and applied after a successful
+    load — restores deembed state + geometry + autoStart flags; tolerant
+    guard for missing nodes; old .flow without "ui" → current behavior;
+    version > 1 → warning + empty section
+  - Code: `src/plugins/node_editor_ide/` (FlowUiSection, NodeEditorIdeObject)
+  - Verification: Qt5/Qt6 builds PASS + ctest 11/11 green (Qt5) + FlowUiSection
+    JSON round-trip smoke PASS + IDE smoke PASS (capture/apply: deembed +
+    geometry + autoStart, offscreen) + load smoke PASS (hand-written .flow
+    with "ui" section, no crash) + old-flow regression PASS (no "ui", no
+    crash); unit tests deferred (standing instruction)
 - **REQ-SW-PL-047** (pcap Packet Capture source node — libpcap):
   - `PcapEngine` — libpcap wrapper: `pcap_open_live()`, `pcap_compile()`/`pcap_setfilter()` for BPF, `pcap_loop()` in worker thread (QThread), `pcap_breakloop()` for stop, `pcap_close()` in destructor; thread-safe packet queue to Model
   - `PcapModel` (`NodeDelegateModel`) — 1 output port `SampledData` ("packet"), connection-count gating (auto start/stop) + user Start/Stop, wraps packets in `SampledData` with `SampledStreamDescriptor` (domain="pcap", deviceId=interface name, sourceName="pcap capture", BYTES channel for payload, sampleRate=0 event-driven), metadata (timestamp, caplen, len) in packet; emits `dataUpdated(0)`; save/load of interface/filter/snaplen/promiscuous
