@@ -38,6 +38,14 @@ void LLamaModelDataModel::stop() {
   }
 }
 
+/// Start the local server process programmatically (runtime autoStart, REQ-SW-PL-048).
+/// Delegates to the same logic as onStartServerClicked() when not running.
+void LLamaModelDataModel::start() {
+  if (m_serverProcess && m_serverProcess->state() != QProcess::NotRunning)
+    return;
+  onStartServerClicked();
+}
+
 void LLamaModelDataModel::buildUi() {
   m_ui = new QWidget();
   auto* mainLayout = new QVBoxLayout(m_ui);

@@ -48,6 +48,15 @@ void NetworkSourceModel::stop()
     m_userStarted = false;
 }
 
+/// Start listening programmatically (runtime autoStart, REQ-SW-PL-048).
+/// Delegates to the same logic as onStartRequested().
+void NetworkSourceModel::start()
+{
+    m_userStarted = true;
+    if (m_connectionCount > 0)
+        startListening();
+}
+
 QJsonObject NetworkSourceModel::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();

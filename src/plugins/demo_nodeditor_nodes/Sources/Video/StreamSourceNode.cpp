@@ -82,6 +82,25 @@ void StreamSourceNode::stop()
     m_isPlaying = false;
 }
 
+/// Start streaming programmatically (runtime autoStart, REQ-SW-PL-048).
+/// Delegates to the same logic as onConnectClicked() when not playing.
+void StreamSourceNode::start()
+{
+    if (m_isPlaying)
+        return;
+
+    const QString urlString = m_urlEdit->text().trimmed();
+    QString error;
+    if (!StreamUrlValidator::isValidStreamUrl(urlString, &error)) {
+        setStatus(error, false);
+        return;
+    }
+
+    const QUrl url(urlString);
+    VideoCompat::setMediaSource(m_player, url);
+    m_player->play();
+}
+
 QJsonObject StreamSourceNode::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();

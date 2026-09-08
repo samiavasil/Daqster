@@ -5,6 +5,7 @@
 #include "PcapWidget.h"
 #include "NodeDataTypes/SampledData.h"
 #include "shared/IStoppable.h"
+#include "shared/IStartable.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -22,7 +23,7 @@
  * and emits dataUpdated(0). Capture is gated on output connection count
  * (auto start/stop) and user Start/Stop.
  */
-class PcapModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
+class PcapModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 
@@ -57,6 +58,9 @@ public:
     /// Stop the capture thread cleanly. Idempotent — safe to call multiple
     /// times (REQ-SW-PL-050).
     void stop() override;
+
+    /// Start capture programmatically (runtime autoStart, REQ-SW-PL-048).
+    void start() override;
 
     QtNodes::ConnectionPolicy portConnectionPolicy(QtNodes::PortType portType,
                                                    QtNodes::PortIndex portIndex) const override

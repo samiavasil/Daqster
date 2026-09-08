@@ -129,6 +129,12 @@ void PlutoSdrModel::onStartRequested()
     setStreamingEnabled(m_connectionCount > 0);
 }
 
+void PlutoSdrModel::start()
+{
+    m_userStarted = true;
+    setStreamingEnabled(m_connectionCount > 0);
+}
+
 void PlutoSdrModel::onStopRequested()
 {
     m_userStarted = false;

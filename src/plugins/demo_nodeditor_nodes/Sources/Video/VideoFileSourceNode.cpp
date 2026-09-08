@@ -91,6 +91,33 @@ void VideoFileSourceNode::stop()
     m_isPlaying = false;
 }
 
+/// Start playback programmatically (runtime autoStart, REQ-SW-PL-048).
+/// Delegates to the same logic as onPlayPauseClicked() when not playing.
+void VideoFileSourceNode::start()
+{
+    if (m_isPlaying)
+        return;
+
+    const QString filePath = currentFilePath();
+    if (filePath.isEmpty()) {
+        setStatus(tr("Choose a video file first"), false);
+        return;
+    }
+
+    // Re-apply the media source when the file changed or playback ended,
+    // so play() always starts from the beginning.
+    if (filePath != m_loadedPath) {
+        m_player->stop();
+        VideoCompat::setMediaSource(m_player, QUrl::fromLocalFile(filePath));
+        m_loadedPath = filePath;
+    }
+
+    m_player->play();
+    m_stopButton->setEnabled(true);
+    m_seekBackButton->setEnabled(true);
+    m_seekForwardButton->setEnabled(true);
+}
+
 QJsonObject VideoFileSourceNode::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();

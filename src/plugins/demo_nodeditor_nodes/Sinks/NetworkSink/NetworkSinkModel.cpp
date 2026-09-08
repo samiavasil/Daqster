@@ -32,6 +32,13 @@ void NetworkSinkModel::stop()
     stopSending();
 }
 
+/// Start sending programmatically (runtime autoStart, REQ-SW-PL-048).
+/// Delegates to the same logic as onStartRequested().
+void NetworkSinkModel::start()
+{
+    startSending();
+}
+
 QJsonObject NetworkSinkModel::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();

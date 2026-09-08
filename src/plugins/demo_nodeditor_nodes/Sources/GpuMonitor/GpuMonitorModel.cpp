@@ -40,6 +40,14 @@ void GpuMonitorModel::stop()
     m_userStarted = false;
 }
 
+/// Start polling programmatically (runtime autoStart, REQ-SW-PL-048).
+/// Delegates to the same logic as onStartRequested().
+void GpuMonitorModel::start()
+{
+    m_userStarted = true;
+    setPollingEnabled(true);
+}
+
 QJsonObject GpuMonitorModel::save() const
 {
     QJsonObject modelJson;

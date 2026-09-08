@@ -4,6 +4,7 @@
 #include "capabilities/INodeProvider.h"
 #include "debug.h"
 #include "LogCategories.h"
+#include "RuntimeShell.h"
 
 #include <QMainWindow>
 #include <QLabel>
@@ -18,9 +19,11 @@
 #include <QJsonDocument>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QSet>
 #include <QDir>
+#include <QKeyEvent>
 
 #include <exception>
 
@@ -72,6 +75,10 @@ NodeEditorIdeObject::NodeEditorIdeObject(QObject* Parent)
 NodeEditorIdeObject::~NodeEditorIdeObject()
 {
     DeInitialize();
+    if (m_runtimeShell) {
+        m_runtimeShell->deleteLater();
+        m_runtimeShell = nullptr;
+    }
 }
 
 void NodeEditorIdeObject::SetName(const QString& name)
@@ -98,11 +105,8 @@ bool NodeEditorIdeObject::Initialize()
 
     m_Widget = new NodeEditorWidget(mainWidget);
 
-    // Phase 1: Register built-in nodes (from former node_editor_app)
-    registerBuiltInNodes();
-
-    // Phase 2: Discover and register external INodeProvider plugins
-    discoverAndRegisterExternalNodes();
+    // Phase 1+2: Register built-in nodes + external INodeProvider plugins
+    registerNodes();
 
     // Build canvas AFTER all nodes are registered
     m_Widget->buildCanvas();
@@ -155,6 +159,10 @@ bool NodeEditorIdeObject::Initialize()
             this, &NodeEditorIdeObject::nodeDoubleClicked);
     connect(m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)));
     connect(button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()));
+
+    // Install event filter for F11 presentation mode toggle (REQ-SW-PL-048)
+    m_Win->installEventFilter(this);
+
     return true;
 }
 
@@ -166,6 +174,34 @@ void NodeEditorIdeObject::registerBuiltInNodes()
     registry->registerModel<NumberDisplayDataModel>("General/Display");
     registry->registerModel<ModuloModel>("General/Processing");
     registry->registerModel<ArithmeticLogicModel>("General/Processing");
+}
+
+void NodeEditorIdeObject::registerNodes()
+{
+    registerBuiltInNodes();
+    discoverAndRegisterExternalNodes();
+}
+
+// ── Runtime mode entry point (REQ-SW-PL-048) ────────────────────────────
+// Loads a .flow file and shows deembedded node widgets as the application UI
+// with the editor canvas hidden. Delegates to RuntimeShell which handles MDI
+// layout, autoStart via IStartable, and shutdown via IStoppable.
+bool NodeEditorIdeObject::RunRuntime(const QString& flowPath)
+{
+    if (flowPath.isEmpty()) {
+        QMessageBox::critical(nullptr, tr("Runtime Mode"), tr("No flow file specified."));
+        return false;
+    }
+
+    if (!QFile::exists(flowPath)) {
+        QMessageBox::critical(nullptr, tr("Runtime Mode"),
+                              tr("Flow file not found: %1").arg(flowPath));
+        return false;
+    }
+
+    // Create RuntimeShell instance (owned by this object, deleted in destructor)
+    m_runtimeShell = new RuntimeShell(this);
+    return m_runtimeShell->RunRuntime(flowPath);
 }
 
 void NodeEditorIdeObject::discoverAndRegisterExternalNodes()
@@ -207,6 +243,10 @@ void NodeEditorIdeObject::DeInitialize()
     if (nullptr != m_Win) {
         m_Win->deleteLater();
     }
+    if (m_runtimeShell) {
+        m_runtimeShell->deleteLater();
+        m_runtimeShell = nullptr;
+    }
     DEBUG_V << "NodeEditorIdeObject destroyed";
 }
 
@@ -225,6 +265,83 @@ void NodeEditorIdeObject::ShowPlugins()
     if (nullptr != pm) {
         DEBUG << "Plugin Manager: " << pm;
         pm->ShowPluginManagerGui(m_Win);
+    }
+}
+
+// ── Presentation mode toggle (REQ-SW-PL-048) ──────────────────────────────────
+// F11 key handler: hides GraphicsView + shows deembedded widgets (or arranges
+// in MDI); toggles back: shows GraphicsView, hides deembedded widgets.
+// Reversible — Pure Data style presentation mode.
+bool NodeEditorIdeObject::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == m_Win && event->type() == QEvent::KeyPress) {
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+        if (keyEvent->key() == Qt::Key_F11 && !keyEvent->isAutoRepeat()) {
+            togglePresentationMode();
+            return true; // Event handled
+        }
+    }
+    return QObject::eventFilter(watched, event);
+}
+
+void NodeEditorIdeObject::togglePresentationMode()
+{
+    if (!m_Widget || !m_Widget->scene() || !m_Win)
+        return;
+
+    m_presentationMode = !m_presentationMode;
+
+    if (m_presentationMode) {
+        // Enter presentation mode: hide canvas, show deembedded widgets
+        m_Widget->hide();
+
+        // Deembed all nodes that have widgets and are not already deembedded
+        for (const QtNodes::NodeId nodeId : m_Widget->graphModel()->allNodeIds()) {
+            QtNodes::NodeGraphicsObject* node = m_Widget->scene()->nodeGraphicsObject(nodeId);
+            if (node == nullptr || !node->hasWidget() || !node->isWidgetEmbedded())
+                continue;
+
+            auto* model = m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
+            QWidget* w = model != nullptr ? model->embeddedWidget() : nullptr;
+            if (w == nullptr)
+                continue;
+
+            // Two-step deembed: setWidgetEmbedded(false) FIRST
+            node->setWidgetEmbedded(false);
+
+            // Show as top-level window
+            w->setWindowFlags(Qt::Window);
+            w->setWindowTitle(model->caption());
+            w->show();
+        }
+
+        qCInfo(lcNodeEditor) << "Presentation mode: ON (canvas hidden, deembedded widgets shown)";
+    } else {
+        // Exit presentation mode: show canvas, re-embed widgets
+        m_Widget->show();
+
+        // Re-embed all deembedded widgets
+        for (const QtNodes::NodeId nodeId : m_Widget->graphModel()->allNodeIds()) {
+            QtNodes::NodeGraphicsObject* node = m_Widget->scene()->nodeGraphicsObject(nodeId);
+            if (node == nullptr || !node->hasWidget() || node->isWidgetEmbedded())
+                continue;
+
+            auto* model = m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
+            QWidget* w = model != nullptr ? model->embeddedWidget() : nullptr;
+            if (w == nullptr)
+                continue;
+
+            // Hide the top-level window first
+            w->hide();
+
+            // Re-embed: setWidgetEmbedded(true) will re-parent to the proxy widget
+            node->setWidgetEmbedded(true);
+
+            // Clear window flags
+            w->setWindowFlags(Qt::Widget);
+        }
+
+        qCInfo(lcNodeEditor) << "Presentation mode: OFF (canvas shown, widgets re-embedded)";
     }
 }
 

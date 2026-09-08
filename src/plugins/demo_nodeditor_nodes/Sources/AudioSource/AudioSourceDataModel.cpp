@@ -73,6 +73,13 @@ void AudioSourceDataModel::stop()
     }
 }
 
+/// Start capture programmatically (runtime autoStart, REQ-SW-PL-048).
+/// Delegates to the same logic as onUiStart(ASDM_START).
+void AudioSourceDataModel::start()
+{
+    QMetaObject::invokeMethod(m_worker, "startCapture", Qt::QueuedConnection);
+}
+
 QJsonObject AudioSourceDataModel::save() const
 {
     QJsonObject modelJson;

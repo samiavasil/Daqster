@@ -7,6 +7,30 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-048** (Runtime mode — `--run <flow.flow>`, MDI workspaces, autoStart, presentation toggle):
+  - CLI: `Daqster --run <file.flow>` starts runtime mode without editor canvas
+  - `RuntimeShell` class (`src/plugins/node_editor_ide/RuntimeShell.{h,cpp}`):
+    - QMainWindow shell with QMdiArea workspaces (SDRangel model)
+    - Reuses `NodeEditorIdeObject` registration + loading logic
+    - MDI layout: per-workspace QMdiArea, tabbed/SubWindow view mode
+    - Two-step deembed: `setWidgetEmbedded(false)` → `QMdiSubWindow::setWidget()`
+    - Window flags: `Qt::WindowStaysOnTopHint` cleared after reparenting
+    - Auto-start: generic `IStartable` interface implemented by all source/sink nodes
+    - Clean shutdown: `IStoppable::stop()` on all nodes on window close
+  - `IStartable` interface (`src/plugins/demo_nodeditor_nodes/shared/IStartable.h`):
+    - Implemented by: PlutoSdr, Pcap, VideoFileSource, StreamSource, CameraSource,
+      AudioSource, Gamepad, SystemMonitor, GpuMonitor, JackDetect, FilePlayback,
+      NetworkSource, FileRecord, NetworkSink, LLamaModel
+    - Delegates to existing start logic (onStartRequested/onPlayPauseClicked/onConnectClicked/onStartStopClicked)
+  - Presentation toggle in editor (F11): hides canvas, shows deembedded widgets
+    as top-level windows; toggle back restores editor mode
+  - Code: `src/apps/Daqster/main.cpp` (--run flag), `src/plugins/node_editor_ide/`
+    (RuntimeShell, NodeEditorIdeObject), `src/plugins/demo_nodeditor_nodes/`
+    (IStartable implementations)
+  - Verification: Qt5/Qt6 builds PASS + --run smoke PASS + MDI layout PASS +
+    autoStart PASS + window flags PASS (Qt5/Qt6) + clean exit PASS + invalid flow
+    PASS + F11 toggle PASS
+
 - **REQ-SW-PL-049** (.flow "ui" section — runtime layout of deembedded widgets):
   - `FlowUiSection.{h,cpp}` — plain structs (no Q_OBJECT): `FlowUi::Geometry`
     `{x,y,w,h,maximized}`, `FlowUi::NodeUi` (deembedded, workspace, geometry,

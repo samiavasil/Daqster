@@ -25,8 +25,9 @@
 #include "NodeDataTypes/TextData.h"
 #include "ChatBaseWidget.h"
 #include "shared/IStoppable.h"
+#include "shared/IStartable.h"
 
-class LLamaModelDataModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable {
+class LLamaModelDataModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable {
   Q_OBJECT
 
 public:
@@ -47,6 +48,9 @@ public:
   /// Stop the local server process. Idempotent — safe to call multiple times
   /// (REQ-SW-PL-050).
   void stop() override;
+
+  /// Start the local server process programmatically (runtime autoStart, REQ-SW-PL-048).
+  void start() override;
 
   /// The node BODY (boundary, caption, ports) does not depend on data —
   /// widget content self-repaints via Qt. Opts out of the body repaint.

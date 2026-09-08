@@ -1,0 +1,80 @@
+{
+    "nodes": [
+        {
+            "id": 0,
+            "internal-data": {
+                "model-name": "AudioSource",
+                "name": "AudioSource"
+            },
+            "label": "AudioSource",
+            "labelVisible": true,
+            "position": {
+                "x": -200.0,
+                "y": 0.0
+            }
+        },
+        {
+            "id": 1,
+            "internal-data": {
+                "model-name": "AudioDisplay",
+                "name": "AudioDisplay"
+            },
+            "label": "AudioDisplay",
+            "labelVisible": true,
+            "position": {
+                "x": 200.0,
+                "y": 0.0
+            }
+        }
+    ],
+    "connections": [
+        {
+            "outNodeId": 0,
+            "outPortIndex": 0,
+            "inNodeId": 1,
+            "inPortIndex": 0
+        }
+    ],
+    "ui": {
+        "version": 1,
+        "workspaces": [
+            {
+                "id": 0,
+                "tabbed": true,
+                "geometry": {
+                    "x": 100,
+                    "y": 100,
+                    "w": 800,
+                    "h": 600,
+                    "maximized": false
+                }
+            }
+        ],
+        "nodes": {
+            "0": {
+                "deembedded": true,
+                "workspace": 0,
+                "geometry": {
+                    "x": 150,
+                    "y": 150,
+                    "w": 300,
+                    "h": 200,
+                    "maximized": false
+                },
+                "autoStart": true
+            },
+            "1": {
+                "deembedded": true,
+                "workspace": 0,
+                "geometry": {
+                    "x": 500,
+                    "y": 150,
+                    "w": 300,
+                    "h": 200,
+                    "maximized": false
+                },
+                "autoStart": false
+            }
+        }
+    }
+}

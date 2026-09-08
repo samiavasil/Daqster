@@ -36,6 +36,14 @@ void JackDetectModel::stop()
     m_userStarted = false;
 }
 
+/// Start polling programmatically (runtime autoStart, REQ-SW-PL-048).
+/// Delegates to the same logic as onStartRequested().
+void JackDetectModel::start()
+{
+    m_userStarted = true;
+    setPollingEnabled(true);
+}
+
 QJsonObject JackDetectModel::save() const
 {
     QJsonObject modelJson;

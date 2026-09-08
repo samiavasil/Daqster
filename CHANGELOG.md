@@ -7,6 +7,30 @@
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-048** (Runtime режим — `--run <flow.flow>`, MDI workspaces, autoStart, presentation toggle):
+  - CLI: `Daqster --run <file.flow>` стартира runtime режим без editor canvas
+  - `RuntimeShell` class (`src/plugins/node_editor_ide/RuntimeShell.{h,cpp}`):
+    - QMainWindow shell с QMdiArea workspaces (SDRangel модел)
+    - Reuses `NodeEditorIdeObject` registration + loading logic
+    - MDI layout: per-workspace QMdiArea, tabbed/SubWindow view mode
+    - Two-step deembed: `setWidgetEmbedded(false)` → `QMdiSubWindow::setWidget()`
+    - Window flags: `Qt::WindowStaysOnTopHint` cleared after reparenting
+    - Auto-start: generic `IStartable` interface implemented by all source/sink nodes
+    - Clean shutdown: `IStoppable::stop()` on all nodes on window close
+  - `IStartable` interface (`src/plugins/demo_nodeditor_nodes/shared/IStartable.h`):
+    - Implemented by: PlutoSdr, Pcap, VideoFileSource, StreamSource, CameraSource,
+      AudioSource, Gamepad, SystemMonitor, GpuMonitor, JackDetect, FilePlayback,
+      NetworkSource, FileRecord, NetworkSink, LLamaModel
+    - Delegates to existing start logic (onStartRequested/onPlayPauseClicked/onConnectClicked/onStartStopClicked)
+  - Presentation toggle в editor-а (F11): скрива canvas, показва деембеднати виджети
+    като top-level прозорци; toggle back възстановява editor режим
+  - Код: `src/apps/Daqster/main.cpp` (--run флаг), `src/plugins/node_editor_ide/`
+    (RuntimeShell, NodeEditorIdeObject), `src/plugins/demo_nodeditor_nodes/`
+    (IStartable implementations)
+  - Верификация: Qt5/Qt6 builds PASS + --run smoke PASS + MDI layout PASS +
+    autoStart PASS + window flags PASS (Qt5/Qt6) + clean exit PASS + invalid flow
+    PASS + F11 toggle PASS
+
 - **REQ-SW-PL-049** (.flow "ui" секция — runtime layout на деембеднатите виджети):
   - `FlowUiSection.{h,cpp}` — plain structs (без Q_OBJECT): `FlowUi::Geometry`
     `{x,y,w,h,maximized}`, `FlowUi::NodeUi` (deembedded, workspace, geometry,

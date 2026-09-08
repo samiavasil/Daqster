@@ -4,6 +4,7 @@
 #include "NodeDataTypes/SampledData.h"
 #include "FileRecordWidget.h"
 #include "shared/IStoppable.h"
+#include "shared/IStartable.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -22,7 +23,7 @@
  * The file format is deliberately simple and debuggable: raw interleaved
  * sample bytes + a human-readable JSON sidecar (no custom binary header).
  */
-class FileRecordModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
+class FileRecordModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 
@@ -57,6 +58,9 @@ public:
     /// Stop recording and close the file. Idempotent — safe to call multiple
     /// times (REQ-SW-PL-050).
     void stop() override;
+
+    /// Start recording programmatically (runtime autoStart, REQ-SW-PL-048).
+    void start() override;
 
 private slots:
     void onStartRequested();

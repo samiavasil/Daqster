@@ -48,6 +48,14 @@ void SystemMonitorModel::stop()
     m_userStarted = false;
 }
 
+/// Start polling programmatically (runtime autoStart, REQ-SW-PL-048).
+/// Delegates to the same logic as onStartRequested().
+void SystemMonitorModel::start()
+{
+    m_userStarted = true;
+    setPollingEnabled(m_connectionCount > 0);
+}
+
 QJsonObject SystemMonitorModel::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
