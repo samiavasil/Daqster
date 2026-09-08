@@ -1,7 +1,10 @@
 #pragma once
 
+#include "FlowUiSection.h"
 #include "QBasePluginObject.h"
 #include <QtNodes/Definitions>
+
+#include <vector>
 
 class NodeEditorWidget;
 class QMainWindow;
@@ -56,6 +59,30 @@ private:
     /// the "Perf" checkbox on the output (plus DAQSTER_SCENE_VIDEO handling).
     void startVideoPlayback();
 
+    /// Saves the current scene to a .flow file (REQ-SW-PL-049): graph model
+    /// JSON + groups (byte-identical to DataFlowGraphicsScene::save()) + the
+    /// "ui" section captured from the current runtime layout. Opens a file
+    /// dialog. Returns true on success.
+    bool saveSceneToFile();
+
+    /// Captures the current runtime UI layout (REQ-SW-PL-049): workspace
+    /// geometry from m_workspaces (or the main window default) and per-node
+    /// deembed state + geometry + autoStart for every node with a widget.
+    FlowUi::UiSection captureUiSection() const;
+
+    /// Restores the runtime UI layout from a loaded "ui" section
+    /// (REQ-SW-PL-049): stores workspaces, records autoStart flags and
+    /// deembeds nodes whose saved state says so (tolerant — missing nodes
+    /// are skipped).
+    void applyUiSection(const FlowUi::UiSection& ui);
+
     QMainWindow* m_Win;
     NodeEditorWidget* m_Widget;
+
+    /// Workspace layout captured at save time (REQ-SW-PL-049). Empty until a
+    /// .flow with a "ui" section is loaded or a save captures the default.
+    std::vector<FlowUi::WorkspaceUi> m_workspaces;
+
+    /// Per-node autoStart flags restored from the "ui" section (REQ-SW-PL-049).
+    QHash<QtNodes::NodeId, bool> m_autoStartNodes;
 };

@@ -29,6 +29,9 @@
 #include <QtNodes/DataFlowGraphModel>
 #include <QtNodes/DataFlowGraphicsScene>
 #include <QtNodes/ConnectionStyle>
+#include <QtNodes/internal/NodeGraphicsObject.hpp>
+#include <QtNodes/internal/NodeGroup.hpp>
+#include <QtNodes/internal/GroupGraphicsObject.hpp>
 
 #include <QtWidgets/QVBoxLayout>
 
@@ -105,16 +108,15 @@ bool NodeEditorIdeObject::Initialize()
     m_Widget->buildCanvas();
 
     // ── File menu (REQ-SW-PL-037): Save/Load scene ─────────────────────────
-    // Save uses QtNodes' native DataFlowGraphicsScene::save() (opens its own
-    // file dialog, writes .flow JSON). Load uses the tolerant path that skips
-    // unregistered node types instead of crashing.
+    // Save uses saveSceneToFile() (REQ-SW-PL-049): graph model JSON + groups +
+    // the "ui" section (runtime layout). Load uses the tolerant path that
+    // skips unregistered node types instead of crashing.
     QMenu* fileMenu = m_Win->menuBar()->addMenu(tr("&File"));
 
     QAction* saveAction = fileMenu->addAction(tr("Save Scene…"));
     saveAction->setShortcut(QKeySequence::Save);
     connect(saveAction, &QAction::triggered, this, [this]() {
-        if (m_Widget->scene() != nullptr)
-            m_Widget->scene()->save();
+        saveSceneToFile();
     });
 
     QAction* loadAction = fileMenu->addAction(tr("Load Scene…"));
@@ -268,6 +270,13 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
     }
 
     QJsonObject sceneJson = sceneDocument.object();
+
+    // Extract the "ui" section (REQ-SW-PL-049) BEFORE the node-cleaning loop:
+    // it is not part of the graph model JSON and must not be passed to load().
+    // Missing "ui" (old flow) → empty section → current behavior.
+    const FlowUi::UiSection uiSection = FlowUi::UiSection::fromJson(sceneJson["ui"].toObject());
+    sceneJson.remove("ui");
+
     const QJsonArray nodesJsonArray = sceneJson["nodes"].toArray();
 
     auto* registry = m_Widget->getInjectedRegistry();
@@ -313,6 +322,9 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
         return false;
     }
 
+    // Restore the runtime UI layout captured in the "ui" section (REQ-SW-PL-049).
+    applyUiSection(uiSection);
+
     const int loadedNodeCount = static_cast<int>(m_Widget->graphModel()->allNodeIds().size());
     const int loadedConnCount = static_cast<int>(
         sceneJson["connections"].toArray().size());
@@ -331,6 +343,168 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
     }
 
     return true;
+}
+
+// ── Save with "ui" section (REQ-SW-PL-049) ──────────────────────────────────
+// Saves the scene as graph model JSON + groups (byte-identical to
+// DataFlowGraphicsScene::save()) + the "ui" section describing the runtime
+// layout of deembedded node widgets. The "ui" section is written indented so
+// it is human-inspectable in the .flow file.
+bool NodeEditorIdeObject::saveSceneToFile()
+{
+    if (m_Widget == nullptr || m_Widget->scene() == nullptr) {
+        qCWarning(lcNodeEditor) << "saveSceneToFile: no scene to save";
+        return false;
+    }
+
+    QString fileName = QFileDialog::getSaveFileName(
+        m_Win, tr("Save Flow Scene"), QDir::homePath(), tr("Flow Scene Files (*.flow)"));
+    if (fileName.isEmpty())
+        return false;
+    if (!fileName.endsWith("flow", Qt::CaseInsensitive))
+        fileName += ".flow";
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly)) {
+        qCWarning(lcNodeEditor) << "saveSceneToFile: cannot open" << fileName;
+        return false;
+    }
+
+    QJsonObject sceneJson = m_Widget->graphModel()->save();
+
+    // Replicate DataFlowGraphicsScene::save() groups serialization
+    // (byte-identical): groups()/name()/nodeIDs()/groupGraphicsObject().locked()
+    // are all public API.
+    QJsonArray groupsJsonArray;
+    for (const auto& [groupId, groupPtr] : m_Widget->scene()->groups()) {
+        if (!groupPtr)
+            continue;
+
+        QJsonObject groupJson;
+        groupJson["id"] = static_cast<qint64>(groupId);
+        groupJson["name"] = groupPtr->name();
+
+        QJsonArray nodeIdsJson;
+        for (const QtNodes::NodeId nodeId : groupPtr->nodeIDs()) {
+            nodeIdsJson.append(static_cast<qint64>(nodeId));
+        }
+        groupJson["nodes"] = nodeIdsJson;
+        groupJson["locked"] = groupPtr->groupGraphicsObject().locked();
+
+        groupsJsonArray.append(groupJson);
+    }
+    if (!groupsJsonArray.isEmpty()) {
+        sceneJson["groups"] = groupsJsonArray;
+    }
+
+    sceneJson["ui"] = captureUiSection().toJson();
+
+    file.write(QJsonDocument(sceneJson).toJson(QJsonDocument::Indented));
+    qCInfo(lcNodeEditor) << "saveSceneToFile: saved" << fileName;
+    return true;
+}
+
+FlowUi::UiSection NodeEditorIdeObject::captureUiSection() const
+{
+    FlowUi::UiSection ui;
+    ui.version = 1;
+
+    // Workspaces: stored layout (from a loaded "ui" section) or the main
+    // window default {id:0, tabbed:true, geometry: m_Win->geometry()+maximized}.
+    if (m_workspaces.empty()) {
+        FlowUi::WorkspaceUi ws;
+        ws.id = 0;
+        ws.tabbed = true;
+        if (m_Win != nullptr) {
+            const QRect geo = m_Win->geometry();
+            ws.geometry.x = geo.x();
+            ws.geometry.y = geo.y();
+            ws.geometry.w = geo.width();
+            ws.geometry.h = geo.height();
+            ws.geometry.maximized = m_Win->isMaximized();
+        }
+        ui.workspaces.push_back(ws);
+    } else {
+        ui.workspaces = m_workspaces;
+    }
+
+    if (m_Widget == nullptr || m_Widget->scene() == nullptr)
+        return ui;
+
+    // Per-node layout: ALL nodes get an entry; geometry only for deembedded.
+    for (const QtNodes::NodeId nodeId : m_Widget->graphModel()->allNodeIds()) {
+        QtNodes::NodeGraphicsObject* node = m_Widget->scene()->nodeGraphicsObject(nodeId);
+        if (node == nullptr || !node->hasWidget())
+            continue;
+
+        FlowUi::NodeUi nui;
+        nui.deembedded = !node->isWidgetEmbedded();
+        nui.workspace = 0;
+        nui.autoStart = m_autoStartNodes.value(nodeId, false);
+
+        if (nui.deembedded) {
+            auto* model =
+                m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
+            QWidget* w = model != nullptr ? model->embeddedWidget() : nullptr;
+            if (w != nullptr) {
+                const QRect geo = w->geometry();
+                nui.geometry.x = geo.x();
+                nui.geometry.y = geo.y();
+                nui.geometry.w = geo.width();
+                nui.geometry.h = geo.height();
+                nui.geometry.maximized = w->isMaximized();
+            }
+        }
+
+        ui.nodes.insert(nodeId, nui);
+    }
+
+    return ui;
+}
+
+void NodeEditorIdeObject::applyUiSection(const FlowUi::UiSection& ui)
+{
+    // Workspaces are stored (not applied) — the MDI workspace shell is a
+    // runtime-mode concern (REQ-SW-PL-048); the IDE keeps the layout for the
+    // next save.
+    m_workspaces = ui.workspaces;
+
+    if (m_Widget == nullptr || m_Widget->scene() == nullptr)
+        return;
+
+    for (auto it = ui.nodes.constBegin(); it != ui.nodes.constEnd(); ++it) {
+        const QtNodes::NodeId nodeId = it.key();
+        const FlowUi::NodeUi& nui = it.value();
+
+        // Tolerant load guard: nodes skipped by loadSceneFromFile() (missing
+        // model type) are not in the graph — ignore their ui entry.
+        if (!m_Widget->graphModel()->nodeExists(nodeId))
+            continue;
+
+        m_autoStartNodes.insert(nodeId, nui.autoStart);
+
+        if (!nui.deembedded)
+            continue;
+
+        QtNodes::NodeGraphicsObject* node = m_Widget->scene()->nodeGraphicsObject(nodeId);
+        if (node == nullptr || !node->isWidgetEmbedded())
+            continue;
+
+        // Direct call is safe here — no context-menu loop is open during load.
+        node->setWidgetEmbedded(false);
+
+        auto* model =
+            m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
+        QWidget* w = model != nullptr ? model->embeddedWidget() : nullptr;
+        if (w == nullptr)
+            continue;
+
+        w->setWindowState(Qt::WindowNoState);
+        w->setGeometry(QRect(nui.geometry.x, nui.geometry.y,
+                             nui.geometry.w, nui.geometry.h));
+        if (nui.geometry.maximized)
+            w->setWindowState(Qt::WindowMaximized);
+    }
 }
 
 // ── Dev driver: DAQSTER_AUTOSTART_VIDEO=1 ────────────────────────────────────

@@ -7,6 +7,26 @@
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-049** (.flow "ui" секция — runtime layout на деембеднатите виджети):
+  - `FlowUiSection.{h,cpp}` — plain structs (без Q_OBJECT): `FlowUi::Geometry`
+    `{x,y,w,h,maximized}`, `FlowUi::NodeUi` (deembedded, workspace, geometry,
+    autoStart), `FlowUi::WorkspaceUi` (id, geometry, tabbed), `FlowUi::UiSection`
+    (version, workspaces, nodes) с `toJson()`/`fromJson()`
+  - Save (`NodeEditorIdeObject::saveSceneToFile()`): граф JSON + groups
+    (byte-identical на `DataFlowGraphicsScene::save()`) + `"ui"` секция;
+    файлът се записва indented; geometry key се емитира само за deembedded
+    нодове; custom формат `{x,y,w,h,maximized}` (НЕ `QWidget::saveGeometry`)
+  - Load (`loadSceneFromFile()` + `applyUiSection()`): "ui" секцията се
+    извлича преди node-cleaning loop-а и се прилага след успешен load —
+    възстановява deembed state + geometry + autoStart флагове; tolerant
+    guard за липсващи нодове; стар .flow без "ui" → текущо поведение;
+    version > 1 → warning + празна секция
+  - Код: `src/plugins/node_editor_ide/` (FlowUiSection, NodeEditorIdeObject)
+  - Верификация: Qt5/Qt6 builds PASS + ctest 11/11 green (Qt5) + FlowUiSection
+    JSON round-trip smoke PASS + IDE smoke PASS (capture/apply: deembed +
+    geometry + autoStart, offscreen) + load smoke PASS (ръчен .flow с "ui"
+    секция, без crash) + old-flow regression PASS (без "ui", без crash);
+    unit тестове отложени (стоящата инструкция „НОВИ ТЕСТОВЕ СТОП")
 - **REQ-SW-PL-044** (UDP/TCP Source + Sink network DAQ nodes — MSSD framing):
   - `NetworkSourceModel` — нов **source** нод в `demo_nodeditor_nodes`,
     регистриран под `"Daq/Sources"`; 1 изходен порт `SampledData`

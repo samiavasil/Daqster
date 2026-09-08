@@ -32,17 +32,17 @@
 
 ## Acceptance Criteria
 
-- [ ] 1. .flow съдържа "ui" секция (JSON) с workspaces + per-node layout
-- [ ] 2. Per-node: deembedded флаг, workspace ID, geometry {x,y,w,h,maximized}, autoStart флаг
-- [ ] 3. Editor-ът записва "ui" секцията при save (включва текущата MDI подредба)
-- [ ] 4. Runtime режимът чете "ui" секцията и възстановява MDI layout-а
-- [ ] 5. Геометрията е custom формат (не QWidget::saveGeometry)
+- [x] 1. .flow съдържа "ui" секция (JSON) с workspaces + per-node layout
+- [x] 2. Per-node: deembedded флаг, workspace ID, geometry {x,y,w,h,maximized}, autoStart флаг
+- [x] 3. Editor-ът записва "ui" секцията при save (включва текущата MDI подредба)
+- [x] 4. Runtime режимът чете "ui" секцията и възстановява MDI layout-а
+- [x] 5. Геометрията е custom формат (не QWidget::saveGeometry)
 - [ ] 6. Тестове (отложени)
 
 ## Проследимост
 
 - **Коммити:** (pending commit)
-- **Код:** `src/plugins/node_editor_ide/` (DataFlowGraphModel save/load, NodeEditorWidget save/load), `src/plugins/external_libs/nodeeditor/` (scene serialization)
+- **Код:** `src/plugins/node_editor_ide/` (FlowUiSection.{h,cpp}, NodeEditorIdeObject.{h,cpp} save/load)
 
 ## Бележка
 
