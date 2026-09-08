@@ -383,6 +383,16 @@ void QPluginManager::ShutdownPluginManager()
     s_shutdownDone = true;
     QPluginLoaderExt::setShuttingDown(true);
     m_registry->shutdownAll();
+
+    // Synchronously delete all plugin instances while the event loop is still
+    // alive. The async deleteLater() chain in ShutdownPluginObject() is NOT
+    // processed once the loop exits (aboutToQuit), leaving node threads running
+    // during ~QApplication teardown (REQ-SW-PL-050). Destructors join threads.
+    const QList<QBasePluginObject*> instances = m_registry->allPluginInstances();
+    for (QBasePluginObject* obj : instances) {
+        if (obj)
+            delete obj;
+    }
 }
 
 

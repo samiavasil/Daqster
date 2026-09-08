@@ -5,6 +5,7 @@
 
 #include "NodeDataTypes/SampledData.h"
 #include "PerfProfiler.h"
+#include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/internal/Definitions.hpp>
@@ -49,7 +50,7 @@ class VideoFrameData;
  *
  * The audio port is at index 1 (no gap) — REQ-SW-PL-022.
  */
-class VideoFileSourceNode : public QtNodes::NodeDelegateModel
+class VideoFileSourceNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 
@@ -80,6 +81,10 @@ public:
                    QtNodes::PortIndex portIndex) override;
 
     QWidget *embeddedWidget() override;
+
+    /// Stop the media player. Idempotent — safe to call multiple times
+    /// (REQ-SW-PL-050).
+    void stop() override;
 
     /// Track downstream "sample" connections so wrapping is only emitted
     /// while a consumer is connected.

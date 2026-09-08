@@ -114,6 +114,18 @@ public:
     void shutdownAll();
 
     /**
+     * @brief Collect all live plugin object instances across all interfaces.
+     *
+     * Used by QPluginManager::ShutdownPluginManager() to synchronously delete
+     * plugin objects (and join their threads) while the event loop is still
+     * alive — the async deleteLater() chain is not processed once the loop
+     * exits (aboutToQuit), leaving threads running during ~QApplication.
+     *
+     * @return List of all QBasePluginObject instances
+     */
+    QList<QBasePluginObject*> allPluginInstances() const;
+
+    /**
      * @brief Find all instances implementing a given interface
      * @param iid Interface ID string
      * @return List of QObject pointers implementing the interface

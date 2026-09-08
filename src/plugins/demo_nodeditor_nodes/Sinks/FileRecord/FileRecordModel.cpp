@@ -57,8 +57,15 @@ FileRecordModel::FileRecordModel()
 
 FileRecordModel::~FileRecordModel()
 {
-    stopRecording();
+    // Single shutdown path: stop() closes the file (REQ-SW-PL-050).
+    stop();
     m_widget = nullptr;
+}
+
+void FileRecordModel::stop()
+{
+    // Idempotent: stopRecording() on an already-stopped recorder is a no-op.
+    stopRecording();
 }
 
 QJsonObject FileRecordModel::save() const

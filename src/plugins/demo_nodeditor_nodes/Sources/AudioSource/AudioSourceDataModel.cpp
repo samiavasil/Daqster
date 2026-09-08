@@ -55,16 +55,22 @@ AudioSourceDataModel::AudioSourceDataModel()
 
 AudioSourceDataModel::~AudioSourceDataModel()
 {
-    // Stop the capture thread first; the worker is deleted via
-    // QThread::finished → deleteLater (standard Qt pattern).
-    if (m_thread != nullptr) {
-        m_thread->quit();
-        m_thread->wait();
-    }
+    // Single shutdown path: stop() quits + waits the capture thread
+    // (REQ-SW-PL-050).
+    stop();
 
     // Widget lifetime is owned by the node/view framework.
     // Explicit delete here causes double-free during scene teardown.
     m_Widget = nullptr;
+}
+
+void AudioSourceDataModel::stop()
+{
+    // Idempotent: quit()/wait() on an already-stopped thread is a no-op.
+    if (m_thread != nullptr) {
+        m_thread->quit();
+        m_thread->wait();
+    }
 }
 
 QJsonObject AudioSourceDataModel::save() const

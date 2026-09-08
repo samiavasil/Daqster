@@ -58,9 +58,19 @@ PcapModel::PcapModel()
 
 PcapModel::~PcapModel()
 {
-    // Clean shutdown: stop the capture thread + pcap_close (REQ-SW-PL-047 AC 6).
-    m_engine->stop();
+    // Single shutdown path: stop() joins the capture thread + pcap_close
+    // (REQ-SW-PL-047 AC 6, REQ-SW-PL-050).
+    stop();
     m_widget = nullptr; // owned by the node/view framework
+}
+
+void PcapModel::stop()
+{
+    // Idempotent: the engine's stop() is safe to call when not capturing.
+    if (m_engine)
+        m_engine->stop();
+    m_userStarted = false;
+    m_widget->setRunning(false);
 }
 
 QJsonObject PcapModel::save() const

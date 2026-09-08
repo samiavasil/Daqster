@@ -67,13 +67,20 @@ GamepadModel::GamepadModel()
 
 GamepadModel::~GamepadModel()
 {
-    // Stop the polling timer + close the fd cleanly before the engine (child)
-    // is destroyed (REQ-SW-PL-042 AC 6).
-    if (m_engine)
-        m_engine->stop();
+    // Single shutdown path: stop() stops the polling timer + closes the fd
+    // before the engine (child) is destroyed (REQ-SW-PL-042 AC 6, PL-050).
+    stop();
 
     // Widget lifetime is owned by the node/view framework.
     m_widget = nullptr;
+}
+
+void GamepadModel::stop()
+{
+    // Idempotent: the engine's stop() is safe to call when not polling.
+    if (m_engine)
+        m_engine->stop();
+    m_userStarted = false;
 }
 
 QJsonObject GamepadModel::save() const

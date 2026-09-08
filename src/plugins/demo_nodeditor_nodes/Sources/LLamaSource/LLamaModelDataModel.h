@@ -24,8 +24,9 @@
 
 #include "NodeDataTypes/TextData.h"
 #include "ChatBaseWidget.h"
+#include "shared/IStoppable.h"
 
-class LLamaModelDataModel : public QtNodes::NodeDelegateModel {
+class LLamaModelDataModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable {
   Q_OBJECT
 
 public:
@@ -42,6 +43,10 @@ public:
   void setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex const portIndex) override;
   QWidget* embeddedWidget() override { return m_ui; }
   bool resizable() const override { return true; }
+
+  /// Stop the local server process. Idempotent — safe to call multiple times
+  /// (REQ-SW-PL-050).
+  void stop() override;
 
   /// The node BODY (boundary, caption, ports) does not depend on data —
   /// widget content self-repaints via Qt. Opts out of the body repaint.

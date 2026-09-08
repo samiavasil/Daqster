@@ -78,8 +78,16 @@ FilePlaybackModel::FilePlaybackModel()
 
 FilePlaybackModel::~FilePlaybackModel()
 {
-    stopPlayback();
+    // Single shutdown path: stop() stops the playback timer (REQ-SW-PL-050).
+    stop();
     m_widget = nullptr;
+}
+
+void FilePlaybackModel::stop()
+{
+    // Idempotent: stopPlayback() on an already-stopped timer is a no-op.
+    stopPlayback();
+    m_userStarted = false;
 }
 
 QJsonObject FilePlaybackModel::save() const

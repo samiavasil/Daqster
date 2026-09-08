@@ -4,6 +4,7 @@
 #include "JackDetectEngine.h"
 #include "JackDetectWidget.h"
 #include "NodeDataTypes/SampledData.h"
+#include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -19,7 +20,7 @@
  * FLOAT32 channel per jack, values 0.0/1.0) and emits dataUpdated(0).
  * Polling is gated on output connection count (auto start/stop).
  */
-class JackDetectModel : public QtNodes::NodeDelegateModel
+class JackDetectModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 
@@ -50,6 +51,10 @@ public:
                    QtNodes::PortIndex port) override;
 
     QWidget *embeddedWidget() override;
+
+    /// Stop the polling timer. Idempotent — safe to call multiple times
+    /// (REQ-SW-PL-050).
+    void stop() override;
 
     QtNodes::ConnectionPolicy portConnectionPolicy(QtNodes::PortType portType,
                                                    QtNodes::PortIndex portIndex) const override

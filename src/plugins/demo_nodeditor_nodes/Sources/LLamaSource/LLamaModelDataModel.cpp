@@ -25,6 +25,13 @@ LLamaModelDataModel::LLamaModelDataModel()
 }
 
 LLamaModelDataModel::~LLamaModelDataModel() {
+  // Single shutdown path: stop() terminates the server process (REQ-SW-PL-050).
+  stop();
+}
+
+void LLamaModelDataModel::stop() {
+  // Idempotent: terminate()/waitForFinished() on a NotRunning process is a
+  // no-op.
   if (m_serverProcess && m_serverProcess->state() != QProcess::NotRunning) {
     m_serverProcess->terminate();
     m_serverProcess->waitForFinished(3000);

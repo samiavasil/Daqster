@@ -3,6 +3,7 @@
 
 #include "VideoEffectGLProcessor.h"
 #include "VideoEffectOps.h"
+#include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -58,7 +59,7 @@ class VideoFrameData;
  * alias registry keys no longer load; the single "VideoEffect" node is the
  * only registered effect node.
  */
-class VideoEffectNode : public QtNodes::NodeDelegateModel
+class VideoEffectNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 
@@ -105,6 +106,10 @@ public:
                    QtNodes::PortIndex portIndex) override;
 
     QWidget *embeddedWidget() override;
+
+    /// Stop background work (ComputePool tasks + perf timer). Idempotent —
+    /// safe to call multiple times (REQ-SW-PL-050).
+    void stop() override;
 
 private slots:
     /// GUI-thread result delivery for the CPU path (Qt::QueuedConnection from

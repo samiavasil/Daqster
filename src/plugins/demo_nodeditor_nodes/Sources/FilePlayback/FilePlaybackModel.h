@@ -3,6 +3,7 @@
 
 #include "NodeDataTypes/SampledData.h"
 #include "FilePlaybackWidget.h"
+#include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -24,7 +25,7 @@
  * timer runs only while the user pressed Play AND at least one output
  * connection exists; removing the last connection auto-stops the playback.
  */
-class FilePlaybackModel : public QtNodes::NodeDelegateModel
+class FilePlaybackModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 
@@ -55,6 +56,10 @@ public:
                    QtNodes::PortIndex port) override;
 
     QWidget *embeddedWidget() override;
+
+    /// Stop the playback timer. Idempotent — safe to call multiple times
+    /// (REQ-SW-PL-050).
+    void stop() override;
 
     void outputConnectionCreated(QtNodes::ConnectionId const &) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &) override;

@@ -77,10 +77,18 @@ VideoFileSourceNode::VideoFileSourceNode()
 
 VideoFileSourceNode::~VideoFileSourceNode()
 {
-    if (m_player != nullptr)
-        m_player->stop();
+    // Single shutdown path: stop() stops the media player (REQ-SW-PL-050).
+    stop();
     // Widget lifetime is owned by the node/view framework.
     m_widget = nullptr;
+}
+
+void VideoFileSourceNode::stop()
+{
+    // Idempotent: QMediaPlayer::stop() on an already-stopped player is a no-op.
+    if (m_player != nullptr)
+        m_player->stop();
+    m_isPlaying = false;
 }
 
 QJsonObject VideoFileSourceNode::save() const

@@ -36,8 +36,16 @@ NetworkSourceModel::NetworkSourceModel()
 
 NetworkSourceModel::~NetworkSourceModel()
 {
-    stopListening();
+    // Single shutdown path: stop() closes the listener (REQ-SW-PL-050).
+    stop();
     m_widget = nullptr;
+}
+
+void NetworkSourceModel::stop()
+{
+    // Idempotent: stopListening() on an already-stopped listener is a no-op.
+    stopListening();
+    m_userStarted = false;
 }
 
 QJsonObject NetworkSourceModel::save() const
