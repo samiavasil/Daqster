@@ -22,9 +22,18 @@ JackDetectModel::JackDetectModel()
 
 JackDetectModel::~JackDetectModel()
 {
-    // Clean shutdown: stop the polling timer (REQ-SW-PL-046 AC 6).
-    m_engine->stop();
+    // Single shutdown path: stop() stops the polling timer
+    // (REQ-SW-PL-046 AC 6, REQ-SW-PL-050).
+    stop();
     m_widget = nullptr; // owned by the node/view framework
+}
+
+void JackDetectModel::stop()
+{
+    // Idempotent: the engine's stop() is safe to call when not polling.
+    if (m_engine)
+        m_engine->stop();
+    m_userStarted = false;
 }
 
 QJsonObject JackDetectModel::save() const

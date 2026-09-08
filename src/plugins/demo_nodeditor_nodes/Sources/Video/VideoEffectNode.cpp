@@ -46,6 +46,18 @@ VideoEffectNode::VideoEffectNode()
 
 VideoEffectNode::~VideoEffectNode()
 {
+    // Single shutdown path: stop() cancels pool tasks + stops the timer
+    // (REQ-SW-PL-050).
+    stop();
+
+    // Widget lifetime is owned by the node/view framework.
+    m_widget = nullptr;
+}
+
+void VideoEffectNode::stop()
+{
+    // Idempotent: setting the flag + cancelling an already-cancelled key is
+    // safe to repeat.
     m_shuttingDown = true; // worker tasks check before posting results
 
     // Cancel queued/pending CPU tasks for this key and wait for the running
@@ -54,9 +66,6 @@ VideoEffectNode::~VideoEffectNode()
 
     if (m_perfTimer)
         m_perfTimer->stop();
-
-    // Widget lifetime is owned by the node/view framework.
-    m_widget = nullptr;
 }
 
 QJsonObject VideoEffectNode::save() const

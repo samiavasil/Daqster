@@ -113,6 +113,10 @@ public:
 
     QWidget *embeddedWidget() override;
 
+    /// Stop background work (timers, detached display windows). Idempotent —
+    /// safe to call multiple times (REQ-SW-PL-050).
+    void stop() override;
+
     /// Track downstream connections on the output port so the per-frame
     /// QImage conversion only happens while a processing consumer is connected.
     void outputConnectionCreated(QtNodes::ConnectionId const &conId) override;

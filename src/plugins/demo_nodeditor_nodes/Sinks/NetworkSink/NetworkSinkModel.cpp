@@ -21,8 +21,15 @@ NetworkSinkModel::NetworkSinkModel()
 
 NetworkSinkModel::~NetworkSinkModel()
 {
-    stopSending();
+    // Single shutdown path: stop() closes the socket (REQ-SW-PL-050).
+    stop();
     m_widget = nullptr;
+}
+
+void NetworkSinkModel::stop()
+{
+    // Idempotent: stopSending() on an already-stopped sink is a no-op.
+    stopSending();
 }
 
 QJsonObject NetworkSinkModel::save() const

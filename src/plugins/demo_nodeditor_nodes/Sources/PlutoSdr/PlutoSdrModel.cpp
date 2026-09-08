@@ -32,12 +32,20 @@ PlutoSdrModel::PlutoSdrModel()
 
 PlutoSdrModel::~PlutoSdrModel()
 {
-    // Stop the stream thread cleanly before the engine (child) is destroyed.
-    if (m_engine)
-        m_engine->stop();
+    // Single shutdown path: stop() joins the stream thread before the engine
+    // (child) is destroyed (REQ-SW-PL-050).
+    stop();
 
     // Widget lifetime is owned by the node/view framework.
     m_widget = nullptr;
+}
+
+void PlutoSdrModel::stop()
+{
+    // Idempotent: the engine's stop() is safe to call when not running.
+    if (m_engine)
+        m_engine->stop();
+    m_userStarted = false;
 }
 
 QJsonObject PlutoSdrModel::save() const

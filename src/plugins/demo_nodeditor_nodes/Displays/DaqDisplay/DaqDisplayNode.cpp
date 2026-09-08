@@ -349,6 +349,19 @@ DaqDisplayNode::DaqDisplayNode()
 
 DaqDisplayNode::~DaqDisplayNode()
 {
+    // Single shutdown path: stop() stops the timer + cancels compute tasks
+    // (REQ-SW-PL-050).
+    stop();
+
+    if (m_bridge) {
+        delete m_bridge;
+        m_bridge = nullptr;
+    }
+}
+
+void DaqDisplayNode::stop()
+{
+    // Idempotent: stopping an already-stopped timer / null key is a no-op.
     if (m_refreshTimer)
         m_refreshTimer->stop();
 
@@ -357,11 +370,6 @@ DaqDisplayNode::~DaqDisplayNode()
     // Cancel queued/pending tasks for this key and wait for the running one
     // (≤ 500 ms) — replaces the old m_pool->clear() + waitForDone().
     ComputePool::instance().cancel(m_poolKey);
-
-    if (m_bridge) {
-        delete m_bridge;
-        m_bridge = nullptr;
-    }
 }
 
 // ── Serialization (REQ-SW-PL-023 §6) ────────────────────────────────────────

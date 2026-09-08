@@ -106,6 +106,10 @@ public:
 
     QWidget *embeddedWidget() override;
 
+    /// Stop background work (ComputePool tasks + perf timer). Idempotent —
+    /// safe to call multiple times (REQ-SW-PL-050).
+    void stop() override;
+
 private slots:
     /// GUI-thread result delivery for the CPU path (Qt::QueuedConnection from
     /// the ComputePool worker). Sets m_output and emits dataUpdated(0).

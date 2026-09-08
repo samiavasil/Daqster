@@ -51,6 +51,10 @@ public:
 
     QWidget *embeddedWidget() override;
 
+    /// Stop sending and close the socket. Idempotent — safe to call multiple
+    /// times (REQ-SW-PL-050).
+    void stop() override;
+
 private slots:
     void onStartRequested();
     void onStopRequested();

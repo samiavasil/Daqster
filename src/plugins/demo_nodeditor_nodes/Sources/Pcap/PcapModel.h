@@ -53,6 +53,10 @@ public:
 
     QWidget *embeddedWidget() override;
 
+    /// Stop the capture thread cleanly. Idempotent — safe to call multiple
+    /// times (REQ-SW-PL-050).
+    void stop() override;
+
     QtNodes::ConnectionPolicy portConnectionPolicy(QtNodes::PortType portType,
                                                    QtNodes::PortIndex portIndex) const override
     {

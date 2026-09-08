@@ -81,6 +81,10 @@ public:
 
     QWidget *embeddedWidget() override;
 
+    /// Stop the media player. Idempotent — safe to call multiple times
+    /// (REQ-SW-PL-050).
+    void stop() override;
+
     /// Track downstream "sample" connections so wrapping is only emitted
     /// while a consumer is connected.
     void outputConnectionCreated(QtNodes::ConnectionId const &conId) override;

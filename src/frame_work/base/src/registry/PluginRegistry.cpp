@@ -146,6 +146,21 @@ void PluginRegistry::shutdownAll()
     }
 }
 
+QList<QBasePluginObject*> PluginRegistry::allPluginInstances() const
+{
+    QList<QBasePluginObject*> result;
+    for (auto it = m_pluginMap.constBegin(); it != m_pluginMap.constEnd(); ++it) {
+        QPluginInterface* iface = it.value();
+        if (!iface)
+            continue;
+        for (QBasePluginObject* obj : iface->GetPluginInstances()) {
+            if (obj)
+                result.append(obj);
+        }
+    }
+    return result;
+}
+
 QList<QObject*> PluginRegistry::instances(const char* iid)
 {
     QList<QObject*> result;

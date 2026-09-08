@@ -54,6 +54,10 @@ public:
 
     QWidget *embeddedWidget() override;
 
+    /// Stop the stream thread cleanly. Idempotent — safe to call multiple
+    /// times (REQ-SW-PL-050).
+    void stop() override;
+
     void outputConnectionCreated(QtNodes::ConnectionId const &) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &) override;
 

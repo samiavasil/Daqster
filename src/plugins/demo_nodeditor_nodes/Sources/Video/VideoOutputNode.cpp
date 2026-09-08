@@ -380,6 +380,17 @@ QWidget *VideoOutputNode::createInfoPage(const QString &text)
 
 VideoOutputNode::~VideoOutputNode()
 {
+    // Single shutdown path: stop() stops timers + closes detached windows
+    // (REQ-SW-PL-050).
+    stop();
+
+    // Widget lifetime is owned by the node/view framework.
+    m_widget = nullptr;
+}
+
+void VideoOutputNode::stop()
+{
+    // Idempotent: stopping an already-stopped timer / null widget is a no-op.
     if (m_consoleTimer != nullptr)
         m_consoleTimer->stop();
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -415,8 +426,6 @@ VideoOutputNode::~VideoOutputNode()
         m_perfBadge = nullptr;
     }
 #endif
-    // Widget lifetime is owned by the node/view framework.
-    m_widget = nullptr;
 }
 
 QJsonObject VideoOutputNode::save() const

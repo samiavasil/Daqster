@@ -139,6 +139,10 @@ public:
 
     QWidget *embeddedWidget() override;
 
+    /// Stop the refresh timer and cancel queued compute tasks. Idempotent —
+    /// safe to call multiple times (REQ-SW-PL-050).
+    void stop() override;
+
     /// The node BODY (boundary, caption, ports) does not depend on data —
     /// widget content self-repaints via Qt. The validation border self-repaints
     /// via setValidationState(). Opts out of the per-frame body repaint.

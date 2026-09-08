@@ -25,9 +25,16 @@ CameraSourceNode::CameraSourceNode()
 
 CameraSourceNode::~CameraSourceNode()
 {
-    stopCamera();
+    // Single shutdown path: stop() stops the camera capture (REQ-SW-PL-050).
+    stop();
     // Widget lifetime is owned by the node/view framework.
     m_widget = nullptr;
+}
+
+void CameraSourceNode::stop()
+{
+    // Idempotent: stopCamera() on an already-stopped camera is a no-op.
+    stopCamera();
 }
 
 QJsonObject CameraSourceNode::save() const

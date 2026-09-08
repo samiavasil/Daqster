@@ -53,6 +53,10 @@ public:
 
     QWidget *embeddedWidget() override;
 
+    /// Stop recording and close the file. Idempotent — safe to call multiple
+    /// times (REQ-SW-PL-050).
+    void stop() override;
+
 private slots:
     void onStartRequested();
     void onStopRequested();

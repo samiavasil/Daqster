@@ -26,9 +26,18 @@ GpuMonitorModel::GpuMonitorModel()
 
 GpuMonitorModel::~GpuMonitorModel()
 {
-    // Clean shutdown: stop the timer + nvmlShutdown (REQ-SW-PL-045 AC 6).
-    m_engine->stop();
+    // Single shutdown path: stop() stops the timer + nvmlShutdown
+    // (REQ-SW-PL-045 AC 6, REQ-SW-PL-050).
+    stop();
     m_widget = nullptr; // owned by the node/view framework
+}
+
+void GpuMonitorModel::stop()
+{
+    // Idempotent: the engine's stop() is safe to call when not polling.
+    if (m_engine)
+        m_engine->stop();
+    m_userStarted = false;
 }
 
 QJsonObject GpuMonitorModel::save() const

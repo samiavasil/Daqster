@@ -43,6 +43,10 @@ public:
   QWidget* embeddedWidget() override { return m_ui; }
   bool resizable() const override { return true; }
 
+  /// Stop the local server process. Idempotent — safe to call multiple times
+  /// (REQ-SW-PL-050).
+  void stop() override;
+
   /// The node BODY (boundary, caption, ports) does not depend on data —
   /// widget content self-repaints via Qt. Opts out of the body repaint.
   bool dataArrivalChangesWidget() const override { return false; }
