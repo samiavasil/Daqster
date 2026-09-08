@@ -4,6 +4,7 @@
 #include "NodeDataTypes/SampledData.h"
 
 #include "QtChartsCompat.h"
+#include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -100,7 +101,7 @@ private:
  * the JIT-ready extension point; each card holds its own PreprocessFn bound to
  * its own channel (REQ-SW-PL-023 §1).
  */
-class DaqDisplayNode : public QtNodes::NodeDelegateModel
+class DaqDisplayNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 

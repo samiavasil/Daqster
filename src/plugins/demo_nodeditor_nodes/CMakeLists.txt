@@ -233,6 +233,7 @@ set(NETWORK_NODES
     Sinks/NetworkSink/NetworkSinkWidget.h
     Sinks/NetworkSink/NetworkSinkWidget.cpp
     shared/NetworkFrame.h
+    shared/IStoppable.h
 )
 
 # ── Optional NVML GPU Monitor source (compile-time auto-detect) ──────

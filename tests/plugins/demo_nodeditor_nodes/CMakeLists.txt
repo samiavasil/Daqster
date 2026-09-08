@@ -95,6 +95,7 @@ add_executable(demo_nodeditor_display_tests ${DISPLAY_TEST_SOURCES})
 target_include_directories(demo_nodeditor_display_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Displays/DaqDisplay
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Displays/GenericDisplay
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display
@@ -180,6 +181,7 @@ set(VIDEO_OUTPUT_TEST_SOURCES
 add_executable(demo_nodeditor_videooutput_tests ${VIDEO_OUTPUT_TEST_SOURCES})
 
 target_include_directories(demo_nodeditor_videooutput_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
@@ -241,6 +243,7 @@ set(VIDEO_EFFECT_TEST_SOURCES
 add_executable(demo_nodeditor_videoeffect_tests ${VIDEO_EFFECT_TEST_SOURCES})
 
 target_include_directories(demo_nodeditor_videoeffect_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes

@@ -6,6 +6,7 @@
 #include "ProcessCpu.h"
 #include "VideoEffectGLProcessor.h"
 #include "VideoEffectOps.h"
+#include "shared/IStoppable.h"
 
 #include <QImage>
 #include <QtMultimedia/QVideoFrame>
@@ -72,7 +73,7 @@ class QVideoWidget;
  * output only runs while a downstream consumer is connected to the output port
  * (tracked via outputConnectionCreated/Deleted).
  */
-class VideoOutputNode : public QtNodes::NodeDelegateModel
+class VideoOutputNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 

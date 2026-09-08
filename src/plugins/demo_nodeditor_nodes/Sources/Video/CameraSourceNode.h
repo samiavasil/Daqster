@@ -5,6 +5,7 @@
 
 #include "NodeDataTypes/SampledData.h"
 #include "PerfProfiler.h"
+#include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/internal/Definitions.hpp>
@@ -39,7 +40,7 @@ class VideoFrameData;
  * The embedded widget lets the user pick a camera device (or the platform
  * default) and start or stop the capture.
  */
-class CameraSourceNode : public QtNodes::NodeDelegateModel
+class CameraSourceNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 

@@ -29,6 +29,27 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - NVML — optional dependency (`find_library` + `find_path`, OpenCV model): without NVML build passes without node
   - Code: `src/plugins/demo_nodeditor_nodes/Sources/GpuMonitor/`
 
+### Refactored
+- **REQ-SW-PL-050** (node thread lifecycle — IStoppable interface):
+  - **Design decision (user, 2026-09-08): NO changes to external submodules
+    (nodeeditor).** The initial implementation added `virtual void stop()` to
+    `NodeDelegateModel.hpp` + `deleteNode()` calling `model->stop()` in
+    `DataFlowGraphModel.cpp` — **reverted** (submodule back to `906e300`).
+  - Instead Daqster defines `shared/IStoppable.h` in `demo_nodeditor_nodes`:
+    a pure interface `Daqster::IStoppable` with `virtual void stop() = 0`
+    (idempotent)
+  - 18 node models with background work (threads/timers/processes) now
+    implement `IStoppable` instead of overriding `NodeDelegateModel::stop`:
+    PlutoSdr, Pcap, AudioSource, VideoEffect, LLama, Gamepad, SystemMonitor,
+    GpuMonitor, JackDetect, VideoFileSource, StreamSource, CameraSource,
+    VideoOutput, DaqDisplay, FileRecord, NetworkSink, FilePlayback,
+    NetworkSource — destructors call `stop()` as the single shutdown path
+  - Framework fix kept: `QPluginManager::ShutdownPluginManager()` synchronously
+    deletes plugin instances after `shutdownAll()` (joins threads while the
+    event loop is alive) + `PluginRegistry::allPluginInstances()`
+  - Verification: Qt5/Qt6 builds PASS + headless crash test 3× EXIT 0
+    (SIGTERM with active threads) + `nm -D` stop symbols 62
+
 ## [0.3.2] - 2026-09-02
 
 ## [0.3.1] - 2026-09-01

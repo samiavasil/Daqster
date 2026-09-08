@@ -4,6 +4,7 @@
 #include "NodeDataTypes/SampledData.h"
 #include "PlutoSdrEngine.h"
 #include "PlutoSdrWidget.h"
+#include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -22,7 +23,7 @@
  * only while the user pressed Start AND at least one output connection exists;
  * removing the last connection auto-stops the stream (clean teardown).
  */
-class PlutoSdrModel : public QtNodes::NodeDelegateModel
+class PlutoSdrModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 

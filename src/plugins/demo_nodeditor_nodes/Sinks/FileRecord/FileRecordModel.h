@@ -3,6 +3,7 @@
 
 #include "NodeDataTypes/SampledData.h"
 #include "FileRecordWidget.h"
+#include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -21,7 +22,7 @@
  * The file format is deliberately simple and debuggable: raw interleaved
  * sample bytes + a human-readable JSON sidecar (no custom binary header).
  */
-class FileRecordModel : public QtNodes::NodeDelegateModel
+class FileRecordModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 

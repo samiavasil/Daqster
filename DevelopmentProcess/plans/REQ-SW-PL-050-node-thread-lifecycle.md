@@ -31,11 +31,16 @@ collect all plugin object instances and `delete` them synchronously. Destructors
 join threads. The `deleteLater()` events become harmless no-ops (object already
 deleted, Qt skips).
 
-### Fix 2: stop() protocol on NodeDelegateModel
-- Add `virtual void stop() {}` to `NodeDelegateModel.hpp` (default no-op)
-- Each node model with background work overrides it (idempotent)
-- `deleteNode()` in `DataFlowGraphModel.cpp` calls `model->stop()` before erase
-- Destructors call `stop()` first (single shutdown path)
+### Fix 2: stop() protocol via IStoppable interface (Daqster code)
+- **Design decision (user, 2026-09-08): NO changes to external submodules
+  (nodeeditor).** The earlier NodeDelegateModel::stop() virtual + deleteNode()
+  call in the nodeeditor submodule was REVERTED.
+- Instead, Daqster defines `shared/IStoppable.h` in `demo_nodeditor_nodes`:
+  a pure interface `Daqster::IStoppable` with `virtual void stop() = 0`.
+- Each node model with background work implements `IStoppable` (idempotent
+  stop()); destructors call `stop()` first (single shutdown path).
+- The synchronous plugin shutdown (Fix 1) deletes plugin objects while the
+  event loop is still alive; model destructors join threads via stop().
 
 ## Changes Table
 
@@ -45,13 +50,18 @@ deleted, Qt skips).
 | `QPluginManager.cpp` | `ShutdownPluginManager()`: after `shutdownAll()`, synchronously delete all plugin instances |
 | `PluginRegistry.{h,cpp}` | Added `allPluginInstances()` — collects all `QBasePluginObject*` across all interfaces |
 
-### NodeEditor (2 files, submodule)
+### NodeEditor (submodule) — REVERTED (user decision: no external submodule changes)
 | File | Change |
 |------|--------|
-| `NodeDelegateModel.hpp` | Added `virtual void stop() {}` |
-| `DataFlowGraphModel.cpp` | `deleteNode()`: calls `modelIt->second->stop()` before erase |
+| `NodeDelegateModel.hpp` | ~~Added `virtual void stop() {}`~~ — REVERTED to `906e300` |
+| `DataFlowGraphModel.cpp` | ~~`deleteNode()`: calls `modelIt->second->stop()` before erase~~ — REVERTED |
 
-### Node Models (18 files = 9 models × 2)
+### IStoppable interface (Daqster code, NEW)
+| File | Change |
+|------|--------|
+| `shared/IStoppable.h` | New `Daqster::IStoppable` pure interface (`virtual void stop() = 0`) |
+
+### Node Models (18 models — all implement Daqster::IStoppable)
 | Model | stop() mechanism |
 |-------|-----------------|
 | PlutoSdrModel | `m_engine->stop()` — joins stream thread |
@@ -80,21 +90,22 @@ deleted, Qt skips).
 - Qt5: ✅ Clean build, 0 errors
 
 ### Headless Crash Test (AC6 gate)
-- Run 1: ✅ Clean exit (code 0) with SIGTERM
+- Run 1: ✅ Clean exit (code 0) with SIGTERM (offscreen platform, active threads ~16% CPU)
 - Run 2: ✅ Clean exit (code 0) with SIGTERM
 - Run 3: ✅ Clean exit (code 0) with SIGTERM
 
 ### nm Check
-- `nm -D build_qt6/bin/libDemoNodeEditorNodesPlugin.so | grep -c "stop"` → 45
+- `nm -D build_qt6/bin/libDemoNodeEditorNodesPlugin.so | grep -c "stop"` → 62
+  (IStoppable implementations + engine stop symbols)
 
 ### ctest
 - Not configured (BUILD_TESTING=OFF) — no unit tests available
 
 ## Acceptance Criteria Status
-- [x] AC1: NodeDelegateModel has virtual stop()
-- [x] AC2: Thread-based nodes implement stop(): PlutoSdr, Pcap, AudioSource, VideoEffect, LLama
-- [x] AC3: QTimer-based nodes implement stop(): Gamepad, SystemMonitor, GpuMonitor, JackDetect
-- [x] AC4: deleteNode() calls stop() before destruction
+- [x] AC1: IStoppable interface in Daqster code (`shared/IStoppable.h`) — replaces NodeDelegateModel virtual (submodule reverted)
+- [x] AC2: Thread-based nodes implement IStoppable: PlutoSdr, Pcap, AudioSource, VideoEffect, LLama
+- [x] AC3: QTimer-based nodes implement IStoppable: Gamepad, SystemMonitor, GpuMonitor, JackDetect
+- [x] AC4: deleteNode() calls stop() before destruction — N/A (submodule reverted); destructors call stop() as single shutdown path
 - [x] AC5: ShutdownHandler chain guarantees stop() → wait() before exit (synchronous delete)
-- [x] AC6: No crash with active threads on close (headless/Xvfb — 3 clean runs)
+- [x] AC6: No crash with active threads on close (headless/offscreen — 3 clean runs, EXIT 0)
 - [x] AC7: Tests — deferred per standing instruction (NO NEW TESTS)

@@ -217,6 +217,26 @@
   - Тестове: `demo_nodeditor_videoframe_tests` — `frameToImageCpu_*` (RGB32/ARGB32 wrap, NV12/YUV420P BT.601, unsupported → null) и на Qt5, и на Qt6
 
 ### Refactored
+- **REQ-SW-PL-050** (node thread lifecycle — IStoppable interface):
+  - **Дизайн решение (потребител, 2026-09-08): НЯМА промени по външни
+    submodules (nodeeditor).** Първоначалната имплементация добавяше
+    `virtual void stop()` в `NodeDelegateModel.hpp` + `deleteNode()` викаше
+    `model->stop()` в `DataFlowGraphModel.cpp` — **revert-ната** (submodule
+    върнат към `906e300`).
+  - Вместо това Daqster дефинира `shared/IStoppable.h` в
+    `demo_nodeditor_nodes`: чист интерфейс `Daqster::IStoppable` с
+    `virtual void stop() = 0` (идемпотентен)
+  - 18 node модела с background работа (threads/timers/processes) вече
+    имплементират `IStoppable` вместо override на `NodeDelegateModel::stop`:
+    PlutoSdr, Pcap, AudioSource, VideoEffect, LLama, Gamepad, SystemMonitor,
+    GpuMonitor, JackDetect, VideoFileSource, StreamSource, CameraSource,
+    VideoOutput, DaqDisplay, FileRecord, NetworkSink, FilePlayback,
+    NetworkSource — деструкторите викат `stop()` като единствен shutdown path
+  - Framework fix-ът остава: `QPluginManager::ShutdownPluginManager()`
+    синхронно изтрива plugin instances след `shutdownAll()` (join на нишките
+    докато event loop-ът е жив) + `PluginRegistry::allPluginInstances()`
+  - Верификация: Qt5/Qt6 builds PASS + headless crash test 3× EXIT 0
+    (SIGTERM с активни нишки) + `nm -D` stop symbols 62
 - **Display consolidation (SampledData display world → DaqDisplayNode)**:
   - `AudioDisplayAlias` (DemoNodeEditorNodesObject.cpp) — нов тънък alias на `DaqDisplayNode` (само `name()` → `"AudioDisplay"`), заменя `AudioDisplayModelObsoleteAlias`; регистрацията на ключа `"AudioDisplay"` е преместена от `Obsolete` в `Daq/Display` — старите saved графи вече разрешават към реалния multi-plot/FFT/ring-buffer SampledData display, а не към QDevIO obsolete нода
   - `AudioDisplayModelObsolete` (name `"AudioDisplayObsolete"`, категория `Obsolete`) остава непроменен — QDevIO display world-ът живее за старите QDevIO графи

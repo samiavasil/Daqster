@@ -3,6 +3,7 @@
 
 #include "NodeDataTypes/SampledData.h"
 #include "NetworkSinkWidget.h"
+#include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -19,7 +20,7 @@ class QUdpSocket;
  * each incoming SampledData is serialized into a length-prefixed frame (magic
  * "MSSD") and sent. Status shows bytes sent.
  */
-class NetworkSinkModel : public QtNodes::NodeDelegateModel
+class NetworkSinkModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 

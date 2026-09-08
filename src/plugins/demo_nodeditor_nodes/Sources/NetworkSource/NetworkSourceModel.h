@@ -3,6 +3,7 @@
 
 #include "NodeDataTypes/SampledData.h"
 #include "NetworkSourceWidget.h"
+#include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -27,7 +28,7 @@ class QUdpSocket;
  * listener runs only while the user pressed Start AND at least one output
  * connection exists; removing the last connection auto-stops the listener.
  */
-class NetworkSourceModel : public QtNodes::NodeDelegateModel
+class NetworkSourceModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 

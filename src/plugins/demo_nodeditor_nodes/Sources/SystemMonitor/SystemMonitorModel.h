@@ -4,6 +4,7 @@
 #include "NodeDataTypes/SampledData.h"
 #include "SystemMonitorEngine.h"
 #include "SystemMonitorWidget.h"
+#include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -23,7 +24,7 @@
  * connection exists; removing the last connection auto-stops the polling
  * (clean teardown).
  */
-class SystemMonitorModel : public QtNodes::NodeDelegateModel
+class SystemMonitorModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 

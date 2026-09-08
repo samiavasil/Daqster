@@ -5,6 +5,7 @@
 #include "AudioSourceDataModelUI.h"
 #include "MicCaptureWorker.h"
 #include "NodeDataTypes/SampledData.h"
+#include "shared/IStoppable.h"
 
 #include <QtCore/QThread>
 #include <QtNodes/NodeDelegateModel>
@@ -12,7 +13,7 @@
 
 #include <memory>
 
-class AudioSourceDataModel : public QtNodes::NodeDelegateModel
+class AudioSourceDataModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 

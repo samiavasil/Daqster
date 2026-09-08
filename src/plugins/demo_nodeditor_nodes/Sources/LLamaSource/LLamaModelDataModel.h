@@ -24,8 +24,9 @@
 
 #include "NodeDataTypes/TextData.h"
 #include "ChatBaseWidget.h"
+#include "shared/IStoppable.h"
 
-class LLamaModelDataModel : public QtNodes::NodeDelegateModel {
+class LLamaModelDataModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable {
   Q_OBJECT
 
 public:
