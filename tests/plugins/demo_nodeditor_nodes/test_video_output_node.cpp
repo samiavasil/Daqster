@@ -13,7 +13,6 @@
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QApplication>
-#include <QVideoWidget>
 #endif
 
 using QtNodes::ConnectionId;
@@ -314,59 +313,37 @@ void VideoOutputNodeTest::cpuEffectAppliesToGpuRgbaInput()
 }
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-// ── gpuRgbaRoutesToGlBlitWidget (REQ-SW-PL-032 Stage 2C) ─────────────────────
+// ── gpuRgbaRoutesToGlBlitWidget (REQ-SW-PL-053) ──────────────────────────────
 //
-// On Qt6, GpuRgba frames (effect outputs) must route to the GL blit widget
-// (zero-copy presentTexture) instead of the native QVideoWidget (readback +
-// per-sink RHI upload). The routing requires hardware GL — on software
-// renderers (llvmpipe/softpipe/SwiftShader) the native path stays and the
-// test is skipped.
+// The unified display (REQ-SW-PL-053) selects the backend ONCE at construction:
+// hardware GL → VideoGLBlitWidget (GPU), else VideoSoftwareWidget (CPU). The
+// display widget is a CHILD of m_widget (layout-friendly — works embedded and
+// detached). GpuRgba frames (effect outputs) route to presentTexture
+// (zero-copy) on the GL backend. The old detached top-level window +
+// per-frame QVideoWidget switching are removed.
 void VideoOutputNodeTest::gpuRgbaRoutesToGlBlitWidget()
 {
     if (!VideoGLContextManager::hasHardwareGL())
-        QSKIP("No hardware GL — GpuRgba routing to GL blit requires hardware GL");
+        QSKIP("No hardware GL — GL blit backend requires hardware GL");
 
     VideoOutputNode node;
     node.inputConnectionCreated(makeConId(0, 0));
 
-    // GpuRgba frame (effect output). The texture handle is a placeholder —
-    // the routing decision only needs isGpuRgba() + hardware GL.
+    // (b) The display widget is a child of m_widget (embeddedWidget()).
+    QWidget *embedded = node.embeddedWidget();
+    QVERIFY(embedded != nullptr);
+    auto *glDisplay = embedded->findChild<VideoGLBlitWidget *>();
+    QVERIFY(glDisplay != nullptr);  // GL backend selected (hardware GL)
+
+    // (a) GpuRgba frame (effect output) routes to the GL blit widget.
     VideoTextureHandle h;
     h.width = 320;
     h.height = 240;
     h.rgba = true;
     node.setInData(VideoFrameData::fromTexture(h), 0);
 
-    // The detached display must be the GL blit widget (top-level window).
-    bool foundGlBlit = false;
-    const QWidgetList topLevels = QApplication::topLevelWidgets();
-    for (QWidget *w : topLevels) {
-        if (qobject_cast<VideoGLBlitWidget *>(w) != nullptr) {
-            foundGlBlit = true;
-            break;
-        }
-    }
-    QVERIFY(foundGlBlit);
-
-    // Transition: a CPU frame must switch to the native QVideoWidget and
-    // destroy the GL blit window (only one detached display at a time).
-    QImage img(320, 240, QImage::Format_ARGB32);
-    img.fill(Qt::red);
-    QVideoFrame vf(img);
-    node.setInData(std::make_shared<VideoFrameData>(vf), 0);
-    QTest::qWait(10);  // flush the deferred delete of the GL blit window
-
-    bool foundNative = false;
-    bool glBlitGone = true;
-    const QWidgetList topLevels2 = QApplication::topLevelWidgets();
-    for (QWidget *w : topLevels2) {
-        if (qobject_cast<VideoGLBlitWidget *>(w) != nullptr)
-            glBlitGone = false;
-        if (qobject_cast<QVideoWidget *>(w) != nullptr)
-            foundNative = true;
-    }
-    QVERIFY(foundNative);
-    QVERIFY(glBlitGone);
+    // The GL widget received the texture present (zero-copy presentTexture).
+    QCOMPARE(glDisplay->lastFormatName(), QStringLiteral("Texture(RGBA)"));
 }
 #endif  // QT_VERSION >= 0x060000
 
