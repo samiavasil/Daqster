@@ -12,6 +12,7 @@
 
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QCheckBox>
 #include <QDateTime>
 #include <QFile>
 #include <QFormLayout>
@@ -65,6 +66,12 @@ VideoOutputNode::VideoOutputNode()
     controlsLayout->setContentsMargins(4, 4, 4, 4);
     controlsLayout->setSpacing(4);
 
+    // Perf toggle (visible checkbox at top of controls panel)
+    m_perfToggle = new QCheckBox(tr("Perf"), controlsWidget);
+    m_perfToggle->setToolTip(tr("Enable/disable performance profiling for video pipeline"));
+    m_perfToggle->setChecked(true);  // Default on (matches current auto behavior)
+    controlsLayout->addWidget(m_perfToggle);
+
     // Perf stats panel (simple QFormLayout for now)
     QWidget* perfPanel = new QWidget();
     QFormLayout* perfLayout = new QFormLayout(perfPanel);
@@ -86,6 +93,26 @@ VideoOutputNode::VideoOutputNode()
     perfLayout->addRow("Handle:", m_handleLabel);
     controlsLayout->addWidget(perfPanel);
 
+    // Connect perf toggle: on = enable domain + start timer, off = disable + stop
+    connect(m_perfToggle, &QCheckBox::toggled, this, [this](bool checked) {
+        auto &domain = Daqster::Perf::Domain::get("video");
+        domain.setEnabled(checked);
+        if (checked) {
+            m_perfRefreshTimer->start();
+        } else {
+            m_perfRefreshTimer->stop();
+            // Clear labels when perf is disabled
+            m_fpsLabel->setText("--");
+            m_gapLabel->setText("--");
+            m_presentLabel->setText("--");
+            m_totalLabel->setText("--");
+            m_cpuLabel->setText("--");
+            m_hwSwLabel->setText("--");
+            m_formatLabel->setText("--");
+            m_handleLabel->setText("--");
+        }
+    });
+
     // Embedded effects (REQ-SW-PL-034): optional, default "No effect" — the
     // zero-copy passthrough is preserved until the user selects an effect.
     buildEffectControls();
@@ -99,8 +126,23 @@ VideoOutputNode::VideoOutputNode()
     // Add to splitter
     m_splitter->addWidget(controlsWidget);
     m_splitter->setCollapsible(1, true);
-    m_splitter->setHandleWidth(4);
+    m_splitter->setHandleWidth(8);
     m_splitter->setChildrenCollapsible(true);
+    // Style the splitter handle to be visibly draggable
+    m_splitter->setStyleSheet(R"(
+        QSplitter::handle {
+            background: #555;
+            border: 1px solid #333;
+        }
+        QSplitter::handle:hover {
+            background: #888;
+        }
+        QSplitter::handle:horizontal {
+            /* Simple grip pattern using border */
+            border-left: 2px solid #333;
+            border-right: 2px solid #333;
+        }
+    )");
     // Use a reasonable default width for the video pane (will be adjusted on first show)
     m_splitter->setSizes(QList<int>({640, 220}));
 

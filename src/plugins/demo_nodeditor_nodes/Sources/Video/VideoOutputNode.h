@@ -17,6 +17,7 @@ class QLabel;
 class QWidget;
 
 class QComboBox;
+class QCheckBox;
 class QStackedWidget;
 class QTimer;
 class QSplitter;
@@ -204,6 +205,12 @@ private:
     QLabel *m_hwSwLabel = nullptr;
     QLabel *m_formatLabel = nullptr;
     QLabel *m_handleLabel = nullptr;
+
+    /// Perf toggle checkbox in the controls panel header. When checked: enables
+    /// the "video" perf domain + starts refresh timer. When unchecked: disables
+    /// domain + stops timer. Overrides the auto behavior (auto = enabled when
+    /// panel visible).
+    QCheckBox *m_perfToggle = nullptr;
 };
 
 #endif // VIDEOOUTPUTNODE_H
