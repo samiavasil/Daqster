@@ -281,6 +281,16 @@
   - `VideoFrameData::frameToImageCpu()` — нов public static converter: pure-CPU QVideoFrame→QImage от ВСЯКА нишка (без GL/RHI). NV12/YUV420P през BT.601 `yuvToImage()` (вече public static и version-agnostic — Qt5 и Qt6); RGB формати (RGB32/ARGB32/RGB888 и др.) чрез директно wrapping на mapped bits + deep copy (без pixel conversion). Връща null само за неподдържани формати или failed map
   - `VideoEffectNode` ComputePool worker: `frameCopy.toImage()` (Qt6 — RHI/GPU conversion на worker нишката, забранено от Qt, QTBUG-131107) / `frameCopy.image()` (Qt5 — null за NV12) заменени с `VideoFrameData::frameToImageCpu()` и на двата Qt; GpuRgba pre-readback fast path-ът е непроменен
   - Тестове: `demo_nodeditor_videoframe_tests` — `frameToImageCpu_*` (RGB32/ARGB32 wrap, NV12/YUV420P BT.601, unsupported → null) и на Qt5, и на Qt6
+- **REQ-SW-PL-053** (embedded video display repaint — remove `dataArrivalChangesWidget` gate):
+  - `BasicGraphicsScene::onNodeDataArrived()` (nodeeditor submodule): премахнат
+    `dataArrivalChangesWidget()` gate — node body вече винаги се repaint-ва при
+    data arrival (embedded `VideoDisplayWidget` е child на node-а, така че body
+    зависи от data). `dataArrivalChangesGeometry` fast-path е запазен
+  - `CustomDataFlowScene::onNodeDataArrived()`: `node->update()` стана безусловен
+    в repaint-only fast path-а (само `dataArrivalChangesWidget` условието е
+    премахнато; geometry fast-path структурата е непокътната)
+  - Верификация: Qt5/Qt6 builds PASS (QtNodes + NodeEditorIde), demo_nodeditor
+    test suite PASS (11/11 и на двата Qt)
 
 ### Refactored
 - **REQ-SW-PL-050** (node thread lifecycle — IStoppable interface):
