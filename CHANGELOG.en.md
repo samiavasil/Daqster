@@ -7,6 +7,27 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-053** (Unified Video Display — `VideoDisplayWidget` interface + GL/software backends):
+  - `VideoDisplayWidget.{h,cpp}` — pure interface (no QWidget base, no Q_OBJECT):
+    `presentFrame/presentImage/presentTexture/presentYuvTexture/setVideoSize/clear/
+    backendName/isGpuBackend`; Qt forbids two QObject-derived base classes, so each
+    backend combines the interface with its own widget base
+  - `VideoSoftwareWidget.{h,cpp}` — CPU backend (`QWidget` + `VideoDisplayWidget`):
+    `frameToImageCpu`/`asImage()` conversion + `QPainter` paintEvent (keep-aspect-ratio)
+  - `VideoGLBlitWidget.{h,cpp}` — refactored to `QOpenGLWidget` +
+    `VideoDisplayWidget`; `present*` are `override`, added `setVideoSize/clear/
+    backendName/isGpuBackend`; GL behavior unchanged
+  - `VideoDisplayBackend.h` — `detectVideoBackend()`: `DAQSTER_VIDEO_BACKEND=
+    gl|software|cpu|gpu|opengl` env override, else `VideoGLContextManager::
+    hasHardwareGL()` (cached per process)
+  - `VideoOutputNode` — unified display: backend selected **once at construction**,
+    display widget is a **child of the node** (min 320×240); removed Qt6
+    `QVideoWidget` + in-scene `QGraphicsVideoItem` (PL-021), Qt5 in-node `QLabel`,
+    "GPU display" checkbox, `DAQSTER_GL_BLIT` env var; perf badge (PL-027) is an
+    overlay child of the display; effects (PL-034) and pass-through output kept
+  - Code: `src/plugins/demo_nodeditor_nodes/Sources/Video/`
+  - Verification: Qt5/Qt6 builds PASS + video output tests PASS (both) +
+    `DAQSTER_VIDEO_BACKEND=software` smoke PASS
 - **REQ-SW-PL-048** (Runtime mode — `--run <flow.flow>`, MDI workspaces, autoStart, presentation toggle):
   - CLI: `Daqster --run <file.flow>` starts runtime mode without editor canvas
   - `RuntimeShell` class (`src/plugins/node_editor_ide/RuntimeShell.{h,cpp}`):

@@ -39,7 +39,10 @@ demo_nodeditor_nodes/
 │       ├── StreamUrlValidator.{h,cpp}    # Stream URL валидация (http/https/rtsp)
 │       ├── AudioBufferToSampled.h        # Audio buffer → SampledData glue (REQ-SW-PL-024)
 │       ├── VideoOutputNode.{h,cpp}
-│       ├── VideoGLBlitWidget.{h,cpp}     # Detached GL blit display widget (DAQSTER_GL_BLIT)
+│       ├── VideoDisplayWidget.{h,cpp}     # Unified display interface (REQ-SW-PL-053)
+│       ├── VideoDisplayBackend.h          # Backend auto-detect (DAQSTER_VIDEO_BACKEND)
+│       ├── VideoSoftwareWidget.{h,cpp}    # CPU display backend (QWidget + paintEvent)
+│       ├── VideoGLBlitWidget.{h,cpp}      # GPU display backend (QOpenGLWidget, zero-copy)
 │       ├── VideoPerfBadge.{h,cpp}        # Perf badge/line форматър (REQ-SW-PL-027)
 │       ├── VideoTransformOps.{h,cpp}     # Op engine (QImage + params → QImage)
 │       ├── VideoGLShaders.h              # Споделени GLSL source builder-и (blit + effect)
@@ -196,34 +199,42 @@ DemoNodeEditorNodesObject → INodeProvider
 | CameraSourceNode | Video | Заснема кадри от локално camera устройство (избор на устройство + start/stop), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) |
 | VideoFileSourceNode | Video | Възпроизвежда локален видео файл през `QMediaPlayer` + frame probe (browse + play/pause), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `SampledData` (audio) |
 | StreamSourceNode | Video | Възпроизвежда HTTP/RTSP stream (URL поле + connect), емитира кадри — port 0 `VideoFrameData` (Qt6: zero-copy; Qt5: OWNED copy) + port 1 `SampledData` (audio) |
-| VideoOutputNode | Video | Live preview на входящите кадри — един вход (port 0 `VideoFrameData` → GPU display), zero-copy GPU път. Qt6: чекбокс „GPU display" (checked по подразбиране) → detached прозорец (`QVideoWidget` или GL blit при `DAQSTER_GL_BLIT=1`); unchecked → in-scene `QGraphicsVideoItem` в node-а (REQ-SW-PL-021). Qt5: checked → detached GL blit прозорец, unchecked → софтуерен QLabel. Pass-through изходен порт за output вериги. **Опционален вграден ефект комбо** (REQ-SW-PL-034): „No effect" по подразбиране + 11-те ефекта на `VideoEffectNode` (GPU/CPU по backend); при избран ефект GpuRgba кадрите се презентират с GL blit на Qt6 (Stage 2C, zero-copy `presentTexture`), а `presentYuvTexture` reuse-ва кешираните YUV текстури |
+| VideoOutputNode | Video | Live preview на входящите кадри — един вход (port 0 `VideoFrameData`), unified display (REQ-SW-PL-053): backend се избира **веднъж при конструкция** — `VideoGLBlitWidget` (GPU, zero-copy `presentTexture`/`presentYuvTexture`) при хардуерен GL, иначе `VideoSoftwareWidget` (CPU, `asImage()` readback). Display widget-ът е **child на node-а** (работи embedded и detached). Pass-through изходен порт за output вериги. **Опционален вграден ефект комбо** (REQ-SW-PL-034): „No effect" по подразбиране + 11-те ефекта на `VideoEffectNode` (GPU/CPU по backend); при избран ефект GpuRgba кадрите се презентират с GL blit (zero-copy `presentTexture`), а `presentYuvTexture` reuse-ва кешираните YUV текстури |
 | VideoEffectNode | Video | Единен ефект нод с **комбобокс** за избор на ефект (brightness, contrast, grayscale, invert, sepia, channelSwap, flip, blur, gaussianBlur, canny, threshold) + параметри за избрания — върху `VideoFrameData`, GPU/CPU backend (REQ-SW-PL-028) |
 | CustomShaderNode | Video | GPU-only runtime GLSL нод — Shadertoy-style `mainImage` contract, GLSL редактор + compile + error log + uniform контроли, port 0 in/out `VideoFrameData`, изисква хардуерен GL (REQ-SW-PL-029) |
 | FrameSamplerNode | Video | Ресемплиране на `VideoFrameData` — всеки N-ти кадър или max FPS, zero-copy passthrough (REQ-SW-PL-030) |
 
-Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy); видео source-ите имат и port 1 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема `VideoFrameData` и го дисплейва през GPU (вж. „Qt6 in-scene toggle" по-долу; Qt5: detached GL blit прозорец при `DAQSTER_GL_BLIT=1`). **Единственият frame тип е `VideoFrameData`** — `ImageData` е премахнат (Фаза 3, REQ-SW-PL-032); CPU обработката ползва lazy `VideoFrameData::asImage()` кеша. Частният AI Studio plugin консумира `VideoFrameData` на входа на `FrameToTensorNode` (REQ-AI-007).
+Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy); видео source-ите имат и port 1 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема `VideoFrameData` и го дисплейва през unified display (вж. „Unified video display" по-долу). **Единственият frame тип е `VideoFrameData`** — `ImageData` е премахнат (Фаза 3, REQ-SW-PL-032); CPU обработката ползва lazy `VideoFrameData::asImage()` кеша. Частният AI Studio plugin консумира `VideoFrameData` на входа на `FrameToTensorNode` (REQ-AI-007).
 
-#### Qt6 in-scene GPU display toggle (REQ-SW-PL-021)
+#### Unified video display (REQ-SW-PL-053)
 
-`VideoOutputNode` на Qt6 има видим чекбокс **„GPU display"** (checked по
-подразбиране — запазва текущото detached поведение):
+`VideoOutputNode` показва входящите кадри през **единен display widget** —
+`VideoDisplayWidget` интерфейс с два backend-а, избрани **веднъж при
+конструкция** на node-а (без per-frame превключване):
 
-- **Checked (detached, default):** видеото се показва в отделен прозорец —
-  native `QVideoWidget` (GPU, RHI swapchain) или GL blit прозорец при
-  `DAQSTER_GL_BLIT=1` (debug override за стартиране).
-- **Unchecked (in-scene):** видеото се рендерира **вътре в node-а** — в сцената
-  се създава `QGraphicsVideoItem` като child на `NodeGraphicsObject`-а на node-а
-  (позиция/размер = label area-та). Кадрите се подават през
-  `VideoCompat::presentFrame(item->videoSink(), frame)` — GPU път без QImage
-  копие (при SW decode Qt рендерира кадрите без QImage копие в приложението).
-  Софтуерният `QLabel` път остава като automatic fallback.
-- При toggle действието се прилага при следващия кадър — без crash, без загуба
-  на видео; detached прозорците се затварят веднага при unchecked, in-scene
-  item-ът се трие при checked/дисконект.
-- **Headless dev driver:** `DAQSTER_SCENE_VIDEO=1` + `DAQSTER_AUTOSTART_VIDEO=1`
-  автоматично uncheck-ва чекбокса (in-scene режим) за безглава проверка.
-- Qt5 пътищата са непроменени: checked → detached GL blit, unchecked → софтуерен
-  QLabel.
+- **`VideoGLBlitWidget` (GPU, default при хардуерен GL)** — `QOpenGLWidget` +
+  `VideoDisplayWidget`; zero-copy `presentTexture` (GpuRgba) /
+  `presentYuvTexture` (GpuYuv, reuse на кеширани текстури) / `presentFrame`
+  (CPU, NV12→RGB шейдър). Същият GL път като предишния detached GL blit
+  прозорец.
+- **`VideoSoftwareWidget` (CPU fallback)** — `QWidget` + `VideoDisplayWidget`;
+  `presentFrame`/`presentImage` конвертират през `VideoFrameData::frameToImageCpu`
+  и рисуват с `QPainter` (keep-aspect-ratio).
+
+Display widget-ът е **child на node-а** (`m_widget` layout, min 320×240) —
+работи както embedded, така и в detached прозорец, без специална логика.
+Perf badge-ът (REQ-SW-PL-027) е overlay child на display-а.
+
+**Backend избор:** `DAQSTER_VIDEO_BACKEND=gl|software|cpu|gpu|opengl` env
+override (debug/CI), иначе `VideoGLContextManager::hasHardwareGL()` (кеширан
+за процеса). На софтуерни рендерери (llvmpipe/softpipe/SwiftShader) се избира
+CPU backend-ът.
+
+**Премахнати пътища:** Qt6 `QVideoWidget` (native detached) и in-scene
+`QGraphicsVideoItem` (REQ-SW-PL-021), Qt5 in-node `QLabel`, чекбоксът
+„GPU display" и `DAQSTER_GL_BLIT` env var. Saved-графите запазват
+`VideoOutputNode` (същият нод, същите портове) — само display поведението е
+унифицирано.
 
 > **Преномерация (NV12-direct, 2026-08-13):** на Qt5 източниковите нодове и
 > `VideoOutputNode` вече имат същата топология като Qt6 — port 0 е
@@ -745,7 +756,9 @@ QObjectList providers = pm->instances(INodeProvider_IID);
   (или `dxva2` вместо `d3d11va`).
 - **Zero-copy display** — `VideoFrameData` и GPU display пътят (HW буфер → RHI
   текстура → екран) са **Qt6-only** и на Windows. При активен HW decode няма
-  CPU копия на кадрите.
+  CPU копия на кадрите. Unified display (REQ-SW-PL-053) избира
+  `VideoGLBlitWidget` при хардуерен GL (D3D11VA/DXVA2) — zero-copy
+  `presentTexture`/`presentYuvTexture`.
 
 ### Qt5 (ограничена поддръжка)
 
@@ -757,9 +770,10 @@ QObjectList providers = pm->instances(INodeProvider_IID);
   Това изисква отделна инсталация и конфигурация.
 - **Zero-copy display** — Qt5 (2026-08-13, NV12-direct) вече транспортира
   OWNED копия на декодираните кадри (`VideoCompat::frameToOwnedFrame`), така че
-  `VideoFrameData` се използва и на Qt5. GPU display (detached GL blit прозорец,
-  `DAQSTER_GL_BLIT=1`) работи на Qt5 с NV12/YUV420P шейдърен път; RGB формати
-  падат на QImage. За максимална производителност пак се препоръчва Qt6.
+  `VideoFrameData` се използва и на Qt5. Unified display (REQ-SW-PL-053):
+  `VideoGLBlitWidget` (GPU, NV12/YUV420P шейдърен път) при хардуерен GL, иначе
+  `VideoSoftwareWidget` (CPU, QImage). За максимална производителност пак се
+  препоръчва Qt6.
 
 ### Препоръка
 
@@ -787,6 +801,7 @@ QObjectList providers = pm->instances(INodeProvider_IID);
   - [REQ-SW-PL-030](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-030-frame-sampler-node.md) — FrameSampler (ресемплиране)
   - [REQ-SW-PL-032](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-032-video-frame-consolidation.md) — Video Frame Consolidation (един VideoFrameData тип, Фаза 3)
   - [REQ-SW-PL-034](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-034-video-output-node-embedded-effects.md) — VideoOutputNode embedded effects (опционални, default none)
+  - [REQ-SW-PL-053](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-053-video-display-unification.md) — Unified Video Display (VideoDisplayWidget + GL/software backends, supersedes PL-021)
   - [REQ-SW-PL-043](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-043-file-record-playback-nodes.md) — File Record + File Playback DAQ nodes (raw bytes + JSON sidecar)
 
 ## _obsolete rename strategy_

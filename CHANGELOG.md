@@ -7,6 +7,28 @@
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-053** (Unified Video Display — `VideoDisplayWidget` interface + GL/software backends):
+  - `VideoDisplayWidget.{h,cpp}` — чист интерфейс (без QWidget база, без Q_OBJECT):
+    `presentFrame/presentImage/presentTexture/presentYuvTexture/setVideoSize/clear/
+    backendName/isGpuBackend`; Qt не позволява два QObject-производни базови класа,
+    затова всеки backend комбинира интерфейса със собствената си widget база
+  - `VideoSoftwareWidget.{h,cpp}` — CPU backend (`QWidget` + `VideoDisplayWidget`):
+    `frameToImageCpu`/`asImage()` конверсия + `QPainter` paintEvent (keep-aspect-ratio)
+  - `VideoGLBlitWidget.{h,cpp}` — рефакториран до `QOpenGLWidget` +
+    `VideoDisplayWidget`; `present*` са `override`, добавени `setVideoSize/clear/
+    backendName/isGpuBackend`; GL поведението е непроменено
+  - `VideoDisplayBackend.h` — `detectVideoBackend()`: `DAQSTER_VIDEO_BACKEND=
+    gl|software|cpu|gpu|opengl` env override, иначе `VideoGLContextManager::
+    hasHardwareGL()` (кеширан за процеса)
+  - `VideoOutputNode` — unified display: backend се избира **веднъж при
+    конструкция**, display widget-ът е **child на node-а** (min 320×240);
+    премахнати Qt6 `QVideoWidget` + in-scene `QGraphicsVideoItem` (PL-021),
+    Qt5 in-node `QLabel`, чекбокс „GPU display", `DAQSTER_GL_BLIT` env var;
+    perf badge (PL-027) е overlay child на display-а; effects (PL-034) и
+    pass-through изходът са запазени
+  - Код: `src/plugins/demo_nodeditor_nodes/Sources/Video/`
+  - Верификация: Qt5/Qt6 builds PASS + video output tests PASS (both) +
+    `DAQSTER_VIDEO_BACKEND=software` smoke PASS
 - **REQ-SW-PL-048** (Runtime режим — `--run <flow.flow>`, MDI workspaces, autoStart, presentation toggle):
   - CLI: `Daqster --run <file.flow>` стартира runtime режим без editor canvas
   - `RuntimeShell` class (`src/plugins/node_editor_ide/RuntimeShell.{h,cpp}`):
