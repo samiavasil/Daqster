@@ -21,13 +21,8 @@ class QCheckBox;
 class QComboBox;
 class QStackedWidget;
 class QTimer;
+class VideoDisplayWidget;
 class VideoFrameData;
-class VideoGLBlitWidget;
-
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-class QGraphicsVideoItem;
-class QVideoWidget;
-#endif
 
 /**
  * @brief Video output node: displays incoming video frames.
@@ -35,37 +30,26 @@ class QVideoWidget;
  * The node has a single input port on BOTH Qt versions (REQ-SW-PL-020,
  * NV12-direct, single video-frame type REQ-SW-PL-032):
  *   - port 0 "video-frame" — zero-copy VideoFrameData; presented on the
- *     detached GL blit window (default on Qt5; Qt6 uses QVideoWidget unless
- *     DAQSTER_GL_BLIT=1). GpuRgba effect outputs (REQ-SW-PL-032 Stage 2C)
- *     use the GL blit widget on Qt6 too — zero-copy presentTexture, no
- *     readback, no per-sink RHI upload. Qt5 frames are owned copies
- *     (frameToOwnedFrame), Qt6 frames are the decoded probe frames.
+ *     unified VideoDisplayWidget (REQ-SW-PL-053).
  *
- * GL blit display selection (REQ-SW-PL-021):
- *   - Default per Qt version: Qt5 = GL blit ON (fastest measured display path,
- *     ~15% CPU vs ~34% software), Qt6 = native QVideoWidget (GL blit OFF).
- *   - Stage 2C (REQ-SW-PL-032): GpuRgba frames (effect outputs) use the GL
- *     blit widget on Qt6 too when hardware GL is available — the native
- *     QVideoWidget path would readback (glReadPixels) + re-upload per sink.
- *   - Env override, applied at STARTUP only: `DAQSTER_GL_BLIT=0` forces the
- *     software path (also Qt5), `DAQSTER_GL_BLIT=1` forces the GL path (also
- *     Qt6). Unset → per-Qt default above. The VALUE matters: "0" disables
- *     (the old presence check treated even "=0" as enabled).
- *   - UI: the "GPU display" checkbox (visible + checked by default on both Qt
- *     versions) has the final word at runtime — toggling switches between a
- *     detached display window and in-scene rendering at the next frame without
- *     crashing or losing video. Qt5: ON = detached GL blit, OFF = software
- *     QLabel. Qt6: ON = detached (QVideoWidget / GL blit per env), OFF =
- *     in-scene QGraphicsVideoItem (REQ-SW-PL-021).
- *   - Auto-fallback: if the GL context cannot be created (VM / remote /
- *     software rendering without GL) the node logs `GL fallback: <reason>`
- *     and switches to the software path — video keeps displaying.
+ * Unified display (REQ-SW-PL-053): ONE display concept with two backends,
+ * selected ONCE at construction (auto-detect):
+ *   - VideoGLBlitWidget (GPU, default when hardware GL is available) —
+ *     QOpenGLWidget, zero-copy presentation of GPU-resident textures
+ *     (GpuRgba → presentTexture, GpuYuv → presentYuvTexture, CPU →
+ *     presentFrame), letterboxing, shaders.
+ *   - VideoSoftwareWidget (CPU fallback) — QWidget + paintEvent, converts the
+ *     frame to QImage (VideoFrameData::frameToImageCpu() / asImage()) and
+ *     renders with keep-aspect-ratio.
+ *   - Env override: DAQSTER_VIDEO_BACKEND=gl|software; unset → auto-detect via
+ *     VideoGLContextManager::hasHardwareGL() (cached for the process).
  *
- * The embedded QLabel shows a static placeholder ("GPU display active — see
- * detached window") while the video-frame GPU path is active, so the node
- * remains usable inside the node editor scene without per-frame QImage
- * conversion. The detached display is a separate top-level window
- * (QTBUG-35299 prevents hosting a native video surface in the scene).
+ * The display widget is a CHILD of m_widget (layout-friendly) — it works
+ * embedded (node scene / runtime workspace) and detached (floating window via
+ * the nodeeditor deembed mechanism on embeddedWidget()). The old in-node
+ * display (Qt5 QLabel, Qt6 QGraphicsVideoItem) and the Qt6 native QVideoWidget
+ * (QTBUG-35299 — cannot be embedded) are REMOVED. The "GPU display" checkbox
+ * is removed — its roles are taken over by deembed + auto-detect.
  *
  * The node also passes the frame through on its output port so output chains
  * can be built (e.g. output of a modifier). The output emits VideoFrameData
@@ -114,8 +98,9 @@ public:
 
     QWidget *embeddedWidget() override;
 
-    /// Stop background work (timers, detached display windows). Idempotent —
-    /// safe to call multiple times (REQ-SW-PL-050).
+    /// Stop background work (timers). Idempotent — safe to call multiple times
+    /// (REQ-SW-PL-050). The display widget is a child of m_widget — no explicit
+    /// delete needed (REQ-SW-PL-053).
     void stop() override;
 
     /// Track downstream connections on the output port so the per-frame
@@ -126,60 +111,18 @@ public:
     /// Track the port-0 "video-frame" input connection. Disconnecting the edge
     /// does NOT stop the source player — frames keep arriving in setInData() —
     /// so the connection flag (not widget nullness) is the guard that prevents
-    /// the detached display popup from being resurrected after disconnect.
+    /// the display from being resurrected after disconnect.
     void inputConnectionCreated(QtNodes::ConnectionId const &conId) override;
     void inputConnectionDeleted(QtNodes::ConnectionId const &conId) override;
 
-protected:
-    bool eventFilter(QObject *object, QEvent *event) override;
-
 private:
-    void updateDisplay();
-
     /// Re-run the port-0 processing on the last received frame (mirrors
     /// VideoEffectNode::reprocessCurrentFrame). Called after load() so a
     /// restored effect/parameter set is applied to the current frame.
     void reprocessCurrentFrame();
 
-    /// Frame to present on a native sink (Qt6 QVideoWidget / in-scene item).
-    /// GPU-resident RGBA frames (effect output) cannot be consumed by the
-    /// native sinks — readback at the display boundary. Stage 2C
-    /// (REQ-SW-PL-032) routes GpuRgba frames to the GL blit widget
-    /// (presentTexture) when hardware GL is available, so this readback only
-    /// runs on the fallback paths (no hardware GL / in-scene mode). CPU /
-    /// GpuYuv frames pass through zero-copy.
-    QVideoFrame presentableFrame(const std::shared_ptr<VideoFrameData> &frame) const;
-
     /// Log the single-line console perf report (5 s timer, both Qt5 + Qt6).
     void logPerfLine();
-
-    /// Apply the "GPU display" checkbox: toggling OFF (in-scene / software)
-    /// closes the detached windows immediately; toggling ON (detached) is
-    /// applied at the next frame (the window is created lazily by
-    /// ensureVideoWidget()).
-    void setGlEnabled(bool enabled);
-
-    /// Switch to the software display path because GL is not usable
-    /// (no context / invalid context). Logs `GL fallback: <reason>`, destroys
-    /// the GL window, unchecks the "GPU display" box, and remembers the
-    /// failure for the rest of the session (m_glFailed).
-    void fallbackToSoftware(const QString &reason);
-
-    /// Lazily create the detached GL blit window used when GL display is
-    /// enabled (both Qt versions; Qt6 presents QVideoFrames, Qt5 owned
-    /// QVideoFrames). Re-shows a previously hidden window on re-connect.
-    /// Falls back to the software path when GL is unavailable.
-    void ensureGlWidget();
-
-    /// Lazily create the detached display on the first video-frame input.
-    /// wantGlBlit selects the backend for the CURRENT frame: true → GL blit
-    /// window (Qt5 default / DAQSTER_GL_BLIT=1 / GpuRgba effect output on
-    /// Qt6 with hardware GL), false → QVideoWidget on Qt6 (CPU/NV12) or the
-    /// software label path on Qt5. Switching between the two destroys the
-    /// other widget so only one detached display exists at a time. No-op in
-    /// Qt6 in-scene mode (m_detachedEnabled == false) — the in-scene
-    /// QGraphicsVideoItem branch in setInData() handles display.
-    void ensureVideoWidget(bool wantGlBlit);
 
     /// Select the embedded effect by combo index (REQ-SW-PL-034). Index 0 is
     /// the "No effect" placeholder (m_effectEnabled = false); indices 1..N map
@@ -209,42 +152,22 @@ private:
     QWidget *createInfoPage(const QString &text);
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    /// Lazily create the in-scene QGraphicsVideoItem (REQ-SW-PL-021, Qt6,
-    /// "GPU display" checkbox OFF): finds the node editor scene via
-    /// QApplication::topLevelWidgets() → GraphicsView → DataFlowGraphicsScene,
-    /// parents the item to this node's NodeGraphicsObject and positions/sizes
-    /// it over the embedded label area. Frames are presented through
-    /// VideoCompat::presentFrame() on the item's video sink (GPU path — no
-    /// QImage copy). No-op when the scene/item cannot be resolved (the
-    /// software QLabel path then stays the fallback).
-    void ensureSceneVideoItem();
-
-    /// (Re)position/resize m_sceneVideoItem over the embedded label area.
-    /// Called on creation and when the label is resized (eventFilter).
-    void updateSceneVideoItemGeometry();
-
     /// Refresh the perf overlay badge from the "video" domain aggregates
     /// (fired on a ~500 ms timer while the Perf checkbox is enabled).
     void updatePerfBadge();
 
-    /// Create the top-level perf badge overlay once (shared by the
-    /// QVideoWidget and the GL blit window).
+    /// Create the perf badge overlay once as a CHILD of the display widget
+    /// (REQ-SW-PL-053 AC 7 — not a top-level window).
     void createPerfBadge();
-
-    /// (Re)position the top-level perf badge over the top-left corner of the
-    /// detached display window. Called on creation and on every badge refresh
-    /// so the overlay tracks the window when it is moved or resized.
-    void positionPerfBadge();
 #endif
 
     QWidget *m_widget = nullptr;
-    QLabel *m_label = nullptr;
-    QImage m_image;
     std::shared_ptr<VideoFrameData> m_output;
 
-    /// GL blit display window. Created instead of the QVideoWidget (Qt6) /
-    /// QPixmap path (Qt5) while GL display is enabled (see m_glEnabled).
-    VideoGLBlitWidget *m_glWidget = nullptr;
+    /// Unified display widget (REQ-SW-PL-053): VideoGLBlitWidget (GPU) or
+    /// VideoSoftwareWidget (CPU), selected once at construction. Child of
+    /// m_widget — layout-friendly, works embedded and detached.
+    VideoDisplayWidget *m_display = nullptr;
 
     // Perf console line (REQ-SW-PL-027, both Qt5 + Qt6): the "Perf" checkbox
     // enables the "video" domain and drives the 5 s console timer; m_cpu
@@ -256,37 +179,11 @@ private:
     int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
     int m_lastPixelFormat = -1;    // normalized (Qt6 numbering, see VideoCompat)
 
-    /// "GPU display" toggle (REQ-SW-PL-021): visible + checked by default on
-    /// BOTH Qt versions (checkbox ON = detached display window). Qt5 checked →
-    /// detached GL blit window, unchecked → software QLabel path inside the
-    /// node. Qt6 checked → detached window (native QVideoWidget unless
-    /// DAQSTER_GL_BLIT=1 forces the GL blit widget), unchecked → in-scene
-    /// QGraphicsVideoItem child of the node's NodeGraphicsObject (software
-    /// QLabel auto-fallback).
-    QCheckBox *m_glCheck = nullptr;
-    /// Detached-vs-in-scene display mode (REQ-SW-PL-021): driven by the
-    /// "GPU display" checkbox. true = video renders in a detached top-level
-    /// window; false = video renders inside the node (Qt6: QGraphicsVideoItem
-    /// via ensureSceneVideoItem(); Qt5: embedded QLabel software path).
-    bool m_detachedEnabled = false;
-    /// Detached display backend selection. Qt5: identical to
-    /// m_detachedEnabled (checkbox ON means GL blit). Qt6: initialized from
-    /// glBlitStartupEnabled() — DAQSTER_GL_BLIT=1 forces the GL blit widget,
-    /// otherwise the native QVideoWidget is used when detached. Stage 2C
-    /// (REQ-SW-PL-032) additionally routes GpuRgba frames to the GL blit
-    /// widget on Qt6 regardless of this flag (see setInData /
-    /// ensureVideoWidget).
-    bool m_glEnabled = false;
-    /// True once a GL context could not be created in this session. GL is then
-    /// not retried (re-checking the box falls back immediately) until the
-    /// application is restarted.
-    bool m_glFailed = false;
-
     std::shared_ptr<VideoFrameData> m_lastInput;
     int m_outputConnectionCount = 0;
     /// True while a port-0 "video-frame" edge exists. Guards setInData() so
     /// frames that keep flowing from a still-playing source after the edge is
-    /// removed cannot resurrect the detached popup.
+    /// removed cannot resurrect the display.
     bool m_videoInputConnected = false;
 
     // ── Embedded effects (REQ-SW-PL-034, optional, default none) ────────────
@@ -313,23 +210,9 @@ private:
     QVBoxLayout *m_layout = nullptr;
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    QVideoWidget *m_videoWidget = nullptr;
-
-    /// In-scene QGraphicsVideoItem (REQ-SW-PL-021, Qt6): child of this node's
-    /// NodeGraphicsObject, shows the video-frame input inside the node when the
-    /// "GPU display" checkbox is OFF (in-scene mode). Null while detached.
-    QGraphicsVideoItem *m_sceneVideoItem = nullptr;
-    /// This node's NodeId in the editor scene, captured on input connection
-    /// (needed to locate the NodeGraphicsObject for the in-scene item).
-    QtNodes::NodeId m_selfNodeId = QtNodes::InvalidNodeId;
-    /// True once m_selfNodeId has been captured from an input connection.
-    bool m_selfNodeIdKnown = false;
-
-    // Perf overlay (REQ-SW-PL-027): a separate top-level frameless tool window
-    // (NOT a child of the display window) because the video renders in its own
-    // layer and does not composite child widgets on top of it. The 500 ms
-    // timer refreshes its text and repositions it over the display window.
-    // In-scene mode (m_detachedEnabled == false) never creates/shows it.
+    // Perf overlay (REQ-SW-PL-027): a child overlay of the display widget
+    // (REQ-SW-PL-053 AC 7) — NOT a top-level window. The 500 ms timer
+    // refreshes its text.
     QLabel *m_perfBadge = nullptr;
     QTimer *m_perfTimer = nullptr;
 #endif

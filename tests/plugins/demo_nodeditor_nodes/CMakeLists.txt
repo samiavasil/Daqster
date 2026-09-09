@@ -161,7 +161,11 @@ set(VIDEO_OUTPUT_TEST_SOURCES
     test_video_output_node.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoOutputNode.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoPerfBadge.cpp
-    # VideoOutputNode references VideoGLBlitWidget (DAQSTER_GL_BLIT display path);
+    # Unified display (REQ-SW-PL-053): VideoDisplayWidget interface +
+    # VideoSoftwareWidget backend — compile so the test binary links standalone.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoDisplayWidget.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoSoftwareWidget.cpp
+    # VideoOutputNode references VideoGLBlitWidget (GL display backend);
     # compile the widget source so the test binary links standalone:
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes/Sources/Video/VideoGLBlitWidget.cpp
     # Embedded effects (REQ-SW-PL-034): VideoOutputNode now uses
@@ -201,9 +205,9 @@ target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
     frame_work
 )
 
-# QVideoWidget lives in Qt6::MultimediaWidgets (Qt5 bundles it in Multimedia).
 # VideoGLBlitWidget (QOpenGLWidget shaders) needs the OpenGL module on both
-# Qt versions.
+# Qt versions. Qt6::MultimediaWidgets is kept for the Qt6 Multimedia stack
+# (QVideoFrame-based tests); Qt5 bundles MultimediaWidgets in Multimedia.
 if(QT_VERSION_MAJOR GREATER_EQUAL 6)
     target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
         Qt${QT_VERSION_MAJOR}::MultimediaWidgets
