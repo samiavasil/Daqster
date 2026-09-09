@@ -86,6 +86,7 @@ void setupTextureParams(QOpenGLFunctions *f, GLuint id)
 
 VideoGLBlitWidget::VideoGLBlitWidget(QWidget *parent)
     : QOpenGLWidget(parent)
+    , VideoDisplayWidget()
 {
     const QString matrixEnv = qEnvironmentVariable("DAQSTER_GL_MATRIX", QStringLiteral("bt709")).toLower();
     const QString rangeEnv = qEnvironmentVariable("DAQSTER_GL_RANGE", QStringLiteral("full")).toLower();
@@ -116,6 +117,7 @@ void VideoGLBlitWidget::presentFrame(const QVideoFrame &frame)
     m_image = QImage();
     m_yuvW = frame.width();
     m_yuvH = frame.height();
+    setVideoSize(QSize(m_yuvW, m_yuvH));
 
     QString fmt;
     const YuvLayout layout = classifyYuv(frame, &fmt);
@@ -153,6 +155,7 @@ void VideoGLBlitWidget::presentImage(const QImage &image)
     m_hasYuv = false;
     m_frame = QVideoFrame();
     m_formatName = QStringLiteral("QImage(%1)").arg(m_image.format());
+    setVideoSize(m_image.size());
     update();
 }
 
@@ -171,6 +174,7 @@ void VideoGLBlitWidget::presentTexture(const VideoTextureHandle &handle,
     m_yuvW = handle.width;
     m_yuvH = handle.height;
     m_formatName = QStringLiteral("Texture(RGBA)");
+    setVideoSize(QSize(handle.width, handle.height));
     update();
 }
 
@@ -195,6 +199,25 @@ void VideoGLBlitWidget::presentYuvTexture(const VideoTextureHandle &handle,
     m_yuvH = handle.height;
     m_formatName = handle.nv12 ? QStringLiteral("Texture(NV12)")
                                : QStringLiteral("Texture(YUV420P)");
+    setVideoSize(QSize(handle.width, handle.height));
+    update();
+}
+
+void VideoGLBlitWidget::setVideoSize(const QSize &size)
+{
+    m_videoSize = size;
+}
+
+void VideoGLBlitWidget::clear()
+{
+    m_textureOwner.reset();
+    m_textureHandle = VideoTextureHandle();
+    m_frame = QVideoFrame();
+    m_image = QImage();
+    m_hasYuv = false;
+    m_formatName.clear();
+    m_yuvW = 0;
+    m_yuvH = 0;
     update();
 }
 

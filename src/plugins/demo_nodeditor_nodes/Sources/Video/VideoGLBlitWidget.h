@@ -38,6 +38,7 @@
 #include <QtMultimedia/QVideoFrame>
 
 #include "NodeDataTypes/VideoTextureHandle.h"
+#include "VideoDisplayWidget.h"
 
 #include <memory>
 
@@ -45,7 +46,7 @@ class QOpenGLShaderProgram;
 class QOpenGLVertexArrayObject;
 class VideoFrameData;
 
-class VideoGLBlitWidget : public QOpenGLWidget
+class VideoGLBlitWidget : public QOpenGLWidget, public VideoDisplayWidget
 {
     Q_OBJECT
 
@@ -54,15 +55,15 @@ public:
     ~VideoGLBlitWidget() override;
 
     /// Zero-copy present: stores the frame, schedules a repaint.
-    void presentFrame(const QVideoFrame &frame);
+    void presentFrame(const QVideoFrame &frame) override;
     /// QImage fallback (image port / RGB formats): stores the image, schedules a repaint.
-    void presentImage(const QImage &image);
+    void presentImage(const QImage &image) override;
     /// Zero-copy present of a GPU-resident RGBA texture (effect output,
     /// REQ-SW-PL-032 Stage 2B): stores the handle + the owning frame (keeps
     /// the texture alive until the next present) and schedules a repaint.
     /// No upload, no readback.
     void presentTexture(const VideoTextureHandle &handle,
-                        std::shared_ptr<VideoFrameData> owner);
+                        std::shared_ptr<VideoFrameData> owner) override;
 
     /// Zero-copy present of GPU-resident YUV textures (the asTexture() cache,
     /// REQ-SW-PL-032): binds the cached Y/U/V planes directly — no duplicate
@@ -70,7 +71,16 @@ public:
     /// until the next present) and schedules a repaint. Falls back to
     /// presentFrame() when the handle is invalid.
     void presentYuvTexture(const VideoTextureHandle &handle,
-                           std::shared_ptr<VideoFrameData> owner);
+                           std::shared_ptr<VideoFrameData> owner) override;
+
+    /// Store the source video size (aspect-ratio letterboxing).
+    void setVideoSize(const QSize &size) override;
+
+    /// Clear the display back to the placeholder state.
+    void clear() override;
+
+    QString backendName() const override { return QStringLiteral("GL blit"); }
+    bool isGpuBackend() const override { return true; }
 
     QString lastFormatName() const { return m_formatName; }
     bool lastFrameYuv() const { return m_hasYuv; }
