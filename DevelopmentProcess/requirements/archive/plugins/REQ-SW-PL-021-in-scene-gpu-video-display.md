@@ -1,3 +1,5 @@
+> **SUPERSEDED by REQ-SW-PL-053** (2026-09-09, user decision — unified VideoDisplayWidget replaces in-scene QGraphicsVideoItem).
+
 # REQ-SW-PL-021: In-Scene GPU Video Display via QGraphicsVideoItem (OpenGL)
 
 - **Статус:** ACTIVE
