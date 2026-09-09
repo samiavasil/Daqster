@@ -21,10 +21,7 @@ void CustomDataFlowScene::onNodeDataArrived(QtNodes::NodeId const nodeId)
         // QGraphicsVideoItem). Skipping the full geometry recompute +
         // connection move eliminates the scene repaint cascade (QBezier
         // bezier paths, antialiasing) = CPU savings on data arrival.
-        // The node BODY repaint is also skipped when the model opts out via
-        // dataArrivalChangesWidget() (widget content self-repaints via Qt).
-        if (model->dataArrivalChangesWidget())
-            node->update();
+        node->update();   // always repaint body on data arrival
     } else {
         // Full path (NumberDisplay, DaqDisplay, ...): geometry may change on
         // data arrival, so recompute size + move connections as before.
