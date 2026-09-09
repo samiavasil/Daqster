@@ -10,17 +10,16 @@
 
 #include <QImage>
 #include <QtMultimedia/QVideoFrame>
-#include <QVBoxLayout>
 #include <functional>
 #include <memory>
 
 class QLabel;
 class QWidget;
 
-class QCheckBox;
 class QComboBox;
 class QStackedWidget;
 class QTimer;
+class QSplitter;
 class VideoDisplayWidget;
 class VideoFrameData;
 
@@ -121,9 +120,6 @@ private:
     /// restored effect/parameter set is applied to the current frame.
     void reprocessCurrentFrame();
 
-    /// Log the single-line console perf report (5 s timer, both Qt5 + Qt6).
-    void logPerfLine();
-
     /// Select the embedded effect by combo index (REQ-SW-PL-034). Index 0 is
     /// the "No effect" placeholder (m_effectEnabled = false); indices 1..N map
     /// to m_specs[0..N-1]. Syncs the parameter stack and the enabled flag.
@@ -151,16 +147,6 @@ private:
     /// channelSwap).
     QWidget *createInfoPage(const QString &text);
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    /// Refresh the perf overlay badge from the "video" domain aggregates
-    /// (fired on a ~500 ms timer while the Perf checkbox is enabled).
-    void updatePerfBadge();
-
-    /// Create the perf badge overlay once as a CHILD of the display widget
-    /// (REQ-SW-PL-053 AC 7 — not a top-level window).
-    void createPerfBadge();
-#endif
-
     QWidget *m_widget = nullptr;
     std::shared_ptr<VideoFrameData> m_output;
 
@@ -169,12 +155,11 @@ private:
     /// m_widget — layout-friendly, works embedded and detached.
     VideoDisplayWidget *m_display = nullptr;
 
-    // Perf console line (REQ-SW-PL-027, both Qt5 + Qt6): the "Perf" checkbox
-    // enables the "video" domain and drives the 5 s console timer; m_cpu
-    // samples self-CPU; the markers tag the last presented frame (Qt5 via the
-    // normalized VideoCompat::pixelFormatInt()).
-    QCheckBox *m_perfCheck = nullptr;
-    QTimer *m_consoleTimer = nullptr;
+    // Perf console line (REQ-SW-PL-027, both Qt5 + Qt6): the "Perf" toggle in
+    /// the controls widget enables the "video" profiling domain live and drives
+    /// the 5 s console timer; m_cpu samples self-CPU; the markers tag the last
+    /// presented frame (Qt5 via the normalized VideoCompat::pixelFormatInt()).
+    QTimer *m_perfRefreshTimer = nullptr;
     Daqster::Perf::ProcessCpu m_cpu;
     int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
     int m_lastPixelFormat = -1;    // normalized (Qt6 numbering, see VideoCompat)
@@ -205,17 +190,20 @@ private:
     QComboBox *m_effectCombo = nullptr;
     /// Parameter stack: page 0 = blank (no effect), page i+1 = effect i.
     QStackedWidget *m_effectStack = nullptr;
-    /// The embedded widget's vertical layout (set in the constructor; used by
-    /// buildEffectControls() to append the effect combo + stack).
-    QVBoxLayout *m_layout = nullptr;
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    // Perf overlay (REQ-SW-PL-027): a child overlay of the display widget
-    // (REQ-SW-PL-053 AC 7) — NOT a top-level window. The 500 ms timer
-    // refreshes its text.
-    QLabel *m_perfBadge = nullptr;
-    QTimer *m_perfTimer = nullptr;
-#endif
+    /// Horizontal splitter: left = video display (stretch=1), right = controls
+    /// (collapsible, min width 220px).
+    QSplitter *m_splitter = nullptr;
+
+    // Perf stats labels (updated by m_perfRefreshTimer)
+    QLabel *m_fpsLabel = nullptr;
+    QLabel *m_gapLabel = nullptr;
+    QLabel *m_presentLabel = nullptr;
+    QLabel *m_totalLabel = nullptr;
+    QLabel *m_cpuLabel = nullptr;
+    QLabel *m_hwSwLabel = nullptr;
+    QLabel *m_formatLabel = nullptr;
+    QLabel *m_handleLabel = nullptr;
 };
 
 #endif // VIDEOOUTPUTNODE_H

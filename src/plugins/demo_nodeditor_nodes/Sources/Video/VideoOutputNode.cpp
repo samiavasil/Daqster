@@ -8,19 +8,18 @@
 #include "VideoDisplayBackend.h"
 #include "VideoDisplayWidget.h"
 #include "VideoGLBlitWidget.h"
-#include "VideoPerfBadge.h"
 #include "VideoSoftwareWidget.h"
 
-#include <QCheckBox>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QFile>
-#include <QHBoxLayout>
+#include <QFormLayout>
 #include <QLabel>
 #include <QSignalBlocker>
 #include <QSize>
 #include <QSlider>
+#include <QSplitter>
 #include <QStackedWidget>
 #include <QTextStream>
 #include <QTimer>
@@ -43,8 +42,6 @@ VideoOutputNode::VideoOutputNode()
     this->setNodeStyle(s);
 
     m_widget = new QWidget();
-    m_layout = new QVBoxLayout(m_widget);
-    m_layout->setContentsMargins(4, 4, 4, 4);
 
     // Unified display (REQ-SW-PL-053): ONE display widget, backend selected
     // ONCE at construction. Auto-detect: hardware GL → GL blit (GPU), else
@@ -56,49 +53,104 @@ VideoOutputNode::VideoOutputNode()
         ? static_cast<VideoDisplayWidget *>(new VideoGLBlitWidget(m_widget))
         : static_cast<VideoDisplayWidget *>(new VideoSoftwareWidget(m_widget));
     m_display->widget()->setMinimumSize(320, 240);
-    m_layout->addWidget(m_display->widget(), 1);
 
-    // Perf toggle + console line (REQ-SW-PL-027, both Qt5 + Qt6): enables the
-    // "video" profiling domain live and drives the 5 s console timer. On Qt6 it
-    // also drives the on-screen badge refresh timer (500 ms); Qt5 keeps the
-    // QImage path with no overlay but still logs the copy-paste-able line.
-    m_perfCheck = new QCheckBox(tr("Perf"), m_widget);
-    m_layout->addWidget(m_perfCheck);
+    // Create splitter as main layout
+    m_splitter = new QSplitter(Qt::Horizontal, m_widget);
+    m_splitter->addWidget(m_display->widget());           // Left: Video (stretch=1)
+    m_splitter->setStretchFactor(0, 1);
+
+    // Create controls widget (right pane)
+    QWidget* controlsWidget = new QWidget();
+    QVBoxLayout* controlsLayout = new QVBoxLayout(controlsWidget);
+    controlsLayout->setContentsMargins(4, 4, 4, 4);
+    controlsLayout->setSpacing(4);
+
+    // Perf stats panel (simple QFormLayout for now)
+    QWidget* perfPanel = new QWidget();
+    QFormLayout* perfLayout = new QFormLayout(perfPanel);
+    m_fpsLabel = new QLabel("--");
+    m_gapLabel = new QLabel("--");
+    m_presentLabel = new QLabel("--");
+    m_totalLabel = new QLabel("--");
+    m_cpuLabel = new QLabel("--");
+    m_hwSwLabel = new QLabel("--");
+    m_formatLabel = new QLabel("--");
+    m_handleLabel = new QLabel("--");
+    perfLayout->addRow("FPS:", m_fpsLabel);
+    perfLayout->addRow("Gap (ms):", m_gapLabel);
+    perfLayout->addRow("Present (ms):", m_presentLabel);
+    perfLayout->addRow("Total (ms):", m_totalLabel);
+    perfLayout->addRow("CPU (%):", m_cpuLabel);
+    perfLayout->addRow("HW/SW:", m_hwSwLabel);
+    perfLayout->addRow("Format:", m_formatLabel);
+    perfLayout->addRow("Handle:", m_handleLabel);
+    controlsLayout->addWidget(perfPanel);
 
     // Embedded effects (REQ-SW-PL-034): optional, default "No effect" — the
     // zero-copy passthrough is preserved until the user selects an effect.
     buildEffectControls();
 
-    m_consoleTimer = new QTimer(this);
-    m_consoleTimer->setInterval(5000);
+    // Move existing effect controls into the controls widget
+    controlsLayout->addWidget(m_effectCombo);
+    controlsLayout->addWidget(m_effectStack, 1);
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    m_perfTimer = new QTimer(this);
-    m_perfTimer->setInterval(500);
-    // Perf badge is a child overlay of the display widget (REQ-SW-PL-053 AC 7).
-    createPerfBadge();
-#endif
+    controlsWidget->setMinimumWidth(220);
 
-    connect(m_perfCheck, &QCheckBox::toggled, this, [this](bool checked) {
-        Daqster::Perf::Domain::get("video").setEnabled(checked);
-        if (checked) {
-            m_consoleTimer->start();
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-            m_perfTimer->start();
-#endif
-        } else {
-            m_consoleTimer->stop();
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-            m_perfTimer->stop();
-            if (m_perfBadge != nullptr)
-                m_perfBadge->hide();
-#endif
+    // Add to splitter
+    m_splitter->addWidget(controlsWidget);
+    m_splitter->setCollapsible(1, true);
+    m_splitter->setHandleWidth(4);
+    m_splitter->setChildrenCollapsible(true);
+    // Use a reasonable default width for the video pane (will be adjusted on first show)
+    m_splitter->setSizes(QList<int>({640, 220}));
+
+    // Set splitter as m_widget's layout
+    QVBoxLayout* mainLayout = new QVBoxLayout(m_widget);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->addWidget(m_splitter);
+
+    // Perf stats refresh timer: updates the perf labels in the controls panel
+    m_perfRefreshTimer = new QTimer(this);
+    m_perfRefreshTimer->setInterval(500);
+    connect(m_perfRefreshTimer, &QTimer::timeout, this, [this]() {
+        auto &domain = Daqster::Perf::Domain::get("video");
+        if (!domain.enabled()) {
+            m_fpsLabel->setText("--");
+            m_gapLabel->setText("--");
+            m_presentLabel->setText("--");
+            m_totalLabel->setText("--");
+            m_cpuLabel->setText("--");
+            m_hwSwLabel->setText("--");
+            m_formatLabel->setText("--");
+            m_handleLabel->setText("--");
+            return;
         }
+
+        const double fps = domain.count("source.frame_interval") > 0
+            ? 1000.0 / domain.avg("source.frame_interval")
+            : 0.0;
+        const double gapMs = domain.avg("source.frame_interval");
+        const double presentMs = domain.avg("output.present");
+        const double totalMs = domain.avg("output.total");
+        const double cpuPercent = m_cpu.sample();
+
+        m_fpsLabel->setText(QString::number(fps, 'f', 1));
+        m_gapLabel->setText(QString::number(gapMs, 'f', 1));
+        m_presentLabel->setText(QString::number(presentMs, 'f', 1));
+        m_totalLabel->setText(QString::number(totalMs, 'f', 1));
+        m_cpuLabel->setText(QString::number(cpuPercent, 'f', 1));
+
+        // Qt5/Qt6 compatible check for NoHandle
+        const int noHandleValue = 0; // QVideoFrame::HandleType::NoHandle == 0 in both Qt5 and Qt6
+        const QString hwSw = (m_lastHandleType == noHandleValue) ? "SW" : "HW";
+        m_hwSwLabel->setText(hwSw);
+
+        m_formatLabel->setText(QString::number(m_lastPixelFormat));
+        m_handleLabel->setText(QString::number(m_lastHandleType));
     });
-    connect(m_consoleTimer, &QTimer::timeout, this, &VideoOutputNode::logPerfLine);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    connect(m_perfTimer, &QTimer::timeout, this, &VideoOutputNode::updatePerfBadge);
-#endif
+
+    // Start perf refresh timer when controls are visible (always visible in this layout)
+    m_perfRefreshTimer->start();
 }
 
 void VideoOutputNode::buildEffectControls()
@@ -116,7 +168,6 @@ void VideoOutputNode::buildEffectControls()
             : QStringLiteral(" (GPU)");
         m_effectCombo->addItem(spec.displayName + backendLabel);
     }
-    m_layout->addWidget(m_effectCombo);
 
     // Parameter stack: page 0 = blank (no effect), page i+1 = effect i.
     m_effectStack = new QStackedWidget(m_widget);
@@ -155,7 +206,6 @@ void VideoOutputNode::buildEffectControls()
         }
         m_effectStack->addWidget(page);
     }
-    m_layout->addWidget(m_effectStack, 1);
 
     connect(m_effectCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             [this](int index) {
@@ -318,12 +368,8 @@ VideoOutputNode::~VideoOutputNode()
 void VideoOutputNode::stop()
 {
     // Idempotent: stopping an already-stopped timer is a no-op.
-    if (m_consoleTimer != nullptr)
-        m_consoleTimer->stop();
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    if (m_perfTimer != nullptr)
-        m_perfTimer->stop();
-#endif
+    if (m_perfRefreshTimer != nullptr)
+        m_perfRefreshTimer->stop();
 
     // The display widget is a child of m_widget — no explicit delete
     // (REQ-SW-PL-053). The perf badge is a child of the display widget.
@@ -350,6 +396,11 @@ QJsonObject VideoOutputNode::save() const
     obj[QStringLiteral("cannyLow")] = m_params.cannyLow;
     obj[QStringLiteral("cannyHigh")] = m_params.cannyHigh;
     obj[QStringLiteral("thresholdValue")] = m_params.thresholdValue;
+
+    // Splitter state (REQ-SW-PL-053): persist the QSplitter geometry
+    if (m_splitter != nullptr) {
+        obj[QStringLiteral("splitterState")] = QString::fromLatin1(m_splitter->saveState().toBase64());
+    }
     return obj;
 }
 
@@ -386,6 +437,15 @@ void VideoOutputNode::load(QJsonObject const &p)
         }
     }
     setEffectIndex(comboIndex);
+
+    // Restore splitter state
+    if (m_splitter != nullptr) {
+        const QString splitterStateStr = p.value(QStringLiteral("splitterState")).toString();
+        if (!splitterStateStr.isEmpty()) {
+            QByteArray state = QByteArray::fromBase64(splitterStateStr.toLatin1());
+            m_splitter->restoreState(state);
+        }
+    }
 
     // Re-apply the restored effect/parameters to the current frame (mirrors
     // VideoEffectNode::load()). No-op when no frame has arrived yet or the
@@ -581,75 +641,3 @@ QWidget *VideoOutputNode::embeddedWidget()
 {
     return m_widget;
 }
-
-void VideoOutputNode::logPerfLine()
-{
-    auto &domain = Daqster::Perf::Domain::get("video");
-    if (!domain.enabled())
-        return;
-
-    // Sample self-CPU first: the first sample only establishes the baseline and
-    // returns 0.0 (the "cpu=0.0%" on the very first line is expected).
-    const double cpuPercent = m_cpu.sample();
-
-    // Log only once there are actual frame records (count > 0).
-    if (domain.count("output.total") <= 0
-        && domain.count("source.frame_interval") <= 0) {
-        return;
-    }
-
-    // Log at Info level WITHOUT a category (qInfo() instead of qCDebug(lcPerf)):
-    // the "daqster.perf" category is disabled by default in LogManager, so a
-    // qCDebug(lcPerf) line would be silently filtered and the [PERF] report
-    // would never reach the console. qInfo() is unconditional (like the FFmpeg
-    // [INF] lines) and guarantees the report is always visible when Perf is on.
-    qInfo().noquote()
-        << formatPerfLine(domain.avg("source.frame_interval"),
-                          domain.avg("output.present"),
-                          domain.avg("output.total"),
-                          cpuPercent,
-                          m_lastHandleType, m_lastPixelFormat);
-}
-
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-void VideoOutputNode::createPerfBadge()
-{
-    if (m_perfBadge != nullptr)
-        return;
-    if (m_display == nullptr)
-        return;
-
-    // Perf overlay badge (REQ-SW-PL-027): a CHILD overlay of the display widget
-    // (REQ-SW-PL-053 AC 7) — NOT a top-level window. The display widget
-    // composites child widgets normally (QOpenGLWidget supports child widgets;
-    // the removed native QVideoWidget layer did not — QTBUG-35299).
-    m_perfBadge = new QLabel(m_display->widget());
-    m_perfBadge->setAttribute(Qt::WA_TransparentForMouseEvents);
-    m_perfBadge->setStyleSheet(
-        QStringLiteral("background-color: rgba(0,0,0,140); color: #0f0; padding: 2px;"));
-    m_perfBadge->move(4, 4);
-    m_perfBadge->adjustSize();
-    m_perfBadge->hide();
-}
-
-void VideoOutputNode::updatePerfBadge()
-{
-    if (m_perfBadge == nullptr)
-        return;
-
-    auto &domain = Daqster::Perf::Domain::get("video");
-    if (!domain.enabled()) {
-        m_perfBadge->hide();
-        return;
-    }
-
-    m_perfBadge->setText(formatPerfBadge(
-        domain.avg("source.frame_interval"),
-        domain.avg("output.present"),
-        domain.avg("output.total"),
-        m_lastHandleType, m_lastPixelFormat));
-    m_perfBadge->adjustSize();
-    m_perfBadge->raise();
-    m_perfBadge->show();
-}
-#endif
