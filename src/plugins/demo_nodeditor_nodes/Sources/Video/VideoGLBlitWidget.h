@@ -81,6 +81,7 @@ public:
 
     QString backendName() const override { return QStringLiteral("GL blit"); }
     bool isGpuBackend() const override { return true; }
+    QWidget *widget() override { return this; }
 
     QString lastFormatName() const { return m_formatName; }
     bool lastFrameYuv() const { return m_hasYuv; }

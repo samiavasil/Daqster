@@ -2,6 +2,7 @@
 
 #include "GL/VideoGLContextManager.h"
 #include "NodeDataTypes/VideoFrameData.h"
+#include "VideoDisplayBackend.h"
 #include "VideoGLBlitWidget.h"
 #include "VideoOutputNode.h"
 
@@ -325,6 +326,8 @@ void VideoOutputNodeTest::gpuRgbaRoutesToGlBlitWidget()
 {
     if (!VideoGLContextManager::hasHardwareGL())
         QSKIP("No hardware GL — GL blit backend requires hardware GL");
+    if (detectVideoBackend() != VideoBackend::Gl)
+        QSKIP("Video backend is not GL (DAQSTER_VIDEO_BACKEND override) — GL blit routing not applicable");
 
     VideoOutputNode node;
     node.inputConnectionCreated(makeConId(0, 0));
@@ -336,10 +339,14 @@ void VideoOutputNodeTest::gpuRgbaRoutesToGlBlitWidget()
     QVERIFY(glDisplay != nullptr);  // GL backend selected (hardware GL)
 
     // (a) GpuRgba frame (effect output) routes to the GL blit widget.
+    // The texture handle is a placeholder — the routing decision only needs
+    // isGpuRgba() + hardware GL; texY must be non-zero so presentTexture()
+    // accepts it (it only stores the handle + schedules a repaint, no GL call).
     VideoTextureHandle h;
     h.width = 320;
     h.height = 240;
     h.rgba = true;
+    h.texY = 1;
     node.setInData(VideoFrameData::fromTexture(h), 0);
 
     // The GL widget received the texture present (zero-copy presentTexture).

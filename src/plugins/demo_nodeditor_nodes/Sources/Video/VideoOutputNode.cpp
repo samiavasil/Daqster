@@ -55,8 +55,8 @@ VideoOutputNode::VideoOutputNode()
     m_display = (detectVideoBackend() == VideoBackend::Gl)
         ? static_cast<VideoDisplayWidget *>(new VideoGLBlitWidget(m_widget))
         : static_cast<VideoDisplayWidget *>(new VideoSoftwareWidget(m_widget));
-    m_display->setMinimumSize(320, 240);
-    m_layout->addWidget(m_display, 1);
+    m_display->widget()->setMinimumSize(320, 240);
+    m_layout->addWidget(m_display->widget(), 1);
 
     // Perf toggle + console line (REQ-SW-PL-027, both Qt5 + Qt6): enables the
     // "video" profiling domain live and drives the 5 s console timer. On Qt6 it
@@ -623,7 +623,7 @@ void VideoOutputNode::createPerfBadge()
     // (REQ-SW-PL-053 AC 7) — NOT a top-level window. The display widget
     // composites child widgets normally (QOpenGLWidget supports child widgets;
     // the removed native QVideoWidget layer did not — QTBUG-35299).
-    m_perfBadge = new QLabel(m_display);
+    m_perfBadge = new QLabel(m_display->widget());
     m_perfBadge->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_perfBadge->setStyleSheet(
         QStringLiteral("background-color: rgba(0,0,0,140); color: #0f0; padding: 2px;"));

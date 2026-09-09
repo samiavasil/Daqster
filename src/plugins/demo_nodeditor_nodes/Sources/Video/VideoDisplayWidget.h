@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QImage>
 #include <QSize>
 #include <QString>
 
@@ -9,6 +10,7 @@
 #include "NodeDataTypes/VideoTextureHandle.h"
 
 class VideoFrameData;
+class QWidget;
 
 /// Abstract video display surface. Both backends (GL blit, software) are
 /// QWidget subclasses so they are layout-friendly and work embedded (node
@@ -54,6 +56,11 @@ public:
     /// Backend introspection (for the perf badge / diagnostics).
     virtual QString backendName() const = 0;
     virtual bool isGpuBackend() const = 0;
+
+    /// The concrete QWidget of this backend (each backend combines the
+    /// interface with its own widget base). Lets the node embed the display in
+    /// a layout without knowing the concrete backend type.
+    virtual QWidget *widget() = 0;
 
 protected:
     QSize m_videoSize;

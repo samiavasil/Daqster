@@ -2,6 +2,10 @@
 
 #include "VideoDisplayWidget.h"
 
+#include <QImage>
+#include <QPaintEvent>
+#include <QWidget>
+
 class VideoSoftwareWidget : public QWidget, public VideoDisplayWidget
 {
     Q_OBJECT
@@ -20,6 +24,7 @@ public:
     void clear() override;
     QString backendName() const override { return QStringLiteral("Software"); }
     bool isGpuBackend() const override { return false; }
+    QWidget *widget() override { return this; }
 
 protected:
     void paintEvent(QPaintEvent *event) override;
