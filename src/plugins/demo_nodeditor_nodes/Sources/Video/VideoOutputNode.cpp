@@ -28,6 +28,61 @@
 
 #include <algorithm>
 
+namespace {
+
+// QVideoFrame::HandleType → display name (Qt 6 values, works for both Qt5/Qt6)
+QString handleTypeName(int handleType)
+{
+    switch (handleType) {
+    case 0:  return QStringLiteral("NoHandle");
+    case 1:  return QStringLiteral("RhiTextureHandle");
+    default: return QString::number(handleType);
+    }
+}
+
+// QVideoFrameFormat::PixelFormat → display name (Qt 6 values)
+QString pixelFormatName(int pixelFormat)
+{
+    switch (pixelFormat) {
+    case -1: return QStringLiteral("Invalid");
+    case 0:  return QStringLiteral("Invalid");
+    case 1:  return QStringLiteral("ARGB8888");
+    case 2:  return QStringLiteral("ARGB8888_Premultiplied");
+    case 3:  return QStringLiteral("XRGB8888");
+    case 4:  return QStringLiteral("BGRA8888");
+    case 5:  return QStringLiteral("BGRA8888_Premultiplied");
+    case 6:  return QStringLiteral("BGRX8888");
+    case 7:  return QStringLiteral("ABGR8888");
+    case 8:  return QStringLiteral("XBGR8888");
+    case 9:  return QStringLiteral("RGBA8888");
+    case 10: return QStringLiteral("RGBX8888");
+    case 11: return QStringLiteral("AYUV");
+    case 12: return QStringLiteral("AYUV_Premultiplied");
+    case 13: return QStringLiteral("YUV420P");
+    case 14: return QStringLiteral("YUV422P");
+    case 15: return QStringLiteral("YV12");
+    case 16: return QStringLiteral("UYVY");
+    case 17: return QStringLiteral("YUYV");
+    case 18: return QStringLiteral("NV12");
+    case 19: return QStringLiteral("NV21");
+    case 20: return QStringLiteral("IMC1");
+    case 21: return QStringLiteral("IMC2");
+    case 22: return QStringLiteral("IMC3");
+    case 23: return QStringLiteral("IMC4");
+    case 24: return QStringLiteral("Y8");
+    case 25: return QStringLiteral("Y16");
+    case 26: return QStringLiteral("P010");
+    case 27: return QStringLiteral("P016");
+    case 28: return QStringLiteral("SamplerExternalOES");
+    case 29: return QStringLiteral("Jpeg");
+    case 30: return QStringLiteral("SamplerRect");
+    case 31: return QStringLiteral("YUV420P10");
+    default: return QString::number(pixelFormat);
+    }
+}
+
+} // namespace
+
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::PortIndex;
@@ -69,7 +124,7 @@ VideoOutputNode::VideoOutputNode()
     // Perf toggle (visible checkbox at top of controls panel)
     m_perfToggle = new QCheckBox(tr("Perf"), controlsWidget);
     m_perfToggle->setToolTip(tr("Enable/disable performance profiling for video pipeline"));
-    m_perfToggle->setChecked(true);  // Default on (matches current auto behavior)
+    m_perfToggle->setChecked(false);  // Default off — user opts in
     controlsLayout->addWidget(m_perfToggle);
 
     // Perf stats panel (simple QFormLayout for now)
@@ -168,12 +223,15 @@ VideoOutputNode::VideoOutputNode()
             return;
         }
 
-        const double fps = domain.count("source.frame_interval") > 0
-            ? 1000.0 / domain.avg("source.frame_interval")
-            : 0.0;
-        const double gapMs = domain.avg("source.frame_interval");
-        const double presentMs = domain.avg("output.present");
-        const double totalMs = domain.avg("output.total");
+        // All perf domain values are in nanoseconds (recorded by PERF_SCOPE).
+        const qint64 frameIntervalNs = domain.avg("source.frame_interval");
+        const qint64 presentNs = domain.avg("output.present");
+        const qint64 totalNs = domain.avg("output.total");
+
+        const double fps = frameIntervalNs > 0 ? 1e9 / static_cast<double>(frameIntervalNs) : 0.0;
+        const double gapMs = frameIntervalNs > 0 ? static_cast<double>(frameIntervalNs) / 1e6 : 0.0;
+        const double presentMs = presentNs > 0 ? static_cast<double>(presentNs) / 1e6 : 0.0;
+        const double totalMs = totalNs > 0 ? static_cast<double>(totalNs) / 1e6 : 0.0;
         const double cpuPercent = m_cpu.sample();
 
         m_fpsLabel->setText(QString::number(fps, 'f', 1));
@@ -182,17 +240,16 @@ VideoOutputNode::VideoOutputNode()
         m_totalLabel->setText(QString::number(totalMs, 'f', 1));
         m_cpuLabel->setText(QString::number(cpuPercent, 'f', 1));
 
-        // Qt5/Qt6 compatible check for NoHandle
-        const int noHandleValue = 0; // QVideoFrame::HandleType::NoHandle == 0 in both Qt5 and Qt6
-        const QString hwSw = (m_lastHandleType == noHandleValue) ? "SW" : "HW";
+        // HW/SW: use the display backend's GPU status (REQ-SW-PL-053)
+        const QString hwSw = (m_display && m_display->isGpuBackend()) ? QStringLiteral("HW") : QStringLiteral("SW");
         m_hwSwLabel->setText(hwSw);
 
-        m_formatLabel->setText(QString::number(m_lastPixelFormat));
-        m_handleLabel->setText(QString::number(m_lastHandleType));
+        // Format: readable string from pixel format (Qt6 numbering, matches VideoPerfBadge)
+        m_formatLabel->setText(pixelFormatName(m_lastPixelFormat));
+        m_handleLabel->setText(handleTypeName(m_lastHandleType));
     });
 
-    // Start perf refresh timer when controls are visible (always visible in this layout)
-    m_perfRefreshTimer->start();
+    // Timer starts only when perf checkbox is checked (default off)
 }
 
 void VideoOutputNode::buildEffectControls()
