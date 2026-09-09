@@ -41,7 +41,7 @@ DURATION_S="$4"
 
 # Test video file (HEVC 1920x1080 25fps, ~3x looped bars pattern). Generated
 # with ffmpeg; see tests/performance/flow-memory-perf-2026-09-02.md.
-VIDEO_FILE="/tmp/opencode/glblit/bars_h265_1080p25_x3.mp4"
+VIDEO_FILE="${VIDEO_FILE:-/tmp/opencode/glblit/bars_h265_1080p25_x3.mp4}"
 if [ ! -f "$VIDEO_FILE" ]; then
     echo "ERROR: video file not found: $VIDEO_FILE" >&2
     exit 2
