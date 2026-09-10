@@ -246,16 +246,15 @@ VideoOutputNode::VideoOutputNode()
 
     // Timer starts only when perf checkbox is checked (default off)
 
-    // ── Preview refresh timer (Option B) ────────────────────────────────────
-    // Throttled snapshot: fires every 2000 ms (~0.5 fps), converts the latest
-    // frame to a SMALL QImage and updates the in-node QLabel. Started on first
-    // frame arrival AND on widget Show (event filter); stopped on flow stop /
-    // input disconnect / widget Hide. The 2000 ms interval + scale-before-
-    // convert + visibility gate keep the preview cost negligible (REQ-SW-PL-053
-    // perf fix — the old 750 ms full-1080p conversion regressed 6/8 perf
-    // scenarios by >2pp).
+    // ── Preview single-shot timer (Option B, REQ-SW-PL-053) ─────────────────
+    // Fires ONCE per Play (~250 ms after first frame), converts ONE frame to a
+    // small QImage, sets the QLabel pixmap, and stops. Zero ongoing CPU cost
+    // after the first frame — no repeating timer, no per-frame conversion.
+    // Stopped on flow stop / input disconnect / widget Hide. On new Play the
+    // timer is re-armed when the first frame arrives in setInData().
     m_previewTimer = new QTimer(this);
-    m_previewTimer->setInterval(2000);
+    m_previewTimer->setSingleShot(true);
+    m_previewTimer->setInterval(250);
     connect(m_previewTimer, &QTimer::timeout, this, [this]() {
         updatePreview();
     });
@@ -263,6 +262,8 @@ VideoOutputNode::VideoOutputNode()
 
 void VideoOutputNode::updatePreview()
 {
+    // Single-shot callback: converts the latest frame ONCE per Play. The timer
+    // is not re-armed — zero ongoing cost after this returns.
     if (m_preview == nullptr)
         return;
 
@@ -616,6 +617,13 @@ void VideoOutputNode::stop()
     if (m_previewTimer != nullptr)
         m_previewTimer->stop();
 
+    // Reset the in-node preview: clear the pixmap and show "No video"
+    // placeholder so the next Play starts with a clean slate.
+    if (m_preview != nullptr) {
+        m_preview->setText(tr("No video"));
+        m_preview->setPixmap(QPixmap());
+    }
+
     // Hide the detached display window (kept for reuse — the widget and its
     // GL context stay alive; the window is re-shown on the next flow's first
     // frame via ensureDisplayWindow()).
@@ -906,10 +914,11 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                 }
             }
 
-            // ── In-node preview (Option B) ──────────────────────────────────
-            // Keep the latest frame for the throttled preview timer. The
-            // QImage conversion happens in updatePreview() at ~1.3 fps — NOT
-            // per frame — so the live path stays zero-copy.
+            // ── In-node preview (Option B, single-shot) ─────────────────────
+            // Keep the latest frame and arm the single-shot timer. The timer
+            // fires ONCE (~250 ms), converts the frame to a small QImage, sets
+            // the QLabel pixmap, and stops — zero ongoing CPU cost. On a new
+            // Play the timer is re-armed (previous stop cleared it).
             m_lastFrameForPreview = videoFrame;
             if (m_previewTimer != nullptr && !m_previewTimer->isActive())
                 m_previewTimer->start();
@@ -998,9 +1007,12 @@ bool VideoOutputNode::eventFilter(QObject *watched, QEvent *event)
 {
     if (watched == m_preview) {
         if (event->type() == QEvent::Show) {
-            // Preview became visible (node widget shown / deembedded): start
-            // the throttled snapshot timer if it is not already running.
-            if (m_previewTimer != nullptr && !m_previewTimer->isActive())
+            // Preview became visible (node widget shown / deembedded): arm
+            // the single-shot timer if a frame has already arrived — it will
+            // fire once, convert, and stop. If no frame arrived yet, the
+            // timer will be armed when the first frame arrives in setInData().
+            if (m_previewTimer != nullptr && !m_previewTimer->isActive()
+                && m_lastFrameForPreview && m_lastFrameForPreview->hasFrame())
                 m_previewTimer->start();
         } else if (event->type() == QEvent::Hide) {
             // Preview hidden (canvas hidden in --run mode, node collapsed):

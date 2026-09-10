@@ -35,13 +35,14 @@ class VideoFrameData;
  *   - port 0 "video-frame" — zero-copy VideoFrameData.
  *
  * Display architecture (Option B):
- *   1. **In-node preview**: QLabel (m_preview) showing a small (~200px wide)
- *      QImage snapshot at ~0.5 fps (m_previewTimer, 2000 ms interval,
- *      scale-before-convert — the full frame is never materialized). No GL,
- *      no scene repaint problem. Gated on visibility: the timer only runs
- *      while the label is shown (event filter) and updatePreview() skips when
- *      not visible — standalone --run mode costs zero. A "No video"
- *      placeholder is shown when no frame has arrived. The node widget
+ *   1. **In-node preview**: QLabel (m_preview) showing a single static (~200px
+ *      wide) QImage snapshot. Fires ONCE per Play (~250 ms after first frame)
+ *      via a single-shot timer — zero ongoing CPU cost. Scale-before-convert:
+ *      the full frame is never materialized. No GL, no scene repaint problem.
+ *      Gated on visibility: the timer only arms while the label is shown (event
+ *      filter) and updatePreview() skips when not visible — standalone --run
+ *      mode costs zero. On new Play the preview resets (clear / "No video"
+ *      placeholder) and a fresh frame is converted once. The node widget
  *      (embeddedWidget()) contains ONLY this QLabel — no controls, no GL
  *      display.
  *   2. **Detached window**: QWidget (m_displayWindow, Qt::Window flag) housing
@@ -120,11 +121,11 @@ public:
 
     QWidget *embeddedWidget() override;
 
-    /// Show/hide event filter on m_preview (REQ-SW-PL-053 perf fix): starts
-    /// the preview timer when the node widget becomes visible and stops it
+    /// Show/hide event filter on m_preview (REQ-SW-PL-053): arms the single-
+    /// shot preview timer when the node widget becomes visible and stops it
     /// when hidden — belt-and-suspenders on top of the isVisible() gate in
     /// updatePreview(). In standalone --run mode the canvas is hidden, so the
-    /// timer never runs → zero preview conversion cost.
+    /// timer never arms → zero preview conversion cost.
     bool eventFilter(QObject *watched, QEvent *event) override;
 
     /// The detached display widget (VideoGLBlitWidget / VideoSoftwareWidget).
@@ -138,8 +139,8 @@ public:
     QWidget *controlsWidget() const { return m_controlsWidget; }
 
     /// Stop background work (timers). Idempotent — safe to call multiple times
-    /// (REQ-SW-PL-050). Hides the detached display window and stops both the
-    /// preview timer and perf refresh timer.
+    /// (REQ-SW-PL-050). Hides the detached display window, stops the preview
+    /// and perf refresh timers, and resets the in-node preview to "No video".
     void stop() override;
 
     /// Enable/disable the Perf toggle (REQ-SW-PL-053). The Perf checkbox lives
@@ -178,11 +179,11 @@ private:
     void ensureDisplayWindow();
 
     /// Update the in-node QLabel preview from the latest frame snapshot.
-    /// Scale-before-convert (REQ-SW-PL-053): converts the frame DIRECTLY to a
-    /// ~200px-wide QImage via VideoFrameData::frameToImageScaled() (NV12 /
-    /// YUV420P subsampled during YUV→RGB — the full image is never built),
-    /// throttled by m_previewTimer (~0.5 fps). Skips entirely when the label
-    /// is not visible (standalone --run mode = zero cost).
+    /// Single-shot callback: converts ONCE per Play (scale-before-convert to
+    /// ~200px via VideoFrameData::frameToImageScaled()), sets the pixmap, and
+    /// returns — zero ongoing cost. The timer is NOT re-armed after this call.
+    /// Skips entirely when the label is not visible (standalone --run mode =
+    /// zero cost).
     void updatePreview();
 
     /// Select the embedded effect by combo index (REQ-SW-PL-034). Index 0 is
@@ -216,24 +217,23 @@ private:
     std::shared_ptr<VideoFrameData> m_output;
 
     // ── In-node preview (Option B) ──────────────────────────────────────────
-    /// QLabel showing a scaled QImage snapshot of the latest video frame.
-    /// Updated at ~1–2 fps by m_previewTimer. No GL — avoids scene repaint
-    /// problem. Shows "No video" placeholder text when no frame has arrived.
+    /// QLabel showing a single static QImage snapshot of the latest video frame.
+    /// Updated once per Play by the single-shot m_previewTimer (~250 ms after
+    /// first frame). No GL — avoids scene repaint problem. Shows "No video"
+    /// placeholder text when no frame has arrived.
     QLabel *m_preview = nullptr;
 
-    /// Timer driving the in-node QLabel preview update. Fires every 2000 ms
-    /// (~0.5 fps), grabs the latest frame from m_lastFrameForPreview, converts
-    /// it to a SMALL QImage (scale-before-convert), and sets m_preview pixmap.
-    /// Started on first frame arrival AND on widget Show (event filter);
-    /// stopped on flow stop / input disconnect / widget Hide (REQ-SW-PL-053
-    /// perf fix — the old 750 ms full-1080p conversion regressed 6/8 perf
-    /// scenarios by >2pp).
+    /// Single-shot timer for the in-node preview (REQ-SW-PL-053). Armed on
+    /// first frame arrival (setInData) or widget Show (event filter). Fires
+    /// ONCE, converts the latest frame to a SMALL QImage (scale-before-convert),
+    /// sets m_preview pixmap, and stops — zero ongoing CPU cost. Stopped on flow
+    /// stop / input disconnect / widget Hide.
     QTimer *m_previewTimer = nullptr;
 
-    /// Last received video frame, kept for the preview timer to convert at
-    /// ~0.5 fps (scale-before-convert to ~200px). Avoids per-frame QImage
-    /// conversion (the display widget gets the frame directly for zero-copy
-    /// presentation).
+    /// Last received video frame, kept for the single-shot preview timer to
+    /// convert once per Play (scale-before-convert to ~200px). Avoids per-frame
+    /// QImage conversion (the display widget gets the frame directly for
+    /// zero-copy presentation).
     std::shared_ptr<VideoFrameData> m_lastFrameForPreview;
 
     // ── Detached display window (Option B) ──────────────────────────────────
