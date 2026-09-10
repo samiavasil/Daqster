@@ -646,7 +646,11 @@ void VideoOutputNode::logPerfLine()
 
     // Sample self-CPU first: the first sample only establishes the baseline and
     // returns 0.0 (the "cpu=0.0%" on the very first line is expected).
-    const double cpuPercent = m_cpu.sample();
+    // m_consoleCpu is a DEDICATED instance (not m_cpu): the 500 ms UI refresh
+    // timer samples m_cpu destructively ~10x between console prints, so sharing
+    // it would make this cpu= a ~0-500 ms delta (idle windows → 0 values)
+    // instead of a true 5 s average.
+    const double cpuPercent = m_consoleCpu.sample();
 
     // Log only once there are actual frame records (count > 0).
     if (domain.count("output.total") <= 0

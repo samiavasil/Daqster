@@ -282,7 +282,17 @@ private:
     /// (REQ-SW-PL-027). Restored in REQ-SW-PL-053 after the detached-window
     /// refactor removed it — the measurement harness depends on this line.
     QTimer *m_consoleTimer = nullptr;
+    /// Self-CPU sampler for the 500 ms UI refresh timer (CPU label in the
+    /// controls panel). sample() is destructive (resets the baseline each
+    /// call), so it MUST NOT be shared with the 5 s console timer — otherwise
+    /// the console's cpu= value would be a delta over ~0-500 ms (idle windows
+    /// → 0 values) instead of a true 5 s average.
     Daqster::Perf::ProcessCpu m_cpu;
+    /// Self-CPU sampler for the 5 s console timer (logPerfLine). Its OWN
+    /// instance keeps the [PERF] video cpu= value a true 5 s delta, immune to
+    /// the 500 ms UI refresh timer resetting the shared baseline ~10x between
+    /// console prints.
+    Daqster::Perf::ProcessCpu m_consoleCpu;
     int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
     int m_lastPixelFormat = -1;    // normalized (Qt6 numbering, see VideoCompat)
 
