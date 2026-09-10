@@ -131,6 +131,18 @@ public:
     /// preview timer and perf refresh timer.
     void stop() override;
 
+    /// Enable/disable the Perf toggle (REQ-SW-PL-053). The Perf checkbox lives
+    /// in the DETACHED window's controls pane, so the headless autostart driver
+    /// (NodeEditorIdeObject::startVideoPlayback) cannot reach it via
+    /// embeddedWidget() — this slot is invoked through the meta-object system
+    /// (QMetaObject::invokeMethod) to avoid a cross-plugin link dependency.
+    Q_INVOKABLE void setPerfEnabled(bool enabled);
+
+    /// Emit the [PERF] video console line (REQ-SW-PL-027, both Qt5 + Qt6).
+    /// Driven by m_consoleTimer (5 s) while the Perf toggle is checked. The
+    /// measurement harness greps for this line to validate playback started.
+    void logPerfLine();
+
     /// Track downstream connections on the output port so the per-frame
     /// QImage conversion only happens while a processing consumer is connected.
     void outputConnectionCreated(QtNodes::ConnectionId const &conId) override;
@@ -247,6 +259,10 @@ private:
     /// the 5 s console timer; m_cpu samples self-CPU; the markers tag the last
     /// presented frame (Qt5 via the normalized VideoCompat::pixelFormatInt()).
     QTimer *m_perfRefreshTimer = nullptr;
+    /// 5 s timer emitting the [PERF] video console line while Perf is enabled
+    /// (REQ-SW-PL-027). Restored in REQ-SW-PL-053 after the detached-window
+    /// refactor removed it — the measurement harness depends on this line.
+    QTimer *m_consoleTimer = nullptr;
     Daqster::Perf::ProcessCpu m_cpu;
     int m_lastHandleType = 0;      // QVideoFrame::HandleType (NoHandle = 0)
     int m_lastPixelFormat = -1;    // normalized (Qt6 numbering, see VideoCompat)

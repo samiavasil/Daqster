@@ -8,6 +8,7 @@
 #include "VideoDisplayBackend.h"
 #include "VideoDisplayWidget.h"
 #include "VideoGLBlitWidget.h"
+#include "VideoPerfBadge.h"
 #include "VideoSoftwareWidget.h"
 
 #include <QComboBox>
@@ -160,8 +161,10 @@ VideoOutputNode::VideoOutputNode()
         domain.setEnabled(checked);
         if (checked) {
             m_perfRefreshTimer->start();
+            m_consoleTimer->start();
         } else {
             m_perfRefreshTimer->stop();
+            m_consoleTimer->stop();
             // Clear labels when perf is disabled
             m_fpsLabel->setText("--");
             m_gapLabel->setText("--");
@@ -173,6 +176,14 @@ VideoOutputNode::VideoOutputNode()
             m_handleLabel->setText("--");
         }
     });
+
+    // [PERF] video console line (REQ-SW-PL-027, both Qt5 + Qt6): 5 s timer
+    // emitting the copy-paste-able steady-state pipeline report. The
+    // measurement harness (tools/measure_flow_memory.sh) greps for this line
+    // to validate that video playback started.
+    m_consoleTimer = new QTimer(this);
+    m_consoleTimer->setInterval(5000);
+    connect(m_consoleTimer, &QTimer::timeout, this, &VideoOutputNode::logPerfLine);
 
     // Embedded effects (REQ-SW-PL-034): optional, default "No effect" — the
     // zero-copy passthrough is preserved until the user selects an effect.
@@ -576,6 +587,8 @@ void VideoOutputNode::stop()
     // Idempotent: stopping an already-stopped timer is a no-op.
     if (m_perfRefreshTimer != nullptr)
         m_perfRefreshTimer->stop();
+    if (m_consoleTimer != nullptr)
+        m_consoleTimer->stop();
     if (m_previewTimer != nullptr)
         m_previewTimer->stop();
 
@@ -585,6 +598,41 @@ void VideoOutputNode::stop()
     m_displayWindowShown = false;
     if (m_displayWindow != nullptr)
         m_displayWindow->hide();
+}
+
+void VideoOutputNode::setPerfEnabled(bool enabled)
+{
+    if (m_perfToggle != nullptr)
+        m_perfToggle->setChecked(enabled);
+}
+
+void VideoOutputNode::logPerfLine()
+{
+    auto &domain = Daqster::Perf::Domain::get("video");
+    if (!domain.enabled())
+        return;
+
+    // Sample self-CPU first: the first sample only establishes the baseline and
+    // returns 0.0 (the "cpu=0.0%" on the very first line is expected).
+    const double cpuPercent = m_cpu.sample();
+
+    // Log only once there are actual frame records (count > 0).
+    if (domain.count("output.total") <= 0
+        && domain.count("source.frame_interval") <= 0) {
+        return;
+    }
+
+    // Log at Info level WITHOUT a category (qInfo() instead of qCDebug(lcPerf)):
+    // the "daqster.perf" category is disabled by default in LogManager, so a
+    // qCDebug(lcPerf) line would be silently filtered and the [PERF] report
+    // would never reach the console. qInfo() is unconditional (like the FFmpeg
+    // [INF] lines) and guarantees the report is always visible when Perf is on.
+    qInfo().noquote()
+        << formatPerfLine(domain.avg("source.frame_interval"),
+                          domain.avg("output.present"),
+                          domain.avg("output.total"),
+                          cpuPercent,
+                          m_lastHandleType, m_lastPixelFormat);
 }
 
 QJsonObject VideoOutputNode::save() const

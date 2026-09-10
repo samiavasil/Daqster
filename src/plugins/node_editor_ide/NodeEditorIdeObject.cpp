@@ -810,7 +810,9 @@ void NodeEditorIdeObject::startVideoPlayback()
     }
 
     // Enable the Perf checkbox on the output node (drives the [PERF] console
-    // line + badge).
+    // line + badge). REQ-SW-PL-053: the controls (incl. the Perf toggle) live
+    // in the DETACHED display window, not in the embedded node widget — the
+    // VideoOutputNode exposes setPerfEnabled() for the detached-controls case.
     auto* outModel = gm->delegateModel<QtNodes::NodeDelegateModel>(outId);
     if (outModel != nullptr) {
         QWidget* w = outModel->embeddedWidget();
@@ -839,6 +841,13 @@ void NodeEditorIdeObject::startVideoPlayback()
                     }
                 }
             }
+        }
+
+        // REQ-SW-PL-053: the Perf toggle moved to the detached window's
+        // controls pane — enable it through the node's slot (no cross-plugin
+        // link dependency; the slot is invoked via the meta-object system).
+        if (!QMetaObject::invokeMethod(outModel, "setPerfEnabled", Q_ARG(bool, true))) {
+            DEBUG << "startVideoPlayback: output node has no setPerfEnabled slot";
         }
     }
 }
