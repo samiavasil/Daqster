@@ -228,7 +228,9 @@
     ПУСНАТО видео (VideoFileSource → N× VideoOutput fan-out / effect chain)
   - `tools/measure_flow_memory.sh` — харнес за RSS/CPU измерване на flow сцени
     с `DAQSTER_VIDEO_FILE` (видео върви + Perf включен), PERF-верификация
-    (`[PERF] video … fps=25`), 2 s RSS/CPU семпли, blocking stdin
+    (`[PERF] video … fps=25`), 5 s RSS семпли + външно CPU семплиране от
+    `/proc/<pid>/stat` (utime+stime делти — единна методология за всички
+    commits, независимо от вътрешния ProcessCpu), blocking stdin
   - `tests/performance/flow-memory-perf-2026-09-02.md` — резултати: scene cost
     с видео (Qt5 + Qt6), per-view cost (~7.8 MB Qt5 / ~11.4 MB Qt6), node
     deletion memory release, Qt5 vs Qt6 сравнение

@@ -8,18 +8,21 @@
 # Launches the Daqster NodeEditorIde with:
 #   DAQSTER_AUTOSTART_FLOW=<flow_file>   (loads the scene headlessly)
 #   DAQSTER_VIDEO_FILE=<video>           (starts video playback + Perf)
-# samples RSS (VmRSS from /proc/<pid>/status) and CPU (ps pcpu) every 2 s,
-# then kills the app and prints:
+# samples RSS (VmRSS from /proc/<pid>/status) every 5 s and CPU externally
+# from /proc/<pid>/stat (utime+stime deltas, same method as ProcessCpu but
+# measured outside the app) every 5 s, then kills the app and prints:
 #   LABEL | RSS_MIN_KB | RSS_MAX_KB | RSS_AVG_KB | RSS_DELTA_KB | CPU_AVG_PCT | CPU_PERF_PCT | PERF_LINES | PERF_FPS
 #
 # CPU metrics:
 #   CPU_AVG_PCT  — ps -o pcpu= lifetime average (cputime/realtime since process
 #                  start). Includes the startup spike (scene load, GL context
 #                  creation, shader compile, decode ramp). NOT comparable to
-#                  the PERF cpu= steady-state values.
-#   CPU_PERF_PCT — last 3 PERF cpu= interval values from the log (steady-state
-#                  pipeline CPU during playback). Use this for apples-to-apples
-#                  CPU comparisons.
+#                  steady-state values.
+#   CPU_PERF_PCT — last 3 external CPU samples from /proc/<pid>/stat (utime+stime
+#                  deltas over 5 s wall-clock intervals). This is the steady-state
+#                  pipeline CPU during playback. Use this for apples-to-apples
+#                  CPU comparisons. Uniform methodology: works identically across
+#                  all commits regardless of internal ProcessCpu implementation.
 #
 # PERF verification: the log is scanned for `[PERF] video` lines (fps=25).
 # If a video flow produced NO PERF lines, the video did not start and the
@@ -52,6 +55,8 @@ case "$QT_VER" in
     qt6) QT_ROOT="/mnt/Builder/bin/Linux/Qt/6.9.2/gcc_64" ;;
     *) echo "ERROR: qt version must be qt5 or qt6, got '$QT_VER'" >&2; exit 2 ;;
 esac
+
+CLK_TCK=$(getconf CLK_TCK)
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$REPO_DIR/build_qt${QT_VER#qt}/bin/Daqster"
@@ -102,8 +107,12 @@ sleep 3
 
 RSS_SAMPLES=()
 CPU_SAMPLES=()
+CPU_EXT_SAMPLES=()
 RSS_FIRST=""
 RSS_LAST=""
+PREV_UTIME=""
+PREV_STIME=""
+PREV_WALL=""
 
 END=$(( $(date +%s) + DURATION_S ))
 while [ "$(date +%s)" -lt "$END" ]; do
@@ -121,7 +130,33 @@ while [ "$(date +%s)" -lt "$END" ]; do
     if [ -n "$CPU_PCT" ]; then
         CPU_SAMPLES+=("$CPU_PCT")
     fi
-    sleep 2
+
+    # External CPU sampling from /proc/<pid>/stat (fields 14+15 = utime+stime
+    # in clock ticks). Same method as ProcessCpu::sample() but measured outside
+    # the app, so it is uniform across all commits.
+    if [ -r "/proc/$APP_PID/stat" ]; then
+        STAT_LINE=$(cat "/proc/$APP_PID/stat" 2>/dev/null)
+        if [ -n "$STAT_LINE" ]; then
+            # comm field can contain spaces/parens — parse from the LAST ')'.
+            AFTER_PAREN="${STAT_LINE##*) }"
+            UTIME=$(echo "$AFTER_PAREN" | awk '{print $12}')
+            STIME=$(echo "$AFTER_PAREN" | awk '{print $13}')
+            NOW_WALL=$(date +%s%N)
+            if [ -n "$PREV_UTIME" ] && [ -n "$PREV_STIME" ] && [ -n "$PREV_WALL" ]; then
+                DELTA_TICKS=$(( (UTIME - PREV_UTIME) + (STIME - PREV_STIME) ))
+                DELTA_WALL_NS=$(( NOW_WALL - PREV_WALL ))
+                if [ "$DELTA_TICKS" -ge 0 ] && [ "$DELTA_WALL_NS" -gt 0 ]; then
+                    CPU_EXT=$(awk -v dt="$DELTA_TICKS" -v clk="$CLK_TCK" -v dw="$DELTA_WALL_NS" \
+                        'BEGIN { printf "%.1f", (dt / clk) / (dw / 1000000000.0) * 100 }')
+                    CPU_EXT_SAMPLES+=("$CPU_EXT")
+                fi
+            fi
+            PREV_UTIME="$UTIME"
+            PREV_STIME="$STIME"
+            PREV_WALL="$NOW_WALL"
+        fi
+    fi
+    sleep 5
 done
 
 # Kill the app and the blocking tail.
@@ -157,14 +192,25 @@ done
 CPU_AVG=$(awk -v s="$CPU_SUM" -v n="${#CPU_SAMPLES[@]}" 'BEGIN { printf "%.2f", s / n }')
 
 # PERF verification: count [PERF] video lines and extract fps values.
+# NOTE: the cpu= values in these lines come from the app's INTERNAL
+# ProcessCpu::sample() which is buggy in old commits (shared sampler → 0-values,
+# understated). We do NOT use them for the report — CPU_PERF_PCT comes from the
+# external /proc/<pid>/stat sampling above, which is uniform across all commits.
 PERF_LINES=$(grep -c "\[PERF\] video" "$LOG_FILE" 2>/dev/null || true)
 PERF_FPS=$(grep -o "fps=[0-9.]*" "$LOG_FILE" 2>/dev/null | sort -u | tr '\n' ',' | sed 's/,$//')
 
-# PERF steady-state CPU: last 3 cpu= interval values from the log.
-PERF_CPU=$(grep -o 'cpu=[0-9.]*%' "$LOG_FILE" 2>/dev/null | tail -3 | tr '\n' ' ')
-[ -n "$PERF_CPU" ] || PERF_CPU="n/a"
+# CPU_PERF_PCT: last 3 external CPU samples (steady-state pipeline CPU).
+if [ "${#CPU_EXT_SAMPLES[@]}" -ge 1 ]; then
+    CPU_PERF_PCT=""
+    for v in "${CPU_EXT_SAMPLES[@]: -3}"; do
+        CPU_PERF_PCT="$CPU_PERF_PCT $v%"
+    done
+    CPU_PERF_PCT="${CPU_PERF_PCT# }"
+else
+    CPU_PERF_PCT="n/a"
+fi
 
-echo "$LABEL | $RSS_MIN | $RSS_MAX | $RSS_AVG | $RSS_DELTA | $CPU_AVG | CPU_PERF_PCT=$PERF_CPU | PERF_LINES=$PERF_LINES | FPS=$PERF_FPS"
+echo "$LABEL | $RSS_MIN | $RSS_MAX | $RSS_AVG | $RSS_DELTA | $CPU_AVG | CPU_PERF_PCT=$CPU_PERF_PCT | PERF_LINES=$PERF_LINES | FPS=$PERF_FPS"
 
 # A video flow with zero PERF lines means playback never started → invalid.
 if [ "$PERF_LINES" -eq 0 ] && ! grep -q "VideoFileSource" "$FLOW_FILE"; then
