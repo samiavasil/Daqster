@@ -13,6 +13,7 @@
 #include <QOpenGLFunctions>
 #include <QSurfaceFormat>
 
+#include <algorithm>
 #include <functional>
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -244,6 +245,162 @@ public:
 
         // NV12 / YUV420P: pure-CPU BT.601 conversion.
         return yuvToImage(frame);
+    }
+
+    /// Convert a QVideoFrame to a SMALL QImage (preview thumbnail) without
+    /// materializing the full-resolution image first (REQ-SW-PL-053 perf fix).
+    ///
+    /// The source planes are sampled directly into a target image whose width
+    /// is at most maxWidth (aspect ratio preserved, nearest-neighbor). For
+    /// NV12 / YUV420P this is a subsampled BT.601 YUV→RGB conversion — the
+    /// full 1080p image is never created, so the preview path costs roughly
+    /// (maxWidth / frameWidth)² of a full conversion. RGB formats are sampled
+    /// from the mapped bits the same way.
+    ///
+    /// GPU-resident RGBA frames are NOT handled here (no mapped planes) —
+    /// callers fall back to asImage() (readback) for those.
+    ///
+    /// Returns a null QImage for unsupported formats or a failed map.
+    static QImage frameToImageScaled(const QVideoFrame &frame, int maxWidth)
+    {
+        if (!frame.isValid() || maxWidth <= 0)
+            return QImage();
+
+        const int w = frame.width();
+        const int h = frame.height();
+        if (w <= 0 || h <= 0)
+            return QImage();
+
+        const int tw = std::min(w, maxWidth);
+        const int th = std::max(1, (h * tw) / w);
+
+        const bool nv12 = isNv12(frame);
+        const bool yuv420p = isYuv420p(frame);
+
+        // RGB format info (bytes per pixel + channel order). bpp == 0 means
+        // the format is unsupported (mirrors frameToImageCpu's format set).
+        int bpp = 0;
+        bool bgrOrder = false;
+        if (!nv12 && !yuv420p) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+            switch (frame.surfaceFormat().pixelFormat()) {
+            case QVideoFrameFormat::Format_BGRX8888:
+            case QVideoFrameFormat::Format_BGRA8888:
+            case QVideoFrameFormat::Format_BGRA8888_Premultiplied:
+                bpp = 4; bgrOrder = true; break;
+            case QVideoFrameFormat::Format_RGBA8888:
+            case QVideoFrameFormat::Format_RGBX8888:
+                bpp = 4; bgrOrder = false; break;
+            default: break;
+            }
+#elif QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+            switch (frame.surfaceFormat().pixelFormat()) {
+            case QVideoFrameFormat::Format_RGB32:
+            case QVideoFrameFormat::Format_ARGB32:
+            case QVideoFrameFormat::Format_ARGB32_Premultiplied:
+                bpp = 4; bgrOrder = true; break;
+            case QVideoFrameFormat::Format_RGB24:
+                bpp = 3; bgrOrder = false; break;
+            case QVideoFrameFormat::Format_RGB565:
+                bpp = 2; bgrOrder = false; break;
+            default: break;
+            }
+#else
+            switch (frame.pixelFormat()) {
+            case QVideoFrame::Format_RGB32:
+            case QVideoFrame::Format_ARGB32:
+            case QVideoFrame::Format_ARGB32_Premultiplied:
+                bpp = 4; bgrOrder = true; break;
+            case QVideoFrame::Format_RGB24:
+                bpp = 3; bgrOrder = false; break;
+            case QVideoFrame::Format_RGB565:
+                bpp = 2; bgrOrder = false; break;
+            default: break;
+            }
+#endif
+            if (bpp == 0)
+                return QImage();
+        }
+
+        // map()/bits() are non-const in Qt5 — implicit-share local copy (the
+        // owned frame itself is never modified).
+        QVideoFrame mappable = frame;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        if (!mappable.map(QVideoFrame::ReadOnly))
+            return QImage();
+#else
+        if (!mappable.map(QAbstractVideoBuffer::ReadOnly))
+            return QImage();
+#endif
+
+        QImage img(tw, th, QImage::Format_RGB32);
+
+        if (nv12 || yuv420p) {
+            // Subsampled BT.601 YUV→RGB: sample the source planes at
+            // srcRow/srcCol = dst * (src/dst) — the full image is never built.
+            const uchar *yPlane = mappable.bits(0);
+            const uchar *uPlane = mappable.bits(1);
+            const uchar *vPlane = nv12 ? nullptr : mappable.bits(2);
+            const int yStride = mappable.bytesPerLine(0);
+            const int uStride = mappable.bytesPerLine(1);
+            const int vStride = nv12 ? 0 : mappable.bytesPerLine(2);
+
+            for (int row = 0; row < th; ++row) {
+                const int srcRow = (row * h) / th;
+                QRgb *dst = reinterpret_cast<QRgb *>(img.scanLine(row));
+                const uchar *yRow = yPlane + srcRow * yStride;
+                const int chromaRow = srcRow / 2;
+                const uchar *uvRow = nv12 ? (uPlane + chromaRow * uStride) : nullptr;
+                for (int col = 0; col < tw; ++col) {
+                    const int srcCol = (col * w) / tw;
+                    const int y = yRow[srcCol];
+                    const int chromaCol = srcCol / 2;
+                    int u, v;
+                    if (nv12) {
+                        u = uvRow[chromaCol * 2];
+                        v = uvRow[chromaCol * 2 + 1];
+                    } else {
+                        u = uPlane[chromaRow * uStride + chromaCol];
+                        v = vPlane[chromaRow * vStride + chromaCol];
+                    }
+                    // BT.601 limited-range YUV → RGB.
+                    const int c = y - 16;
+                    const int d = u - 128;
+                    const int e = v - 128;
+                    const int r = qBound(0, (298 * c + 409 * e + 128) >> 8, 255);
+                    const int g = qBound(0, (298 * c - 100 * d - 208 * e + 128) >> 8, 255);
+                    const int b = qBound(0, (298 * c + 516 * d + 128) >> 8, 255);
+                    dst[col] = qRgb(r, g, b);
+                }
+            }
+        } else {
+            // RGB formats: sample the mapped bits directly (nearest-neighbor).
+            const uchar *bits = mappable.bits(0);
+            const int stride = mappable.bytesPerLine(0);
+            for (int row = 0; row < th; ++row) {
+                const int srcRow = (row * h) / th;
+                const uchar *src = bits + srcRow * stride;
+                QRgb *dst = reinterpret_cast<QRgb *>(img.scanLine(row));
+                for (int col = 0; col < tw; ++col) {
+                    const int srcCol = (col * w) / tw;
+                    const uchar *p = src + srcCol * bpp;
+                    if (bpp == 4) {
+                        dst[col] = bgrOrder ? qRgb(p[2], p[1], p[0])
+                                            : qRgb(p[0], p[1], p[2]);
+                    } else if (bpp == 3) {
+                        dst[col] = qRgb(p[0], p[1], p[2]);
+                    } else { // bpp == 2, RGB565 (little-endian)
+                        const quint16 v = (static_cast<quint16>(p[1]) << 8) | p[0];
+                        const int r5 = (v >> 11) & 0x1F;
+                        const int g6 = (v >> 5) & 0x3F;
+                        const int b5 = v & 0x1F;
+                        dst[col] = qRgb((r5 * 255) / 31, (g6 * 255) / 63, (b5 * 255) / 31);
+                    }
+                }
+            }
+        }
+        mappable.unmap();
+        return img;
     }
 
     /// Pure-CPU BT.601 YUV→RGB conversion for NV12 / YUV420P frames.

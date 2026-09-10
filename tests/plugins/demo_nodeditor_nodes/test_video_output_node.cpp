@@ -316,12 +316,12 @@ void VideoOutputNodeTest::cpuEffectAppliesToGpuRgbaInput()
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 // ── gpuRgbaRoutesToGlBlitWidget (REQ-SW-PL-053) ──────────────────────────────
 //
-// The unified display (REQ-SW-PL-053) selects the backend ONCE at construction:
-// hardware GL → VideoGLBlitWidget (GPU), else VideoSoftwareWidget (CPU). The
-// display widget is a CHILD of m_widget (layout-friendly — works embedded and
-// detached). GpuRgba frames (effect outputs) route to presentTexture
-// (zero-copy) on the GL backend. The old detached top-level window +
-// per-frame QVideoWidget switching are removed.
+// Option B — embedded placeholder + always-detached display: the unified
+// display (REQ-SW-PL-053) selects the backend ONCE at construction (lazily on
+// first frame arrival): hardware GL → VideoGLBlitWidget (GPU), else
+// VideoSoftwareWidget (CPU). The display widget lives in the DETACHED window
+// (not in the node widget). GpuRgba frames (effect outputs) route to
+// presentTexture (zero-copy) on the GL backend.
 void VideoOutputNodeTest::gpuRgbaRoutesToGlBlitWidget()
 {
     if (!VideoGLContextManager::hasHardwareGL())
@@ -332,11 +332,12 @@ void VideoOutputNodeTest::gpuRgbaRoutesToGlBlitWidget()
     VideoOutputNode node;
     node.inputConnectionCreated(makeConId(0, 0));
 
-    // (b) The display widget is a child of m_widget (embeddedWidget()).
+    // (b) The display widget is created LAZILY on first frame arrival and
+    // lives in the DETACHED window (Option B) — not in the node widget.
     QWidget *embedded = node.embeddedWidget();
     QVERIFY(embedded != nullptr);
-    auto *glDisplay = embedded->findChild<VideoGLBlitWidget *>();
-    QVERIFY(glDisplay != nullptr);  // GL backend selected (hardware GL)
+    // Before the first frame: no display widget yet.
+    QVERIFY(node.displayWidget() == nullptr);
 
     // (a) GpuRgba frame (effect output) routes to the GL blit widget.
     // The texture handle is a placeholder — the routing decision only needs
@@ -348,6 +349,12 @@ void VideoOutputNodeTest::gpuRgbaRoutesToGlBlitWidget()
     h.rgba = true;
     h.texY = 1;
     node.setInData(VideoFrameData::fromTexture(h), 0);
+
+    // After the first frame: the detached window + GL blit widget exist.
+    // VideoDisplayWidget is a pure interface (not QObject-derived) — use
+    // dynamic_cast to recover the concrete GL backend.
+    auto *glDisplay = dynamic_cast<VideoGLBlitWidget *>(node.displayWidget());
+    QVERIFY(glDisplay != nullptr);  // GL backend selected (hardware GL)
 
     // The GL widget received the texture present (zero-copy presentTexture).
     QCOMPARE(glDisplay->lastFormatName(), QStringLiteral("Texture(RGBA)"));

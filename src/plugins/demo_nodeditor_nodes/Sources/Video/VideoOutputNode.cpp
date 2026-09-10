@@ -15,6 +15,7 @@
 #include <QCoreApplication>
 #include <QCheckBox>
 #include <QDateTime>
+#include <QEvent>
 #include <QFile>
 #include <QFormLayout>
 #include <QLabel>
@@ -111,6 +112,11 @@ VideoOutputNode::VideoOutputNode()
     m_preview->setText(tr("No video"));
     m_preview->setStyleSheet(QStringLiteral(
         "QLabel { background: #1e1e1e; color: #888; border: 1px solid #444; }"));
+
+    // Show/hide gate (REQ-SW-PL-053 perf fix): start the preview timer only
+    // while the label is actually visible (start on Show, stop on Hide). In
+    // standalone --run mode the canvas is hidden → the timer never runs.
+    m_preview->installEventFilter(this);
 
     QVBoxLayout *mainLayout = new QVBoxLayout(m_widget);
     mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -241,11 +247,15 @@ VideoOutputNode::VideoOutputNode()
     // Timer starts only when perf checkbox is checked (default off)
 
     // ── Preview refresh timer (Option B) ────────────────────────────────────
-    // Throttled snapshot: fires every 750 ms (~1.3 fps), converts the latest
-    // frame to QImage and updates the in-node QLabel. Started on first frame
-    // arrival, stopped on flow stop / input disconnect.
+    // Throttled snapshot: fires every 2000 ms (~0.5 fps), converts the latest
+    // frame to a SMALL QImage and updates the in-node QLabel. Started on first
+    // frame arrival AND on widget Show (event filter); stopped on flow stop /
+    // input disconnect / widget Hide. The 2000 ms interval + scale-before-
+    // convert + visibility gate keep the preview cost negligible (REQ-SW-PL-053
+    // perf fix — the old 750 ms full-1080p conversion regressed 6/8 perf
+    // scenarios by >2pp).
     m_previewTimer = new QTimer(this);
-    m_previewTimer->setInterval(750);
+    m_previewTimer->setInterval(2000);
     connect(m_previewTimer, &QTimer::timeout, this, [this]() {
         updatePreview();
     });
@@ -256,6 +266,14 @@ void VideoOutputNode::updatePreview()
     if (m_preview == nullptr)
         return;
 
+    // Visibility gate (REQ-SW-PL-053 perf fix): in standalone --run mode the
+    // node widgets ARE created (loadFlow builds the scene) but the canvas is
+    // hidden — the preview label is never visible, so skip the conversion
+    // entirely (zero cost). The event filter additionally stops the timer on
+    // Hide, so this gate is the second line of defense.
+    if (!m_preview->isVisible())
+        return;
+
     // No frame yet → keep the placeholder text.
     if (!m_lastFrameForPreview || !m_lastFrameForPreview->hasFrame()) {
         m_preview->setText(tr("No video"));
@@ -263,26 +281,32 @@ void VideoOutputNode::updatePreview()
         return;
     }
 
-    // Convert the latest frame to QImage (cached per frame by VideoFrameData,
-    // so repeated timer ticks on the same frame are cheap) and scale it to the
-    // label size keeping aspect ratio. SmoothTransformation keeps the snapshot
-    // readable at small preview sizes.
-    const QImage image = m_lastFrameForPreview->asImage();
+    // Scale-before-convert (REQ-SW-PL-053 perf fix): convert the frame
+    // DIRECTLY to a small preview (~200px wide, aspect preserved) instead of
+    // materializing the full 1080p QImage and scaling it afterwards. NV12 /
+    // YUV420P frames are subsampled during the YUV→RGB conversion — the full
+    // image is never built, so the preview costs ~(200/1920)² of a full
+    // conversion. GPU-resident RGBA frames (effect output) and unsupported
+    // CPU formats fall back to asImage() (readback — unavoidable) + scale.
+    const int kPreviewMaxWidth = 200;
+    QImage image = VideoFrameData::frameToImageScaled(
+        m_lastFrameForPreview->frame(), kPreviewMaxWidth);
+    if (image.isNull()) {
+        const QImage full = m_lastFrameForPreview->asImage();
+        if (!full.isNull()) {
+            const QSize target = full.size().scaled(
+                QSize(kPreviewMaxWidth, kPreviewMaxWidth), Qt::KeepAspectRatio);
+            image = full.scaled(target, Qt::KeepAspectRatio,
+                                Qt::SmoothTransformation);
+        }
+    }
     if (image.isNull()) {
         m_preview->setText(tr("No video"));
         m_preview->setPixmap(QPixmap());
         return;
     }
 
-    const QSize labelSize = m_preview->size();
-    QSize scaled = image.size();
-    if (labelSize.isValid() && !labelSize.isEmpty()) {
-        scaled = image.size().scaled(labelSize, Qt::KeepAspectRatio);
-    }
-    const QPixmap pixmap = QPixmap::fromImage(
-        scaled == image.size() ? image : image.scaled(scaled, Qt::KeepAspectRatio,
-                                                      Qt::SmoothTransformation));
-    m_preview->setPixmap(pixmap);
+    m_preview->setPixmap(QPixmap::fromImage(image));
 }
 
 void VideoOutputNode::ensureDisplayWindow()
@@ -968,4 +992,22 @@ void VideoOutputNode::inputConnectionDeleted(QtNodes::ConnectionId const &conId)
 QWidget *VideoOutputNode::embeddedWidget()
 {
     return m_widget;
+}
+
+bool VideoOutputNode::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_preview) {
+        if (event->type() == QEvent::Show) {
+            // Preview became visible (node widget shown / deembedded): start
+            // the throttled snapshot timer if it is not already running.
+            if (m_previewTimer != nullptr && !m_previewTimer->isActive())
+                m_previewTimer->start();
+        } else if (event->type() == QEvent::Hide) {
+            // Preview hidden (canvas hidden in --run mode, node collapsed):
+            // stop the timer — no conversion while not visible.
+            if (m_previewTimer != nullptr)
+                m_previewTimer->stop();
+        }
+    }
+    return QObject::eventFilter(watched, event);
 }

@@ -35,11 +35,15 @@ class VideoFrameData;
  *   - port 0 "video-frame" — zero-copy VideoFrameData.
  *
  * Display architecture (Option B):
- *   1. **In-node preview**: QLabel (m_preview) showing a scaled QImage snapshot
- *      at ~1–2 fps (m_previewTimer, 750 ms interval). No GL, no scene repaint
- *      problem. A "No video" placeholder is shown when no frame has arrived.
- *      The node widget (embeddedWidget()) contains ONLY this QLabel — no
- *      controls, no GL display.
+ *   1. **In-node preview**: QLabel (m_preview) showing a small (~200px wide)
+ *      QImage snapshot at ~0.5 fps (m_previewTimer, 2000 ms interval,
+ *      scale-before-convert — the full frame is never materialized). No GL,
+ *      no scene repaint problem. Gated on visibility: the timer only runs
+ *      while the label is shown (event filter) and updatePreview() skips when
+ *      not visible — standalone --run mode costs zero. A "No video"
+ *      placeholder is shown when no frame has arrived. The node widget
+ *      (embeddedWidget()) contains ONLY this QLabel — no controls, no GL
+ *      display.
  *   2. **Detached window**: QWidget (m_displayWindow, Qt::Window flag) housing
  *      a QSplitter with the unified VideoDisplayWidget (GL blit default / SW
  *      fallback) on the left and controls (Perf toggle + PerfStatsPanel +
@@ -116,6 +120,13 @@ public:
 
     QWidget *embeddedWidget() override;
 
+    /// Show/hide event filter on m_preview (REQ-SW-PL-053 perf fix): starts
+    /// the preview timer when the node widget becomes visible and stops it
+    /// when hidden — belt-and-suspenders on top of the isVisible() gate in
+    /// updatePreview(). In standalone --run mode the canvas is hidden, so the
+    /// timer never runs → zero preview conversion cost.
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
     /// The detached display widget (VideoGLBlitWidget / VideoSoftwareWidget).
     /// Null until the first frame arrives — the detached window is created
     /// lazily (Option B). Test/diagnostic accessor.
@@ -167,8 +178,11 @@ private:
     void ensureDisplayWindow();
 
     /// Update the in-node QLabel preview from the latest frame snapshot.
-    /// Converts the frame to QImage via VideoFrameData::asImage() (throttled
-    /// by m_previewTimer — only called at ~1.3 fps, not per-frame).
+    /// Scale-before-convert (REQ-SW-PL-053): converts the frame DIRECTLY to a
+    /// ~200px-wide QImage via VideoFrameData::frameToImageScaled() (NV12 /
+    /// YUV420P subsampled during YUV→RGB — the full image is never built),
+    /// throttled by m_previewTimer (~0.5 fps). Skips entirely when the label
+    /// is not visible (standalone --run mode = zero cost).
     void updatePreview();
 
     /// Select the embedded effect by combo index (REQ-SW-PL-034). Index 0 is
@@ -207,14 +221,19 @@ private:
     /// problem. Shows "No video" placeholder text when no frame has arrived.
     QLabel *m_preview = nullptr;
 
-    /// Timer driving the in-node QLabel preview update. Fires every 750 ms,
-    /// grabs the latest frame from m_lastFrameForPreview, converts to QImage,
-    /// and sets m_preview pixmap. Only active while a video frame has arrived.
+    /// Timer driving the in-node QLabel preview update. Fires every 2000 ms
+    /// (~0.5 fps), grabs the latest frame from m_lastFrameForPreview, converts
+    /// it to a SMALL QImage (scale-before-convert), and sets m_preview pixmap.
+    /// Started on first frame arrival AND on widget Show (event filter);
+    /// stopped on flow stop / input disconnect / widget Hide (REQ-SW-PL-053
+    /// perf fix — the old 750 ms full-1080p conversion regressed 6/8 perf
+    /// scenarios by >2pp).
     QTimer *m_previewTimer = nullptr;
 
     /// Last received video frame, kept for the preview timer to convert at
-    /// ~1–2 fps. Avoids per-frame QImage conversion (the display widget gets
-    /// the frame directly for zero-copy presentation).
+    /// ~0.5 fps (scale-before-convert to ~200px). Avoids per-frame QImage
+    /// conversion (the display widget gets the frame directly for zero-copy
+    /// presentation).
     std::shared_ptr<VideoFrameData> m_lastFrameForPreview;
 
     // ── Detached display window (Option B) ──────────────────────────────────
