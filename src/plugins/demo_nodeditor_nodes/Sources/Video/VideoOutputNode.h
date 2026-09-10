@@ -21,19 +21,36 @@ class QCheckBox;
 class QStackedWidget;
 class QTimer;
 class QSplitter;
+class QVBoxLayout;
 class VideoDisplayWidget;
 class VideoFrameData;
 
 /**
  * @brief Video output node: displays incoming video frames.
  *
+ * Option B — embedded placeholder + always-detached display (REQ-SW-PL-053):
+ *
  * The node has a single input port on BOTH Qt versions (REQ-SW-PL-020,
  * NV12-direct, single video-frame type REQ-SW-PL-032):
- *   - port 0 "video-frame" — zero-copy VideoFrameData; presented on the
- *     unified VideoDisplayWidget (REQ-SW-PL-053).
+ *   - port 0 "video-frame" — zero-copy VideoFrameData.
  *
- * Unified display (REQ-SW-PL-053): ONE display concept with two backends,
- * selected ONCE at construction (auto-detect):
+ * Display architecture (Option B):
+ *   1. **In-node preview**: QLabel (m_preview) showing a scaled QImage snapshot
+ *      at ~1–2 fps (m_previewTimer, 750 ms interval). No GL, no scene repaint
+ *      problem. A "No video" placeholder is shown when no frame has arrived.
+ *      The node widget (embeddedWidget()) contains ONLY this QLabel — no
+ *      controls, no GL display.
+ *   2. **Detached window**: QWidget (m_displayWindow, Qt::Window flag) housing
+ *      a QSplitter with the unified VideoDisplayWidget (GL blit default / SW
+ *      fallback) on the left and controls (Perf toggle + PerfStatsPanel +
+ *      Effects) on the right. Opens automatically on first frame arrival.
+ *      Title: "Video Output — <node name>". Hidden on flow stop /
+ *      input disconnect (kept for reuse). Geometry persisted in save()/load().
+ *   3. **Detached splitter layout**: left pane = VideoDisplayWidget (stretch=1),
+ *      right pane = m_controlsWidget (collapsible, min width 220px). The
+ *      splitter handle is visibly draggable.
+ *
+ * Unified display backends (auto-detect once at construction):
  *   - VideoGLBlitWidget (GPU, default when hardware GL is available) —
  *     QOpenGLWidget, zero-copy presentation of GPU-resident textures
  *     (GpuRgba → presentTexture, GpuYuv → presentYuvTexture, CPU →
@@ -44,18 +61,19 @@ class VideoFrameData;
  *   - Env override: DAQSTER_VIDEO_BACKEND=gl|software; unset → auto-detect via
  *     VideoGLContextManager::hasHardwareGL() (cached for the process).
  *
- * The display widget is a CHILD of m_widget (layout-friendly) — it works
- * embedded (node scene / runtime workspace) and detached (floating window via
- * the nodeeditor deembed mechanism on embeddedWidget()). The old in-node
- * display (Qt5 QLabel, Qt6 QGraphicsVideoItem) and the Qt6 native QVideoWidget
- * (QTBUG-35299 — cannot be embedded) are REMOVED. The "GPU display" checkbox
- * is removed — its roles are taken over by deembed + auto-detect.
+ * Frame flow:
+ *   - Node receives VideoFrame on port 0.
+ *   - Forwards to detached VideoDisplayWidget (live video, GL/SW).
+ *   - Stores last frame; preview timer converts → QImage → m_preview pixmap.
+ *   - Optionally passes through on output port (while downstream consumer is
+ *     connected, tracked via outputConnectionCreated/Deleted).
  *
- * The node also passes the frame through on its output port so output chains
- * can be built (e.g. output of a modifier). The output emits VideoFrameData
- * (single video-frame type REQ-SW-PL-032); the per-frame QImage conversion +
- * output only runs while a downstream consumer is connected to the output port
- * (tracked via outputConnectionCreated/Deleted).
+ * Perf domain: auto-enabled when controls visible + manual Perf toggle override.
+ * Perf stats read from the detached display's perf domain ("video").
+ * Perf toggle state is persisted in save()/load().
+ *
+ * Effects (REQ-SW-PL-034): optional embedded effect combo + parameter stack,
+ * applied before presentation. Zero-copy passthrough when no effect selected.
  */
 class VideoOutputNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
@@ -98,9 +116,19 @@ public:
 
     QWidget *embeddedWidget() override;
 
+    /// The detached display widget (VideoGLBlitWidget / VideoSoftwareWidget).
+    /// Null until the first frame arrives — the detached window is created
+    /// lazily (Option B). Test/diagnostic accessor.
+    VideoDisplayWidget *displayWidget() const { return m_display; }
+
+    /// The controls widget (Perf toggle + PerfStatsPanel + Effects) housed in
+    /// the detached window's splitter (right pane). Created in the constructor,
+    /// reparented to m_displayWindow in ensureDisplayWindow().
+    QWidget *controlsWidget() const { return m_controlsWidget; }
+
     /// Stop background work (timers). Idempotent — safe to call multiple times
-    /// (REQ-SW-PL-050). The display widget is a child of m_widget — no explicit
-    /// delete needed (REQ-SW-PL-053).
+    /// (REQ-SW-PL-050). Hides the detached display window and stops both the
+    /// preview timer and perf refresh timer.
     void stop() override;
 
     /// Track downstream connections on the output port so the per-frame
@@ -120,6 +148,16 @@ private:
     /// VideoEffectNode::reprocessCurrentFrame). Called after load() so a
     /// restored effect/parameter set is applied to the current frame.
     void reprocessCurrentFrame();
+
+    /// Create the detached display window (if not yet created) and show it.
+    /// Called on first frame arrival (Option B). Applies the persisted
+    /// geometry (m_displayWindowGeometry) before showing.
+    void ensureDisplayWindow();
+
+    /// Update the in-node QLabel preview from the latest frame snapshot.
+    /// Converts the frame to QImage via VideoFrameData::asImage() (throttled
+    /// by m_previewTimer — only called at ~1.3 fps, not per-frame).
+    void updatePreview();
 
     /// Select the embedded effect by combo index (REQ-SW-PL-034). Index 0 is
     /// the "No effect" placeholder (m_effectEnabled = false); indices 1..N map
@@ -151,10 +189,58 @@ private:
     QWidget *m_widget = nullptr;
     std::shared_ptr<VideoFrameData> m_output;
 
+    // ── In-node preview (Option B) ──────────────────────────────────────────
+    /// QLabel showing a scaled QImage snapshot of the latest video frame.
+    /// Updated at ~1–2 fps by m_previewTimer. No GL — avoids scene repaint
+    /// problem. Shows "No video" placeholder text when no frame has arrived.
+    QLabel *m_preview = nullptr;
+
+    /// Timer driving the in-node QLabel preview update. Fires every 750 ms,
+    /// grabs the latest frame from m_lastFrameForPreview, converts to QImage,
+    /// and sets m_preview pixmap. Only active while a video frame has arrived.
+    QTimer *m_previewTimer = nullptr;
+
+    /// Last received video frame, kept for the preview timer to convert at
+    /// ~1–2 fps. Avoids per-frame QImage conversion (the display widget gets
+    /// the frame directly for zero-copy presentation).
+    std::shared_ptr<VideoFrameData> m_lastFrameForPreview;
+
+    // ── Detached display window (Option B) ──────────────────────────────────
+    /// Detached window housing the VideoDisplayWidget (GL blit / SW).
+    /// Created LAZILY on first frame arrival (ensureDisplayWindow()), hidden
+    /// on flow stop / input disconnect (kept for reuse). Position/size
+    /// persisted in save()/load().
+    QWidget *m_displayWindow = nullptr;
+
+    /// Controls widget (Perf toggle + PerfStatsPanel + Effects) — created in
+    /// the constructor, reparented to m_displayWindow in ensureDisplayWindow().
+    /// Lives in the right pane of the detached window's QSplitter.
+    QWidget *m_controlsWidget = nullptr;
+
     /// Unified display widget (REQ-SW-PL-053): VideoGLBlitWidget (GPU) or
-    /// VideoSoftwareWidget (CPU), selected once at construction. Child of
-    /// m_widget — layout-friendly, works embedded and detached.
+    /// VideoSoftwareWidget (CPU), selected once at construction. Parented to
+    /// m_displayWindow (not m_widget) — lives in the detached window.
     VideoDisplayWidget *m_display = nullptr;
+
+    /// Geometry loaded from save()/load() — applied when the window is first
+    /// created (the window is created lazily on first frame arrival).
+    QByteArray m_displayWindowGeometry;
+
+    /// Splitter state loaded from save()/load() — applied when the detached
+    /// window's splitter is first created (deferred, since the splitter lives
+    /// in the lazily-created detached window, not the node widget).
+    QByteArray m_splitterState;
+
+    /// True while the detached window was shown by us (first frame of a flow).
+    /// Cleared on flow stop / input disconnect so the window reopens on the
+    /// next flow's first frame. Stays true if the user closes the window
+    /// mid-flow — the window is NOT resurrected against the user's intent.
+    bool m_displayWindowShown = false;
+
+    /// True while reprocessCurrentFrame() is re-presenting the last frame
+    /// (effect change / load). Suppresses the window-show side effect so a
+    /// reprocess on a stopped flow cannot resurrect the detached window.
+    bool m_suppressWindowShow = false;
 
     // Perf console line (REQ-SW-PL-027, both Qt5 + Qt6): the "Perf" toggle in
     /// the controls widget enables the "video" profiling domain live and drives
@@ -192,8 +278,10 @@ private:
     /// Parameter stack: page 0 = blank (no effect), page i+1 = effect i.
     QStackedWidget *m_effectStack = nullptr;
 
-    /// Horizontal splitter: left = video display (stretch=1), right = controls
-    /// (collapsible, min width 220px).
+    /// Horizontal splitter in the DETACHED display window: left = video display
+    /// (stretch=1), right = controls (collapsible, min width 220px). Created in
+    /// ensureDisplayWindow(), not in the constructor — the splitter lives in
+    /// the detached window, not in the node widget.
     QSplitter *m_splitter = nullptr;
 
     // Perf stats labels (updated by m_perfRefreshTimer)

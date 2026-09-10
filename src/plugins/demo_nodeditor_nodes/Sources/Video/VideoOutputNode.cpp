@@ -17,6 +17,7 @@
 #include <QFile>
 #include <QFormLayout>
 #include <QLabel>
+#include <QPixmap>
 #include <QSignalBlocker>
 #include <QSize>
 #include <QSlider>
@@ -99,37 +100,42 @@ VideoOutputNode::VideoOutputNode()
 
     m_widget = new QWidget();
 
-    // Unified display (REQ-SW-PL-053): ONE display widget, backend selected
-    // ONCE at construction. Auto-detect: hardware GL → GL blit (GPU), else
-    // software (CPU); DAQSTER_VIDEO_BACKEND=gl|software overrides. The display
-    // is a child of m_widget — layout-friendly, works embedded (node scene /
-    // runtime workspace) and detached (floating window via the nodeeditor
-    // deembed mechanism on embeddedWidget()).
-    m_display = (detectVideoBackend() == VideoBackend::Gl)
-        ? static_cast<VideoDisplayWidget *>(new VideoGLBlitWidget(m_widget))
-        : static_cast<VideoDisplayWidget *>(new VideoSoftwareWidget(m_widget));
-    m_display->widget()->setMinimumSize(320, 240);
+    // ── In-node preview (Option B) ──────────────────────────────────────────
+    // A REGULAR QLabel (no QOpenGLWidget) showing a scaled QImage snapshot at
+    // ~1–2 fps. No GL in the node scene → no scene repaint problem. The node
+    // widget contains ONLY this label — no controls, no splitter, no GL.
+    m_preview = new QLabel(m_widget);
+    m_preview->setAlignment(Qt::AlignCenter);
+    m_preview->setMinimumSize(320, 240);
+    m_preview->setText(tr("No video"));
+    m_preview->setStyleSheet(QStringLiteral(
+        "QLabel { background: #1e1e1e; color: #888; border: 1px solid #444; }"));
 
-    // Create splitter as main layout
-    m_splitter = new QSplitter(Qt::Horizontal, m_widget);
-    m_splitter->addWidget(m_display->widget());           // Left: Video (stretch=1)
-    m_splitter->setStretchFactor(0, 1);
+    QVBoxLayout *mainLayout = new QVBoxLayout(m_widget);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->addWidget(m_preview);
 
-    // Create controls widget (right pane)
-    QWidget* controlsWidget = new QWidget();
-    QVBoxLayout* controlsLayout = new QVBoxLayout(controlsWidget);
+    // NOTE: the detached display window (m_displayWindow + m_display + splitter
+    // + controls) is NOT created here — it is created lazily on first frame
+    // arrival (ensureDisplayWindow(), Option B).
+
+    // ── Controls widget (right pane of detached splitter) ───────────────────
+    // Built here in the constructor but NOT parented to m_widget — it will be
+    // reparented to m_displayWindow when the detached window is created.
+    m_controlsWidget = new QWidget();
+    QVBoxLayout *controlsLayout = new QVBoxLayout(m_controlsWidget);
     controlsLayout->setContentsMargins(4, 4, 4, 4);
     controlsLayout->setSpacing(4);
 
     // Perf toggle (visible checkbox at top of controls panel)
-    m_perfToggle = new QCheckBox(tr("Perf"), controlsWidget);
+    m_perfToggle = new QCheckBox(tr("Perf"), m_controlsWidget);
     m_perfToggle->setToolTip(tr("Enable/disable performance profiling for video pipeline"));
     m_perfToggle->setChecked(false);  // Default off — user opts in
     controlsLayout->addWidget(m_perfToggle);
 
     // Perf stats panel (simple QFormLayout for now)
-    QWidget* perfPanel = new QWidget();
-    QFormLayout* perfLayout = new QFormLayout(perfPanel);
+    QWidget *perfPanel = new QWidget();
+    QFormLayout *perfLayout = new QFormLayout(perfPanel);
     m_fpsLabel = new QLabel("--");
     m_gapLabel = new QLabel("--");
     m_presentLabel = new QLabel("--");
@@ -172,39 +178,11 @@ VideoOutputNode::VideoOutputNode()
     // zero-copy passthrough is preserved until the user selects an effect.
     buildEffectControls();
 
-    // Move existing effect controls into the controls widget
+    // Add effect controls to the controls widget
     controlsLayout->addWidget(m_effectCombo);
     controlsLayout->addWidget(m_effectStack, 1);
 
-    controlsWidget->setMinimumWidth(220);
-
-    // Add to splitter
-    m_splitter->addWidget(controlsWidget);
-    m_splitter->setCollapsible(1, true);
-    m_splitter->setHandleWidth(8);
-    m_splitter->setChildrenCollapsible(true);
-    // Style the splitter handle to be visibly draggable
-    m_splitter->setStyleSheet(R"(
-        QSplitter::handle {
-            background: #555;
-            border: 1px solid #333;
-        }
-        QSplitter::handle:hover {
-            background: #888;
-        }
-        QSplitter::handle:horizontal {
-            /* Simple grip pattern using border */
-            border-left: 2px solid #333;
-            border-right: 2px solid #333;
-        }
-    )");
-    // Use a reasonable default width for the video pane (will be adjusted on first show)
-    m_splitter->setSizes(QList<int>({640, 220}));
-
-    // Set splitter as m_widget's layout
-    QVBoxLayout* mainLayout = new QVBoxLayout(m_widget);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->addWidget(m_splitter);
+    m_controlsWidget->setMinimumWidth(220);
 
     // Perf stats refresh timer: updates the perf labels in the controls panel
     m_perfRefreshTimer = new QTimer(this);
@@ -250,6 +228,126 @@ VideoOutputNode::VideoOutputNode()
     });
 
     // Timer starts only when perf checkbox is checked (default off)
+
+    // ── Preview refresh timer (Option B) ────────────────────────────────────
+    // Throttled snapshot: fires every 750 ms (~1.3 fps), converts the latest
+    // frame to QImage and updates the in-node QLabel. Started on first frame
+    // arrival, stopped on flow stop / input disconnect.
+    m_previewTimer = new QTimer(this);
+    m_previewTimer->setInterval(750);
+    connect(m_previewTimer, &QTimer::timeout, this, [this]() {
+        updatePreview();
+    });
+}
+
+void VideoOutputNode::updatePreview()
+{
+    if (m_preview == nullptr)
+        return;
+
+    // No frame yet → keep the placeholder text.
+    if (!m_lastFrameForPreview || !m_lastFrameForPreview->hasFrame()) {
+        m_preview->setText(tr("No video"));
+        m_preview->setPixmap(QPixmap());
+        return;
+    }
+
+    // Convert the latest frame to QImage (cached per frame by VideoFrameData,
+    // so repeated timer ticks on the same frame are cheap) and scale it to the
+    // label size keeping aspect ratio. SmoothTransformation keeps the snapshot
+    // readable at small preview sizes.
+    const QImage image = m_lastFrameForPreview->asImage();
+    if (image.isNull()) {
+        m_preview->setText(tr("No video"));
+        m_preview->setPixmap(QPixmap());
+        return;
+    }
+
+    const QSize labelSize = m_preview->size();
+    QSize scaled = image.size();
+    if (labelSize.isValid() && !labelSize.isEmpty()) {
+        scaled = image.size().scaled(labelSize, Qt::KeepAspectRatio);
+    }
+    const QPixmap pixmap = QPixmap::fromImage(
+        scaled == image.size() ? image : image.scaled(scaled, Qt::KeepAspectRatio,
+                                                      Qt::SmoothTransformation));
+    m_preview->setPixmap(pixmap);
+}
+
+void VideoOutputNode::ensureDisplayWindow()
+{
+    // Create the detached window + splitter + unified display widget on first
+    // use (Option B). The window is a top-level QWidget (Qt::Window flag) — it
+    // is NOT part of the node scene, so the GL display cannot trigger scene
+    // repaints. The splitter houses the video display (left) and controls
+    // (right) — the SAME layout that was previously in the node widget.
+    if (m_displayWindow == nullptr) {
+        m_displayWindow = new QWidget(nullptr, Qt::Window);
+        m_displayWindow->setWindowTitle(tr("Video Output — %1").arg(name()));
+        m_displayWindow->resize(860, 480);
+
+        // ── Splitter ──────────────────────────────────────────────────────
+        m_splitter = new QSplitter(Qt::Horizontal, m_displayWindow);
+
+        // Unified display (REQ-SW-PL-053): ONE display widget, backend
+        // selected ONCE at construction. Auto-detect: hardware GL → GL blit
+        // (GPU), else software (CPU); DAQSTER_VIDEO_BACKEND=gl|software
+        // overrides.
+        m_display = (detectVideoBackend() == VideoBackend::Gl)
+            ? static_cast<VideoDisplayWidget *>(new VideoGLBlitWidget(m_displayWindow))
+            : static_cast<VideoDisplayWidget *>(new VideoSoftwareWidget(m_displayWindow));
+        m_display->widget()->setMinimumSize(320, 240);
+        m_splitter->addWidget(m_display->widget());      // Left: video (stretch=1)
+        m_splitter->setStretchFactor(0, 1);
+
+        // Right pane: controls widget (reparented from constructor)
+        m_controlsWidget->setParent(m_displayWindow);
+        m_splitter->addWidget(m_controlsWidget);          // Right: controls
+        m_splitter->setCollapsible(1, true);
+        m_splitter->setHandleWidth(8);
+        m_splitter->setChildrenCollapsible(true);
+        // Style the splitter handle to be visibly draggable
+        m_splitter->setStyleSheet(R"(
+            QSplitter::handle {
+                background: #555;
+                border: 1px solid #333;
+            }
+            QSplitter::handle:hover {
+                background: #888;
+            }
+            QSplitter::handle:horizontal {
+                border-left: 2px solid #333;
+                border-right: 2px solid #333;
+            }
+        )");
+
+        // Restore splitter state if loaded from save()/load().
+        if (!m_splitterState.isEmpty()) {
+            m_splitter->restoreState(m_splitterState);
+        } else {
+            // Default sizes: video pane wide, controls at minimum.
+            m_splitter->setSizes(QList<int>({640, 220}));
+        }
+
+        // Detached window layout: just the splitter, no margins.
+        QVBoxLayout *layout = new QVBoxLayout(m_displayWindow);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->addWidget(m_splitter);
+
+        // Apply the geometry persisted in save()/load() (if any).
+        if (!m_displayWindowGeometry.isEmpty())
+            m_displayWindow->restoreGeometry(m_displayWindowGeometry);
+    }
+
+    // Show the window on the first frame of a flow. If the user closed the
+    // window mid-flow (m_displayWindowShown still true), it is NOT resurrected
+    // — it reopens only after a flow stop / input disconnect. A reprocess
+    // (effect change / load, m_suppressWindowShow) never shows the window.
+    if (!m_suppressWindowShow && !m_displayWindowShown) {
+        m_displayWindow->show();
+        m_displayWindow->raise();
+        m_displayWindowShown = true;
+    }
 }
 
 void VideoOutputNode::buildEffectControls()
@@ -258,7 +356,7 @@ void VideoOutputNode::buildEffectControls()
 
     // Effect combo: index 0 = "No effect" (empty id), then one item per effect
     // with a backend suffix mirroring VideoEffectNode (REQ-SW-PL-028 AC 8).
-    m_effectCombo = new QComboBox(m_widget);
+    m_effectCombo = new QComboBox(m_controlsWidget);
     m_effectCombo->setMinimumWidth(190);
     m_effectCombo->addItem(tr("No effect"));
     for (const EffectSpec &spec : m_specs) {
@@ -269,7 +367,7 @@ void VideoOutputNode::buildEffectControls()
     }
 
     // Parameter stack: page 0 = blank (no effect), page i+1 = effect i.
-    m_effectStack = new QStackedWidget(m_widget);
+    m_effectStack = new QStackedWidget(m_controlsWidget);
     m_effectStack->addWidget(new QWidget(m_effectStack)); // blank "No effect" page
     for (int i = 0; i < m_specs.size(); ++i) {
         const EffectSpec &spec = m_specs[i];
@@ -460,6 +558,15 @@ VideoOutputNode::~VideoOutputNode()
     // Single shutdown path: stop() stops timers (REQ-SW-PL-050).
     stop();
 
+    // The detached display window is a top-level window (no parent) — delete
+    // it explicitly. m_display, m_splitter, and m_controlsWidget are its
+    // children, so they are destroyed with it.
+    delete m_displayWindow;
+    m_displayWindow = nullptr;
+    m_display = nullptr;
+    m_splitter = nullptr;
+    m_controlsWidget = nullptr;
+
     // Widget lifetime is owned by the node/view framework.
     m_widget = nullptr;
 }
@@ -469,9 +576,15 @@ void VideoOutputNode::stop()
     // Idempotent: stopping an already-stopped timer is a no-op.
     if (m_perfRefreshTimer != nullptr)
         m_perfRefreshTimer->stop();
+    if (m_previewTimer != nullptr)
+        m_previewTimer->stop();
 
-    // The display widget is a child of m_widget — no explicit delete
-    // (REQ-SW-PL-053). The perf badge is a child of the display widget.
+    // Hide the detached display window (kept for reuse — the widget and its
+    // GL context stay alive; the window is re-shown on the next flow's first
+    // frame via ensureDisplayWindow()).
+    m_displayWindowShown = false;
+    if (m_displayWindow != nullptr)
+        m_displayWindow->hide();
 }
 
 QJsonObject VideoOutputNode::save() const
@@ -496,10 +609,30 @@ QJsonObject VideoOutputNode::save() const
     obj[QStringLiteral("cannyHigh")] = m_params.cannyHigh;
     obj[QStringLiteral("thresholdValue")] = m_params.thresholdValue;
 
-    // Splitter state (REQ-SW-PL-053): persist the QSplitter geometry
+    // Splitter state (REQ-SW-PL-053): persist the QSplitter geometry. The
+    // splitter lives in the detached window — it may not exist yet if no frame
+    // has arrived (lazy creation). Fall back to the stored m_splitterState.
     if (m_splitter != nullptr) {
-        obj[QStringLiteral("splitterState")] = QString::fromLatin1(m_splitter->saveState().toBase64());
+        obj[QStringLiteral("splitterState")] =
+            QString::fromLatin1(m_splitter->saveState().toBase64());
+    } else if (!m_splitterState.isEmpty()) {
+        obj[QStringLiteral("splitterState")] =
+            QString::fromLatin1(m_splitterState.toBase64());
     }
+
+    // Detached display window (Option B): persist geometry so the window is
+    // restored across save/load/restart. The window itself is created lazily
+    // on the first frame of a flow (ensureDisplayWindow()).
+    if (m_displayWindow != nullptr) {
+        obj[QStringLiteral("displayWindowGeometry")] =
+            QString::fromLatin1(m_displayWindow->saveGeometry().toBase64());
+    }
+
+    // Perf toggle state: persist so the profiling domain + refresh timer are
+    // restored across save/load/restart.
+    if (m_perfToggle != nullptr)
+        obj[QStringLiteral("perfToggle")] = m_perfToggle->isChecked();
+
     return obj;
 }
 
@@ -537,14 +670,28 @@ void VideoOutputNode::load(QJsonObject const &p)
     }
     setEffectIndex(comboIndex);
 
-    // Restore splitter state
-    if (m_splitter != nullptr) {
-        const QString splitterStateStr = p.value(QStringLiteral("splitterState")).toString();
-        if (!splitterStateStr.isEmpty()) {
-            QByteArray state = QByteArray::fromBase64(splitterStateStr.toLatin1());
-            m_splitter->restoreState(state);
-        }
+    // Restore splitter state. The splitter lives in the lazily-created detached
+    // window — if it exists already, apply directly; otherwise store in
+    // m_splitterState for deferred apply in ensureDisplayWindow().
+    const QString splitterStateStr = p.value(QStringLiteral("splitterState")).toString();
+    if (!splitterStateStr.isEmpty()) {
+        m_splitterState = QByteArray::fromBase64(splitterStateStr.toLatin1());
+        if (m_splitter != nullptr)
+            m_splitter->restoreState(m_splitterState);
     }
+
+    // Restore detached display window geometry (Option B). The window itself
+    // is created lazily on first frame — store the geometry here and apply it
+    // in ensureDisplayWindow() when the window is created.
+    const QString geometryStr = p.value(QStringLiteral("displayWindowGeometry")).toString();
+    if (!geometryStr.isEmpty())
+        m_displayWindowGeometry = QByteArray::fromBase64(geometryStr.toLatin1());
+
+    // Restore perf toggle state. Setting checked triggers the toggled signal
+    // which enables/disables the perf domain + refresh timer.
+    const bool perfChecked = p.value(QStringLiteral("perfToggle")).toBool(false);
+    if (m_perfToggle != nullptr)
+        m_perfToggle->setChecked(perfChecked);
 
     // Re-apply the restored effect/parameters to the current frame (mirrors
     // VideoEffectNode::load()). No-op when no frame has arrived yet or the
@@ -556,7 +703,13 @@ void VideoOutputNode::reprocessCurrentFrame()
 {
     if (!m_lastInput || !m_lastInput->hasFrame())
         return;
+    // A reprocess (effect change / load) must not resurrect the detached
+    // window on a stopped flow — only present to an already-created display.
+    // The in-node preview still updates (m_lastFrameForPreview is refreshed
+    // inside setInData), so the user sees the effect change immediately.
+    m_suppressWindowShow = true;
     setInData(m_lastInput, 0);
+    m_suppressWindowShow = false;
 }
 
 unsigned int VideoOutputNode::nPorts(PortType portType) const
@@ -657,13 +810,14 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                 }
             }
 
-            // ── Unified display (REQ-SW-PL-053) ─────────────────────────────
-            // ONE display widget, backend fixed at construction. GpuRgba →
-            // presentTexture (zero-copy), GpuYuv → presentYuvTexture (zero-copy
-            // cached planes), CPU → presentFrame. The software backend falls
-            // back to owner->asImage() (readback) inside presentTexture/
-            // presentYuvTexture.
-            if (m_display != nullptr) {
+            // ── Detached display (Option B) ────────────────────────────────────────
+            // The unified display widget lives in a detached window, created
+            // lazily and shown on the first frame of a flow
+            // (ensureDisplayWindow). Frames are forwarded to the display
+            // widget exactly as before — just in a window now. A reprocess
+            // (effect change / load) suppresses the window-show side effect.
+            if (m_display != nullptr || (!m_suppressWindowShow && !m_displayWindowShown)) {
+                ensureDisplayWindow();
                 PERF_SCOPE("video", "output.present");
                 if (videoFrame->isGpuRgba()) {
                     VideoTextureHandle h;
@@ -680,6 +834,14 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                 }
             }
 
+            // ── In-node preview (Option B) ──────────────────────────────────
+            // Keep the latest frame for the throttled preview timer. The
+            // QImage conversion happens in updatePreview() at ~1.3 fps — NOT
+            // per frame — so the live path stays zero-copy.
+            m_lastFrameForPreview = videoFrame;
+            if (m_previewTimer != nullptr && !m_previewTimer->isActive())
+                m_previewTimer->start();
+
             // Only emit the output when a downstream processing consumer is
             // connected to the output port.
             if (m_outputConnectionCount > 0) {
@@ -693,6 +855,13 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
         } else {
             m_lastInput.reset();
             m_output.reset();
+            m_lastFrameForPreview.reset();
+            if (m_previewTimer != nullptr)
+                m_previewTimer->stop();
+            if (m_preview != nullptr) {
+                m_preview->setText(tr("No video"));
+                m_preview->setPixmap(QPixmap());
+            }
             if (m_display != nullptr)
                 m_display->clear();
             Q_EMIT dataInvalidated(0);
@@ -732,8 +901,20 @@ void VideoOutputNode::inputConnectionDeleted(QtNodes::ConnectionId const &conId)
 
     m_lastInput.reset();
     m_output.reset();
+    m_lastFrameForPreview.reset();
+    if (m_previewTimer != nullptr)
+        m_previewTimer->stop();
+    if (m_preview != nullptr) {
+        m_preview->setText(tr("No video"));
+        m_preview->setPixmap(QPixmap());
+    }
     if (m_display != nullptr)
         m_display->clear();
+    // Hide the detached window (kept for reuse — re-shown on next flow's
+    // first frame via ensureDisplayWindow()).
+    m_displayWindowShown = false;
+    if (m_displayWindow != nullptr)
+        m_displayWindow->hide();
 }
 
 QWidget *VideoOutputNode::embeddedWidget()
