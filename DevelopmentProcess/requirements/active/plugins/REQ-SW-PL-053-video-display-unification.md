@@ -72,7 +72,9 @@ native `QVideoWidget` (QTBUG-35299 — не може да се embed-не). Че
 - **Коммити:** `fe29f2d` (REQ файл + PL-021 архив), `13e6404` (интерфейс +
   software backend), `3ea45ea` (GL blit refactor), `6a58dfe` (VideoOutputNode
   unification + CMake), `fd365de` (тестове), `a5e392d` (docs/changelog),
-  `d12c782` (compile fixes — `widget()` accessor, includes, test placeholder)
+  `d12c782` (compile fixes — `widget()` accessor, includes, test placeholder),
+  `7337772` (restore [PERF] measurement), `d02618a` (preview perf fix —
+  scale-before-convert + 2000 ms + visibility gate), `54ca140` (changelog)
   — branch `feat/REQ-SW-PL-053-video-display-unification`
 - **Код:** `src/plugins/demo_nodeditor_nodes/Sources/Video/VideoDisplayWidget.{h,cpp}`
   (нов), `VideoSoftwareWidget.{h,cpp}` (нов), `VideoGLBlitWidget.{h,cpp}` (refactor),
