@@ -291,6 +291,26 @@
     премахнато; geometry fast-path структурата е непокътната)
   - Верификация: Qt5/Qt6 builds PASS (QtNodes + NodeEditorIde), demo_nodeditor
     test suite PASS (11/11 и на двата Qt)
+- **REQ-SW-PL-053** (VideoOutputNode preview perf — scale-before-convert + visibility gate):
+  - `VideoFrameData::frameToImageScaled()` — нов public static converter:
+    QVideoFrame → **малък** QImage (~200px wide, keep-aspect) без да се
+    материализира full-res кадърът. NV12/YUV420P — subsampled BT.601 YUV→RGB
+    директно в target-а (full image никога не се строи, ~(200/1920)² от
+    пълната конверсия); RGB формати — nearest-neighbor sampling от mapped
+    bits; GpuRgba (readback) и неподдържани формати → null (caller-ът пада на
+    `asImage()` + scale)
+  - `VideoOutputNode::updatePreview()` — preview-ът вече конвертира директно
+    към ~200px (не full 1080p → scale); таймерът е намален от 750 ms на
+    2000 ms (~0.5 fps); добавен visibility gate (`if (!m_preview->isVisible())
+    return;`) + event filter (start на Show, stop на Hide) — в standalone
+    `--run` режим canvas-ът е скрит, значи preview-конверсията е нулева
+  - Предишният full-1080p preview @ 750 ms регресира 6/8 perf сценария с
+    >2pp (2026-09-10 11:28 run); след fix-а `check-perf-degradation.sh` PASS
+    (4views qt5 14.1→8.7, 2views qt5 12.1→9.3, 2views qt6 10.1→6.7, 4views
+    qt6 10.1→8.0)
+  - Верификация: Qt5/Qt6 builds PASS + video output/videoframe tests PASS
+    (и на двата Qt) + `--run` smoke (deembedded visible → preview active;
+    hidden canvas → gated)
 
 ### Refactored
 - **REQ-SW-PL-050** (node thread lifecycle — IStoppable interface):
