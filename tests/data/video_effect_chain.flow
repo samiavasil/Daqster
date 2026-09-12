@@ -4,7 +4,7 @@
             "id": 0,
             "internal-data": {
                 "model-name": "VideoFileSource",
-                "filePath": ""
+                "filePath": "/mnt/Builder/Projects/samiavasil/daqster/tests/data/bars_h265_1080p25_x3.mp4"
             },
             "label": "VideoFileSource",
             "labelVisible": true,
@@ -40,7 +40,8 @@
         {
             "id": 3,
             "internal-data": {
-                "model-name": "VideoOutput"
+                "model-name": "VideoOutput",
+                "perfToggle": true
             },
             "label": "VideoOutput",
             "labelVisible": true,
@@ -69,5 +70,13 @@
             "inNodeId": 3,
             "inPortIndex": 0
         }
-    ]
+    ],
+    "ui": {
+        "version": 1,
+        "workspaces": [{"id": 0, "tabbed": true, "geometry": {"x": 0, "y": 0, "w": 1280, "h": 800, "maximized": false}}],
+        "nodes": {
+            "0": {"deembedded": true, "workspace": 0, "geometry": {"x": 0, "y": 0, "w": 640, "h": 480}, "autoStart": true},
+            "3": {"deembedded": true, "workspace": 0, "geometry": {"x": 640, "y": 0, "w": 640, "h": 480}}
+        }
+    }
 }

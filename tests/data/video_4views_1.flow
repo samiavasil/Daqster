@@ -1,0 +1,205 @@
+{
+    "connections": [
+        {
+            "inNodeId": 4,
+            "inPortIndex": 0,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        },
+        {
+            "inNodeId": 3,
+            "inPortIndex": 0,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        },
+        {
+            "inNodeId": 2,
+            "inPortIndex": 0,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        },
+        {
+            "inNodeId": 1,
+            "inPortIndex": 0,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        }
+    ],
+    "nodes": [
+        {
+            "id": 0,
+            "internal-data": {
+                "filePath": "/mnt/Builder/Projects/samiavasil/daqster/tests/data/bars_h265_1080p25_x3.mp4",
+                "model-name": "VideoFileSource"
+            },
+            "label": "VideoFileSource",
+            "labelVisible": true,
+            "position": {
+                "x": -400,
+                "y": 0
+            }
+        },
+        {
+            "id": 1,
+            "internal-data": {
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoOutput",
+                "perfToggle": true,
+                "thresholdValue": 128
+            },
+            "label": "VideoOutput",
+            "labelVisible": true,
+            "position": {
+                "x": 100,
+                "y": -200
+            }
+        },
+        {
+            "id": 2,
+            "internal-data": {
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoOutput",
+                "perfToggle": true,
+                "thresholdValue": 128
+            },
+            "label": "VideoOutput",
+            "labelVisible": true,
+            "position": {
+                "x": 100,
+                "y": -70
+            }
+        },
+        {
+            "id": 3,
+            "internal-data": {
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoOutput",
+                "perfToggle": true,
+                "thresholdValue": 128
+            },
+            "label": "VideoOutput",
+            "labelVisible": true,
+            "position": {
+                "x": 100,
+                "y": 70
+            }
+        },
+        {
+            "id": 4,
+            "internal-data": {
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoOutput",
+                "perfToggle": true,
+                "thresholdValue": 128
+            },
+            "label": "VideoOutput",
+            "labelVisible": true,
+            "position": {
+                "x": 100,
+                "y": 200
+            }
+        }
+    ],
+    "ui": {
+        "nodes": {
+            "0": {
+                "autoStart": true,
+                "deembedded": true,
+                "geometry": {
+                    "h": 480,
+                    "maximized": false,
+                    "w": 640,
+                    "x": 0,
+                    "y": 29
+                },
+                "workspace": 0
+            },
+            "1": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 480,
+                    "maximized": false,
+                    "w": 640,
+                    "x": 1559,
+                    "y": 449
+                },
+                "workspace": 0
+            },
+            "2": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 480,
+                    "maximized": false,
+                    "w": 640,
+                    "x": 0,
+                    "y": 480
+                },
+                "workspace": 0
+            },
+            "3": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 480,
+                    "maximized": false,
+                    "w": 640,
+                    "x": 640,
+                    "y": 480
+                },
+                "workspace": 0
+            },
+            "4": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 480,
+                    "maximized": false,
+                    "w": 640,
+                    "x": 0,
+                    "y": 960
+                },
+                "workspace": 0
+            }
+        },
+        "version": 1,
+        "workspaces": [
+            {
+                "geometry": {
+                    "h": 1440,
+                    "maximized": false,
+                    "w": 1280,
+                    "x": 0,
+                    "y": 0
+                },
+                "id": 0,
+                "tabbed": true
+            }
+        ]
+    }
+}
