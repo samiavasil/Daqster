@@ -9,6 +9,7 @@
 #include "shared/IStoppable.h"
 
 #include <QImage>
+#include <QStackedWidget>
 #include <QtMultimedia/QVideoFrame>
 #include <functional>
 #include <memory>
@@ -28,32 +29,44 @@ class VideoFrameData;
 /**
  * @brief Video output node: displays incoming video frames.
  *
- * Option B — embedded placeholder + always-detached display (REQ-SW-PL-053):
+ * Embedded three-mode display (REQ-SW-PL-053):
  *
  * The node has a single input port on BOTH Qt versions (REQ-SW-PL-020,
  * NV12-direct, single video-frame type REQ-SW-PL-032):
  *   - port 0 "video-frame" — zero-copy VideoFrameData.
  *
- * Display architecture (Option B):
- *   1. **In-node preview**: QLabel (m_preview) showing a single static (~200px
- *      wide) QImage snapshot. Fires ONCE per Play (~250 ms after first frame)
- *      via a single-shot timer — zero ongoing CPU cost. Scale-before-convert:
- *      the full frame is never materialized. No GL, no scene repaint problem.
- *      Gated on visibility: the timer only arms while the label is shown (event
- *      filter) and updatePreview() skips when not visible — standalone --run
- *      mode costs zero. On new Play the preview resets (clear / "No video"
- *      placeholder) and a fresh frame is converted once. The node widget
- *      (embeddedWidget()) contains ONLY this QLabel — no controls, no GL
- *      display.
- *   2. **Detached window**: QWidget (m_displayWindow, Qt::Window flag) housing
- *      a QSplitter with the unified VideoDisplayWidget (GL blit default / SW
- *      fallback) on the left and controls (Perf toggle + PerfStatsPanel +
- *      Effects) on the right. Opens automatically on first frame arrival.
- *      Title: "Video Output — <node name>". Hidden on flow stop /
- *      input disconnect (kept for reuse). Geometry persisted in save()/load().
- *   3. **Detached splitter layout**: left pane = VideoDisplayWidget (stretch=1),
- *      right pane = m_controlsWidget (collapsible, min width 220px). The
- *      splitter handle is visibly draggable.
+ * Display architecture (three-mode, one widget — embeddedWidget()):
+ *   The node widget (m_widget) contains a QStackedWidget (m_videoStack) with
+ *   two pages:
+ *   1. **Preview page** (m_previewPage, index 0): the static QLabel (m_preview)
+ *      showing a single ~200px QImage snapshot. Active when the node is
+ *      embedded in the scene proxy (editor mode).
+ *   2. **Live page** (m_livePage, index 1): a QSplitter with the unified
+ *      VideoDisplayWidget (GL blit default / SW fallback) on the left and
+ *      controls (Perf toggle + PerfStatsPanel + Effects) on the right. Active
+ *      when the node is deembedded (floating window in the editor) or in run
+ *      mode (MDI layout).
+ *
+ * Mode detection (single source of truth): m_widget->graphicsProxyWidget() !=
+ * nullptr → embedded → preview page; nullptr → deembedded/run → live page.
+ * QOpenGLWidget cannot be embedded in a QGraphicsProxyWidget (documented Qt
+ * limitation — WA_PaintOnScreen widgets), so the GL display lives on the live
+ * page only; run mode deembeds embeddedWidget() into QMdiArea as plain
+ * QWidgets (no proxy), so GL works there.
+ *
+ * Preview: fires ONCE per Play (~1 s after first frame) via a single-shot
+ * timer — zero ongoing CPU cost. Scale-before-convert: the full frame is never
+ * materialized. No GL, no scene repaint problem. Gated on proxy embedding: the
+ * timer only arms while the preview page is active (event filter) and
+ * updatePreview() skips when not visible — standalone --run mode costs zero.
+ * On new Play the preview resets (clear / "No video" placeholder) and a fresh
+ * frame is converted once.
+ *
+ * Presentation is gated on the live page being active (isLiveDisplayActive()):
+ * in editor-embedded mode no frames are presented (zero GPU cost — the preview
+ * page shows the static snapshot); in run/deembedded mode frames present
+ * normally. This also avoids presenting to a GL widget whose context never
+ * initialized.
  *
  * Unified display backends (auto-detect once at construction):
  *   - VideoGLBlitWidget (GPU, default when hardware GL is available) —
@@ -68,13 +81,15 @@ class VideoFrameData;
  *
  * Frame flow:
  *   - Node receives VideoFrame on port 0.
- *   - Forwards to detached VideoDisplayWidget (live video, GL/SW).
- *   - Stores last frame; preview timer converts → QImage → m_preview pixmap.
+ *   - Presents to the live page's VideoDisplayWidget while the live page is
+ *     active (deembedded / run mode).
+ *   - Stores last frame; preview timer converts → QImage → m_preview pixmap
+ *     while embedded in the scene proxy.
  *   - Optionally passes through on output port (while downstream consumer is
  *     connected, tracked via outputConnectionCreated/Deleted).
  *
  * Perf domain: auto-enabled when controls visible + manual Perf toggle override.
- * Perf stats read from the detached display's perf domain ("video").
+ * Perf stats read from the live display's perf domain ("video").
  * Perf toggle state is persisted in save()/load().
  *
  * Effects (REQ-SW-PL-034): optional embedded effect combo + parameter stack,
@@ -121,32 +136,36 @@ public:
 
     QWidget *embeddedWidget() override;
 
-    /// Show/hide event filter on m_preview (REQ-SW-PL-053): arms the single-
-    /// shot preview timer when the node widget becomes visible and stops it
-    /// when hidden — belt-and-suspenders on top of the isVisible() gate in
-    /// updatePreview(). In standalone --run mode the canvas is hidden, so the
-    /// timer never arms → zero preview conversion cost.
+    /// Show/hide event filter on m_widget (REQ-SW-PL-053): re-evaluates the
+    /// display mode (updateDisplayMode()) when the node widget becomes visible
+    /// (embedded in scene proxy, or shown as a floating window / MDI
+    /// sub-window) and stops the preview timer when hidden — no conversion
+    /// while not visible. In standalone --run mode the canvas is hidden, so
+    /// the timer never arms → zero preview conversion cost.
     bool eventFilter(QObject *watched, QEvent *event) override;
 
-    /// The detached display widget (VideoGLBlitWidget / VideoSoftwareWidget).
-    /// Null until the first frame arrives — the detached window is created
-    /// lazily (Option B). Test/diagnostic accessor.
+    /// The live display widget (VideoGLBlitWidget / VideoSoftwareWidget).
+    /// Non-null after construction — created in the constructor, parented to
+    /// the live page. Test/diagnostic accessor.
     VideoDisplayWidget *displayWidget() const { return m_display; }
 
+    /// True when the live video page is active (deembedded/run mode).
+    /// Test/diagnostic accessor.
+    bool isLiveDisplayActive() const
+    { return m_videoStack != nullptr && m_videoStack->currentWidget() == m_livePage; }
+
     /// The controls widget (Perf toggle + PerfStatsPanel + Effects) housed in
-    /// the detached window's splitter (right pane). Created in the constructor,
-    /// reparented to m_displayWindow in ensureDisplayWindow().
+    /// the live page's splitter (right pane). Created in the constructor.
     QWidget *controlsWidget() const { return m_controlsWidget; }
 
     /// Stop background work (timers). Idempotent — safe to call multiple times
-    /// (REQ-SW-PL-050). Hides the detached display window, stops the preview
-    /// and perf refresh timers, and resets the in-node preview to "No video".
+    /// (REQ-SW-PL-050). Stops the preview and perf refresh timers, clears the
+    /// live display, and resets the in-node preview to "No video".
     void stop() override;
 
     /// Enable/disable the Perf toggle (REQ-SW-PL-053). The Perf checkbox lives
-    /// in the DETACHED window's controls pane, so the headless autostart driver
-    /// (NodeEditorIdeObject::startVideoPlayback) cannot reach it via
-    /// embeddedWidget() — this slot is invoked through the meta-object system
+    /// in the live page of embeddedWidget() — reachable via findChildren in
+    /// run mode; this slot is invoked through the meta-object system
     /// (QMetaObject::invokeMethod) to avoid a cross-plugin link dependency.
     Q_INVOKABLE void setPerfEnabled(bool enabled);
 
@@ -173,10 +192,10 @@ private:
     /// restored effect/parameter set is applied to the current frame.
     void reprocessCurrentFrame();
 
-    /// Create the detached display window (if not yet created) and show it.
-    /// Called on first frame arrival (Option B). Applies the persisted
-    /// geometry (m_displayWindowGeometry) before showing.
-    void ensureDisplayWindow();
+    /// Switch the QStackedWidget page based on proxy embedding state. Embedded
+    /// (graphicsProxyWidget() != nullptr) → preview page; deembedded/run →
+    /// live page. Arms/stops the preview timer accordingly.
+    void updateDisplayMode();
 
     /// Update the in-node QLabel preview from the latest frame snapshot.
     /// Single-shot callback: converts ONCE per Play (scale-before-convert to
@@ -216,11 +235,12 @@ private:
     QWidget *m_widget = nullptr;
     std::shared_ptr<VideoFrameData> m_output;
 
-    // ── In-node preview (Option B) ──────────────────────────────────────────
+    // ── In-node preview (page 0 of m_videoStack) ────────────────────────────
     /// QLabel showing a single static QImage snapshot of the latest video frame.
-    /// Updated once per Play by the single-shot m_previewTimer (~250 ms after
+    /// Updated once per Play by the single-shot m_previewTimer (~1 s after
     /// first frame). No GL — avoids scene repaint problem. Shows "No video"
-    /// placeholder text when no frame has arrived.
+    /// placeholder text when no frame has arrived. Lives on m_previewPage
+    /// (page 0 of m_videoStack), active only while embedded in the scene proxy.
     QLabel *m_preview = nullptr;
 
     /// Single-shot timer for the in-node preview (REQ-SW-PL-053). Armed on
@@ -230,48 +250,42 @@ private:
     /// stop / input disconnect / widget Hide.
     QTimer *m_previewTimer = nullptr;
 
+    /// Latch: true once the preview has fired for the current Play. Prevents
+    /// setInData() / the Show event filter from re-arming the single-shot timer
+    /// on every subsequent frame — the preview stays STATIC (one frame per
+    /// Play) instead of updating at ~1 fps. Reset on flow stop (stop()),
+    /// input disconnect, and invalid-frame reset so the next Play fires again.
+    bool m_previewFired = false;
+
     /// Last received video frame, kept for the single-shot preview timer to
     /// convert once per Play (scale-before-convert to ~200px). Avoids per-frame
     /// QImage conversion (the display widget gets the frame directly for
     /// zero-copy presentation).
     std::shared_ptr<VideoFrameData> m_lastFrameForPreview;
 
-    // ── Detached display window (Option B) ──────────────────────────────────
-    /// Detached window housing the VideoDisplayWidget (GL blit / SW).
-    /// Created LAZILY on first frame arrival (ensureDisplayWindow()), hidden
-    /// on flow stop / input disconnect (kept for reuse). Position/size
-    /// persisted in save()/load().
-    QWidget *m_displayWindow = nullptr;
+    // ── Embedded three-mode display (REQ-SW-PL-053) ─────────────────────────
+    /// Page container inside m_widget: page 0 = preview (m_previewPage),
+    /// page 1 = live (m_livePage). The active page is driven by
+    /// updateDisplayMode() based on proxy embedding state.
+    QStackedWidget *m_videoStack = nullptr;
+
+    /// Page 0 of m_videoStack: holds the static preview QLabel (m_preview).
+    /// Active when the node is embedded in the scene proxy (editor mode).
+    QWidget *m_previewPage = nullptr;
+
+    /// Page 1 of m_videoStack: holds the live splitter (video display left +
+    /// controls right). Active when the node is deembedded (floating window in
+    /// the editor) or in run mode (MDI layout).
+    QWidget *m_livePage = nullptr;
 
     /// Controls widget (Perf toggle + PerfStatsPanel + Effects) — created in
-    /// the constructor, reparented to m_displayWindow in ensureDisplayWindow().
-    /// Lives in the right pane of the detached window's QSplitter.
+    /// the constructor, parented to m_livePage (right pane of the splitter).
     QWidget *m_controlsWidget = nullptr;
 
     /// Unified display widget (REQ-SW-PL-053): VideoGLBlitWidget (GPU) or
     /// VideoSoftwareWidget (CPU), selected once at construction. Parented to
-    /// m_displayWindow (not m_widget) — lives in the detached window.
+    /// m_livePage (not m_widget directly) — lives in the live page.
     VideoDisplayWidget *m_display = nullptr;
-
-    /// Geometry loaded from save()/load() — applied when the window is first
-    /// created (the window is created lazily on first frame arrival).
-    QByteArray m_displayWindowGeometry;
-
-    /// Splitter state loaded from save()/load() — applied when the detached
-    /// window's splitter is first created (deferred, since the splitter lives
-    /// in the lazily-created detached window, not the node widget).
-    QByteArray m_splitterState;
-
-    /// True while the detached window was shown by us (first frame of a flow).
-    /// Cleared on flow stop / input disconnect so the window reopens on the
-    /// next flow's first frame. Stays true if the user closes the window
-    /// mid-flow — the window is NOT resurrected against the user's intent.
-    bool m_displayWindowShown = false;
-
-    /// True while reprocessCurrentFrame() is re-presenting the last frame
-    /// (effect change / load). Suppresses the window-show side effect so a
-    /// reprocess on a stopped flow cannot resurrect the detached window.
-    bool m_suppressWindowShow = false;
 
     // Perf console line (REQ-SW-PL-027, both Qt5 + Qt6): the "Perf" toggle in
     /// the controls widget enables the "video" profiling domain live and drives
@@ -323,10 +337,9 @@ private:
     /// Parameter stack: page 0 = blank (no effect), page i+1 = effect i.
     QStackedWidget *m_effectStack = nullptr;
 
-    /// Horizontal splitter in the DETACHED display window: left = video display
-    /// (stretch=1), right = controls (collapsible, min width 220px). Created in
-    /// ensureDisplayWindow(), not in the constructor — the splitter lives in
-    /// the detached window, not in the node widget.
+    /// Horizontal splitter in the LIVE page: left = video display (stretch=1),
+    /// right = controls (collapsible, min width 220px). Created in the
+    /// constructor.
     QSplitter *m_splitter = nullptr;
 
     // Perf stats labels (updated by m_perfRefreshTimer)

@@ -31,4 +31,13 @@ private slots:
     // Stage 2C (REQ-SW-PL-032): GpuRgba → GL blit widget on Qt6.
     void gpuRgbaRoutesToGlBlitWidget();
 #endif
+
+    // Three-mode display (REQ-SW-PL-053): embeddedWidget() contains the
+    // display + controls (live page) and the Perf toggle is reachable via
+    // findChildren (run mode).
+    void embeddedWidgetContainsDisplayAndControls();
+
+    // Three-mode display (REQ-SW-PL-053): the QStackedWidget page switches on
+    // proxy embedding state (graphicsProxyWidget() != nullptr).
+    void displayModeSwitchesWithProxyEmbedding();
 };

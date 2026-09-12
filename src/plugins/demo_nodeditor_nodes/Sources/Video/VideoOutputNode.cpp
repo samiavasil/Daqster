@@ -102,33 +102,46 @@ VideoOutputNode::VideoOutputNode()
 
     m_widget = new QWidget();
 
-    // ── In-node preview (Option B) ──────────────────────────────────────────
-    // A REGULAR QLabel (no QOpenGLWidget) showing a scaled QImage snapshot at
-    // ~1–2 fps. No GL in the node scene → no scene repaint problem. The node
-    // widget contains ONLY this label — no controls, no splitter, no GL.
-    m_preview = new QLabel(m_widget);
+    // Show/hide gate (REQ-SW-PL-053): re-evaluate the display mode on Show
+    // (updateDisplayMode()) and stop the preview timer on Hide. In standalone
+    // --run mode the canvas is hidden → the timer never runs.
+    m_widget->installEventFilter(this);
+
+    // ── Embedded three-mode display (REQ-SW-PL-053) ─────────────────────────
+    // The node widget contains a QStackedWidget with two pages:
+    //   page 0 (m_previewPage) — static preview QLabel, active while embedded
+    //     in the scene proxy (editor mode);
+    //   page 1 (m_livePage) — live video display + controls, active when
+    //     deembedded (floating window) or in run mode (MDI layout).
+    // QOpenGLWidget cannot live inside a QGraphicsProxyWidget (documented Qt
+    // limitation — WA_PaintOnScreen widgets), so the GL display is confined to
+    // the live page; run mode deembeds embeddedWidget() into QMdiArea as plain
+    // QWidgets (no proxy), so GL works there.
+    m_preview = new QLabel();
     m_preview->setAlignment(Qt::AlignCenter);
     m_preview->setMinimumSize(320, 240);
     m_preview->setText(tr("No video"));
     m_preview->setStyleSheet(QStringLiteral(
         "QLabel { background: #1e1e1e; color: #888; border: 1px solid #444; }"));
 
-    // Show/hide gate (REQ-SW-PL-053 perf fix): start the preview timer only
-    // while the label is actually visible (start on Show, stop on Hide). In
-    // standalone --run mode the canvas is hidden → the timer never runs.
-    m_preview->installEventFilter(this);
+    m_videoStack = new QStackedWidget(m_widget);
+    m_previewPage = new QWidget();
+    {
+        QVBoxLayout *previewLayout = new QVBoxLayout(m_previewPage);
+        previewLayout->setContentsMargins(0, 0, 0, 0);
+        previewLayout->addWidget(m_preview);
+    }
+    m_livePage = new QWidget();
+    m_videoStack->addWidget(m_previewPage);   // index 0: preview
+    m_videoStack->addWidget(m_livePage);      // index 1: live
 
     QVBoxLayout *mainLayout = new QVBoxLayout(m_widget);
     mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->addWidget(m_preview);
+    mainLayout->addWidget(m_videoStack);
 
-    // NOTE: the detached display window (m_displayWindow + m_display + splitter
-    // + controls) is NOT created here — it is created lazily on first frame
-    // arrival (ensureDisplayWindow(), Option B).
-
-    // ── Controls widget (right pane of detached splitter) ───────────────────
-    // Built here in the constructor but NOT parented to m_widget — it will be
-    // reparented to m_displayWindow when the detached window is created.
+    // ── Controls widget (right pane of live splitter) ───────────────────────
+    // Built here in the constructor but NOT parented to m_widget — it is
+    // reparented to m_livePage below (right pane of the live splitter).
     m_controlsWidget = new QWidget();
     QVBoxLayout *controlsLayout = new QVBoxLayout(m_controlsWidget);
     controlsLayout->setContentsMargins(4, 4, 4, 4);
@@ -201,6 +214,49 @@ VideoOutputNode::VideoOutputNode()
 
     m_controlsWidget->setMinimumWidth(220);
 
+    // ── Live page (page 1): splitter = video display (left) + controls (right)
+    m_splitter = new QSplitter(Qt::Horizontal, m_livePage);
+
+    // Unified display (REQ-SW-PL-053): ONE display widget, backend selected
+    // ONCE at construction. Auto-detect: hardware GL → GL blit (GPU), else
+    // software (CPU); DAQSTER_VIDEO_BACKEND=gl|software overrides.
+    m_display = (detectVideoBackend() == VideoBackend::Gl)
+        ? static_cast<VideoDisplayWidget *>(new VideoGLBlitWidget(m_livePage))
+        : static_cast<VideoDisplayWidget *>(new VideoSoftwareWidget(m_livePage));
+    m_display->widget()->setMinimumSize(320, 240);
+    m_splitter->addWidget(m_display->widget());      // Left: video (stretch=1)
+    m_splitter->setStretchFactor(0, 1);
+
+    // Right pane: controls widget (reparented from constructor)
+    m_controlsWidget->setParent(m_livePage);
+    m_splitter->addWidget(m_controlsWidget);          // Right: controls
+    m_splitter->setCollapsible(1, true);
+    m_splitter->setHandleWidth(8);
+    m_splitter->setChildrenCollapsible(true);
+    // Style the splitter handle to be visibly draggable
+    m_splitter->setStyleSheet(R"(
+        QSplitter::handle {
+            background: #555;
+            border: 1px solid #333;
+        }
+        QSplitter::handle:hover {
+            background: #888;
+        }
+        QSplitter::handle:horizontal {
+            border-left: 2px solid #333;
+            border-right: 2px solid #333;
+        }
+    )");
+
+    // Default sizes: video pane wide, controls at minimum (the embedded node
+    // is ~540px wide, so 320+220 fits).
+    m_splitter->setSizes(QList<int>({320, 220}));
+
+    // Live page layout: just the splitter, no margins.
+    QVBoxLayout *liveLayout = new QVBoxLayout(m_livePage);
+    liveLayout->setContentsMargins(0, 0, 0, 0);
+    liveLayout->addWidget(m_splitter);
+
     // Perf stats refresh timer: updates the perf labels in the controls panel
     m_perfRefreshTimer = new QTimer(this);
     m_perfRefreshTimer->setInterval(500);
@@ -246,24 +302,32 @@ VideoOutputNode::VideoOutputNode()
 
     // Timer starts only when perf checkbox is checked (default off)
 
-    // ── Preview single-shot timer (Option B, REQ-SW-PL-053) ─────────────────
-    // Fires ONCE per Play (~250 ms after first frame), converts ONE frame to a
-    // small QImage, sets the QLabel pixmap, and stops. Zero ongoing CPU cost
-    // after the first frame — no repeating timer, no per-frame conversion.
-    // Stopped on flow stop / input disconnect / widget Hide. On new Play the
-    // timer is re-armed when the first frame arrives in setInData().
+    // ── Preview single-shot timer (page 0, REQ-SW-PL-053) ───────────────────
+    // Fires ONCE per Play (~1 s after first frame), converts ONE frame to a
+    // small QImage, sets the QLabel pixmap, and stops. m_previewFired latches
+    // after the first successful conversion so subsequent frames do NOT re-arm
+    // the timer — the preview stays STATIC until the next Play. Zero ongoing
+    // CPU cost after the first frame — no repeating timer, no per-frame
+    // conversion. Stopped on flow stop / input disconnect / widget Hide. On
+    // new Play the timer is re-armed when the first frame arrives in
+    // setInData().
     m_previewTimer = new QTimer(this);
     m_previewTimer->setSingleShot(true);
-    m_previewTimer->setInterval(250);
+    m_previewTimer->setInterval(1000);
     connect(m_previewTimer, &QTimer::timeout, this, [this]() {
         updatePreview();
     });
+
+    // Initial display mode: no proxy yet → live page. Corrected on the first
+    // Show via the m_widget event filter (updateDisplayMode()).
+    updateDisplayMode();
 }
 
 void VideoOutputNode::updatePreview()
 {
-    // Single-shot callback: converts the latest frame ONCE per Play. The timer
-    // is not re-armed — zero ongoing cost after this returns.
+    // Single-shot callback: converts the latest frame ONCE per Play. On
+    // success m_previewFired latches so setInData() never re-arms the timer —
+    // zero ongoing cost after this returns.
     if (m_preview == nullptr)
         return;
 
@@ -308,81 +372,29 @@ void VideoOutputNode::updatePreview()
     }
 
     m_preview->setPixmap(QPixmap::fromImage(image));
+    // Latch: the preview has fired for this Play — do NOT re-arm on subsequent
+    // frames (the preview stays static until the next Play).
+    m_previewFired = true;
 }
 
-void VideoOutputNode::ensureDisplayWindow()
+void VideoOutputNode::updateDisplayMode()
 {
-    // Create the detached window + splitter + unified display widget on first
-    // use (Option B). The window is a top-level QWidget (Qt::Window flag) — it
-    // is NOT part of the node scene, so the GL display cannot trigger scene
-    // repaints. The splitter houses the video display (left) and controls
-    // (right) — the SAME layout that was previously in the node widget.
-    if (m_displayWindow == nullptr) {
-        m_displayWindow = new QWidget(nullptr, Qt::Window);
-        m_displayWindow->setWindowTitle(tr("Video Output — %1").arg(name()));
-        m_displayWindow->resize(860, 480);
-
-        // ── Splitter ──────────────────────────────────────────────────────
-        m_splitter = new QSplitter(Qt::Horizontal, m_displayWindow);
-
-        // Unified display (REQ-SW-PL-053): ONE display widget, backend
-        // selected ONCE at construction. Auto-detect: hardware GL → GL blit
-        // (GPU), else software (CPU); DAQSTER_VIDEO_BACKEND=gl|software
-        // overrides.
-        m_display = (detectVideoBackend() == VideoBackend::Gl)
-            ? static_cast<VideoDisplayWidget *>(new VideoGLBlitWidget(m_displayWindow))
-            : static_cast<VideoDisplayWidget *>(new VideoSoftwareWidget(m_displayWindow));
-        m_display->widget()->setMinimumSize(320, 240);
-        m_splitter->addWidget(m_display->widget());      // Left: video (stretch=1)
-        m_splitter->setStretchFactor(0, 1);
-
-        // Right pane: controls widget (reparented from constructor)
-        m_controlsWidget->setParent(m_displayWindow);
-        m_splitter->addWidget(m_controlsWidget);          // Right: controls
-        m_splitter->setCollapsible(1, true);
-        m_splitter->setHandleWidth(8);
-        m_splitter->setChildrenCollapsible(true);
-        // Style the splitter handle to be visibly draggable
-        m_splitter->setStyleSheet(R"(
-            QSplitter::handle {
-                background: #555;
-                border: 1px solid #333;
-            }
-            QSplitter::handle:hover {
-                background: #888;
-            }
-            QSplitter::handle:horizontal {
-                border-left: 2px solid #333;
-                border-right: 2px solid #333;
-            }
-        )");
-
-        // Restore splitter state if loaded from save()/load().
-        if (!m_splitterState.isEmpty()) {
-            m_splitter->restoreState(m_splitterState);
-        } else {
-            // Default sizes: video pane wide, controls at minimum.
-            m_splitter->setSizes(QList<int>({640, 220}));
-        }
-
-        // Detached window layout: just the splitter, no margins.
-        QVBoxLayout *layout = new QVBoxLayout(m_displayWindow);
-        layout->setContentsMargins(0, 0, 0, 0);
-        layout->addWidget(m_splitter);
-
-        // Apply the geometry persisted in save()/load() (if any).
-        if (!m_displayWindowGeometry.isEmpty())
-            m_displayWindow->restoreGeometry(m_displayWindowGeometry);
-    }
-
-    // Show the window on the first frame of a flow. If the user closed the
-    // window mid-flow (m_displayWindowShown still true), it is NOT resurrected
-    // — it reopens only after a flow stop / input disconnect. A reprocess
-    // (effect change / load, m_suppressWindowShow) never shows the window.
-    if (!m_suppressWindowShow && !m_displayWindowShown) {
-        m_displayWindow->show();
-        m_displayWindow->raise();
-        m_displayWindowShown = true;
+    const bool inProxy = (m_widget != nullptr && m_widget->graphicsProxyWidget() != nullptr);
+    if (inProxy) {
+        // Editor-embedded: static preview page. Arm the single-shot preview
+        // timer if a frame has arrived and the preview has not fired yet.
+        if (m_videoStack != nullptr)
+            m_videoStack->setCurrentWidget(m_previewPage);
+        if (m_previewTimer != nullptr && !m_previewFired && !m_previewTimer->isActive()
+            && m_lastFrameForPreview && m_lastFrameForPreview->hasFrame())
+            m_previewTimer->start();
+    } else {
+        // Deembedded (floating window) or run mode (MDI): live video page.
+        // Stop the preview timer — zero preview conversion cost.
+        if (m_videoStack != nullptr)
+            m_videoStack->setCurrentWidget(m_livePage);
+        if (m_previewTimer != nullptr)
+            m_previewTimer->stop();
     }
 }
 
@@ -594,11 +606,8 @@ VideoOutputNode::~VideoOutputNode()
     // Single shutdown path: stop() stops timers (REQ-SW-PL-050).
     stop();
 
-    // The detached display window is a top-level window (no parent) — delete
-    // it explicitly. m_display, m_splitter, and m_controlsWidget are its
-    // children, so they are destroyed with it.
-    delete m_displayWindow;
-    m_displayWindow = nullptr;
+    // m_display, m_splitter, and m_controlsWidget are children of m_widget
+    // (via m_livePage) and are destroyed with it by the framework.
     m_display = nullptr;
     m_splitter = nullptr;
     m_controlsWidget = nullptr;
@@ -618,18 +627,17 @@ void VideoOutputNode::stop()
         m_previewTimer->stop();
 
     // Reset the in-node preview: clear the pixmap and show "No video"
-    // placeholder so the next Play starts with a clean slate.
+    // placeholder so the next Play starts with a clean slate. Clear the
+    // fired-latch so the next Play's first frame re-arms the timer.
+    m_previewFired = false;
     if (m_preview != nullptr) {
         m_preview->setText(tr("No video"));
         m_preview->setPixmap(QPixmap());
     }
 
-    // Hide the detached display window (kept for reuse — the widget and its
-    // GL context stay alive; the window is re-shown on the next flow's first
-    // frame via ensureDisplayWindow()).
-    m_displayWindowShown = false;
-    if (m_displayWindow != nullptr)
-        m_displayWindow->hide();
+    // Clear the live display so the next Play starts with a clean slate.
+    if (m_display != nullptr)
+        m_display->clear();
 }
 
 void VideoOutputNode::setPerfEnabled(bool enabled)
@@ -693,25 +701,6 @@ QJsonObject VideoOutputNode::save() const
     obj[QStringLiteral("cannyHigh")] = m_params.cannyHigh;
     obj[QStringLiteral("thresholdValue")] = m_params.thresholdValue;
 
-    // Splitter state (REQ-SW-PL-053): persist the QSplitter geometry. The
-    // splitter lives in the detached window — it may not exist yet if no frame
-    // has arrived (lazy creation). Fall back to the stored m_splitterState.
-    if (m_splitter != nullptr) {
-        obj[QStringLiteral("splitterState")] =
-            QString::fromLatin1(m_splitter->saveState().toBase64());
-    } else if (!m_splitterState.isEmpty()) {
-        obj[QStringLiteral("splitterState")] =
-            QString::fromLatin1(m_splitterState.toBase64());
-    }
-
-    // Detached display window (Option B): persist geometry so the window is
-    // restored across save/load/restart. The window itself is created lazily
-    // on the first frame of a flow (ensureDisplayWindow()).
-    if (m_displayWindow != nullptr) {
-        obj[QStringLiteral("displayWindowGeometry")] =
-            QString::fromLatin1(m_displayWindow->saveGeometry().toBase64());
-    }
-
     // Perf toggle state: persist so the profiling domain + refresh timer are
     // restored across save/load/restart.
     if (m_perfToggle != nullptr)
@@ -754,23 +743,6 @@ void VideoOutputNode::load(QJsonObject const &p)
     }
     setEffectIndex(comboIndex);
 
-    // Restore splitter state. The splitter lives in the lazily-created detached
-    // window — if it exists already, apply directly; otherwise store in
-    // m_splitterState for deferred apply in ensureDisplayWindow().
-    const QString splitterStateStr = p.value(QStringLiteral("splitterState")).toString();
-    if (!splitterStateStr.isEmpty()) {
-        m_splitterState = QByteArray::fromBase64(splitterStateStr.toLatin1());
-        if (m_splitter != nullptr)
-            m_splitter->restoreState(m_splitterState);
-    }
-
-    // Restore detached display window geometry (Option B). The window itself
-    // is created lazily on first frame — store the geometry here and apply it
-    // in ensureDisplayWindow() when the window is created.
-    const QString geometryStr = p.value(QStringLiteral("displayWindowGeometry")).toString();
-    if (!geometryStr.isEmpty())
-        m_displayWindowGeometry = QByteArray::fromBase64(geometryStr.toLatin1());
-
     // Restore perf toggle state. Setting checked triggers the toggled signal
     // which enables/disables the perf domain + refresh timer.
     const bool perfChecked = p.value(QStringLiteral("perfToggle")).toBool(false);
@@ -787,13 +759,12 @@ void VideoOutputNode::reprocessCurrentFrame()
 {
     if (!m_lastInput || !m_lastInput->hasFrame())
         return;
-    // A reprocess (effect change / load) must not resurrect the detached
-    // window on a stopped flow — only present to an already-created display.
-    // The in-node preview still updates (m_lastFrameForPreview is refreshed
-    // inside setInData), so the user sees the effect change immediately.
-    m_suppressWindowShow = true;
+    // A reprocess (effect change / load) re-presents the last frame only while
+    // the live page is active (isLiveDisplayActive() gates presentation in
+    // setInData). The in-node preview still updates (m_lastFrameForPreview is
+    // refreshed inside setInData), so the user sees the effect change
+    // immediately.
     setInData(m_lastInput, 0);
-    m_suppressWindowShow = false;
 }
 
 unsigned int VideoOutputNode::nPorts(PortType portType) const
@@ -894,14 +865,12 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                 }
             }
 
-            // ── Detached display (Option B) ────────────────────────────────────────
-            // The unified display widget lives in a detached window, created
-            // lazily and shown on the first frame of a flow
-            // (ensureDisplayWindow). Frames are forwarded to the display
-            // widget exactly as before — just in a window now. A reprocess
-            // (effect change / load) suppresses the window-show side effect.
-            if (m_display != nullptr || (!m_suppressWindowShow && !m_displayWindowShown)) {
-                ensureDisplayWindow();
+            // ── Live display (three-mode design) ────────────────────────────────────
+            // Present only while the live page is active (deembedded / run mode).
+            // In editor-embedded mode the preview page shows a static snapshot and no
+            // frames are presented — zero GPU cost, and the GL widget's context is
+            // never forced before its first show.
+            if (isLiveDisplayActive() && m_display != nullptr) {
                 PERF_SCOPE("video", "output.present");
                 if (videoFrame->isGpuRgba()) {
                     VideoTextureHandle h;
@@ -918,13 +887,18 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                 }
             }
 
-            // ── In-node preview (Option B, single-shot) ─────────────────────
+            // ── In-node preview (page 0, single-shot) ─────────────────────
             // Keep the latest frame and arm the single-shot timer. The timer
-            // fires ONCE (~250 ms), converts the frame to a small QImage, sets
-            // the QLabel pixmap, and stops — zero ongoing CPU cost. On a new
-            // Play the timer is re-armed (previous stop cleared it).
+            // fires ONCE (~1 s), converts the frame to a small QImage, sets
+            // the QLabel pixmap, and stops — zero ongoing CPU cost. The
+            // m_previewFired latch (set in updatePreview()) blocks re-arming
+            // on every subsequent frame — the preview stays STATIC until the
+            // next Play (stop() / disconnect resets the latch). Armed ONLY
+            // while embedded in the scene proxy — zero preview conversion in
+            // run/deembedded mode.
             m_lastFrameForPreview = videoFrame;
-            if (m_previewTimer != nullptr && !m_previewTimer->isActive())
+            const bool inProxy = (m_widget != nullptr && m_widget->graphicsProxyWidget() != nullptr);
+            if (inProxy && m_previewTimer != nullptr && !m_previewFired && !m_previewTimer->isActive())
                 m_previewTimer->start();
 
             // Only emit the output when a downstream processing consumer is
@@ -941,6 +915,7 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
             m_lastInput.reset();
             m_output.reset();
             m_lastFrameForPreview.reset();
+            m_previewFired = false;
             if (m_previewTimer != nullptr)
                 m_previewTimer->stop();
             if (m_preview != nullptr) {
@@ -987,6 +962,7 @@ void VideoOutputNode::inputConnectionDeleted(QtNodes::ConnectionId const &conId)
     m_lastInput.reset();
     m_output.reset();
     m_lastFrameForPreview.reset();
+    m_previewFired = false;
     if (m_previewTimer != nullptr)
         m_previewTimer->stop();
     if (m_preview != nullptr) {
@@ -995,11 +971,6 @@ void VideoOutputNode::inputConnectionDeleted(QtNodes::ConnectionId const &conId)
     }
     if (m_display != nullptr)
         m_display->clear();
-    // Hide the detached window (kept for reuse — re-shown on next flow's
-    // first frame via ensureDisplayWindow()).
-    m_displayWindowShown = false;
-    if (m_displayWindow != nullptr)
-        m_displayWindow->hide();
 }
 
 QWidget *VideoOutputNode::embeddedWidget()
@@ -1009,18 +980,14 @@ QWidget *VideoOutputNode::embeddedWidget()
 
 bool VideoOutputNode::eventFilter(QObject *watched, QEvent *event)
 {
-    if (watched == m_preview) {
+    if (watched == m_widget) {
         if (event->type() == QEvent::Show) {
-            // Preview became visible (node widget shown / deembedded): arm
-            // the single-shot timer if a frame has already arrived — it will
-            // fire once, convert, and stop. If no frame arrived yet, the
-            // timer will be armed when the first frame arrives in setInData().
-            if (m_previewTimer != nullptr && !m_previewTimer->isActive()
-                && m_lastFrameForPreview && m_lastFrameForPreview->hasFrame())
-                m_previewTimer->start();
+            // Node widget became visible (embedded in scene proxy, or shown
+            // as a floating window / MDI sub-window): re-evaluate the mode.
+            updateDisplayMode();
         } else if (event->type() == QEvent::Hide) {
-            // Preview hidden (canvas hidden in --run mode, node collapsed):
-            // stop the timer — no conversion while not visible.
+            // Node widget hidden (deembedded, canvas hidden): stop the
+            // preview timer — no conversion while not visible.
             if (m_previewTimer != nullptr)
                 m_previewTimer->stop();
         }

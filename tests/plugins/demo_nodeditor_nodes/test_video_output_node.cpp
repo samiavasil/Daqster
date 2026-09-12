@@ -5,11 +5,17 @@
 #include "VideoDisplayBackend.h"
 #include "VideoGLBlitWidget.h"
 #include "VideoOutputNode.h"
+#include "VideoSoftwareWidget.h"
 
+#include <QCheckBox>
 #include <QColor>
+#include <QCoreApplication>
+#include <QGraphicsProxyWidget>
+#include <QGraphicsScene>
 #include <QImage>
 #include <QJsonObject>
 #include <QSignalSpy>
+#include <QSplitter>
 #include <QVideoFrame>
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -316,12 +322,11 @@ void VideoOutputNodeTest::cpuEffectAppliesToGpuRgbaInput()
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 // ── gpuRgbaRoutesToGlBlitWidget (REQ-SW-PL-053) ──────────────────────────────
 //
-// Option B — embedded placeholder + always-detached display: the unified
-// display (REQ-SW-PL-053) selects the backend ONCE at construction (lazily on
-// first frame arrival): hardware GL → VideoGLBlitWidget (GPU), else
-// VideoSoftwareWidget (CPU). The display widget lives in the DETACHED window
-// (not in the node widget). GpuRgba frames (effect outputs) route to
-// presentTexture (zero-copy) on the GL backend.
+// Three-mode design: the unified display (REQ-SW-PL-053) selects the backend
+// ONCE at construction — hardware GL → VideoGLBlitWidget (GPU), else
+// VideoSoftwareWidget (CPU). The display widget lives in the live page of
+// embeddedWidget() (not in a detached window). GpuRgba frames (effect outputs)
+// route to presentTexture (zero-copy) on the GL backend.
 void VideoOutputNodeTest::gpuRgbaRoutesToGlBlitWidget()
 {
     if (!VideoGLContextManager::hasHardwareGL())
@@ -332,12 +337,12 @@ void VideoOutputNodeTest::gpuRgbaRoutesToGlBlitWidget()
     VideoOutputNode node;
     node.inputConnectionCreated(makeConId(0, 0));
 
-    // (b) The display widget is created LAZILY on first frame arrival and
-    // lives in the DETACHED window (Option B) — not in the node widget.
+    // (b) The display widget is created in the constructor and lives in the
+    // live page of embeddedWidget() (three-mode design).
     QWidget *embedded = node.embeddedWidget();
     QVERIFY(embedded != nullptr);
-    // Before the first frame: no display widget yet.
-    QVERIFY(node.displayWidget() == nullptr);
+    // After construction: the display widget already exists.
+    QVERIFY(node.displayWidget() != nullptr);
 
     // (a) GpuRgba frame (effect output) routes to the GL blit widget.
     // The texture handle is a placeholder — the routing decision only needs
@@ -350,15 +355,83 @@ void VideoOutputNodeTest::gpuRgbaRoutesToGlBlitWidget()
     h.texY = 1;
     node.setInData(VideoFrameData::fromTexture(h), 0);
 
-    // After the first frame: the detached window + GL blit widget exist.
+    // The GL blit widget received the texture present (zero-copy presentTexture).
     // VideoDisplayWidget is a pure interface (not QObject-derived) — use
     // dynamic_cast to recover the concrete GL backend.
     auto *glDisplay = dynamic_cast<VideoGLBlitWidget *>(node.displayWidget());
     QVERIFY(glDisplay != nullptr);  // GL backend selected (hardware GL)
-
-    // The GL widget received the texture present (zero-copy presentTexture).
     QCOMPARE(glDisplay->lastFormatName(), QStringLiteral("Texture(RGBA)"));
 }
 #endif  // QT_VERSION >= 0x060000
+
+// ── embeddedWidgetContainsDisplayAndControls (REQ-SW-PL-053) ─────────────
+//
+// Three-mode design: embeddedWidget() is the single home of the display and
+// controls. The live page (page 1 of the QStackedWidget) contains the video
+// display widget (GL blit or software backend) and the controls splitter with
+// the Perf toggle checkbox — reachable via findChildren in run mode.
+void VideoOutputNodeTest::embeddedWidgetContainsDisplayAndControls()
+{
+    VideoOutputNode node;
+
+    QWidget *embedded = node.embeddedWidget();
+    QVERIFY(embedded != nullptr);
+
+    // The display widget (one of the two backends) lives inside embeddedWidget().
+    // VideoDisplayWidget is a pure interface (not QObject-derived), so
+    // findChildren uses the concrete backend types.
+    const auto glDisplays = embedded->findChildren<VideoGLBlitWidget *>();
+    const auto swDisplays = embedded->findChildren<VideoSoftwareWidget *>();
+    QVERIFY(!glDisplays.isEmpty() || !swDisplays.isEmpty());
+
+    // The Perf toggle checkbox is reachable via findChildren (run mode).
+    const auto checkBoxes = embedded->findChildren<QCheckBox *>();
+    bool foundPerf = false;
+    for (QCheckBox *cb : checkBoxes) {
+        if (cb->text() == QStringLiteral("Perf")) {
+            foundPerf = true;
+            break;
+        }
+    }
+    QVERIFY(foundPerf);
+
+    // The live page splitter (display left + controls right) exists.
+    QVERIFY(!embedded->findChildren<QSplitter *>().isEmpty());
+}
+
+// ── displayModeSwitchesWithProxyEmbedding (REQ-SW-PL-053) ────────────────
+//
+// Mode detection is m_widget->graphicsProxyWidget() != nullptr:
+//   - no proxy → live page active (deembedded / run mode);
+//   - embedded in a QGraphicsProxyWidget → preview page active (editor mode);
+//   - detached from the proxy → live page active again.
+// The real deembed flow (NodeGraphicsObject::setWidgetEmbedded(false)) detaches
+// the proxy, reparents to a top-level window, and re-shows the widget — the
+// Show event drives updateDisplayMode(). The test replicates that re-show.
+// The proxy MUST be detached (setWidget(nullptr)) before the node is
+// destroyed — QGraphicsProxyWidget takes ownership of the widget.
+void VideoOutputNodeTest::displayModeSwitchesWithProxyEmbedding()
+{
+    VideoOutputNode node;
+
+    // No proxy → live page active.
+    QVERIFY(node.isLiveDisplayActive());
+
+    // Embed in a scene proxy → preview page active.
+    QGraphicsScene scene;
+    QGraphicsProxyWidget *proxy = scene.addWidget(node.embeddedWidget());
+    QCoreApplication::processEvents();
+    QVERIFY(!node.isLiveDisplayActive());
+
+    // Deembed (detach the proxy, then re-show like the real flow) → live page
+    // active again. setWidget(nullptr) alone fires no event — the widget stays
+    // visible as a top-level window; the re-show (Show event) is what triggers
+    // updateDisplayMode().
+    proxy->setWidget(nullptr);
+    node.embeddedWidget()->hide();
+    node.embeddedWidget()->show();
+    QCoreApplication::processEvents();
+    QVERIFY(node.isLiveDisplayActive());
+}
 
 QTEST_MAIN(VideoOutputNodeTest)
