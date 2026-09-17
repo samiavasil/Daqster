@@ -6,6 +6,7 @@
 #include <QImage>
 #include <QtMultimedia/QVideoFrame>
 
+#include "GL/TexturePool.h"
 #include "GL/VideoGLContextManager.h"
 #include "NodeDataTypes/VideoTextureHandle.h"
 
@@ -114,11 +115,210 @@ public:
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
                 m_imageCache = m_frame.toImage();
 #else
+                // Qt5: QVideoFrame::image() only wraps RGB formats — NV12 /
+                // YUV420P return a null QImage. Real video frames on Qt5 are
+                // NV12 owned copies, so convert the YUV planes manually
+                // (REQ-SW-PL-039).
                 m_imageCache = m_frame.image();
+                if (m_imageCache.isNull())
+                    m_imageCache = yuvToImage(m_frame);
 #endif
             }
         }
         return m_imageCache;
+    }
+
+    /// Thread-safe CPU-only conversion of a QVideoFrame to QImage
+    /// (REQ-SW-PL-039).
+    ///
+    /// Unified entry point for the ComputePool workers: converts the worker's
+    /// OWN frame copy without touching GL/RHI. QVideoFrame::toImage() on Qt6
+    /// can route through RHI/GPU conversion, which creates a GL context on the
+    /// calling thread — forbidden off the GUI thread (QTBUG-131107); Qt5's
+    /// QVideoFrame::image() returns a null QImage for NV12/YUV420P. This
+    /// converter is pure CPU and safe from ANY thread (no GL, no RHI, no
+    /// shared mutable state).
+    ///
+    /// Handles:
+    ///   - NV12 / YUV420P via yuvToImage() (BT.601 limited-range, pure CPU)
+    ///   - RGB formats (RGB32, ARGB32, RGB888, ...) by wrapping the mapped
+    ///     bits directly — no pixel conversion; the image is deep-copied so it
+    ///     owns its data and stays valid after the frame is unmapped/destroyed
+    ///
+    /// Returns a null QImage only for unsupported formats or a failed map.
+    static QImage frameToImageCpu(const QVideoFrame &frame)
+    {
+        if (!frame.isValid())
+            return QImage();
+
+        // RGB formats: wrap the mapped bits directly (no pixel conversion).
+        QImage::Format qfmt = QImage::Format_Invalid;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+        // Qt 6.8+ renamed the pixel formats and QVideoFrame(QImage) now maps
+        // QImage::Format_RGB32 → Format_BGRX8888 / Format_ARGB32 →
+        // Format_BGRA8888 (the memory layouts match: [B,G,R,X] / [B,G,R,A]).
+        switch (frame.surfaceFormat().pixelFormat()) {
+        case QVideoFrameFormat::Format_BGRX8888:
+            qfmt = QImage::Format_RGB32;
+            break;
+        case QVideoFrameFormat::Format_BGRA8888:
+            qfmt = QImage::Format_ARGB32;
+            break;
+        case QVideoFrameFormat::Format_BGRA8888_Premultiplied:
+            qfmt = QImage::Format_ARGB32_Premultiplied;
+            break;
+        case QVideoFrameFormat::Format_RGBA8888:
+            qfmt = QImage::Format_RGBA8888;
+            break;
+        case QVideoFrameFormat::Format_RGBX8888:
+            qfmt = QImage::Format_RGBX8888;
+            break;
+        default:
+            break;
+        }
+#elif QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        switch (frame.surfaceFormat().pixelFormat()) {
+        case QVideoFrameFormat::Format_RGB32:
+            qfmt = QImage::Format_RGB32;
+            break;
+        case QVideoFrameFormat::Format_ARGB32:
+            qfmt = QImage::Format_ARGB32;
+            break;
+        case QVideoFrameFormat::Format_ARGB32_Premultiplied:
+            qfmt = QImage::Format_ARGB32_Premultiplied;
+            break;
+        case QVideoFrameFormat::Format_RGB24:
+            qfmt = QImage::Format_RGB888;
+            break;
+        case QVideoFrameFormat::Format_RGB565:
+            qfmt = QImage::Format_RGB16;
+            break;
+        default:
+            break;
+        }
+#else
+        switch (frame.pixelFormat()) {
+        case QVideoFrame::Format_RGB32:
+            qfmt = QImage::Format_RGB32;
+            break;
+        case QVideoFrame::Format_ARGB32:
+            qfmt = QImage::Format_ARGB32;
+            break;
+        case QVideoFrame::Format_ARGB32_Premultiplied:
+            qfmt = QImage::Format_ARGB32_Premultiplied;
+            break;
+        case QVideoFrame::Format_RGB24:
+            qfmt = QImage::Format_RGB888;
+            break;
+        case QVideoFrame::Format_RGB565:
+            qfmt = QImage::Format_RGB16;
+            break;
+        default:
+            break;
+        }
+#endif
+        if (qfmt != QImage::Format_Invalid) {
+            // map()/bits() are non-const in Qt5 — implicit-share local copy.
+            QVideoFrame mappable = frame;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+            if (!mappable.map(QVideoFrame::ReadOnly))
+                return QImage();
+#else
+            if (!mappable.map(QAbstractVideoBuffer::ReadOnly))
+                return QImage();
+#endif
+            const int w = mappable.width();
+            const int h = mappable.height();
+            if (w <= 0 || h <= 0) {
+                mappable.unmap();
+                return QImage();
+            }
+            // Wrap the mapped bits, then deep-copy so the returned image owns
+            // its data (safe after the frame is unmapped/destroyed).
+            const QImage wrapped(mappable.bits(0), w, h,
+                                 mappable.bytesPerLine(0), qfmt);
+            const QImage owned = wrapped.copy();
+            mappable.unmap();
+            return owned;
+        }
+
+        // NV12 / YUV420P: pure-CPU BT.601 conversion.
+        return yuvToImage(frame);
+    }
+
+    /// Pure-CPU BT.601 YUV→RGB conversion for NV12 / YUV420P frames.
+    ///
+    /// Qt5's QVideoFrame::image() only wraps RGB formats — NV12/YUV420P return
+    /// a null QImage; Qt6's QVideoFrame::toImage() may route through RHI/GPU
+    /// conversion (forbidden off the GUI thread, QTBUG-131107). This converter
+    /// maps the planes and converts on the CPU, so it is safe to call from ANY
+    /// thread (no GL, no RHI, no shared mutable state).
+    ///
+    /// Returns a null QImage for unsupported formats or a failed map.
+    static QImage yuvToImage(const QVideoFrame &frame)
+    {
+        if (!frame.isValid())
+            return QImage();
+
+        const bool nv12 = isNv12(frame);
+        const bool yuv420p = isYuv420p(frame);
+        if (!nv12 && !yuv420p)
+            return QImage();
+
+        const int w = frame.width();
+        const int h = frame.height();
+        if (w <= 0 || h <= 0)
+            return QImage();
+
+        // map()/bits() are non-const in Qt5 — implicit-share local copy (the
+        // owned frame itself is never modified).
+        QVideoFrame mappable = frame;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        if (!mappable.map(QVideoFrame::ReadOnly))
+            return QImage();
+#else
+        if (!mappable.map(QAbstractVideoBuffer::ReadOnly))
+            return QImage();
+#endif
+
+        const uchar *yPlane = mappable.bits(0);
+        const uchar *uPlane = mappable.bits(1);
+        const uchar *vPlane = nv12 ? nullptr : mappable.bits(2);
+        const int yStride = mappable.bytesPerLine(0);
+        const int uStride = mappable.bytesPerLine(1);
+        const int vStride = nv12 ? 0 : mappable.bytesPerLine(2);
+        const int chromaW = (w + 1) / 2;
+        const int chromaH = (h + 1) / 2;
+
+        QImage img(w, h, QImage::Format_RGB32);
+        for (int row = 0; row < h; ++row) {
+            QRgb *dst = reinterpret_cast<QRgb *>(img.scanLine(row));
+            const uchar *yRow = yPlane + row * yStride;
+            const int chromaRow = row / 2;
+            const uchar *uvRow = nv12 ? (uPlane + chromaRow * uStride) : nullptr;
+            for (int col = 0; col < w; ++col) {
+                const int y = yRow[col];
+                const int chromaCol = col / 2;
+                int u, v;
+                if (nv12) {
+                    u = uvRow[chromaCol * 2];
+                    v = uvRow[chromaCol * 2 + 1];
+                } else {
+                    u = uPlane[chromaRow * uStride + chromaCol];
+                    v = vPlane[chromaRow * vStride + chromaCol];
+                }
+                // BT.601 limited-range YUV → RGB.
+                const int c = y - 16;
+                const int d = u - 128;
+                const int e = v - 128;
+                const int r = qBound(0, (298 * c + 409 * e + 128) >> 8, 255);
+                const int g = qBound(0, (298 * c - 100 * d - 208 * e + 128) >> 8, 255);
+                const int b = qBound(0, (298 * c + 516 * d + 128) >> 8, 255);
+                dst[col] = qRgb(r, g, b);
+            }
+        }
+        mappable.unmap();
+        return img;
     }
 
     /// Lazy GPU texture representation (REQ-SW-PL-032 AC 1/5).
@@ -127,6 +327,11 @@ public:
     /// context (VideoGLContextManager) at most once per frame and caches the
     /// texture ids, so N GPU consumers share a single upload. The cache is
     /// invalidated by setFrame().
+    ///
+    /// The textures are acquired from the global TexturePool (REQ-SW-PL-038)
+    /// and marked pooled — releaseTextures() returns them to the pool instead
+    /// of deleting them, so the display path no longer does a
+    /// glGenTextures/glDeleteTextures pair per frame.
     ///
     /// Returns false (and leaves *out untouched) for non NV12/YUV420P frames,
     /// missing GL support, or a failed map/upload — the caller falls back to
@@ -185,13 +390,34 @@ public:
         const int chromaW = (w + 1) / 2;
         const int chromaH = (h + 1) / 2;
 
-        GLuint texY = 0, texUV = 0, texU = 0, texV = 0;
-        f->glGenTextures(1, &texY);
-        if (nv12)
-            f->glGenTextures(1, &texUV);
-        else {
-            f->glGenTextures(1, &texU);
-            f->glGenTextures(1, &texV);
+        // Textures come from the global TexturePool (REQ-SW-PL-038) instead of
+        // a glGenTextures per frame — the same pool the effect processors use,
+        // so every video texture in the process is reused across frames. The
+        // handle is marked pooled so releaseTextures() returns the textures to
+        // the pool instead of deleting them. acquire() returns 0 on GL failure
+        // — release the partial set and fall back to the CPU path.
+        TexturePool &pool = TexturePool::instance();
+        GLuint texY = pool.acquire(w, h);
+        if (texY == 0)
+            return false;
+        GLuint texUV = 0, texU = 0, texV = 0;
+        if (nv12) {
+            texUV = pool.acquire(chromaW, chromaH);
+            if (texUV == 0) {
+                pool.release(texY);
+                return false;
+            }
+        } else {
+            texU = pool.acquire(chromaW, chromaH);
+            texV = pool.acquire(chromaW, chromaH);
+            if (texU == 0 || texV == 0) {
+                if (texU != 0)
+                    pool.release(texU);
+                if (texV != 0)
+                    pool.release(texV);
+                pool.release(texY);
+                return false;
+            }
         }
 
         f->glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -223,7 +449,7 @@ public:
         f->glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         mappable.unmap();
 
-        m_textureCache = VideoTextureHandle{texY, texUV, texU, texV, w, h, nv12, false};
+        m_textureCache = VideoTextureHandle{texY, texUV, texU, texV, w, h, nv12, false, true};
         m_textureValid = true;
         m_residency = VideoFrameResidency::GpuYuv;
         if (out != nullptr)
@@ -237,9 +463,16 @@ public:
     ///
     /// When releaseCallback is provided (texture-pool path, REQ-SW-PL-032
     /// Issue #7), the callback is invoked instead of glDeleteTextures when the
-    /// frame is destroyed — it returns the texture to the pool. The callback
-    /// must capture a shared_ptr to the pool so the pool outlives the frame.
-    /// Without a callback the current delete behavior is kept.
+    /// frame is destroyed — it returns the texture to the pool. With the
+    /// global pool (REQ-SW-PL-038) the callback calls TexturePool::instance().
+    /// release() — the singleton is intentionally leaked, so no capture is
+    /// needed to keep the pool alive.
+    ///
+    /// The handle is always marked pooled (REQ-SW-PL-038): effect output
+    /// textures come from the global TexturePool, so even without a release
+    /// callback releaseTextures() returns the texture to the pool instead of
+    /// deleting it (a pooled texture must never be glDeleteTextures'd — the
+    /// pool still owns it).
     static std::shared_ptr<VideoFrameData> fromTexture(
         const VideoTextureHandle &h,
         std::function<void()> releaseCallback = {})
@@ -247,6 +480,7 @@ public:
         auto data = std::make_shared<VideoFrameData>();
         data->m_textureCache = h;
         data->m_textureCache.rgba = true;
+        data->m_textureCache.pooled = true;
         data->m_textureValid = true;
         data->m_residency = VideoFrameResidency::GpuRgba;
         data->m_releaseCallback = std::move(releaseCallback);
@@ -317,8 +551,9 @@ private:
     }
 
     /// Deletes the owned GL textures (if any) in the shared context — or, for
-    /// pooled textures (REQ-SW-PL-032 Issue #7), invokes the release callback
-    /// exactly once to return the texture to the pool.
+    /// pooled textures (REQ-SW-PL-032 Issue #7 / REQ-SW-PL-038), returns them
+    /// to the pool: the release callback (effect outputs) or the global pool
+    /// directly (asTexture uploads, pooled flag on the handle).
     void releaseTextures()
     {
         if (!m_textureValid)
@@ -331,6 +566,15 @@ private:
             auto cb = std::move(m_releaseCallback);
             m_releaseCallback = nullptr;
             cb();
+        } else if (m_textureCache.pooled) {
+            // Pooled textures (REQ-SW-PL-038): return them to the global pool
+            // for reuse instead of deleting. release() ignores 0 ids, unknown
+            // ids and double-releases, so this is safe for any handle state.
+            TexturePool &pool = TexturePool::instance();
+            pool.release(m_textureCache.texY);
+            pool.release(m_textureCache.texUV);
+            pool.release(m_textureCache.texU);
+            pool.release(m_textureCache.texV);
         } else {
             VideoGLContextManager &mgr = VideoGLContextManager::instance();
             mgr.deleteTexture(m_textureCache.texY);
@@ -354,7 +598,9 @@ private:
     /// Mutable: asTexture() promotes a CPU frame to GpuYuv on first upload.
     mutable VideoFrameResidency m_residency = VideoFrameResidency::Cpu;
     /// Optional release callback for pooled textures (REQ-SW-PL-032 Issue #7):
-    /// invoked once in releaseTextures() instead of glDeleteTextures. Captures
-    /// a shared_ptr to the TexturePool so the pool outlives this frame.
+    /// invoked once in releaseTextures() instead of glDeleteTextures. With the
+    /// global pool (REQ-SW-PL-038) the callback calls TexturePool::instance().
+    /// release() — the singleton is intentionally leaked, so no capture is
+    /// needed to keep the pool alive.
     std::function<void()> m_releaseCallback;
 };

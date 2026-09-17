@@ -67,6 +67,15 @@
 - NV12 от декодера → 2 текстури (Y+UV) → първият шейдър прави YUV→RGB +
   ефект → RGBA текстура → display семплира RGBA (без конверсия).
 
+### Глобален споделен TexturePool (разширение на Issue #7)
+
+TexturePool-ът от Issue #7 е per-node (всеки ефект процесор има свой). Това разширение:
+1. Прави пула ГЛОБАЛЕН (singleton, до VideoGLContextManager) — споделен между всички нод типове
+2. Display path-ът (VideoFrameData::asTexture/releaseTextures) също ползва пула — елиминира per-frame glGenTextures/glDeleteTextures
+3. Приватните пулове в ефектите (VideoEffectGLProcessor, CustomShaderGLProcessor) се махат → глобален
+4. Пулът е динамичен — расте на demand според пиковата нужда на chain-а
+5. VideoTextureHandle различава pooled vs owned текстури
+
 ## Acceptance Criteria
 
 - [x] 1. **Lazy кешове.** `VideoFrameData` с lazy `asImage()` (CPU QImage
@@ -147,6 +156,13 @@
         README-а.
 - [x] 11. **Qt5 + Qt6 builds PASS.**
 - [ ] 12. **Тестове** (отложени по стояща инструкция).
+- [ ] 13. **Глобален TexturePool singleton съществува** (до VideoGLContextManager).
+- [ ] 14. **`asTexture()` ползва пула** (без per-frame `glGenTextures`).
+- [ ] 15. **`releaseTextures()` връща в пула** (без per-frame `glDeleteTextures`).
+- [ ] 16. **Ефект процесорите ползват глобалния пул** (приватните махнати).
+- [ ] 17. **`VideoTextureHandle` различава pooled vs owned.**
+- [ ] 18. **Qt5 + Qt6 builds PASS, ctest green.**
+- [ ] 19. **GL blit CPU на Qt6 пада от ~8% към ~5%** (перформанс).
 
 ## Проследимост
 

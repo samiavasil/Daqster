@@ -1,6 +1,7 @@
 #include "DaqDisplayNode.h"
 
 #include "FftUtil.h"
+#include "Threading/ComputePool.h"
 
 #include <QComboBox>
 #include <QDoubleSpinBox>
@@ -11,10 +12,8 @@
 #include <QLabel>
 #include <QPainter>
 #include <QPushButton>
-#include <QRunnable>
 #include <QScrollArea>
 #include <QSignalBlocker>
-#include <QThreadPool>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -30,6 +29,8 @@ using QtNodes::NodeValidationState;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 
+using Daqster::ComputePool;
+
 namespace {
 
 // Decimation budgets (REQ-SW-PL-023 §5): ≤ 2000 points per series; FFT input is
@@ -44,48 +45,11 @@ constexpr int kMaxFftSamples = 4096;
 } // namespace
 
 // ── Off-GUI compute (REQ-SW-PL-023 §4, AC 4) ────────────────────────────────
-
-class DaqDisplayNode::ComputeTask : public QRunnable
-{
-public:
-    ComputeTask(std::shared_ptr<const SampledData> data,
-                QVector<CardConfig> configs,
-                DaqDisplayNode *node,
-                double ringSeconds,
-                quint64 dataGeneration)
-        : m_data(std::move(data))
-        , m_configs(std::move(configs))
-        , m_node(node)
-        , m_ringSeconds(ringSeconds)
-        , m_dataGeneration(dataGeneration)
-    {
-    }
-
-    void run() override
-    {
-        if (m_node->m_shuttingDown.load())
-            return;
-
-        // Ring append + decode + FFT + point build + min/max — ALL on this
-        // worker thread (REQ-SW-PL-025 §3/§4, AC 6); m_ring is worker-owned.
-        PlotResult result = m_node->computePlotResult(m_data, m_configs,
-                                                      m_ringSeconds, m_dataGeneration);
-
-        // Do not post after shutdown has begun — the node may be gone.
-        if (m_node->m_shuttingDown.load())
-            return;
-
-        QMetaObject::invokeMethod(m_node->m_bridge, "onComputeDone",
-                                  Qt::QueuedConnection, Q_ARG(PlotResult, result));
-    }
-
-private:
-    std::shared_ptr<const SampledData> m_data;
-    QVector<CardConfig> m_configs;
-    DaqDisplayNode *m_node;
-    double m_ringSeconds;
-    quint64 m_dataGeneration;
-};
+//
+// The compute pass runs on the shared ComputePool (REQ-SW-PL-039) under a
+// per-node key. The pool's per-key "latest-wins" submission + per-key
+// serialization guarantee at most one task per node runs at a time, so the
+// worker-owned ring buffer (m_ring) is never touched concurrently.
 
 PlotResult DaqDisplayNode::computePlotResult(const std::shared_ptr<const SampledData> &data,
                                              const QVector<CardConfig> &configs,
@@ -345,7 +309,6 @@ void DaqDisplayNode::applyResult(const PlotResult &result)
                                        result.ranges.at(i).second.y());
         }
     }
-    m_computeInFlight = false;
 }
 
 void DaqDisplayResultBridge::onComputeDone(PlotResult result)
@@ -368,10 +331,10 @@ DaqDisplayNode::DaqDisplayNode()
     // Metatype for the queued result delivery (REQ-SW-PL-023 §4).
     qRegisterMetaType<PlotResult>("PlotResult");
 
-    // Node-owned pool (maxThreadCount=1) so the destructor can clear() +
-    // waitForDone() without blocking the global pool (REQ-SW-PL-023 notes).
-    m_pool = new QThreadPool();
-    m_pool->setMaxThreadCount(1);
+    // Per-node key into the shared ComputePool (REQ-SW-PL-039): the pool's
+    // per-key latest-wins submission + serialization replaces the old
+    // node-owned QThreadPool(maxThreadCount=1).
+    m_poolKey = QByteArray::number(reinterpret_cast<quintptr>(this));
 
     m_bridge = new DaqDisplayResultBridge(this);
 
@@ -391,12 +354,9 @@ DaqDisplayNode::~DaqDisplayNode()
 
     m_shuttingDown = true; // worker tasks check before posting results
 
-    if (m_pool) {
-        m_pool->clear();
-        m_pool->waitForDone(500);
-        delete m_pool;
-        m_pool = nullptr;
-    }
+    // Cancel queued/pending tasks for this key and wait for the running one
+    // (≤ 500 ms) — replaces the old m_pool->clear() + waitForDone().
+    ComputePool::instance().cancel(m_poolKey);
 
     if (m_bridge) {
         delete m_bridge;
@@ -880,7 +840,7 @@ void DaqDisplayNode::onRemovePlot(int /*unused*/)
 
 void DaqDisplayNode::onRefreshTick()
 {
-    if (!m_dataDirty || m_computeInFlight.load() || !m_lastData)
+    if (!m_dataDirty || !m_lastData)
         return;
 
     // Snapshot immutable copies on the GUI thread; the worker touches only these
@@ -894,8 +854,29 @@ void DaqDisplayNode::onRefreshTick()
                                   card.mode, card.unitAxes});
 
     m_dataDirty = false;
-    m_computeInFlight = true;
 
-    m_pool->start(new ComputeTask(dataCopy, std::move(configs), this,
-                                  m_ringSeconds, m_dataGeneration));
+    // Shared ComputePool (REQ-SW-PL-039): per-key latest-wins submission +
+    // per-key serialization. The pool tracks busy-ness per key, so a new block
+    // arriving while a task runs becomes pending (skipped) and runs after —
+    // the ring buffer (m_ring) stays worker-only.
+    const double ringSeconds = m_ringSeconds;
+    const quint64 dataGeneration = m_dataGeneration;
+    ComputePool::instance().submitLatest(
+        m_poolKey,
+        [this, dataCopy, configs, ringSeconds, dataGeneration]() {
+            if (m_shuttingDown.load())
+                return;
+
+            // Ring append + decode + FFT + point build + min/max — ALL on this
+            // worker thread (REQ-SW-PL-025 §3/§4, AC 6); m_ring is worker-owned.
+            PlotResult result = computePlotResult(dataCopy, configs,
+                                                  ringSeconds, dataGeneration);
+
+            // Do not post after shutdown has begun — the node may be gone.
+            if (m_shuttingDown.load())
+                return;
+
+            QMetaObject::invokeMethod(m_bridge, "onComputeDone",
+                                      Qt::QueuedConnection, Q_ARG(PlotResult, result));
+        });
 }

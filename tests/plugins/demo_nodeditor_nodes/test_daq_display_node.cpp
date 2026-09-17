@@ -4,14 +4,28 @@
 #include <QJsonObject>
 
 #include "DaqDisplayNode.h"
+#include "GenericDisplayNode.h"
 #include "NodeDataTypes/SampledData.h"
 #include "test_daq_display_node.h"
+
+#include <QtNodes/NodeDelegateModelRegistry>
 
 using PT = DaqDisplayNode::PlotCard::ProcessingType;
 using DM = DaqDisplayNode::PlotCard::DecodeMode;
 
 // ── ring buffer test helpers (REQ-SW-PL-025 AC 3/AC 4) ──────────────────────
 namespace {
+
+// Local mirror of the plugin's AudioDisplayAlias (DemoNodeEditorNodesObject.cpp):
+// a thin DaqDisplayNode subclass that only overrides name() to return the
+// historical "AudioDisplay" registry key. No Q_OBJECT — no new signals/slots,
+// the QObject meta-object is inherited from DaqDisplayNode.
+class AudioDisplayAlias : public DaqDisplayNode
+{
+public:
+    QString name() const override
+    { return QStringLiteral("AudioDisplay"); }
+};
 
 // Append one little-endian int16 sample (SampledStreamDescriptor.h layout).
 void appendInt16LE(QByteArray &buffer, qint16 value)
@@ -283,6 +297,66 @@ void DaqDisplayNodeTest::ringBuffer_descriptorChangeReset()
     QCOMPARE(byteCount(ring.channels.at(0).bytes), 2 * 2);
     QCOMPARE(readInt16LE(ring.channels.at(0).bytes, 0), qint16(700));
     QCOMPARE(readInt16LE(ring.channels.at(0).bytes, 1), qint16(701));
+}
+
+// ── GenericDisplayNode: thin DaqDisplayNode alias (behavioral parity) ───────
+//
+// GenericDisplayNode overrides only name()/caption() — everything else
+// (SampledData input, plot cards, save/restore) is inherited. save() must
+// carry the "GenericDisplay" model-name and restore() must round-trip a
+// DaqDisplayNode-format JSON.
+void DaqDisplayNodeTest::genericDisplay_aliasBehavior()
+{
+    GenericDisplayNode node;
+    QCOMPARE(node.name(), QStringLiteral("GenericDisplay"));
+    QCOMPARE(node.caption(), QStringLiteral("Generic Display"));
+
+    node.addPlotCard(QStringLiteral("Alias Plot"), PT::TimeDomain, 0, DM::Normalized, true);
+    const QJsonObject json = node.save();
+    QCOMPARE(json.value(QStringLiteral("model-name")).toString(),
+             QStringLiteral("GenericDisplay"));
+
+    GenericDisplayNode restored;
+    restored.restore(json);
+
+    const QJsonObject json2 = restored.save();
+    QCOMPARE(json2.value(QStringLiteral("model-name")).toString(),
+             QStringLiteral("GenericDisplay"));
+    const QJsonArray plots = json2.value(QStringLiteral("plots")).toArray();
+    QCOMPARE(plots.size(), 1);
+    QCOMPARE(plots.at(0).toObject().value(QStringLiteral("title")).toString(),
+             QStringLiteral("Alias Plot"));
+    QCOMPARE(plots.at(0).toObject().value(QStringLiteral("processing")).toString(),
+             QStringLiteral("time"));
+    QCOMPARE(plots.at(0).toObject().value(QStringLiteral("channel")).toInt(), 0);
+}
+
+// ── Registry resolution: "AudioDisplay" resolves to DaqDisplayNode ──────────
+//
+// Mirror the plugin registration: DaqDisplayNode + GenericDisplayNode +
+// AudioDisplayAlias all registered under "Daq/Display". create() must return
+// DaqDisplayNode-derived models for all three keys, with the right name().
+void DaqDisplayNodeTest::registry_aliasResolution()
+{
+    QtNodes::NodeDelegateModelRegistry registry;
+    registry.registerModel<DaqDisplayNode>("Daq/Display");
+    registry.registerModel<GenericDisplayNode>("Daq/Display");
+    registry.registerModel<AudioDisplayAlias>("Daq/Display");
+
+    auto daq = registry.create(QStringLiteral("DaqDisplay"));
+    QVERIFY(daq != nullptr);
+    QVERIFY(dynamic_cast<DaqDisplayNode *>(daq.get()) != nullptr);
+    QCOMPARE(daq->name(), QStringLiteral("DaqDisplay"));
+
+    auto generic = registry.create(QStringLiteral("GenericDisplay"));
+    QVERIFY(generic != nullptr);
+    QVERIFY(dynamic_cast<DaqDisplayNode *>(generic.get()) != nullptr);
+    QCOMPARE(generic->name(), QStringLiteral("GenericDisplay"));
+
+    auto audio = registry.create(QStringLiteral("AudioDisplay"));
+    QVERIFY(audio != nullptr);
+    QVERIFY(dynamic_cast<DaqDisplayNode *>(audio.get()) != nullptr);
+    QCOMPARE(audio->name(), QStringLiteral("AudioDisplay"));
 }
 
 QTEST_MAIN(DaqDisplayNodeTest)

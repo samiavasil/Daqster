@@ -1,0 +1,76 @@
+{
+    "nodes": [
+        {
+            "id": 0,
+            "internal-data": {
+                "model-name": "AudioSource",
+                "name": "AudioSource"
+            },
+            "label": "AudioSource",
+            "labelVisible": true,
+            "position": {
+                "x": -200.0,
+                "y": 0.0
+            }
+        },
+        {
+            "id": 1,
+            "internal-data": {
+                "model-name": "DaqDisplay",
+                "name": "DaqDisplay"
+            },
+            "label": "DaqDisplay",
+            "labelVisible": true,
+            "position": {
+                "x": 0.0,
+                "y": 0.0
+            }
+        },
+        {
+            "id": 2,
+            "internal-data": {
+                "model-name": "GenericDisplay",
+                "name": "GenericDisplay"
+            },
+            "label": "GenericDisplay",
+            "labelVisible": true,
+            "position": {
+                "x": 200.0,
+                "y": 0.0
+            }
+        },
+        {
+            "id": 3,
+            "internal-data": {
+                "model-name": "AudioDisplay",
+                "name": "AudioDisplay"
+            },
+            "label": "AudioDisplay",
+            "labelVisible": true,
+            "position": {
+                "x": 400.0,
+                "y": 0.0
+            }
+        }
+    ],
+    "connections": [
+        {
+            "outNodeId": 0,
+            "outPortIndex": 0,
+            "inNodeId": 1,
+            "inPortIndex": 0
+        },
+        {
+            "outNodeId": 0,
+            "outPortIndex": 0,
+            "inNodeId": 2,
+            "inPortIndex": 0
+        },
+        {
+            "outNodeId": 0,
+            "outPortIndex": 0,
+            "inNodeId": 3,
+            "inPortIndex": 0
+        }
+    ]
+}

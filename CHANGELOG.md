@@ -7,6 +7,165 @@
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-044** (UDP/TCP Source + Sink network DAQ nodes — MSSD framing):
+  - `NetworkSourceModel` — нов **source** нод в `demo_nodeditor_nodes`,
+    регистриран под `"Daq/Sources"`; 1 изходен порт `SampledData`
+    (`{"sample","Sample"}`); `QUdpSocket` (UDP) / `QTcpServer` + `QTcpSocket`
+    (TCP) слуша на порт; при пристигане на frame реконструира `SampledData` с
+    UI-конфигурирания дескриптор (sampleRate, channels, тип INT16/FLOAT32) и
+    емитира `dataUpdated(0)`; connection-count гейт (Start + поне една връзка;
+    последната връзка махната → auto-stop); статус bytes received
+  - `NetworkSourceWidget` — протокол (UDP/TCP), порт, sampleRate (Hz),
+    channels (брой + тип), Start/Stop, статус label
+  - `NetworkSinkModel` — нов **sink** нод в `demo_nodeditor_nodes`,
+    регистриран под `"Daq/Sinks"`; 1 входен порт `SampledData`; при всяко
+    пристигане на данни сериализира raw bytes в MSSD frame и изпраща —
+    `QUdpSocket::writeDatagram` (UDP) / `QTcpSocket::write` (TCP, асинхронен
+    connect); статус bytes sent
+  - `NetworkSinkWidget` — протокол (UDP/TCP), адрес + порт, Start/Stop,
+    статус label
+  - `shared/NetworkFrame.h` — wire framing helpers: `[4-byte magic "MSSD"]
+    [4-byte sampleCount][4-byte bytesPerSample][raw bytes]`, little-endian;
+    UDP: 1 datagram = 1 frame; TCP: същият framing като byte stream (partial
+    frames се обработват); дескрипторът се конфигурира в UI-то на двете
+    страни (без out-of-band exchange за v1)
+  - **Cross-platform**: Qt Network модулът е част от Qt5/Qt6 — без platform
+    guard, без външни зависимости
+  - `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-044-*.md` —
+    изискването (RDD gate)
+  - Верификация: Qt5/Qt6 builds PASS + ctest 11/11 green (both) + headless
+    smoke PASS (offscreen, plugin loads, no crash) + round-trip smoke PASS
+    (реалните NetworkSinkModel/NetworkSourceModel класове, UDP + TCP на
+    localhost, bytes match); unit тестове отложени (стоящата инструкция
+    „НОВИ ТЕСТОВЕ СТОП“)
+- **REQ-SW-PL-043** (File Record + File Playback DAQ nodes — raw bytes + JSON sidecar):
+  - `FileRecordModel` — нов **sink** нод в `demo_nodeditor_nodes`, регистриран под
+    `"Daq/Sinks"`; 1 входен порт `SampledData` (`{"sample","Sample"}`); при всяко
+    пристигане на данни записва raw bytes във `*.sdf`; при Start записва JSON
+    sidecar `*.sdf.json` (SampledStreamDescriptor); при Stop flush + close;
+    статус с bytes written
+  - `FileRecordWidget` — файлов път (Browse), Start/Stop запис, статус label
+  - `FilePlaybackModel` — нов **source** нод в `demo_nodeditor_nodes`,
+    регистриран под `"Daq/Sources"`; 1 изходен порт `SampledData`; чете
+    `*.sdf` + `*.sdf.json`, реконструира `SampledStreamDescriptor`, емитира
+    данните на записания sample rate (QTimer-базирано темпо, chunk 4096
+    семпла); connection-count гейт (Play + поне една връзка; последната връзка
+    махната → auto-stop); статус position/duration
+  - `FilePlaybackWidget` — файлов път (Browse), Play/Stop, статус label
+  - Файловият формат е прост и debuggable: raw interleaved sample bytes +
+    човешки четим JSON sidecar (без custom binary header) — предпоставка за TX
+    пътя на PlutoSDR (записан сигнал → Playback → TX)
+  - **Cross-platform**: файлов I/O — без platform guard, нодовете се компилират
+    навсякъде (за разлика от Linux-only System Monitor/Gamepad)
+  - `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-043-*.md` —
+    изискването (RDD gate)
+  - Верификация: Qt5/Qt6 builds PASS + ctest 11/11 green (both) + headless
+    smoke PASS (offscreen, plugin loads, no crash) + round-trip smoke PASS
+    (запис на генериран поток → Playback → валидация на bytes, дескрипторът
+    се възстановява) + model round-trip PASS (реалните FileRecordModel/
+    FilePlaybackModel класове); unit тестове отложени (стоящата инструкция
+    „НОВИ ТЕСТОВЕ СТОП“)
+- **REQ-SW-PL-042** (Gamepad input source node — Linux joystick API):
+  - `GamepadModel` — нов source нод в `demo_nodeditor_nodes`, регистриран под
+    `"Daq/Sources"`; 1 изходен порт `SampledData` (`{"sample","Sample"}`),
+    connection-count гейт (polling-ва само докато потребителят е натиснал Start И
+    има поне една връзка; последната връзка махната → auto-stop)
+  - `GamepadEngine` — Linux joystick API wrapper: `open("/dev/input/js0",
+    O_RDONLY|O_NONBLOCK)`, `ioctl(JSIOCGAXES/JSIOCGBUTTONS)` capability query,
+    QTimer polling (30–120 Hz, default 60); осите нормализирани от
+    `int16 [-32767, 32767]` до `float [-1.0, 1.0]`, бутоните `0.0` (натиснат) /
+    `1.0` (отпуснат) по Linux joystick конвенцията
+  - `GamepadWidget` — device path (default `/dev/input/js0`), poll rate
+    (30–120 Hz, default 60), 4 axis value label-а (X/Y/Z/Rz), 8 button state
+    индикатора (green = натиснат, gray = отпуснат), Start/Stop, статус label
+  - Данните са `SampledData` с `domain="gamepad"` (12 канала FLOAT32:
+    4 оси + 8 бутона, `sampleRate` = poll rate, `deviceId="gamepad"`,
+    `sourceName="USB Gamepad"`) — консумируеми от `DaqDisplayNode` БЕЗ промени
+    (waveform)
+  - **Linux-only v1**: `HAVE_GAMEPAD` се дефинира в CMake чрез
+    `if(NOT WIN32)` — на Windows build-ът минава без нода (XInput/DirectInput
+    е бъдещо изискване)
+  - `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-042-*.md` —
+    изискването (RDD gate)
+  - Верификация: Qt5/Qt6 builds PASS + ctest 11/11 green (both) + headless
+    smoke PASS (offscreen, plugin loads, no crash) + hardware smoke PASS
+    (ShanWan USB WirelessGamepad present at /dev/input/js0, raw js_event
+    stream readable); unit тестове отложени (стоящата инструкция „НОВИ
+    ТЕСТОВЕ СТОП“)
+- **REQ-SW-PL-041** (System Monitor source node — Linux /proc + /sys telemetry):
+  - `SystemMonitorModel` — нов source нод в `demo_nodeditor_nodes`, регистриран под
+    `"Daq/Sources"`; 1 изходен порт `SampledData` (`{"sample","Sample"}`),
+    connection-count гейт (polling-ва само докато потребителят е натиснал Start И
+    има поне една връзка; последната връзка махната → auto-stop)
+  - `SystemMonitorEngine` — чете `/proc/stat` (CPU delta), `/proc/meminfo` (RAM%),
+    `/sys/class/hwmon/*/temp*_input` (първият намерен сензор, милиградуси → °C) и
+    `/proc/net/dev` (RX/TX bytes delta → kbps, без loopback) на QTimer (не worker
+    thread — /proc четенето е <1 ms)
+  - `SystemMonitorWidget` — polling interval (0.1–5.0 s, default 1.0 s), чекбокси
+    за метрики (CPU/RAM/Temp/Network), Start/Stop, статус label
+  - Данните са `SampledData` с `domain="system"` (5 канала FLOAT32:
+    cpu_percent/ram_percent/cpu_temp_c/net_rx_kbps/net_tx_kbps,
+    `deviceId="sysmon"`, `sourceName="Linux System Monitor"`) — консумируеми от
+    `DaqDisplayNode` БЕЗ промени (waveform)
+  - **Linux-only v1**: `HAVE_SYSTEM_MONITOR` се дефинира в CMake чрез
+    `if(NOT WIN32)` — на Windows build-ът минава без нода (PDH/WMI е бъдещо
+    изискване)
+  - `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-041-*.md` —
+    изискването (RDD gate)
+  - Верификация: Qt5/Qt6 builds PASS + ctest 11/11 green (both) + headless
+    smoke PASS (offscreen) + hardware smoke PASS (Linux: /proc/stat,
+    /proc/meminfo, /sys/class/hwmon, /proc/net/dev readable; RAM 68.8%,
+    temp 84.0°C); unit тестове отложени (стоящата инструкция „НОВИ
+    ТЕСТОВЕ СТОП“)
+- **REQ-SW-PL-040** (PlutoSDR RX DAQ node — IQ streaming via libiio):
+  - `PlutoSdrModel` — нов source нод в `demo_nodeditor_nodes`, регистриран под
+    `"Daq/Sources"`; 1 изходен порт `SampledData` (`{"sample","Sample"}`),
+    connection-count гейт (стриймва само докато потребителят е натиснал Start И
+    има поне една връзка; последната връзка махната → auto-stop)
+  - `PlutoSdrEngine` — libiio обвивка: `iio_create_context_from_uri(uri)` →
+    `ad9361-phy` (RX LO frequency / sampling frequency / RF bandwidth / gain
+    mode / hardwaregain) + `cf-ad9361-lpc` (enable `voltage0`(I)+`voltage1`(Q)) →
+    `iio_buffer_refill()` в worker thread; чисто спиране с атомарен stop флаг +
+    `iio_buffer_cancel()` (libiio ≥ 0.24) + thread join
+  - `PlutoSdrWidget` — URI (default `ip:192.168.2.1`), честота (MHz, 70–6000),
+    sample rate (MSPS, 0.2–7.5), gain mode (manual/fast_attack/slow_attack) +
+    gain, Start/Stop, статус label
+  - Данните са `SampledData` с `domain="iq"` (I/Q int16 interleaved,
+    `deviceId="plutosdr"`, `sourceName="PlutoSky 7020-SDR"`) — консумируеми от
+    `DaqDisplayNode` БЕЗ промени (waveform + FFT)
+  - libiio е **опционална** зависимост (pkg-config + `find_package(libiio)`
+    fallback, моделът на OpenCV): без libiio plugin-ът се build-ва без нода;
+    с libiio се дефинира `HAVE_LIBIIO` и нодът се компилира + регистрира
+  - `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-040-*.md` —
+    изискването (RDD gate)
+  - Верификация: Qt5/Qt6 builds PASS + ctest 11/11 green (both) + headless
+    smoke PASS + hardware smoke PASS (PlutoSDR Rev.C fw v0.38, iio_readdev
+    2.4 MSPS streamed); unit тестове отложени (стоящата инструкция „НОВИ
+    ТЕСТОВЕ СТОП“)
+- **REQ-SW-PL-038** (DAQSTER_AUTOSTART_FLOW — headless .flow scene load at startup):
+  - `DAQSTER_AUTOSTART_FLOW=<path>` env var: NodeEditor IDE-то зарежда `.flow` сцената
+    при старт без файлов диалог (за автоматизирано perf/памет тестване)
+  - Зареждането минава по tolerant-пътя от REQ-SW-PL-037 — нерегистрирани нод
+    типове се пропускат вместо crash; логва се `nodes=`/`connections=` бройка
+  - `NodeEditorIdeObject::loadSceneTolerant(const QString& fileName = QString())` —
+    празен `fileName` отваря файлов диалог (старо поведение), непразен зарежда
+    директно; JSON-parse/clean/load тялото е изнесено в `loadSceneFromFile()`
+  - `NodeEditorIdeObject::startVideoPlayback()` — преизползваем helper, който
+    намира `VideoFileSource`/`VideoOutput` по model-name в графа, конфигурира
+    source-а с `DAQSTER_VIDEO_FILE`, натиска "Play" и включва "Perf" checkbox-а;
+    вика се и от `autoStartVideo()`, и от flow autostart пътя (когато
+    `DAQSTER_VIDEO_FILE` е зададен)
+  - `DevelopmentProcess/TEST-STRATEGY.md` — `DAQSTER_AUTOSTART_FLOW` добавен към
+    env var списъка на headless тестването
+  - `tests/data/video_1view.flow`, `video_2views.flow`, `video_4views.flow`,
+    `video_effect_chain.flow` — тестови сцени за scene-cost измервания с
+    ПУСНАТО видео (VideoFileSource → N× VideoOutput fan-out / effect chain)
+  - `tools/measure_flow_memory.sh` — харнес за RSS/CPU измерване на flow сцени
+    с `DAQSTER_VIDEO_FILE` (видео върви + Perf включен), PERF-верификация
+    (`[PERF] video … fps=25`), 2 s RSS/CPU семпли, blocking stdin
+  - `tests/performance/flow-memory-perf-2026-09-02.md` — резултати: scene cost
+    с видео (Qt5 + Qt6), per-view cost (~7.8 MB Qt5 / ~11.4 MB Qt6), node
+    deletion memory release, Qt5 vs Qt6 сравнение
 - **REQ-SW-PL-037** (NodeEditor scene save/load with missing-node handling):
   - `NodeEditorWidget::scene()` accessor — излага `DataFlowGraphicsScene*` (заедно със съществуващия `graphModel()`)
   - File меню в NodeEditor IDE-то: "Save Scene…" (Ctrl+S, `QKeySequence::Save`) и "Load Scene…" (Ctrl+O, `QKeySequence::Open`)
@@ -15,6 +174,55 @@
   - Тестови сцени: `tests/data/video_graph.flow` (VideoFileSource → VideoEffect → VideoOutput) и `tests/data/missing_node.flow` (познат + нерегистриран нод)
   - Допълнителни регресионни сценарии в `tests/data/`: `number_graph.flow` (NumberSource → NumberResult), `audio_graph.flow` (AudioSource → AudioDisplay), `llm_graph.flow` (LLamaModel → Console), `empty_scene.flow` (празна сцена), `malformed.flow` (скъсан JSON — трябва да не crash-ва), `multi_effect_video.flow` (два VideoEffect-а в серия)
   - `DevelopmentProcess/TEST-STRATEGY.md` — тестова стратегия: scene save/load регресионно тестване (как се ползват `.flow` сценариите, edge case-и, как се открива регресия), референция към video perf тестването и verification gate-а от RDD-PROCESS.md
+- **REQ-SW-PL-039** (common compute pool — споделен ComputePool + миграция на CPU пътищата):
+  - `src/plugins/common/Threading/ComputePool.{h,cpp}` — процесно-споделен `QThreadPool` singleton (вместо per-node pool-ове); per-key "latest-wins" submission (frame skipping) + per-key serialization, така че worker-only ring buffer contract-ът на DaqDisplayNode се запазва; `submitLatest(key, task)` / `cancel(key, timeout)` / per-key метрики (`submitted`/`started`/`completed`/`skipped`/`fps`); `DAQSTER_COMPUTE_THREADS` env var за брой worker нишки
+  - `DaqDisplayNode` мигриран от node-owned `QThreadPool(maxThreadCount=1)` към споделения pool с per-node key — `onRefreshTick()` подава lambda към `ComputePool::instance().submitLatest()`, деструкторът вика `cancel(key)` вместо `clear()+waitForDone()`; `m_computeInFlight` махнат (pool-ът следи busy-ness per key)
+  - `VideoEffectNode` CPU path мигриран към pool-а: GPU path-ът остава на GUI thread (GL-bound); CPU path snapshot-ва input-а на GUI thread (implicit-share `QVideoFrame` copy за CPU-resident, `asImage()` readback за GpuRgba) и подава `applyCpu()` към pool-а — worker-ът конвертира собственото си копие и връща резултата през queued `onCpuResult()` slot
+  - `VideoEffectNode` метрики: `m_totalFrames` брояч, widget label `CPU <completed>/<submitted> · <skipped> skipped · <fps> fps out` (refresh на всеки CPU резултат) и optional `[PERF] effect` console line (5 s timer, само когато "video" perf domain е enabled)
+  - Тестове: `demo_nodeditor_videoeffect_tests` (CPU path async резултат, GpuOrCpu fallback, metric label, totalFrames); `ComputePool.cpp` добавен към display test target
+- **Node palette (nested categories + Simulink-style scheme)**:
+  - `nodeeditor` submodule: `DataFlowGraphicsScene::createSceneMenu()` строи nested категорийно дърво — category string-ове се split-ват на `/` (напр. `AI/LLM` → AI → LLM); node имената никога не се split-ват (защита за имена, съдържащи `/`, като `Arithmetic/Logic`); филтърът работи с произволна дълбочина (parent walk-up)
+  - Нодовете са прекатегоризирани по Simulink-style схема: Daq (DaqDisplay, GenericDisplay → `Daq/Display`), Audio (AudioSource → `Audio/Sources`), Video (Camera/VideoFile/Stream → `Video/Sources`; VideoEffect/CustomShader/FrameSampler → `Video/Processing`; VideoOutput → `Video/Display`), AI (FrameToTensor → `AI/Preprocessing`, LLamaModel → `AI/LLM`), General (NumberSource → `General/Sources`; Modulo/ArithmeticLogic → `General/Processing`; NumberDisplay/Console → `General/Display`), Obsolete (всички obsolete нодове → `Obsolete`)
+- **REQ-SW-PL-045** (GPU Monitor source node — NVIDIA NVML):
+  - `GpuMonitorEngine` — NVML обвивка: `nvmlInit()`, handle за GPU 0, QTimer polling (default 1s), `nvmlShutdown()` при stop; чете utilization/memory/temperature/power/fan/clock
+  - `GpuMonitorModel` (`NodeDelegateModel`) — 1 изходен порт `SampledData` ("sample"), connection-count gating (auto start/stop), обвива метриките в `SampledData` с `SampledStreamDescriptor` (domain="gpu", 6 FLOAT32 канала: gpu_util/mem_used/gpu_temp_c/power_w/fan_pct/clock_mhz, sampleRate=1/interval), емитира `dataUpdated(0)`; save/load на interval
+  - `GpuMonitorWidget` — UI: polling interval (0.1–5s), Start/Stop, статус (GPU name + metrics)
+  - Регистрация като `"Daq/Sources"` в `registerNodes()` (охранена с `#ifdef HAVE_NVML`)
+  - NVML — опционална зависимост (`find_library` + `find_path`, модел на OpenCV): без NVML build-ът минава без нода
+  - Код: `src/plugins/demo_nodeditor_nodes/Sources/GpuMonitor/`
+- **REQ-SW-PL-046** (Jack-detect source node — HDA jack events):
+  - `JackDetectEngine` — сканира `/proc/asound/card*/codec#*/jack*`, парсва jack имената и състоянията (`Pin 0x21 (Headphone): present = No`), QTimer polling (default 500ms), детектира промени (event-driven `jacksChanged()`)
+  - `JackDetectModel` (`NodeDelegateModel`) — 1 изходен порт `SampledData` ("sample"), connection-count gating (auto start/stop), обвива jack-овете в `SampledData` с `SampledStreamDescriptor` (domain="jack", deviceId="hda", sourceName="HDA Jack Detect", динамични FLOAT32 канали — по един на jack, стойности 0.0/1.0), емитира `dataUpdated(0)`; save/load на interval
+  - `JackDetectWidget` — UI: polling interval (0.1–5s, default 0.5), Start/Stop, статус (списък на jack-овете и състоянията им)
+  - Регистрация като `"Daq/Sources"` в `registerNodes()` (охранена с `#ifdef HAVE_JACK_DETECT`)
+  - Linux-only платформен guard (`if(NOT WIN32)` → `HAVE_JACK_DETECT`): на Windows build-ът минава без нода; без jack файлове нодът репортва празен статус без crash
+  - Код: `src/plugins/demo_nodeditor_nodes/Sources/JackDetect/`
+- **REQ-SW-PL-047** (pcap Packet Capture source node — libpcap):
+  - `PcapEngine` — libpcap обвивка: `pcap_open_live()`, `pcap_compile()`/`pcap_setfilter()` за BPF, `pcap_loop()` в worker thread (QThread), `pcap_breakloop()` за спиране, `pcap_close()` при деструктор; thread-safe packet queue към Model
+  - `PcapModel` (`NodeDelegateModel`) — 1 изходен порт `SampledData` ("packet"), connection-count gating (auto start/stop) + user Start/Stop, обвива пакетите в `SampledData` с `SampledStreamDescriptor` (domain="pcap", deviceId=interface name, sourceName="pcap capture", BYTES канал за payload, sampleRate=0 event-driven), metadata (timestamp, caplen, len) в пакета; емитира `dataUpdated(0)`; save/load на interface/filter/snaplen/promiscuous
+  - `PcapWidget` — UI: interface selector (dropdown от `pcap_findalldevs()`), BPF filter text field (напр. "tcp port 80"), snaplen spin box, promiscuous checkbox, Start/Stop, статус (packets captured, kernel drops, interface drops)
+  - Регистрация като `"Daq/Sources"` в `registerNodes()` (охранена с `#ifdef HAVE_PCAP`)
+  - libpcap — опционална зависимост (`find_library` + `find_path`, модел на NVML/OpenCV): без libpcap build-ът минава без нода; Windows guard за WinPcap/Npcap (`wpcap`/`Packet` библиотеки)
+  - Код: `src/plugins/demo_nodeditor_nodes/Sources/Pcap/`
+
+### Fixed
+- **REQ-SW-PL-039** (CPU effects work in the display — VideoOutputNode embedded effects):
+  - `VideoOutputNode` embedded effect block: CPU-only ефекти (blur/gaussianBlur/canny/threshold) вече работят и върху GpuRgba вход — `gpuApplied` флаг следи дали GPU path-ът е произвел output-а и CPU path-ът (с `asImage()` readback, като `VideoEffectNode`) се изпълнява винаги, когато GPU path-ът не е приложен (преди `if (!videoFrame->isGpuRgba())` пропускаше CPU ефекта за GPU-resident вход)
+  - `VideoFrameData::asImage()` Qt5: NV12/YUV420P → QImage ръчна BT.601 конверсия (`yuvToImage()`) — Qt5 `QVideoFrame::image()` връща null за YUV формати, така че CPU ефектите и software display path-ът не работеха върху реални (NV12 owned-copy) кадри
+  - `VideoOutputNode` effect combo: смяната на ефекта вече вика `reprocessCurrentFrame()` (като `VideoEffectNode`) — при paused source ефектът се прилага веднага, не чак на следващия кадър
+  - Тестове: `demo_nodeditor_videoframe_tests` (Qt5 NV12 + YUV420P → QImage), `demo_nodeditor_videooutput_tests` (CPU ефект върху GpuRgba вход с реален GL texture readback)
+- **REQ-SW-PL-039** (Qt6 worker frame conversion — thread-safe CPU converter):
+  - `VideoFrameData::frameToImageCpu()` — нов public static converter: pure-CPU QVideoFrame→QImage от ВСЯКА нишка (без GL/RHI). NV12/YUV420P през BT.601 `yuvToImage()` (вече public static и version-agnostic — Qt5 и Qt6); RGB формати (RGB32/ARGB32/RGB888 и др.) чрез директно wrapping на mapped bits + deep copy (без pixel conversion). Връща null само за неподдържани формати или failed map
+  - `VideoEffectNode` ComputePool worker: `frameCopy.toImage()` (Qt6 — RHI/GPU conversion на worker нишката, забранено от Qt, QTBUG-131107) / `frameCopy.image()` (Qt5 — null за NV12) заменени с `VideoFrameData::frameToImageCpu()` и на двата Qt; GpuRgba pre-readback fast path-ът е непроменен
+  - Тестове: `demo_nodeditor_videoframe_tests` — `frameToImageCpu_*` (RGB32/ARGB32 wrap, NV12/YUV420P BT.601, unsupported → null) и на Qt5, и на Qt6
+
+### Refactored
+- **Display consolidation (SampledData display world → DaqDisplayNode)**:
+  - `AudioDisplayAlias` (DemoNodeEditorNodesObject.cpp) — нов тънък alias на `DaqDisplayNode` (само `name()` → `"AudioDisplay"`), заменя `AudioDisplayModelObsoleteAlias`; регистрацията на ключа `"AudioDisplay"` е преместена от `Obsolete` в `Daq/Display` — старите saved графи вече разрешават към реалния multi-plot/FFT/ring-buffer SampledData display, а не към QDevIO obsolete нода
+  - `AudioDisplayModelObsolete` (name `"AudioDisplayObsolete"`, категория `Obsolete`) остава непроменен — QDevIO display world-ът живее за старите QDevIO графи
+  - `GenericDisplayNode.h` — премахнат redundant `dataArrivalChangesWidget()` override (базата `DaqDisplayNode` вече връща `false`)
+  - Тестове: `demo_nodeditor_display_tests` — `genericDisplay_aliasBehavior()` (name/save/restore parity) + `registry_aliasResolution()` (registry `create("GenericDisplay")`/`create("AudioDisplay")` връщат DaqDisplayNode-производни модели); `GenericDisplayNode.cpp` добавен към display test target
+  - Нов `.flow` fixture: `tests/data/display_aliases.flow` — `AudioSource` → `DaqDisplay` + `GenericDisplay` + `AudioDisplay` (4 нода, 3 връзки)
 
 ## [0.3.2] - 2026-09-02
 

@@ -50,6 +50,25 @@ demo_nodeditor_nodes/
 │       ├── CustomShaderNode.{h,cpp}      # Custom shader нод (REQ-SW-PL-029)
 │       ├── FrameSamplerNode.{h,cpp}      # Ресемплер (every-N / max-fps, REQ-SW-PL-030)
 │       └── OpenCVTransforms.cpp          # Само при HAVE_OPENCV
+│   ├── Gamepad/                          # Gamepad input source (REQ-SW-PL-042)
+│   │   ├── GamepadEngine.{h,cpp}         # Linux joystick API wrapper
+│   │   ├── GamepadModel.{h,cpp}          # Source node model (SampledData domain="gamepad")
+│   │   └── GamepadWidget.{h,cpp}         # Config UI (device path, poll rate, axes/buttons)
+│   └── FilePlayback/                     # File Playback source (REQ-SW-PL-043)
+│       ├── FilePlaybackModel.{h,cpp}     # Source node model (reads .sdf + .sdf.json, QTimer tempo)
+│       └── FilePlaybackWidget.{h,cpp}    # Config UI (file path, Play/Stop, position/duration)
+│   └── NetworkSource/                    # Network Source (REQ-SW-PL-044)
+│       ├── NetworkSourceModel.{h,cpp}    # Source node model (UDP/TCP listener, MSSD framing)
+│       └── NetworkSourceWidget.{h,cpp}   # Config UI (protocol, port, sampleRate, channels)
+├── Sinks/
+│   ├── FileRecord/                       # File Record sink (REQ-SW-PL-043)
+│   │   ├── FileRecordModel.{h,cpp}       # Sink node model (writes raw bytes + JSON sidecar)
+│   │   └── FileRecordWidget.{h,cpp}      # Config UI (file path, Start/Stop, bytes written)
+│   └── NetworkSink/                      # Network Sink (REQ-SW-PL-044)
+│       ├── NetworkSinkModel.{h,cpp}      # Sink node model (UDP/TCP sender, MSSD framing)
+│       └── NetworkSinkWidget.{h,cpp}     # Config UI (protocol, host, port, Start/Stop)
+├── shared/
+│   └── NetworkFrame.h                    # MSSD wire framing helpers (REQ-SW-PL-044)
 ├── Displays/
 │   ├── AudioDisplay/
 │   │   └── AudioDisplayModelObsolete.{h,cpp}  # Старият QDevIO audio display (rename-only)
@@ -90,31 +109,40 @@ DemoNodeEditorNodesObject → QBasePluginObject
 DemoNodeEditorNodesObject → INodeProvider
   └── registerNodes(registry) →   // 21 регистрации (DemoNodeEditorNodesObject.cpp:88-128)
         // Displays (6)
-        registry.registerModel<AudioDisplayModelObsolete>("Displays")
-        registry.registerModel<AudioDisplayModelObsoleteAlias>("Displays") // old key "AudioDisplay"
-        registry.registerModel<GenericDisplayNode>("Displays")
-        registry.registerModel<DaqDisplayNode>("Displays")
-        registry.registerModel<QDevIoDisplayModelObsolete>("Displays")
-        registry.registerModel<QDevIoDisplayModelObsoleteAlias>("Displays") // old key "QDevIoDisplay"
+        registry.registerModel<AudioDisplayModelObsolete>("Obsolete")
+        registry.registerModel<AudioDisplayAlias>("Daq/Display") // old key "AudioDisplay" -> SampledData display
+        registry.registerModel<GenericDisplayNode>("Daq/Display")
+        registry.registerModel<DaqDisplayNode>("Daq/Display")
+        registry.registerModel<QDevIoDisplayModelObsolete>("Obsolete")
+        registry.registerModel<QDevIoDisplayModelObsoleteAlias>("Obsolete") // old key "QDevIoDisplay"
         // Routing (4)
-        registry.registerModel<DemuxNodeObsolete>("Routing")
-        registry.registerModel<DemuxNodeObsoleteAlias>("Routing") // old key "DemuxNode"
-        registry.registerModel<MuxNodeObsolete>("Routing")
-        registry.registerModel<MuxNodeObsoleteAlias>("Routing") // old key "MuxNode"
+        registry.registerModel<DemuxNodeObsolete>("Obsolete")
+        registry.registerModel<DemuxNodeObsoleteAlias>("Obsolete") // old key "DemuxNode"
+        registry.registerModel<MuxNodeObsolete>("Obsolete")
+        registry.registerModel<MuxNodeObsoleteAlias>("Obsolete") // old key "MuxNode"
         // Sources (2)
-        registry.registerModel<AudioSourceDataModel>("Sources")
-        registry.registerModel<AudioSourceDataModelObsolete>("Sources")
+        registry.registerModel<AudioSourceDataModel>("Audio/Sources")
+        registry.registerModel<AudioSourceDataModelObsolete>("Obsolete")
+        // Daq/Sources (5) — PlutoSDR (HAVE_LIBIIO), System Monitor (HAVE_SYSTEM_MONITOR), Gamepad (HAVE_GAMEPAD), File Playback (always), Network Source (always)
+        registry.registerModel<PlutoSdrModel>("Daq/Sources")          // само с libiio
+        registry.registerModel<SystemMonitorModel>("Daq/Sources")     // Linux-only
+        registry.registerModel<GamepadModel>("Daq/Sources")           // Linux-only
+        registry.registerModel<FilePlaybackModel>("Daq/Sources")      // cross-platform (REQ-SW-PL-043)
+        registry.registerModel<NetworkSourceModel>("Daq/Sources")     // cross-platform (REQ-SW-PL-044)
+        // Daq/Sinks (2) — File Record (always, REQ-SW-PL-043), Network Sink (always, REQ-SW-PL-044)
+        registry.registerModel<FileRecordModel>("Daq/Sinks")          // cross-platform
+        registry.registerModel<NetworkSinkModel>("Daq/Sinks")         // cross-platform
         // LLama (2)
-        registry.registerModel<LLamaModelDataModel>("LLama")
-        registry.registerModel<ConsoleDataModel>("LLama")
+        registry.registerModel<LLamaModelDataModel>("AI/LLM")
+        registry.registerModel<ConsoleDataModel>("General/Display")
         // Video (7)
-        registry.registerModel<CameraSourceNode>("Video")
-        registry.registerModel<VideoFileSourceNode>("Video")
-        registry.registerModel<StreamSourceNode>("Video")
-        registry.registerModel<VideoOutputNode>("Video")
-        registry.registerModel<VideoEffectNode>("Video")   // един нод с комбо (REQ-SW-PL-028 AC 4)
-        registry.registerModel<CustomShaderNode>("Video") // runtime GLSL (REQ-SW-PL-029)
-        registry.registerModel<FrameSamplerNode>("Video")
+        registry.registerModel<CameraSourceNode>("Video/Sources")
+        registry.registerModel<VideoFileSourceNode>("Video/Sources")
+        registry.registerModel<StreamSourceNode>("Video/Sources")
+        registry.registerModel<VideoOutputNode>("Video/Display")
+        registry.registerModel<VideoEffectNode>("Video/Processing")   // един нод с комбо (REQ-SW-PL-028 AC 4)
+        registry.registerModel<CustomShaderNode>("Video/Processing") // runtime GLSL (REQ-SW-PL-029)
+        registry.registerModel<FrameSamplerNode>("Video/Processing")
 ```
 
 **INodeProvider е standalone интерфейс** — не наследява други Daqster интерфейси.
@@ -127,14 +155,28 @@ DemoNodeEditorNodesObject → INodeProvider
 |-----|-----------|----------|
 | AudioSourceDataModel | Sources | Аудио вход (микрофон) — SampledData поток `{"sample","Sample"}`; каптурата е в dedicated worker thread, GUI нишката само пази последния `shared_ptr` и емитира `dataUpdated` |
 | AudioSourceDataModelObsolete | Sources | Старият QDevIO аудио вход (rename-only, работи) — излъчва QDevIO byte-stream за legacy графите и benchmarking |
+| PlutoSdrModel | Daq/Sources | **PlutoSDR RX DAQ нод** (REQ-SW-PL-040) — IQ стрийминг през libiio, `SampledData` с `domain="iq"` (I/Q int16 interleaved); опционална компилация (само с libiio) |
+| SystemMonitorModel | Daq/Sources | **System Monitor source нод** (REQ-SW-PL-041) — Linux системна телеметрия от `/proc` + `/sys` (CPU/RAM/temp/network), `SampledData` с `domain="system"` (5 канала FLOAT32); Linux-only (HAVE_SYSTEM_MONITOR, `if(NOT WIN32)`) |
+| GamepadModel | Daq/Sources | **Gamepad input source нод** (REQ-SW-PL-042) — чете оси + бутони от USB gamepad през Linux joystick API (`/dev/input/js0`), `SampledData` с `domain="gamepad"` (12 канала FLOAT32: 4 оси + 8 бутона); Linux-only (HAVE_GAMEPAD, `if(NOT WIN32)`) |
+| FilePlaybackModel | Daq/Sources | **File Playback source нод** (REQ-SW-PL-043) — чете `*.sdf` + `*.sdf.json`, реконструира `SampledStreamDescriptor`, емитира `SampledData` на записания sample rate (QTimer-базирано темпо); cross-platform |
+| NetworkSourceModel | Daq/Sources | **Network Source нод** (REQ-SW-PL-044) — слуша на порт (UDP/TCP), приема MSSD frames, реконструира `SampledData` с UI-конфигурирания дескриптор (sampleRate, channels), емитира `dataUpdated(0)`; Start/Stop, статус bytes received; cross-platform |
+| GpuMonitorModel | Daq/Sources | GPU Monitor (REQ-SW-PL-045) — чете NVIDIA GPU телеметрия през NVML и я емитира като `SampledData` (domain="gpu", 6 FLOAT32 канала: gpu_util/mem_used/gpu_temp_c/power_w/fan_pct/clock_mhz). Опционална зависимост (HAVE_NVML) — без NVML нодът не се компилира |
+| JackDetectModel | Daq/Sources | Jack Detect (REQ-SW-PL-046) — следи състоянието на аудио jack-овете (headphone, mic, line-in) през HDA jack файловете в `/proc/asound/card*/codec#*/jack*` и емитира промените като `SampledData` (domain="jack", динамични FLOAT32 канали — по един на jack, стойности 0.0/1.0). Linux-only (HAVE_JACK_DETECT, `if(NOT WIN32)`) — на Windows нодът не се компилира |
+
+### Sinks
+| Нод | Категория | Описание |
+|-----|-----------|----------|
+| FileRecordModel | Daq/Sinks | **File Record sink нод** (REQ-SW-PL-043) — консумира `SampledData`, записва raw bytes във `*.sdf` + JSON sidecar `*.sdf.json`; Start/Stop запис, статус bytes written; cross-platform |
+| NetworkSinkModel | Daq/Sinks | **Network Sink нод** (REQ-SW-PL-044) — консумира `SampledData`, сериализира raw bytes в MSSD frame, изпраща по UDP/TCP; Start/Stop, статус bytes sent; cross-platform |
 
 ### Displays
 | Нод | Категория | Описание |
 |-----|-----------|----------|
-| AudioDisplayModelObsolete | Displays | Старият QDevIO аудио дисплей (rename-only, registered `AudioDisplayObsolete` + alias `AudioDisplay`) |
-| DaqDisplayNode | Displays | Реален Qt Charts waveform + FFT за всякarn плъгин с sampled данни (audio/DAQ/sензори). v2 (REQ-SW-PL-025): физически decode (`decodeToPhysical`, `raw × amplitudeScale + amplitudeOffset`), unit оси от дескриптора (Time (s)/Hz + мерна единица), worker-притежаван N-секунден ring buffer (default 10 s) с FFT от опашката; per-card `mode` (normalized/physical) + `unitAxes`, backward-compatible save/restore |
-| GenericDisplayNode | Displays | Универсален дисплей за generic данни |
-| QDevIoDisplayModelObsolete | Displays | Старият QDevIO display (rename-only, registered `QDevIoDisplayObsolete` + alias `QDevIoDisplay`) |
+| DaqDisplayNode | Daq/Display | **Каноничният SampledData дисплей** — реален Qt Charts waveform + FFT за всеки плъгин с sampled данни (audio/DAQ/сензори). v2 (REQ-SW-PL-025): физически decode (`decodeToPhysical`, `raw × amplitudeScale + amplitudeOffset`), unit оси от дескриптора (Time (s)/Hz + мерна единица), worker-притежаван N-секунден ring buffer (default 10 s) с FFT от опашката; per-card `mode` (normalized/physical) + `unitAxes`, backward-compatible save/restore |
+| GenericDisplayNode | Daq/Display | Тънък alias на DaqDisplayNode (само name/caption) — legacy key "GenericDisplay" |
+| AudioDisplayAlias | Daq/Display | Тънък alias на DaqDisplayNode (само name) — legacy key "AudioDisplay", консолидиран върху SampledData display-а |
+| AudioDisplayModelObsolete | Obsolete | Старият QDevIO аудио дисплей (rename-only, registered `AudioDisplayObsolete`) — за стари QDevIO графи |
+| QDevIoDisplayModelObsolete | Obsolete | Старият QDevIO display (rename-only, registered `QDevIoDisplayObsolete` + alias `QDevIoDisplay`) |
 
 ### Routing
 | Нод | Категория | Описание |
@@ -357,6 +399,271 @@ edges-ите към AudioDisplay/Mux/Demux отпадат (type mismatch). Ст�
 версиите по REQ-SW-PL-023) работят с `AudioSourceObsolete`. Новите графи
 свързват `AudioSource` → DAQ Display (SampledData поток).
 
+## PlutoSDR RX DAQ нод (REQ-SW-PL-040)
+
+SDR source нод: стриймва IQ семпли от OpenSourceSDRLab PlutoSky 7020-SDR
+(AD9363, pre-hacked до AD9361 режим 70 MHz–6 GHz) през **libiio** и ги емитира
+като `SampledData` с `domain="iq"` — консумируем от `DaqDisplayNode` (waveform на
+I/Q каналите + FFT на канал) БЕЗ промени по display-а.
+
+### Архитектура — Engine → Model → Widget
+
+- **`PlutoSdrEngine`** — libiio обвивка: `iio_create_context_from_uri(uri)` →
+  `ad9361-phy` (RX LO frequency / sampling frequency / RF bandwidth / gain mode /
+  hardwaregain) + `cf-ad9361-lpc` (enable `voltage0`(I) + `voltage1`(Q)) →
+  `iio_device_create_buffer(rx, 4096)` → `iio_buffer_refill()` в worker thread.
+  Спиране: атомарен stop флаг + `iio_buffer_cancel()` (libiio ≥ 0.24) + thread
+  join — без deadlock при затваряне на графа по време на стрийминг.
+- **`PlutoSdrModel`** — тънък контролер: 1 изходен порт `{"sample","Sample"}`,
+  connection-count гейт (моделът на VideoFileSourceNode) — стриймва само докато
+  потребителят е натиснал Start И има поне една връзка; последната връзка
+  махната → auto-stop. Всеки refill-нат буфер се обвива в `shared_ptr<SampledData>`
+  с дескриптор: `sampleRate` = конфигурираният (Hz), `channels` = `[{"I",INT16},
+  {"Q",INT16}]`, `endianness` = LittleEndian, `unit` = "raw", `domain` = "iq",
+  `deviceId` = "plutosdr", `sourceName` = "PlutoSky 7020-SDR".
+- **`PlutoSdrWidget`** — URI (default `ip:192.168.2.1`), честота (MHz, 70–6000),
+  sample rate (MSPS, 0.2–7.5), gain mode (manual/fast_attack/slow_attack) + gain,
+  Start/Stop, статус label (connected/streaming/error).
+
+### URI — USB или Ethernet
+
+Същата URI работи и за USB gadget-а, и за Ethernet-а: `ip:192.168.2.1`
+(Ethernet, default) или `usb:` (USB auto-detect). USB throughput-ът е
+**~5–7.5 MSPS** (не 61.44 MSPS) — практическият лимит за USB gadget-а; UI
+ограничава sample rate до 7.5 MSPS.
+
+### libiio зависимост (опционална)
+
+`find_package(PkgConfig QUIET)` + `pkg_check_modules(IIO QUIET libiio)` с
+`find_package(libiio QUIET)` fallback (моделът на OpenCV). Без libiio plugin-ът
+се build-ва нормално без нода; с libiio се дефинира `HAVE_LIBIIO` и нодът се
+компилира + регистрира под `"Daq/Sources"`.
+
+### Как се ползва
+
+1. Добави `PlutoSDR RX` от палитрата (`Daq/Sources`).
+2. Свържи изхода към `DAQ Display` (`Daq/Display`).
+3. Настрой URI/честота/sample rate/gain и натисни **Start**.
+4. В DAQ Display добави plot карта: канал 0 (I) или 1 (Q), Time Domain или FFT.
+
+## System Monitor source нод (REQ-SW-PL-041)
+
+**Linux-only** source нод: чете системна телеметрия от `/proc` и `/sys`
+(CPU usage, RAM, температура, мрежа) на QTimer и я емитира като `SampledData` с
+`domain="system"` — консумируем от `DaqDisplayNode` (waveform на CPU/RAM/temp
+каналите) БЕЗ промени по display-а.
+
+### Архитектура — Engine → Model → Widget
+
+- **`SystemMonitorEngine`** — чете `/proc/stat` (CPU delta: user+nice+system+idle+
+  iowait+irq+softirq+steal), `/proc/meminfo` (RAM%: `(MemTotal-MemAvailable)/
+  MemTotal*100`), `/sys/class/hwmon/*/temp*_input` (първият намерен сензор,
+  милиградуси → °C) и `/proc/net/dev` (RX/TX bytes delta → kbps, без loopback).
+  Timer-based (QTimer), не worker thread — четенето на /proc е <1 ms.
+- **`SystemMonitorModel`** — тънък контролер: 1 изходен порт `{"sample","Sample"}`,
+  connection-count гейт (моделът на PlutoSdrModel) — polling-ва само докато
+  потребителят е натиснал Start И има поне една връзка; последната връзка
+  махната → auto-stop. Всяка poll стойност се обвива в `shared_ptr<SampledData>`
+  с дескриптор: `sampleRate` = 1/interval (Hz), `channels` =
+  `[{"cpu_percent",FLOAT32}, {"ram_percent",FLOAT32}, {"cpu_temp_c",FLOAT32},
+  {"net_rx_kbps",FLOAT32}, {"net_tx_kbps",FLOAT32}]`, `endianness` = LittleEndian,
+  `unit` = "percent", `domain` = "system", `deviceId` = "sysmon",
+  `sourceName` = "Linux System Monitor".
+- **`SystemMonitorWidget`** — polling interval (0.1–5.0 s, default 1.0 s), чекбокси
+  за метрики (CPU/RAM/Temp/Network), Start/Stop, статус label (текущи стойности
+  или "Idle").
+
+### Платформена поддръжка
+
+Първа версия — **Linux-only** (четене от `/proc` и `/sys`). Връзката се охранява
+чрез `HAVE_SYSTEM_MONITOR` (CMake: `if(NOT WIN32)`) — на Windows build-ът минава
+без нода. Windows поддръжка (PDH/WMI) е бъдещо изискване.
+
+### Как се ползва
+
+1. Добави `System Monitor` от палитрата (`Daq/Sources`).
+2. Свържи изхода към `DAQ Display` (`Daq/Display`).
+3. Настрой polling interval и метриките, натисни **Start**.
+4. В DAQ Display добави plot карта: канал 0 (CPU%), 1 (RAM%), 2 (temp °C),
+   3 (RX kbps) или 4 (TX kbps), Time Domain.
+
+## Gamepad source нод (REQ-SW-PL-042)
+
+**Linux-only** source нод: чете оси и бутони от USB gamepad през Linux joystick
+API (`/dev/input/js0`, non-blocking `read()` на `struct js_event`) на QTimer
+poll (default 60 Hz) и ги емитира като `SampledData` с `domain="gamepad"` —
+консумируем от `DaqDisplayNode` (waveform на осите/бутоните) БЕЗ промени по
+display-а. Тестван с ShanWan USB gamepad (VID:081f, PID:e001).
+
+### Архитектура — Engine → Model → Widget
+
+- **`GamepadEngine`** — Linux joystick API wrapper: `open("/dev/input/js0",
+  O_RDONLY|O_NONBLOCK)`, `ioctl(JSIOCGAXES/JSIOCGBUTTONS)` за capability query,
+  QTimer polling (30–120 Hz, default 60). Всяка poll дренира pending
+  `js_event`-ите: осите се нормализират от `int16 [-32767, 32767]` до
+  `float [-1.0, 1.0]`, бутоните са `0.0` (натиснат) / `1.0` (отпуснат) по
+  Linux joystick конвенцията. След дренажа емитира `stateReady(state)`.
+- **`GamepadModel`** — тънък контролер: 1 изходен порт `{"sample","Sample"}`,
+  connection-count гейт (моделът на SystemMonitorModel) — polling-ва само
+  докато потребителят е натиснал Start И има поне една връзка; последната
+  връзка махната → auto-stop. Всяко състояние се обвива в
+  `shared_ptr<SampledData>` с дескриптор: `sampleRate` = poll rate (Hz),
+  `channels` = `[{"axis_x",FLOAT32}, {"axis_y",FLOAT32}, {"axis_z",FLOAT32},
+  {"axis_rz",FLOAT32}, {"button_a",FLOAT32}, {"button_b",FLOAT32},
+  {"button_x",FLOAT32}, {"button_y",FLOAT32}, {"button_lb",FLOAT32},
+  {"button_rb",FLOAT32}, {"button_back",FLOAT32}, {"button_start",FLOAT32}]`,
+  `endianness` = LittleEndian, `unit` = "normalized", `domain` = "gamepad",
+  `deviceId` = "gamepad", `sourceName` = "USB Gamepad".
+- **`GamepadWidget`** — device path (default `/dev/input/js0`), poll rate
+  (30–120 Hz, default 60), 4 axis value label-а (X/Y/Z/Rz), 8 button state
+  индикатора (green = натиснат, gray = отпуснат), Start/Stop, статус label.
+
+### Платформена поддръжка
+
+Първа версия — **Linux-only** (Linux joystick API). Връзката се охранява чрез
+`HAVE_GAMEPAD` (CMake: `if(NOT WIN32)`) — на Windows build-ът минава без нода.
+Windows поддръжка (XInput/DirectInput) е бъдещо изискване.
+
+### Как се ползва
+
+1. Свържи USB gamepad-а (появява се като `/dev/input/js0`).
+2. Добави `Gamepad Input` от палитрата (`Daq/Sources`).
+3. Свържи изхода към `DAQ Display` (`Daq/Display`).
+4. Настрой device path/poll rate (по желание), натисни **Start**.
+5. В DAQ Display добави plot карта: канал 0–3 (оси X/Y/Z/Rz) или 4–11
+   (бутони A/B/X/Y/LB/RB/Back/Start), Time Domain.
+
+## File Record + File Playback DAQ нодове (REQ-SW-PL-043)
+
+Двойка нодове за запис и възпроизвеждане на `SampledData` потоци на диск:
+
+- **File Record** (Sink, `"Daq/Sinks"`) — консумира `SampledData` от графа и го
+  записва на диск като raw bytes + JSON sidecar (метаданни);
+- **File Playback** (Source, `"Daq/Sources"`) — чете записания файл + sidecar,
+  реконструира `SampledStreamDescriptor` и емитира `SampledData` на записания
+  sample rate.
+
+### Файлов формат
+
+Два файла с еднаква база:
+
+- `*.sdf` — raw interleaved sample bytes (точно както идват от източника);
+- `*.sdf.json` — JSON sidecar с `SampledStreamDescriptor`:
+  `{"sampleRate": 2400000, "channels": [{"name":"I","type":"INT16"},
+  {"name":"Q","type":"INT16"}], "domain": "iq", "deviceId": "plutosdr",
+  "sourceName": "PlutoSky 7020-SDR", "endianness": "LittleEndian"}`.
+
+Форматът е прост и debuggable: raw bytes + JSON метаданни. Няма custom binary
+header — sidecar-ът е човешки четим.
+
+### Архитектура — Model → Widget
+
+- **`FileRecordModel`** — тънък контролер (Sink): 1 входен порт
+  `{"sample","Sample"}`; при всяко пристигане на данни записва raw bytes във
+  файла; при Start записва sidecar JSON (дескрипторът се взема от първия
+  chunk); при Stop flush + close. `save()`/`load()` персистират файловия път.
+- **`FileRecordWidget`** — файлов път (Browse), Start/Stop запис, статус label
+  (bytes written).
+- **`FilePlaybackModel`** — тънък контролер (Source): 1 изходен порт
+  `{"sample","Sample"}`; чете `*.sdf` + `*.sdf.json`, реконструира
+  дескриптора, емитира данните на записания sample rate (QTimer-базирано
+  темпо, chunk 4096 семпла). Connection-count гейт (моделът на
+  SystemMonitorModel) — таймерът върви само докато потребителят е натиснал
+  Play И има поне една връзка; последната връзка махната → auto-stop.
+  `save()`/`load()` персистират файловия път.
+- **`FilePlaybackWidget`** — файлов път (Browse), Play/Stop, статус label
+  (position/duration, напр. "1.2s / 10.0s").
+
+### Темпо на Playback
+
+QTimer с интервал = chunkSize / sampleRate. Всеки тик емитира един chunk
+(напр. 4096 семпла). Ако sampleRate е 2.4 MSPS и chunk е 4096 → интервал
+~1.7ms. За ниски sample rates (System Monitor 1 Hz) chunk-ът е 1 семпъл →
+интервал 1s. При sub-ms интервали (високи sample rates) интервалът се
+clamp-ва до 1 ms — темпото е приблизително, но данните се емитират в ред.
+
+### Платформена поддръжка
+
+Файловият I/O е **cross-platform** — нодовете се компилират навсякъде (без
+platform guard, за разлика от Linux-only System Monitor/Gamepad).
+
+### Как се ползва
+
+1. Добави `File Record` от палитрата (`Daq/Sinks`) и `File Playback`
+   (`Daq/Sources`).
+2. Свържи източник (напр. `PlutoSDR RX` или `System Monitor`) → `File Record`.
+3. Задай файлов път (напр. `/tmp/iq.sdf`) и натисни **Start** — записва се
+   `iq.sdf` + `iq.sdf.json`; натисни **Stop** за финализиране.
+4. Добави `File Playback`, задай същия път, свържи изхода към `DAQ Display`
+   (`Daq/Display`) и натисни **Play** — данните се възпроизвеждат на записания
+   sample rate.
+5. В DAQ Display добави plot карта: канал 0 (I) или 1 (Q), Time Domain.
+
+## Network Source + Network Sink DAQ нодове (REQ-SW-PL-044)
+
+Двойка нодове за предаване на `SampledData` потоци по мрежа:
+
+- **Network Source** (Source, `"Daq/Sources"`) — слуша на порт (UDP/TCP),
+  приема frames, реконструира `SampledData` с UI-конфигурирания дескриптор и
+  го емитира в графа;
+- **Network Sink** (Sink, `"Daq/Sinks"`) — консумира `SampledData` от графа,
+  сериализира го и го изпраща по UDP/TCP.
+
+### Wire формат (MSSD framing)
+
+Length-prefixed framing, базиран на Qt (всички цели числа little-endian):
+
+```
+[4-byte magic "MSSD"][4-byte sampleCount][4-byte bytesPerSample][raw sample bytes]
+```
+
+- **UDP:** всеки datagram носи точно един frame.
+- **TCP:** същият framing като byte stream — приемникът обработва partial
+  frames (frame може да премине през няколко read-а / няколко frames в един
+  read). Дължината на frame-а се извлича от header-а:
+  `12 + sampleCount × bytesPerSample`.
+- Дескрипторът (sampleRate, channels) **не** се носи на wire-а — конфигурира
+  се в UI-то на двете страни (v1, без out-of-band exchange). Wire-ът носи само
+  raw sample bytes.
+
+### Архитектура — Model → Widget
+
+- **`NetworkSourceModel`** — тънък контролер (Source): 1 изходен порт
+  `{"sample","Sample"}`; `QUdpSocket` (UDP) / `QTcpServer` + `QTcpSocket`
+  (TCP) слуша на порт; при пристигане на frame реконструира `SampledData` с
+  UI-конфигурирания дескриптор (sampleRate, channels, тип INT16/FLOAT32) и
+  емитира `dataUpdated(0)`. Connection-count гейт (моделът на
+  SystemMonitorModel) — listener-ът върви само докато потребителят е натиснал
+  Start И има поне една връзка; последната връзка махната → auto-stop.
+  `save()`/`load()` персистират protocol/port/sampleRate/channels.
+- **`NetworkSourceWidget`** — протокол (UDP/TCP), порт, sampleRate (Hz),
+  channels (брой + тип), Start/Stop, статус label (bytes received).
+- **`NetworkSinkModel`** — тънък контролер (Sink): 1 входен порт
+  `{"sample","Sample"}`; при всяко пристигане на данни сериализира raw bytes
+  в MSSD frame и изпраща — `QUdpSocket::writeDatagram` (UDP) /
+  `QTcpSocket::write` (TCP, асинхронен connect). `save()`/`load()` персистират
+  protocol/host/port.
+- **`NetworkSinkWidget`** — протокол (UDP/TCP), адрес + порт, Start/Stop,
+  статус label (bytes sent).
+
+### Платформена поддръжка
+
+Qt Network модулът е част от Qt5/Qt6 — нодовете са **cross-platform** (без
+platform guard, без външни зависимости).
+
+### Как се ползва
+
+1. Добави `Network Source` от палитрата (`Daq/Sources`) и `Network Sink`
+   (`Daq/Sinks`).
+2. Настрой Source-а: протокол (UDP/TCP), порт (напр. 5000), sampleRate,
+   channels (брой + тип) — и натисни **Start**.
+3. Настрой Sink-а: същия протокол, адрес (напр. `127.0.0.1`) + порт — и
+   натисни **Start**.
+4. Свържи източник (напр. `PlutoSDR RX` или `System Monitor`) → `Network Sink`
+   и `Network Source` → `DAQ Display` (`Daq/Display`).
+5. Дескрипторът на Source-а трябва да съвпада с дескриптора на изпращача
+   (sampleRate, channels, тип) — wire-ът носи само raw bytes.
+
 ## Зависимости
 
 Plugin-ът изисква следните Qt модули и библиотеки:
@@ -369,6 +676,8 @@ Plugin-ът изисква следните Qt модули и библиоте�
 - **NodeEditorLibrary** — споделена библиотека за node editor
 - **frame_work** — Daqster core framework
 - **OpenCV 4.x (ОПЦИОНАЛЕН)** — само за OpenCV video ефектите (GaussianBlur, Canny, Threshold)
+- **NVML (ОПЦИОНАЛЕН)** — само за GPU Monitor нода (REQ-SW-PL-045)
+- **Linux-only (платформен guard)** — Jack Detect нода (REQ-SW-PL-046) се компилира само на non-Windows (`if(NOT WIN32)` → `HAVE_JACK_DETECT`); няма външна библиотека — чете `/proc/asound`
 
 ### OpenCV (опционален)
 
@@ -378,6 +687,24 @@ Plugin-ът изисква следните Qt модули и библиоте�
 - `${OpenCV_INCLUDE_DIRS}` / `${OpenCV_LIBS}` се подават към `create_plugin()`
 
 Когато OpenCV липсва или `DAQSTER_USE_OPENCV=OFF`, plugin-ът се build-ва нормално с базовите QImage ефекти; OpenCV ефектите отсъстват от комбо-то. Проверено: Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS и с двата варианта (OpenCV 4.6.0 / без OpenCV).
+
+### NVML (опционален — GPU Monitor, REQ-SW-PL-045)
+
+`find_library(NVML_LIBRARY nvidia-ml)` + `find_path(NVML_INCLUDE_DIR nvml.h)` в `CMakeLists.txt`. Когато и двете са открити:
+- `Sources/GpuMonitor/` (`GpuMonitorEngine`, `GpuMonitorModel`, `GpuMonitorWidget`) се компилира и дефинира `HAVE_NVML`
+- `GpuMonitorModel` се регистрира като `"Daq/Sources"` в `registerNodes()`
+- `${NVML_INCLUDE_DIR}` / `${NVML_LIBRARY}` се подават към `create_plugin()`
+
+Когато NVML липсва, plugin-ът се build-ва нормално без GPU Monitor нода (същият опционален модел като OpenCV). Проверено: Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS с NVML (RTX 3070 Laptop GPU); hardware smoke — метриките (util/mem/temp/power/fan/clock) се четат коректно през NVML API.
+
+### Jack Detect (Linux-only платформен guard — REQ-SW-PL-046)
+
+`if(NOT WIN32)` в `CMakeLists.txt`:
+- `Sources/JackDetect/` (`JackDetectEngine`, `JackDetectModel`, `JackDetectWidget`) се компилира и дефинира `HAVE_JACK_DETECT`
+- `JackDetectModel` се регистрира като `"Daq/Sources"` в `registerNodes()`
+- На Windows plugin-ът се build-ва нормално без Jack Detect нода (няма външна зависимост — чете се `/proc/asound`)
+
+`JackDetectEngine` poll-ва `/proc/asound/card*/codec#*/jack*` (QTimer, default 500ms), парсва редове `Pin 0x21 (Headphone): present = No` и емитира `jacksChanged()` само при промяна (event-driven). `JackDetectModel` обвива jack-овете в `SampledData` с `SampledStreamDescriptor` (domain="jack", deviceId="hda", sourceName="HDA Jack Detect", динамични FLOAT32 канали — по един на jack, стойности 0.0/1.0). Когато jack файлове липсват (ядрото не ги експонира), нодът репортва празен статус без crash. Проверено: Qt5 (5.15.2) + Qt6 (6.9.2) builds PASS; headless smoke PASS (offscreen, без jack файлове — празен статус, без crash).
 
 ## Qt5/Qt6 съвместимост (VideoCompat.h)
 
@@ -460,6 +787,7 @@ QObjectList providers = pm->instances(INodeProvider_IID);
   - [REQ-SW-PL-030](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-030-frame-sampler-node.md) — FrameSampler (ресемплиране)
   - [REQ-SW-PL-032](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-032-video-frame-consolidation.md) — Video Frame Consolidation (един VideoFrameData тип, Фаза 3)
   - [REQ-SW-PL-034](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-034-video-output-node-embedded-effects.md) — VideoOutputNode embedded effects (опционални, default none)
+  - [REQ-SW-PL-043](../../../DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-043-file-record-playback-nodes.md) — File Record + File Playback DAQ nodes (raw bytes + JSON sidecar)
 
 ## _obsolete rename strategy_
 
@@ -473,12 +801,19 @@ QObjectList providers = pm->instances(INodeProvider_IID);
 Since REQ-SW-PL-023/PL-024, all legacy QDevIO components are renamed with an `_obsolete` suffix
 (class `XxxObsolete`, files `XxxObsolete.{h,cpp,ui}`, registered name `XxxObsolete`, caption "(obsolete)")
 but keep their original working implementation. Alias subclasses keep the old registered names where
-the key is not taken by a new node (e.g. `AudioDisplayModelObsoleteAlias` → "AudioDisplay").
-The new `DaqDisplayNode` (SampledData) and the new `AudioSourceDataModel` (SampledData) take the
-current names. Both worlds coexist so capabilities and speed can be benchmarked head-to-head;
-the _obsolete components are deleted at the very end. No data work happens on the GUI thread:
-capture runs in a QThread worker, decode/FFT/point-build in a node-owned QThreadPool (maxThreadCount=1),
-and the GUI thread only does `series->replace()` + `axis->setRange()` via a queued result bridge.
+the key is not taken by a new node. The new `DaqDisplayNode` (SampledData) and the new
+`AudioSourceDataModel` (SampledData) take the current names. Both worlds coexist so capabilities and
+speed can be benchmarked head-to-head; the _obsolete components are deleted at the very end.
+
+**Display consolidation:** the SampledData display world is consolidated onto `DaqDisplayNode` as the
+single canonical implementation. `GenericDisplayNode` (legacy key "GenericDisplay") and
+`AudioDisplayAlias` (legacy key "AudioDisplay") are thin subclasses that override only name()/caption()
+and inherit the full multi-plot/FFT/ring-buffer behavior. The "AudioDisplay" key therefore resolves to
+the real SampledData display — NOT the QDevIO obsolete node. The QDevIO world stays alive under
+"AudioDisplayObsolete" / "QDevIoDisplayObsolete" for old QDevIO graphs. No data work happens on the
+GUI thread: capture runs in a QThread worker, decode/FFT/point-build in the shared ComputePool
+(REQ-SW-PL-039), and the GUI thread only does `series->replace()` + `axis->setRange()` via a queued
+result bridge.
 
 ### DAQ Display v2 (REQ-SW-PL-025)
 - **Physical decode** — `SampledData::decodeToPhysical()` (header-only): `raw × amplitudeScale + amplitudeOffset`

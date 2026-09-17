@@ -23,10 +23,6 @@ public:
 
     QString name() const override
     { return QStringLiteral("GenericDisplay"); }
-
-    /// Inherits the DaqDisplayNode opt-out: the node BODY does not depend on
-    /// data — widget content self-repaints via Qt.
-    bool dataArrivalChangesWidget() const override { return false; }
 };
 
 #endif // GENERICDISPLAYNODE_H

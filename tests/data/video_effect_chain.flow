@@ -1,0 +1,73 @@
+{
+    "nodes": [
+        {
+            "id": 0,
+            "internal-data": {
+                "model-name": "VideoFileSource",
+                "filePath": ""
+            },
+            "label": "VideoFileSource",
+            "labelVisible": true,
+            "position": {
+                "x": -400.0,
+                "y": 0.0
+            }
+        },
+        {
+            "id": 1,
+            "internal-data": {
+                "model-name": "VideoEffect"
+            },
+            "label": "VideoEffect",
+            "labelVisible": true,
+            "position": {
+                "x": -130.0,
+                "y": 0.0
+            }
+        },
+        {
+            "id": 2,
+            "internal-data": {
+                "model-name": "VideoEffect"
+            },
+            "label": "VideoEffect",
+            "labelVisible": true,
+            "position": {
+                "x": 130.0,
+                "y": 0.0
+            }
+        },
+        {
+            "id": 3,
+            "internal-data": {
+                "model-name": "VideoOutput"
+            },
+            "label": "VideoOutput",
+            "labelVisible": true,
+            "position": {
+                "x": 400.0,
+                "y": 0.0
+            }
+        }
+    ],
+    "connections": [
+        {
+            "outNodeId": 0,
+            "outPortIndex": 0,
+            "inNodeId": 1,
+            "inPortIndex": 0
+        },
+        {
+            "outNodeId": 1,
+            "outPortIndex": 0,
+            "inNodeId": 2,
+            "inPortIndex": 0
+        },
+        {
+            "outNodeId": 2,
+            "outPortIndex": 0,
+            "inNodeId": 3,
+            "inPortIndex": 0
+        }
+    ]
+}

@@ -23,6 +23,10 @@ private slots:
     void loadAbsentEffectIsNoEffect();
     void loadAppliesEffectToFrame();
 
+    // REQ-SW-PL-039 Bug A: a CPU-only effect must apply to a GpuRgba input
+    // (asImage() readback) instead of being skipped by the old isGpuRgba gate.
+    void cpuEffectAppliesToGpuRgbaInput();
+
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     // Stage 2C (REQ-SW-PL-032): GpuRgba → GL blit widget on Qt6.
     void gpuRgbaRoutesToGlBlitWidget();

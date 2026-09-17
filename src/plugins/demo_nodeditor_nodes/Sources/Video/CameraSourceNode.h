@@ -107,9 +107,11 @@ private:
     // normalized VideoCompat::pixelFormatInt()).
     Daqster::Perf::Stopwatch m_perfWatch;
     bool m_perfFirstFrame = true;
-    // Reused per frame via setFrame() — no allocation per frame (REQ-SW-PL-020).
-    // On Qt5 the frame is an owned copy (frameToOwnedFrame); on Qt6 the decoded
-    // probe frame (ref-count bump only).
+    // Fresh VideoFrameData per frame — no aliasing: consumers keep the old
+    // frame alive via shared_ptr while the next frame is emitted (setFrame()
+    // on a shared object would delete GL textures a deferred paintGL could
+    // still use). On Qt5 the frame is an owned copy (frameToOwnedFrame); on
+    // Qt6 the decoded probe frame (ref-count bump only).
     std::shared_ptr<VideoFrameData> m_videoFrameOut;
     // Runtime profiling (REQ-SW-PL-027): last-frame HW/SW markers
     // (handleType/pixelFormat) for source-side diagnostics.

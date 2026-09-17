@@ -1,5 +1,6 @@
 #include "CustomShaderGLProcessor.h"
 
+#include "GL/TexturePool.h"
 #include "GL/VideoGLContextManager.h"
 #include "VideoCompat.h"
 #include "VideoGLShaders.h"
@@ -56,7 +57,6 @@ enum class TextureLayout { Nv12, Yuv420p, Rgba };
 } // namespace
 
 CustomShaderGLProcessor::CustomShaderGLProcessor()
-    : m_texturePool(std::make_shared<TexturePool>())
 {
     const QString matrixEnv = qEnvironmentVariable("DAQSTER_GL_MATRIX", QStringLiteral("bt709")).toLower();
     const QString rangeEnv = qEnvironmentVariable("DAQSTER_GL_RANGE", QStringLiteral("full")).toLower();
@@ -266,10 +266,21 @@ bool CustomShaderGLProcessor::drawQuad(QOpenGLShaderProgram *prog, bool useFboQu
 
 GLuint CustomShaderGLProcessor::createOutputTexture(int w, int h)
 {
-    // Acquired from the pool (REQ-SW-PL-032 Issue #7) — reused across frames
-    // instead of a glGenTextures per call. The caller returns it via the
-    // pool release callback when the frame is destroyed.
-    return m_texturePool->acquire(w, h);
+    // Acquired from the global TexturePool (REQ-SW-PL-038) — reused across
+    // frames instead of a glGenTextures per call. The caller returns it via
+    // the pool release callback when the frame is destroyed.
+    GLuint tex = TexturePool::instance().acquire(w, h);
+    if (tex == 0)
+        return 0;
+    // Re-allocate RGBA8 storage: the global pool may return a texture
+    // previously used for YUV planes (R8/RG8) — the FBO color attachment must
+    // be RGBA8 for the rendered output.
+    QOpenGLFunctions *f = VideoGLContextManager::instance().context()->functions();
+    f->glBindTexture(GL_TEXTURE_2D, tex);
+    setupTextureParams(f, tex);
+    f->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    f->glBindTexture(GL_TEXTURE_2D, 0);
+    return tex;
 }
 
 bool CustomShaderGLProcessor::processTexture(const VideoTextureHandle &input,
@@ -344,7 +355,7 @@ bool CustomShaderGLProcessor::processTexture(const VideoTextureHandle &input,
             qWarning().noquote() << QStringLiteral("CustomShaderGLProcessor | %1").arg(m_lastError);
             f->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_fbo->texture(), 0);
             m_fbo->release();
-            m_texturePool->release(rgbaTex);
+            TexturePool::instance().release(rgbaTex);
             return false;
         }
 
@@ -381,7 +392,7 @@ bool CustomShaderGLProcessor::processTexture(const VideoTextureHandle &input,
     if (!ensureCustomProgram(userSource, core)) {
         // lastError already set by ensureCustomProgram.
         if (ownsRgbaTex)
-            m_texturePool->release(rgbaTex);
+            TexturePool::instance().release(rgbaTex);
         return false;
     }
 
@@ -396,9 +407,9 @@ bool CustomShaderGLProcessor::processTexture(const VideoTextureHandle &input,
         qWarning().noquote() << QStringLiteral("CustomShaderGLProcessor | %1").arg(m_lastError);
         f->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_fbo->texture(), 0);
         m_fbo->release();
-        m_texturePool->release(outTex);
+        TexturePool::instance().release(outTex);
         if (ownsRgbaTex)
-            m_texturePool->release(rgbaTex);
+            TexturePool::instance().release(rgbaTex);
         return false;
     }
 
@@ -425,10 +436,10 @@ bool CustomShaderGLProcessor::processTexture(const VideoTextureHandle &input,
     // Clean up the intermediate RGBA texture (was only needed for this call) —
     // return it to the pool for reuse (REQ-SW-PL-032 Issue #7).
     if (ownsRgbaTex)
-        m_texturePool->release(rgbaTex);
+        TexturePool::instance().release(rgbaTex);
 
     if (out != nullptr)
-        *out = VideoTextureHandle{outTex, 0, 0, 0, w, h, false, true};
+        *out = VideoTextureHandle{outTex, 0, 0, 0, w, h, false, true, true};
     return true;
 }
 

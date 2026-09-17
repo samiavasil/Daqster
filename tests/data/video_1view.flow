@@ -1,0 +1,37 @@
+{
+    "nodes": [
+        {
+            "id": 0,
+            "internal-data": {
+                "model-name": "VideoFileSource",
+                "filePath": ""
+            },
+            "label": "VideoFileSource",
+            "labelVisible": true,
+            "position": {
+                "x": -200.0,
+                "y": 0.0
+            }
+        },
+        {
+            "id": 1,
+            "internal-data": {
+                "model-name": "VideoOutput"
+            },
+            "label": "VideoOutput",
+            "labelVisible": true,
+            "position": {
+                "x": 200.0,
+                "y": 0.0
+            }
+        }
+    ],
+    "connections": [
+        {
+            "outNodeId": 0,
+            "outPortIndex": 0,
+            "inNodeId": 1,
+            "inPortIndex": 0
+        }
+    ]
+}

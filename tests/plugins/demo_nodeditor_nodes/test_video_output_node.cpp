@@ -259,6 +259,60 @@ void VideoOutputNodeTest::loadAppliesEffectToFrame()
     QCOMPARE(outImg.pixelColor(0, 0).blue(), 153);
 }
 
+// ── cpuEffectAppliesToGpuRgbaInput (REQ-SW-PL-039 Bug A) ─────────────────────
+//
+// A CPU-only embedded effect (blur) on a GpuRgba input must run the CPU path
+// (asImage() readback) instead of being skipped by the old
+// `if (!videoFrame->isGpuRgba())` gate. Requires a real GL texture so the
+// readback has pixels — skipped when no GL context can be created.
+void VideoOutputNodeTest::cpuEffectAppliesToGpuRgbaInput()
+{
+    VideoGLContextManager &mgr = VideoGLContextManager::instance();
+    if (!mgr.makeCurrent())
+        QSKIP("No GL context — GpuRgba readback requires GL");
+    VideoGLContextManager::CurrentGuard guard(mgr);
+    QOpenGLFunctions *f = mgr.context()->functions();
+
+    // Upload a solid red RGBA texture (64x48).
+    const int w = 64, h = 48;
+    QImage red(w, h, QImage::Format_RGBA8888);
+    red.fill(Qt::red);
+    GLuint tex = 0;
+    f->glGenTextures(1, &tex);
+    f->glBindTexture(GL_TEXTURE_2D, tex);
+    f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    f->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                    red.constBits());
+    f->glBindTexture(GL_TEXTURE_2D, 0);
+
+    VideoTextureHandle hnd;
+    hnd.texY = tex;
+    hnd.width = w;
+    hnd.height = h;
+    hnd.rgba = true;
+    auto gpuFrame = VideoFrameData::fromTexture(hnd);
+
+    VideoOutputNode node;
+    node.inputConnectionCreated(makeConId(0, 0));
+    node.outputConnectionCreated(makeConId(0, 0));
+
+    // Select a CPU-only effect (blur) and feed the GpuRgba frame.
+    QJsonObject graph;
+    graph[QStringLiteral("effect")] = QStringLiteral("blur");
+    graph[QStringLiteral("blurRadius")] = 3;
+    node.load(graph);
+    node.setInData(gpuFrame, 0);
+
+    auto out = std::dynamic_pointer_cast<VideoFrameData>(node.outData(0));
+    QVERIFY(out != nullptr);
+    // The CPU path must have produced a CPU-resident frame (not GpuRgba).
+    QVERIFY(!out->isGpuRgba());
+    QCOMPARE(out->asImage().size(), QSize(w, h));
+}
+
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 // ── gpuRgbaRoutesToGlBlitWidget (REQ-SW-PL-032 Stage 2C) ─────────────────────
 //

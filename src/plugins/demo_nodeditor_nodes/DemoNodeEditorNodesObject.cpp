@@ -22,6 +22,28 @@
 #include "Sources/Video/VideoEffectNode.h"
 #include "Sources/Video/CustomShaderNode.h"
 #include "Sources/Video/FrameSamplerNode.h"
+#ifdef HAVE_LIBIIO
+#include "Sources/PlutoSdr/PlutoSdrModel.h"
+#endif
+#ifdef HAVE_SYSTEM_MONITOR
+#include "Sources/SystemMonitor/SystemMonitorModel.h"
+#endif
+#ifdef HAVE_GAMEPAD
+#include "Sources/Gamepad/GamepadModel.h"
+#endif
+#include "Sinks/FileRecord/FileRecordModel.h"
+#include "Sources/FilePlayback/FilePlaybackModel.h"
+#include "Sources/NetworkSource/NetworkSourceModel.h"
+#include "Sinks/NetworkSink/NetworkSinkModel.h"
+#ifdef HAVE_NVML
+#include "Sources/GpuMonitor/GpuMonitorModel.h"
+#endif
+#ifdef HAVE_JACK_DETECT
+#include "Sources/JackDetect/JackDetectModel.h"
+#endif
+#ifdef HAVE_PCAP
+#include "Sources/Pcap/PcapModel.h"
+#endif
 #include <QDevIoDisplayModelObsolete.h>
 
 // ── Saved-graph alias registration (REQ-SW-PL-023 §7) ────────────────
@@ -34,7 +56,12 @@
 // the historical key; old saved graphs resolve to the same working model.
 // No Q_OBJECT here: the aliases add no signals/slots — they only override the
 // virtual name() (their QObject meta-object is inherited from the base class).
-class AudioDisplayModelObsoleteAlias : public AudioDisplayModelObsolete
+// The "AudioDisplay" key is consolidated onto the SampledData display world:
+// the alias now derives from DaqDisplayNode (canonical SampledData display),
+// NOT the QDevIO obsolete node — old saved graphs resolve to the real
+// multi-plot/FFT/ring-buffer display. The QDevIO world stays alive under
+// "AudioDisplayObsolete" for old QDevIO graphs.
+class AudioDisplayAlias : public DaqDisplayNode
 {
 public:
     QString name() const override
@@ -88,43 +115,76 @@ bool DemoNodeEditorNodesObject::Initialize()
 void DemoNodeEditorNodesObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
 {
     // Display nodes
-    registry.registerModel<AudioDisplayModelObsolete>("Displays");
-    registry.registerModel<AudioDisplayModelObsoleteAlias>("Displays"); // old key "AudioDisplay"
-    registry.registerModel<GenericDisplayNode>("Displays");
-    registry.registerModel<DaqDisplayNode>("Displays");
-    registry.registerModel<QDevIoDisplayModelObsolete>("Displays");
-    registry.registerModel<QDevIoDisplayModelObsoleteAlias>("Displays"); // old key "QDevIoDisplay"
+    registry.registerModel<AudioDisplayModelObsolete>("Obsolete");
+    registry.registerModel<AudioDisplayAlias>("Daq/Display"); // old key "AudioDisplay" -> SampledData display
+    registry.registerModel<GenericDisplayNode>("Daq/Display");
+    registry.registerModel<DaqDisplayNode>("Daq/Display");
+    registry.registerModel<QDevIoDisplayModelObsolete>("Obsolete");
+    registry.registerModel<QDevIoDisplayModelObsoleteAlias>("Obsolete"); // old key "QDevIoDisplay"
 
     // Stream routing nodes
-    registry.registerModel<DemuxNodeObsolete>("Routing");
-    registry.registerModel<DemuxNodeObsoleteAlias>("Routing"); // old key "DemuxNode"
-    registry.registerModel<MuxNodeObsolete>("Routing");
-    registry.registerModel<MuxNodeObsoleteAlias>("Routing"); // old key "MuxNode"
+    registry.registerModel<DemuxNodeObsolete>("Obsolete");
+    registry.registerModel<DemuxNodeObsoleteAlias>("Obsolete"); // old key "DemuxNode"
+    registry.registerModel<MuxNodeObsolete>("Obsolete");
+    registry.registerModel<MuxNodeObsoleteAlias>("Obsolete"); // old key "MuxNode"
 
     // Audio source + LLama source (moved from node_editor_ide)
     // REQ-SW-PL-024: the SampledData AudioSource takes the "AudioSource" key;
     // the old QDevIO mic is registered as "AudioSourceObsolete" (no alias
     // under "AudioSource" — old saved graphs instantiate the new node and
     // QDevIO edges drop, documented consequence).
-    registry.registerModel<AudioSourceDataModel>("Sources");
-    registry.registerModel<AudioSourceDataModelObsolete>("Sources");
-    registry.registerModel<LLamaModelDataModel>("LLama");
-    registry.registerModel<ConsoleDataModel>("LLama");
+    registry.registerModel<AudioSourceDataModel>("Audio/Sources");
+    registry.registerModel<AudioSourceDataModelObsolete>("Obsolete");
+#ifdef HAVE_LIBIIO
+    // PlutoSDR RX DAQ node (REQ-SW-PL-040) — compiled only when libiio is found.
+    registry.registerModel<PlutoSdrModel>("Daq/Sources");
+#endif
+#ifdef HAVE_SYSTEM_MONITOR
+    // System Monitor source node (REQ-SW-PL-041) — Linux /proc + /sys telemetry.
+    registry.registerModel<SystemMonitorModel>("Daq/Sources");
+#endif
+#ifdef HAVE_GAMEPAD
+    // Gamepad input source node (REQ-SW-PL-042) — Linux joystick API.
+    registry.registerModel<GamepadModel>("Daq/Sources");
+#endif
+    // File Record sink + File Playback source (REQ-SW-PL-043) — raw bytes +
+    // JSON sidecar on disk; cross-platform, always compiled.
+    registry.registerModel<FileRecordModel>("Daq/Sinks");
+    registry.registerModel<FilePlaybackModel>("Daq/Sources");
+    // Network Source + Sink (REQ-SW-PL-044) — UDP/TCP transport of SampledData
+    // streams; cross-platform, always compiled.
+    registry.registerModel<NetworkSourceModel>("Daq/Sources");
+    registry.registerModel<NetworkSinkModel>("Daq/Sinks");
+    registry.registerModel<LLamaModelDataModel>("AI/LLM");
+    registry.registerModel<ConsoleDataModel>("General/Display");
 
     // Video nodes (VideoFrameData / "video-frame" flow)
-    registry.registerModel<CameraSourceNode>("Video");
-    registry.registerModel<VideoFileSourceNode>("Video");
-    registry.registerModel<StreamSourceNode>("Video");
-    registry.registerModel<VideoOutputNode>("Video");
+    registry.registerModel<CameraSourceNode>("Video/Sources");
+    registry.registerModel<VideoFileSourceNode>("Video/Sources");
+    registry.registerModel<StreamSourceNode>("Video/Sources");
+    registry.registerModel<VideoOutputNode>("Video/Display");
 
     // Video effect nodes (VideoFrameData flow, REQ-SW-PL-028) — ONE node with
     // an effect combo (REQ-SW-PL-028 AC 4) + the frame resampler (REQ-SW-PL-030).
     // The 7 per-effect aliases (VideoEffectBrightnessNode, ...) were removed on
     // 2026-08-26 (user decision) — old saved graphs referencing those registry
     // keys no longer load; "VideoEffect" is the only registered effect node.
-    registry.registerModel<VideoEffectNode>("Video");
-    registry.registerModel<CustomShaderNode>("Video");
-    registry.registerModel<FrameSamplerNode>("Video");
+registry.registerModel<VideoEffectNode>("Video/Processing");
+    registry.registerModel<CustomShaderNode>("Video/Processing");
+    registry.registerModel<FrameSamplerNode>("Video/Processing");
+
+#ifdef HAVE_NVML
+    // GPU Monitor source (REQ-SW-PL-045) — only when NVML is available.
+    registry.registerModel<GpuMonitorModel>("Daq/Sources");
+#endif
+#ifdef HAVE_JACK_DETECT
+    // Jack Detect source (REQ-SW-PL-046) — Linux HDA /proc/asound only.
+    registry.registerModel<JackDetectModel>("Daq/Sources");
+#endif
+#ifdef HAVE_PCAP
+    // pcap Packet Capture source (REQ-SW-PL-047) — libpcap packet capture.
+    registry.registerModel<PcapModel>("Daq/Sources");
+#endif
 }
 
 void DemoNodeEditorNodesObject::DeInitialize()
