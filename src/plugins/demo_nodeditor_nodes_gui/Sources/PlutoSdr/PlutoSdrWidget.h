@@ -3,6 +3,9 @@
 
 #include <QWidget>
 
+// Forward declare engine
+#include <Sources/PlutoSdr/PlutoSdrEngine.h>
+
 class QComboBox;
 class QDoubleSpinBox;
 class QLabel;
@@ -15,8 +18,9 @@ class QPushButton;
  * URI, frequency (MHz), sample rate (MSPS), gain mode (manual/fast_attack/
  * slow_attack) + manual gain, Start/Stop toggle and a status label
  * (connected/streaming/error). Emits startRequested/stopRequested to the
- * model and configChanged whenever a config control changes (the model
- * forwards it to the engine, applied on next start).
+ * model and configChanged whenever a config control changes.
+ *
+ * Connects directly to PlutoSdrEngine for status/error signals (headless-compatible).
  */
 class PlutoSdrWidget : public QWidget
 {
@@ -40,6 +44,9 @@ public:
 
     bool isStarted() const { return m_started; }
 
+    // Connect to engine for status/error signals (called by NodeWidgetFactory)
+    void setEngine(PlutoSdrEngine *engine);
+
 signals:
     void startRequested();
     void stopRequested();
@@ -50,6 +57,9 @@ public slots:
 
 private slots:
     void onStartStopClicked();
+    void onSamplesReady(const QByteArray &buffer, double sampleRateHz, int channels);
+    void onStatusChanged(const QString &status);
+    void onErrorOccurred(const QString &message);
 
 private:
     QLineEdit *m_uriEdit = nullptr;
@@ -60,6 +70,7 @@ private:
     QPushButton *m_startStopButton = nullptr;
     QLabel *m_statusLabel = nullptr;
     bool m_started = false;
+    PlutoSdrEngine *m_engine = nullptr;
 };
 
 #endif // PLUTOSDRWIDGET_H

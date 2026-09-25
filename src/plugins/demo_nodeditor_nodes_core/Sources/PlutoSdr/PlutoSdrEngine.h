@@ -60,6 +60,14 @@ signals:
     void statusChanged(const QString &status);
     void errorOccurred(const QString &message);
 
+public:
+    // Accessors for model save/load
+    const QString& uri() const { return m_uri; }
+    double frequencyMhz() const { return m_frequencyMhz; }
+    double sampleRateMsps() const { return m_sampleRateMsps; }
+    const QString& gainMode() const { return m_gainMode; }
+    double gainDb() const { return m_gainDb; }
+
 private:
     void workerLoop();
     void applyConfig();

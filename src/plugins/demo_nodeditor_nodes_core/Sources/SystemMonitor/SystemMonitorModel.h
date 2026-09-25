@@ -3,7 +3,6 @@
 
 #include "NodeDataTypes/SampledData.h"
 #include "SystemMonitorEngine.h"
-#include "SystemMonitorWidget.h"
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
 
@@ -15,10 +14,13 @@
  * @brief System Monitor source node model (REQ-SW-PL-041).
  *
  * Thin NodeDelegateModel controller: 1 output port (SampledData "sample"),
- * owns the SystemMonitorEngine (Linux /proc + /sys telemetry) + the
- * SystemMonitorWidget (config UI). Each poll wraps the current metric values
- * in a shared_ptr<SampledData> with a SampledStreamDescriptor (domain="system",
- * 5 FLOAT32 channels) and emits dataUpdated(0).
+ * owns the SystemMonitorEngine (Linux /proc + /sys telemetry). Each poll wraps
+ * the current metric values in a shared_ptr<SampledData> with a
+ * SampledStreamDescriptor (domain="system", 5 FLOAT32 channels) and emits
+ * dataUpdated(0).
+ *
+ * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
+ * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  *
  * Connection-count gating (model of PlutoSdrModel/VideoFileSourceNode): the
  * engine polls only while the user pressed Start AND at least one output
@@ -55,7 +57,7 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex port) override;
 
-    QWidget *embeddedWidget() override;
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop the polling timer. Idempotent — safe to call multiple times
     /// (REQ-SW-PL-050).
@@ -67,7 +69,10 @@ public:
     void outputConnectionCreated(QtNodes::ConnectionId const &) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &) override;
 
-private slots:
+    // Accessor for GUI widget factory
+    SystemMonitorEngine* engine() const { return m_engine; }
+
+public slots:
     void onStartRequested();
     void onStopRequested();
     void onIntervalChanged(double sec);
@@ -80,7 +85,6 @@ private:
     void setPollingEnabled(bool enabled);
 
     SystemMonitorEngine *m_engine = nullptr;
-    SystemMonitorWidget *m_widget = nullptr;
     std::shared_ptr<SampledData> m_output;
     int m_connectionCount = 0;
     bool m_userStarted = false;

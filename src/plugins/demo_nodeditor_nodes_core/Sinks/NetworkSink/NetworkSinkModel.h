@@ -2,7 +2,6 @@
 #define NETWORKSINKMODEL_H
 
 #include "NodeDataTypes/SampledData.h"
-#include "NetworkSinkWidget.h"
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
 
@@ -20,6 +19,9 @@ class QUdpSocket;
  * On Start it opens a UDP socket / TCP connection to the configured host:port;
  * each incoming SampledData is serialized into a length-prefixed frame (magic
  * "MSSD") and sent. Status shows bytes sent.
+ *
+ * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
+ * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  */
 class NetworkSinkModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
@@ -51,7 +53,7 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex port) override;
 
-    QWidget *embeddedWidget() override;
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop sending and close the socket. Idempotent — safe to call multiple
     /// times (REQ-SW-PL-050).
@@ -60,7 +62,10 @@ public:
     /// Start sending programmatically (runtime autoStart, REQ-SW-PL-048).
     void start() override;
 
-private slots:
+signals:
+    void statusChanged(const QString &status);
+
+public slots:
     void onStartRequested();
     void onStopRequested();
     void onTcpConnected();
@@ -70,14 +75,18 @@ private:
     void startSending();
     void stopSending();
     void sendFrame(const QByteArray &payload);
-    void updateStatus();
+    void updateStatus(const QString &status);
 
-    NetworkSinkWidget *m_widget = nullptr;
     QUdpSocket *m_udpSocket = nullptr;
     QTcpSocket *m_tcpSocket = nullptr;
     bool m_sending = false;
     bool m_tcpConnected = false;
     qint64 m_bytesSent = 0;
+
+    // Config from GUI widget
+    QString m_protocol = "UDP";
+    QString m_host = "127.0.0.1";
+    int m_port = 5000;
 };
 
 #endif // NETWORKSINKMODEL_H

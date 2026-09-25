@@ -1,4 +1,5 @@
 #include "GpuMonitorWidget.h"
+#include "GpuMonitorEngine.h"
 
 #include <QDoubleSpinBox>
 #include <QHBoxLayout>
@@ -42,6 +43,35 @@ GpuMonitorWidget::GpuMonitorWidget(QWidget *parent)
     });
     connect(m_intervalSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this, &GpuMonitorWidget::intervalChanged);
+}
+
+void GpuMonitorWidget::setEngine(GpuMonitorEngine *engine)
+{
+    m_engine = engine;
+    if (m_engine) {
+        connect(m_engine, &GpuMonitorEngine::metricsReady,
+                this, &GpuMonitorWidget::onMetricsReady);
+        connect(m_engine, &GpuMonitorEngine::statusChanged,
+                this, &GpuMonitorWidget::onStatusChanged);
+        connect(m_engine, &GpuMonitorEngine::errorOccurred,
+                this, &GpuMonitorWidget::onErrorOccurred);
+    }
+}
+
+void GpuMonitorWidget::onMetricsReady(const GpuMonitorEngine::Metrics &m)
+{
+    updateMetrics(m);
+}
+
+void GpuMonitorWidget::onStatusChanged(const QString &status)
+{
+    setStatusText(status);
+}
+
+void GpuMonitorWidget::onErrorOccurred(const QString &msg)
+{
+    setStatusText(msg);
+    setRunning(false);
 }
 
 void GpuMonitorWidget::updateMetrics(const GpuMonitorEngine::Metrics &m)

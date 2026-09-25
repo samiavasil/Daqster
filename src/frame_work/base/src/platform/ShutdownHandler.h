@@ -1,8 +1,10 @@
 #pragma once
 
-#include "build_cfg.h"
+#include "daqster_core_export.h"
 
 #include <QObject>
+
+namespace Daqster {
 
 /**
  * @brief Abstract base class for handling application shutdown signals
@@ -11,7 +13,7 @@
  * Implementations handle OS-specific shutdown mechanisms (signals on Unix,
  * console events on Windows, or stdin commands).
  */
-class FRAME_WORKSHARED_EXPORT ShutdownHandler : public QObject // skipcq: CXX-W2009
+class DAQSTER_CORE_EXPORT ShutdownHandler : public QObject // skipcq: CXX-W2009
 {
     Q_OBJECT
 
@@ -39,3 +41,5 @@ Q_SIGNALS:
      */
     void shutdownRequested();
 };
+
+} // namespace Daqster

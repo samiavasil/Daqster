@@ -6,6 +6,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
+set(DEMO_CORE_GUI_LIBS)
+if(QT_VERSION_MAJOR GREATER_EQUAL 6)
+    list(APPEND DEMO_CORE_GUI_LIBS
+        Qt${QT_VERSION_MAJOR}::MultimediaWidgets
+        Qt${QT_VERSION_MAJOR}::OpenGLWidgets
+    )
+endif()
+
 # ── Plugin JSON metadata (generated from template) ──────────────────
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/DemoNodeEditorNodesCoreInterface.json.in"
@@ -74,7 +82,7 @@ set(VIDEO_NODES
     Sources/Video/FrameSamplerNode.h
     Sources/Video/FrameSamplerNode.cpp
     # Texture pool for GPU effect outputs (REQ-SW-PL-032 Issue #7)
-    ${DAQSTER_SOURCE_DIR}/src/gui/library/GL/TexturePool.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
     # Common compute thread pool (REQ-SW-PL-039)
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ComputePool.cpp
 )
@@ -284,6 +292,7 @@ create_plugin(DemoNodeEditorNodesCore
         Qt${QT_VERSION_MAJOR}::Multimedia
         Qt${QT_VERSION_MAJOR}::Network
         Qt${QT_VERSION_MAJOR}::OpenGL
+        ${DEMO_CORE_GUI_LIBS}
         QtNodes
         DaqsterCore
     COMPILE_DEFINITIONS
@@ -297,8 +306,14 @@ create_plugin(DemoNodeEditorNodesCore
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${DAQSTER_SOURCE_DIR}/src/plugins/common
-        ${DAQSTER_SOURCE_DIR}/src/core
-        ${DAQSTER_SOURCE_DIR}/src/gui/library
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/connectors
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/decoders
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/types
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/threading
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/AudioSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video

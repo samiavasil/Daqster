@@ -1,4 +1,5 @@
 #include "PlutoSdrWidget.h"
+#include <Sources/PlutoSdr/PlutoSdrEngine.h>
 
 #include <QComboBox>
 #include <QDoubleSpinBox>
@@ -146,4 +147,37 @@ void PlutoSdrWidget::onStartStopClicked()
         m_startStopButton->setText(tr("Stop"));
         emit startRequested();
     }
+}
+
+// ── Engine connection (called by NodeWidgetFactory after widget creation) ───
+
+void PlutoSdrWidget::setEngine(PlutoSdrEngine *engine)
+{
+    m_engine = engine;
+    if (m_engine) {
+        connect(m_engine, &PlutoSdrEngine::samplesReady,
+                this, &PlutoSdrWidget::onSamplesReady);
+        connect(m_engine, &PlutoSdrEngine::statusChanged,
+                this, &PlutoSdrWidget::onStatusChanged);
+        connect(m_engine, &PlutoSdrEngine::errorOccurred,
+                this, &PlutoSdrWidget::onErrorOccurred);
+    }
+}
+
+void PlutoSdrWidget::onSamplesReady(const QByteArray &buffer, double sampleRateHz, int channels)
+{
+    Q_UNUSED(buffer);
+    Q_UNUSED(sampleRateHz);
+    Q_UNUSED(channels);
+    // Could update status with sample info if needed
+}
+
+void PlutoSdrWidget::onStatusChanged(const QString &status)
+{
+    setStatus(status);
+}
+
+void PlutoSdrWidget::onErrorOccurred(const QString &message)
+{
+    setStatus(message);
 }

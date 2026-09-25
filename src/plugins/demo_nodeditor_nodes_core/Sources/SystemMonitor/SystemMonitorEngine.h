@@ -51,6 +51,10 @@ signals:
     void metricsReady(const SystemMonitorMetrics &m);
     void errorOccurred(const QString &msg);
 
+public:
+    // Accessor for GUI widget factory / model
+    int pollIntervalMs() const { return m_pollIntervalMs; }
+
 private:
     void poll();
     double readCpuPercent();

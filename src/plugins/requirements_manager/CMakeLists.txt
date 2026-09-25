@@ -62,8 +62,8 @@ create_plugin(RequirementsManager
         DaqsterGui
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${DAQSTER_SOURCE_DIR}/src/core
-        ${DAQSTER_SOURCE_DIR}/src/gui
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
 )
 
 if(TARGET RequirementsManager)

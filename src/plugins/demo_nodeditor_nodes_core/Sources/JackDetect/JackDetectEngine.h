@@ -51,6 +51,10 @@ signals:
     void jacksChanged(const QVector<JackDetectEngine::JackState> &jacks);
     void statusChanged(const QString &status);
 
+public:
+    // Accessor for GUI widget factory / model
+    double intervalSeconds() const { return m_pollIntervalMs / 1000.0; }
+
 private:
     void poll();
     QVector<JackState> readJacks() const;

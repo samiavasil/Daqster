@@ -9,15 +9,6 @@ using QtNodes::NodeDataType;
 PlutoSdrModel::PlutoSdrModel()
 {
     m_engine = new PlutoSdrEngine(this);
-    m_widget = new PlutoSdrWidget();
-
-    // Widget → model (GUI thread).
-    connect(m_widget, &PlutoSdrWidget::startRequested,
-            this, &PlutoSdrModel::onStartRequested);
-    connect(m_widget, &PlutoSdrWidget::stopRequested,
-            this, &PlutoSdrModel::onStopRequested);
-    connect(m_widget, &PlutoSdrWidget::configChanged,
-            this, &PlutoSdrModel::onConfigChanged);
 
     // Engine → model (auto/queued: the engine emits from the worker thread).
     connect(m_engine, &PlutoSdrEngine::samplesReady,
@@ -35,9 +26,6 @@ PlutoSdrModel::~PlutoSdrModel()
     // Single shutdown path: stop() joins the stream thread before the engine
     // (child) is destroyed (REQ-SW-PL-050).
     stop();
-
-    // Widget lifetime is owned by the node/view framework.
-    m_widget = nullptr;
 }
 
 void PlutoSdrModel::stop()
@@ -52,23 +40,26 @@ QJsonObject PlutoSdrModel::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
 
-    modelJson["uri"] = m_widget->uri();
-    modelJson["frequencyMhz"] = m_widget->frequencyMhz();
-    modelJson["sampleRateMsps"] = m_widget->sampleRateMsps();
-    modelJson["gainMode"] = m_widget->gainMode();
-    modelJson["gainDb"] = m_widget->gainDb();
+    // Config values are saved by the GUI widget via NodeWidgetFactory
+    // Core model stores only the URI for the engine
+    modelJson["uri"] = m_engine ? m_engine->uri() : QStringLiteral("ip:192.168.2.1");
+    modelJson["frequencyMhz"] = m_engine ? m_engine->frequencyMhz() : 98.5;
+    modelJson["sampleRateMsps"] = m_engine ? m_engine->sampleRateMsps() : 2.4;
+    modelJson["gainMode"] = m_engine ? m_engine->gainMode() : QStringLiteral("manual");
+    modelJson["gainDb"] = m_engine ? m_engine->gainDb() : 30.0;
 
     return modelJson;
 }
 
 void PlutoSdrModel::load(QJsonObject const &p)
 {
-    m_widget->setUri(p.value("uri").toString(QStringLiteral("ip:192.168.2.1")));
-    m_widget->setFrequencyMhz(p.value("frequencyMhz").toDouble(98.5));
-    m_widget->setSampleRateMsps(p.value("sampleRateMsps").toDouble(2.4));
-    m_widget->setGainMode(p.value("gainMode").toString(QStringLiteral("manual")));
-    m_widget->setGainDb(p.value("gainDb").toDouble(30.0));
-
+    if (m_engine) {
+        m_engine->setUri(p.value("uri").toString(QStringLiteral("ip:192.168.2.1")));
+        m_engine->setFrequencyMhz(p.value("frequencyMhz").toDouble(98.5));
+        m_engine->setSampleRateMsps(p.value("sampleRateMsps").toDouble(2.4));
+        m_engine->setGainMode(p.value("gainMode").toString(QStringLiteral("manual")));
+        m_engine->setGainDb(p.value("gainDb").toDouble(30.0));
+    }
     updateEngineConfig();
 }
 
@@ -99,11 +90,6 @@ void PlutoSdrModel::setInData(std::shared_ptr<QtNodes::NodeData> data,
     Q_ASSERT(0);
 }
 
-QWidget *PlutoSdrModel::embeddedWidget()
-{
-    return m_widget;
-}
-
 // ── Connection-count gating (model of VideoFileSourceNode) ──────────────────
 
 void PlutoSdrModel::outputConnectionCreated(QtNodes::ConnectionId const &conId)
@@ -121,7 +107,7 @@ void PlutoSdrModel::outputConnectionDeleted(QtNodes::ConnectionId const &conId)
     setStreamingEnabled(m_userStarted && m_connectionCount > 0);
 }
 
-// ── Widget slots ────────────────────────────────────────────────────────────
+// ── Public slots called by GUI widget via NodeWidgetFactory ────────────────
 
 void PlutoSdrModel::onStartRequested()
 {
@@ -168,31 +154,36 @@ void PlutoSdrModel::onSamplesReady(const QByteArray &buffer, double sampleRateHz
 
     m_output = std::make_shared<SampledData>(buffer, desc);
 
+    // GUI widget (if present) will be updated via its own connection to engine
     emit dataUpdated(0);
 }
 
 void PlutoSdrModel::onStatusChanged(const QString &status)
 {
-    // Error statuses carry the detailed message via errorOccurred.
+    // GUI widget (if present) will be updated via its own connection to engine
     if (status.startsWith(QLatin1String("error:")))
         return;
-    m_widget->setStatus(status);
+    // Note: no m_widget->setStatus() - GUI widget connects to engine directly
+    Q_UNUSED(status);
 }
 
 void PlutoSdrModel::onErrorOccurred(const QString &message)
 {
-    m_widget->setStatus(message);
+    // GUI widget (if present) will be updated via its own connection to engine
+    Q_UNUSED(message);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 void PlutoSdrModel::updateEngineConfig()
 {
-    m_engine->setUri(m_widget->uri());
-    m_engine->setFrequencyMhz(m_widget->frequencyMhz());
-    m_engine->setSampleRateMsps(m_widget->sampleRateMsps());
-    m_engine->setGainMode(m_widget->gainMode());
-    m_engine->setGainDb(m_widget->gainDb());
+    if (m_engine) {
+        // Config values are applied by GUI widget via NodeWidgetFactory
+        // Core model just ensures engine is running if needed
+        if (m_userStarted && m_connectionCount > 0) {
+            m_engine->start();
+        }
+    }
 }
 
 void PlutoSdrModel::setStreamingEnabled(bool enabled)
@@ -201,4 +192,5 @@ void PlutoSdrModel::setStreamingEnabled(bool enabled)
         m_engine->start();
     else
         m_engine->stop();
+    // GUI widget (if present) will update its own running state
 }

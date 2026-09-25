@@ -69,6 +69,9 @@ public:
     /// Human-readable status string.
     QString status() const { return m_status; }
 
+    /// Current interface name.
+    QString currentInterface() const { return m_interface; }
+
     /// Number of packets captured since start().
     quint64 packetsCaptured() const { return m_packetsCaptured; }
 

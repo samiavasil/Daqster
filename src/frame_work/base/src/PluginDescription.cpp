@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
 Initial version of this file was created on 16.03.2017 at 12:33:53
-**************************************************************************/
+*************************************************************************/
 
 #include "PluginDescription.h"
 #include "LogCategories.h"
@@ -65,7 +65,7 @@ PluginDescription::PluginDescription(const PluginDescription& b)
 {
     m_PrivateDescription = new PrivateDescription();
     m_Enabled = b.m_Enabled;
-    m_Icon = b.m_Icon;
+    m_IconPath = b.m_IconPath;
     CopyDynamicProperties( b );
 }
 
@@ -146,17 +146,8 @@ PluginDescription & PluginDescription::operator=(const PluginDescription &b){
     CopyDynamicProperties( b );
     /*Copy static properties*/
     m_Enabled = b.m_Enabled;
-    m_Icon = b.m_Icon;
+    m_IconPath = b.m_IconPath;
     return *this;
-}
-
-/**
- * @brief Return is plugin enabled
- * @return true/false
- */
-bool PluginDescription::IsEnabled() const
-{
-    return m_Enabled;
 }
 
 /**
@@ -189,6 +180,15 @@ bool  PluginDescription::operator==(const PluginDescription &b) const {
 void PluginDescription::Enable( bool En )
 {
     m_Enabled = En;
+}
+
+/**
+ * @brief Return is plugin enabled
+ * @return true/false
+ */
+bool PluginDescription::IsEnabled() const
+{
+    return m_Enabled;
 }
 
 /**
@@ -233,16 +233,15 @@ bool PluginDescription::GetPluginParamsFromPersistency( QSettings &Store )
     return ret;
 }
 
-void PluginDescription::SetIcon(const QIcon &Icon)
+void PluginDescription::SetIconPath(const QString &iconPath)
 {
-    m_Icon = Icon;
+    m_IconPath = iconPath;
 }
 
-QIcon PluginDescription::GetIcon() const
+QString PluginDescription::GetIconPath() const
 {
-    return m_Icon;
+    return m_IconPath;
 }
-
 
 
 }

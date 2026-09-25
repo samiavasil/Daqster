@@ -20,5 +20,5 @@ create_plugin(plugin_uggly_test
     REQUIRES_LIBRARIES
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
-        frame_work
+        DaqsterCore
 )

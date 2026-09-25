@@ -1,7 +1,7 @@
 #ifndef DEMONODEEDITORNODESGUIINTERFACE_H
 #define DEMONODEEDITORNODESGUIINTERFACE_H
 
-#include <DaqsterCore/plugin/QPluginInterface.h>
+#include "QPluginInterface.h"
 
 namespace Daqster {
 

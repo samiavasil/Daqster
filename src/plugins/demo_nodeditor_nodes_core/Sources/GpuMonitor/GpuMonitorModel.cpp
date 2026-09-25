@@ -7,14 +7,6 @@
 GpuMonitorModel::GpuMonitorModel()
 {
     m_engine = new GpuMonitorEngine(this);
-    m_widget = new GpuMonitorWidget;
-
-    connect(m_widget, &GpuMonitorWidget::startRequested,
-            this, &GpuMonitorModel::onStartRequested);
-    connect(m_widget, &GpuMonitorWidget::stopRequested,
-            this, &GpuMonitorModel::onStopRequested);
-    connect(m_widget, &GpuMonitorWidget::intervalChanged,
-            this, &GpuMonitorModel::onIntervalChanged);
 
     connect(m_engine, &GpuMonitorEngine::metricsReady,
             this, &GpuMonitorModel::onMetricsReady);
@@ -29,7 +21,6 @@ GpuMonitorModel::~GpuMonitorModel()
     // Single shutdown path: stop() stops the timer + nvmlShutdown
     // (REQ-SW-PL-045 AC 6, REQ-SW-PL-050).
     stop();
-    m_widget = nullptr; // owned by the node/view framework
 }
 
 void GpuMonitorModel::stop()
@@ -52,14 +43,15 @@ QJsonObject GpuMonitorModel::save() const
 {
     QJsonObject modelJson;
     modelJson["name"] = name();
-    modelJson["intervalSeconds"] = m_widget->intervalSeconds();
+    modelJson["intervalSeconds"] = m_engine ? m_engine->intervalSeconds() : 1.0;
     return modelJson;
 }
 
 void GpuMonitorModel::load(QJsonObject const &p)
 {
-    if (p.contains("intervalSeconds"))
-        m_widget->setIntervalSeconds(p["intervalSeconds"].toDouble(1.0));
+    if (m_engine && p.contains("intervalSeconds")) {
+        m_engine->setPollIntervalMs(static_cast<int>(p["intervalSeconds"].toDouble(1.0) * 1000.0));
+    }
 }
 
 unsigned int GpuMonitorModel::nPorts(QtNodes::PortType portType) const
@@ -89,11 +81,6 @@ void GpuMonitorModel::setInData(std::shared_ptr<QtNodes::NodeData> data,
     Q_ASSERT(0);
 }
 
-QWidget *GpuMonitorModel::embeddedWidget()
-{
-    return m_widget;
-}
-
 void GpuMonitorModel::outputConnectionCreated(QtNodes::ConnectionId const &conId)
 {
     Q_UNUSED(conId);
@@ -109,6 +96,8 @@ void GpuMonitorModel::outputConnectionDeleted(QtNodes::ConnectionId const &conId
     setPollingEnabled(m_connectionCount > 0);
 }
 
+// Public slots called by GUI widget via NodeWidgetFactory
+
 void GpuMonitorModel::onStartRequested()
 {
     m_userStarted = true;
@@ -123,25 +112,28 @@ void GpuMonitorModel::onStopRequested()
 
 void GpuMonitorModel::onIntervalChanged(double seconds)
 {
-    m_engine->setPollIntervalMs(static_cast<int>(seconds * 1000.0));
+    if (m_engine) {
+        m_engine->setPollIntervalMs(static_cast<int>(seconds * 1000.0));
+    }
 }
 
 void GpuMonitorModel::onMetricsReady(const GpuMonitorEngine::Metrics &m)
 {
     m_lastData = buildSampledData(m);
-    m_widget->updateMetrics(m);
+    // GUI widget (if present) will be updated via its own connection to engine
     emit dataUpdated(0);
 }
 
 void GpuMonitorModel::onStatusChanged(const QString &status)
 {
-    m_widget->setStatusText(status);
+    // GUI widget (if present) will be updated via its own connection to engine
+    Q_UNUSED(status);
 }
 
 void GpuMonitorModel::onErrorOccurred(const QString &msg)
 {
-    m_widget->setStatusText(msg);
-    m_widget->setRunning(false);
+    // GUI widget (if present) will be updated via its own connection to engine
+    Q_UNUSED(msg);
 }
 
 void GpuMonitorModel::setPollingEnabled(bool enabled)
@@ -151,14 +143,14 @@ void GpuMonitorModel::setPollingEnabled(bool enabled)
         m_engine->start();
     else
         m_engine->stop();
-    m_widget->setRunning(shouldRun);
+    // GUI widget (if present) will update its own running state
 }
 
 std::shared_ptr<SampledData> GpuMonitorModel::buildSampledData(
     const GpuMonitorEngine::Metrics &m) const
 {
     SampledStreamDescriptor desc;
-    desc.sampleRate = 1.0 / m_widget->intervalSeconds();
+    desc.sampleRate = m_engine ? (1.0 / m_engine->intervalSeconds()) : 1.0;
     desc.channels = {
         {QStringLiteral("gpu_util"), SampleType::FLOAT32},
         {QStringLiteral("mem_used"), SampleType::FLOAT32},

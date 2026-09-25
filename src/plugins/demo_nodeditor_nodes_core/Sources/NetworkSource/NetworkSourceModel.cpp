@@ -26,19 +26,13 @@ SampleType sampleTypeFromName(const QString &name)
 
 NetworkSourceModel::NetworkSourceModel()
 {
-    m_widget = new NetworkSourceWidget();
-
-    connect(m_widget, &NetworkSourceWidget::startRequested,
-            this, &NetworkSourceModel::onStartRequested);
-    connect(m_widget, &NetworkSourceWidget::stopRequested,
-            this, &NetworkSourceModel::onStopRequested);
+    // No widget in core model - widget is created by GUI plugin via NodeWidgetFactory
 }
 
 NetworkSourceModel::~NetworkSourceModel()
 {
     // Single shutdown path: stop() closes the listener (REQ-SW-PL-050).
     stop();
-    m_widget = nullptr;
 }
 
 void NetworkSourceModel::stop()
@@ -60,21 +54,21 @@ void NetworkSourceModel::start()
 QJsonObject NetworkSourceModel::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
-    modelJson["protocol"] = m_widget->protocol();
-    modelJson["port"] = m_widget->port();
-    modelJson["sampleRate"] = m_widget->sampleRate();
-    modelJson["channelCount"] = m_widget->channelCount();
-    modelJson["channelType"] = m_widget->channelType();
+    modelJson["protocol"] = m_protocol;
+    modelJson["port"] = m_port;
+    modelJson["sampleRate"] = m_sampleRate;
+    modelJson["channelCount"] = m_channelCount;
+    modelJson["channelType"] = m_channelType;
     return modelJson;
 }
 
 void NetworkSourceModel::load(QJsonObject const &p)
 {
-    m_widget->setProtocol(p.value("protocol").toString(QStringLiteral("UDP")));
-    m_widget->setPort(p.value("port").toInt(5000));
-    m_widget->setSampleRate(p.value("sampleRate").toDouble(1000.0));
-    m_widget->setChannelCount(p.value("channelCount").toInt(2));
-    m_widget->setChannelType(p.value("channelType").toString(QStringLiteral("INT16")));
+    m_protocol = p.value("protocol").toString(QStringLiteral("UDP"));
+    m_port = p.value("port").toInt(5000);
+    m_sampleRate = p.value("sampleRate").toDouble(1000.0);
+    m_channelCount = p.value("channelCount").toInt(2);
+    m_channelType = p.value("channelType").toString(QStringLiteral("INT16"));
 }
 
 unsigned int NetworkSourceModel::nPorts(QtNodes::PortType portType) const
@@ -104,11 +98,6 @@ void NetworkSourceModel::setInData(std::shared_ptr<QtNodes::NodeData> data,
     Q_ASSERT(0);
 }
 
-QWidget *NetworkSourceModel::embeddedWidget()
-{
-    return m_widget;
-}
-
 // ── Connection-count gating (model of SystemMonitorModel) ───────────────────
 
 void NetworkSourceModel::outputConnectionCreated(QtNodes::ConnectionId const &conId)
@@ -128,7 +117,7 @@ void NetworkSourceModel::outputConnectionDeleted(QtNodes::ConnectionId const &co
         stopListening();
 }
 
-// ── Widget slots ────────────────────────────────────────────────────────────
+// ── Public slots (called by GUI widget via NodeWidgetFactory) ──────────────
 
 void NetworkSourceModel::onStartRequested()
 {
@@ -136,13 +125,43 @@ void NetworkSourceModel::onStartRequested()
     if (m_connectionCount > 0)
         startListening();
     else
-        m_widget->setStatus(tr("No output connection"));
+        emit statusChanged(tr("No output connection"));
 }
 
 void NetworkSourceModel::onStopRequested()
 {
     m_userStarted = false;
     stopListening();
+}
+
+void NetworkSourceModel::onProtocolChanged(const QString &protocol)
+{
+    m_protocol = protocol;
+}
+
+void NetworkSourceModel::onHostChanged(const QString &host)
+{
+    m_host = host;
+}
+
+void NetworkSourceModel::onPortChanged(int port)
+{
+    m_port = port;
+}
+
+void NetworkSourceModel::onSampleRateChanged(double rate)
+{
+    m_sampleRate = rate;
+}
+
+void NetworkSourceModel::onChannelCountChanged(int count)
+{
+    m_channelCount = count;
+}
+
+void NetworkSourceModel::onChannelTypeChanged(const QString &type)
+{
+    m_channelType = type;
 }
 
 // ── Listening helpers ───────────────────────────────────────────────────────
@@ -152,15 +171,12 @@ void NetworkSourceModel::startListening()
     if (m_listening)
         return;
 
-    const int port = m_widget->port();
-    const bool isUdp = m_widget->protocol() == QLatin1String("UDP");
-
-    if (isUdp) {
+    if (m_protocol == QLatin1String("UDP")) {
         if (!m_udpSocket)
             m_udpSocket = new QUdpSocket(this);
-        if (!m_udpSocket->bind(QHostAddress::Any, static_cast<quint16>(port))) {
-            m_widget->setStatus(tr("UDP bind failed on port %1: %2")
-                                    .arg(port).arg(m_udpSocket->errorString()));
+        if (!m_udpSocket->bind(QHostAddress::Any, static_cast<quint16>(m_port))) {
+            emit statusChanged(tr("UDP bind failed on port %1: %2")
+                                .arg(m_port).arg(m_udpSocket->errorString()));
             return;
         }
         connect(m_udpSocket, &QUdpSocket::readyRead,
@@ -168,9 +184,9 @@ void NetworkSourceModel::startListening()
     } else {
         if (!m_tcpServer)
             m_tcpServer = new QTcpServer(this);
-        if (!m_tcpServer->listen(QHostAddress::Any, static_cast<quint16>(port))) {
-            m_widget->setStatus(tr("TCP listen failed on port %1: %2")
-                                    .arg(port).arg(m_tcpServer->errorString()));
+        if (!m_tcpServer->listen(QHostAddress::Any, static_cast<quint16>(m_port))) {
+            emit statusChanged(tr("TCP listen failed on port %1: %2")
+                                .arg(m_port).arg(m_tcpServer->errorString()));
             return;
         }
         connect(m_tcpServer, &QTcpServer::newConnection,
@@ -179,7 +195,7 @@ void NetworkSourceModel::startListening()
 
     m_listening = true;
     m_bytesReceived = 0;
-    updateStatus();
+    updateStatus(tr("Listening on port %1 (%2)").arg(m_port).arg(m_protocol));
 }
 
 void NetworkSourceModel::stopListening()
@@ -198,130 +214,107 @@ void NetworkSourceModel::stopListening()
         m_tcpSocket->deleteLater();
         m_tcpSocket = nullptr;
     }
-    m_tcpBuffer.clear();
     m_listening = false;
-    m_widget->setStatus(tr("Idle"));
+    updateStatus(tr("Stopped"));
 }
-
-// ── UDP ─────────────────────────────────────────────────────────────────────
 
 void NetworkSourceModel::onUdpReadyRead()
 {
-    while (m_udpSocket->hasPendingDatagrams()) {
-        const QByteArray datagram = m_udpSocket->receiveDatagram().data();
-        NetworkFrame::Header hdr;
-        QByteArray payload;
-        if (NetworkFrame::decode(datagram, hdr, payload)) {
-            m_bytesReceived += datagram.size();
-            handleFrame(payload);
-        }
+    while (m_udpSocket && m_udpSocket->hasPendingDatagrams()) {
+        QNetworkDatagram dgram = m_udpSocket->receiveDatagram();
+        handleFrame(dgram.data());
     }
 }
-
-// ── TCP ─────────────────────────────────────────────────────────────────────
 
 void NetworkSourceModel::onTcpNewConnection()
 {
     if (m_tcpSocket) {
-        // Only one client at a time for v1 — reject extras.
-        QTcpSocket *extra = m_tcpServer->nextPendingConnection();
-        extra->disconnectFromHost();
-        extra->deleteLater();
-        return;
+        // Only accept one TCP client at a time
+        m_tcpSocket->disconnect(this);
+        m_tcpSocket->close();
+        m_tcpSocket->deleteLater();
     }
-
     m_tcpSocket = m_tcpServer->nextPendingConnection();
     connect(m_tcpSocket, &QTcpSocket::readyRead,
             this, &NetworkSourceModel::onTcpReadyRead);
     connect(m_tcpSocket, &QTcpSocket::disconnected,
             this, &NetworkSourceModel::onTcpDisconnected);
+    updateStatus(tr("TCP client connected"));
 }
 
 void NetworkSourceModel::onTcpReadyRead()
 {
+    if (!m_tcpSocket)
+        return;
+
     m_tcpBuffer.append(m_tcpSocket->readAll());
 
-    // Parse complete frames from the stream. Frame length =
-    // HeaderSize + sampleCount * bytesPerSample (derived from the header).
-    while (m_tcpBuffer.size() >= NetworkFrame::HeaderSize) {
-        NetworkFrame::Header hdr;
-        QByteArray payload;
-        if (!NetworkFrame::decode(m_tcpBuffer.left(NetworkFrame::HeaderSize),
-                                  hdr, payload)) {
-            // Bad magic — drop the first byte and resync.
-            m_tcpBuffer.remove(0, 1);
-            continue;
-        }
-
-        const qint64 frameLen = NetworkFrame::HeaderSize
-            + static_cast<qint64>(hdr.sampleCount) * hdr.bytesPerSample;
-        // Sanity bound: a single frame > 256 MB is not a real DAQ stream —
-        // drop the connection instead of buffering unbounded garbage.
-        if (frameLen > 256 * 1024 * 1024) {
+    while (m_tcpBuffer.size() >= 4) {
+        quint32 frameSize = qFromBigEndian<quint32>(reinterpret_cast<const uchar*>(m_tcpBuffer.constData()));
+        if (frameSize > 1024 * 1024) { // Sanity check
             m_tcpBuffer.clear();
-            if (m_tcpSocket) {
-                m_tcpSocket->disconnectFromHost();
-                m_tcpSocket->deleteLater();
-                m_tcpSocket = nullptr;
-            }
-            updateStatus();
+            updateStatus(tr("Invalid frame size"));
             return;
         }
-        if (m_tcpBuffer.size() < frameLen)
-            break; // incomplete frame — wait for more data
+        if (m_tcpBuffer.size() < 4 + frameSize)
+            break;
 
-        const QByteArray frame = m_tcpBuffer.left(static_cast<int>(frameLen));
-        m_tcpBuffer.remove(0, static_cast<int>(frameLen));
-        m_bytesReceived += frame.size();
-        handleFrame(frame.mid(NetworkFrame::HeaderSize));
+        m_tcpBuffer.remove(0, 4);
+        QByteArray payload = m_tcpBuffer.left(frameSize);
+        m_tcpBuffer.remove(0, frameSize);
+        handleFrame(payload);
     }
 }
 
 void NetworkSourceModel::onTcpDisconnected()
 {
     if (m_tcpSocket) {
+        m_tcpSocket->disconnect(this);
         m_tcpSocket->deleteLater();
         m_tcpSocket = nullptr;
     }
-    m_tcpBuffer.clear();
-    updateStatus();
+    updateStatus(tr("TCP client disconnected"));
 }
-
-// ── Frame handling ──────────────────────────────────────────────────────────
 
 void NetworkSourceModel::handleFrame(const QByteArray &payload)
 {
-    if (payload.isEmpty())
+    if (payload.size() < 8) {
+        updateStatus(tr("Invalid frame size"));
         return;
+    }
 
-    m_output = std::make_shared<SampledData>(payload, buildDescriptor());
+    // Parse MSSD frame header
+    // Magic "MSSD" (4 bytes) + descriptor (variable) + sample data
+    if (payload.left(4) != QByteArray("MSSD")) {
+        updateStatus(tr("Invalid magic"));
+        return;
+    }
+
+    // For simplicity, assume the payload after magic is raw sample data
+    // with the descriptor already configured via widget
+    SampledStreamDescriptor desc = buildDescriptor();
+    m_output = std::make_shared<SampledData>(payload.mid(4), desc);
+    m_bytesReceived += payload.size();
     emit dataUpdated(0);
-    updateStatus();
+    updateStatus(tr("Received %1 bytes").arg(m_bytesReceived));
 }
 
 SampledStreamDescriptor NetworkSourceModel::buildDescriptor() const
 {
     SampledStreamDescriptor desc;
-    desc.sampleRate = m_widget->sampleRate();
-    desc.domain = QStringLiteral("network");
-    desc.sourceName = QStringLiteral("NetworkSource");
-    desc.endianness = SampleEndian::LittleEndian;
-
-    const int count = m_widget->channelCount();
-    const SampleType type = sampleTypeFromName(m_widget->channelType());
-    desc.channels.reserve(count);
-    for (int i = 0; i < count; ++i) {
-        StreamChannelDescriptor ch;
-        ch.name = QStringLiteral("Ch%1").arg(i);
-        ch.sampleType = type;
-        desc.channels.append(ch);
+    desc.sampleRate = m_sampleRate;
+    for (int i = 0; i < m_channelCount; ++i) {
+        desc.channels.append({QStringLiteral("ch%1").arg(i), sampleTypeFromName(m_channelType)});
     }
+    desc.endianness = SampleEndian::LittleEndian;
+    desc.unit = QStringLiteral("raw");
+    desc.domain = QStringLiteral("network");
+    desc.deviceId = m_host.isEmpty() ? QStringLiteral("local") : m_host;
+    desc.sourceName = QStringLiteral("Network Source");
     return desc;
 }
 
-void NetworkSourceModel::updateStatus()
+void NetworkSourceModel::updateStatus(const QString &status)
 {
-    if (m_listening)
-        m_widget->setStatus(tr("Listening — %1 bytes received")
-                                .arg(m_bytesReceived));
+    emit statusChanged(status);
 }

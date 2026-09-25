@@ -31,7 +31,7 @@ while [[ $# -gt 0 ]]; do
         --qt-prefix) QT_PREFIX="$2"; shift 2 ;;
         --build-dir) BUILD_DIR="$2"; shift 2 ;;
         --verbose) VERBOSE=1; shift ;;
-        -h, --help) usage; exit 0 ;;
+        -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1"; usage; exit 1 ;;
     esac
 done
@@ -49,12 +49,12 @@ if [ "$CLEAN" -eq 1 ]; then
 fi
 
 echo "Configuring with CMake..."
-CMAKE_ARGS="-DCMAKE_PREFIX_PATH=$QT_PREFIX"
+CMAKE_ARGS=("-DCMAKE_PREFIX_PATH=$QT_PREFIX")
 if [ "$VERBOSE" -eq 1 ]; then
-    CMAKE_ARGS="$CMAKE_ARGS -DDAQSTER_VERBOSE_DEPENDENCIES=ON"
+    CMAKE_ARGS+=("-DDAQSTER_VERBOSE_DEPENDENCIES=ON")
 fi
 
-cmake -S . -B "$BUILD_DIR" $CMAKE_ARGS
+cmake -S . -B "$BUILD_DIR" "${CMAKE_ARGS[@]}"
 
 echo "Building..."
 NUM_JOBS=$(nproc || echo 4)

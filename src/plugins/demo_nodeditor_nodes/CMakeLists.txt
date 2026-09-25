@@ -372,7 +372,7 @@ ${PLUTOSDR_SOURCES}
          Qt${QT_VERSION_MAJOR}::Network
         Qt${QT_VERSION_MAJOR}::OpenGL
         QtNodes
-        frame_work
+        DaqsterCore
     COMPILE_DEFINITIONS
         ${VIDEO_OPENCV_DEFINITIONS}
         ${PLUTOSDR_DEFINITIONS}

@@ -6,6 +6,8 @@
 #include "UnixShutdownHandler.h"
 #endif
 
+namespace Daqster {
+
 ShutdownHandler* ShutdownHandler::create(QObject *parent)
 {
 #ifdef Q_OS_WIN
@@ -14,3 +16,5 @@ ShutdownHandler* ShutdownHandler::create(QObject *parent)
     return new UnixShutdownHandler(parent);
 #endif
 }
+
+} // namespace Daqster

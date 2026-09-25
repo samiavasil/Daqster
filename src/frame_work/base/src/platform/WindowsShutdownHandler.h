@@ -7,13 +7,15 @@
 #include <windows.h>
 #endif
 
+namespace Daqster {
+
 /**
  * @brief Windows console-based shutdown handler
  *
  * Uses SetConsoleCtrlHandler for Ctrl+C, Ctrl+Break, and console close events
  * to request a graceful application shutdown.
  */
-class FRAME_WORKSHARED_EXPORT WindowsShutdownHandler : public ShutdownHandler // skipcq: CXX-W2009
+class DAQSTER_CORE_EXPORT WindowsShutdownHandler : public ShutdownHandler // skipcq: CXX-W2009
 {
     Q_OBJECT
 
@@ -29,3 +31,5 @@ private:
     static WindowsShutdownHandler* s_instance; // skipcq: CXX-W2009
 #endif
 };
+
+} // namespace Daqster

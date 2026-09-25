@@ -6,8 +6,7 @@ DaqsterTemplateInterface::DaqsterTemplateInterface(QObject* parent ):QPluginInte
 {
     Q_INIT_RESOURCE(QtCoinTrader);
     DEBUG << "DaqsterTeplateInterface object create";
-    QIcon icon( QString::fromUtf8(":/QtCoinTrader.png") );
-    m_PluginDescriptor.SetIcon( icon );
+    m_PluginDescriptor.SetIconPath(QString::fromUtf8(":/QtCoinTrader.png"));
     m_PluginDescriptor.SetProperty( PLUGIN_NAME, "QtCoinTrader" );
     m_PluginDescriptor.SetProperty( PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN );
     m_PluginDescriptor.SetProperty( PLUGIN_TYPE_NAME, "This is a plugin application for coin trading" );

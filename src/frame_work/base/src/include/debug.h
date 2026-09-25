@@ -1,8 +1,8 @@
-#ifndef DEBUG_H
-#define DEBUG_H
+#ifndef DAQSTER_CORE_DEBUG_H
+#define DAQSTER_CORE_DEBUG_H
 
 //#define FULL_DUMP
-#define FULL_VERBOSE_DUMP
+//#define FULL_VERBOSE_DUMP
 #define ENABLE_DUMP
 #include  <QDebug>
 #include  <QtGlobal>
@@ -23,4 +23,4 @@
 #define CRITICAL             QDebug(QtCriticalMsg)<<"Critic:"<<__FILE__<<" Line:"<<__LINE__<<": "
 #define FATAL                QDebug(QtFatalMsg)   <<"Fatal: "<<__FILE__<<" Line:"<<__LINE__<<": "
 
-#endif // DEBUG_H
+#endif // DAQSTER_CORE_DEBUG_H

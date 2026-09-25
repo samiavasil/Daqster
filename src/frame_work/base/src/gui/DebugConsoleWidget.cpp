@@ -1,7 +1,7 @@
 #include "DebugConsoleWidget.h"
 
-#include "include/LogManager.h"
-#include "include/LogCategories.h"
+#include <logging/LogManager.h>
+#include <logging/LogCategories.h>
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>

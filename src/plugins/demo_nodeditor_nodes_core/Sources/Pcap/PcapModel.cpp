@@ -10,20 +10,6 @@
 PcapModel::PcapModel()
 {
     m_engine = new PcapEngine(this);
-    m_widget = new PcapWidget;
-
-    connect(m_widget, &PcapWidget::startRequested,
-            this, &PcapModel::onStartRequested);
-    connect(m_widget, &PcapWidget::stopRequested,
-            this, &PcapModel::onStopRequested);
-    connect(m_widget, &PcapWidget::interfaceChanged,
-            this, &PcapModel::onInterfaceChanged);
-    connect(m_widget, &PcapWidget::filterChanged,
-            this, &PcapModel::onFilterChanged);
-    connect(m_widget, &PcapWidget::snaplenChanged,
-            this, &PcapModel::onSnaplenChanged);
-    connect(m_widget, &PcapWidget::promiscuousChanged,
-            this, &PcapModel::onPromiscuousChanged);
 
     connect(m_engine, &PcapEngine::packetCaptured,
             this, &PcapModel::onPacketCaptured);
@@ -34,26 +20,8 @@ PcapModel::PcapModel()
     connect(m_engine, &PcapEngine::statsUpdated,
             this, &PcapModel::onStatsUpdated);
 
-    // Populate interface list from libpcap
-#ifdef HAVE_PCAP
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_if_t *alldevs = nullptr;
-    if (pcap_findalldevs(&alldevs, errbuf) == 0) {
-        QStringList interfaces;
-        for (pcap_if_t *d = alldevs; d; d = d->next) {
-            if (d->name)
-                interfaces << QString::fromUtf8(d->name);
-        }
-        m_widget->setInterfaces(interfaces);
-        pcap_freealldevs(alldevs);
-    } else {
-        m_widget->setStatusText(QStringLiteral("pcap_findalldevs failed: %1")
-                                .arg(QString::fromUtf8(errbuf)));
-    }
-#else
-    m_widget->setInterfaces(QStringList() << "lo" << "eth0" << "wlan0");
-    m_widget->setStatusText(QStringLiteral("libpcap not available (built without HAVE_PCAP)"));
-#endif
+    // Populate interface list from libpcap - this is now done by the GUI widget
+    // when it connects to the engine via setEngine()
 }
 
 PcapModel::~PcapModel()
@@ -61,7 +29,6 @@ PcapModel::~PcapModel()
     // Single shutdown path: stop() joins the capture thread + pcap_close
     // (REQ-SW-PL-047 AC 6, REQ-SW-PL-050).
     stop();
-    m_widget = nullptr; // owned by the node/view framework
 }
 
 void PcapModel::stop()
@@ -70,30 +37,20 @@ void PcapModel::stop()
     if (m_engine)
         m_engine->stop();
     m_userStarted = false;
-    m_widget->setRunning(false);
 }
 
 QJsonObject PcapModel::save() const
 {
     QJsonObject modelJson;
     modelJson["name"] = name();
-    modelJson["interface"] = m_widget->interface();
-    modelJson["filter"] = m_widget->filter();
-    modelJson["snaplen"] = m_widget->snaplen();
-    modelJson["promiscuous"] = m_widget->promiscuous();
+    // Interface/filter/snaplen/promiscuous are saved by GUI widget
     return modelJson;
 }
 
 void PcapModel::load(QJsonObject const &p)
 {
-    if (p.contains("interface"))
-        m_widget->setInterfaces(QStringList() << p["interface"].toString());
-    if (p.contains("filter"))
-        m_widget->setFilter(p["filter"].toString());
-    if (p.contains("snaplen"))
-        m_widget->setSnaplen(p["snaplen"].toInt(65535));
-    if (p.contains("promiscuous"))
-        m_widget->setPromiscuous(p["promiscuous"].toBool(true));
+    // Config is applied by GUI widget via NodeWidgetFactory
+    Q_UNUSED(p);
 }
 
 unsigned int PcapModel::nPorts(QtNodes::PortType portType) const
@@ -123,11 +80,6 @@ void PcapModel::setInData(std::shared_ptr<QtNodes::NodeData> data,
     Q_ASSERT(0);
 }
 
-QWidget *PcapModel::embeddedWidget()
-{
-    return m_widget;
-}
-
 void PcapModel::outputConnectionCreated(QtNodes::ConnectionId const &conId)
 {
     Q_UNUSED(conId);
@@ -142,6 +94,8 @@ void PcapModel::outputConnectionDeleted(QtNodes::ConnectionId const &conId)
         --m_connectionCount;
     setCaptureEnabled(m_connectionCount > 0);
 }
+
+// Public slots called by GUI widget via NodeWidgetFactory
 
 void PcapModel::onStartRequested()
 {
@@ -163,22 +117,26 @@ void PcapModel::onStopRequested()
 
 void PcapModel::onInterfaceChanged(const QString &interface)
 {
-    m_engine->setInterface(interface);
+    if (m_engine)
+        m_engine->setInterface(interface);
 }
 
 void PcapModel::onFilterChanged(const QString &filter)
 {
-    m_engine->setFilter(filter);
+    if (m_engine)
+        m_engine->setFilter(filter);
 }
 
 void PcapModel::onSnaplenChanged(int snaplen)
 {
-    m_engine->setSnaplen(snaplen);
+    if (m_engine)
+        m_engine->setSnaplen(snaplen);
 }
 
 void PcapModel::onPromiscuousChanged(bool promiscuous)
 {
-    m_engine->setPromiscuous(promiscuous);
+    if (m_engine)
+        m_engine->setPromiscuous(promiscuous);
 }
 
 void PcapModel::onPacketCaptured(const PcapEngine::Packet &packet)
@@ -211,19 +169,23 @@ void PcapModel::onPacketCaptured(const PcapEngine::Packet &packet)
 
 void PcapModel::onStatusChanged(const QString &status)
 {
-    m_widget->setStatusText(status);
+    // GUI widget (if present) will be updated via its own connection to engine
+    Q_UNUSED(status);
 }
 
 void PcapModel::onErrorOccurred(const QString &msg)
 {
-    m_widget->setStatusText(msg);
-    m_widget->setRunning(false);
+    // GUI widget (if present) will be updated via its own connection to engine
+    Q_UNUSED(msg);
     m_userStarted = false;
 }
 
 void PcapModel::onStatsUpdated(quint64 captured, quint64 dropped, quint64 ifDropped)
 {
-    m_widget->updateStats(captured, dropped, ifDropped);
+    // GUI widget (if present) will be updated via its own connection to engine
+    Q_UNUSED(captured);
+    Q_UNUSED(dropped);
+    Q_UNUSED(ifDropped);
 }
 
 void PcapModel::setCaptureEnabled(bool enabled)
@@ -233,7 +195,7 @@ void PcapModel::setCaptureEnabled(bool enabled)
         m_engine->start();
     else
         m_engine->stop();
-    m_widget->setRunning(shouldRun);
+    // GUI widget (if present) will update its own running state
 }
 
 std::shared_ptr<SampledData> PcapModel::buildSampledData(const PcapEngine::Packet &pkt) const
@@ -246,7 +208,7 @@ std::shared_ptr<SampledData> PcapModel::buildSampledData(const PcapEngine::Packe
     desc.endianness = SampleEndian::LittleEndian;
     desc.unit = QStringLiteral("raw");
     desc.domain = QStringLiteral("pcap");
-    desc.deviceId = m_widget->interface();
+    desc.deviceId = m_engine ? m_engine->currentInterface() : QStringLiteral("unknown");
     desc.sourceName = QStringLiteral("pcap capture");
 
     // Store metadata in the buffer as a prefix or use the descriptor's meta fields

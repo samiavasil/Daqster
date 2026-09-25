@@ -7,8 +7,7 @@ NodeEditorIdeInterface::NodeEditorIdeInterface(QObject* parent)
 {
     Q_INIT_RESOURCE(node_editor);
     DEBUG << "NodeEditorIdeInterface object create";
-    QIcon icon(QString::fromUtf8(":/node_editor.png"));
-    m_PluginDescriptor.SetIcon(icon);
+    m_PluginDescriptor.SetIconPath(QString::fromUtf8(":/node_editor.png"));
     m_PluginDescriptor.SetProperty(PLUGIN_NAME, "NodeEditorIDE");
     m_PluginDescriptor.SetProperty(PLUGIN_TYPE, Daqster::PluginDescription::APPLICATION_PLUGIN);
     m_PluginDescriptor.SetProperty(PLUGIN_TYPE_NAME, "SOME_TYPE");

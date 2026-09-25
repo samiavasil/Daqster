@@ -2,7 +2,6 @@
 #define NETWORKSOURCEMODEL_H
 
 #include "NodeDataTypes/SampledData.h"
-#include "NetworkSourceWidget.h"
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
 
@@ -28,6 +27,9 @@ class QUdpSocket;
  * Connection-count gating (model of SystemMonitorModel/FilePlaybackModel): the
  * listener runs only while the user pressed Start AND at least one output
  * connection exists; removing the last connection auto-stops the listener.
+ *
+ * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
+ * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  */
 class NetworkSourceModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
@@ -59,7 +61,7 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex port) override;
 
-    QWidget *embeddedWidget() override;
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop the network listener. Idempotent — safe to call multiple times
     /// (REQ-SW-PL-050).
@@ -71,9 +73,18 @@ public:
     void outputConnectionCreated(QtNodes::ConnectionId const &) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &) override;
 
-private slots:
+signals:
+    void statusChanged(const QString &status);
+
+public slots:
     void onStartRequested();
     void onStopRequested();
+    void onProtocolChanged(const QString &protocol);
+    void onHostChanged(const QString &host);
+    void onPortChanged(int port);
+    void onSampleRateChanged(double rate);
+    void onChannelCountChanged(int count);
+    void onChannelTypeChanged(const QString &type);
     void onUdpReadyRead();
     void onTcpNewConnection();
     void onTcpReadyRead();
@@ -83,10 +94,9 @@ private:
     void startListening();
     void stopListening();
     void handleFrame(const QByteArray &payload);
-    void updateStatus();
+    void updateStatus(const QString &status);
     SampledStreamDescriptor buildDescriptor() const;
 
-    NetworkSourceWidget *m_widget = nullptr;
     QUdpSocket *m_udpSocket = nullptr;
     QTcpServer *m_tcpServer = nullptr;
     QTcpSocket *m_tcpSocket = nullptr;
@@ -96,6 +106,14 @@ private:
     bool m_userStarted = false;
     bool m_listening = false;
     qint64 m_bytesReceived = 0;
+
+    // Config from GUI widget
+    QString m_protocol = "UDP";
+    QString m_host = "127.0.0.1";
+    int m_port = 5000;
+    double m_sampleRate = 1000.0;
+    int m_channelCount = 2;
+    QString m_channelType = "INT16";
 };
 
 #endif // NETWORKSOURCEMODEL_H

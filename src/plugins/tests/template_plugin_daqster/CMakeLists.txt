@@ -21,5 +21,5 @@ create_plugin(plugin_template_test
     REQUIRES_LIBRARIES
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
-        frame_work
+        DaqsterCore
 )

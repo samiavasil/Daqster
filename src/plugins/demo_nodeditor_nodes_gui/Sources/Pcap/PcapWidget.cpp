@@ -1,4 +1,5 @@
 #include "PcapWidget.h"
+#include "PcapEngine.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -9,6 +10,10 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QVBoxLayout>
+
+#ifdef HAVE_PCAP
+#include <pcap/pcap.h>
+#endif
 
 PcapWidget::PcapWidget(QWidget *parent)
     : QWidget(parent)
@@ -25,9 +30,9 @@ PcapWidget::PcapWidget(QWidget *parent)
     m_snaplenSpin->setValue(65535);
     m_snaplenSpin->setToolTip(QStringLiteral("Maximum bytes to capture per packet"));
 
-    auto *promiscCheck = new QCheckBox(QStringLiteral("Promiscuous mode"), this);
-    promiscCheck->setChecked(true);
-    promiscCheck->setToolTip(QStringLiteral("Capture all traffic on the interface"));
+    m_promiscCheck = new QCheckBox(QStringLiteral("Promiscuous mode"), this);
+    m_promiscCheck->setChecked(true);
+    m_promiscCheck->setToolTip(QStringLiteral("Capture all traffic on the interface"));
 
     m_startButton = new QPushButton(QStringLiteral("Start"), this);
     m_stopButton = new QPushButton(QStringLiteral("Stop"), this);
@@ -45,7 +50,7 @@ PcapWidget::PcapWidget(QWidget *parent)
     formLayout->addRow(QStringLiteral("Interface:"), m_interfaceCombo);
     formLayout->addRow(QStringLiteral("BPF filter:"), m_filterEdit);
     formLayout->addRow(QStringLiteral("Snaplen:"), m_snaplenSpin);
-    formLayout->addRow(promiscCheck);
+    formLayout->addRow(m_promiscCheck);
     formLayout->addRow(buttonRow);
 
     auto *layout = new QVBoxLayout(this);
@@ -59,12 +64,70 @@ PcapWidget::PcapWidget(QWidget *parent)
             this, &PcapWidget::filterChanged);
     connect(m_snaplenSpin, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &PcapWidget::snaplenChanged);
-    connect(promiscCheck, &QCheckBox::toggled,
+    connect(m_promiscCheck, &QCheckBox::toggled,
             this, &PcapWidget::promiscuousChanged);
     connect(m_startButton, &QPushButton::clicked,
             this, &PcapWidget::startRequested);
     connect(m_stopButton, &QPushButton::clicked,
             this, &PcapWidget::stopRequested);
+}
+
+void PcapWidget::setEngine(PcapEngine *engine)
+{
+    m_engine = engine;
+    if (m_engine) {
+        connect(m_engine, &PcapEngine::packetCaptured,
+                this, &PcapWidget::onPacketCaptured);
+        connect(m_engine, &PcapEngine::statusChanged,
+                this, &PcapWidget::onStatusChanged);
+        connect(m_engine, &PcapEngine::errorOccurred,
+                this, &PcapWidget::onErrorOccurred);
+        connect(m_engine, &PcapEngine::statsUpdated,
+                this, &PcapWidget::onStatsUpdated);
+
+        // Populate interface list from libpcap
+        #ifdef HAVE_PCAP
+        char errbuf[PCAP_ERRBUF_SIZE];
+        pcap_if_t *alldevs = nullptr;
+        if (pcap_findalldevs(&alldevs, errbuf) == 0) {
+            QStringList interfaces;
+            for (pcap_if_t *d = alldevs; d; d = d->next) {
+                if (d->name)
+                    interfaces << QString::fromUtf8(d->name);
+            }
+            setInterfaces(interfaces);
+            pcap_freealldevs(alldevs);
+        } else {
+            setStatusText(QStringLiteral("pcap_findalldevs failed: %1")
+                            .arg(QString::fromUtf8(errbuf)));
+        }
+        #else
+        setInterfaces(QStringList() << "lo" << "eth0" << "wlan0");
+        setStatusText(QStringLiteral("libpcap not available (built without HAVE_PCAP)"));
+        #endif
+    }
+}
+
+void PcapWidget::onPacketCaptured(const PcapEngine::Packet &packet)
+{
+    Q_UNUSED(packet);
+    // Could update status with packet info if needed
+}
+
+void PcapWidget::onStatusChanged(const QString &status)
+{
+    setStatusText(status);
+}
+
+void PcapWidget::onErrorOccurred(const QString &msg)
+{
+    setStatusText(msg);
+    setRunning(false);
+}
+
+void PcapWidget::onStatsUpdated(quint64 captured, quint64 dropped, quint64 ifDropped)
+{
+    updateStats(captured, dropped, ifDropped);
 }
 
 void PcapWidget::setInterfaces(const QStringList &interfaces)
@@ -90,12 +153,7 @@ int PcapWidget::snaplen() const
 
 bool PcapWidget::promiscuous() const
 {
-    // Find the checkbox in the form layout
-    for (auto *w : findChildren<QCheckBox *>()) {
-        if (w->text() == QStringLiteral("Promiscuous mode"))
-            return w->isChecked();
-    }
-    return true;
+    return m_promiscCheck->isChecked();
 }
 
 void PcapWidget::updateStats(quint64 captured, quint64 dropped, quint64 ifDropped)
@@ -116,6 +174,7 @@ void PcapWidget::setRunning(bool running)
     m_interfaceCombo->setEnabled(!running);
     m_filterEdit->setEnabled(!running);
     m_snaplenSpin->setEnabled(!running);
+    m_promiscCheck->setEnabled(!running);
 }
 
 void PcapWidget::setFilter(const QString &filter)
@@ -130,10 +189,5 @@ void PcapWidget::setSnaplen(int snaplen)
 
 void PcapWidget::setPromiscuous(bool promiscuous)
 {
-    for (auto *w : findChildren<QCheckBox *>()) {
-        if (w->text() == QStringLiteral("Promiscuous mode")) {
-            w->setChecked(promiscuous);
-            break;
-        }
-    }
+    m_promiscCheck->setChecked(promiscuous);
 }

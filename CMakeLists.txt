@@ -96,9 +96,6 @@ set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 set(CMAKE_BUILD_RPATH "${PROJECT_BINARY_DIR}/bin")
 
-# ── Core library (QtCore only) ────────────────────────────────────────
-add_subdirectory(src/core)
-
 # ── External libraries - conditional based on Qt version and dependencies ────
 message(STATUS "=== External Libraries Status ===")
 
@@ -115,10 +112,12 @@ create_external_library(nodeeditor)
 # QtRest library - Qt5/Qt6 dual-mode
 create_external_library(qtrest_lib)
 
-# ── GUI library (QtWidgets) ───────────────────────────────────────────
-if(DAQSTER_BUILD_GUI)
-    add_subdirectory(src/gui)
-endif()
+# ── Framework libraries (DaqsterCore + DaqsterGui) ─────────────────────
+# src/frame_work owns both framework targets. DaqsterGui is gated on
+# DAQSTER_BUILD_GUI inside that file, so one add_subdirectory() is enough.
+# It must come after the Qt module search and after the external libraries,
+# because DaqsterCore links QtNodes and DaqsterGui links Qt Gui/Widgets.
+add_subdirectory(src/frame_work)
 
 # ── Plugins ───────────────────────────────────────────────────────────
 # Core plugins (always built)

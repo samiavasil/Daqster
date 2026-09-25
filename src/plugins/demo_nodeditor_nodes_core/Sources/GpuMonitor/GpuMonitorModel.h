@@ -2,7 +2,6 @@
 #define GPUMONITORMODEL_H
 
 #include "GpuMonitorEngine.h"
-#include "GpuMonitorWidget.h"
 #include "NodeDataTypes/SampledData.h"
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
@@ -15,10 +14,13 @@
  * @brief GPU Monitor source node (REQ-SW-PL-045).
  *
  * A NodeDelegateModel with one output port of type SampledData ("sample").
- * Owns a GpuMonitorEngine (NVML polling) and a GpuMonitorWidget (config UI).
- * On each engine metricsReady() it wraps the metrics into a SampledData with a
- * SampledStreamDescriptor (domain="gpu", 6 FLOAT32 channels) and emits
- * dataUpdated(0). Polling is gated on output connection count (auto start/stop).
+ * Owns a GpuMonitorEngine (NVML polling). On each engine metricsReady() it
+ * wraps the metrics into a SampledData with a SampledStreamDescriptor
+ * (domain="gpu", 6 FLOAT32 channels) and emits dataUpdated(0). Polling is
+ * gated on output connection count (auto start/stop).
+ *
+ * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
+ * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  */
 class GpuMonitorModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
@@ -50,7 +52,7 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex port) override;
 
-    QWidget *embeddedWidget() override;
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop the polling timer + nvmlShutdown. Idempotent — safe to call
     /// multiple times (REQ-SW-PL-050).
@@ -70,7 +72,11 @@ public:
     void outputConnectionCreated(QtNodes::ConnectionId const &) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &) override;
 
-private slots:
+    // Accessor for GUI widget factory
+    GpuMonitorEngine* engine() const { return m_engine; }
+
+public slots:
+    // Public slots called by GUI widget via NodeWidgetFactory
     void onStartRequested();
     void onStopRequested();
     void onIntervalChanged(double seconds);
@@ -83,7 +89,6 @@ private:
     std::shared_ptr<SampledData> buildSampledData(const GpuMonitorEngine::Metrics &m) const;
 
     GpuMonitorEngine *m_engine = nullptr;
-    GpuMonitorWidget *m_widget = nullptr;
     std::shared_ptr<SampledData> m_lastData;
     int m_connectionCount = 0;
     bool m_userStarted = false;

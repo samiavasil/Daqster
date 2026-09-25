@@ -7,6 +7,8 @@
 
 class QSocketNotifier;
 
+namespace Daqster {
+
 /**
  * @brief Unix/Linux signal-based shutdown handler
  *
@@ -17,7 +19,7 @@ class QSocketNotifier;
  * a QSocketNotifier on the read-end lives in the Qt thread and emits
  * ShutdownHandler::shutdownRequested().
  */
-class FRAME_WORKSHARED_EXPORT UnixShutdownHandler : public ShutdownHandler // skipcq: CXX-W2009
+class DAQSTER_CORE_EXPORT UnixShutdownHandler : public ShutdownHandler // skipcq: CXX-W2009
 {
     Q_OBJECT
 
@@ -39,3 +41,5 @@ private:
     // Self-pipe used from signal handler (write) and Qt thread (read)
     static std::array<int, 2> s_sigPipe; // skipcq: CXX-W2009
 };
+
+} // namespace Daqster

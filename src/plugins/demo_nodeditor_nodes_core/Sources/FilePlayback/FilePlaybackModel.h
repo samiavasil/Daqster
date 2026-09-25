@@ -2,7 +2,6 @@
 #define FILEPLAYBACKMODEL_H
 
 #include "NodeDataTypes/SampledData.h"
-#include "FilePlaybackWidget.h"
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
 
@@ -25,6 +24,9 @@
  * Connection-count gating (model of SystemMonitorModel/PlutoSdrModel): the
  * timer runs only while the user pressed Play AND at least one output
  * connection exists; removing the last connection auto-stops the playback.
+ *
+ * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
+ * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  */
 class FilePlaybackModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
@@ -56,7 +58,7 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex port) override;
 
-    QWidget *embeddedWidget() override;
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop the playback timer. Idempotent — safe to call multiple times
     /// (REQ-SW-PL-050).
@@ -68,7 +70,10 @@ public:
     void outputConnectionCreated(QtNodes::ConnectionId const &) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &) override;
 
-private slots:
+signals:
+    void statusChanged(const QString &status);
+
+public slots:
     void onPlayRequested();
     void onStopRequested();
     void onPathChanged(const QString &path);
@@ -78,18 +83,20 @@ private:
     bool loadFile();
     void startPlayback();
     void stopPlayback();
-    void updateStatus();
+    void updateStatus(const QString &status);
 
-    FilePlaybackWidget *m_widget = nullptr;
-    QTimer m_timer;
-    QByteArray m_data;
-    SampledStreamDescriptor m_descriptor;
+    QTimer *m_timer = nullptr;
+    QFile m_file;
+    QString m_filePath;
+    qint64 m_fileSize = 0;
+    qint64 m_position = 0;
+    qint64 m_chunkSize = 4096;
     std::shared_ptr<SampledData> m_output;
-    int m_chunkSize = 0;
-    int m_position = 0;
+    SampledStreamDescriptor m_descriptor;
     int m_connectionCount = 0;
     bool m_userStarted = false;
-    bool m_loaded = false;
+    bool m_playing = false;
+    bool m_hasDescriptor = false;
 };
 
 #endif // FILEPLAYBACKMODEL_H

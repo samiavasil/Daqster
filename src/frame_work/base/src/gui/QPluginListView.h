@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QPluginListView.h.h - Copyright 
+                        Daqster/QPluginListView.h - Copyright 
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -16,12 +16,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
 Initial version of this file was created on 16.03.2017 at 11:40:20
-**************************************************************************/
+*************************************************************************/
 
 
 #ifndef QPLUGINLISTVIEW_H
 #define QPLUGINLISTVIEW_H
-#include "global.h"
+#include "daqster_gui_export.h"
 #include <QWidget>
 #include <memory>
 #include "PluginFilter.h"
@@ -42,7 +42,7 @@ namespace Daqster {
   * tbd ).
   */
 
-class FRAME_WORKSHARED_EXPORT QPluginListView : public QWidget // skipcq: CXX-W2009
+class DAQSTER_GUI_EXPORT QPluginListView : public QWidget // skipcq: CXX-W2009
 {
     Q_OBJECT
 public:

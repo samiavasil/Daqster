@@ -54,12 +54,12 @@ fi
 
 if [ "$QT_VERSION" = "qt5" ]; then
     echo "=== Building Daqster with Qt5 ==="
-    QT_PREFIX="${QT_PREFIX:-/usr/lib/x86_64-linux-gnu}"
+    QT_PREFIX="${QT_PREFIX:-/mnt/Builder/bin/Linux/Qt/5.15.2/gcc_64}"
     BUILD_DIR="build_qt5"
     "${SCRIPT_DIR}/build_qt5.sh" --clean --build-dir "$BUILD_DIR" --qt-prefix "$QT_PREFIX"
 else
     echo "=== Building Daqster with Qt6 ==="
-    QT_PREFIX="${QT_PREFIX:-/usr/lib/x86_64-linux-gnu/cmake/Qt6}"
+    QT_PREFIX="${QT_PREFIX:-/mnt/Builder/bin/Linux/Qt/6.9.2/gcc_64}"
     BUILD_DIR="build_qt6"
     "${SCRIPT_DIR}/build_qt6.sh" --clean --build-dir "$BUILD_DIR" --qt-prefix "$QT_PREFIX"
 fi

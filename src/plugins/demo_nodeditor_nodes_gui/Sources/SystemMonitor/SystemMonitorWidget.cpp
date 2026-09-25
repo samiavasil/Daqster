@@ -1,4 +1,5 @@
 #include "SystemMonitorWidget.h"
+#include "SystemMonitorEngine.h"
 
 #include <QCheckBox>
 #include <QDoubleSpinBox>
@@ -144,4 +145,32 @@ void SystemMonitorWidget::onStartStopClicked()
         m_startStopButton->setText(tr("Stop"));
         emit startRequested();
     }
+}
+
+// ── Engine connection (called by NodeWidgetFactory after widget creation) ───
+
+void SystemMonitorWidget::setEngine(SystemMonitorEngine *engine)
+{
+    m_engine = engine;
+    if (m_engine) {
+        connect(m_engine, &SystemMonitorEngine::metricsReady,
+                this, &SystemMonitorWidget::onMetricsReady);
+        connect(m_engine, &SystemMonitorEngine::errorOccurred,
+                this, &SystemMonitorWidget::onErrorOccurred);
+    }
+}
+
+void SystemMonitorWidget::onMetricsReady(const SystemMonitorMetrics &m)
+{
+    setStatus(QStringLiteral("CPU %1%  RAM %2%  Temp %3°C  RX %4 kbps  TX %5 kbps")
+                .arg(m.cpuPercent, 0, 'f', 1)
+                .arg(m.ramPercent, 0, 'f', 1)
+                .arg(m.cpuTempC, 0, 'f', 1)
+                .arg(m.netRxKbps, 0, 'f', 1)
+                .arg(m.netTxKbps, 0, 'f', 1));
+}
+
+void SystemMonitorWidget::onErrorOccurred(const QString &message)
+{
+    setStatus(message);
 }

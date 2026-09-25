@@ -91,8 +91,9 @@ if(NODE_EDITOR_LIB_ENABLED)
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/decoders
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/display
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/threading
-        ${DAQSTER_SOURCE_DIR}/src/core
-        ${DAQSTER_SOURCE_DIR}/src/gui
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
+        ${DAQSTER_SOURCE_DIR}/src/plugins/common
     )
 
     link_component_dependencies(NodeEditorLibrary)
@@ -186,8 +187,8 @@ create_plugin(NodeEditorIde
         DaqsterCore
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${DAQSTER_SOURCE_DIR}/src/core
-        ${DAQSTER_SOURCE_DIR}/src/gui
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Sources/NumberSource
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Displays/NumberDisplay
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/Modulo

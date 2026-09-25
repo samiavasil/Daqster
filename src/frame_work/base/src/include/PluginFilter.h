@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/PluginFilter.h.h - Copyright 
+                        Daqster/PluginFilter.h - Copyright 
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -16,12 +16,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
 Initial version of this file was created on 16.03.2017 at 11:40:20
-**************************************************************************/
+*************************************************************************/
 
 
 #ifndef PLUGINFILTER_H
 #define PLUGINFILTER_H
-#include "build_cfg.h"
+#include "daqster_core_export.h"
 #include <QMap>
 
 namespace Daqster {
@@ -33,7 +33,7 @@ class PluginDescription;
   * Class is used for plugin filtration by some properties.
   */
 
-class FRAME_WORKSHARED_EXPORT PluginFilter // skipcq: CXX-W2009
+class DAQSTER_CORE_EXPORT PluginFilter // skipcq: CXX-W2009
 {
 public:
 

@@ -3,6 +3,8 @@
 #include <QDebug>
 #include "LogCategories.h"
 
+namespace Daqster {
+
 #ifdef Q_OS_WIN
 WindowsShutdownHandler* WindowsShutdownHandler::s_instance = nullptr; // skipcq: CXX-W2009
 #endif
@@ -71,3 +73,5 @@ BOOL WINAPI WindowsShutdownHandler::consoleCtrlHandler(DWORD signal)
     return FALSE;
 }
 #endif
+
+} // namespace Daqster

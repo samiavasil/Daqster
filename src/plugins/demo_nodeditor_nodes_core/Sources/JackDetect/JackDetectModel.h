@@ -2,7 +2,6 @@
 #define JACKDETECTMODEL_H
 
 #include "JackDetectEngine.h"
-#include "JackDetectWidget.h"
 #include "NodeDataTypes/SampledData.h"
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
@@ -15,11 +14,14 @@
  * @brief Jack Detect source node (REQ-SW-PL-046).
  *
  * A NodeDelegateModel with one output port of type SampledData ("sample").
- * Owns a JackDetectEngine (HDA /proc/asound polling) and a JackDetectWidget
- * (config UI). On each engine jacksChanged() it wraps the jack states into a
- * SampledData with a SampledStreamDescriptor (domain="jack", one dynamic
- * FLOAT32 channel per jack, values 0.0/1.0) and emits dataUpdated(0).
- * Polling is gated on output connection count (auto start/stop).
+ * Owns a JackDetectEngine (HDA /proc/asound polling). On each engine
+ * jacksChanged() it wraps the jack states into a SampledData with a
+ * SampledStreamDescriptor (domain="jack", one dynamic FLOAT32 channel per
+ * jack, values 0.0/1.0) and emits dataUpdated(0). Polling is gated on output
+ * connection count (auto start/stop).
+ *
+ * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
+ * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  */
 class JackDetectModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
@@ -51,7 +53,7 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex port) override;
 
-    QWidget *embeddedWidget() override;
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop the polling timer. Idempotent — safe to call multiple times
     /// (REQ-SW-PL-050).
@@ -71,7 +73,11 @@ public:
     void outputConnectionCreated(QtNodes::ConnectionId const &) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &) override;
 
-private slots:
+    // Accessor for GUI widget factory
+    JackDetectEngine* engine() const { return m_engine; }
+
+public slots:
+    // Public slots called by GUI widget via NodeWidgetFactory
     void onStartRequested();
     void onStopRequested();
     void onIntervalChanged(double seconds);
@@ -84,7 +90,6 @@ private:
         const QVector<JackDetectEngine::JackState> &jacks) const;
 
     JackDetectEngine *m_engine = nullptr;
-    JackDetectWidget *m_widget = nullptr;
     std::shared_ptr<SampledData> m_lastData;
     int m_connectionCount = 0;
     bool m_userStarted = false;

@@ -60,6 +60,10 @@ signals:
     void statusChanged(const QString &status);
     void errorOccurred(const QString &msg);
 
+public:
+    // Accessor for GUI widget factory / model
+    double intervalSeconds() const { return m_pollIntervalMs / 1000.0; }
+
 private:
     void poll();
 

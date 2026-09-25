@@ -2,7 +2,6 @@
 #define PCAPMODEL_H
 
 #include "PcapEngine.h"
-#include "PcapWidget.h"
 #include "NodeDataTypes/SampledData.h"
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
@@ -17,11 +16,14 @@
  * @brief pcap Packet Capture source node (REQ-SW-PL-047).
  *
  * A NodeDelegateModel with one output port of type SampledData ("packet").
- * Owns a PcapEngine (libpcap capture in worker thread) and a PcapWidget
- * (config UI). On each engine packetCaptured() it wraps the packet into a
- * SampledData with a SampledStreamDescriptor (domain="pcap", BYTES channel)
- * and emits dataUpdated(0). Capture is gated on output connection count
+ * Owns a PcapEngine (libpcap capture in worker thread). On each engine
+ * packetCaptured() it wraps the packet into a SampledData with a
+ * SampledStreamDescriptor (domain="pcap", BYTES channel) and emits
+ * dataUpdated(0). Capture is gated on output connection count
  * (auto start/stop) and user Start/Stop.
+ *
+ * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
+ * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  */
 class PcapModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
@@ -53,7 +55,7 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex port) override;
 
-    QWidget *embeddedWidget() override;
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop the capture thread cleanly. Idempotent — safe to call multiple
     /// times (REQ-SW-PL-050).
@@ -73,7 +75,11 @@ public:
     void outputConnectionCreated(QtNodes::ConnectionId const &) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &) override;
 
-private slots:
+    // Accessor for GUI widget factory
+    PcapEngine* engine() const { return m_engine; }
+
+public slots:
+    // Public slots called by GUI widget via NodeWidgetFactory
     void onStartRequested();
     void onStopRequested();
     void onInterfaceChanged(const QString &interface);
@@ -92,13 +98,11 @@ private:
     bool dequeuePacket(PcapEngine::Packet &pkt);
 
     PcapEngine *m_engine = nullptr;
-    PcapWidget *m_widget = nullptr;
     std::shared_ptr<SampledData> m_lastData;
 
     // Thread-safe packet queue from engine thread to model (GUI) thread
     mutable std::mutex m_queueMutex;
     std::queue<PcapEngine::Packet> m_packetQueue;
-
     int m_connectionCount = 0;
     bool m_userStarted = false;
 };

@@ -11,19 +11,13 @@ using QtNodes::NodeDataType;
 
 NetworkSinkModel::NetworkSinkModel()
 {
-    m_widget = new NetworkSinkWidget();
-
-    connect(m_widget, &NetworkSinkWidget::startRequested,
-            this, &NetworkSinkModel::onStartRequested);
-    connect(m_widget, &NetworkSinkWidget::stopRequested,
-            this, &NetworkSinkModel::onStopRequested);
+    // No widget in core model - widget is created by GUI plugin via NodeWidgetFactory
 }
 
 NetworkSinkModel::~NetworkSinkModel()
 {
     // Single shutdown path: stop() closes the socket (REQ-SW-PL-050).
     stop();
-    m_widget = nullptr;
 }
 
 void NetworkSinkModel::stop()
@@ -42,17 +36,17 @@ void NetworkSinkModel::start()
 QJsonObject NetworkSinkModel::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
-    modelJson["protocol"] = m_widget->protocol();
-    modelJson["host"] = m_widget->host();
-    modelJson["port"] = m_widget->port();
+    modelJson["protocol"] = m_protocol;
+    modelJson["host"] = m_host;
+    modelJson["port"] = m_port;
     return modelJson;
 }
 
 void NetworkSinkModel::load(QJsonObject const &p)
 {
-    m_widget->setProtocol(p.value("protocol").toString(QStringLiteral("UDP")));
-    m_widget->setHost(p.value("host").toString(QStringLiteral("127.0.0.1")));
-    m_widget->setPort(p.value("port").toInt(5000));
+    m_protocol = p.value("protocol").toString(QStringLiteral("UDP"));
+    m_host = p.value("host").toString(QStringLiteral("127.0.0.1"));
+    m_port = p.value("port").toInt(5000);
 }
 
 unsigned int NetworkSinkModel::nPorts(QtNodes::PortType portType) const
@@ -99,12 +93,7 @@ void NetworkSinkModel::setInData(std::shared_ptr<QtNodes::NodeData> data,
     sendFrame(NetworkFrame::encode(buffer, sampleCount, bytesPerSample));
 }
 
-QWidget *NetworkSinkModel::embeddedWidget()
-{
-    return m_widget;
-}
-
-// ── Widget slots ────────────────────────────────────────────────────────────
+// ── Public slots (called by GUI widget via NodeWidgetFactory) ──────────────
 
 void NetworkSinkModel::onStartRequested()
 {
@@ -116,6 +105,18 @@ void NetworkSinkModel::onStopRequested()
     stopSending();
 }
 
+void NetworkSinkModel::onTcpConnected()
+{
+    m_tcpConnected = true;
+    updateStatus(tr("TCP connected — %1 bytes sent").arg(m_bytesSent));
+}
+
+void NetworkSinkModel::onTcpErrorOccurred()
+{
+    if (m_tcpSocket)
+        updateStatus(tr("TCP error: %1").arg(m_tcpSocket->errorString()));
+}
+
 // ── Sending helpers ─────────────────────────────────────────────────────────
 
 void NetworkSinkModel::startSending()
@@ -123,16 +124,15 @@ void NetworkSinkModel::startSending()
     if (m_sending)
         return;
 
-    const QString host = m_widget->host();
-    const quint16 port = static_cast<quint16>(m_widget->port());
-    const bool isUdp = m_widget->protocol() == QLatin1String("UDP");
+    const quint16 port = static_cast<quint16>(m_port);
+    const bool isUdp = m_protocol == QLatin1String("UDP");
 
     if (isUdp) {
         if (!m_udpSocket)
             m_udpSocket = new QUdpSocket(this);
         m_sending = true;
         m_bytesSent = 0;
-        updateStatus();
+        updateStatus(tr("UDP sending to %1:%2").arg(m_host).arg(port));
         return;
     }
 
@@ -147,8 +147,8 @@ void NetworkSinkModel::startSending()
     m_tcpConnected = false;
     m_sending = true;
     m_bytesSent = 0;
-    m_tcpSocket->connectToHost(host, port);
-    m_widget->setStatus(tr("Connecting to %1:%2...").arg(host).arg(port));
+    m_tcpSocket->connectToHost(m_host, port);
+    updateStatus(tr("Connecting to %1:%2...").arg(m_host).arg(port));
 }
 
 void NetworkSinkModel::stopSending()
@@ -165,61 +165,40 @@ void NetworkSinkModel::stopSending()
     }
     m_tcpConnected = false;
     m_sending = false;
-    m_widget->setStatus(tr("Idle"));
+    updateStatus(tr("Idle"));
 }
 
 void NetworkSinkModel::sendFrame(const QByteArray &payload)
 {
-    const QString host = m_widget->host();
-    const quint16 port = static_cast<quint16>(m_widget->port());
-    const bool isUdp = m_widget->protocol() == QLatin1String("UDP");
+    const quint16 port = static_cast<quint16>(m_port);
+    const bool isUdp = m_protocol == QLatin1String("UDP");
 
     if (isUdp) {
-        const QHostAddress addr(host);
+        const QHostAddress addr(m_host);
         const qint64 written = m_udpSocket->writeDatagram(payload, addr, port);
         if (written < 0) {
-            m_widget->setStatus(tr("UDP send error: %1")
-                                    .arg(m_udpSocket->errorString()));
+            updateStatus(tr("UDP send error: %1")
+                            .arg(m_udpSocket->errorString()));
             return;
         }
         m_bytesSent += written;
     } else {
         if (!m_tcpConnected) {
-            m_widget->setStatus(tr("TCP not connected"));
+            updateStatus(tr("TCP not connected"));
             return;
         }
         const qint64 written = m_tcpSocket->write(payload);
         if (written < 0) {
-            m_widget->setStatus(tr("TCP write error: %1")
-                                    .arg(m_tcpSocket->errorString()));
+            updateStatus(tr("TCP write error: %1")
+                            .arg(m_tcpSocket->errorString()));
             return;
         }
         m_bytesSent += written;
     }
-    updateStatus();
+    updateStatus(tr("Sending — %1 bytes sent").arg(m_bytesSent));
 }
 
-void NetworkSinkModel::onTcpConnected()
+void NetworkSinkModel::updateStatus(const QString &status)
 {
-    m_tcpConnected = true;
-    updateStatus();
-}
-
-void NetworkSinkModel::onTcpErrorOccurred()
-{
-    if (m_tcpSocket)
-        m_widget->setStatus(tr("TCP error: %1").arg(m_tcpSocket->errorString()));
-}
-
-void NetworkSinkModel::updateStatus()
-{
-    if (!m_sending) {
-        m_widget->setStatus(tr("Idle"));
-        return;
-    }
-    if (m_widget->protocol() == QLatin1String("TCP") && !m_tcpConnected) {
-        m_widget->setStatus(tr("Connecting..."));
-        return;
-    }
-    m_widget->setStatus(tr("Sending — %1 bytes sent").arg(m_bytesSent));
+    emit statusChanged(status);
 }

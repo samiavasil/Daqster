@@ -2,7 +2,6 @@
 #define FILERECORDMODEL_H
 
 #include "NodeDataTypes/SampledData.h"
-#include "FileRecordWidget.h"
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
 
@@ -22,6 +21,9 @@
  *
  * The file format is deliberately simple and debuggable: raw interleaved
  * sample bytes + a human-readable JSON sidecar (no custom binary header).
+ *
+ * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
+ * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  */
 class FileRecordModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
@@ -53,7 +55,7 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex port) override;
 
-    QWidget *embeddedWidget() override;
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop recording and close the file. Idempotent — safe to call multiple
     /// times (REQ-SW-PL-050).
@@ -62,7 +64,10 @@ public:
     /// Start recording programmatically (runtime autoStart, REQ-SW-PL-048).
     void start() override;
 
-private slots:
+signals:
+    void statusChanged(const QString &status);
+
+public slots:
     void onStartRequested();
     void onStopRequested();
     void onPathChanged(const QString &path);
@@ -71,9 +76,8 @@ private:
     void startRecording();
     void stopRecording();
     void writeSidecar(const SampledStreamDescriptor &desc);
-    void updateStatus();
+    void updateStatus(const QString &status);
 
-    FileRecordWidget *m_widget = nullptr;
     QFile m_file;
     QString m_filePath;
     qint64 m_bytesWritten = 0;

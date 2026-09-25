@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QBasePluginObject.h.h - Copyright vvasilev
+                        Daqster/QBasePluginObject.h - Copyright vvasilev
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -16,12 +16,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
 Initial version of this file was created on 12.03.2017 at 20:54:50
-**************************************************************************/
+*************************************************************************/
 
 #ifndef QBASEPLUGINOBJECT_H
 #define QBASEPLUGINOBJECT_H
 #include <QObject>
-#include "build_cfg.h"
+#include "daqster_core_export.h"
 
 namespace Daqster {
 
@@ -31,7 +31,7 @@ class QPluginInterface;
   * 
   */
 
-class FRAME_WORKSHARED_EXPORT QBasePluginObject : public QObject // skipcq: CXX-W2009
+class DAQSTER_CORE_EXPORT QBasePluginObject : public QObject // skipcq: CXX-W2009
 {
     Q_OBJECT
 public:

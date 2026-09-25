@@ -1,7 +1,7 @@
 #ifndef PLUGINPERSISTENCE_H
 #define PLUGINPERSISTENCE_H
 
-#include "build_cfg.h"
+#include "daqster_core_export.h"
 #include "PluginDescription.h"
 #include <QObject>
 #include <QMap>
@@ -17,7 +17,7 @@ namespace Daqster {
  * - Saving plugin state changes
  * - Managing plugin enabled/disabled state
  */
-class FRAME_WORKSHARED_EXPORT PluginPersistence : public QObject
+class DAQSTER_CORE_EXPORT PluginPersistence : public QObject
 {
     Q_OBJECT
 

@@ -9,17 +9,6 @@ using QtNodes::NodeDataType;
 SystemMonitorModel::SystemMonitorModel()
 {
     m_engine = new SystemMonitorEngine(this);
-    m_widget = new SystemMonitorWidget();
-
-    // Widget → model (GUI thread).
-    connect(m_widget, &SystemMonitorWidget::startRequested,
-            this, &SystemMonitorModel::onStartRequested);
-    connect(m_widget, &SystemMonitorWidget::stopRequested,
-            this, &SystemMonitorModel::onStopRequested);
-    connect(m_widget, &SystemMonitorWidget::intervalChanged,
-            this, &SystemMonitorModel::onIntervalChanged);
-    connect(m_widget, &SystemMonitorWidget::metricsChanged,
-            this, &SystemMonitorModel::onMetricsChanged);
 
     // Engine → model (same thread — QTimer based).
     connect(m_engine, &SystemMonitorEngine::metricsReady,
@@ -35,9 +24,6 @@ SystemMonitorModel::~SystemMonitorModel()
     // Single shutdown path: stop() stops the polling timer before the engine
     // (child) is destroyed (REQ-SW-PL-050).
     stop();
-
-    // Widget lifetime is owned by the node/view framework.
-    m_widget = nullptr;
 }
 
 void SystemMonitorModel::stop()
@@ -60,23 +46,19 @@ QJsonObject SystemMonitorModel::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
 
-    modelJson["pollIntervalSec"] = m_widget->pollIntervalSec();
-    modelJson["cpuEnabled"] = m_widget->cpuEnabled();
-    modelJson["ramEnabled"] = m_widget->ramEnabled();
-    modelJson["tempEnabled"] = m_widget->tempEnabled();
-    modelJson["networkEnabled"] = m_widget->networkEnabled();
+    // Config values are saved by the GUI widget via NodeWidgetFactory
+    // Core model stores only the polling interval for the engine
+    modelJson["pollIntervalSec"] = m_engine ? m_engine->pollIntervalMs() / 1000.0 : 1.0;
 
     return modelJson;
 }
 
 void SystemMonitorModel::load(QJsonObject const &p)
 {
-    m_widget->setPollIntervalSec(p.value("pollIntervalSec").toDouble(1.0));
-    m_widget->setCpuEnabled(p.value("cpuEnabled").toBool(true));
-    m_widget->setRamEnabled(p.value("ramEnabled").toBool(true));
-    m_widget->setTempEnabled(p.value("tempEnabled").toBool(true));
-    m_widget->setNetworkEnabled(p.value("networkEnabled").toBool(true));
-
+    if (m_engine) {
+        m_engine->setPollIntervalMs(static_cast<int>(p.value("pollIntervalSec").toDouble(1.0) * 1000.0));
+    }
+    // Other config (cpu/ram/temp/network enabled) is applied by GUI widget
     updateEngineConfig();
 }
 
@@ -107,11 +89,6 @@ void SystemMonitorModel::setInData(std::shared_ptr<QtNodes::NodeData> data,
     Q_ASSERT(0);
 }
 
-QWidget *SystemMonitorModel::embeddedWidget()
-{
-    return m_widget;
-}
-
 // ── Connection-count gating (model of PlutoSdrModel) ────────────────────────
 
 void SystemMonitorModel::outputConnectionCreated(QtNodes::ConnectionId const &conId)
@@ -129,7 +106,7 @@ void SystemMonitorModel::outputConnectionDeleted(QtNodes::ConnectionId const &co
     setPollingEnabled(m_userStarted && m_connectionCount > 0);
 }
 
-// ── Widget slots ────────────────────────────────────────────────────────────
+// Public slots called by GUI widget via NodeWidgetFactory
 
 void SystemMonitorModel::onStartRequested()
 {
@@ -141,22 +118,21 @@ void SystemMonitorModel::onStopRequested()
 {
     m_userStarted = false;
     m_engine->stop();
-    m_widget->setStatus(QStringLiteral("Idle"));
+    // GUI widget will update its own status
 }
 
 void SystemMonitorModel::onIntervalChanged(double sec)
 {
-    Q_UNUSED(sec);
-    updateEngineConfig();
+    if (m_engine) {
+        m_engine->setPollIntervalMs(static_cast<int>(sec * 1000.0));
+    }
 }
 
 void SystemMonitorModel::onMetricsChanged(bool cpu, bool ram, bool temp, bool network)
 {
-    Q_UNUSED(cpu);
-    Q_UNUSED(ram);
-    Q_UNUSED(temp);
-    Q_UNUSED(network);
-    updateEngineConfig();
+    if (m_engine) {
+        m_engine->setMetricsEnabled(cpu, ram, temp, network);
+    }
 }
 
 // ── Engine slots ────────────────────────────────────────────────────────────
@@ -166,7 +142,7 @@ void SystemMonitorModel::onMetricsReady(const SystemMonitorMetrics &m)
     // System telemetry IS sampled data: 5 FLOAT32 channels, one "frame" per
     // poll — exactly what SampledStreamDescriptor describes (REQ-SW-PL-041 §1).
     SampledStreamDescriptor desc;
-    desc.sampleRate = 1.0 / m_widget->pollIntervalSec();
+    desc.sampleRate = m_engine ? (1000.0 / m_engine->pollIntervalMs()) : 1.0;
     desc.channels = {
         {QStringLiteral("cpu_percent"), SampleType::FLOAT32},
         {QStringLiteral("ram_percent"), SampleType::FLOAT32},
@@ -192,28 +168,25 @@ void SystemMonitorModel::onMetricsReady(const SystemMonitorMetrics &m)
 
     m_output = std::make_shared<SampledData>(buffer, desc);
 
-    m_widget->setStatus(QStringLiteral("CPU %1%  RAM %2%  Temp %3°C  RX %4 kbps  TX %5 kbps")
-                            .arg(m.cpuPercent, 0, 'f', 1)
-                            .arg(m.ramPercent, 0, 'f', 1)
-                            .arg(m.cpuTempC, 0, 'f', 1)
-                            .arg(m.netRxKbps, 0, 'f', 1)
-                            .arg(m.netTxKbps, 0, 'f', 1));
-
+    // GUI widget (if present) will be updated via its own connection to engine
     emit dataUpdated(0);
 }
 
 void SystemMonitorModel::onErrorOccurred(const QString &message)
 {
-    m_widget->setStatus(message);
+    // GUI widget (if present) will be updated via its own connection to engine
+    Q_UNUSED(message);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 void SystemMonitorModel::updateEngineConfig()
 {
-    m_engine->setPollIntervalMs(static_cast<int>(m_widget->pollIntervalSec() * 1000.0));
-    m_engine->setMetricsEnabled(m_widget->cpuEnabled(), m_widget->ramEnabled(),
-                                m_widget->tempEnabled(), m_widget->networkEnabled());
+    // Configuration is applied by GUI widget via NodeWidgetFactory
+    // Core model just ensures engine is running if needed
+    if (m_userStarted && m_connectionCount > 0) {
+        m_engine->start();
+    }
 }
 
 void SystemMonitorModel::setPollingEnabled(bool enabled)

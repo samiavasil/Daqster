@@ -45,21 +45,13 @@ QJsonObject descriptorToJson(const SampledStreamDescriptor &desc)
 
 FileRecordModel::FileRecordModel()
 {
-    m_widget = new FileRecordWidget();
-
-    connect(m_widget, &FileRecordWidget::startRequested,
-            this, &FileRecordModel::onStartRequested);
-    connect(m_widget, &FileRecordWidget::stopRequested,
-            this, &FileRecordModel::onStopRequested);
-    connect(m_widget, &FileRecordWidget::pathChanged,
-            this, &FileRecordModel::onPathChanged);
+    // No widget in core model - widget is created by GUI plugin via NodeWidgetFactory
 }
 
 FileRecordModel::~FileRecordModel()
 {
     // Single shutdown path: stop() closes the file (REQ-SW-PL-050).
     stop();
-    m_widget = nullptr;
 }
 
 void FileRecordModel::stop()
@@ -78,13 +70,13 @@ void FileRecordModel::start()
 QJsonObject FileRecordModel::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
-    modelJson["filePath"] = m_widget->filePath();
+    modelJson["filePath"] = m_filePath;
     return modelJson;
 }
 
 void FileRecordModel::load(QJsonObject const &p)
 {
-    m_widget->setFilePath(p.value("filePath").toString());
+    m_filePath = p.value("filePath").toString();
 }
 
 unsigned int FileRecordModel::nPorts(QtNodes::PortType portType) const
@@ -131,19 +123,14 @@ void FileRecordModel::setInData(std::shared_ptr<QtNodes::NodeData> data,
         return;
 
     if (m_file.write(buffer) < 0) {
-        m_widget->setStatus(tr("Write error: %1").arg(m_file.errorString()));
+        emit statusChanged(tr("Write error: %1").arg(m_file.errorString()));
         return;
     }
     m_bytesWritten += buffer.size();
-    updateStatus();
+    updateStatus(tr("Recording... %1 bytes").arg(m_bytesWritten));
 }
 
-QWidget *FileRecordModel::embeddedWidget()
-{
-    return m_widget;
-}
-
-// ── Widget slots ────────────────────────────────────────────────────────────
+// ── Widget slots (public, called by GUI widget via NodeWidgetFactory) ────────
 
 void FileRecordModel::onStartRequested()
 {
@@ -157,7 +144,9 @@ void FileRecordModel::onStopRequested()
 
 void FileRecordModel::onPathChanged(const QString &path)
 {
-    Q_UNUSED(path);
+    if (!m_recording) {
+        m_filePath = path;
+    }
     // Path change while recording is not allowed — the model keeps the file
     // handle it opened. The widget's Start button is the only way to (re)open.
 }
@@ -169,23 +158,21 @@ void FileRecordModel::startRecording()
     if (m_recording)
         return;
 
-    const QString path = m_widget->filePath();
-    if (path.isEmpty()) {
-        m_widget->setStatus(tr("No file path set"));
+    if (m_filePath.isEmpty()) {
+        emit statusChanged(tr("No file path set"));
         return;
     }
 
-    m_filePath = path;
-    m_file.setFileName(path);
+    m_file.setFileName(m_filePath);
     if (!m_file.open(QIODevice::WriteOnly | QIODevice::Append)) {
-        m_widget->setStatus(tr("Cannot open %1: %2").arg(path, m_file.errorString()));
+        emit statusChanged(tr("Cannot open %1: %2").arg(m_filePath, m_file.errorString()));
         return;
     }
 
     m_bytesWritten = m_file.size();
     m_hasDescriptor = false;
     m_recording = true;
-    updateStatus();
+    updateStatus(tr("Recording... %1 bytes").arg(m_bytesWritten));
 }
 
 void FileRecordModel::stopRecording()
@@ -198,28 +185,21 @@ void FileRecordModel::stopRecording()
         m_file.close();
     }
     m_recording = false;
-    updateStatus();
+    updateStatus(tr("Stopped. %1 bytes written").arg(m_bytesWritten));
 }
+
+// ── Recording helpers ───────────────────────────────────────────────────────
 
 void FileRecordModel::writeSidecar(const SampledStreamDescriptor &desc)
 {
-    const QString sidecarPath = m_filePath + QStringLiteral(".json");
-    QFile sidecar(sidecarPath);
-    if (!sidecar.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        m_widget->setStatus(tr("Cannot write sidecar %1: %2")
-                                .arg(sidecarPath, sidecar.errorString()));
-        return;
+    QFile sidecar(m_filePath + ".json");
+    if (sidecar.open(QIODevice::WriteOnly)) {
+        QJsonDocument doc(descriptorToJson(desc));
+        sidecar.write(doc.toJson(QJsonDocument::Indented));
     }
-    const QJsonDocument doc(descriptorToJson(desc));
-    sidecar.write(doc.toJson(QJsonDocument::Indented));
-    sidecar.close();
 }
 
-void FileRecordModel::updateStatus()
+void FileRecordModel::updateStatus(const QString &status)
 {
-    if (m_recording)
-        m_widget->setStatus(tr("Recording — %1 bytes written")
-                                .arg(m_bytesWritten));
-    else
-        m_widget->setStatus(tr("Idle — %1 bytes written").arg(m_bytesWritten));
+    emit statusChanged(status);
 }

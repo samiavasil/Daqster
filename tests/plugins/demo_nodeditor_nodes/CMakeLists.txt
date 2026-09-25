@@ -186,6 +186,7 @@ target_include_directories(demo_nodeditor_videooutput_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/perf
 )
 
 target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
@@ -198,7 +199,10 @@ target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
     # VideoOutputNode.cpp now instruments via Daqster::Perf (REQ-SW-PL-027):
     # frame_work supplies the PerfProfiler symbols, the base/src/perf PUBLIC
     # include dir, and the DAQSTER_ENABLE_PERF compile definition.
-    frame_work
+    # Built-in nodes (NumberSource, NumberDisplay, Modulo, ArithmeticLogic) 
+    # are in NodeEditorLibrary from node_editor_ide plugin.
+    NodeEditorLibrary
+    DaqsterCore
 )
 
 # QVideoWidget lives in Qt6::MultimediaWidgets (Qt5 bundles it in Multimedia).
@@ -259,7 +263,10 @@ target_link_libraries(demo_nodeditor_videoeffect_tests PRIVATE
     QtNodes
     # VideoEffectNode.cpp instruments via Daqster::Perf (REQ-SW-PL-027):
     # frame_work supplies the PerfProfiler symbols.
-    frame_work
+    # Built-in nodes (NumberSource, NumberDisplay, Modulo, ArithmeticLogic) 
+    # are in NodeEditorLibrary from node_editor_ide plugin.
+    NodeEditorLibrary
+    DaqsterCore
 )
 
 if(QT_VERSION_MAJOR GREATER_EQUAL 6)

@@ -1,5 +1,5 @@
 #include "PerfProfiler.h"
-#include "include/LogCategories.h"
+#include "LogCategories.h"
 
 #include <QMutexLocker>
 

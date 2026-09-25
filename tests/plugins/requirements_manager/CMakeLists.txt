@@ -63,7 +63,7 @@ target_include_directories(requirements_manager_tests PRIVATE
 target_link_libraries(requirements_manager_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test
     Qt${QT_VERSION_MAJOR}::Core
-    frame_work
+    DaqsterCore
 )
 
 add_test(NAME requirements_manager_tests COMMAND $<TARGET_FILE:requirements_manager_tests>)
@@ -90,7 +90,7 @@ target_include_directories(requirements_manager_matrix_tests PRIVATE
 target_link_libraries(requirements_manager_matrix_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test
     Qt${QT_VERSION_MAJOR}::Core
-    frame_work
+    DaqsterCore
 )
 
 add_test(NAME requirements_manager_matrix_tests COMMAND $<TARGET_FILE:requirements_manager_matrix_tests>)
@@ -113,7 +113,7 @@ target_include_directories(requirements_manager_exporter_tests PRIVATE
 target_link_libraries(requirements_manager_exporter_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test
     Qt${QT_VERSION_MAJOR}::Core
-    frame_work
+    DaqsterCore
 )
 
 add_test(NAME requirements_manager_exporter_tests COMMAND $<TARGET_FILE:requirements_manager_exporter_tests>)
@@ -147,7 +147,7 @@ target_link_libraries(requirements_manager_gui_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Gui
     Qt${QT_VERSION_MAJOR}::Widgets
-    frame_work
+    DaqsterCore
 )
 
 add_test(NAME requirements_manager_gui_tests

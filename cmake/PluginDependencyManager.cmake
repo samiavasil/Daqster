@@ -38,7 +38,7 @@ function(check_plugin_dependencies PLUGIN_NAME)
             string(REGEX REPLACE "^Qt[0-9]+::" "" MODULE_NAME ${LIBRARY})
             
             # First try to find the module
-            find_package(Qt${QT_VERSION_MAJOR}${MODULE_NAME} QUIET)
+            find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS ${MODULE_NAME})
 
             # Check if target exists
             if(TARGET ${LIBRARY})

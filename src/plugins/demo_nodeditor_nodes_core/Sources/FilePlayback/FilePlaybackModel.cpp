@@ -62,17 +62,9 @@ bool descriptorFromJson(const QJsonObject &obj, SampledStreamDescriptor &desc)
 
 FilePlaybackModel::FilePlaybackModel()
 {
-    m_widget = new FilePlaybackWidget();
-
-    connect(m_widget, &FilePlaybackWidget::playRequested,
-            this, &FilePlaybackModel::onPlayRequested);
-    connect(m_widget, &FilePlaybackWidget::stopRequested,
-            this, &FilePlaybackModel::onStopRequested);
-    connect(m_widget, &FilePlaybackWidget::pathChanged,
-            this, &FilePlaybackModel::onPathChanged);
-
-    m_timer.setSingleShot(false);
-    connect(&m_timer, &QTimer::timeout,
+    m_timer = new QTimer(this);
+    m_timer->setSingleShot(false);
+    connect(m_timer, &QTimer::timeout,
             this, &FilePlaybackModel::onTimerTick);
 }
 
@@ -80,7 +72,6 @@ FilePlaybackModel::~FilePlaybackModel()
 {
     // Single shutdown path: stop() stops the playback timer (REQ-SW-PL-050).
     stop();
-    m_widget = nullptr;
 }
 
 void FilePlaybackModel::stop()
@@ -102,13 +93,13 @@ void FilePlaybackModel::start()
 QJsonObject FilePlaybackModel::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
-    modelJson["filePath"] = m_widget->filePath();
+    modelJson["filePath"] = m_filePath;
     return modelJson;
 }
 
 void FilePlaybackModel::load(QJsonObject const &p)
 {
-    m_widget->setFilePath(p.value("filePath").toString());
+    m_filePath = p.value("filePath").toString();
 }
 
 unsigned int FilePlaybackModel::nPorts(QtNodes::PortType portType) const
@@ -138,11 +129,6 @@ void FilePlaybackModel::setInData(std::shared_ptr<QtNodes::NodeData> data,
     Q_ASSERT(0);
 }
 
-QWidget *FilePlaybackModel::embeddedWidget()
-{
-    return m_widget;
-}
-
 // ── Connection-count gating (model of SystemMonitorModel) ───────────────────
 
 void FilePlaybackModel::outputConnectionCreated(QtNodes::ConnectionId const &conId)
@@ -162,7 +148,7 @@ void FilePlaybackModel::outputConnectionDeleted(QtNodes::ConnectionId const &con
         stopPlayback();
 }
 
-// ── Widget slots ────────────────────────────────────────────────────────────
+// ── Public slots (called by GUI widget via NodeWidgetFactory) ──────────────
 
 void FilePlaybackModel::onPlayRequested()
 {
@@ -170,7 +156,7 @@ void FilePlaybackModel::onPlayRequested()
     if (m_connectionCount > 0)
         startPlayback();
     else
-        m_widget->setStatus(tr("No output connection"));
+        emit statusChanged(tr("No output connection"));
 }
 
 void FilePlaybackModel::onStopRequested()
@@ -181,118 +167,103 @@ void FilePlaybackModel::onStopRequested()
 
 void FilePlaybackModel::onPathChanged(const QString &path)
 {
-    Q_UNUSED(path);
-    // Path change while playing is not allowed — the model keeps the loaded
-    // buffer it is emitting. The Play button is the only way to (re)load.
+    if (!m_playing) {
+        m_filePath = path;
+    }
 }
 
-// ── Playback helpers ────────────────────────────────────────────────────────
+// ── Playback helpers ───────────────────────────────────────────────────────
 
 bool FilePlaybackModel::loadFile()
 {
-    const QString path = m_widget->filePath();
-    if (path.isEmpty()) {
-        m_widget->setStatus(tr("No file path set"));
-        return false;
-    }
-
-    QFile file(path);
+    QFile file(m_filePath);
     if (!file.open(QIODevice::ReadOnly)) {
-        m_widget->setStatus(tr("Cannot open %1: %2").arg(path, file.errorString()));
+        emit statusChanged(tr("Cannot open %1: %2").arg(m_filePath, file.errorString()));
         return false;
     }
-    m_data = file.readAll();
-    file.close();
 
-    QFile sidecar(path + QStringLiteral(".json"));
+    QFile sidecar(m_filePath + ".json");
     if (!sidecar.open(QIODevice::ReadOnly)) {
-        m_widget->setStatus(tr("Cannot open sidecar %1: %2")
-                                .arg(path + QStringLiteral(".json"),
-                                     sidecar.errorString()));
-        return false;
-    }
-    const QJsonDocument doc = QJsonDocument::fromJson(sidecar.readAll());
-    sidecar.close();
-    if (!doc.isObject() || !descriptorFromJson(doc.object(), m_descriptor)) {
-        m_widget->setStatus(tr("Invalid sidecar JSON in %1")
-                                .arg(path + QStringLiteral(".json")));
+        emit statusChanged(tr("Cannot open sidecar for %1").arg(m_filePath));
         return false;
     }
 
-    const int frameBytes = m_descriptor.bytesPerFrame();
-    if (frameBytes <= 0 || m_data.isEmpty()) {
-        m_widget->setStatus(tr("Empty or invalid data file %1").arg(path));
+    QJsonDocument doc = QJsonDocument::fromJson(sidecar.readAll());
+    if (!doc.isObject()) {
+        emit statusChanged(tr("Invalid sidecar JSON for %1").arg(m_filePath));
         return false;
     }
 
-    // Chunk size in samples — clamp so a chunk is at least one frame and at
-    // most the whole file. 4096 samples is a good default for high-rate IQ.
-    const int totalFrames = m_data.size() / frameBytes;
-    m_chunkSize = qBound(1, 4096, totalFrames);
+    if (!descriptorFromJson(doc.object(), m_descriptor)) {
+        emit statusChanged(tr("Invalid descriptor for %1").arg(m_filePath));
+        return false;
+    }
+
+    m_fileSize = file.size();
+    m_file.setFileName(m_filePath);
+    if (!m_file.open(QIODevice::ReadOnly)) {
+        emit statusChanged(tr("Cannot open %1 for reading: %2").arg(m_filePath, m_file.errorString()));
+        return false;
+    }
+
     m_position = 0;
-    m_loaded = true;
     return true;
 }
 
 void FilePlaybackModel::startPlayback()
 {
-    if (m_timer.isActive())
+    if (m_playing)
         return;
 
-    if (!m_loaded && !loadFile())
+    if (m_filePath.isEmpty()) {
+        emit statusChanged(tr("No file path set"));
+        return;
+    }
+
+    if (!loadFile())
         return;
 
-    // QTimer interval in ms = chunkSamples / sampleRate * 1000. For sub-ms
-    // intervals (high sample rates) clamp to 1 ms — the tempo is approximate
-    // but bounded; the data is emitted in order regardless.
-    const double intervalMs = (static_cast<double>(m_chunkSize)
-                               / m_descriptor.sampleRate) * 1000.0;
-    m_timer.start(qMax(1, static_cast<int>(intervalMs)));
-    updateStatus();
+    int intervalMs = static_cast<int>((m_chunkSize / m_descriptor.sampleRate) * 1000.0);
+    if (intervalMs < 1)
+        intervalMs = 1;
+
+    m_timer->start(intervalMs);
+    m_playing = true;
+    emit statusChanged(tr("Playing %1").arg(m_filePath));
 }
 
 void FilePlaybackModel::stopPlayback()
 {
-    if (m_timer.isActive())
-        m_timer.stop();
-    m_loaded = false;
+    if (!m_playing)
+        return;
+
+    m_timer->stop();
+    m_file.close();
+    m_playing = false;
     m_position = 0;
-    m_widget->setStatus(tr("Idle"));
+    m_output.reset();
+    emit statusChanged(tr("Stopped"));
 }
 
 void FilePlaybackModel::onTimerTick()
 {
-    const int frameBytes = m_descriptor.bytesPerFrame();
-    const int totalFrames = m_data.size() / frameBytes;
-    if (m_position >= totalFrames) {
+    if (!m_playing)
+        return;
+
+    QByteArray chunk = m_file.read(m_chunkSize);
+    if (chunk.isEmpty()) {
+        // End of file - auto-stop
         stopPlayback();
         return;
     }
 
-    const int framesThisTick = qMin(m_chunkSize, totalFrames - m_position);
-    const int byteOffset = m_position * frameBytes;
-    const int byteCount = framesThisTick * frameBytes;
-
-    QByteArray chunk = m_data.mid(byteOffset, byteCount);
     m_output = std::make_shared<SampledData>(chunk, m_descriptor);
-    m_position += framesThisTick;
-
+    m_position += chunk.size();
     emit dataUpdated(0);
-    updateStatus();
+    emit statusChanged(tr("Playing... %1/%2 bytes").arg(m_position).arg(m_fileSize));
 }
 
-void FilePlaybackModel::updateStatus()
+void FilePlaybackModel::updateStatus(const QString &status)
 {
-    const int frameBytes = m_descriptor.bytesPerFrame();
-    const int totalFrames = frameBytes > 0 ? m_data.size() / frameBytes : 0;
-    const double durationSec = m_descriptor.sampleRate > 0.0
-        ? static_cast<double>(totalFrames) / m_descriptor.sampleRate
-        : 0.0;
-    const double positionSec = m_descriptor.sampleRate > 0.0
-        ? static_cast<double>(m_position) / m_descriptor.sampleRate
-        : 0.0;
-
-    m_widget->setStatus(tr("%1s / %2s")
-                            .arg(positionSec, 0, 'f', 1)
-                            .arg(durationSec, 0, 'f', 1));
+    emit statusChanged(status);
 }

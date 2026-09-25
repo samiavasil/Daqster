@@ -1,8 +1,8 @@
 #ifndef DEMONODEEDITORNODESGUIOBJECT_H
 #define DEMONODEEDITORNODESGUIOBJECT_H
 
-#include <DaqsterCore/plugin/QBasePluginObject.h>
-#include <DaqsterCore/capabilities/INodeProvider.h>
+#include "QBasePluginObject.h"
+#include <capabilities/INodeProvider.h>
 #include "NodeWidgetFactory.h"
 
 namespace Daqster {

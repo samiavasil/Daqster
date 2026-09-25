@@ -1,4 +1,5 @@
 #include "JackDetectWidget.h"
+#include "JackDetectEngine.h"
 
 #include <QDoubleSpinBox>
 #include <QHBoxLayout>
@@ -42,6 +43,27 @@ JackDetectWidget::JackDetectWidget(QWidget *parent)
     });
     connect(m_intervalSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this, &JackDetectWidget::intervalChanged);
+}
+
+void JackDetectWidget::setEngine(JackDetectEngine *engine)
+{
+    m_engine = engine;
+    if (m_engine) {
+        connect(m_engine, &JackDetectEngine::jacksChanged,
+                this, &JackDetectWidget::onJacksChanged);
+        connect(m_engine, &JackDetectEngine::statusChanged,
+                this, &JackDetectWidget::onStatusChanged);
+    }
+}
+
+void JackDetectWidget::onJacksChanged(const QVector<JackDetectEngine::JackState> &jacks)
+{
+    setJacks(jacks);
+}
+
+void JackDetectWidget::onStatusChanged(const QString &status)
+{
+    setStatusText(status);
 }
 
 void JackDetectWidget::setJacks(const QVector<JackDetectEngine::JackState> &jacks)

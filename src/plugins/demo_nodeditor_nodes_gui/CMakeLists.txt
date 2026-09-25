@@ -8,6 +8,14 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+set(DEMO_GUI_RUNTIME_LIBS)
+if(QT_VERSION_MAJOR GREATER_EQUAL 6)
+    list(APPEND DEMO_GUI_RUNTIME_LIBS
+        Qt${QT_VERSION_MAJOR}::MultimediaWidgets
+        Qt${QT_VERSION_MAJOR}::OpenGLWidgets
+    )
+endif()
+
 # ── Plugin JSON metadata (generated from template) ──────────────────
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/DemoNodeEditorNodesGuiInterface.json.in"
@@ -50,8 +58,11 @@ set(GUI_WIDGETS
     Sinks/NetworkSink/NetworkSinkWidget.cpp
     Sinks/FileRecord/FileRecordWidget.h
     Sinks/FileRecord/FileRecordWidget.cpp
+    Sources/GpuMonitor/GpuMonitorWidget.h
     Sources/GpuMonitor/GpuMonitorWidget.cpp
+    Sources/JackDetect/JackDetectWidget.h
     Sources/JackDetect/JackDetectWidget.cpp
+    Sources/Pcap/PcapWidget.h
     Sources/Pcap/PcapWidget.cpp
 )
 
@@ -73,7 +84,7 @@ create_plugin(DemoNodeEditorNodesGui
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Charts
         Qt${QT_VERSION_MAJOR}::Multimedia
-        Qt${QT_VERSION_MAJOR}::MultimediaWidgets
+        ${DEMO_GUI_RUNTIME_LIBS}
         Qt${QT_VERSION_MAJOR}::Network
         Qt${QT_VERSION_MAJOR}::OpenGL
         QtNodes
@@ -83,7 +94,21 @@ create_plugin(DemoNodeEditorNodesGui
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
-        ${DAQSTER_SOURCE_DIR}/src/gui
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/AudioSource
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/GpuMonitor
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/JackDetect
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Pcap
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/SystemMonitor
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/PlutoSdr
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/connectors
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/decoders
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/types
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/threading
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/AudioSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video

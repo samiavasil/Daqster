@@ -26,6 +26,6 @@ create_application(Daqster
 target_include_directories(Daqster
 PRIVATE
     ./
-    ${DAQSTER_SOURCE_DIR}/src/core
-    ${DAQSTER_SOURCE_DIR}/src/gui
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
 )

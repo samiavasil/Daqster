@@ -16,21 +16,20 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
 Initial version of this file was created on 16.03.2017 at 12:33:53
-**************************************************************************/
+*************************************************************************/
 #ifndef PLUGINDESCRIPTION_H
 #define PLUGINDESCRIPTION_H
 
-#include "build_cfg.h"
+#include "daqster_core_export.h"
 #include <QString>
-#include <QIcon>
-#include<QVariant>
+#include <QVariant>
 
 /*Predefined properties NAMES
 */
 #define PLUGIN_AUTHOR                 "Author"
 #define PLUGIN_DESCRIPTION            "Description"
 #define PLUGIN_DETAIL_DESCRIPTION     "DetailDescription"
-//#define PLUGIN_ICON                   "Icon"
+#define PLUGIN_ICON_PATH              "IconPath"
 #define PLUGIN_LICENSE                "License"
 #define PLUGIN_LOCATION               "Location"
 #define PLUGIN_NAME                   "Name"
@@ -55,7 +54,7 @@ class PrivateDescription;
   * this class.
   */
 
-class FRAME_WORKSHARED_EXPORT PluginDescription // skipcq: CXX-W2009
+class DAQSTER_CORE_EXPORT PluginDescription // skipcq: CXX-W2009
 {
     friend class QPluginInterface;
 public:
@@ -90,7 +89,7 @@ public:
       DETAIL_DESCRIPTION_OPT   = 1 << 8,
       LICENSE_OPT              = 1 << 9,
       VERSION_OPT              = 1 << 10,
-      ICON_OPT                 = 1 << 11,
+      ICON_PATH_OPT            = 1 << 11,
 
     }PlugDiff;
   // Constructors/Destructors
@@ -179,15 +178,15 @@ public:
    */
   bool GetPluginParamsFromPersistency(QSettings &Store);
 
-  void SetIcon( const QIcon& Icon );
-  QIcon GetIcon() const;
+  void SetIconPath( const QString& iconPath );
+  QString GetIconPath() const;
   friend QDebug operator<<(QDebug ds, const PluginDescription &obj) ;
 protected:
     void CopyDynamicProperties(const PluginDescription &b);
 protected:
   // Is plugin enabled for usage
   bool m_Enabled;
-  QIcon m_Icon;
+  QString m_IconPath;
   PrivateDescription *m_PrivateDescription;
 };
 

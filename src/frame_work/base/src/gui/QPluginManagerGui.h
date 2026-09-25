@@ -1,5 +1,5 @@
 /************************************************************************
-                        Daqster/QPluginManagerGui.h.h - Copyright 
+                        Daqster/QPluginManagerGui.h - Copyright 
 Daqster software
 Copyright (C) 2016, Vasil Vasilev,  Bulgaria
 
@@ -16,12 +16,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
 Initial version of this file was created on 16.03.2017 at 11:40:20
-**************************************************************************/
+*************************************************************************/
 
 
 #ifndef QPLUGINMANAGERGUI_H
 #define QPLUGINMANAGERGUI_H
-#include "global.h"
+#include "daqster_gui_export.h"
 #include <QDialog>
 #include <memory>
 
@@ -33,7 +33,7 @@ namespace Ui {
 namespace Daqster {
 class QPluginListView;
 
-class FRAME_WORKSHARED_EXPORT QPluginManagerGui : public QDialog // skipcq: CXX-W2009
+class DAQSTER_GUI_EXPORT QPluginManagerGui : public QDialog // skipcq: CXX-W2009
 {
     Q_OBJECT
 public:

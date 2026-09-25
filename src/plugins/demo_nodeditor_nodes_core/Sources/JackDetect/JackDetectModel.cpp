@@ -5,14 +5,6 @@
 JackDetectModel::JackDetectModel()
 {
     m_engine = new JackDetectEngine(this);
-    m_widget = new JackDetectWidget;
-
-    connect(m_widget, &JackDetectWidget::startRequested,
-            this, &JackDetectModel::onStartRequested);
-    connect(m_widget, &JackDetectWidget::stopRequested,
-            this, &JackDetectModel::onStopRequested);
-    connect(m_widget, &JackDetectWidget::intervalChanged,
-            this, &JackDetectModel::onIntervalChanged);
 
     connect(m_engine, &JackDetectEngine::jacksChanged,
             this, &JackDetectModel::onJacksChanged);
@@ -25,7 +17,6 @@ JackDetectModel::~JackDetectModel()
     // Single shutdown path: stop() stops the polling timer
     // (REQ-SW-PL-046 AC 6, REQ-SW-PL-050).
     stop();
-    m_widget = nullptr; // owned by the node/view framework
 }
 
 void JackDetectModel::stop()
@@ -48,14 +39,15 @@ QJsonObject JackDetectModel::save() const
 {
     QJsonObject modelJson;
     modelJson["name"] = name();
-    modelJson["intervalSeconds"] = m_widget->intervalSeconds();
+    modelJson["intervalSeconds"] = m_engine ? m_engine->intervalSeconds() : 0.5;
     return modelJson;
 }
 
 void JackDetectModel::load(QJsonObject const &p)
 {
-    if (p.contains("intervalSeconds"))
-        m_widget->setIntervalSeconds(p["intervalSeconds"].toDouble(0.5));
+    if (m_engine && p.contains("intervalSeconds")) {
+        m_engine->setPollIntervalMs(static_cast<int>(p["intervalSeconds"].toDouble(0.5) * 1000.0));
+    }
 }
 
 unsigned int JackDetectModel::nPorts(QtNodes::PortType portType) const
@@ -85,11 +77,6 @@ void JackDetectModel::setInData(std::shared_ptr<QtNodes::NodeData> data,
     Q_ASSERT(0);
 }
 
-QWidget *JackDetectModel::embeddedWidget()
-{
-    return m_widget;
-}
-
 void JackDetectModel::outputConnectionCreated(QtNodes::ConnectionId const &conId)
 {
     Q_UNUSED(conId);
@@ -105,6 +92,8 @@ void JackDetectModel::outputConnectionDeleted(QtNodes::ConnectionId const &conId
     setPollingEnabled(m_connectionCount > 0);
 }
 
+// Public slots called by GUI widget via NodeWidgetFactory
+
 void JackDetectModel::onStartRequested()
 {
     m_userStarted = true;
@@ -119,19 +108,22 @@ void JackDetectModel::onStopRequested()
 
 void JackDetectModel::onIntervalChanged(double seconds)
 {
-    m_engine->setPollIntervalMs(static_cast<int>(seconds * 1000.0));
+    if (m_engine) {
+        m_engine->setPollIntervalMs(static_cast<int>(seconds * 1000.0));
+    }
 }
 
 void JackDetectModel::onJacksChanged(const QVector<JackDetectEngine::JackState> &jacks)
 {
     m_lastData = buildSampledData(jacks);
-    m_widget->setJacks(jacks);
+    // GUI widget (if present) will be updated via its own connection to engine
     emit dataUpdated(0);
 }
 
 void JackDetectModel::onStatusChanged(const QString &status)
 {
-    m_widget->setStatusText(status);
+    // GUI widget (if present) will be updated via its own connection to engine
+    Q_UNUSED(status);
 }
 
 void JackDetectModel::setPollingEnabled(bool enabled)
@@ -141,14 +133,14 @@ void JackDetectModel::setPollingEnabled(bool enabled)
         m_engine->start();
     else
         m_engine->stop();
-    m_widget->setRunning(shouldRun);
+    // GUI widget (if present) will update its own running state
 }
 
 std::shared_ptr<SampledData> JackDetectModel::buildSampledData(
     const QVector<JackDetectEngine::JackState> &jacks) const
 {
     SampledStreamDescriptor desc;
-    desc.sampleRate = 1.0 / m_widget->intervalSeconds();
+    desc.sampleRate = m_engine ? (1.0 / m_engine->intervalSeconds()) : 2.0;
     for (const JackDetectEngine::JackState &jack : jacks)
         desc.channels.append({jack.name, SampleType::FLOAT32});
     desc.endianness = SampleEndian::LittleEndian;

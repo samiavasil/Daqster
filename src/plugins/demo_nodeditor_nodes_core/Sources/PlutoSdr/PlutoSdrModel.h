@@ -3,7 +3,6 @@
 
 #include "NodeDataTypes/SampledData.h"
 #include "PlutoSdrEngine.h"
-#include "PlutoSdrWidget.h"
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
 
@@ -15,14 +14,16 @@
  * @brief PlutoSDR RX DAQ node model (REQ-SW-PL-040).
  *
  * Thin NodeDelegateModel controller: 1 output port (SampledData "sample"),
- * owns the PlutoSdrEngine (libiio streaming) + PlutoSdrWidget (config UI).
- * Each refilled IQ buffer is wrapped in a shared_ptr<SampledData> with a
- * SampledStreamDescriptor (domain="iq", channels I/Q int16) and emitted via
- * dataUpdated(0).
+ * owns the PlutoSdrEngine (libiio streaming). Each refilled IQ buffer is
+ * wrapped in a shared_ptr<SampledData> with a SampledStreamDescriptor
+ * (domain="iq", channels I/Q int16) and emitted via dataUpdated(0).
  *
  * Connection-count gating (model of VideoFileSourceNode): the engine streams
  * only while the user pressed Start AND at least one output connection exists;
  * removing the last connection auto-stops the stream (clean teardown).
+ *
+ * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
+ * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  */
 class PlutoSdrModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
@@ -54,7 +55,7 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex port) override;
 
-    QWidget *embeddedWidget() override;
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop the stream thread cleanly. Idempotent — safe to call multiple
     /// times (REQ-SW-PL-050).
@@ -66,7 +67,14 @@ public:
     void outputConnectionCreated(QtNodes::ConnectionId const &) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &) override;
 
-private slots:
+    // Accessor for GUI widget factory
+    PlutoSdrEngine* engine() const { return m_engine; }
+
+signals:
+    void statusChanged(const QString &status);
+
+public slots:
+    // Public slots called by GUI widget via NodeWidgetFactory
     void onStartRequested();
     void onStopRequested();
     void onConfigChanged();
@@ -79,7 +87,6 @@ private:
     void setStreamingEnabled(bool enabled);
 
     PlutoSdrEngine *m_engine = nullptr;
-    PlutoSdrWidget *m_widget = nullptr;
     std::shared_ptr<SampledData> m_output;
     int m_connectionCount = 0;
     bool m_userStarted = false;

@@ -1,6 +1,7 @@
 #include "ApplicationsManager.h"
 #include "QPluginManager.h"
 #include "ShutdownHandler.h"
+#include "HeadlessEngine.h"
 #include "LogManager.h"
 #include "daqster_version.h"
 

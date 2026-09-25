@@ -1,6 +1,7 @@
 #include "NodeEditorIdeObject.h"
 #include "NodeEditorWidget.h"
 #include "QPluginManager.h"
+#include "QPluginManagerGui.h"
 #include "capabilities/INodeProvider.h"
 #include "debug.h"
 #include "LogCategories.h"
@@ -264,7 +265,9 @@ void NodeEditorIdeObject::ShowPlugins()
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
     if (nullptr != pm) {
         DEBUG << "Plugin Manager: " << pm;
-        pm->ShowPluginManagerGui(m_Win);
+        auto* managerDialog = new Daqster::QPluginManagerGui(m_Win);
+        managerDialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        managerDialog->show();
     }
 }
 

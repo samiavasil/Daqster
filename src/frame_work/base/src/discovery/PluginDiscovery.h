@@ -1,7 +1,7 @@
 #ifndef PLUGINDISCOVERY_H
 #define PLUGINDISCOVERY_H
 
-#include "build_cfg.h"
+#include "daqster_core_export.h"
 #include <QObject>
 #include <QList>
 #include <QString>
@@ -19,7 +19,7 @@ class PluginDescription;
  * - Computing file hashes for integrity checking
  * - Determining if a file is a candidate plugin
  */
-class FRAME_WORKSHARED_EXPORT PluginDiscovery : public QObject
+class DAQSTER_CORE_EXPORT PluginDiscovery : public QObject
 {
     Q_OBJECT
 
