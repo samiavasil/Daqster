@@ -26,6 +26,7 @@
 #include <QMessageBox>
 #include <QSet>
 #include <QDir>
+#include <QCloseEvent>
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
@@ -34,6 +35,27 @@
 #include <QtNodes/internal/NodeGraphicsObject.hpp>
 
 #include <exception>
+
+// Custom QMainWindow that stops nodes before closing
+class RuntimeMainWindow : public QMainWindow
+{
+    Q_OBJECT
+public:
+    explicit RuntimeMainWindow(RuntimeShell* shell, QWidget* parent = nullptr)
+        : QMainWindow(parent), m_shell(shell) {}
+
+protected:
+    void closeEvent(QCloseEvent* event) override
+    {
+        if (m_shell) {
+            m_shell->stopAllNodes();
+        }
+        QMainWindow::closeEvent(event);
+    }
+
+private:
+    RuntimeShell* m_shell;
+};
 
 RuntimeShell::RuntimeShell(QObject* parent)
     : Daqster::QBasePluginObject(parent)
@@ -44,14 +66,23 @@ RuntimeShell::RuntimeShell(QObject* parent)
 
 RuntimeShell::~RuntimeShell()
 {
-    DeInitialize();
+    // Nodes are already stopped in closeEvent before window destruction.
+    // DeInitialize only cleans up pointers, does NOT call stopAllNodes().
+    if (m_mainWindow) {
+        m_mainWindow->deleteLater();
+        m_mainWindow = nullptr;
+    }
+    m_editorWidget = nullptr;
+    m_mdiAreas.clear();
+    m_workspaceIdToMdiArea.clear();
+    m_autoStartNodes.clear();
+    m_workspaces.clear();
 }
 
 void RuntimeShell::DeInitialize()
 {
-    // Stop all nodes before cleanup (REQ-SW-PL-050)
-    stopAllNodes();
-
+    // Virtual override for QBasePluginObject - cleanup only, no stopAllNodes()
+    // (nodes already stopped in closeEvent before window destruction)
     if (m_mainWindow) {
         m_mainWindow->deleteLater();
         m_mainWindow = nullptr;
@@ -68,7 +99,7 @@ void RuntimeShell::onMainWindowDestroyed(QObject* obj)
     Q_UNUSED(obj);
     m_mainWindow = nullptr;
     m_editorWidget = nullptr;
-    deleteLater();
+    // Do NOT deleteLater() - parent owns us
 }
 
 bool RuntimeShell::RunRuntime(const QString& flowPath)
@@ -85,7 +116,7 @@ bool RuntimeShell::RunRuntime(const QString& flowPath)
     }
 
     // 1. Create QMainWindow
-    m_mainWindow = new QMainWindow();
+    m_mainWindow = new RuntimeMainWindow(this);
     m_mainWindow->setAttribute(Qt::WA_DeleteOnClose, true);
     connect(m_mainWindow, &QObject::destroyed, this, &RuntimeShell::onMainWindowDestroyed);
 
@@ -468,3 +499,4 @@ void RuntimeShell::clearWindowFlags(QWidget* widget)
         widget->setWindowFlags(Qt::Widget);
     }
 }
+#include "RuntimeShell.moc"

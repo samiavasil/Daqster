@@ -1,55 +1,125 @@
 {
+    "connections": [
+        {
+            "inNodeId": 1,
+            "inPortIndex": 0,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        },
+        {
+            "inNodeId": 2,
+            "inPortIndex": 0,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        }
+    ],
     "nodes": [
         {
             "id": 0,
             "internal-data": {
-                "model-name": "VideoFileSource",
-                "filePath": ""
+                "filePath": "/mnt/Builder/Projects/samiavasil/DaqsterAiStudio/tests/data/bars_h265_1080p25_x3.mp4",
+                "model-name": "VideoFileSource"
             },
             "label": "VideoFileSource",
             "labelVisible": true,
             "position": {
-                "x": -300.0,
-                "y": 0.0
+                "x": -300,
+                "y": 0
             }
         },
         {
             "id": 1,
             "internal-data": {
-                "model-name": "VideoOutput"
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoOutput",
+                "thresholdValue": 128
             },
             "label": "VideoOutput",
             "labelVisible": true,
             "position": {
-                "x": 100.0,
-                "y": -100.0
+                "x": 100,
+                "y": -100
             }
         },
         {
             "id": 2,
             "internal-data": {
-                "model-name": "VideoOutput"
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoOutput",
+                "thresholdValue": 128
             },
             "label": "VideoOutput",
             "labelVisible": true,
             "position": {
-                "x": 100.0,
-                "y": 100.0
+                "x": 100,
+                "y": 100
             }
         }
     ],
-    "connections": [
-        {
-            "outNodeId": 0,
-            "outPortIndex": 0,
-            "inNodeId": 1,
-            "inPortIndex": 0
+    "ui": {
+        "nodes": {
+            "0": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 109,
+                    "maximized": false,
+                    "w": 333,
+                    "x": 1232,
+                    "y": 1252
+                },
+                "workspace": 0
+            },
+            "1": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 470,
+                    "maximized": false,
+                    "w": 328,
+                    "x": 1232,
+                    "y": 746
+                },
+                "workspace": 0
+            },
+            "2": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 470,
+                    "maximized": false,
+                    "w": 328,
+                    "x": 904,
+                    "y": 746
+                },
+                "workspace": 0
+            }
         },
-        {
-            "outNodeId": 0,
-            "outPortIndex": 0,
-            "inNodeId": 2,
-            "inPortIndex": 0
-        }
-    ]
+        "version": 1,
+        "workspaces": [
+            {
+                "geometry": {
+                    "h": 768,
+                    "maximized": false,
+                    "w": 1024,
+                    "x": 1800,
+                    "y": 1091
+                },
+                "id": 0,
+                "tabbed": true
+            }
+        ]
+    }
 }

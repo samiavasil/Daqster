@@ -40,7 +40,9 @@ private:
     bool loadFlow(const QString& flowPath);
     void arrangeWorkspaces(const FlowUi::UiSection& ui);
     void autoStartNodes(const FlowUi::UiSection& ui);
+public:
     void stopAllNodes();
+private:
 
     // Helpers
     QMdiSubWindow* createSubWindow(QWidget* widget, const FlowUi::Geometry& geometry);

@@ -48,7 +48,7 @@ bool HeadlessEngine::loadFlow(const QString& flowPath)
 
     qCInfo(lcNodeEditor) << "HeadlessEngine: loading flow:" << flowPath;
 
-    // 1. Register nodes (built-in + external plugins)
+    // 1. Register nodes (headless-compatible only)
     if (!registerNodes()) {
         emit errorOccurred("Failed to register node types");
         return false;
@@ -66,7 +66,12 @@ bool HeadlessEngine::loadFlow(const QString& flowPath)
         return false;
     }
 
-    // 4. Auto-start nodes
+    // 4. Validate flow - fail fast on unsupported nodes
+    if (!validateFlow()) {
+        return false;
+    }
+
+    // 5. Auto-start nodes
     autoStartNodes();
 
     emit flowLoaded(true);
@@ -99,13 +104,13 @@ bool HeadlessEngine::registerNodes()
 {
     m_registry = std::make_shared<QtNodes::NodeDelegateModelRegistry>();
 
-    // Register nodes via INodeProvider discovery (plugins provide all nodes)
+    // Register nodes via INodeProvider discovery (plugins provide headless-compatible nodes only)
     if (m_pluginManager) {
         for (Daqster::INodeProvider* provider : m_pluginManager->nodeProviders()) {
             if (!provider) continue;
 
             qCInfo(lcNodeEditor) << "HeadlessEngine: Discovered INodeProvider plugin";
-            provider->registerNodes(*m_registry);
+            provider->registerNodesHeadless(*m_registry);
         }
     }
 
@@ -118,6 +123,54 @@ bool HeadlessEngine::buildGraphModel()
         return false;
 
     m_graphModel = std::make_unique<QtNodes::DataFlowGraphModel>(m_registry);
+
+    return true;
+}
+
+
+bool HeadlessEngine::validateFlow()
+{
+    if (!m_registry || !m_graphModel) {
+        qCCritical(lcNodeEditor) << "HeadlessEngine: registry or graph model not initialized";
+        emit errorOccurred("Internal error: registry or graph model not initialized");
+        return false;
+    }
+
+    QStringList unregisteredTypes;
+
+    // Check all nodes in the graph model against the headless registry
+    const auto& creators = m_registry->registeredModelCreators();
+    const auto nodeIds = m_graphModel->allNodeIds();
+
+    for (const QtNodes::NodeId nodeId : nodeIds) {
+        auto* model = m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
+        if (!model)
+            continue;
+
+        const QString modelName = model->name();
+        if (modelName.isEmpty()) {
+            unregisteredTypes << QStringLiteral("<unnamed>");
+            continue;
+        }
+
+        // Check if this model type is registered in the headless registry
+        if (creators.find(modelName) == creators.end()) {
+            unregisteredTypes << modelName;
+        }
+    }
+
+    if (!unregisteredTypes.isEmpty()) {
+        // Remove duplicates
+        unregisteredTypes.removeDuplicates();
+
+        QString errorMsg = QStringLiteral("Flow contains node types not supported in headless mode:\n  - ");
+        errorMsg += unregisteredTypes.join(QStringLiteral("\n  - "));
+        errorMsg += QStringLiteral("\n\nSupported headless node types:\n  - NumberSource, NumberDisplay, Modulo, ArithmeticLogic\n  - AudioSource, VideoFileSource, StreamSource, CameraSource\n  - VideoEffect, CustomShaderNode, FrameSamplerNode\n  - AudioSource, LLamaModel, ConsoleDataModel\n  - PlutoSdr, SystemMonitor, Gamepad, GpuMonitor, JackDetect, Pcap\n  - FilePlayback, FileRecord, NetworkSource, NetworkSink\n  - DemuxNode, MuxNode (obsolete)\n\nUse 'NodeRunner --run <file.flow>' (GUI runtime) for flows with display/output nodes.");
+
+        qCCritical(lcNodeEditor) << "HeadlessEngine: flow validation failed:" << unregisteredTypes.join(", ");
+        emit errorOccurred(errorMsg);
+        return false;
+    }
 
     return true;
 }
@@ -207,8 +260,14 @@ bool HeadlessEngine::parseFlowFile(const QString& fileName)
                          << "connections=" << loadedConnCount;
 
     if (!skippedTypes.isEmpty()) {
-        qCWarning(lcNodeEditor) << "HeadlessEngine: skipped unregistered node types:"
-                                << skippedTypes.join(QStringLiteral(", "));
+        skippedTypes.removeDuplicates();
+        QString errorMsg = QStringLiteral("Flow contains node types not supported in headless mode:\n  - ");
+        errorMsg += skippedTypes.join(QStringLiteral("\n  - "));
+        errorMsg += QStringLiteral("\n\nSupported headless node types:\n  - NumberSource, NumberDisplay, Modulo, ArithmeticLogic\n  - AudioSource, VideoFileSource, StreamSource, CameraSource\n  - VideoEffect, CustomShaderNode, FrameSamplerNode\n  - AudioSource, LLamaModel, ConsoleDataModel\n  - PlutoSdr, SystemMonitor, Gamepad, GpuMonitor, JackDetect, Pcap\n  - FilePlayback, FileRecord, NetworkSource, NetworkSink\n  - DemuxNode, MuxNode (obsolete)\n\nUse 'NodeRunner --run <file.flow>' (GUI runtime) for flows with display/output nodes.");
+
+        qCCritical(lcNodeEditor) << "HeadlessEngine: flow validation failed during parse:" << skippedTypes.join(", ");
+        emit errorOccurred(errorMsg);
+        return false;
     }
 
     return true;

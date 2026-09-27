@@ -18,6 +18,7 @@ public:
 
     // INodeProvider interface
     void registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const override;
+    void registerNodesHeadless(QtNodes::NodeDelegateModelRegistry& registry) const override;
 
     // QBasePluginObject interface
     bool Initialize() override;

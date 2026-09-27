@@ -94,6 +94,7 @@ private:
 
     // Helpers
     bool registerNodes();
+    bool validateFlow();
     bool buildGraphModel();
     bool parseFlowFile(const QString& flowPath);
     bool parseUiSection(const QJsonObject& sceneJson);

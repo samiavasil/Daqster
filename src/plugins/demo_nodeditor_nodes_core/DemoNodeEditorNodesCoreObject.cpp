@@ -140,4 +140,67 @@ void DemoNodeEditorNodesCoreObject::registerNodes(QtNodes::NodeDelegateModelRegi
     registry.registerModel<AudioDisplayAlias>("Displays/DAQ");
 }
 
+void DemoNodeEditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateModelRegistry& registry) const
+{
+    // Headless-compatible nodes ONLY - no widget dependencies
+    // Built-in nodes (moved from node_editor_ide) - pure logic, no widgets
+    registry.registerModel<NumberSourceDataModel>("Sources/General");
+    registry.registerModel<NumberDisplayDataModel>("Displays/General");
+    registry.registerModel<ModuloModel>("Operators/General");
+    registry.registerModel<ArithmeticLogicModel>("Operators/General");
+
+    // Sources - pure logic, programmatic configuration
+    registry.registerModel<AudioSourceDataModel>("Sources/Audio");
+    registry.registerModel<LLamaModelDataModel>("Sources/LLM");
+    registry.registerModel<ConsoleDataModel>("Sources/LLM");
+    registry.registerModel<CameraSourceNode>("Sources/Video");
+    registry.registerModel<VideoFileSourceNode>("Sources/Video");
+    registry.registerModel<StreamSourceNode>("Sources/Video");
+    registry.registerModel<VideoEffectNode>("Processing/Video");
+    registry.registerModel<CustomShaderNode>("Processing/Video");
+    registry.registerModel<FrameSamplerNode>("Processing/Video");
+    
+    // Conditional nodes (guarded by compile definitions)
+#ifdef HAVE_LIBIIO
+    registry.registerModel<PlutoSdrModel>("Sources/SDR");
+#endif
+#ifdef HAVE_SYSTEM_MONITOR
+    registry.registerModel<SystemMonitorModel>("Sources/System");
+#endif
+#ifdef HAVE_GAMEPAD
+    registry.registerModel<GamepadModel>("Sources/Gamepad");
+#endif
+#ifdef HAVE_NVML
+    registry.registerModel<GpuMonitorModel>("Sources/GPU");
+#endif
+#ifdef HAVE_JACK_DETECT
+    registry.registerModel<JackDetectModel>("Sources/Audio");
+#endif
+#ifdef HAVE_PCAP
+    registry.registerModel<PcapModel>("Sources/Network");
+#endif
+
+    // File I/O
+    registry.registerModel<FilePlaybackModel>("Sources/File");
+    registry.registerModel<FileRecordModel>("Sinks/File");
+
+    // Network
+    registry.registerModel<NetworkSourceModel>("Sources/Network");
+    registry.registerModel<NetworkSinkModel>("Sinks/Network");
+
+    // Routing (obsolete) - no widgets
+    registry.registerModel<DemuxNodeObsolete>("Routing");
+    registry.registerModel<MuxNodeObsolete>("Routing");
+    class DemuxNodeObsoleteAlias : public DemuxNodeObsolete {
+    public:
+        QString name() const override { return QStringLiteral("DemuxNode"); }
+    };
+    class MuxNodeObsoleteAlias : public MuxNodeObsolete {
+    public:
+        QString name() const override { return QStringLiteral("MuxNode"); }
+    };
+    registry.registerModel<DemuxNodeObsoleteAlias>("Routing");
+    registry.registerModel<MuxNodeObsoleteAlias>("Routing");
+}
+
 } // namespace Daqster
