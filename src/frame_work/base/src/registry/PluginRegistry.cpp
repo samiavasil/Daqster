@@ -3,6 +3,7 @@
 #include "QBasePluginObject.h"
 #include "LogCategories.h"
 #include <capabilities/INodeProvider.h>
+#include <capabilities/IRuntimeHost.h>
 
 namespace Daqster {
 
@@ -209,6 +210,35 @@ QList<Daqster::INodeProvider*> PluginRegistry::nodeProviders()
             if (auto* provider = dynamic_cast<Daqster::INodeProvider*>(obj)) {
                 obj->setProperty("_daqster_hash", it.key());
                 result.append(provider);
+            }
+        }
+    }
+
+    return result;
+}
+
+QList<Daqster::IRuntimeHost*> PluginRegistry::runtimeHosts(Daqster::RuntimeMode mode)
+{
+    QList<Daqster::IRuntimeHost*> result;
+
+    for (auto it = m_pluginMap.constBegin(); it != m_pluginMap.constEnd(); ++it) {
+        QPluginInterface* iface = it.value();
+        if (!iface || !iface->IsEnabled()) {
+            continue;
+        }
+
+        // Lazy init — create instance if none exist yet
+        if (iface->GetPluginInstances().isEmpty()) {
+            createPluginObject(it.key());
+        }
+
+        // IRuntimeHost is a non-QObject interface, so dynamic_cast is the
+        // correct probe (same reasoning as nodeProviders()).
+        for (QBasePluginObject* obj : iface->GetPluginInstances()) {
+            auto* host = dynamic_cast<Daqster::IRuntimeHost*>(obj);
+            if (host && host->runtimeMode() == mode) {
+                obj->setProperty("_daqster_hash", it.key());
+                result.append(host);
             }
         }
     }

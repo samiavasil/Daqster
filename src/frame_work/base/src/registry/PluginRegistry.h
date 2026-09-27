@@ -3,6 +3,7 @@
 
 #include "framework_core_export.h"
 #include "PluginDescription.h"
+#include <capabilities/IRuntimeHost.h>  // RuntimeMode (by value in the API)
 #include <QObject>
 #include <QMap>
 #include <QString>
@@ -143,6 +144,20 @@ public:
      * @return List of INodeProvider pointers (lazily instantiating plugins)
      */
     QList<Daqster::INodeProvider*> nodeProviders();
+
+    /**
+     * @brief Find all plugin objects implementing the IRuntimeHost capability
+     *        for a given runtime mode (REQ-SW-PL-053).
+     *
+     * IRuntimeHost is a non-QObject interface, so like INodeProvider it is
+     * probed with dynamic_cast rather than qt_metacast. Hosts of the other
+     * mode are filtered out so a runner can ask for exactly the flavour it
+     * needs and never accidentally start the wrong engine.
+     *
+     * @param mode Runtime mode to filter by
+     * @return List of IRuntimeHost pointers (lazily instantiating plugins)
+     */
+    QList<Daqster::IRuntimeHost*> runtimeHosts(Daqster::RuntimeMode mode);
 
     // ── Additional methods for full QPluginManager delegation ─────
 

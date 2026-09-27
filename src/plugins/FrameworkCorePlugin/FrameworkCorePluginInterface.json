@@ -1,0 +1,14 @@
+{
+    "IID": "org.daqster.QPluginInterface/1.0",
+    "MetaData": {
+        "Name": "FrameworkCorePlugin",
+        "Version": "0.3.2",
+        "Description": "Framework Core Plugin - headless-compatible nodes and HeadlessEngine",
+        "Author": "Daqster Team",
+        "License": "GPL-2.0-or-later",
+        "PluginType": "core",
+        "PluginCategory": "Framework",
+        "Capabilities": ["INodeProvider"],
+        "Dependencies": ["FrameworkCore", "DemoNodeEditorNodesCore"]
+    }
+}

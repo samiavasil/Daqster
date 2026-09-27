@@ -122,11 +122,13 @@ add_subdirectory(src/frame_work)
 # ── Plugins ───────────────────────────────────────────────────────────
 # Core plugins (always built)
 add_subdirectory(src/plugins/demo_nodeditor_nodes_core)
+add_subdirectory(src/plugins/FrameworkCorePlugin)
 
 # GUI plugins (only when DAQSTER_BUILD_GUI=ON)
 if(DAQSTER_BUILD_GUI)
     add_subdirectory(src/plugins/node_editor_ide)
     add_subdirectory(src/plugins/demo_nodeditor_nodes_gui)
+    add_subdirectory(src/plugins/FrameworkGuiPlugin)
     add_subdirectory(src/plugins/requirements_manager)
     add_subdirectory(src/plugins/QtCoinTrader)
 endif()

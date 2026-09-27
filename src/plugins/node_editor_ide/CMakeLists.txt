@@ -122,6 +122,15 @@ if(NODE_EDITOR_LIB_ENABLED)
     set(LIB_SOURCES
         FlowUiSection.h
         FlowUiSection.cpp
+        # Editor canvas (REQ-SW-PL-053): RuntimeShell in FrameworkGuiPlugin
+        # drives a NodeEditorWidget to obtain the registry, the scene and the
+        # graph model, so these belong in the shared library rather than in the
+        # NodeEditorIde plugin — otherwise FrameworkGuiPlugin would have to
+        # resolve symbols out of another plugin.
+        NodeEditorWidget.h
+        NodeEditorWidget.cpp
+        CustomDataFlowScene.h
+        CustomDataFlowScene.cpp
         BuiltInNodes/Library/types/GenericNumericTypes.h
         BuiltInNodes/Library/types/GenericNumericTypes.cpp
         BuiltInNodes/Library/types/IStreamDecoderObsolete.h
@@ -247,12 +256,6 @@ set(IDE_SOURCES
     NodeEditorIdeInterface.h
     NodeEditorIdeObject.cpp
     NodeEditorIdeObject.h
-    NodeEditorWidget.cpp
-    NodeEditorWidget.h
-    CustomDataFlowScene.cpp
-    CustomDataFlowScene.h
-    RuntimeShell.cpp
-    RuntimeShell.h
 )
 
 create_plugin(NodeEditorIde

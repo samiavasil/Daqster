@@ -1,0 +1,14 @@
+{
+    "IID": "org.daqster.QPluginInterface/1.0",
+    "MetaData": {
+        "Name": "FrameworkGuiPlugin",
+        "Version": "0.3.2",
+        "Description": "Framework GUI Plugin - RuntimeShell, VideoDisplay, display/output nodes",
+        "Author": "Daqster Team",
+        "License": "GPL-2.0-or-later",
+        "PluginType": "gui",
+        "PluginCategory": "Framework",
+        "Capabilities": ["INodeProvider"],
+        "Dependencies": ["FrameworkCore", "FrameworkGui", "DemoNodeEditorNodesCore", "DemoNodeEditorNodesGui"]
+    }
+}

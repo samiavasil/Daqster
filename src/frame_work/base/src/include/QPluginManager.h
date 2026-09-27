@@ -23,6 +23,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include "PluginFilter.h"
 #include "PluginDescription.h"
 #include <capabilities/INodeProvider.h>
+#include <capabilities/IRuntimeHost.h>  // RuntimeMode (by value in the API)
 #include <QObject>
 #include <QList>
 #include <QMap>
@@ -97,6 +98,24 @@ public:
    * interface and therefore invisible to qt_metacast-based lookup.
    */
   QList<Daqster::INodeProvider*> nodeProviders();
+
+  /**
+   * @brief Return all plugin objects that can execute a .flow scene in the
+   *        requested runtime mode (REQ-SW-PL-053).
+   *
+   * Lets the runner application stay mode-agnostic: it links only FrameworkCore
+   * and picks the engine at runtime from the plugins that are actually loaded,
+   * rather than referencing a concrete plugin/engine type at link time.
+   *
+   *   --headless -> FrameworkCorePlugin (HeadlessEngine)
+   *   default    -> FrameworkGuiPlugin  (RuntimeShell)
+   *
+   * Plugins are lazily instantiated by this call. Empty result means no loaded
+   * plugin provides that mode.
+   *
+   * @param mode Runtime mode to look for
+   */
+  QList<Daqster::IRuntimeHost*> runtimeHosts(Daqster::RuntimeMode mode);
 
 public slots:
   void EnableDisablePlugin( const QString& Hash, bool Enable );

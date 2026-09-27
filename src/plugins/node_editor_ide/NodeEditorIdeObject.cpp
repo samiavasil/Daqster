@@ -5,7 +5,6 @@
 #include "capabilities/INodeProvider.h"
 #include "debug.h"
 #include "LogCategories.h"
-#include "RuntimeShell.h"
 
 #include <QMainWindow>
 #include <QLabel>
@@ -76,10 +75,6 @@ NodeEditorIdeObject::NodeEditorIdeObject(QObject* Parent)
 NodeEditorIdeObject::~NodeEditorIdeObject()
 {
     DeInitialize();
-    if (m_runtimeShell) {
-        m_runtimeShell->deleteLater();
-        m_runtimeShell = nullptr;
-    }
 }
 
 void NodeEditorIdeObject::SetName(const QString& name)
@@ -183,27 +178,11 @@ void NodeEditorIdeObject::registerNodes()
     discoverAndRegisterExternalNodes();
 }
 
-// ── Runtime mode entry point (REQ-SW-PL-048) ────────────────────────────
-// Loads a .flow file and shows deembedded node widgets as the application UI
-// with the editor canvas hidden. Delegates to RuntimeShell which handles MDI
-// layout, autoStart via IStartable, and shutdown via IStoppable.
-bool NodeEditorIdeObject::RunRuntime(const QString& flowPath)
-{
-    if (flowPath.isEmpty()) {
-        QMessageBox::critical(nullptr, tr("Runtime Mode"), tr("No flow file specified."));
-        return false;
-    }
-
-    if (!QFile::exists(flowPath)) {
-        QMessageBox::critical(nullptr, tr("Runtime Mode"),
-                              tr("Flow file not found: %1").arg(flowPath));
-        return false;
-    }
-
-    // Create RuntimeShell instance (owned by this object, deleted in destructor)
-    m_runtimeShell = new RuntimeShell(this);
-    return m_runtimeShell->RunRuntime(flowPath);
-}
+// ── Runtime mode (REQ-SW-PL-053) ─────────────────────────────────────────
+// Running a .flow with deembedded widgets as the UI is no longer an editor
+// responsibility: the visible runtime lives in FrameworkGuiPlugin's
+// RuntimeShell, reached by the runner through QPluginManager::runtimeHosts().
+// The editor keeps only its own F11 presentation mode (see setPresentationMode).
 
 void NodeEditorIdeObject::discoverAndRegisterExternalNodes()
 {
@@ -240,10 +219,6 @@ void NodeEditorIdeObject::DeInitialize()
 {
     if (nullptr != m_Win) {
         m_Win->deleteLater();
-    }
-    if (m_runtimeShell) {
-        m_runtimeShell->deleteLater();
-        m_runtimeShell = nullptr;
     }
     DEBUG_V << "NodeEditorIdeObject destroyed";
 }

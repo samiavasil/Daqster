@@ -7,11 +7,11 @@
 #include "shared/IStartable.h"
 #include "shared/IStoppable.h"
 
-// Built-in node models
-#include "BuiltInNodes/Sources/NumberSource/NumberSourceDataModel.h"
-#include "BuiltInNodes/Displays/NumberDisplay/NumberDisplayDataModel.h"
-#include "BuiltInNodes/Operators/Modulo/ModuloModel.h"
-#include "BuiltInNodes/Operators/ArithmeticLogic/ArithmeticLogicModel.h"
+// Built-in node models (from demo_nodeditor_nodes_core)
+#include "Sources/NumberSource/NumberSourceDataModel.h"
+#include "Displays/NumberDisplay/NumberDisplayDataModel.h"
+#include "Operators/ModuloModel.h"
+#include "Operators/ArithmeticLogic/ArithmeticLogicModel.h"
 
 #include <QMainWindow>
 #include <QMdiArea>

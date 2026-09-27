@@ -7,6 +7,63 @@
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-053** (Core/Gui plugin split — runtime, избран от plugin management):
+  - **Едно dual-mode приложение `NodeRunner`**, което избира engine-а **в runtime**
+    според опциите, вместо да ги линква:
+    - `NodeRunner --run <flow.flow>` → `FrameworkGuiPlugin` → `RuntimeShell` (GUI)
+    - `NodeRunner --headless --run <flow.flow>` → `FrameworkCorePlugin` → `HeadlessEngine`
+  - **`IRuntimeHost` capability** (`src/plugins/common/capabilities/IRuntimeHost.h`):
+    плосък (non-QObject) интерфейс с `runtimeMode()` / `loadFlow()` / `stopAllNodes()`.
+    Открива се с `dynamic_cast`, както `INodeProvider` — не през `qt_metacast`.
+  - **`QPluginManager::runtimeHosts(RuntimeMode)`** +
+    `PluginRegistry::runtimeHosts(RuntimeMode)`: lazy инстанциране на plugin-ите и
+    филтриране по мод. Runner-ът не реферира конкретен plugin тип — само интерфейса.
+  - **`FrameworkGuiPlugin`** (`src/plugins/FrameworkGuiPlugin/`): нов plugin,
+    надягащ на `RuntimeShell` (преместен от `node_editor_ide`) и `VideoGLBlitWidget`;
+    притежава `RuntimeShell` като QObject дете. Само той носи QtWidgets.
+  - **`FrameworkCorePlugin`** вече притежава `HeadlessEngine` и имплементира
+    `IRuntimeHost` (Headless mode).
+  - **Plugin isolation:** `readelf -d build_qt5/bin/NodeRunner` показва единствено
+    `libFrameworkCore.so` от страната на Daqster — `NodeEditorIde`,
+    `FrameworkGuiPlugin`, `FrameworkCorePlugin` и `DemoNodeEditorNodesCore` се
+    резолвират изцяло чрез `dlopen`. Размер на `NodeRunner`: 74 KB → **56 KB**
+    (Qt5) / 90 KB (Qt6).
+
+### Changed
+- **REQ-SW-PL-053:** `NodeEditorWidget`, `CustomDataFlowScene` и `FlowUiSection`
+  преместени от plugin-а `NodeEditorIde` в споделената библиотека
+  `NodeEditorLibrary`. `RuntimeShell` ги използва (registry, scene, graph model),
+  така че иначе `FrameworkGuiPlugin` би трябвало да резолвира символи от друг
+  plugin (`undefined symbol: NodeEditorWidget::getInjectedRegistry()`).
+- **REQ-SW-PL-053:** `NodeEditorIdeObject::RunRuntime()` премахнат (мъртъв код след
+  REQ-SW-PL-051); редакторът вече не изпълнява flows. F11 presentation mode
+  остава редакторска функция.
+- **REQ-SW-PL-053:** коректен shutdown ред в `NodeRunner` — `stopAllNodes()` се
+  вика през `aboutToQuit`, **свързан преди** `QPluginManager::Initialize()`.
+  `ShutdownPluginManager()` е свързан към `aboutToQuit` и унищожава plugin
+  обектите (и engine-а, който притежават) *преди* `app.exec()` да върне; извикване
+  след `exec()` работи през dangling pointer и дава „pure virtual method called".
+  Нодовете вече се спират при SIGTERM (`HeadlessEngine: stopping all nodes`).
+
+### Known limitations
+- **REQ-SW-PL-053 AC 7 е изключен:** headless binary **без** `QtWidgets` не е
+  постижим в момента. Причини: (1) в Qt5 `QApplication` е в `QtWidgets`, а
+  dual-mode binary трябва да може да показва GUI; (2) node моделите конструират
+  widgets в конструктора си, така че дори `QGuiApplication` build пада в
+  `QWidgetPrivate::init()`. Изисква per-node core/GUI split (продължение на
+  REQ-SW-PL-051).
+
+### Documentation
+- **REQ-SW-PL-054** (REST API & Remote Control) — **PLANNED / NOT IMPLEMENTED**.
+  Изискване: `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-054-rest-api-remote-control.md`.
+  Архитектурен документ (**PLANNED**, не описва реализиран код):
+  `docs/Architecture/rest-api-remote-control.md` — generic REST server върху
+  `NodeDelegateModel::save()/load()`, Thin Client remote GUI, streaming и
+  multi-user като бъдещи REQ-и.
+- Дублиращият се REQ-SW-PL-053 файл (`nodeeditor-plugin-split.md`) е премахнат;
+  каноничен е `nodeeditoride-split.md`.
+
+### Added (runtime mode)
 - **REQ-SW-PL-048** (Runtime режим — `--run <flow.flow>`, MDI workspaces, autoStart, presentation toggle):
   - CLI: `Daqster --run <file.flow>` стартира runtime режим без editor canvas
   - `RuntimeShell` class (`src/plugins/node_editor_ide/RuntimeShell.{h,cpp}`):

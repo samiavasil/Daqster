@@ -9,7 +9,6 @@
 
 class NodeEditorWidget;
 class QMainWindow;
-class RuntimeShell;
 
 class NodeEditorIdeObject : public Daqster::QBasePluginObject
 {
@@ -20,14 +19,10 @@ public:
     void SetName(const QString& name);
     virtual bool Initialize();
 
-    /// Runtime mode entry point (REQ-SW-PL-048): loads `flowPath` and shows
-    /// deembedded widgets as the application UI (editor canvas hidden).
-    /// Returns true on success, false on error (error message already shown).
-    Q_INVOKABLE bool RunRuntime(const QString& flowPath);
-
     // ── Public registration + loading API (REQ-SW-PL-048) ─────────────
-    // These were private before; they are now public so RuntimeShell can
-    // reuse the same registration and loading logic without duplication.
+    // These were private before; they are now public so the GUI runtime in
+    // FrameworkGuiPlugin (RuntimeShell) can reuse the same registration and
+    // loading logic without duplication.
     void registerBuiltInNodes();
     void discoverAndRegisterExternalNodes();
 
@@ -98,11 +93,6 @@ private:
 
     QMainWindow* m_Win;
     NodeEditorWidget* m_Widget;
-
-    /// RuntimeShell instance for runtime mode (REQ-SW-PL-048). Owned by this
-    /// object; created lazily in RunRuntime() and stays alive for the duration
-    /// of the event loop.
-    RuntimeShell* m_runtimeShell = nullptr;
 
     /// Workspace layout captured at save time (REQ-SW-PL-049). Empty until a
     /// .flow with a "ui" section is loaded or a save captures the default.
