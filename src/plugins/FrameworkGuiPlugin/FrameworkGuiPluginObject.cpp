@@ -4,9 +4,6 @@
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <logging/LogCategories.h>
 
-// Video display widget used by the GUI runtime's deembedded VideoOutput windows.
-#include <Sources/Video/VideoGLBlitWidget.h>
-
 namespace Daqster {
 
 FrameworkGuiPluginObject::FrameworkGuiPluginObject(QObject* parent)

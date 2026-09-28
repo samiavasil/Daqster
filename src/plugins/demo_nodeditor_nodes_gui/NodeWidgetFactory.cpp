@@ -28,14 +28,14 @@
 #include <Routing/Demux/DemuxNodeObsolete.h>
 #include <Routing/Mux/MuxNodeObsolete.h>
 
-// GUI widgets
-#include "Sources/AudioSource/AudioSourceDataModelUI.h"
-#include "Sources/LLamaSource/ChatBaseWidget.h"
-#include "Sources/Video/VideoGLBlitWidget.h"
-#include "Sources/Video/VideoPerfBadge.h"
+// GUI widgets.
+//
+// Note: AudioSourceDataModelUI, ChatBaseWidget, VideoGLBlitWidget,
+// VideoPerfBadge and GamepadWidget are NOT listed here — those classes live in
+// demo_nodeditor_nodes_core and are constructed by their own models. Only the
+// widgets that have no core-side constructor are provided from this plugin.
 #include "Sources/PlutoSdr/PlutoSdrWidget.h"
 #include "Sources/SystemMonitor/SystemMonitorWidget.h"
-#include "Sources/Gamepad/GamepadWidget.h"
 #include "Sources/FilePlayback/FilePlaybackWidget.h"
 #include "Sources/NetworkSource/NetworkSourceWidget.h"
 #include "Sinks/NetworkSink/NetworkSinkWidget.h"

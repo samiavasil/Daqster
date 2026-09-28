@@ -32,18 +32,11 @@ set(RUNTIME_SOURCES
     RuntimeShell.h
 )
 
-# ── Video widgets ───────────────────────────────────────────────────
-set(VIDEO_WIDGETS
-    Sources/Video/VideoGLBlitWidget.h
-    Sources/Video/VideoGLBlitWidget.cpp
-)
-
 # ── Use the Daqster plugin template ──────────────────────────────────
 create_plugin(FrameworkGuiPlugin
     SOURCES
         ${PLUGIN_SOURCES}
         ${RUNTIME_SOURCES}
-        ${VIDEO_WIDGETS}
     REQUIRES_LIBRARIES
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui

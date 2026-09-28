@@ -29,10 +29,43 @@ source tree, два режима (като sdrangel / sdrangelsrv).
 
 ## Проследимост
 
-- **Коммити:** (pending commit)
-- **Код:** `src/plugins/demo_nodeditor_nodes/` (core/gui split per node),
-  `src/apps/Daqster/` (--headless), `src/plugins/common/capabilities/`
-  (GUI factory nullptr contract), `docs/Architecture/`
+- **Коммити:** 878d95d (премахване на 32 дублирани widget файла)
+- **Код:** `src/plugins/demo_nodeditor_nodes_core/`,
+  `src/plugins/demo_nodeditor_nodes_gui/`,
+  `src/plugins/demo_nodeditor_nodes_gui/NodeWidgetFactory.cpp`,
+  `src/frame_work/base/src/engine/HeadlessApp.h`
+
+## Оставаща миграция (задължителна)
+
+Измерено в кода на 2026-09-29. Миграцията на core/gui **не е завършена**.
+
+Разделени са 9 от 22 модела — връщат `nullptr` от `embeddedWidget()`, widget-ът им
+е в `demo_nodeditor_nodes_gui`. Липсва само свързването: `NodeWidgetFactory` има
+0 места, от които се извиква.
+
+Неразделени са 13 модела, които сами конструират widget в `_core`:
+
+| Група | Модели | Брой |
+|---|---|---|
+| Празен `new QWidget()` | CameraSourceNode, CustomShaderNode, FrameSamplerNode, StreamSourceNode, VideoEffectNode, VideoFileSourceNode | 6 |
+| Истински widget | AudioSourceDataModel(+Obsolete), ConsoleDataModel, LLamaModelDataModel, GamepadModel, NumberSourceDataModel | 6 |
+| **Отложен** | **VideoOutputNode** | 1 |
+
+### Отложеният случай — VideoOutputNode
+
+`VideoOutputNode.cpp:947` прави `new VideoGLBlitWidget()`. Миграцията му е
+**задължителна**, но е отложена за след обединението с веригата
+(REQ-SW-PL-053 video-display-unification), защото веригата пренарежда точно този
+файл и сменя начина на доставяне на widget-а: в `VideoOutputNode.cpp:224` дисплеят
+се слага в `QSplitter` на жива страница и се добавя през
+`m_display->widget()` (интерфейс `VideoDisplayWidget`), а не през
+`embeddedWidget()`. Provider, построен върху `embeddedWidget()`, в тази схема
+никога не се извиква.
+
+Решение на потребителя (2026-09-29): живата страница с видеото е крайна цел, не
+междинно решение. Затова миграцията на `VideoOutputNode` следва да е съгласувана
+с начина, по който видеото се доставя след обединението — не автоматично по
+модела на останалите 12.
 
 ## Бележка
 

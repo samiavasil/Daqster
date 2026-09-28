@@ -335,24 +335,6 @@ set(EMBEDDED_WIDGETS
     Sources/Video/VideoGLBlitWidget.cpp
     Sources/Gamepad/GamepadWidget.h
     Sources/Gamepad/GamepadWidget.cpp
-    Sources/SystemMonitor/SystemMonitorWidget.h
-    Sources/SystemMonitor/SystemMonitorWidget.cpp
-    Sources/GpuMonitor/GpuMonitorWidget.h
-    Sources/GpuMonitor/GpuMonitorWidget.cpp
-    Sources/PlutoSdr/PlutoSdrWidget.h
-    Sources/PlutoSdr/PlutoSdrWidget.cpp
-    Sources/JackDetect/JackDetectWidget.h
-    Sources/JackDetect/JackDetectWidget.cpp
-    Sources/Pcap/PcapWidget.h
-    Sources/Pcap/PcapWidget.cpp
-    Sources/NetworkSource/NetworkSourceWidget.h
-    Sources/NetworkSource/NetworkSourceWidget.cpp
-    Sinks/NetworkSink/NetworkSinkWidget.h
-    Sinks/NetworkSink/NetworkSinkWidget.cpp
-    Sources/FilePlayback/FilePlaybackWidget.h
-    Sources/FilePlayback/FilePlaybackWidget.cpp
-    Sinks/FileRecord/FileRecordWidget.h
-    Sinks/FileRecord/FileRecordWidget.cpp
 )
 
 # ── Use the Daqster plugin template ──────────────────────────────────

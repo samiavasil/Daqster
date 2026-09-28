@@ -34,22 +34,10 @@ set(PLUGIN_SOURCES
 # ── GUI Widgets for core models ─────────────────────────────────────
 # Each core model gets a corresponding GUI widget
 set(GUI_WIDGETS
-    Sources/AudioSource/AudioSourceDataModelUI.h
-    Sources/AudioSource/AudioSourceDataModelUI.cpp
-    Sources/AudioSource/AudioSourceDataModelUI.ui
-    Sources/AudioSource/AudioSourceConfig.ui
-    Sources/LLamaSource/ChatBaseWidget.h
-    Sources/LLamaSource/ChatBaseWidget.cpp
-    Sources/Video/VideoGLBlitWidget.h
-    Sources/Video/VideoGLBlitWidget.cpp
-    Sources/Video/VideoPerfBadge.h
-    Sources/Video/VideoPerfBadge.cpp
     Sources/PlutoSdr/PlutoSdrWidget.h
     Sources/PlutoSdr/PlutoSdrWidget.cpp
     Sources/SystemMonitor/SystemMonitorWidget.h
     Sources/SystemMonitor/SystemMonitorWidget.cpp
-    Sources/Gamepad/GamepadWidget.h
-    Sources/Gamepad/GamepadWidget.cpp
     Sources/FilePlayback/FilePlaybackWidget.h
     Sources/FilePlayback/FilePlaybackWidget.cpp
     Sources/NetworkSource/NetworkSourceWidget.h
