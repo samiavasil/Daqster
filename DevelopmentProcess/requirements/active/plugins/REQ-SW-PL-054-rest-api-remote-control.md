@@ -6,7 +6,7 @@
 
 ## Проблем
 
-Headless сървърът (`DaqsterHeadless` / `NodeRunner --headless`) работи на сървър/edge устройство без GUI. Операторите/инженерите са на други машини и се нуждаят от:
+Headless сървърът (`NodeRunner --headless --run`) работи на сървър/edge устройство без GUI. Операторите/инженерите са на други машини и се нуждаят от:
 - Programmatic control (CI/CD, automation scripts)
 - Remote GUI (Daqster Editor или Web UI на клиентска машина)
 - Real-time monitoring (node state, data preview, performance metrics)
@@ -63,7 +63,7 @@ Headless сървърът (`DaqsterHeadless` / `NodeRunner --headless`) рабо
 4. **WebSocket endpoint** за events:
    - `HeadlessEngine` emits → `RestApiServer` broadcast към всички WS клиенти
 
-5. **CLI флагове** за `DaqsterHeadless` / `NodeRunner`:
+5. **CLI флагове** за `NodeRunner --headless`:
    - `--rest-port <port>` (default 8080, 0 = disabled)
    - `--rest-token <token>` (optional)
    - `--rest-tls-cert/key` (optional, за mTLS)
@@ -96,7 +96,7 @@ Headless сървърът (`DaqsterHeadless` / `NodeRunner --headless`) рабо
 
 ```bash
 # Start headless with REST API
-./build_qt5/bin/DaqsterHeadless --run tests/data/number_graph.flow --rest-port 8080 --rest-token secret123 --log-console-enabled 1
+./build_qt5/bin/NodeRunner --headless --run tests/data/number_graph.flow --rest-port 8080 --rest-token secret123 --log-console-enabled 1
 
 # Test endpoints
 curl -H "Authorization: Bearer secret123" http://localhost:8080/api/nodes

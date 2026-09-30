@@ -4,6 +4,8 @@
 #include <memory>
 #include <QtNodes/Definitions>
 
+#include "capabilities/IWidgetProvider.h"
+
 namespace QtNodes {
 class NodeDelegateModelRegistry;
 class DataFlowGraphModel;
@@ -35,6 +37,27 @@ public:
 
     void buildCanvas();
 
+    /// Set the widget provider for creating node widgets (REQ-SW-PL-051).
+    /// The provider is owned by DemoNodeEditorNodesGuiObject.
+    void setWidgetProvider(Daqster::IWidgetProvider* provider);
+
+    /// The GUI widget of a node, or nullptr when the node has none.
+    ///
+    /// Goes through the graph model so the IWidgetProvider of the GUI plugin is
+    /// consulted (REQ-SW-PL-051) - NodeDelegateModel::embeddedWidget() returns
+    /// nullptr for every core/split model. Returns the same instance on every
+    /// call; ownership is NOT taken.
+    QWidget* nodeWidget(QtNodes::NodeId nodeId) const;
+
+    /// Stop every running node of the graph (IStoppable::stop()).
+    ///
+    /// The runner does this from its close/aboutToQuit path, so the editor must
+    /// do it too: closing the editor window tears the graph down, and without an
+    /// explicit stop the node threads/cameras would be left running against a
+    /// half-destroyed model. IStoppable::stop() is idempotent, so it is safe to
+    /// call this from both the window close and the plugin shutdown path.
+    void stopAllNodes();
+
 Q_SIGNALS:
     void nodeDoubleClicked(QtNodes::NodeId nodeId);
 
@@ -45,4 +68,5 @@ private:
     QtNodes::GraphicsView* m_view = nullptr;
     QVBoxLayout* m_layout;
     bool m_canvasBuilt = false;
+    Daqster::IWidgetProvider* m_widgetProvider = nullptr;
 };

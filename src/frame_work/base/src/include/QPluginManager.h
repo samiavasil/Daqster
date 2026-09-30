@@ -24,6 +24,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include "PluginDescription.h"
 #include <capabilities/INodeProvider.h>
 #include <capabilities/IRuntimeHost.h>  // RuntimeMode (by value in the API)
+#include <capabilities/IWidgetProvider.h>
 #include <QObject>
 #include <QList>
 #include <QMap>
@@ -98,6 +99,15 @@ public:
    * interface and therefore invisible to qt_metacast-based lookup.
    */
   QList<Daqster::INodeProvider*> nodeProviders();
+
+  /**
+   * @brief Return all plugin objects that supply node widgets (IWidgetProvider).
+   *
+   * The node editor consults these when a model returns nullptr from
+   * embeddedWidget() because its widget lives in a separate GUI plugin
+   * (REQ-SW-PL-051 core/gui split).
+   */
+  QList<Daqster::IWidgetProvider*> widgetProviders();
 
   /**
    * @brief Return all plugin objects that can execute a .flow scene in the

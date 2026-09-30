@@ -11,6 +11,10 @@
 #include <QHash>
 #include <vector>
 
+namespace Daqster {
+class IWidgetProvider;
+}
+
 class RuntimeShell : public Daqster::QBasePluginObject
 {
     Q_OBJECT
@@ -40,6 +44,15 @@ private:
     bool loadFlow(const QString& flowPath);
     void arrangeWorkspaces(const FlowUi::UiSection& ui);
     void autoStartNodes(const FlowUi::UiSection& ui);
+
+    /// REQ-SW-PL-051: re-discover and register nodes from newly loaded
+    /// INodeProvider plugins (connected to QPluginManager::PluginsListChangeDetected).
+    void discoverAndRegisterExternalNodes();
+
+    /// REQ-SW-PL-051: hands an IWidgetProvider to the editor widget and
+    /// watches its plugin object, re-discovering if it dies.
+    void adoptWidgetProvider(Daqster::IWidgetProvider* provider);
+
 public:
     void stopAllNodes();
 private:

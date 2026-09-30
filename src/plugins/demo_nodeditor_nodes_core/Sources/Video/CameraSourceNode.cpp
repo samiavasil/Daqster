@@ -5,12 +5,6 @@
 
 #include <QCamera>
 
-#include <QComboBox>
-#include <QHBoxLayout>
-#include <QLabel>
-#include <QPushButton>
-#include <QVBoxLayout>
-
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::PortIndex;
@@ -19,7 +13,6 @@ using QtNodes::PortType;
 CameraSourceNode::CameraSourceNode()
     : m_videoFrameOut(std::make_shared<VideoFrameData>())
 {
-    buildWidget();
     refreshDeviceList();
 }
 
@@ -27,8 +20,6 @@ CameraSourceNode::~CameraSourceNode()
 {
     // Single shutdown path: stop() stops the camera capture (REQ-SW-PL-050).
     stop();
-    // Widget lifetime is owned by the node/view framework.
-    m_widget = nullptr;
 }
 
 void CameraSourceNode::stop()
@@ -50,9 +41,8 @@ QJsonObject CameraSourceNode::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
 
-    const int deviceIndex = VideoCompat::variantToInt(m_deviceCombo->currentData(), -1);
-    if (deviceIndex >= 0 && deviceIndex < m_devices.size())
-        modelJson["cameraId"] = VideoCompat::cameraId(m_devices.at(deviceIndex));
+    if (m_selectedDeviceIndex >= 0 && m_selectedDeviceIndex < m_devices.size())
+        modelJson["cameraId"] = VideoCompat::cameraId(m_devices.at(m_selectedDeviceIndex));
     modelJson["running"] = m_running;
 
     return modelJson;
@@ -66,10 +56,12 @@ void CameraSourceNode::load(QJsonObject const &p)
     const QString savedId = p["cameraId"].toString();
     for (int i = 0; i < m_devices.size(); ++i) {
         if (VideoCompat::cameraId(m_devices.at(i)) == savedId) {
-            m_deviceCombo->setCurrentIndex(i + 1);
+            m_selectedDeviceIndex = i;
             break;
         }
     }
+    // Push the restored selection into the (possibly already built) widget.
+    Q_EMIT devicesChanged(deviceDescriptions(), m_selectedDeviceIndex + 1);
 }
 
 unsigned int CameraSourceNode::nPorts(PortType portType) const
@@ -117,59 +109,35 @@ void CameraSourceNode::outputConnectionDeleted(QtNodes::ConnectionId const &conI
         --m_audioPortConnectionCount;
 }
 
-QWidget *CameraSourceNode::embeddedWidget()
+QStringList CameraSourceNode::deviceDescriptions() const
 {
-    return m_widget;
-}
-
-void CameraSourceNode::buildWidget()
-{
-    m_widget = new QWidget();
-    auto *layout = new QVBoxLayout(m_widget);
-    layout->setContentsMargins(4, 4, 4, 4);
-    layout->setSpacing(4);
-
-    m_deviceCombo = new QComboBox(m_widget);
-    m_deviceCombo->setMinimumWidth(180);
-    layout->addWidget(m_deviceCombo);
-
-    auto *buttonRow = new QHBoxLayout();
-    m_startStopButton = new QPushButton(tr("Start"), m_widget);
-    m_statusLabel = new QLabel(tr("Stopped"), m_widget);
-    m_statusLabel->setStyleSheet(QStringLiteral("color: gray;"));
-    buttonRow->addWidget(m_startStopButton);
-    buttonRow->addWidget(m_statusLabel, 1);
-    layout->addLayout(buttonRow);
-
-    connect(m_deviceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &CameraSourceNode::onDeviceChanged);
-    connect(m_startStopButton, &QPushButton::clicked,
-            this, &CameraSourceNode::onStartStopClicked);
+    // Entry 0 always represents the platform default camera; entries 1..n map
+    // to m_devices (so the combo index is `m_selectedDeviceIndex + 1`).
+    QStringList descriptions;
+    descriptions.reserve(m_devices.size() + 1);
+    descriptions.append(tr("Default camera"));
+    for (int i = 0; i < m_devices.size(); ++i)
+        descriptions.append(VideoCompat::cameraDescription(m_devices.at(i)));
+    return descriptions;
 }
 
 void CameraSourceNode::refreshDeviceList()
 {
-    m_deviceCombo->blockSignals(true);
-    m_deviceCombo->clear();
     m_devices = VideoCompat::availableCameras();
 
-    // First entry always represents the platform default camera.
-    m_deviceCombo->addItem(tr("Default camera"), -1);
-
-    for (int i = 0; i < m_devices.size(); ++i)
-        m_deviceCombo->addItem(VideoCompat::cameraDescription(m_devices.at(i)), i);
+    if (m_selectedDeviceIndex >= m_devices.size())
+        m_selectedDeviceIndex = m_devices.isEmpty() ? -1 : m_devices.size() - 1;
 
     if (m_devices.isEmpty())
         setStatus(tr("No camera found"), false);
 
-    m_deviceCombo->blockSignals(false);
+    Q_EMIT devicesChanged(deviceDescriptions(), m_selectedDeviceIndex + 1);
 }
 
 VideoCompat::CameraDevice CameraSourceNode::selectedDevice() const
 {
-    const int deviceIndex = VideoCompat::variantToInt(m_deviceCombo->currentData(), -1);
-    if (deviceIndex >= 0 && deviceIndex < m_devices.size())
-        return m_devices.at(deviceIndex);
+    if (m_selectedDeviceIndex >= 0 && m_selectedDeviceIndex < m_devices.size())
+        return m_devices.at(m_selectedDeviceIndex);
     return VideoCompat::defaultCamera();
 }
 
@@ -220,7 +188,7 @@ void CameraSourceNode::startCamera()
 
     m_camera->start();
     m_running = true;
-    m_startStopButton->setText(tr("Stop"));
+    Q_EMIT runningChanged(true);
     setStatus(tr("Running"), true);
 }
 
@@ -245,13 +213,20 @@ void CameraSourceNode::stopCamera()
 #endif
 
     m_running = false;
-    m_startStopButton->setText(tr("Start"));
+    Q_EMIT runningChanged(false);
     setStatus(tr("Stopped"), false);
 }
 
-void CameraSourceNode::onDeviceChanged(int index)
+void CameraSourceNode::onDeviceIndexChanged(int index)
 {
-    Q_UNUSED(index);
+    // The combo holds a leading "Default camera" entry, so shift by one.
+    const int deviceIndex = index - 1;
+    if (deviceIndex < -1 || deviceIndex >= m_devices.size())
+        return;
+    if (deviceIndex == m_selectedDeviceIndex)
+        return;
+    m_selectedDeviceIndex = deviceIndex;
+
     // Restart with the newly selected device when capture is already running.
     if (m_running) {
         stopCamera();
@@ -259,7 +234,7 @@ void CameraSourceNode::onDeviceChanged(int index)
     }
 }
 
-void CameraSourceNode::onStartStopClicked()
+void CameraSourceNode::onStartStopRequested()
 {
     if (m_running)
         stopCamera();
@@ -317,7 +292,5 @@ void CameraSourceNode::onAudioBufferReceived(const QAudioBuffer &buffer)
 
 void CameraSourceNode::setStatus(const QString &text, bool ok)
 {
-    m_statusLabel->setText(text);
-    m_statusLabel->setStyleSheet(ok ? QStringLiteral("color: green;")
-                                    : QStringLiteral("color: gray;"));
+    Q_EMIT statusChanged(text, ok);
 }

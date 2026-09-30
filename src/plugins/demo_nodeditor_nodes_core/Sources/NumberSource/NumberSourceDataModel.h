@@ -1,14 +1,10 @@
 #pragma once
 
 #include <QtCore/QObject>
-#include <QtWidgets/QWidget>
-#include <QtWidgets/QComboBox>
-#include <QtWidgets/QVBoxLayout>
 #include <QtNodes/NodeDelegateModel>
 #include <memory>
 #include "NodeDataTypes/NumericType.h"
 
-class NumberSourceDataUi;
 class QTimer;
 
 class NumberSourceDataModel
@@ -38,13 +34,31 @@ public:
     QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
     std::shared_ptr<QtNodes::NodeData> outData(QtNodes::PortIndex const port) override;
     void setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex const port) override;
-    QWidget *embeddedWidget() override;
 
-private slots:
+    /// Core model has no QtWidgets dependency — the controls are created by the
+    /// GUI plugin and wired through NodeWidgetFactory (REQ-SW-PL-051).
+    QWidget *embeddedWidget() override { return nullptr; }
+
+    /// Current state for the GUI plugin to render the widget from.
+    int typeIndex() const { return (m_currentType == DataType::Int) ? 1 : 0; }
+    QString text() const { return m_text; }
+    bool randomEnabled() const { return m_randomEnabled; }
+    int interval() const { return m_interval; }
+
+public slots:
+    /// Controls of the GUI widget (called by NodeWidgetFactory).
     void onTypeChanged(int index);
     void onTextEdited(QString const &string);
     void onRandomToggled(bool checked);
     void onIntervalChanged(int value);
+
+signals:
+    /// Random mode generated a new value — the GUI line edit must follow.
+    void textChanged(const QString& text);
+    /// The value line edit is read-only while random mode is on.
+    void textEditableChanged(bool editable);
+
+private slots:
     void onTimerTick();
 
 private:
@@ -53,12 +67,12 @@ private:
     void updateTimer();
 
     DataType m_currentType = DataType::Double;
+    QString m_text = QStringLiteral("0.0");
+    bool m_randomEnabled = false;
+    int m_interval = 500;
 
     std::shared_ptr<NumericType<int>> m_number_int;
     std::shared_ptr<NumericType<double>> m_number_dbl;
 
-    QWidget* m_wrapper = nullptr;
-    QComboBox* m_typeCombo = nullptr;
-    NumberSourceDataUi* m_ui = nullptr;
     QTimer* m_timer = nullptr;
 };

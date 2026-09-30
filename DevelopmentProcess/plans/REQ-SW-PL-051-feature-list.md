@@ -1,5 +1,22 @@
 # REQ-SW-PL-051 — Списък на фичърите в бранча
 
+> ## ⚠️ ИСТОРИЧЕСКИ СНИМЪК — 2026-09-26
+>
+> Това е checklist-ът от една по-ранна точка на бранча. Оставен е за
+> проследимост какво е било проверено тогава, **не като текущо pending work**.
+>
+> Няколко очаквани резултати по-долу вече не са валидни:
+>
+> | Очаквано тук | Реално днес |
+> |---|---|
+> | `build_qt5/bin/libDaqsterCore.so`, `libDaqsterGui.so` | `libFrameworkCore.so`, `libFrameworkGuiPlugin.so` — преименуваното от REQ-SW-PL-053 split (`FrameworkCore` / `FrameworkGuiPlugin`), което вършеше същата работа |
+> | `src/core/`, `src/gui/` изтрити, всичко в `src/frame_work/` като 2 библиотеки | `src/core/` и `src/gui/` го няма отдавна; `src/frame_work/base/` е един QtCore-only core, а GUI частта е plugin-ът `FrameworkGuiPlugin` |
+> | `Daqster --headless --run` | `NodeRunner --headless --run` (един dual-mode бинарник) |
+>
+> Актуалното състояние на миграцията е в
+> `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-051-core-gui-separation-headless.md`
+> (28 от 30 модела разделени) и в `docs/Architecture/core-gui-split.md`.
+
 - **Бранч:** `feat/REQ-SW-PL-051-core-gui-separation` (base `develop_pre` @ `9dea41f`)
 - **Състояние:** working tree чист, 10 commit-а, нищо не е push-вато, нищо не е merge-вато
 - **Дата:** 2026-09-26

@@ -2,12 +2,6 @@
 
 #include "NodeDataTypes/VideoFrameData.h"
 
-#include <QComboBox>
-#include <QLabel>
-#include <QSignalBlocker>
-#include <QSpinBox>
-#include <QVBoxLayout>
-
 #include <algorithm>
 
 using QtNodes::NodeData;
@@ -15,16 +9,9 @@ using QtNodes::NodeDataType;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 
-FrameSamplerNode::FrameSamplerNode()
-{
-    buildWidget();
-}
+FrameSamplerNode::FrameSamplerNode() = default;
 
-FrameSamplerNode::~FrameSamplerNode()
-{
-    // Widget lifetime is owned by the node/view framework.
-    m_widget = nullptr;
-}
+FrameSamplerNode::~FrameSamplerNode() = default;
 
 QJsonObject FrameSamplerNode::save() const
 {
@@ -45,7 +32,7 @@ void FrameSamplerNode::load(QJsonObject const &p)
     m_maxFps = std::max(1, std::min(120, p.value(QStringLiteral("maxFps")).toInt(m_maxFps)));
 
     resetGate();
-    syncWidgetsFromParams();
+    Q_EMIT paramsChanged(static_cast<int>(m_mode), m_everyN, m_maxFps);
 }
 
 unsigned int FrameSamplerNode::nPorts(PortType portType) const
@@ -92,54 +79,22 @@ void FrameSamplerNode::setInData(std::shared_ptr<NodeData> data, PortIndex portI
     Q_EMIT dataUpdated(0);
 }
 
-QWidget *FrameSamplerNode::embeddedWidget()
+void FrameSamplerNode::onModeChanged(int mode)
 {
-    return m_widget;
+    m_mode = static_cast<Mode>(mode);
+    resetGate();
 }
 
-void FrameSamplerNode::buildWidget()
+void FrameSamplerNode::onEveryNChanged(int everyN)
 {
-    m_widget = new QWidget();
-    auto *layout = new QVBoxLayout(m_widget);
-    layout->setContentsMargins(4, 4, 4, 4);
-    layout->setSpacing(6);
+    m_everyN = std::max(1, std::min(1000, everyN));
+    resetGate();
+}
 
-    m_modeCombo = new QComboBox(m_widget);
-    m_modeCombo->addItem(tr("Every N-th frame"), static_cast<int>(Mode::EveryNth));
-    m_modeCombo->addItem(tr("Max FPS"), static_cast<int>(Mode::MaxFps));
-    m_modeCombo->setCurrentIndex(static_cast<int>(m_mode));
-    layout->addWidget(m_modeCombo);
-
-    m_everyNSpin = new QSpinBox(m_widget);
-    m_everyNSpin->setRange(1, 1000);
-    m_everyNSpin->setValue(m_everyN);
-    m_everyNSpin->setPrefix(tr("N = "));
-    layout->addWidget(m_everyNSpin);
-
-    m_maxFpsSpin = new QSpinBox(m_widget);
-    m_maxFpsSpin->setRange(1, 120);
-    m_maxFpsSpin->setValue(m_maxFps);
-    m_maxFpsSpin->setPrefix(tr("Max FPS = "));
-    layout->addWidget(m_maxFpsSpin);
-
-    connect(m_modeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            [this](int index) {
-                m_mode = static_cast<Mode>(index);
-                resetGate();
-                updateSpinVisibility();
-            });
-    connect(m_everyNSpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
-            [this](int value) {
-                m_everyN = value;
-                resetGate();
-            });
-    connect(m_maxFpsSpin, QOverload<int>::of(&QSpinBox::valueChanged), this,
-            [this](int value) {
-                m_maxFps = value;
-                resetGate();
-            });
-
-    updateSpinVisibility();
+void FrameSamplerNode::onMaxFpsChanged(int maxFps)
+{
+    m_maxFps = std::max(1, std::min(120, maxFps));
+    resetGate();
 }
 
 void FrameSamplerNode::resetGate()
@@ -165,29 +120,4 @@ bool FrameSamplerNode::passesGate()
         return true;
     }
     return false;
-}
-
-void FrameSamplerNode::syncWidgetsFromParams()
-{
-    if (m_modeCombo) {
-        const QSignalBlocker blocker(m_modeCombo);
-        m_modeCombo->setCurrentIndex(static_cast<int>(m_mode));
-    }
-    if (m_everyNSpin) {
-        const QSignalBlocker blocker(m_everyNSpin);
-        m_everyNSpin->setValue(m_everyN);
-    }
-    if (m_maxFpsSpin) {
-        const QSignalBlocker blocker(m_maxFpsSpin);
-        m_maxFpsSpin->setValue(m_maxFps);
-    }
-    updateSpinVisibility();
-}
-
-void FrameSamplerNode::updateSpinVisibility()
-{
-    if (m_everyNSpin)
-        m_everyNSpin->setVisible(m_mode == Mode::EveryNth);
-    if (m_maxFpsSpin)
-        m_maxFpsSpin->setVisible(m_mode == Mode::MaxFps);
 }

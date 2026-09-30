@@ -7,21 +7,8 @@ using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
 
 ConsoleDataModel::ConsoleDataModel()
-    : m_ui(new QWidget())
-    , m_chatWidget(new ChatBaseWidget())
-    , m_outputText(std::make_shared<TextData>(""))
+    : m_outputText(std::make_shared<TextData>(""))
 {
-    auto *layout = new QVBoxLayout(m_ui);
-    layout->setContentsMargins(4, 4, 4, 4);
-    layout->setSpacing(4);
-
-    layout->addWidget(m_chatWidget, 1);
-
-    // By default, hide config panel for Console (user can toggle with Config button)
-    m_chatWidget->setConfigVisible(false);
-
-    connect(m_chatWidget, &ChatBaseWidget::sendRequested,
-            this, &ConsoleDataModel::onSendClicked);
 }
 
 unsigned int ConsoleDataModel::nPorts(PortType portType) const
@@ -54,9 +41,8 @@ void ConsoleDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex const
         QJsonDocument doc = QJsonDocument::fromJson(raw.toUtf8());
         if (doc.isObject()) {
             QJsonObject obj = doc.object();
-            m_chatWidget->appendJsonToTree(obj, false);
 
-            // Извличаме content от response.message
+            // Extract the content of response.message
             QString content;
             if (obj.contains("response")) {
                 QJsonObject resp = obj["response"].toObject();
@@ -72,13 +58,13 @@ void ConsoleDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex const
             }
 
             if (!content.isEmpty())
-                m_chatWidget->addResponse(content);
+                Q_EMIT responseReceived(content, obj);
         }
     }
 }
 
 void ConsoleDataModel::onSendClicked(QString const& text, QJsonArray const& messages,
-                                      double temperature, int nPredict)
+                                     double temperature, int nPredict)
 {
     Q_UNUSED(text)
 
@@ -92,19 +78,20 @@ void ConsoleDataModel::onSendClicked(QString const& text, QJsonArray const& mess
     Q_EMIT dataUpdated(0);
 }
 
+void ConsoleDataModel::onChatConfigChanged(QJsonObject const& config)
+{
+    m_chatConfig = config;
+}
+
 QJsonObject ConsoleDataModel::save() const
 {
     QJsonObject obj = NodeDelegateModel::save();
-    if (m_chatWidget != nullptr) {
-        QJsonObject chatConfig = m_chatWidget->saveConfig();
-        for (auto it = chatConfig.begin(); it != chatConfig.end(); ++it)
-            obj[it.key()] = it.value();
-    }
+    for (auto it = m_chatConfig.begin(); it != m_chatConfig.end(); ++it)
+        obj[it.key()] = it.value();
     return obj;
 }
 
 void ConsoleDataModel::load(QJsonObject const& p)
 {
-    if (m_chatWidget != nullptr)
-        m_chatWidget->loadConfig(p);
+    m_chatConfig = p;
 }

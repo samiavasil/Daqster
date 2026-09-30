@@ -36,6 +36,16 @@ set(PLUGIN_SOURCES
 set(GUI_WIDGETS
     Sources/PlutoSdr/PlutoSdrWidget.h
     Sources/PlutoSdr/PlutoSdrWidget.cpp
+    Sources/NumberSourceWidget.h
+    Sources/NumberSourceWidget.cpp
+    Sources/Gamepad/GamepadWidget.h
+    Sources/Gamepad/GamepadWidget.cpp
+    Sources/AudioSource/AudioSourceDataModelUI.h
+    Sources/AudioSource/AudioSourceDataModelUI.cpp
+    Sources/AudioSource/AudioSourceDataModelUI.ui
+    Sources/AudioSource/AudioSourceConfig.h
+    Sources/AudioSource/AudioSourceConfig.cpp
+    Sources/AudioSource/AudioSourceConfig.ui
     Sources/SystemMonitor/SystemMonitorWidget.h
     Sources/SystemMonitor/SystemMonitorWidget.cpp
     Sources/FilePlayback/FilePlaybackWidget.h
@@ -52,6 +62,32 @@ set(GUI_WIDGETS
     Sources/JackDetect/JackDetectWidget.cpp
     Sources/Pcap/PcapWidget.h
     Sources/Pcap/PcapWidget.cpp
+      Displays/NumberDisplay/NumberDisplayWidget.h
+      Displays/NumberDisplay/NumberDisplayWidget.cpp
+    Operators/ModuloWidget.h
+    Operators/ModuloWidget.cpp
+    Operators/ArithmeticLogicWidget.h
+    Operators/ArithmeticLogicWidget.cpp
+    Sources/LLamaSource/ChatBaseWidget.h
+    Sources/LLamaSource/ChatBaseWidget.cpp
+    Sources/LLamaSource/ConsoleWidget.h
+    Sources/LLamaSource/ConsoleWidget.cpp
+    Sources/LLamaSource/LLamaModelWidget.h
+    Sources/LLamaSource/LLamaModelWidget.cpp
+    Displays/DaqDisplay/DaqDisplayWidget.h
+    Displays/DaqDisplay/DaqDisplayWidget.cpp
+    Sources/Video/CameraSourceWidget.h
+    Sources/Video/CameraSourceWidget.cpp
+    Sources/Video/StreamSourceWidget.h
+    Sources/Video/StreamSourceWidget.cpp
+    Sources/Video/VideoFileSourceWidget.h
+    Sources/Video/VideoFileSourceWidget.cpp
+    Sources/Video/FrameSamplerWidget.h
+    Sources/Video/FrameSamplerWidget.cpp
+    Sources/Video/CustomShaderWidget.h
+    Sources/Video/CustomShaderWidget.cpp
+    Sources/Video/VideoEffectWidget.h
+    Sources/Video/VideoEffectWidget.cpp
 )
 
 # ── NodeWidgetFactory for core/gui connection ───────────────────────

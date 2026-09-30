@@ -1,9 +1,6 @@
 #pragma once
 
 #include <QtCore/QObject>
-#include <QtWidgets/QWidget>
-#include <QtWidgets/QVBoxLayout>
-
 #include <QtNodes/NodeDelegateModel>
 
 #include <QJsonDocument>
@@ -13,7 +10,6 @@
 #include <memory>
 
 #include "NodeDataTypes/TextData.h"
-#include "ChatBaseWidget.h"
 
 class ConsoleDataModel : public QtNodes::NodeDelegateModel
 {
@@ -31,7 +27,10 @@ public:
     QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
     std::shared_ptr<QtNodes::NodeData> outData(QtNodes::PortIndex const port) override;
     void setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex const portIndex) override;
-    QWidget *embeddedWidget() override { return m_ui; }
+
+    /// Core model has no QtWidgets dependency — ChatBaseWidget is created by
+    /// the GUI plugin and wired through NodeWidgetFactory (REQ-SW-PL-051).
+    QWidget *embeddedWidget() override { return nullptr; }
     bool resizable() const override { return true; }
 
     /// The node BODY (boundary, caption, ports) does not depend on data —
@@ -41,13 +40,25 @@ public:
     QJsonObject save() const override;
     void load(QJsonObject const& p) override;
 
-private Q_SLOTS:
+    /// Persisted chat state, for the GUI plugin to hydrate ChatBaseWidget.
+    QJsonObject chatConfig() const { return m_chatConfig; }
+
+public slots:
+    /// Send request from ChatBaseWidget (called by NodeWidgetFactory).
     void onSendClicked(QString const& text, QJsonArray const& messages,
                        double temperature, int nPredict);
 
+    /// The widget's persisted chat state (sessions / prompt / temperature /
+    /// nPredict) — mirrored here so the model can serialize without QtWidgets.
+    void onChatConfigChanged(QJsonObject const& config);
+
+signals:
+    /// Model -> widget: a response arrived on the input port.
+    void responseReceived(QString const& content, QJsonObject const& rawJson);
+
 private:
-    QWidget *m_ui;
-    ChatBaseWidget *m_chatWidget;
+    /// Last chat config reported by the widget, merged into save().
+    QJsonObject m_chatConfig;
 
     std::shared_ptr<TextData> m_outputText;
 };

@@ -70,9 +70,18 @@
 
 ### Фаза 2 — Headless/Server (REQ-SW-PL-051)
 
+> **Статус на секцията: ПРЕДЛОЖЕНИЕ, частично реализирано.** Записано е преди
+> REQ-SW-PL-051/053; две имена и един контракт са остарели спрямо кода:
+> `DaqsterCore`/`DaqsterGui` станаха plugin-ите `FrameworkCore` /
+> `FrameworkGuiPlugin` (REQ-SW-PL-053), а `DaqsterHeadless` — един dual-mode
+> бинарник `NodeRunner --headless`. Договорът за доставяне на widget-и също е
+> променен: не `factory` в editor-а, а capability интерфейсът **`IWidgetProvider`**.
+> Реалното описание е в `docs/Architecture/core-gui-split.md`; там са и
+> ограниченията (AC 2 е блокиран).
+
 **4.4 Core/GUI разделение (REQ-SW-PL-051)**
 
-- **Библиотеки:**
+- **Библиотеки (предложение — реализирано като plugin-и, виж REQ-SW-PL-053):**
   - `DaqsterCore` — QtCore only: plugin infrastructure, platform, logging, process, perf, capabilities (INodeProvider, IStoppable, IStartable), ALL NodeData types, HeadlessEngine, FlowLoader
   - `DaqsterGui` — QtWidgets: QPluginManagerGui, NodeEditorWidget, RuntimeShell, built-in nodes, merged NodeEditorLibrary
   
@@ -102,21 +111,26 @@
 
 **4.5 Headless исполнение**
 
-- **DaqsterHeadless** executable: QtCore only, links DaqsterCore
-- **CLI:** `DaqsterHeadless --run <flow.flow>` (or `Daqster --headless --run <flow.flow>`)
+- ~~**DaqsterHeadless** executable~~ → **реализирано като `NodeRunner --headless`**
+  (един dual-mode бинарник, REQ-SW-PL-053), линкващ само `FrameworkCore`
+- **CLI:** `NodeRunner --headless --run <flow.flow>` (GUI: `NodeRunner --run <flow.flow>`)
 - **HeadlessEngine:** QCoreApplication event loop, loads .flow via FlowLoader, instantiates core models, connects via DataFlowGraphModel, auto-starts via IStartable, stops via IStoppable on shutdown
 - **FlowLoader:** Tolerant loading (skips unregistered node types, logs warning), parses UI section for autoStart
 
-**Verification:**
+**Verification (коректни команди за текущия код):**
 ```bash
-# Headless binary - no QtWidgets/QtGui
-ldd build_qt5/bin/DaqsterHeadless | grep -E "Qt5Widgets|Qt5Gui"  # EMPTY
+# Headless: първо проверявай ДАЛИ ИЗЛИЗА ЧИСТО, не само че има изход.
+# Пътищата, които return-ват от main() преди ShutdownPluginManager(), са
+# тези, които разкриват lifetime грешки (виж core-gui-split.md).
+./build_qt5/bin/NodeRunner --headless --run tests/data/number_graph.flow; echo "exit=$?"
 
-# Core library - no QtWidgets/QtGui  
-ldd build_qt5/bin/libDaqsterCore.so | grep -E "Qt5Widgets|Qt5Gui"  # EMPTY
+# НЕ бива да се появява — иначе GUI runtime host-ът е constructed в headless
+./build_qt5/bin/NodeRunner --headless --run tests/data/number_graph.flow \
+    --log-console-enabled 1 --log-level Info 2>&1 | grep FrameworkGuiPlugin
 
-# Headless smoke test
-./build_qt5/bin/DaqsterHeadless --run test.flow  # runs, data flows, clean exit
+# ld проверката НЕ е валиден критерий за AC 2: QApplication (Qt5: в QtWidgets)
+# остава необходим за headless, затова Qt5Widgets е верен дори днес.
+# Ак 2 е блокиран — причините са документирани в REQ-файла на REQ-SW-PL-051.
 ```
 
 - (Опционално) REST API за remote control — документирано като разширение

@@ -3,15 +3,7 @@
 #include "AudioBufferToSampled.h"
 #include "NodeDataTypes/VideoFrameData.h"
 
-#include <QDir>
-#include <QDebug>
-#include <QFileDialog>
-#include <QHBoxLayout>
-#include <QLabel>
-#include <QLineEdit>
 #include <QMediaPlayer>
-#include <QPushButton>
-#include <QVBoxLayout>
 
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
@@ -21,8 +13,6 @@ using QtNodes::PortType;
 VideoFileSourceNode::VideoFileSourceNode()
     : m_videoFrameOut(std::make_shared<VideoFrameData>())
 {
-    buildWidget();
-
     m_player = new QMediaPlayer(this);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     // Qt6: audio is only routed to a sink when an explicit QAudioOutput is
@@ -66,12 +56,7 @@ VideoFileSourceNode::VideoFileSourceNode()
         });
 
     connect(m_player, &QMediaPlayer::positionChanged, this, [this](qint64 pos) {
-        const qint64 dur = m_player->duration();
-        int posSecs = pos / 1000;
-        int durSecs = dur / 1000;
-        m_timeLabel->setText(QString("%1:%2 / %3:%4")
-            .arg(posSecs / 60, 2, 10, QChar('0')).arg(posSecs % 60, 2, 10, QChar('0'))
-            .arg(durSecs / 60, 2, 10, QChar('0')).arg(durSecs % 60, 2, 10, QChar('0')));
+        Q_EMIT positionChanged(pos, m_player->duration());
     });
 }
 
@@ -79,8 +64,6 @@ VideoFileSourceNode::~VideoFileSourceNode()
 {
     // Single shutdown path: stop() stops the media player (REQ-SW-PL-050).
     stop();
-    // Widget lifetime is owned by the node/view framework.
-    m_widget = nullptr;
 }
 
 void VideoFileSourceNode::stop()
@@ -113,22 +96,22 @@ void VideoFileSourceNode::start()
     }
 
     m_player->play();
-    m_stopButton->setEnabled(true);
-    m_seekBackButton->setEnabled(true);
-    m_seekForwardButton->setEnabled(true);
+    updateTransportEnabled();
 }
 
 QJsonObject VideoFileSourceNode::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
-    modelJson["filePath"] = m_fileEdit->text();
+    modelJson["filePath"] = m_filePath;
     return modelJson;
 }
 
 void VideoFileSourceNode::load(QJsonObject const &p)
 {
-    if (p.contains("filePath"))
-        m_fileEdit->setText(p["filePath"].toString());
+    if (p.contains("filePath")) {
+        m_filePath = p["filePath"].toString();
+        Q_EMIT filePathChanged(m_filePath);
+    }
 }
 
 unsigned int VideoFileSourceNode::nPorts(PortType portType) const
@@ -176,71 +159,16 @@ void VideoFileSourceNode::outputConnectionDeleted(QtNodes::ConnectionId const &c
         --m_audioPortConnectionCount;
 }
 
-QWidget *VideoFileSourceNode::embeddedWidget()
-{
-    return m_widget;
-}
-
-void VideoFileSourceNode::buildWidget()
-{
-    m_widget = new QWidget();
-    auto *layout = new QVBoxLayout(m_widget);
-    layout->setContentsMargins(4, 4, 4, 4);
-    layout->setSpacing(4);
-
-    auto *fileRow = new QHBoxLayout();
-    m_fileEdit = new QLineEdit(m_widget);
-    m_fileEdit->setPlaceholderText(tr("Path to video file"));
-    auto *browseButton = new QPushButton(tr("..."), m_widget);
-    browseButton->setMaximumWidth(32);
-    fileRow->addWidget(m_fileEdit, 1);
-    fileRow->addWidget(browseButton);
-    layout->addLayout(fileRow);
-
-    auto *controlRow = new QHBoxLayout();
-    m_playPauseButton = new QPushButton(tr("Play"), m_widget);
-    m_statusLabel = new QLabel(tr("Stopped"), m_widget);
-    m_statusLabel->setStyleSheet(QStringLiteral("color: gray;"));
-    controlRow->addWidget(m_playPauseButton);
-    controlRow->addWidget(m_statusLabel, 1);
-    layout->addLayout(controlRow);
-
-    auto *seekRow = new QHBoxLayout();
-    m_stopButton = new QPushButton(tr("Stop"), m_widget);
-    m_stopButton->setEnabled(false);
-    m_seekBackButton = new QPushButton(tr("<< -5s"), m_widget);
-    m_seekBackButton->setEnabled(false);
-    m_seekForwardButton = new QPushButton(tr(">> +5s"), m_widget);
-    m_seekForwardButton->setEnabled(false);
-    m_timeLabel = new QLabel(tr("0:00 / 0:00"), m_widget);
-    seekRow->addWidget(m_stopButton);
-    seekRow->addWidget(m_seekBackButton);
-    seekRow->addWidget(m_seekForwardButton);
-    seekRow->addWidget(m_timeLabel, 1);
-    layout->addLayout(seekRow);
-
-    connect(browseButton, &QPushButton::clicked,
-            this, &VideoFileSourceNode::onBrowseClicked);
-    connect(m_playPauseButton, &QPushButton::clicked,
-            this, &VideoFileSourceNode::onPlayPauseClicked);
-    connect(m_stopButton, &QPushButton::clicked,
-            this, &VideoFileSourceNode::onStopClicked);
-    connect(m_seekBackButton, &QPushButton::clicked,
-            this, &VideoFileSourceNode::onSeekBackClicked);
-    connect(m_seekForwardButton, &QPushButton::clicked,
-            this, &VideoFileSourceNode::onSeekForwardClicked);
-}
-
 void VideoFileSourceNode::onBrowseClicked()
 {
-    const QString filePath = QFileDialog::getOpenFileName(
-        m_widget,
-        tr("Select video file"),
-        QString(),
-        tr("Video files (*.mp4 *.avi *.mkv *.mov *.webm *.m4v *.mpg *.mpeg);;All files (*)"));
+    // The GUI plugin owns the widget tree (REQ-SW-PL-051), so the file dialog
+    // lives there — see VideoFileSourceWidget. The model only receives the
+    // chosen path through onFilePathChanged().
+}
 
-    if (!filePath.isEmpty())
-        m_fileEdit->setText(QDir::toNativeSeparators(filePath));
+void VideoFileSourceNode::onFilePathChanged(const QString &filePath)
+{
+    m_filePath = filePath;
 }
 
 void VideoFileSourceNode::onPlayPauseClicked()
@@ -265,9 +193,7 @@ void VideoFileSourceNode::onPlayPauseClicked()
     }
 
     m_player->play();
-    m_stopButton->setEnabled(true);
-    m_seekBackButton->setEnabled(true);
-    m_seekForwardButton->setEnabled(true);
+    updateTransportEnabled();
 }
 
 void VideoFileSourceNode::onStopClicked()
@@ -277,9 +203,7 @@ void VideoFileSourceNode::onStopClicked()
     m_isPlaying = false;
     updatePlayButton();  // set to "Play"
     setStatus(tr("Stopped"), false);  // gray status
-    m_stopButton->setEnabled(false);
-    m_seekBackButton->setEnabled(false);
-    m_seekForwardButton->setEnabled(false);
+    updateTransportEnabled();
 }
 
 void VideoFileSourceNode::onSeekBackClicked()
@@ -360,9 +284,7 @@ void VideoFileSourceNode::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
         m_isPlaying = false;
         updatePlayButton();
         setStatus(tr("End of video"), false);
-        m_stopButton->setEnabled(false);
-        m_seekBackButton->setEnabled(false);
-        m_seekForwardButton->setEnabled(false);
+        updateTransportEnabled();
         break;
     case QMediaPlayer::LoadingMedia:
         setStatus(tr("Loading..."), false);
@@ -389,17 +311,25 @@ void VideoFileSourceNode::onPlayerError(QMediaPlayer::Error error, const QString
 
 void VideoFileSourceNode::setStatus(const QString &text, bool ok)
 {
-    m_statusLabel->setText(text);
-    m_statusLabel->setStyleSheet(ok ? QStringLiteral("color: green;")
-                                    : QStringLiteral("color: gray;"));
+    Q_EMIT statusChanged(text, ok);
 }
 
 QString VideoFileSourceNode::currentFilePath() const
 {
-    return m_fileEdit->text().trimmed();
+    return m_filePath.trimmed();
 }
 
 void VideoFileSourceNode::updatePlayButton()
 {
-    m_playPauseButton->setText(m_isPlaying ? tr("Pause") : tr("Play"));
+    Q_EMIT playingChanged(m_isPlaying);
+}
+
+void VideoFileSourceNode::updateTransportEnabled()
+{
+    // Stop / seek are only meaningful once a media source has been set.
+    const bool enabled = !m_loadedPath.isEmpty();
+    if (enabled == m_transportEnabled)
+        return;
+    m_transportEnabled = enabled;
+    Q_EMIT transportEnabledChanged(enabled);
 }

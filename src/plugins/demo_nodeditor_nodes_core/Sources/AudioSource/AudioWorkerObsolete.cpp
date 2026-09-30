@@ -23,15 +23,15 @@ void AudioWorkerObsolete::DoWork() {
     emit resultReady(result);
 }
 
-void AudioWorkerObsolete::Start(AudioSourceDataModelUI::StartStop status)
+void AudioWorkerObsolete::Start(AudioStartStop status)
 {
     switch (status) {
-    case AudioSourceDataModelUI::ASDM_STOP:{
+    case ASDM_STOP:{
         m_audio_src->stop();
         break;
     }
-    case AudioSourceDataModelUI::ASDM_START:
-    case AudioSourceDataModelUI::ASDM_RELOAD:{
+    case ASDM_START:
+    case ASDM_RELOAD:{
         m_audio_src->start(m_devio.get());
         if(QAudio::StoppedState == m_audio_src->state()) {
 
@@ -59,7 +59,7 @@ void AudioWorkerObsolete::UpdateAudioDevice(QAudioDeviceInfo devInfo, QAudioForm
     m_audio_src->setObjectName(QString("AudioInput: %1").arg(AudioCompat::deviceName(devInfo)));
     connect(m_audio_src.get(),SIGNAL(stateChanged(QAudio::State)), this, SIGNAL(stateChanged(QAudio::State)) );
     if(was_started) {
-        Start(AudioSourceDataModelUI::ASDM_RELOAD);
+        Start(ASDM_RELOAD);
     }
     emit ChangeAudioConnection(devInfo, formatAudio);
 }

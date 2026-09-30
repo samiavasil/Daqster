@@ -3,12 +3,6 @@
 
 #include <QtCore/QObject>
 #include <QtNodes/NodeDelegateModel>
-#include <QComboBox>
-#include <QLineEdit>
-#include <QSpinBox>
-#include <QCheckBox>
-#include <QVBoxLayout>
-#include <QLabel>
 #include <memory>
 #include "ExprParser.h"
 #include "NodeDataTypes/NumericType.h"
@@ -44,7 +38,15 @@ public:
     QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
     std::shared_ptr<QtNodes::NodeData> outData(QtNodes::PortIndex const port) override;
     void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, QtNodes::PortIndex const portIndex) override;
-    QWidget *embeddedWidget() override;
+    /// Core model has no QtWidgets dependency — the controls are created by the
+    /// GUI plugin and wired through NodeWidgetFactory (REQ-SW-PL-051).
+    QWidget *embeddedWidget() override { return nullptr; }
+
+    /// Current state for the GUI plugin to render the widget from.
+    int typeIndex() const { return (m_currentType == DataType::Int) ? 0 : 1; }
+    int inputCount() const { return m_inputCount; }
+    QString expression() const { return m_expression; }
+    bool strobeEnabled() const { return m_strobeEnabled; }
 
     /// The node BODY (boundary, caption, ports) does not depend on data —
     /// widget content self-repaints via Qt. The validation border self-repaints
@@ -54,7 +56,8 @@ public:
     QtNodes::NodeValidationState validationState() const override
     { return m_validationState; }
 
-private slots:
+public slots:
+    /// Controls of the GUI widget (called by NodeWidgetFactory).
     void onTypeChanged(int index);
     void onInputsChanged(int count);
     void onExpressionChanged(const QString& expr);
@@ -70,12 +73,7 @@ private:
     DataType m_currentType = DataType::Int;
     int m_inputCount = 2;
     bool m_strobeEnabled = false;
-
-    QComboBox* m_typeCombo = nullptr;
-    QSpinBox* m_inputSpin = nullptr;
-    QLineEdit* m_exprEdit = nullptr;
-    QCheckBox* m_strobeCheck = nullptr;
-    QWidget* m_container = nullptr;
+    QString m_expression;
 
     ExprParser m_parser;
 

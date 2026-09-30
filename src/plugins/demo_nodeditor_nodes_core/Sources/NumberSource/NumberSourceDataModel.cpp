@@ -1,12 +1,7 @@
 #include "NumberSourceDataModel.h"
-#include "NumberSourceDataUi.h"
 #include <QtCore/QJsonValue>
-#include <QtGui/QDoubleValidator>
 #include <QTimer>
 #include <QRandomGenerator>
-#include <QCheckBox>
-#include <QSpinBox>
-#include <QLineEdit>
 
 using QtNodes::PortType;
 using QtNodes::PortIndex;
@@ -15,37 +10,6 @@ using QtNodes::NodeDataType;
 
 NumberSourceDataModel::NumberSourceDataModel()
 {
-    m_ui = new NumberSourceDataUi();
-
-    QLineEdit& edit = m_ui->lineEdit();
-    edit.setValidator(new QDoubleValidator(&edit));
-    edit.setMaximumSize(edit.sizeHint());
-
-    connect(&edit, &QLineEdit::textChanged, this, &NumberSourceDataModel::onTextEdited);
-
-    edit.setText("0.0");
-
-    // Type selector combo
-    m_typeCombo = new QComboBox();
-    m_typeCombo->addItem("double");
-    m_typeCombo->addItem("int");
-    connect(m_typeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &NumberSourceDataModel::onTypeChanged);
-
-    // Wrapper layout: combo on top, original UI below
-    m_wrapper = new QWidget();
-    auto* layout = new QVBoxLayout(m_wrapper);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(2);
-    layout->addWidget(m_typeCombo);
-    layout->addWidget(m_ui);
-
-    // Random mode connections
-    connect(&m_ui->randomEnabled(), &QCheckBox::toggled,
-            this, &NumberSourceDataModel::onRandomToggled);
-    connect(&m_ui->intervalSpin(), QOverload<int>::of(&QSpinBox::valueChanged),
-            this, &NumberSourceDataModel::onIntervalChanged);
-
     // Timer for random generation
     m_timer = new QTimer(this);
     m_timer->setSingleShot(false);
@@ -59,8 +23,8 @@ QJsonObject NumberSourceDataModel::save() const
     QJsonObject modelJson = NodeDelegateModel::save();
 
     modelJson["type"] = (m_currentType == DataType::Int) ? "int" : "double";
-    modelJson["randomEnabled"] = m_ui->randomEnabled().isChecked();
-    modelJson["interval"] = m_ui->intervalSpin().value();
+    modelJson["randomEnabled"] = m_randomEnabled;
+    modelJson["interval"] = m_interval;
 
     if (m_currentType == DataType::Int && m_number_int)
         modelJson["number"] = QString::number(m_number_int->number());
@@ -74,16 +38,16 @@ void NumberSourceDataModel::load(QJsonObject const &p)
 {
     QString typeStr = p["type"].toString();
     if (typeStr == "int") {
-        m_typeCombo->setCurrentIndex(1);
+        switchType(DataType::Int);
     } else {
-        m_typeCombo->setCurrentIndex(0);
+        switchType(DataType::Double);
     }
 
     if (p.contains("interval")) {
-        m_ui->intervalSpin().setValue(p["interval"].toInt());
+        onIntervalChanged(p["interval"].toInt());
     }
     if (p.contains("randomEnabled")) {
-        m_ui->randomEnabled().setChecked(p["randomEnabled"].toBool());
+        onRandomToggled(p["randomEnabled"].toBool());
     }
 
     QJsonValue v = p["number"];
@@ -97,7 +61,8 @@ void NumberSourceDataModel::load(QJsonObject const &p)
             } else {
                 m_number_dbl = std::make_shared<NumericType<double>>(d);
             }
-            m_ui->lineEdit().setText(strNum);
+            m_text = strNum;
+            Q_EMIT textChanged(m_text);
         }
     }
 }
@@ -137,11 +102,6 @@ void NumberSourceDataModel::setInData(std::shared_ptr<QtNodes::NodeData> data, Q
     Q_UNUSED(port);
 }
 
-QWidget* NumberSourceDataModel::embeddedWidget()
-{
-    return m_wrapper;
-}
-
 void NumberSourceDataModel::onTypeChanged(int index)
 {
     DataType newType = (index == 0) ? DataType::Double : DataType::Int;
@@ -164,18 +124,18 @@ void NumberSourceDataModel::switchType(DataType newType)
     Q_EMIT portsAboutToBeInserted(PortType::Out, 0, 0);
     Q_EMIT portsInserted();
 
-    onTextEdited(m_ui->lineEdit().text());
+    onTextEdited(m_text);
 }
 
 void NumberSourceDataModel::onTextEdited(QString const &string)
 {
-    Q_UNUSED(string);
+    m_text = string;
 
-    if (m_ui->randomEnabled().isChecked())
+    if (m_randomEnabled)
         return;
 
     bool ok = false;
-    double number = m_ui->lineEdit().text().toDouble(&ok);
+    double number = string.toDouble(&ok);
 
     if (ok) {
         if (m_currentType == DataType::Int) {
@@ -191,20 +151,21 @@ void NumberSourceDataModel::onTextEdited(QString const &string)
 
 void NumberSourceDataModel::onRandomToggled(bool checked)
 {
-    m_ui->lineEdit().setEnabled(!checked);
+    m_randomEnabled = checked;
+    Q_EMIT textEditableChanged(!checked);
     updateTimer();
 }
 
 void NumberSourceDataModel::onIntervalChanged(int value)
 {
-    Q_UNUSED(value);
+    m_interval = value;
     updateTimer();
 }
 
 void NumberSourceDataModel::updateTimer()
 {
-    if (m_ui->randomEnabled().isChecked() && m_ui->intervalSpin().value() > 0) {
-        m_timer->start(m_ui->intervalSpin().value());
+    if (m_randomEnabled && m_interval > 0) {
+        m_timer->start(m_interval);
     } else {
         m_timer->stop();
     }
@@ -222,11 +183,12 @@ void NumberSourceDataModel::generateRandom()
     if (m_currentType == DataType::Int) {
         int ival = static_cast<int>(val);
         m_number_int = std::make_shared<NumericType<int>>(ival);
-        m_ui->lineEdit().setText(QString::number(ival));
+        m_text = QString::number(ival);
     } else {
         m_number_dbl = std::make_shared<NumericType<double>>(val);
-        m_ui->lineEdit().setText(QString::number(val, 'f', 2));
+        m_text = QString::number(val, 'f', 2);
     }
 
+    Q_EMIT textChanged(m_text);
     Q_EMIT dataUpdated(0);
 }

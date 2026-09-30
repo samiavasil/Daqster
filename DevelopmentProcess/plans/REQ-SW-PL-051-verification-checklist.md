@@ -1,5 +1,21 @@
 # REQ-SW-PL-051 — Чеклист за проверка на бранча
 
+> ## ⚠️ ИСТОРИЧЕСКИ СНИМЪК — 2026-09-26
+>
+> Чеклист от по-ранна точка на бранча, запазен за проследимост. **Не е текущо
+> pending work.** Ключовите му изводи са впоследствие изместени:
+>
+> | Тук | Реално днес |
+> |---|---|
+> | „12 от 22 модела връщат `nullptr`; 10 още правят widget в конструктора" | **28 от 30** разделени; неразделени са **2** — `VideoOutput` (отложен за REQ-SW-PL-053) и `AudioDisplayObsolete` |
+> | AC 1 „**частично**" — `core-gui-split.md` „описва factory, който никога не е вързан" | factory-ят е вързан през `IWidgetProvider`; документът е пренаписан спрямо реалното дърво |
+> | AC 2 „**изпълнено**" | **БЛОКИРАН** — headless binary без QtWidgets не е постижим (`QApplication` в `NodeRunner`; 7 QtWidgets TU в `_core` заради `AudioDisplayObsolete`) |
+> | AC 3 „`embeddedWidget()` се вика само от `NodeEditorIdeObject` (7 места)" | вече има кеширан accessor; `embeddedWidget()` е само fallback-ът в `ChatGraphModel::nodeWidget()` |
+> | `Daqster --run` / `Daqster --headless` | `NodeRunner --run` / `NodeRunner --headless --run` (един dual-mode бинарник) |
+>
+> Актуално: `docs/Architecture/core-gui-split.md` и REQ файлът на
+> `REQ-SW-PL-051-core-gui-separation-headless.md`.
+
 - **Бранч:** `feat/REQ-SW-PL-051-core-gui-separation`
 - **Base:** `develop_pre` @ `9dea41f`
 - **Състояние:** working tree чист, нищо не е push-вано, нищо не е merge-вато

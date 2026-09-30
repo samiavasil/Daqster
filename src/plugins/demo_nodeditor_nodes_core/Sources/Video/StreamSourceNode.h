@@ -23,10 +23,7 @@
 #endif
 
 class QAudioBuffer;
-class QLabel;
-class QLineEdit;
 class QMediaPlayer;
-class QPushButton;
 class QWidget;
 
 class VideoFrameData;
@@ -50,6 +47,11 @@ class VideoFrameData;
  *   - port 1 "sample" — SampledData (domain "audio").
  *
  * The audio port is at index 1 (no gap) — REQ-SW-PL-022.
+ *
+ * REQ-SW-PL-051: this model owns NO widgets. The URL field, the Connect/Stop
+ * button and the status label live in StreamSourceWidget (GUI plugin) and are
+ * created through NodeWidgetFactory. The URL is kept here as m_url and pushed
+ * to the widget through urlChanged().
  */
 class StreamSourceNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
@@ -81,7 +83,9 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex portIndex) override;
 
-    QWidget *embeddedWidget() override;
+    /// Core model has no QtWidgets dependency — the widget is created by the
+    /// GUI plugin and wired through NodeWidgetFactory (REQ-SW-PL-051).
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop the media player. Idempotent — safe to call multiple times
     /// (REQ-SW-PL-050).
@@ -95,8 +99,26 @@ public:
     void outputConnectionCreated(QtNodes::ConnectionId const &conId) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &conId) override;
 
-private slots:
+    // ── State read by the GUI widget ───────────────────────────────────────
+    QString url() const { return m_url; }
+    bool isPlaying() const { return m_isPlaying; }
+
+signals:
+    /// The URL was set programmatically (load(), or a runtime autoStart echo) —
+    /// update the URL field.
+    void urlChanged(const QString& url);
+    /// Status text for the node's status line.
+    void statusChanged(const QString& text, bool ok);
+    /// The player started/stopped — switch the button label.
+    void playingChanged(bool playing);
+
+public slots:
+    /// Connect/Stop button pressed.
     void onConnectClicked();
+    /// URL field edited by the user.
+    void onUrlChanged(const QString& url);
+
+private slots:
     void onFrameAvailable(const QVideoFrame &frame);
     void onAudioBufferReceived(const QAudioBuffer &buffer);
     void onPlaybackStateChanged(int state);
@@ -104,7 +126,6 @@ private slots:
     void onPlayerError(QMediaPlayer::Error error, const QString &errorString);
 
 private:
-    void buildWidget();
     void setStatus(const QString &text, bool ok);
     void updateConnectButton();
     static QtNodes::PortIndex audioPortIndex()
@@ -112,11 +133,7 @@ private:
         return 1; // 0 = video-frame, 1 = audio (no gap)
     }
 
-    QWidget *m_widget = nullptr;
-    QLineEdit *m_urlEdit = nullptr;
-    QPushButton *m_connectButton = nullptr;
-    QLabel *m_statusLabel = nullptr;
-
+    QString m_url;                   // stream URL, persisted in save()/load()
     QMediaPlayer *m_player = nullptr;
     VideoCompat::FrameProbe *m_frameProbe = nullptr;
     // Runtime profiling (REQ-SW-PL-027): inter-frame gap stopwatch + first-frame

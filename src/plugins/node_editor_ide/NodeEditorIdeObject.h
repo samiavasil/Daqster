@@ -9,6 +9,13 @@
 
 class NodeEditorWidget;
 class QMainWindow;
+class QWidget;
+namespace Daqster {
+class IWidgetProvider;
+}
+namespace QtNodes {
+class NodeDelegateModel;
+}
 
 class NodeEditorIdeObject : public Daqster::QBasePluginObject
 {
@@ -23,12 +30,13 @@ public:
     // These were private before; they are now public so the GUI runtime in
     // FrameworkGuiPlugin (RuntimeShell) can reuse the same registration and
     // loading logic without duplication.
-    void registerBuiltInNodes();
-    void discoverAndRegisterExternalNodes();
+    //
+    // REQ-SW-PL-051: the built-in node models (NumberSource, NumberDisplay,
+    // Modulo, Arithmetic/Logic) are owned by demo_nodeditor_nodes_core and
+    // arrive through INodeProvider like every other plugin node. There is no
+    // local registration left — see registerNodes().
 
-    /// Consolidated registration: calls registerBuiltInNodes() then
-    /// discoverAndRegisterExternalNodes() — mirrors the sequence in
-    /// Initialize().
+    /// Registers every node provided by the loaded INodeProvider plugins.
     void registerNodes();
 
     /// Tolerant scene load (REQ-SW-PL-037): opens a .flow file, skips nodes
@@ -53,6 +61,10 @@ public slots:
     void MainWinDestroyed(QObject* obj);
     void ShowPlugins();
 
+    /// REQ-SW-PL-051: re-discover and register nodes from newly loaded
+    /// INodeProvider plugins (connected to QPluginManager::PluginsListChangeDetected).
+    void discoverAndRegisterExternalNodes();
+
     /// Presentation mode toggle (REQ-SW-PL-048): F11 key handler.
     /// Hides GraphicsView + shows deembedded widgets; toggles back.
     void togglePresentationMode();
@@ -61,6 +73,10 @@ protected slots:
     void nodeDoubleClicked(QtNodes::NodeId nodeId);
 
 private:
+    /// REQ-SW-PL-051: hands an IWidgetProvider to the editor widget and
+    /// watches its plugin object, re-discovering if it dies.
+    void adoptWidgetProvider(Daqster::IWidgetProvider* provider);
+
     /// Dev driver (DAQSTER_AUTOSTART_VIDEO=1): builds a video source ->
     /// VideoOutput graph, connects it, starts playback from DAQSTER_VIDEO_FILE /
     /// DAQSTER_STREAM_URL and enables the "Perf" checkbox — no GUI interaction

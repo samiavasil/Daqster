@@ -8,8 +8,6 @@
 
 #include <memory>
 
-class QComboBox;
-class QSpinBox;
 class QWidget;
 
 class VideoFrameData;
@@ -25,6 +23,10 @@ class VideoFrameData;
  * Zero-copy, fan-out: the passed frame is the SAME shared_ptr<VideoFrameData>
  * as the input (ref-count bump only) — no QImage conversion, no frame copy.
  * The node works on the frame, never triggers asImage()/frameToImage().
+ *
+ * REQ-SW-PL-051: this model owns NO widgets. The mode selector and the two
+ * parameter spin boxes live in FrameSamplerWidget (GUI plugin) and are created
+ * through NodeWidgetFactory.
  */
 class FrameSamplerNode : public QtNodes::NodeDelegateModel
 {
@@ -65,16 +67,33 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex portIndex) override;
 
-    QWidget *embeddedWidget() override;
+    /// Core model has no QtWidgets dependency — the widget is created by the
+    /// GUI plugin and wired through NodeWidgetFactory (REQ-SW-PL-051).
+    QWidget *embeddedWidget() override { return nullptr; }
 
-private:
+    /// Frame-gating mode, shared with the widget's mode selector.
     enum class Mode { EveryNth, MaxFps };
 
-    void buildWidget();
+    // ── State read by the GUI widget ───────────────────────────────────────
+    Mode mode() const { return m_mode; }
+    int everyN() const { return m_everyN; }
+    int maxFps() const { return m_maxFps; }
+
+signals:
+    /// A parameter changed (or load() restored one) — re-render the controls.
+    void paramsChanged(int mode, int everyN, int maxFps);
+
+public slots:
+    /// Mode selector changed.
+    void onModeChanged(int mode);
+    /// "N =" spin box changed.
+    void onEveryNChanged(int everyN);
+    /// "Max FPS =" spin box changed.
+    void onMaxFpsChanged(int maxFps);
+
+private:
     void resetGate();
     bool passesGate();
-    void syncWidgetsFromParams();
-    void updateSpinVisibility();
 
     Mode m_mode = Mode::EveryNth;
     int m_everyN = 2;
@@ -84,11 +103,6 @@ private:
 
     std::shared_ptr<VideoFrameData> m_lastInput;
     std::shared_ptr<VideoFrameData> m_output;
-
-    QWidget *m_widget = nullptr;
-    QComboBox *m_modeCombo = nullptr;
-    QSpinBox *m_everyNSpin = nullptr;
-    QSpinBox *m_maxFpsSpin = nullptr;
 };
 
 #endif // FRAMESAMPLERNODE_H

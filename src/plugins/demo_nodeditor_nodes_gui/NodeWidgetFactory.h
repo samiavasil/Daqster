@@ -47,6 +47,15 @@ private:
     QHash<QString, std::function<QWidget*(QtNodes::NodeDelegateModel*)>> m_creators;
 };
 
+/**
+ * @brief Populate @p factory with a creator for every node of this plugin.
+ *
+ * Called once from the plugin object's Initialize(). A model is keyed by its
+ * NodeDelegateModel::name(), and the creators only build QWidget instances —
+ * all node state stays in the core model (REQ-SW-PL-051).
+ */
+void registerDefaultWidgetCreators(NodeWidgetFactory* factory);
+
 } // namespace Daqster
 
 #endif // NODEWIDGETFACTORY_H

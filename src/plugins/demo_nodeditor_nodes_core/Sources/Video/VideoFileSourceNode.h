@@ -23,10 +23,7 @@
 #endif
 
 class QAudioBuffer;
-class QLabel;
-class QLineEdit;
 class QMediaPlayer;
-class QPushButton;
 class QWidget;
 
 class VideoFrameData;
@@ -50,6 +47,11 @@ class VideoFrameData;
  *   - port 1 "sample" — SampledData (domain "audio").
  *
  * The audio port is at index 1 (no gap) — REQ-SW-PL-022.
+ *
+ * REQ-SW-PL-051: this model owns NO widgets. The path field, transport buttons,
+ * time label and status line live in VideoFileSourceWidget (GUI plugin) and are
+ * created through NodeWidgetFactory. The file path is kept here as m_filePath
+ * and pushed to the widget through filePathChanged().
  */
 class VideoFileSourceNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
@@ -81,7 +83,9 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex portIndex) override;
 
-    QWidget *embeddedWidget() override;
+    /// Core model has no QtWidgets dependency — the widget is created by the
+    /// GUI plugin and wired through NodeWidgetFactory (REQ-SW-PL-051).
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop the media player. Idempotent — safe to call multiple times
     /// (REQ-SW-PL-050).
@@ -95,8 +99,28 @@ public:
     void outputConnectionCreated(QtNodes::ConnectionId const &conId) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &conId) override;
 
-private slots:
+    // ── State read by the GUI widget ───────────────────────────────────────
+    QString filePath() const { return m_filePath; }
+    bool isPlaying() const { return m_isPlaying; }
+
+signals:
+    /// The file path was set programmatically (load()) — update the field.
+    void filePathChanged(const QString& filePath);
+    /// Status text for the node's status line.
+    void statusChanged(const QString& text, bool ok);
+    /// Playback started/stopped — switch the button label.
+    void playingChanged(bool playing);
+    /// Enable/disable the Stop and seek buttons (only while a file is loaded).
+    void transportEnabledChanged(bool enabled);
+    /// Playback head moved — the widget formats "mm:ss / mm:ss".
+    void positionChanged(qint64 positionMs, qint64 durationMs);
+
+public slots:
+    /// "..." browse button pressed.
     void onBrowseClicked();
+    /// Path field edited by the user (or set by the file dialog).
+    void onFilePathChanged(const QString& filePath);
+    /// Play/Pause button pressed.
     void onPlayPauseClicked();
     void onStopClicked();
     void onSeekBackClicked();
@@ -108,24 +132,16 @@ private slots:
     void onPlayerError(QMediaPlayer::Error error, const QString &errorString);
 
 private:
-    void buildWidget();
     void setStatus(const QString &text, bool ok);
     QString currentFilePath() const;
     void updatePlayButton();
+    void updateTransportEnabled();
     static QtNodes::PortIndex audioPortIndex()
     {
         return 1; // 0 = video-frame, 1 = audio (no gap)
     }
 
-    QWidget *m_widget = nullptr;
-    QLineEdit *m_fileEdit = nullptr;
-    QPushButton *m_playPauseButton = nullptr;
-    QPushButton *m_stopButton = nullptr;
-    QPushButton *m_seekBackButton = nullptr;
-    QPushButton *m_seekForwardButton = nullptr;
-    QLabel *m_statusLabel = nullptr;
-    QLabel *m_timeLabel = nullptr;
-
+    QString m_filePath;               // video file, persisted in save()/load()
     QMediaPlayer *m_player = nullptr;
     VideoCompat::FrameProbe *m_frameProbe = nullptr;
     // Runtime profiling (REQ-SW-PL-027): inter-frame gap stopwatch + first-frame
@@ -158,6 +174,8 @@ private:
     std::shared_ptr<SampledData> m_audioOut;
     int m_audioPortConnectionCount = 0;
     QString m_loadedPath;
+    /// Stop/seek buttons are enabled only once a media source is set.
+    bool m_transportEnabled = false;
     bool m_isPlaying = false;
 };
 

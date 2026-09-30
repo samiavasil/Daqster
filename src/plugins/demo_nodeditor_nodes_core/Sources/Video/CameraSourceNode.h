@@ -12,6 +12,7 @@
 #include <QtNodes/internal/Definitions.hpp>
 
 #include <QList>
+#include <QStringList>
 #include <memory>
 
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
@@ -20,9 +21,6 @@
 
 class QAudioBuffer;
 class QCamera;
-class QComboBox;
-class QLabel;
-class QPushButton;
 class QWidget;
 
 class VideoFrameData;
@@ -38,8 +36,12 @@ class VideoFrameData;
  *     audio via QAudioProbe; Qt6 does not expose captured audio buffers on
  *     QMediaCaptureSession (QAudioBufferOutput is playback-only), so the
  *     sample port emits invalid data on Qt6.
- * The embedded widget lets the user pick a camera device (or the platform
- * default) and start or stop the capture.
+ *
+ * REQ-SW-PL-051: this model owns NO widgets. The device selector, the
+ * Start/Stop button and the status label live in CameraSourceWidget (GUI
+ * plugin) and are created through NodeWidgetFactory. The selection is kept
+ * here as `m_selectedDeviceIndex` and reported to the widget through
+ * devicesChanged(); user actions come back through the public slots below.
  */
 class CameraSourceNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
@@ -71,7 +73,9 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex portIndex) override;
 
-    QWidget *embeddedWidget() override;
+    /// Core model has no QtWidgets dependency — the widget is created by the
+    /// GUI plugin and wired through NodeWidgetFactory (REQ-SW-PL-051).
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop the camera capture. Idempotent — safe to call multiple times
     /// (REQ-SW-PL-050).
@@ -85,14 +89,35 @@ public:
     void outputConnectionCreated(QtNodes::ConnectionId const &conId) override;
     void outputConnectionDeleted(QtNodes::ConnectionId const &conId) override;
 
+    // ── State read by the GUI widget ───────────────────────────────────────
+    /// Camera device descriptions for the selector. Entry 0 is always the
+    /// platform default camera; entries 1..n map to m_devices.
+    QStringList deviceDescriptions() const;
+    /// Index into deviceDescriptions() of the current selection.
+    int selectedDeviceIndex() const { return m_selectedDeviceIndex; }
+    /// Is the capture running?
+    bool isRunning() const { return m_running; }
+
+signals:
+    /// The available camera list changed (or the selection was restored) —
+    /// rebuild the selector and highlight deviceDescriptions().at(index).
+    void devicesChanged(const QStringList& descriptions, int selectedIndex);
+    /// Status text for the node's status line.
+    void statusChanged(const QString& text, bool ok);
+    /// The capture started/stopped — switch the button label.
+    void runningChanged(bool running);
+
+public slots:
+    /// Device selector changed.
+    void onDeviceIndexChanged(int index);
+    /// Start/Stop button pressed.
+    void onStartStopRequested();
+
 private slots:
-    void onDeviceChanged(int index);
-    void onStartStopClicked();
     void onFrameAvailable(const QVideoFrame &frame);
     void onAudioBufferReceived(const QAudioBuffer &buffer);
 
 private:
-    void buildWidget();
     void refreshDeviceList();
     VideoCompat::CameraDevice selectedDevice() const;
     void startCamera();
@@ -103,12 +128,9 @@ private:
         return 1; // 0 = video-frame, 1 = audio (no gap)
     }
 
-    QWidget *m_widget = nullptr;
-    QComboBox *m_deviceCombo = nullptr;
-    QPushButton *m_startStopButton = nullptr;
-    QLabel *m_statusLabel = nullptr;
-
     QList<VideoCompat::CameraDevice> m_devices;
+    /// Index into m_devices; -1 = platform default camera.
+    int m_selectedDeviceIndex = -1;
     QCamera *m_camera = nullptr;
     VideoCompat::FrameProbe *m_frameProbe = nullptr;
     // Runtime profiling (REQ-SW-PL-027): inter-frame gap stopwatch + first-frame

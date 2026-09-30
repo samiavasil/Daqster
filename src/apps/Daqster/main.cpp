@@ -39,8 +39,14 @@ void PluginsInit() {
       if (!Desc.IsEnabled()) continue;
       for (int i = 0; i < 1; i++) {
         Daqster::QBasePluginObject* obj = PluginManager->CreatePluginObject(Desc.GetProperty(PLUGIN_HASH).toString(), nullptr);
-        if (obj != nullptr)
-          obj->deleteLater();
+        // The object is intentionally NOT deleted here. Capability interfaces
+        // (INodeProvider / IWidgetProvider / IRuntimeHost, REQ-SW-PL-051) hand
+        // out pointers to their plugin objects, and those pointers are cached
+        // for the whole session — the node editor keeps its IWidgetProvider in
+        // ChatGraphModel. Destroying the objects at the first event-loop turn
+        // left that pointer dangling and every node placement segfaulted.
+        // PluginRegistry::shutdownAll() disposes of them on exit.
+        Q_UNUSED(obj)
       }
     }
   }

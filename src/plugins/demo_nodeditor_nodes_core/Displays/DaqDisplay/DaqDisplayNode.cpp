@@ -3,23 +3,9 @@
 #include "FftUtil.h"
 #include "Threading/ComputePool.h"
 
-#include <QComboBox>
-#include <QDoubleSpinBox>
-#include <QFrame>
-#include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonObject>
-#include <QLabel>
-#include <QPainter>
-#include <QPushButton>
-#include <QScrollArea>
-#include <QSignalBlocker>
 #include <QTimer>
-#include <QVBoxLayout>
-
-#include <QtCharts/QChartView>
-#include <QtCharts/QLineSeries>
-#include <QtCharts/QValueAxis>
 
 #include <cmath>
 
@@ -296,26 +282,13 @@ QPair<QPointF, QPointF> DaqDisplayNode::spectrumRanges(const QVector<float> &val
 
 // ── GUI-thread repaint (AC 4) ───────────────────────────────────────────────
 
-void DaqDisplayNode::applyResult(const PlotResult &result)
-{
-    // GUI thread: repaint ONLY — series->replace + axis->setRange (§4).
-    const int n = qMin(result.series.size(), m_cards.size());
-    for (int i = 0; i < n; ++i) {
-        m_cards[i].series->replace(result.series.at(i));
-        if (i < result.ranges.size()) {
-            m_cards[i].axisX->setRange(result.ranges.at(i).first.x(),
-                                       result.ranges.at(i).first.y());
-            m_cards[i].axisY->setRange(result.ranges.at(i).second.x(),
-                                       result.ranges.at(i).second.y());
-        }
-    }
-}
-
 void DaqDisplayResultBridge::onComputeDone(PlotResult result)
 {
-    // Queued to the GUI thread (Qt::QueuedConnection) — repaint only.
+    // Queued to the GUI thread (Qt::QueuedConnection) — repaint only. The
+    // actual series->replace + axis->setRange happens in DaqDisplayWidget
+    // (REQ-SW-PL-051), which listens to plotResultReady().
     if (m_node)
-        m_node->applyResult(result);
+        Q_EMIT m_node->plotResultReady(result);
 }
 
 // ── Construction / destruction ──────────────────────────────────────────────
@@ -342,7 +315,6 @@ DaqDisplayNode::DaqDisplayNode()
     m_refreshTimer->setInterval(1000 / 30); // ~30 Hz refresh throttle
     connect(m_refreshTimer, &QTimer::timeout, this, &DaqDisplayNode::onRefreshTick);
 
-    setupUi();
 
     m_refreshTimer->start();
 }
@@ -409,6 +381,9 @@ void DaqDisplayNode::restore(QJsonObject const &p)
 
     const double ringSeconds = p.value("ringSeconds").toDouble(10.0);
     m_ringSeconds = ringSeconds > 0.0 ? ringSeconds : 10.0;
+    // Notify the widget even when no plot card exists (so the spin box shows
+    // the restored value on an empty display).
+    Q_EMIT ringSecondsChanged(m_ringSeconds);
 
     const QJsonArray plots = p.value("plots").toArray();
     for (const QJsonValue &value : plots) {
@@ -483,8 +458,7 @@ void DaqDisplayNode::setInData(std::shared_ptr<NodeData> data, PortIndex const p
         const SampledStreamDescriptor &desc = sampled->descriptor();
         if (desc.expectedBufferSeconds > 0.0) {
             m_ringSeconds = desc.expectedBufferSeconds;
-            if (m_ringSpinBox)
-                m_ringSpinBox->setValue(m_ringSeconds);
+            Q_EMIT ringSecondsChanged(m_ringSeconds);
         }
     }
 
@@ -506,11 +480,6 @@ void DaqDisplayNode::setInData(std::shared_ptr<NodeData> data, PortIndex const p
     }
 }
 
-QWidget *DaqDisplayNode::embeddedWidget()
-{
-    return m_root;
-}
-
 // ── Built-in preprocessing functions (v1, JIT-ready slot interface) ─────────
 
 QVector<float> DaqDisplayNode::channelSamples(const SampledData &data, int channel)
@@ -530,52 +499,7 @@ QVector<float> DaqDisplayNode::spectrumSamples(const SampledData &data, int chan
     return FftUtil::magnitudeSpectrum(channelSamples(data, channel));
 }
 
-// ── UI ──────────────────────────────────────────────────────────────────────
-
-void DaqDisplayNode::setupUi()
-{
-    m_root = new QWidget();
-    auto *rootLayout = new QVBoxLayout(m_root);
-    rootLayout->setContentsMargins(2, 2, 2, 2);
-    rootLayout->setSpacing(2);
-
-    // Header: domain/rate label + buffer spinbox + Add Plot button (REQ-SW-PL-023 §1).
-    auto *header = new QHBoxLayout();
-    m_domainLabel = new QLabel(tr("sampled"), m_root);
-    m_ringSpinBox = new QDoubleSpinBox(m_root);
-    m_ringSpinBox->setRange(1.0, 120.0);
-    m_ringSpinBox->setSingleStep(1.0);
-    m_ringSpinBox->setSuffix(QStringLiteral(" s"));
-    m_ringSpinBox->setValue(m_ringSeconds);
-    m_ringSpinBox->setToolTip(tr("Ring-buffer duration in seconds"));
-    m_addPlotButton = new QPushButton(tr("Add Plot"), m_root);
-    header->addWidget(m_domainLabel, 1);
-    header->addWidget(new QLabel(tr("Buffer:"), m_root));
-    header->addWidget(m_ringSpinBox);
-    header->addWidget(m_addPlotButton);
-    rootLayout->addLayout(header);
-
-    // Scroll area hosting the configurable plot cards. No QStackedWidget — all
-    // cards are visible, so the FFT view is reachable (AC 3, bug fix §2).
-    m_scroll = new QScrollArea(m_root);
-    m_scroll->setWidgetResizable(true);
-    m_scroll->setFrameShape(QFrame::NoFrame);
-    m_cardsContainer = new QWidget(m_scroll);
-    m_cardsLayout = new QVBoxLayout(m_cardsContainer);
-    m_cardsLayout->setContentsMargins(2, 2, 2, 2);
-    m_cardsLayout->setSpacing(6);
-    m_scroll->setWidget(m_cardsContainer);
-    rootLayout->addWidget(m_scroll, 1);
-
-    // Empty-state hint when no cards exist.
-    m_emptyLabel = new QLabel(tr("No plots — press Add Plot"), m_cardsContainer);
-    m_emptyLabel->setAlignment(Qt::AlignCenter);
-    m_cardsLayout->addWidget(m_emptyLabel);
-
-    connect(m_addPlotButton, &QPushButton::clicked, this, &DaqDisplayNode::onAddPlot);
-    connect(m_ringSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged),
-            this, [this](double val) { m_ringSeconds = val; });
-}
+// ── Card configuration (REQ-SW-PL-051: no widgets here) ────────────────────
 
 void DaqDisplayNode::addPlotCard(const QString &title,
                                  PlotCard::ProcessingType type,
@@ -583,108 +507,23 @@ void DaqDisplayNode::addPlotCard(const QString &title,
                                  PlotCard::DecodeMode mode,
                                  bool unitAxes)
 {
-    auto *cardWidget = new QWidget(m_cardsContainer);
-    auto *cardLayout = new QVBoxLayout(cardWidget);
-    cardLayout->setContentsMargins(2, 2, 2, 2);
-    cardLayout->setSpacing(2);
-
-    // Card header: title label + processing combo + channel combo + delete.
-    auto *titleLabel = new QLabel(title, cardWidget);
-    auto *procCombo = new QComboBox(cardWidget);
-    procCombo->addItem(tr("Time Domain"), int(PlotCard::ProcessingType::TimeDomain));
-    procCombo->addItem(tr("FFT"), int(PlotCard::ProcessingType::FrequencySpectrum));
-    procCombo->setCurrentIndex(type == PlotCard::ProcessingType::FrequencySpectrum ? 1 : 0);
-
-    auto *chanCombo = new QComboBox(cardWidget);
-    chanCombo->setMinimumWidth(72);
-
-    auto *deleteBtn = new QPushButton(tr("✕"), cardWidget);
-    deleteBtn->setToolTip(tr("Remove plot"));
-    deleteBtn->setMaximumWidth(28);
-
-    auto *header = new QHBoxLayout();
-    header->addWidget(titleLabel, 1);
-    header->addWidget(procCombo);
-    header->addWidget(new QLabel(tr("Ch:"), cardWidget));
-    header->addWidget(chanCombo);
-    header->addWidget(deleteBtn);
-    cardLayout->addLayout(header);
-
-    // Real Qt Charts graph (same construction style as the legacy slots).
-    auto *chart = new QtChartsCompat::Chart();
-    chart->setTitle(title);
-    chart->legend()->hide();
-    chart->setAnimationOptions(QtChartsCompat::Chart::NoAnimation);
-
-    auto *axisX = new QtChartsCompat::ValueAxis();
-    auto *axisY = new QtChartsCompat::ValueAxis();
-    axisX->setLabelFormat(QStringLiteral("%.1f"));
-    axisY->setLabelFormat(QStringLiteral("%.2f"));
-    chart->addAxis(axisX, Qt::AlignBottom);
-    chart->addAxis(axisY, Qt::AlignLeft);
-
-    auto *series = new QtChartsCompat::LineSeries();
-    series->setName(title);
-    chart->addSeries(series);
-    series->attachAxis(axisX);
-    series->attachAxis(axisY);
-
-    auto *view = new QtChartsCompat::ChartView(chart);
-    view->setMinimumSize(360, 180);
-    view->setRenderHint(QPainter::Antialiasing);
-    cardLayout->addWidget(view);
-
-    // Populate the channel combo from the current descriptor (if any) and clamp.
-    if (m_lastData) {
-        const SampledStreamDescriptor &desc = m_lastData->descriptor();
-        const int nChannels = desc.totalChannels();
-        for (int i = 0; i < nChannels; ++i) {
-            const QString name = desc.channels.at(i).name;
-            chanCombo->addItem(name.isEmpty() ? QStringLiteral("Ch%1").arg(i) : name, i);
-        }
-        if (nChannels > 0)
-            channelIndex = qBound(0, channelIndex, nChannels - 1);
-        chanCombo->setCurrentIndex(channelIndex);
-    }
-
     PlotCard card;
     card.title = title;
     card.processingType = type;
     card.channelIndex = channelIndex;
     card.mode = mode;
     card.unitAxes = unitAxes;
-    card.widget = cardWidget;
-    card.series = series;
-    card.chart = chart;
-    card.chartView = view;
-    card.axisX = axisX;
-    card.axisY = axisY;
-    card.procCombo = procCombo;
-    card.chanCombo = chanCombo;
-    card.deleteBtn = deleteBtn;
     bindCardPreprocess(card);
 
-    // Unit axis titles (REQ-SW-PL-025 §2, AC 2): descriptor + processingType.
-    if (m_lastData)
-        applyAxisTitles(card, m_lastData->descriptor());
-
     m_cards.append(card);
-    m_cardsLayout->addWidget(cardWidget);
 
-    updateEmptyState();
+    // The GUI widget rebuilds its card objects from the new configuration.
+    Q_EMIT plotCardsChanged();
 
-    // Wire the card controls. cardWidget pointers are stable across QVector
-    // reallocation (only the struct copies the pointer), so the lambdas stay
-    // valid and the handler locates the card by widget.
-    connect(procCombo, qOverload<int>(&QComboBox::currentIndexChanged), this,
-            [this, cardWidget](int) { onCardConfigChanged(cardWidget); });
-    connect(chanCombo, qOverload<int>(&QComboBox::currentIndexChanged), this,
-            [this, cardWidget](int) { onCardConfigChanged(cardWidget); });
-    connect(deleteBtn, &QPushButton::clicked, this,
-            [this](bool) { onRemovePlot(0); });
-
-    if (m_lastData)
+    if (m_lastData) {
+        applyAxisTitlesFor(m_cards.last(), m_lastData->descriptor());
         m_dataDirty = true; // new card should render the latest data next tick
+    }
 }
 
 void DaqDisplayNode::removeCardAt(int index)
@@ -692,17 +531,19 @@ void DaqDisplayNode::removeCardAt(int index)
     if (index < 0 || index >= m_cards.size())
         return;
 
-    const PlotCard card = m_cards.takeAt(index);
-    if (card.widget)
-        card.widget->deleteLater(); // view → scene → chart → series/axes cleanup
+    m_cards.removeAt(index);
 
-    updateEmptyState();
+    // The GUI widget drops its card object in the same position.
+    Q_EMIT plotCardsChanged();
 }
 
 void DaqDisplayNode::clearAllCards()
 {
-    while (!m_cards.isEmpty())
-        removeCardAt(m_cards.size() - 1);
+    if (m_cards.isEmpty())
+        return;
+
+    m_cards.clear();
+    Q_EMIT plotCardsChanged();
 }
 
 void DaqDisplayNode::bindCardPreprocess(PlotCard &card)
@@ -730,31 +571,37 @@ DaqDisplayNode::PlotCard::DecodeMode DaqDisplayNode::defaultDecodeMode() const
     return PlotCard::DecodeMode::Normalized;
 }
 
-QString DaqDisplayNode::unitAxisTitleY(const QString &unit, PlotCard::DecodeMode mode,
+QString DaqDisplayNode::unitAxisTitleY(const QString &unit, bool physicalMode,
                                        bool isSpectrum)
 {
     // Time Domain: descriptor unit (fallback "normalized" / "amplitude").
     // Frequency: descriptor unit in physical mode, "Magnitude" in normalized.
     if (isSpectrum) {
-        if (mode == PlotCard::DecodeMode::Physical)
+        if (physicalMode)
             return unit.isEmpty() ? QStringLiteral("Magnitude") : unit;
         return QStringLiteral("Magnitude");
     }
     if (!unit.isEmpty())
         return unit;
-    return mode == PlotCard::DecodeMode::Physical ? QStringLiteral("amplitude")
-                                                  : QStringLiteral("normalized");
+    return physicalMode ? QStringLiteral("amplitude") : QStringLiteral("normalized");
 }
 
-void DaqDisplayNode::applyAxisTitles(PlotCard &card, const SampledStreamDescriptor &desc)
+void DaqDisplayNode::applyAxisTitlesFor(PlotCard &card,
+                                        const SampledStreamDescriptor &desc)
 {
-    const bool isSpectrum = card.processingType == PlotCard::ProcessingType::FrequencySpectrum;
+    // The card's chart axes live in the GUI plugin, but the titles are derived
+    // from the descriptor here so the descriptor stays the single source of
+    // truth (REQ-SW-PL-025 §2, AC 2). The widget reads them via cardAt().
+    const bool isSpectrum =
+        card.processingType == PlotCard::ProcessingType::FrequencySpectrum;
     const QString xTitle = isSpectrum ? QStringLiteral("Frequency (Hz)")
                                       : QStringLiteral("Time (s)");
-    const QString yTitle = unitAxisTitleY(desc.unit, card.mode, isSpectrum);
+    const QString yTitle = unitAxisTitleY(desc.unit,
+                                          card.mode == PlotCard::DecodeMode::Physical,
+                                          isSpectrum);
     // unitAxes=false keeps the v1 no-title look (REQ-SW-PL-025 §4).
-    card.axisX->setTitleText(card.unitAxes ? xTitle : QString());
-    card.axisY->setTitleText(card.unitAxes ? yTitle : QString());
+    card.axisTitleX = card.unitAxes ? xTitle : QString();
+    card.axisTitleY = card.unitAxes ? yTitle : QString();
 }
 
 void DaqDisplayNode::refresh()
@@ -765,66 +612,39 @@ void DaqDisplayNode::refresh()
     const SampledStreamDescriptor &desc = m_lastData->descriptor();
     const int nChannels = desc.totalChannels();
 
-    // Domain/rate label — descriptor-driven (REQ-SW-PL-023 §2.8).
+    // Header text — descriptor-driven (REQ-SW-PL-023 §2.8).
     const QString domain = desc.domain.isEmpty() ? QStringLiteral("sampled") : desc.domain;
     const QString rateText = desc.sampleRate > 0.0
                                  ? QStringLiteral("%1 Hz").arg(desc.sampleRate, 0, 'g', 6)
                                  : QStringLiteral("rate n/a");
-    m_domainLabel->setText(QStringLiteral("%1 · %2").arg(domain, rateText));
 
-    // Per-card channel combos populated from the descriptor channel count.
+    QStringList channelNames;
+    channelNames.reserve(nChannels);
+    for (int i = 0; i < nChannels; ++i) {
+        const QString name = desc.channels.at(i).name;
+        channelNames.append(name.isEmpty() ? QStringLiteral("Ch%1").arg(i) : name);
+    }
+
+    // Clamp the per-card channel to the new channel count and rebind.
     for (PlotCard &card : m_cards) {
-        QSignalBlocker blocker(card.chanCombo); // no dirty marks while populating
-        card.chanCombo->clear();
-        for (int i = 0; i < nChannels; ++i) {
-            const QString name = desc.channels.at(i).name;
-            card.chanCombo->addItem(name.isEmpty() ? QStringLiteral("Ch%1").arg(i) : name, i);
-        }
         if (nChannels > 0) {
-            card.channelIndex = qBound(0, card.channelIndex, nChannels - 1);
-            card.chanCombo->setCurrentIndex(card.channelIndex);
-            bindCardPreprocess(card);
+            const int clamped = qBound(0, card.channelIndex, nChannels - 1);
+            if (clamped != card.channelIndex) {
+                card.channelIndex = clamped;
+                bindCardPreprocess(card);
+            }
         }
-        // Unit axis titles follow the (possibly changed) descriptor (AC 2).
-        applyAxisTitles(card, desc);
+        applyAxisTitlesFor(card, desc);
     }
+
+    Q_EMIT descriptorInfoChanged(QStringLiteral("%1 · %2").arg(domain, rateText),
+                                 channelNames);
+    Q_EMIT plotCardsChanged(); // channel combos need repopulating
 }
 
-void DaqDisplayNode::updateEmptyState()
-{
-    if (m_emptyLabel)
-        m_emptyLabel->setVisible(m_cards.isEmpty());
-}
+// ── Slots (called by DaqDisplayWidget through NodeWidgetFactory) ───────────
 
-void DaqDisplayNode::onCardConfigChanged(QWidget *cardWidget)
-{
-    for (PlotCard &card : m_cards) {
-        if (card.widget != cardWidget)
-            continue;
-
-        // Processing combo changed → rebind this card's preprocess fn.
-        const int proc = card.procCombo->currentData().toInt();
-        card.processingType = proc == int(PlotCard::ProcessingType::FrequencySpectrum)
-                                  ? PlotCard::ProcessingType::FrequencySpectrum
-                                  : PlotCard::ProcessingType::TimeDomain;
-
-        // Channel combo changed → per-plot channel, independent of other cards.
-        card.channelIndex = qMax(0, card.chanCombo->currentIndex());
-
-        bindCardPreprocess(card);
-
-        // Time↔FFT switch changes the unit axis titles (AC 2).
-        if (m_lastData)
-            applyAxisTitles(card, m_lastData->descriptor());
-
-        m_dataDirty = true; // only this card's config changed; recompute next tick
-        return;
-    }
-}
-
-// ── Slots ───────────────────────────────────────────────────────────────────
-
-void DaqDisplayNode::onAddPlot()
+void DaqDisplayNode::onAddPlotRequested()
 {
     // New card default: Time Domain, channel 0 (REQ-SW-PL-023 §1); decode mode
     // defaults to physical unless the descriptor unit is "normalized" (v2 §2).
@@ -833,17 +653,47 @@ void DaqDisplayNode::onAddPlot()
                 defaultDecodeMode(), /*unitAxes=*/true);
 }
 
-void DaqDisplayNode::onRemovePlot(int /*unused*/)
+void DaqDisplayNode::onRemovePlotRequested(int index)
 {
-    auto *btn = qobject_cast<QPushButton *>(QObject::sender());
-    if (!btn)
+    removeCardAt(index);
+}
+
+void DaqDisplayNode::onCardProcessingChanged(int index, int processingType)
+{
+    if (index < 0 || index >= m_cards.size())
         return;
-    for (int i = 0; i < m_cards.size(); ++i) {
-        if (m_cards.at(i).deleteBtn == btn) {
-            removeCardAt(i);
-            return;
-        }
-    }
+
+    PlotCard &card = m_cards[index];
+    card.processingType = processingType == int(PlotCard::ProcessingType::FrequencySpectrum)
+                              ? PlotCard::ProcessingType::FrequencySpectrum
+                              : PlotCard::ProcessingType::TimeDomain;
+
+    bindCardPreprocess(card);
+
+    // Time↔FFT switch changes the unit axis titles (AC 2).
+    if (m_lastData)
+        applyAxisTitlesFor(card, m_lastData->descriptor());
+
+    m_dataDirty = true; // only this card's config changed; recompute next tick
+}
+
+void DaqDisplayNode::onCardChannelChanged(int index, int channelIndex)
+{
+    if (index < 0 || index >= m_cards.size())
+        return;
+
+    PlotCard &card = m_cards[index];
+    // Channel combo changed → per-plot channel, independent of other cards.
+    card.channelIndex = qMax(0, channelIndex);
+    bindCardPreprocess(card);
+
+    m_dataDirty = true;
+}
+
+void DaqDisplayNode::onRingSecondsChanged(double seconds)
+{
+    if (seconds > 0.0)
+        m_ringSeconds = seconds;
 }
 
 void DaqDisplayNode::onRefreshTick()

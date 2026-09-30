@@ -34,7 +34,6 @@
 
 // Built-in nodes (moved from node_editor_ide)
 #include "Sources/NumberSource/NumberSourceDataModel.h"
-#include "Sources/NumberSource/NumberSourceDataUi.h"
 #include "Displays/NumberDisplay/NumberDisplayDataModel.h"
 #include "Operators/ModuloModel.h"
 #include "Operators/ArithmeticLogic/ArithmeticLogicModel.h"

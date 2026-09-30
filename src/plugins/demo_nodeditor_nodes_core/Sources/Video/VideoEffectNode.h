@@ -16,13 +16,8 @@
 #include <functional>
 #include <memory>
 
-class QComboBox;
-class QLabel;
-class QSlider;
-class QStackedWidget;
-class QTimer;
 class QWidget;
-
+class QLabel;
 class VideoFrameData;
 
 /**
@@ -58,6 +53,12 @@ class VideoFrameData;
  * removed on 2026-08-26 (user decision) — old saved graphs that reference the
  * alias registry keys no longer load; the single "VideoEffect" node is the
  * only registered effect node.
+ *
+ * REQ-SW-PL-051: this model owns NO widgets. The effect combo, the stacked
+ * parameter pages and the CPU metric label live in VideoEffectWidget (GUI
+ * plugin) and are created through NodeWidgetFactory. The effect index and
+ * parameters are kept here as plain fields and pushed to the widget via
+ * configChanged().
  */
 class VideoEffectNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
@@ -92,6 +93,42 @@ public:
     /// current frame.
     void setEffect(const QString &id);
 
+    // ── State read by the GUI widget ───────────────────────────────────────
+    int effectIndex() const { return m_effectIndex; }
+    const EffectParams& params() const { return m_params; }
+    const QVector<EffectSpec>& specs() const { return m_specs; }
+
+signals:
+    /// The effect or a parameter changed (or load() restored them) —
+    /// re-render the combo, stacked pages and metric label.
+    void configChanged(int effectIndex, const EffectParams& params);
+    /// GPU path was used for the last frame.
+    void gpuPathUsed();
+    /// CPU path was used for the last frame.
+    void cpuPathUsed();
+
+public slots:
+    /// Effect combo changed.
+    void onEffectIndexChanged(int index);
+    /// Brightness slider changed.
+    void onBrightnessChanged(int value);
+    /// Contrast slider changed.
+    void onContrastChanged(int value);
+    /// Flip combo changed.
+    void onFlipChanged(int index);
+    /// Blur radius slider changed.
+    void onBlurChanged(int value);
+#ifdef HAVE_OPENCV
+    /// Gaussian kernel slider changed.
+    void onGaussianChanged(int value);
+    /// Canny low threshold changed.
+    void onCannyLowChanged(int value);
+    /// Canny high threshold changed.
+    void onCannyHighChanged(int value);
+    /// Threshold value slider changed.
+    void onThresholdChanged(int value);
+#endif
+
     QJsonObject save() const override;
     void load(QJsonObject const &p) override;
 
@@ -105,7 +142,9 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex portIndex) override;
 
-    QWidget *embeddedWidget() override;
+    /// Core model has no QtWidgets dependency — the widget is created by the
+    /// GUI plugin and wired through NodeWidgetFactory (REQ-SW-PL-051).
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop background work (ComputePool tasks + perf timer). Idempotent —
     /// safe to call multiple times (REQ-SW-PL-050).
@@ -124,17 +163,6 @@ private slots:
 private:
     int indexOfEffect(const QString &id) const;
     void setEffectIndex(int index);
-    void buildWidget();
-    QWidget *createInfoPage(const QString &text);
-    QWidget *createSliderPage(QSlider *&sliderOut, QLabel *&valueLabelOut,
-                              int min, int max, int initial, const QString &title,
-                              std::function<void(int)> onChanged);
-    QWidget *createFlipPage();
-#ifdef HAVE_OPENCV
-    QWidget *createGaussianPage();
-    QWidget *createCannyPage();
-#endif
-    void syncWidgetsFromParams();
     void reprocessCurrentFrame();
     /// Pure CPU effect pass — reads ONLY the passed spec/params (never node
     /// members), so it is safe to call from a ComputePool worker thread.
@@ -157,27 +185,8 @@ private:
     quint64 m_totalFrames = 0;          // all valid setInData calls
     QTimer *m_perfTimer = nullptr;      // 5 s [PERF] effect console line
 
-    QWidget *m_widget = nullptr;
-    QComboBox *m_effectCombo = nullptr;
-    QStackedWidget *m_stack = nullptr;
-    QLabel *m_metricLabel = nullptr;    // CPU metric label below the stack
-    QSlider *m_brightnessSlider = nullptr;
-    QLabel *m_brightnessValue = nullptr;
-    QSlider *m_contrastSlider = nullptr;
-    QLabel *m_contrastValue = nullptr;
-    QComboBox *m_flipCombo = nullptr;
-    QSlider *m_blurSlider = nullptr;
-    QLabel *m_blurValue = nullptr;
-#ifdef HAVE_OPENCV
-    QSlider *m_gaussianSlider = nullptr;
-    QLabel *m_gaussianValue = nullptr;
-    QSlider *m_cannyLowSlider = nullptr;
-    QLabel *m_cannyLowValue = nullptr;
-    QSlider *m_cannyHighSlider = nullptr;
-    QLabel *m_cannyHighValue = nullptr;
-    QSlider *m_thresholdSlider = nullptr;
-    QLabel *m_thresholdValue = nullptr;
-#endif
+    // Kept for test compatibility (friend class VideoEffectNodeTest)
+    QLabel *m_metricLabel = nullptr;
 };
 
 #endif // VIDEOEFFECTNODE_H

@@ -2,9 +2,6 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QEvent>
-#include <QtWidgets/QLabel>
-#include <QtWidgets/QComboBox>
-#include <QtWidgets/QVBoxLayout>
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -53,8 +50,10 @@ public:
     void
     setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex const portIndex) override;
 
+    /// Core model has no QtWidgets dependency — the widget is created by the
+    /// GUI plugin and wired through NodeWidgetFactory (REQ-SW-PL-051).
     QWidget *
-    embeddedWidget() override { return m_wrapper; }
+    embeddedWidget() override { return nullptr; }
 
     /// The node BODY (boundary, caption, ports) does not depend on data —
     /// widget content self-repaints via Qt. The validation border self-repaints
@@ -74,10 +73,16 @@ public:
     void load(QJsonObject const &p) override;
 
     QtNodes::NodeValidationState
-    validationState() const override { return modelValidationState; }
+    validationState() const override;
 
-private slots:
+public slots:
+    /// Type selector of the GUI widget (called by NodeWidgetFactory).
     void onTypeChanged(int index);
+
+signals:
+    /// The number to display. The core model owns the data; the GUI widget owns
+    /// the QLabel it is rendered into (REQ-SW-PL-051 core/gui split).
+    void displayTextChanged(QString const& text);
 
 private:
     void switchType(DataType newType);
@@ -90,7 +95,4 @@ private:
     QtNodes::NodeValidationState modelValidationState;
     QString modelValidationError = QStringLiteral("Missing or incorrect inputs");
 
-    QWidget* m_wrapper = nullptr;
-    QComboBox* m_typeCombo = nullptr;
-    QLabel * _label;
 };

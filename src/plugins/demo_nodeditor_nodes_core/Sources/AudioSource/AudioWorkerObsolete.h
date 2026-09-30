@@ -2,7 +2,7 @@
 #define AUDIOWORKEROBSOLETE_H
 
 #include "AudioCompat.h"
-#include "AudioSourceDataModelUI.h"
+#include "AudioStartStop.h"
 
 #include<EventThreadPullObsolete.h>
 
@@ -17,7 +17,7 @@ public:
     virtual ~AudioWorkerObsolete();
 public slots:
     void DoWork();
-    void Start(AudioSourceDataModelUI::StartStop status);
+    void Start(AudioStartStop status);
     void UpdateAudioDevice(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
 
 

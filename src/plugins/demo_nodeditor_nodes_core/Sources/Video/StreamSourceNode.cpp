@@ -4,14 +4,8 @@
 #include "NodeDataTypes/VideoFrameData.h"
 #include "StreamUrlValidator.h"
 
-#include <QDebug>
-#include <QHBoxLayout>
-#include <QLabel>
-#include <QLineEdit>
 #include <QMediaPlayer>
-#include <QPushButton>
 #include <QUrl>
-#include <QVBoxLayout>
 
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
@@ -21,8 +15,6 @@ using QtNodes::PortType;
 StreamSourceNode::StreamSourceNode()
     : m_videoFrameOut(std::make_shared<VideoFrameData>())
 {
-    buildWidget();
-
     m_player = new QMediaPlayer(this);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     // Qt6: audio is only routed to a sink when an explicit QAudioOutput is
@@ -70,8 +62,6 @@ StreamSourceNode::~StreamSourceNode()
 {
     // Single shutdown path: stop() stops the media player (REQ-SW-PL-050).
     stop();
-    // Widget lifetime is owned by the node/view framework.
-    m_widget = nullptr;
 }
 
 void StreamSourceNode::stop()
@@ -89,7 +79,7 @@ void StreamSourceNode::start()
     if (m_isPlaying)
         return;
 
-    const QString urlString = m_urlEdit->text().trimmed();
+    const QString urlString = m_url.trimmed();
     QString error;
     if (!StreamUrlValidator::isValidStreamUrl(urlString, &error)) {
         setStatus(error, false);
@@ -104,14 +94,16 @@ void StreamSourceNode::start()
 QJsonObject StreamSourceNode::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
-    modelJson["url"] = m_urlEdit->text();
+    modelJson["url"] = m_url;
     return modelJson;
 }
 
 void StreamSourceNode::load(QJsonObject const &p)
 {
-    if (p.contains("url"))
-        m_urlEdit->setText(p["url"].toString());
+    if (p.contains("url")) {
+        m_url = p["url"].toString();
+        Q_EMIT urlChanged(m_url);
+    }
 }
 
 unsigned int StreamSourceNode::nPorts(PortType portType) const
@@ -159,34 +151,6 @@ void StreamSourceNode::outputConnectionDeleted(QtNodes::ConnectionId const &conI
         --m_audioPortConnectionCount;
 }
 
-QWidget *StreamSourceNode::embeddedWidget()
-{
-    return m_widget;
-}
-
-void StreamSourceNode::buildWidget()
-{
-    m_widget = new QWidget();
-    auto *layout = new QVBoxLayout(m_widget);
-    layout->setContentsMargins(4, 4, 4, 4);
-    layout->setSpacing(4);
-
-    m_urlEdit = new QLineEdit(m_widget);
-    m_urlEdit->setPlaceholderText(tr("Stream URL (http:// or rtsp://)"));
-    layout->addWidget(m_urlEdit);
-
-    auto *controlRow = new QHBoxLayout();
-    m_connectButton = new QPushButton(tr("Connect"), m_widget);
-    m_statusLabel = new QLabel(tr("Disconnected"), m_widget);
-    m_statusLabel->setStyleSheet(QStringLiteral("color: gray;"));
-    controlRow->addWidget(m_connectButton);
-    controlRow->addWidget(m_statusLabel, 1);
-    layout->addLayout(controlRow);
-
-    connect(m_connectButton, &QPushButton::clicked,
-            this, &StreamSourceNode::onConnectClicked);
-}
-
 void StreamSourceNode::onConnectClicked()
 {
     if (m_isPlaying) {
@@ -194,7 +158,7 @@ void StreamSourceNode::onConnectClicked()
         return;
     }
 
-    const QString urlString = m_urlEdit->text().trimmed();
+    const QString urlString = m_url.trimmed();
     QString error;
     if (!StreamUrlValidator::isValidStreamUrl(urlString, &error)) {
         setStatus(error, false);
@@ -204,6 +168,11 @@ void StreamSourceNode::onConnectClicked()
     const QUrl url(urlString);
     VideoCompat::setMediaSource(m_player, url);
     m_player->play();
+}
+
+void StreamSourceNode::onUrlChanged(const QString &url)
+{
+    m_url = url;
 }
 
 void StreamSourceNode::onFrameAvailable(const QVideoFrame &frame)
@@ -296,12 +265,10 @@ void StreamSourceNode::onPlayerError(QMediaPlayer::Error error, const QString &e
 
 void StreamSourceNode::setStatus(const QString &text, bool ok)
 {
-    m_statusLabel->setText(text);
-    m_statusLabel->setStyleSheet(ok ? QStringLiteral("color: green;")
-                                    : QStringLiteral("color: gray;"));
+    Q_EMIT statusChanged(text, ok);
 }
 
 void StreamSourceNode::updateConnectButton()
 {
-    m_connectButton->setText(m_isPlaying ? tr("Stop") : tr("Connect"));
+    Q_EMIT playingChanged(m_isPlaying);
 }

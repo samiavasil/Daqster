@@ -2,16 +2,14 @@
 #include "NodeEditorWidget.h"
 #include "QPluginManager.h"
 #include "capabilities/INodeProvider.h"
+#include "capabilities/IWidgetProvider.h"
 #include "debug.h"
 #include "LogCategories.h"
 #include "shared/IStartable.h"
 #include "shared/IStoppable.h"
 
-// Built-in node models (from demo_nodeditor_nodes_core)
-#include "Sources/NumberSource/NumberSourceDataModel.h"
-#include "Displays/NumberDisplay/NumberDisplayDataModel.h"
-#include "Operators/ModuloModel.h"
-#include "Operators/ArithmeticLogic/ArithmeticLogicModel.h"
+// REQ-SW-PL-051: no built-in node model headers here — the models are owned by
+// demo_nodeditor_nodes_core and registered through its INodeProvider below.
 
 #include <QMainWindow>
 #include <QMdiArea>
@@ -184,13 +182,10 @@ bool RuntimeShell::registerNodes()
     auto* registry = m_editorWidget->getInjectedRegistry();
     if (!registry) return false;
 
-    // Register built-in nodes (same as NodeEditorIdeObject::registerBuiltInNodes)
-    registry->registerModel<NumberSourceDataModel>("General/Sources");
-    registry->registerModel<NumberDisplayDataModel>("General/Display");
-    registry->registerModel<ModuloModel>("General/Processing");
-    registry->registerModel<ArithmeticLogicModel>("General/Processing");
-
-    // Discover and register external nodes (same as NodeEditorIdeObject::discoverAndRegisterExternalNodes)
+    // REQ-SW-PL-051: every node — including the built-in ones (NumberSource,
+    // NumberDisplay, Modulo, Arithmetic/Logic) — is registered by the
+    // demo_nodeditor_nodes_core INodeProvider, so there is no local list here.
+    // Discover and register external nodes.
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
     if (pm) {
         for (Daqster::INodeProvider* provider : pm->nodeProviders()) {
@@ -201,7 +196,79 @@ bool RuntimeShell::registerNodes()
         }
     }
 
+    // REQ-SW-PL-051: Pass the widget provider from the GUI plugin to the editor
+    // widget so nodes with split core/gui models get their widgets.
+    if (pm) {
+        for (Daqster::IWidgetProvider* provider : pm->widgetProviders()) {
+            if (!provider) continue;
+            DEBUG << "RuntimeShell: Discovered IWidgetProvider plugin";
+            adoptWidgetProvider(provider);
+            break; // Use the first one
+        }
+    }
+
+    // REQ-SW-PL-051: plugins may load in any order. When a new INodeProvider
+    // plugin appears (or is reloaded), re-discover and register its nodes.
+    if (pm) {
+        connect(pm, &Daqster::QPluginManager::PluginsListChangeDetected,
+                this, [this]() {
+                    discoverAndRegisterExternalNodes();
+                });
+    }
+
     return true;
+}
+
+void RuntimeShell::discoverAndRegisterExternalNodes()
+{
+    if (!m_editorWidget)
+        return;
+
+    auto* registry = m_editorWidget->getInjectedRegistry();
+    if (!registry)
+        return;
+
+    Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
+    if (!pm)
+        return;
+
+    for (Daqster::INodeProvider* provider : pm->nodeProviders()) {
+        if (!provider)
+            continue;
+
+        DEBUG << "RuntimeShell: Discovered INodeProvider plugin";
+        provider->registerNodes(*registry);
+    }
+
+    // REQ-SW-PL-051: also discover IWidgetProvider plugins (they may load
+    // in any order). Pass the provider to the editor widget so split models
+    // get their widgets.
+    for (Daqster::IWidgetProvider* provider : pm->widgetProviders()) {
+        if (!provider)
+            continue;
+
+        DEBUG << "RuntimeShell: Discovered IWidgetProvider plugin";
+        adoptWidgetProvider(provider);
+        break; // Use the first one
+    }
+}
+
+void RuntimeShell::adoptWidgetProvider(Daqster::IWidgetProvider* provider)
+{
+    if (!provider || !m_editorWidget)
+        return;
+
+    m_editorWidget->setWidgetProvider(provider);
+
+    // The graph model caches the raw pointer, so re-resolve it when the plugin
+    // object dies (plugin reload / unload). PluginRegistry recreates a fresh,
+    // initialized object on the next widgetProviders() call.
+    if (auto* owner = dynamic_cast<QObject*>(provider)) {
+        connect(owner, &QObject::destroyed, this, [this]() {
+            DEBUG << "RuntimeShell: IWidgetProvider plugin object destroyed, re-discovering";
+            discoverAndRegisterExternalNodes();
+        });
+    }
 }
 
 bool RuntimeShell::buildCanvas()
@@ -387,10 +454,12 @@ void RuntimeShell::arrangeWorkspaces(const FlowUi::UiSection& ui)
         if (node == nullptr || !node->isWidgetEmbedded())
             continue;
 
-        // Get the widget from the model
+        // Get the widget through the graph model: it consults the IWidgetProvider
+        // of the GUI plugin (REQ-SW-PL-051), while NodeDelegateModel::
+        // embeddedWidget() is nullptr for every core/split model.
         auto* model = m_editorWidget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
-        QWidget* widget = model != nullptr ? model->embeddedWidget() : nullptr;
-        if (widget == nullptr)
+        QWidget* widget = m_editorWidget->nodeWidget(nodeId);
+        if (model == nullptr || widget == nullptr)
             continue;
 
         // Two-step deembed:

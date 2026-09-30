@@ -11,14 +11,7 @@ using QtNodes::NodeValidationState;
 static inline int mod(int a, int b) { return (a % b); }
 static inline double mod(double a, double b) { return fmod(a, b); }
 
-ModuloModel::ModuloModel()
-{
-    m_typeCombo = new QComboBox();
-    m_typeCombo->addItem("int");
-    m_typeCombo->addItem("double");
-    connect(m_typeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &ModuloModel::onTypeChanged);
-}
+ModuloModel::ModuloModel() = default;
 
 ModuloModel::~ModuloModel() {}
 
@@ -33,11 +26,7 @@ QJsonObject ModuloModel::save() const
 void ModuloModel::load(QJsonObject const &p)
 {
     QString typeStr = p["type"].toString();
-    if (typeStr == "double") {
-        m_typeCombo->setCurrentIndex(1);
-    } else {
-        m_typeCombo->setCurrentIndex(0);
-    }
+    switchType(typeStr == "double" ? DataType::Double : DataType::Int);
 }
 
 unsigned int ModuloModel::nPorts(PortType portType) const
@@ -64,11 +53,6 @@ std::shared_ptr<NodeData> ModuloModel::outData(PortIndex)
         return m_result_int;
     else
         return m_result_dbl;
-}
-
-QWidget* ModuloModel::embeddedWidget()
-{
-    return m_typeCombo;
 }
 
 void ModuloModel::onTypeChanged(int index)

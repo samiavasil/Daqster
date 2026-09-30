@@ -42,17 +42,6 @@ SampledStreamDescriptor makeGamepadDescriptor(double sampleRate)
 GamepadModel::GamepadModel()
 {
     m_engine = new GamepadEngine(this);
-    m_widget = new GamepadWidget();
-
-    // Widget → model (GUI thread).
-    connect(m_widget, &GamepadWidget::startRequested,
-            this, &GamepadModel::onStartRequested);
-    connect(m_widget, &GamepadWidget::stopRequested,
-            this, &GamepadModel::onStopRequested);
-    connect(m_widget, &GamepadWidget::devicePathChanged,
-            this, &GamepadModel::onDevicePathChanged);
-    connect(m_widget, &GamepadWidget::pollRateChanged,
-            this, &GamepadModel::onPollRateChanged);
 
     // Engine → model (same thread — QTimer based).
     connect(m_engine, &GamepadEngine::stateReady,
@@ -70,9 +59,6 @@ GamepadModel::~GamepadModel()
     // Single shutdown path: stop() stops the polling timer + closes the fd
     // before the engine (child) is destroyed (REQ-SW-PL-042 AC 6, PL-050).
     stop();
-
-    // Widget lifetime is owned by the node/view framework.
-    m_widget = nullptr;
 }
 
 void GamepadModel::stop()
@@ -95,16 +81,16 @@ QJsonObject GamepadModel::save() const
 {
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
 
-    modelJson["devicePath"] = m_widget->devicePath();
-    modelJson["pollRateHz"] = m_widget->pollRateHz();
+    modelJson["devicePath"] = m_devicePath;
+    modelJson["pollRateHz"] = m_pollRateHz;
 
     return modelJson;
 }
 
 void GamepadModel::load(QJsonObject const &p)
 {
-    m_widget->setDevicePath(p.value("devicePath").toString(QStringLiteral("/dev/input/js0")));
-    m_widget->setPollRateHz(p.value("pollRateHz").toInt(60));
+    m_devicePath = p.value("devicePath").toString(QStringLiteral("/dev/input/js0"));
+    m_pollRateHz = p.value("pollRateHz").toInt(60);
 
     updateEngineConfig();
 }
@@ -136,11 +122,6 @@ void GamepadModel::setInData(std::shared_ptr<QtNodes::NodeData> data,
     Q_ASSERT(0);
 }
 
-QWidget *GamepadModel::embeddedWidget()
-{
-    return m_widget;
-}
-
 // ── Connection-count gating (model of SystemMonitorModel) ───────────────────
 
 void GamepadModel::outputConnectionCreated(QtNodes::ConnectionId const &conId)
@@ -170,18 +151,18 @@ void GamepadModel::onStopRequested()
 {
     m_userStarted = false;
     m_engine->stop();
-    m_widget->setStatus(QStringLiteral("Idle"));
+    Q_EMIT statusChanged(QStringLiteral("Idle"));
 }
 
 void GamepadModel::onDevicePathChanged(const QString &path)
 {
-    Q_UNUSED(path);
+    m_devicePath = path;
     updateEngineConfig();
 }
 
 void GamepadModel::onPollRateChanged(int hz)
 {
-    Q_UNUSED(hz);
+    m_pollRateHz = hz;
     updateEngineConfig();
 }
 
@@ -191,7 +172,7 @@ void GamepadModel::onStateReady(const GamepadState &s)
 {
     // Gamepad state IS sampled data: 12 FLOAT32 channels, one "frame" per poll
     // — exactly what SampledStreamDescriptor describes (REQ-SW-PL-042 §2).
-    SampledStreamDescriptor desc = makeGamepadDescriptor(m_widget->pollRateHz());
+    SampledStreamDescriptor desc = makeGamepadDescriptor(m_pollRateHz);
 
     // One interleaved frame of 12 FLOAT32 values.
     QByteArray buffer;
@@ -212,29 +193,29 @@ void GamepadModel::onStateReady(const GamepadState &s)
 
     m_output = std::make_shared<SampledData>(buffer, desc);
 
-    m_widget->setAxisValues(s.axisX, s.axisY, s.axisZ, s.axisRz);
-    m_widget->setButtonStates(s.buttonA, s.buttonB, s.buttonX, s.buttonY,
-                              s.buttonLB, s.buttonRB, s.buttonBack, s.buttonStart);
+    Q_EMIT axisValuesChanged(s.axisX, s.axisY, s.axisZ, s.axisRz);
+    Q_EMIT buttonStatesChanged(s.buttonA, s.buttonB, s.buttonX, s.buttonY,
+                               s.buttonLB, s.buttonRB, s.buttonBack, s.buttonStart);
 
     emit dataUpdated(0);
 }
 
 void GamepadModel::onStatusChanged(const QString &status)
 {
-    m_widget->setStatus(status);
+    Q_EMIT statusChanged(status);
 }
 
 void GamepadModel::onErrorOccurred(const QString &message)
 {
-    m_widget->setStatus(message);
+    Q_EMIT statusChanged(message);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 void GamepadModel::updateEngineConfig()
 {
-    m_engine->setDevicePath(m_widget->devicePath());
-    m_engine->setPollRate(m_widget->pollRateHz());
+    m_engine->setDevicePath(m_devicePath);
+    m_engine->setPollRate(m_pollRateHz);
 }
 
 void GamepadModel::setPollingEnabled(bool enabled)

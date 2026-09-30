@@ -3,7 +3,6 @@
 
 #include "NodeDataTypes/SampledData.h"
 
-#include "QtChartsCompat.h"
 #include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
@@ -12,19 +11,14 @@
 #include <QMetaType>
 #include <QPair>
 #include <QPointF>
+#include <QStringList>
 #include <QVector>
 
 #include <atomic>
 #include <functional>
 #include <memory>
 
-class QComboBox;
-class QDoubleSpinBox;
-class QLabel;
-class QPushButton;
-class QScrollArea;
 class QTimer;
-class QVBoxLayout;
 class QWidget;
 
 class DaqDisplayNode;
@@ -41,8 +35,9 @@ Q_DECLARE_METATYPE(PlotResult)
  * @brief GUI-thread bridge for queued compute results (REQ-SW-PL-023 §4).
  *
  * Lives on the GUI thread. The worker task posts PlotResult here with
- * Qt::QueuedConnection; this slot only repaints the charts (series->replace +
- * axis->setRange) — no data work on the GUI thread.
+ * Qt::QueuedConnection; this slot only hands the result to the widget for
+ * repainting (series->replace + axis->setRange) — no data work on the GUI
+ * thread.
  */
 class DaqDisplayResultBridge : public QObject
 {
@@ -66,7 +61,7 @@ private:
  *
  * Evolution of the REQ-SW-PL-022 DataPlot node: instead of two fixed
  * QStackedWidget slots (the FFT slot was unreachable due to setCurrentIndex),
- * the node now hosts N configurable plot cards in a QScrollArea. Each card is
+ * the node now hosts N configurable plot cards. Each card is
  * { title label, processing combo (Time Domain / FFT), channel combo, delete
  * button, real Qt Charts graph } — per-plot channel, independent of the other
  * cards (AC 1, AC 2).
@@ -88,14 +83,20 @@ private:
  * Threading contract (user hard requirement): decode/FFT/point-build/min-max
  * NEVER run on the GUI thread. setInData() only keeps the latest shared_ptr
  * (immutable buffer) and marks dirty. A 30 Hz GUI timer snapshots the data +
- * per-card {processingType, channelIndex, mode, unitAxes} config and submits a
- * task to the shared ComputePool (REQ-SW-PL-039) under a per-node key — the
- * pool's per-key "latest-wins" submission + per-key serialization preserves the
- * worker-only ring contract. The ring buffer (m_ring) is owned by the worker
- * side — only the submitted task touches it, never the GUI thread — so no data
- * mutex is required (same immutable-copy model as v1).
+ * per-card config and submits a task to the shared ComputePool (REQ-SW-PL-039)
+ * under a per-node key — the pool's per-key "latest-wins" submission + per-key
+ * serialization preserves the worker-only ring contract. The ring buffer is
+ * owned by the worker side — only the submitted task touches it, never the GUI
+ * thread — so no data mutex is required (same immutable-copy model as v1).
  * Results are delivered back via a queued invoke to the GUI-thread bridge;
- * onComputeDone performs ONLY series->replace() + axis->setRange() (AC 4).
+ * onComputeDone emits plotResultReady(), which the widget turns into
+ * series->replace() + axis->setRange() (AC 4).
+ *
+ * REQ-SW-PL-051: this model owns NO widgets. PlotCard carries the per-card
+ * *configuration* only; the Qt Charts card widgets live in the GUI plugin
+ * (DaqDisplayWidget), created through NodeWidgetFactory. The model reports
+ * state changes through the signals below and receives user edits through the
+ * public slots.
  *
  * The std::function<QVector<float>(const SampledData&)> slot interface remains
  * the JIT-ready extension point; each card holds its own PreprocessFn bound to
@@ -138,7 +139,9 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex portIndex) override;
 
-    QWidget *embeddedWidget() override;
+    /// Core model has no QtWidgets dependency — the plot cards are created by
+    /// the GUI plugin and wired through NodeWidgetFactory (REQ-SW-PL-051).
+    QWidget *embeddedWidget() override { return nullptr; }
 
     /// Stop the refresh timer and cancel queued compute tasks. Idempotent —
     /// safe to call multiple times (REQ-SW-PL-050).
@@ -149,14 +152,15 @@ public:
     /// via setValidationState(). Opts out of the per-frame body repaint.
     bool dataArrivalChangesWidget() const override { return false; }
 
-    /// GUI-thread-only chart repaint of a compute result (via the bridge).
-    void applyResult(const PlotResult &result);
-
     /// Built-in preprocessing functions (v1, JIT-ready slot interface).
     static QVector<float> channelSamples(const SampledData &data, int channel);
     static QVector<float> spectrumSamples(const SampledData &data, int channel);
 
-    /// One configurable DataPlot card (REQ-SW-PL-023 §1, v2 REQ-SW-PL-025 §2).
+    // ── Per-card axis title helper, used by the widget (REQ-SW-PL-025 §2) ──
+    static QString unitAxisTitleY(const QString &unit, bool physicalMode, bool isSpectrum);
+
+    /// Per-card configuration. Since REQ-SW-PL-051 this holds no widget
+    /// pointers — the GUI widget keeps its own card objects in the same order.
     struct PlotCard {
         enum class ProcessingType { TimeDomain, FrequencySpectrum };
 
@@ -168,18 +172,12 @@ public:
         ProcessingType processingType = ProcessingType::TimeDomain;
         DecodeMode mode = DecodeMode::Normalized; // default normalized = v1 behavior
         bool unitAxes = true;                     // descriptor unit axis titles
+        /// Descriptor-derived axis titles, computed by the model and consumed by
+        /// the GUI widget's chart (REQ-SW-PL-025 §2, AC 2 / AC 3). Empty when
+        /// unitAxes == false (the v1 no-title look, §4).
+        QString axisTitleX;
+        QString axisTitleY;
         std::function<QVector<float>(const SampledData &)> preprocess; // bound to this card's channelIndex
-
-        QtChartsCompat::LineSeries *series = nullptr;
-        QtChartsCompat::Chart *chart = nullptr;
-        QtChartsCompat::ChartView *chartView = nullptr;
-        QtChartsCompat::ValueAxis *axisX = nullptr;
-        QtChartsCompat::ValueAxis *axisY = nullptr;
-
-        QComboBox *procCombo = nullptr;
-        QComboBox *chanCombo = nullptr;
-        QPushButton *deleteBtn = nullptr;
-        QWidget *widget = nullptr;
     };
 
     /// Immutable per-card snapshot consumed by the worker task.
@@ -191,8 +189,48 @@ public:
     };
 
     /// Add a configured plot card to the display (also used by restore()).
+    /// Appends to the configuration list and asks the widget to rebuild.
     void addPlotCard(const QString &title, PlotCard::ProcessingType type, int channelIndex,
                      PlotCard::DecodeMode mode, bool unitAxes);
+
+    /// Remove the card at `index` (widget removes its card object too).
+    void removeCardAt(int index);
+
+    /// Number of configured cards — the widget builds exactly this many.
+    int cardCount() const { return m_cards.size(); }
+
+    /// Read-only access to a card's configuration (for the widget).
+    PlotCard const &cardAt(int index) const { return m_cards.at(index); }
+
+    /// Ring-buffer duration, in seconds.
+    double ringSeconds() const { return m_ringSeconds; }
+
+signals:
+    /// The card list changed (add / remove / restore) — rebuild the cards.
+    void plotCardsChanged();
+
+    /// A compute pass finished on the worker thread and was delivered to the
+    /// GUI thread. The widget repaints series + axis ranges (AC 4).
+    void plotResultReady(const PlotResult &result);
+
+    /// The input descriptor changed: header text + per-card channel combo
+    /// entries. The channel count may have changed.
+    void descriptorInfoChanged(const QString &headerText, const QStringList &channelNames);
+
+    /// The descriptor recommended a ring-buffer duration (REQ-SW-PL-023 §7).
+    void ringSecondsChanged(double seconds);
+
+public slots:
+    /// "Add Plot" button in the widget.
+    void onAddPlotRequested();
+    /// "✕" button on card `index`.
+    void onRemovePlotRequested(int index);
+    /// Processing combo of card `index` changed.
+    void onCardProcessingChanged(int index, int processingType);
+    /// Channel combo of card `index` changed.
+    void onCardChannelChanged(int index, int channelIndex);
+    /// Ring-buffer spin box changed.
+    void onRingSecondsChanged(double seconds);
 
 private:
     using PreprocessFn = std::function<QVector<float>(const SampledData &)>;
@@ -214,22 +252,14 @@ private:
         quint64 lastAppendedGeneration = 0;       // identity of last appended block
     };
 
-    void setupUi();
-    void removeCardAt(int index);
     void clearAllCards();
     void bindCardPreprocess(PlotCard &card);
     void refresh();
-    void updateEmptyState();
-    void onCardConfigChanged(QWidget *cardWidget);
+    void applyAxisTitlesFor(PlotCard &card, const SampledStreamDescriptor &desc);
 
     /// Default decode mode for a NEW card: physical unless the descriptor unit
     /// is "normalized" (REQ-SW-PL-025 §2). Restored cards keep their saved mode.
     PlotCard::DecodeMode defaultDecodeMode() const;
-
-    /// Per-card unit axis titles from descriptor + mode (REQ-SW-PL-025 §2, AC 2).
-    static QString unitAxisTitleY(const QString &unit, PlotCard::DecodeMode mode,
-                                  bool isSpectrum);
-    void applyAxisTitles(PlotCard &card, const SampledStreamDescriptor &desc);
 
     /// Pure off-GUI computation: ring append + decode + FFT + decimation +
     /// ranges (AC 4). Worker thread only — touches the worker-owned m_ring.
@@ -255,19 +285,9 @@ private:
     static QPair<QPointF, QPointF> spectrumRanges(const QVector<float> &values, double sampleRate);
 
 private slots:
-    void onAddPlot();
-    void onRemovePlot(int /*unused*/);
     void onRefreshTick();
 
 private:
-    QWidget *m_root = nullptr;
-    QScrollArea *m_scroll = nullptr;
-    QWidget *m_cardsContainer = nullptr;
-    QVBoxLayout *m_cardsLayout = nullptr;
-    QPushButton *m_addPlotButton = nullptr;
-    QDoubleSpinBox *m_ringSpinBox = nullptr;
-    QLabel *m_emptyLabel = nullptr;
-    QLabel *m_domainLabel = nullptr;
     QVector<PlotCard> m_cards;
 
     QTimer *m_refreshTimer = nullptr;   // ~30 Hz refresh throttle (REQ-SW-PL-023 §5)
@@ -279,7 +299,7 @@ private:
     std::shared_ptr<const SampledData> m_lastData;
 
     // ── v2 (REQ-SW-PL-025) ──────────────────────────────────────────────────
-    double m_ringSeconds = 10.0;          // N-second rolling window (GUI-thread config)
+    double m_ringSeconds = 10.0;          // N-second rolling window (config)
     quint64 m_dataGeneration = 0;         // identity of the current m_lastData block
     ComputeState m_ring;                  // worker-owned rolling history (worker ONLY)
 };

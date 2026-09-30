@@ -4,6 +4,7 @@
 #include "LogCategories.h"
 #include <capabilities/INodeProvider.h>
 #include <capabilities/IRuntimeHost.h>
+#include <capabilities/IWidgetProvider.h>
 
 namespace Daqster {
 
@@ -163,23 +164,53 @@ QList<QBasePluginObject*> PluginRegistry::allPluginInstances() const
     return result;
 }
 
+QList<QBasePluginObject*> PluginRegistry::capabilityInstances(QPluginInterface* iface, const QString& hash)
+{
+    if (!iface || !iface->IsEnabled())
+        return {};
+
+    // Lazy init — create instance if none exist yet.
+    //
+    // Deliberately parentless (nullptr, not `this`): QPluginManager::
+    // ShutdownPluginManager() deletes every instance from
+    // allPluginInstances(). Parenting them to the registry would make ~QObject
+    // delete them a second time when the registry is destroyed, which is a
+    // double-free that only shows up at process teardown (heap corruption
+    // reported by glibc while the dynamic loader unloads libGLX).
+    if (iface->GetPluginInstances().isEmpty()) {
+        if (createPluginObject(hash, nullptr))
+            return iface->GetPluginInstances();
+    }
+
+    return iface->GetPluginInstances();
+}
+
+void PluginRegistry::ensureInitialized(QBasePluginObject* obj)
+{
+    if (!obj)
+        return;
+
+    static const char* kInitialized = "_daqster_capability_initialized";
+    if (obj->property(kInitialized).toBool())
+        return;
+
+    // Mark first: a plugin object that throws out of Initialize() must not be
+    // retried on every probe (which happens on every node placement).
+    obj->setProperty(kInitialized, true);
+    obj->Initialize();
+}
+
 QList<QObject*> PluginRegistry::instances(const char* iid)
 {
     QList<QObject*> result;
 
     for (auto it = m_pluginMap.constBegin(); it != m_pluginMap.constEnd(); ++it) {
-        QPluginInterface* iface = it.value();
-        if (!iface || !iface->IsEnabled()) {
-            continue;
-        }
-
-        // Lazy init — create instance if none exist yet
-        if (iface->GetPluginInstances().isEmpty()) {
-            createPluginObject(it.key());
-        }
-
-        for (QBasePluginObject* obj : iface->GetPluginInstances()) {
+        for (QBasePluginObject* obj : capabilityInstances(it.value(), it.key())) {
+            // Match BEFORE initializing: ensureInitialized() constructs whatever
+            // the object's constructor owns, and this probe may be running in a
+            // headless process that must not wake a GUI runtime host.
             if (obj && obj->qt_metacast(iid)) {
+                ensureInitialized(obj);
                 obj->setProperty("_daqster_hash", it.key());
                 result.append(obj);
             }
@@ -194,20 +225,41 @@ QList<Daqster::INodeProvider*> PluginRegistry::nodeProviders()
     QList<Daqster::INodeProvider*> result;
 
     for (auto it = m_pluginMap.constBegin(); it != m_pluginMap.constEnd(); ++it) {
-        QPluginInterface* iface = it.value();
-        if (!iface || !iface->IsEnabled()) {
-            continue;
-        }
-
-        // Lazy init — create instance if none exist yet
-        if (iface->GetPluginInstances().isEmpty()) {
-            createPluginObject(it.key());
-        }
-
         // INodeProvider is a non-QObject interface, so it cannot be matched by
         // qt_metacast()/Q_INTERFACES. dynamic_cast is the correct probe here.
-        for (QBasePluginObject* obj : iface->GetPluginInstances()) {
+        //
+        // NOTE: deliberately NOT calling ensureInitialized() here. registerNodes()
+        // is const and works on a bare object, and calling Initialize() would
+        // construct runtime hosts this probe has no business waking up —
+        // FrameworkGuiPluginObject builds a whole RuntimeShell (MDI + QtWidgets +
+        // OpenGL) in its constructor, so probing for node providers in headless
+        // mode would drag the entire GUI stack into a headless process.
+        // Initialization is the job of the specific consumer (see
+        // widgetProviders() / runtimeHosts()).
+        for (QBasePluginObject* obj : capabilityInstances(it.value(), it.key())) {
             if (auto* provider = dynamic_cast<Daqster::INodeProvider*>(obj)) {
+                obj->setProperty("_daqster_hash", it.key());
+                result.append(provider);
+            }
+        }
+    }
+
+    return result;
+}
+
+QList<Daqster::IWidgetProvider*> PluginRegistry::widgetProviders()
+{
+    QList<Daqster::IWidgetProvider*> result;
+
+    for (auto it = m_pluginMap.constBegin(); it != m_pluginMap.constEnd(); ++it) {
+        // IWidgetProvider is a non-QObject interface, so it cannot be matched by
+        // qt_metacast()/Q_INTERFACES. dynamic_cast is the correct probe here
+        // (same reasoning as nodeProviders()).
+        for (QBasePluginObject* obj : capabilityInstances(it.value(), it.key())) {
+            if (auto* provider = dynamic_cast<Daqster::IWidgetProvider*>(obj)) {
+                // The provider's whole job is createWidget(); without
+                // Initialize() its widget factory does not exist yet.
+                ensureInitialized(obj);
                 obj->setProperty("_daqster_hash", it.key());
                 result.append(provider);
             }
@@ -222,21 +274,12 @@ QList<Daqster::IRuntimeHost*> PluginRegistry::runtimeHosts(Daqster::RuntimeMode 
     QList<Daqster::IRuntimeHost*> result;
 
     for (auto it = m_pluginMap.constBegin(); it != m_pluginMap.constEnd(); ++it) {
-        QPluginInterface* iface = it.value();
-        if (!iface || !iface->IsEnabled()) {
-            continue;
-        }
-
-        // Lazy init — create instance if none exist yet
-        if (iface->GetPluginInstances().isEmpty()) {
-            createPluginObject(it.key());
-        }
-
         // IRuntimeHost is a non-QObject interface, so dynamic_cast is the
         // correct probe (same reasoning as nodeProviders()).
-        for (QBasePluginObject* obj : iface->GetPluginInstances()) {
+        for (QBasePluginObject* obj : capabilityInstances(it.value(), it.key())) {
             auto* host = dynamic_cast<Daqster::IRuntimeHost*>(obj);
             if (host && host->runtimeMode() == mode) {
+                ensureInitialized(obj);
                 obj->setProperty("_daqster_hash", it.key());
                 result.append(host);
             }

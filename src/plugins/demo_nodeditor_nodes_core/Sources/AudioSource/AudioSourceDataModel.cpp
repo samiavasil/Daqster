@@ -1,5 +1,4 @@
 #include "AudioSourceDataModel.h"
-#include "AudioSourceDataModelUI.h"
 #include "MicCaptureWorker.h"
 
 #include <QDebug>
@@ -12,20 +11,12 @@ AudioSourceDataModel::AudioSourceDataModel()
 {
     // Metatypes for the queued worker↔model connections (REQ-SW-PL-024 §3).
     qRegisterMetaType<std::shared_ptr<SampledData>>("std::shared_ptr<SampledData>");
-    qRegisterMetaType<AudioSourceDataModelUI::StartStop>("AudioSourceDataModelUI::StartStop");
+    qRegisterMetaType<AudioStartStop>("AudioStartStop");
     qRegisterMetaType<QAudioDeviceInfo>();
     qRegisterMetaType<QAudioFormat>();
 
     m_DevInfo = AudioCompat::defaultInputDevice();
     m_FormatAudio = AudioCompat::preferredFormat(m_DevInfo);
-
-    m_Widget = new AudioSourceDataModelUI(&m_DevInfo, &m_FormatAudio);
-    m_Widget->setWindowFlags(Qt::Window
-                             | Qt::WindowTitleHint
-                             | Qt::WindowSystemMenuHint
-                             | Qt::WindowMinMaxButtonsHint
-                             | Qt::WindowCloseButtonHint);
-    m_Widget->setWindowModality(Qt::NonModal);
 
     // Model-owned worker thread: ALL audio work happens there, the GUI thread
     // only keeps the latest shared_ptr and emits dataUpdated (hard requirement).
@@ -36,14 +27,6 @@ AudioSourceDataModel::AudioSourceDataModel()
     m_worker->moveToThread(m_thread);
     // Worker freed on the worker thread when the thread finishes (Qt pattern).
     connect(m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
-
-    // UI → worker (queued; the worker lives in m_thread).
-    // The UI has two Start() overloads (signal StartStop + private slot bool);
-    // QOverload disambiguates the signal for the new-style connect.
-    connect(m_Widget, QOverload<AudioSourceDataModelUI::StartStop>::of(&AudioSourceDataModelUI::Start),
-            this, &AudioSourceDataModel::onUiStart);
-    connect(m_Widget, &AudioSourceDataModelUI::ChangeAudioConnection,
-            m_worker, &MicCaptureWorker::updateDevice);
 
     // worker → model (queued): SampledData crosses the thread boundary by
     // shared_ptr only; no mutex — produced fully on the worker thread.
@@ -58,10 +41,6 @@ AudioSourceDataModel::~AudioSourceDataModel()
     // Single shutdown path: stop() quits + waits the capture thread
     // (REQ-SW-PL-050).
     stop();
-
-    // Widget lifetime is owned by the node/view framework.
-    // Explicit delete here causes double-free during scene teardown.
-    m_Widget = nullptr;
 }
 
 void AudioSourceDataModel::stop()
@@ -122,11 +101,6 @@ void AudioSourceDataModel::setInData(std::shared_ptr<QtNodes::NodeData> data, Qt
     Q_ASSERT(0);
 }
 
-QWidget *AudioSourceDataModel::embeddedWidget()
-{
-    return m_Widget;
-}
-
 void AudioSourceDataModel::outputConnectionCreated(QtNodes::ConnectionId const &conId)
 {
     Q_UNUSED(conId);
@@ -142,15 +116,32 @@ void AudioSourceDataModel::outputConnectionDeleted(QtNodes::ConnectionId const &
     setCaptureEnabled(m_connectionCount > 0);
 }
 
-void AudioSourceDataModel::onUiStart(AudioSourceDataModelUI::StartStop start)
+void AudioSourceDataModel::onUiStart(AudioStartStop start)
 {
     // Queued dispatch to the worker thread; capture itself runs there.
-    if (start == AudioSourceDataModelUI::ASDM_START
-        || start == AudioSourceDataModelUI::ASDM_RELOAD) {
+    if (start == ASDM_START
+        || start == ASDM_RELOAD) {
         QMetaObject::invokeMethod(m_worker, "startCapture", Qt::QueuedConnection);
     } else {
         QMetaObject::invokeMethod(m_worker, "stopCapture", Qt::QueuedConnection);
     }
+}
+
+/// A device/format choice made in the UI must be remembered here: the UI holds
+/// non-owning pointers to m_DevInfo / m_FormatAudio, so those must track the
+/// selection. Forwarding to the worker is wired in NodeWidgetFactory.
+void AudioSourceDataModel::onAudioConnectionChanged(QAudioDeviceInfo devInfo,
+                                                    QAudioFormat formatAudio)
+{
+    m_DevInfo = devInfo;
+    m_FormatAudio = formatAudio;
+
+    // The capture worker lives in m_thread; updateDevice is a plain slot so a
+    // direct call from the GUI thread is safe (it only re-creates the QIODevice
+    // wrapper) — this mirrors the old direct widget→worker connection.
+    QMetaObject::invokeMethod(m_worker, "updateDevice", Qt::QueuedConnection,
+                              Q_ARG(QAudioDeviceInfo, devInfo),
+                              Q_ARG(QAudioFormat, formatAudio));
 }
 
 void AudioSourceDataModel::setCaptureEnabled(bool enabled)

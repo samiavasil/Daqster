@@ -9,53 +9,8 @@ using QtNodes::NodeValidationState;
 
 ArithmeticLogicModel::ArithmeticLogicModel()
 {
-    m_container = new QWidget();
-    QVBoxLayout* layout = new QVBoxLayout(m_container);
-    layout->setContentsMargins(4, 4, 4, 4);
-    layout->setSpacing(4);
-
-    // Type combo
-    QHBoxLayout* typeRow = new QHBoxLayout();
-    QLabel* typeLabel = new QLabel("Type:");
-    m_typeCombo = new QComboBox();
-    m_typeCombo->addItem("int");
-    m_typeCombo->addItem("double");
-    connect(m_typeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &ArithmeticLogicModel::onTypeChanged);
-    typeRow->addWidget(typeLabel);
-    typeRow->addWidget(m_typeCombo);
-    layout->addLayout(typeRow);
-
-    // Input count spin
-    QHBoxLayout* inputRow = new QHBoxLayout();
-    QLabel* inputLabel = new QLabel("Inputs:");
-    m_inputSpin = new QSpinBox();
-    m_inputSpin->setRange(2, 8);
-    m_inputSpin->setValue(2);
-    connect(m_inputSpin, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, &ArithmeticLogicModel::onInputsChanged);
-    inputRow->addWidget(inputLabel);
-    inputRow->addWidget(m_inputSpin);
-    layout->addLayout(inputRow);
-
-    // Expression line edit
-    QLabel* exprLabel = new QLabel("Expression:");
-    m_exprEdit = new QLineEdit();
-    m_exprEdit->setPlaceholderText("e.g. a+b");
-    m_exprEdit->setText(defaultExpression());
-    connect(m_exprEdit, &QLineEdit::textChanged,
-            this, &ArithmeticLogicModel::onExpressionChanged);
-    layout->addWidget(exprLabel);
-    layout->addWidget(m_exprEdit);
-
-    // Strobe checkbox
-    m_strobeCheck = new QCheckBox("Strobe");
-    connect(m_strobeCheck, &QCheckBox::toggled,
-            this, &ArithmeticLogicModel::onStrobeToggled);
-    layout->addWidget(m_strobeCheck);
-
-    // Initialize parser
-    m_parser.parse(m_exprEdit->text());
+    m_expression = defaultExpression();
+    m_parser.parse(m_expression);
 }
 
 ArithmeticLogicModel::~ArithmeticLogicModel() {}
@@ -88,7 +43,7 @@ QJsonObject ArithmeticLogicModel::save() const
     modelJson["name"] = name();
     modelJson["type"] = (m_currentType == DataType::Int) ? "int" : "double";
     modelJson["inputs"] = m_inputCount;
-    modelJson["expression"] = m_exprEdit->text();
+    modelJson["expression"] = m_expression;
     modelJson["strobe"] = m_strobeEnabled;
     return modelJson;
 }
@@ -96,26 +51,15 @@ QJsonObject ArithmeticLogicModel::save() const
 void ArithmeticLogicModel::load(QJsonObject const &p)
 {
     QString typeStr = p["type"].toString();
-    m_typeCombo->blockSignals(true);
-    m_typeCombo->setCurrentIndex(typeStr == "double" ? 1 : 0);
-    m_typeCombo->blockSignals(false);
+    switchType(typeStr == "double" ? DataType::Double : DataType::Int);
 
-    int inputs = p["inputs"].toInt(2);
-    m_inputSpin->blockSignals(true);
-    m_inputSpin->setValue(inputs);
-    m_inputSpin->blockSignals(false);
+    switchInputCount(p["inputs"].toInt(2));
 
-    m_inputCount = inputs;
-    m_exprEdit->blockSignals(true);
-    m_exprEdit->setText(p["expression"].toString(defaultExpression()));
-    m_exprEdit->blockSignals(false);
-
-    m_parser.parse(m_exprEdit->text());
+    m_expression = p["expression"].toString(defaultExpression());
+    m_parser.parse(m_expression);
 
     m_strobeEnabled = p["strobe"].toBool(false);
-    m_strobeCheck->blockSignals(true);
-    m_strobeCheck->setChecked(m_strobeEnabled);
-    m_strobeCheck->blockSignals(false);
+    updateInputPorts();
 }
 
 unsigned int ArithmeticLogicModel::nPorts(PortType portType) const
@@ -148,11 +92,6 @@ std::shared_ptr<NodeData> ArithmeticLogicModel::outData(PortIndex)
         return m_result_dbl;
 }
 
-QWidget* ArithmeticLogicModel::embeddedWidget()
-{
-    return m_container;
-}
-
 void ArithmeticLogicModel::onTypeChanged(int index)
 {
     DataType newType = (index == 0) ? DataType::Int : DataType::Double;
@@ -168,6 +107,7 @@ void ArithmeticLogicModel::onInputsChanged(int count)
 
 void ArithmeticLogicModel::onExpressionChanged(const QString& expr)
 {
+    m_expression = expr;
     m_parser.parse(expr);
     recompute();
 }
@@ -235,7 +175,7 @@ void ArithmeticLogicModel::recompute()
 {
     PortIndex const outPortIndex = 0;
 
-    m_parser.parse(m_exprEdit->text());
+    m_parser.parse(m_expression);
 
     if (m_currentType == DataType::Int) {
         // Set variables
@@ -331,3 +271,12 @@ void ArithmeticLogicModel::setInData(std::shared_ptr<NodeData> data, PortIndex p
     }
     recompute();
 }
+
+void ArithmeticLogicModel::updateInputPorts()
+{
+    // The actual port addition/removal is handled by switchInputCount() and
+    // onStrobeToggled() which emit the necessary portsAboutToBeDeleted/Inserted
+    // signals. This method exists for compatibility with the load() path and
+    // is kept as a no-op since the port structure is managed directly.
+}
+

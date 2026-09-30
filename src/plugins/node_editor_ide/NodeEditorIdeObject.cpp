@@ -3,6 +3,7 @@
 #include "QPluginManager.h"
 #include "QPluginManagerGui.h"
 #include "capabilities/INodeProvider.h"
+#include "capabilities/IWidgetProvider.h"
 #include "debug.h"
 #include "LogCategories.h"
 
@@ -38,10 +39,8 @@
 
 #include <QtWidgets/QVBoxLayout>
 
-#include "NumberSourceDataModel.h"
-#include "NumberDisplayDataModel.h"
-#include "ModuloModel.h"
-#include "ArithmeticLogicModel.h"
+// REQ-SW-PL-051: no built-in node model headers here — they are owned by
+// demo_nodeditor_nodes_core and reach the editor through INodeProvider.
 
 static void setStyle()
 {
@@ -104,6 +103,17 @@ bool NodeEditorIdeObject::Initialize()
     // Phase 1+2: Register built-in nodes + external INodeProvider plugins
     registerNodes();
 
+    // REQ-SW-PL-051: plugins may load in any order. When a new INodeProvider
+    // plugin appears (or is reloaded), re-discover and register its nodes.
+    Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
+    if (pm) {
+        connect(pm, &Daqster::QPluginManager::PluginsListChangeDetected,
+                this, &NodeEditorIdeObject::discoverAndRegisterExternalNodes);
+    }
+
+    // REQ-SW-PL-051: registerNodes() above already picked up both the node
+    // providers and the IWidgetProvider (see adoptWidgetProvider).
+
     // Build canvas AFTER all nodes are registered
     m_Widget->buildCanvas();
 
@@ -162,19 +172,10 @@ bool NodeEditorIdeObject::Initialize()
     return true;
 }
 
-void NodeEditorIdeObject::registerBuiltInNodes()
-{
-    auto* registry = m_Widget->getInjectedRegistry();
-
-    registry->registerModel<NumberSourceDataModel>("General/Sources");
-    registry->registerModel<NumberDisplayDataModel>("General/Display");
-    registry->registerModel<ModuloModel>("General/Processing");
-    registry->registerModel<ArithmeticLogicModel>("General/Processing");
-}
-
 void NodeEditorIdeObject::registerNodes()
 {
-    registerBuiltInNodes();
+    // REQ-SW-PL-051: the built-in models live in demo_nodeditor_nodes_core and
+    // are registered by its INodeProvider, together with every other node.
     discoverAndRegisterExternalNodes();
 }
 
@@ -189,6 +190,13 @@ void NodeEditorIdeObject::discoverAndRegisterExternalNodes()
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
     if (!pm) return;
 
+    // The editor window can already be gone when this runs: the
+    // IWidgetProvider 'destroyed' re-discovery below fires while
+    // QPluginManager::ShutdownPluginManager destroys the plugin objects, and
+    // MainWinDestroyed() has nulled m_Widget by then. Registering nodes into a
+    // destroyed editor segfaulted on quit.
+    if (!m_Widget) return;
+
     auto* registry = m_Widget->getInjectedRegistry();
 
     for (Daqster::INodeProvider* provider : pm->nodeProviders()) {
@@ -197,6 +205,35 @@ void NodeEditorIdeObject::discoverAndRegisterExternalNodes()
         DEBUG << "Discovered INodeProvider plugin";
 
         provider->registerNodes(*registry);
+    }
+
+    // REQ-SW-PL-051: also discover IWidgetProvider plugins (they may load
+    // in any order). Pass the provider to the editor widget so split models
+    // get their widgets.
+    for (Daqster::IWidgetProvider* provider : pm->widgetProviders()) {
+        if (!provider) continue;
+
+        DEBUG << "Discovered IWidgetProvider plugin";
+        adoptWidgetProvider(provider);
+        break; // Use the first one
+    }
+}
+
+void NodeEditorIdeObject::adoptWidgetProvider(Daqster::IWidgetProvider* provider)
+{
+    if (!provider || !m_Widget)
+        return;
+
+    m_Widget->setWidgetProvider(provider);
+
+    // The graph model caches the raw pointer, so re-resolve it when the plugin
+    // object dies (plugin reload / unload). PluginRegistry recreates a fresh,
+    // initialized object on the next widgetProviders() call.
+    if (auto* owner = dynamic_cast<QObject*>(provider)) {
+        connect(owner, &QObject::destroyed, this, [this]() {
+            DEBUG << "IWidgetProvider plugin object destroyed, re-discovering";
+            discoverAndRegisterExternalNodes();
+        });
     }
 }
 
@@ -217,6 +254,15 @@ void NodeEditorIdeObject::nodeDoubleClicked(QtNodes::NodeId nodeId)
 
 void NodeEditorIdeObject::DeInitialize()
 {
+    // Application/plugin shutdown that does not go through the editor window's
+    // close event (e.g. QPluginManager::ShutdownPluginManager on aboutToQuit).
+    // IStoppable::stop() is idempotent, so nodes already stopped by the close
+    // event are not stopped twice. m_Widget is nulled by MainWinDestroyed as
+    // soon as the window takes the graph down with it.
+    if (nullptr != m_Widget) {
+        m_Widget->stopAllNodes();
+    }
+
     if (nullptr != m_Win) {
         m_Win->deleteLater();
     }
@@ -256,6 +302,14 @@ bool NodeEditorIdeObject::eventFilter(QObject* watched, QEvent* event)
             return true; // Event handled
         }
     }
+
+    // Closing the editor window (the X button) tears the graph down, so the
+    // running nodes must be stopped first — the runner does the same from its
+    // close handler. Without this the stop of a loaded flow is never invoked.
+    if (watched == m_Win && event->type() == QEvent::Close && m_Widget) {
+        m_Widget->stopAllNodes();
+    }
+
     return QObject::eventFilter(watched, event);
 }
 
@@ -277,7 +331,10 @@ void NodeEditorIdeObject::togglePresentationMode()
                 continue;
 
             auto* model = m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
-            QWidget* w = model != nullptr ? model->embeddedWidget() : nullptr;
+            // The graph model's cached instance - the very widget the proxy
+            // holds. Going to the IWidgetProvider directly would build a SECOND
+            // widget for the same model and orphan the first one.
+            QWidget* w = m_Widget->nodeWidget(nodeId);
             if (w == nullptr)
                 continue;
 
@@ -302,7 +359,7 @@ void NodeEditorIdeObject::togglePresentationMode()
                 continue;
 
             auto* model = m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
-            QWidget* w = model != nullptr ? model->embeddedWidget() : nullptr;
+            QWidget* w = m_Widget->nodeWidget(nodeId);
             if (w == nullptr)
                 continue;
 
@@ -537,7 +594,7 @@ FlowUi::UiSection NodeEditorIdeObject::captureUiSection() const
         if (nui.deembedded) {
             auto* model =
                 m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
-            QWidget* w = model != nullptr ? model->embeddedWidget() : nullptr;
+            QWidget* w = m_Widget->nodeWidget(nodeId);
             if (w != nullptr) {
                 const QRect geo = w->geometry();
                 nui.geometry.x = geo.x();
@@ -583,11 +640,12 @@ void NodeEditorIdeObject::applyUiSection(const FlowUi::UiSection& ui)
             continue;
 
         // Direct call is safe here — no context-menu loop is open during load.
+        // setWidgetEmbedded(false) detaches the graph model's cached widget and
+        // hands its ownership back, so the SAME instance is moved out of the
+        // node below — a second widget from the provider would orphan this one.
         node->setWidgetEmbedded(false);
 
-        auto* model =
-            m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
-        QWidget* w = model != nullptr ? model->embeddedWidget() : nullptr;
+        QWidget* w = m_Widget->nodeWidget(nodeId);
         if (w == nullptr)
             continue;
 
@@ -771,7 +829,7 @@ void NodeEditorIdeObject::startVideoPlayback()
             cfg["url"] = streamUrl;
         srcModel->load(cfg);
 
-        QWidget* w = srcModel->embeddedWidget();
+        QWidget* w = m_Widget->nodeWidget(srcId);
         if (w != nullptr) {
             const auto buttons = w->findChildren<QPushButton*>();
             for (QPushButton* b : buttons) {
@@ -788,7 +846,7 @@ void NodeEditorIdeObject::startVideoPlayback()
     // line + badge).
     auto* outModel = gm->delegateModel<QtNodes::NodeDelegateModel>(outId);
     if (outModel != nullptr) {
-        QWidget* w = outModel->embeddedWidget();
+        QWidget* w = m_Widget->nodeWidget(outId);
         if (w != nullptr) {
             const auto checks = w->findChildren<QCheckBox*>();
             for (QCheckBox* c : checks) {

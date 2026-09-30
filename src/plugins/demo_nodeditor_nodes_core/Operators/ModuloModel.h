@@ -3,7 +3,6 @@
 
 #include <QtCore/QObject>
 #include <QtNodes/NodeDelegateModel>
-#include <QComboBox>
 #include <memory>
 #include "NodeDataTypes/NumericType.h"
 
@@ -47,7 +46,13 @@ public:
     QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
     std::shared_ptr<QtNodes::NodeData> outData(QtNodes::PortIndex const port) override;
     void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, QtNodes::PortIndex const portIndex) override;
-    QWidget *embeddedWidget() override;
+    /// Core model has no QtWidgets dependency — the type selector is created
+    /// by the GUI plugin and wired through NodeWidgetFactory (REQ-SW-PL-051).
+    QWidget *embeddedWidget() override { return nullptr; }
+
+    /// Current type as a combo index (0 = int, 1 = double). Used by the GUI
+    /// plugin to render the widget in the right state.
+    int typeIndex() const { return (m_currentType == DataType::Int) ? 0 : 1; }
 
     /// The node BODY (boundary, caption, ports) does not depend on data —
     /// widget content self-repaints via Qt. The validation border self-repaints
@@ -57,7 +62,8 @@ public:
     QtNodes::NodeValidationState validationState() const override
     { return m_validationState; }
 
-private slots:
+public slots:
+    /// Type selector of the GUI widget (called by NodeWidgetFactory).
     void onTypeChanged(int index);
 
 private:
@@ -65,7 +71,6 @@ private:
     void recompute();
 
     DataType m_currentType = DataType::Int;
-    QComboBox* m_typeCombo = nullptr;
 
     std::weak_ptr<NumericType<int>> m_num1_int;
     std::weak_ptr<NumericType<int>> m_num2_int;

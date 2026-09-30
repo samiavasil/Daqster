@@ -35,8 +35,6 @@ set(AUDIO_SOURCE_NODES
     Sources/AudioSource/AudioSourceDataModel.cpp
     Sources/AudioSource/MicCaptureWorker.h
     Sources/AudioSource/MicCaptureWorker.cpp
-    Sources/AudioSource/AudioSourceConfig.h
-    Sources/AudioSource/AudioSourceConfig.cpp
     Sources/AudioSource/AudioComboModel.h
     Sources/AudioSource/AudioComboModel.cpp
     # Obsolete audio models (migrated from old plugin)
@@ -44,6 +42,7 @@ set(AUDIO_SOURCE_NODES
     Sources/AudioSource/AudioSourceDataModelObsolete.cpp
     Sources/AudioSource/AudioWorkerObsolete.h
     Sources/AudioSource/AudioWorkerObsolete.cpp
+    Sources/AudioSource/AudioStartStop.h
     Sources/AudioSource/AudioNodeQdevIoConnectorObsolete.h
     Sources/AudioSource/AudioNodeQdevIoConnectorObsolete.cpp
 )
@@ -54,8 +53,6 @@ set(LLAMA_SOURCE_NODES
     Sources/LLamaSource/LLamaModelDataModel.cpp
     Sources/LLamaSource/ConsoleDataModel.h
     Sources/LLamaSource/ConsoleDataModel.cpp
-    Sources/LLamaSource/ChatBaseWidget.h
-    Sources/LLamaSource/ChatBaseWidget.cpp
 )
 
 # ── Video nodes (core models only, no GUI widgets) ──────────────────
@@ -301,9 +298,6 @@ set(SHARED_TYPES
 set(BUILTIN_SOURCE_NODES
     Sources/NumberSource/NumberSourceDataModel.h
     Sources/NumberSource/NumberSourceDataModel.cpp
-    Sources/NumberSource/NumberSourceDataUi.h
-    Sources/NumberSource/NumberSourceDataUi.cpp
-    Sources/NumberSource/NumberSourceDataUi.ui
 )
 
 set(BUILTIN_DISPLAY_NODES
@@ -328,13 +322,8 @@ set(BUILTIN_OPERATOR_NODES
 # and dlopen() fails, which silently disables every core node type.
 # The GUI plugin keeps its own copies for the editor-side embedding.
 set(EMBEDDED_WIDGETS
-    Sources/AudioSource/AudioSourceDataModelUI.h
-    Sources/AudioSource/AudioSourceDataModelUI.cpp
-    Sources/AudioSource/AudioSourceDataModelUI.ui
     Sources/Video/VideoGLBlitWidget.h
     Sources/Video/VideoGLBlitWidget.cpp
-    Sources/Gamepad/GamepadWidget.h
-    Sources/Gamepad/GamepadWidget.cpp
 )
 
 # ── Use the Daqster plugin template ──────────────────────────────────

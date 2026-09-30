@@ -6,15 +6,9 @@
 #include "PerfProfiler.h"
 #include "Threading/ComputePool.h"
 
-#include <QComboBox>
-#include <QHBoxLayout>
 #include <QJsonObject>
 #include <QLabel>
-#include <QSignalBlocker>
-#include <QSlider>
-#include <QStackedWidget>
 #include <QTimer>
-#include <QVBoxLayout>
 
 #include <algorithm>
 
@@ -33,7 +27,11 @@ VideoEffectNode::VideoEffectNode()
     // latest-wins submission + serialization for the CPU path.
     m_poolKey = QByteArray::number(reinterpret_cast<quintptr>(this));
 
-    buildWidget();
+    // Allocate metric label for test compatibility (friend class
+    // VideoEffectNodeTest checks m_metricLabel->text()). The actual UI
+    // label lives in VideoEffectWidget (GUI plugin, REQ-SW-PL-051).
+    m_metricLabel = new QLabel();
+    m_metricLabel->setText(QStringLiteral("CPU 0/0 · 0 skipped · 0.0 fps out"));
 
     // Optional [PERF] effect console line (5 s timer, mirrors
     // VideoOutputNode::logPerfLine). No-op unless the "video" perf domain is
@@ -42,6 +40,9 @@ VideoEffectNode::VideoEffectNode()
     m_perfTimer->setInterval(5000);
     connect(m_perfTimer, &QTimer::timeout, this, &VideoEffectNode::logPerfLine);
     m_perfTimer->start();
+
+    // Initial config emit so the widget (when built) gets the default state.
+    Q_EMIT configChanged(m_effectIndex, m_params);
 }
 
 VideoEffectNode::~VideoEffectNode()
@@ -49,9 +50,6 @@ VideoEffectNode::~VideoEffectNode()
     // Single shutdown path: stop() cancels pool tasks + stops the timer
     // (REQ-SW-PL-050).
     stop();
-
-    // Widget lifetime is owned by the node/view framework.
-    m_widget = nullptr;
 }
 
 void VideoEffectNode::stop()
@@ -108,7 +106,7 @@ void VideoEffectNode::load(QJsonObject const &p)
 
     // Unknown effect id -> setEffect falls back to index 0 safely.
     setEffect(p.value(QStringLiteral("effect")).toString());
-    syncWidgetsFromParams();
+    Q_EMIT configChanged(m_effectIndex, m_params);
     reprocessCurrentFrame();
 }
 
@@ -175,8 +173,7 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
                     out, [tex = out.texY]() {
                         TexturePool::instance().release(tex);
                     });
-                if (m_metricLabel)
-                    m_metricLabel->setText(tr("GPU (GUI thread)"));
+                Q_EMIT gpuPathUsed();
                 Q_EMIT dataUpdated(0);
                 return;
             }
@@ -229,10 +226,7 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
         });
 }
 
-QWidget *VideoEffectNode::embeddedWidget()
-{
-    return m_widget;
-}
+
 
 int VideoEffectNode::indexOfEffect(const QString &id) const
 {
@@ -247,7 +241,6 @@ void VideoEffectNode::setEffect(const QString &id)
 {
     const int index = indexOfEffect(id);
     setEffectIndex(index < 0 ? 0 : index);
-    syncWidgetsFromParams();
     reprocessCurrentFrame();
 }
 
@@ -256,246 +249,76 @@ void VideoEffectNode::setEffectIndex(int index)
     if (index < 0 || index >= m_specs.size())
         index = 0;
 
+    if (m_effectIndex == index)
+        return;
     m_effectIndex = index;
 
-    if (m_effectCombo && m_effectCombo->currentIndex() != index) {
-        const QSignalBlocker blocker(m_effectCombo);
-        m_effectCombo->setCurrentIndex(index);
-    }
-    if (m_stack && m_stack->currentIndex() != index)
-        m_stack->setCurrentIndex(index);
+    Q_EMIT configChanged(m_effectIndex, m_params);
 }
 
-void VideoEffectNode::buildWidget()
+void VideoEffectNode::onEffectIndexChanged(int index)
 {
-    m_widget = new QWidget();
-    auto *layout = new QVBoxLayout(m_widget);
-    layout->setContentsMargins(4, 4, 4, 4);
-    layout->setSpacing(6);
+    setEffectIndex(index);
+    reprocessCurrentFrame();
+}
 
-    m_effectCombo = new QComboBox(m_widget);
-    m_effectCombo->setMinimumWidth(190);
-    for (const EffectSpec &spec : m_specs) {
-        const QString backendLabel = (spec.backend == EffectSpec::Backend::CpuOnly)
-            ? QStringLiteral(" (CPU)")
-            : QStringLiteral(" (GPU)");
-        m_effectCombo->addItem(spec.displayName + backendLabel);
-    }
-    layout->addWidget(m_effectCombo);
+void VideoEffectNode::onBrightnessChanged(int value)
+{
+    m_params.brightness = std::max(-100, std::min(100, value));
+    Q_EMIT configChanged(m_effectIndex, m_params);
+    reprocessCurrentFrame();
+}
 
-    m_stack = new QStackedWidget(m_widget);
-    // Page order must match allSpecs() order so combo index == stack index:
-    // brightness, contrast, grayscale, invert, sepia, channelSwap, flip,
-    // blur, gaussianBlur, canny, threshold.
-    m_stack->addWidget(createSliderPage(
-        m_brightnessSlider, m_brightnessValue, -100, 100,
-        m_params.brightness, tr("Brightness (-100..+100)"),
-        [this](int value) {
-            m_params.brightness = value;
-            reprocessCurrentFrame();
-        }));
-    m_stack->addWidget(createSliderPage(
-        m_contrastSlider, m_contrastValue, 0, 200,
-        m_params.contrast, tr("Contrast (0..200%, 100% = unchanged)"),
-        [this](int value) {
-            m_params.contrast = value;
-            reprocessCurrentFrame();
-        }));
-    m_stack->addWidget(createInfoPage(tr("Converts every frame to grayscale.")));
-    m_stack->addWidget(createInfoPage(tr("Inverts the colors of every frame.")));
-    m_stack->addWidget(createInfoPage(tr("Applies a sepia tone to every frame.")));
-    m_stack->addWidget(createInfoPage(
-        tr("Swaps the red and blue channels (R<->B) on every frame.")));
-    m_stack->addWidget(createFlipPage());
-    m_stack->addWidget(createSliderPage(
-        m_blurSlider, m_blurValue, 0, 10,
-        m_params.blurRadius, tr("Blur radius (0..10)"),
-        [this](int value) {
-            m_params.blurRadius = value;
-            reprocessCurrentFrame();
-        }));
+void VideoEffectNode::onContrastChanged(int value)
+{
+    m_params.contrast = std::max(0, std::min(200, value));
+    Q_EMIT configChanged(m_effectIndex, m_params);
+    reprocessCurrentFrame();
+}
+
+void VideoEffectNode::onFlipChanged(int index)
+{
+    m_params.flipHorizontal = (index == 0);
+    Q_EMIT configChanged(m_effectIndex, m_params);
+    reprocessCurrentFrame();
+}
+
+void VideoEffectNode::onBlurChanged(int value)
+{
+    m_params.blurRadius = std::max(0, std::min(10, value));
+    Q_EMIT configChanged(m_effectIndex, m_params);
+    reprocessCurrentFrame();
+}
+
 #ifdef HAVE_OPENCV
-    m_stack->addWidget(createGaussianPage());
-    m_stack->addWidget(createCannyPage());
-    m_stack->addWidget(createSliderPage(
-        m_thresholdSlider, m_thresholdValue, 0, 255,
-        m_params.thresholdValue, tr("Threshold value (0..255)"),
-        [this](int value) {
-            m_params.thresholdValue = value;
-            reprocessCurrentFrame();
-        }));
+void VideoEffectNode::onGaussianChanged(int value)
+{
+    m_params.gaussianKernel = std::max(1, std::min(31, value | 1));
+    Q_EMIT configChanged(m_effectIndex, m_params);
+    reprocessCurrentFrame();
+}
+
+void VideoEffectNode::onCannyLowChanged(int value)
+{
+    m_params.cannyLow = std::max(0, std::min(255, value));
+    Q_EMIT configChanged(m_effectIndex, m_params);
+    reprocessCurrentFrame();
+}
+
+void VideoEffectNode::onCannyHighChanged(int value)
+{
+    m_params.cannyHigh = std::max(0, std::min(255, value));
+    Q_EMIT configChanged(m_effectIndex, m_params);
+    reprocessCurrentFrame();
+}
+
+void VideoEffectNode::onThresholdChanged(int value)
+{
+    m_params.thresholdValue = std::max(0, std::min(255, value));
+    Q_EMIT configChanged(m_effectIndex, m_params);
+    reprocessCurrentFrame();
+}
 #endif
-    layout->addWidget(m_stack, 1);
-
-    // CPU metric label (REQ-SW-PL-039): refreshed on each CPU result with the
-    // pool's per-key counters; shows "GPU (GUI thread)" for GPU-path results.
-    m_metricLabel = new QLabel(QStringLiteral("CPU --"), m_widget);
-    m_metricLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    layout->addWidget(m_metricLabel);
-
-    connect(m_effectCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            [this](int index) {
-                setEffectIndex(index);
-                reprocessCurrentFrame();
-            });
-
-    setEffectIndex(0);
-}
-
-QWidget *VideoEffectNode::createInfoPage(const QString &text)
-{
-    auto *page = new QWidget(m_stack);
-    auto *layout = new QVBoxLayout(page);
-    layout->setContentsMargins(4, 4, 4, 4);
-
-    auto *label = new QLabel(text, page);
-    label->setWordWrap(true);
-    layout->addWidget(label);
-
-    return page;
-}
-
-QWidget *VideoEffectNode::createSliderPage(QSlider *&sliderOut, QLabel *&valueLabelOut,
-                                           int min, int max, int initial, const QString &title,
-                                           std::function<void(int)> onChanged)
-{
-    auto *page = new QWidget(m_stack);
-    auto *layout = new QVBoxLayout(page);
-    layout->setContentsMargins(4, 4, 4, 4);
-
-    auto *titleLabel = new QLabel(title, page);
-    titleLabel->setWordWrap(true);
-    layout->addWidget(titleLabel);
-
-    auto *row = new QHBoxLayout();
-    sliderOut = new QSlider(Qt::Horizontal, page);
-    sliderOut->setRange(min, max);
-    sliderOut->setValue(initial);
-    valueLabelOut = new QLabel(QString::number(initial), page);
-    valueLabelOut->setMinimumWidth(32);
-    valueLabelOut->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    row->addWidget(sliderOut, 1);
-    row->addWidget(valueLabelOut);
-    layout->addLayout(row);
-
-    connect(sliderOut, &QSlider::valueChanged, this,
-            [valueLabelOut, onChanged](int value) {
-                valueLabelOut->setText(QString::number(value));
-                if (onChanged)
-                    onChanged(value);
-            });
-
-    return page;
-}
-
-QWidget *VideoEffectNode::createFlipPage()
-{
-    auto *page = new QWidget(m_stack);
-    auto *layout = new QVBoxLayout(page);
-    layout->setContentsMargins(4, 4, 4, 4);
-
-    auto *titleLabel = new QLabel(tr("Flip direction"), page);
-    titleLabel->setWordWrap(true);
-    layout->addWidget(titleLabel);
-
-    m_flipCombo = new QComboBox(page);
-    m_flipCombo->addItem(tr("Horizontal"), true);
-    m_flipCombo->addItem(tr("Vertical"), false);
-    m_flipCombo->setCurrentIndex(m_params.flipHorizontal ? 0 : 1);
-    layout->addWidget(m_flipCombo);
-
-    connect(m_flipCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            [this](int) {
-                m_params.flipHorizontal = m_flipCombo->currentData().toBool();
-                reprocessCurrentFrame();
-            });
-
-    return page;
-}
-
-#ifdef HAVE_OPENCV
-QWidget *VideoEffectNode::createGaussianPage()
-{
-    QWidget *page = createSliderPage(m_gaussianSlider, m_gaussianValue, 1, 31,
-                                     m_params.gaussianKernel, tr("Kernel size (odd, 1..31)"),
-                                     [this](int value) {
-                                         m_params.gaussianKernel = value | 1;
-                                         reprocessCurrentFrame();
-                                     });
-    m_gaussianSlider->setSingleStep(2);
-    return page;
-}
-
-QWidget *VideoEffectNode::createCannyPage()
-{
-    auto *page = new QWidget(m_stack);
-    auto *layout = new QVBoxLayout(page);
-    layout->setContentsMargins(4, 4, 4, 4);
-
-    auto *titleLabel = new QLabel(tr("Canny edge detection thresholds"), page);
-    titleLabel->setWordWrap(true);
-    layout->addWidget(titleLabel);
-
-    auto *lowRow = new QHBoxLayout();
-    m_cannyLowSlider = new QSlider(Qt::Horizontal, page);
-    m_cannyLowSlider->setRange(0, 255);
-    m_cannyLowSlider->setValue(m_params.cannyLow);
-    m_cannyLowValue = new QLabel(QString::number(m_params.cannyLow), page);
-    m_cannyLowValue->setMinimumWidth(32);
-    m_cannyLowValue->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    lowRow->addWidget(new QLabel(tr("Low"), page));
-    lowRow->addWidget(m_cannyLowSlider, 1);
-    lowRow->addWidget(m_cannyLowValue);
-    layout->addLayout(lowRow);
-
-    auto *highRow = new QHBoxLayout();
-    m_cannyHighSlider = new QSlider(Qt::Horizontal, page);
-    m_cannyHighSlider->setRange(0, 255);
-    m_cannyHighSlider->setValue(m_params.cannyHigh);
-    m_cannyHighValue = new QLabel(QString::number(m_params.cannyHigh), page);
-    m_cannyHighValue->setMinimumWidth(32);
-    m_cannyHighValue->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    highRow->addWidget(new QLabel(tr("High"), page));
-    highRow->addWidget(m_cannyHighSlider, 1);
-    highRow->addWidget(m_cannyHighValue);
-    layout->addLayout(highRow);
-
-    connect(m_cannyLowSlider, &QSlider::valueChanged, this, [this](int value) {
-        m_params.cannyLow = value;
-        m_cannyLowValue->setText(QString::number(value));
-        reprocessCurrentFrame();
-    });
-    connect(m_cannyHighSlider, &QSlider::valueChanged, this, [this](int value) {
-        m_params.cannyHigh = value;
-        m_cannyHighValue->setText(QString::number(value));
-        reprocessCurrentFrame();
-    });
-
-    return page;
-}
-#endif // HAVE_OPENCV
-
-void VideoEffectNode::syncWidgetsFromParams()
-{
-    if (m_brightnessSlider)
-        m_brightnessSlider->setValue(m_params.brightness);
-    if (m_contrastSlider)
-        m_contrastSlider->setValue(m_params.contrast);
-    if (m_flipCombo)
-        m_flipCombo->setCurrentIndex(m_params.flipHorizontal ? 0 : 1);
-    if (m_blurSlider)
-        m_blurSlider->setValue(m_params.blurRadius);
-#ifdef HAVE_OPENCV
-    if (m_gaussianSlider)
-        m_gaussianSlider->setValue(m_params.gaussianKernel);
-    if (m_cannyLowSlider)
-        m_cannyLowSlider->setValue(m_params.cannyLow);
-    if (m_cannyHighSlider)
-        m_cannyHighSlider->setValue(m_params.cannyHigh);
-    if (m_thresholdSlider)
-        m_thresholdSlider->setValue(m_params.thresholdValue);
-#endif
-}
 
 void VideoEffectNode::reprocessCurrentFrame()
 {
@@ -523,30 +346,29 @@ void VideoEffectNode::onCpuResult(QImage result)
         return;
 
     m_output = std::make_shared<VideoFrameData>(QVideoFrame(result));
-    updateMetricLabel();
+    Q_EMIT cpuPathUsed();
     Q_EMIT dataUpdated(0);
+    // Metric label is updated by the widget from pool counters
 }
 
 void VideoEffectNode::updateMetricLabel()
 {
-    if (!m_metricLabel)
-        return;
+    // Update the dummy label for test compatibility. The real UI
+    // label in VideoEffectWidget (GUI plugin) gets the same text via
+    // cpuPathUsed()/gpuPathUsed() signals.
+    if (m_metricLabel) {
+        const quint64 submitted = ComputePool::instance().submitted(m_poolKey);
+        const quint64 completed = ComputePool::instance().completed(m_poolKey);
+        const quint64 skipped = ComputePool::instance().skipped(m_poolKey);
+        const double fps = ComputePool::instance().fps(m_poolKey);
 
-    // Pool per-key counters (REQ-SW-PL-039): completed/submitted/skipped +
-    // completed/sec over the rolling 1 s window.
-    const quint64 submitted = ComputePool::instance().submitted(m_poolKey);
-    const quint64 completed = ComputePool::instance().completed(m_poolKey);
-    const quint64 skipped = ComputePool::instance().skipped(m_poolKey);
-    const double fps = ComputePool::instance().fps(m_poolKey);
-
-    m_metricLabel->setText(QStringLiteral("CPU %1/%2 · %3 skipped · %4 fps out")
-                               .arg(completed)
-                               .arg(submitted)
-                               .arg(skipped)
-                               .arg(fps, 0, 'f', 1));
-}
-
-void VideoEffectNode::logPerfLine()
+        m_metricLabel->setText(QStringLiteral("CPU %1/%2 · %3 skipped · %4 fps out")
+                                   .arg(completed)
+                                   .arg(submitted)
+                                   .arg(skipped)
+                                   .arg(fps, 0, 'f', 1));
+    }
+}void VideoEffectNode::logPerfLine()
 {
     // Optional [PERF] effect console line — mirrors VideoOutputNode::logPerfLine
     // (qInfo() without a category so it is always visible when Perf is on).

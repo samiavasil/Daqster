@@ -11,6 +11,12 @@
 //
 // GPU-only: requires hardware OpenGL (no CPU fallback).
 // The embedded widget is fixed-size (no geometry recomputation on data arrival).
+//
+// REQ-SW-PL-051: this model owns NO widgets. The GLSL editor, compile button,
+// error log, sliders and animate checkbox live in CustomShaderWidget (GUI
+// plugin) and are created through NodeWidgetFactory. The shader source and
+// parameters are kept here as plain fields and pushed to the widget via
+// configChanged().
 
 #include "CustomShaderGLProcessor.h"
 
@@ -18,15 +24,17 @@
 
 #include <QElapsedTimer>
 #include <QJsonObject>
-#include <QLabel>
-#include <QPlainTextEdit>
-#include <QPushButton>
-#include <QSlider>
-#include <QCheckBox>
 
 #include <memory>
 
 class VideoFrameData;
+
+/// Runtime parameters for the shader (shader source + uniforms).
+struct ShaderConfig {
+    QString source;
+    float param[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    bool animate = false;
+};
 
 /// Runtime GLSL shader node — Shadertoy-style mainImage contract.
 class CustomShaderNode : public QtNodes::NodeDelegateModel
@@ -66,24 +74,42 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex portIndex) override;
 
-    QWidget *embeddedWidget() override;
+    /// Core model has no QtWidgets dependency — the widget is created by the
+    /// GUI plugin and wired through NodeWidgetFactory (REQ-SW-PL-051).
+    QWidget *embeddedWidget() override { return nullptr; }
+
+    /// Current shader configuration, read by the GUI widget on attach.
+    ShaderConfig config() const { return m_config; }
+
+signals:
+    /// The shader source or a uniform changed (or load() restored them) —
+    /// re-render the editor and controls.
+    void configChanged(const ShaderConfig& config);
+    /// GPU hardware not available.
+    void hardwareGlMissing();
+    /// Compilation error message from the processor.
+    void compilationError(const QString& error);
+    /// Compilation succeeded — clear the error log.
+    void compilationOk();
+
+public slots:
+    /// "Compile & Apply" button pressed.
+    void onCompileRequested();
+    /// GLSL editor content changed by the user.
+    void onSourceChanged(const QString& source);
+    /// Slider `index` changed to `value` (0-100).
+    void onParamChanged(int index, int value);
+    /// Animate checkbox toggled.
+    void onAnimateToggled(bool animate);
 
 private:
-    void buildWidget();
     void reprocessCurrentFrame();
 
     std::shared_ptr<VideoFrameData> m_lastInput;
     std::shared_ptr<VideoFrameData> m_output;
 
     CustomShaderGLProcessor m_processor;
-
-    QWidget *m_widget = nullptr;
-    QPlainTextEdit *m_glslEditor = nullptr;
-    QPlainTextEdit *m_errorLog = nullptr;
-    QPushButton *m_compileButton = nullptr;
-    QSlider *m_sliders[4] = {nullptr, nullptr, nullptr, nullptr};
-    QLabel *m_sliderLabels[4] = {nullptr, nullptr, nullptr, nullptr};
-    QCheckBox *m_animateCheck = nullptr;
+    ShaderConfig m_config;
     QElapsedTimer m_elapsed;
 };
 

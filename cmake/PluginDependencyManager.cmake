@@ -85,10 +85,10 @@ endfunction()
 function(register_component COMPONENT_NAME)
     set(options)
     set(oneValueArgs)
-    set(multiValueArgs REQUIRES_LIBRARIES)
+    set(multiValueArgs REQUIRES_LIBRARIES INCLUDE_DIRECTORIES)
     cmake_parse_arguments(PLUGIN_DEPS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
-    # Check dependencies
+    # Check dependencies (only REQUIRES_LIBRARIES, not INCLUDE_DIRECTORIES)
     check_plugin_dependencies(${COMPONENT_NAME}
         REQUIRES_LIBRARIES ${PLUGIN_DEPS_REQUIRES_LIBRARIES}
     )

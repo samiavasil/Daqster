@@ -1,12 +1,42 @@
 # REQ-SW-PL-051 — Core/GUI Split: Изпълнителен план
 
-- **Статус:** ACTIVE (в изпълнение)
+- **Статус:** ~~ACTIVE~~ → **SUPERSEDED (2026-09-30)** — НЕ Е ИМПЛЕМЕНТИРАН
 - **Бранч:** `feat/REQ-SW-PL-051-core-gui-separation` (base `develop_pre`)
 - **Дата:** 2026-09-25
 - **Одобрен дизайн:** `/tmp/opencode/core-gui-split-design.md` (v0.2)
 - **QtNodes решение (потребител):** QtNodes остава в DaqsterCore; АС 2 се
   проверява **функционално** (headless процес без widget/сцена инстанции), не с
   `ldd | grep Qt5Widgets`. Документацията се обновява съответно.
+
+> ## ⚠️ ТОЗИ ПЛАН НЕ Е ИЗПОЛНЕН — ЗАПИСАН Е ЗА ИСТОРИЯ
+>
+> Планът предвижда преструктуриране на **две библиотеки** `DaqsterCore` /
+> `DaqsterGui`, пренос на `src/core/` → `src/frame_work/base/src/`, изтриване на
+> `src/gui/`, отделно приложение `DaqsterHeadless`, `DAQSTER_BUILD_STATIC` +
+> `generate_export_header(DaqsterCore)`, merge в `develop_pre` + Merge 3 (CP-5).
+>
+> **Нито едно от тези неща е извършено.** Реалното състояние:
+>
+> | Планирано тук | Реално |
+> |---|---|
+> | Библиотеки `DaqsterCore` / `DaqsterGui` | Plugin-и `FrameworkCore` / `FrameworkGui` (REQ-SW-PL-053) — има си собствен CMake език |
+> | `src/core/` → `src/frame_work/base/src/` | `src/core/` и `src/gui/` отдавна го няма; миграцията е безпредметна |
+> | Отделно приложение `DaqsterHeadless` | `NodeRunner --headless --run` (един dual-mode бинарник, REQ-SW-PL-053) |
+> | `generate_export_header(DaqsterCore)` | `generate_export_header(FrameworkCore)` / `(FrameworkGui)` |
+> | Merge в `develop_pre` → Merge 3 → `develop` | Branch-ът е върху `develop`; Merge 3 не е извършван |
+> | HeadlessEngine без `DataFlowGraphicsScene` | Не е извършено; изисква REQ-SW-PL-052 (DONE) отделен pass |
+>
+> **Какво наистина беше направено** (виж реалния план и резултата):
+> `docs/Architecture/core-gui-split.md` и
+> `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-051-core-gui-separation-headless.md`.
+> Ключовото решение е capability интерфейсът **`IWidgetProvider`**
+> (`src/plugins/common/capabilities/IWidgetProvider.h`) вместо пренареждане на
+> библиотеки — plugin-ите вече бяха разделени от REQ-SW-PL-053 и прилагат
+> widget-и през `ChatGraphModel::nodeData(NodeRole::Widget)`, което е единственото
+> място в дървото, където се вика `provider->createWidget()`.
+>
+> **Останък:** 2 от 30 модела не са разделени — `VideoOutput` (чака
+> REQ-SW-PL-053 video-display-unification) и `AudioDisplayObsolete`.
 
 ## Цел
 

@@ -15,6 +15,7 @@ namespace Daqster {
 class QPluginInterface;
 class QBasePluginObject;
 class INodeProvider;
+class IWidgetProvider;
 
 /**
  * @brief Handles runtime plugin registration and instance management.
@@ -146,6 +147,19 @@ public:
     QList<Daqster::INodeProvider*> nodeProviders();
 
     /**
+     * @brief Find all plugin objects implementing the IWidgetProvider capability
+     *        (REQ-SW-PL-051 core/gui split).
+     *
+     * A node model whose widget lives in a separate GUI plugin returns nullptr
+     * from embeddedWidget(); the node editor asks these providers for the
+     * widget instead. Probed with dynamic_cast for the same reason as
+     * nodeProviders() — IWidgetProvider is a non-QObject interface.
+     *
+     * @return List of IWidgetProvider pointers (lazily instantiating plugins)
+     */
+    QList<Daqster::IWidgetProvider*> widgetProviders();
+
+    /**
      * @brief Find all plugin objects implementing the IRuntimeHost capability
      *        for a given runtime mode (REQ-SW-PL-053).
      *
@@ -195,6 +209,27 @@ signals:
     void pluginListChanged();
 
 private:
+    /**
+     * @brief Instance list of a plugin interface, creating a registry-owned
+     *        object when the plugin has none yet.
+     *
+     * Capability objects are handed out as raw pointers to callers that keep
+     * them for the whole session (the node editor stores IWidgetProvider in
+     * its graph model), so anything this method creates is parented to the
+     * registry and dies with it instead of floating free.
+     */
+    QList<QBasePluginObject*> capabilityInstances(QPluginInterface* iface, const QString& hash);
+
+    /**
+     * @brief Call Initialize() on a plugin object at most once.
+     *
+     * A capability object is useless until initialized (e.g.
+     * DemoNodeEditorNodesGuiObject builds its NodeWidgetFactory there), and
+     * plugins are not guaranteed to have been initialized by the launcher.
+     * Objects that failed to initialize are retried on the next discovery.
+     */
+    static void ensureInitialized(QBasePluginObject* obj);
+
     QMap<QString, QPluginInterface*> m_pluginMap;
     QMap<QString, PluginDescription> m_descriptions;
     std::function<void(const PluginDescription&)> m_persistenceCallback;

@@ -460,6 +460,11 @@ QList<Daqster::INodeProvider*> QPluginManager::nodeProviders()
     return m_registry->nodeProviders();
 }
 
+QList<Daqster::IWidgetProvider*> QPluginManager::widgetProviders()
+{
+    return m_registry->widgetProviders();
+}
+
 QList<Daqster::IRuntimeHost*> QPluginManager::runtimeHosts(RuntimeMode mode)
 {
     return m_registry->runtimeHosts(mode);

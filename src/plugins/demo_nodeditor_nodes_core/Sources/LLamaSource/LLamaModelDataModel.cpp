@@ -4,14 +4,6 @@
 #include <QtCore/QJsonObject>
 #include <QtCore/QJsonArray>
 #include <QtCore/QUrl>
-#include <QtCore/QFileInfo>
-#include <QtCore/QUuid>
-#include <QtCore/QDateTime>
-#include <QtWidgets/QFileDialog>
-#include <QtWidgets/QFormLayout>
-#include <QtWidgets/QGroupBox>
-#include <QtWidgets/QVBoxLayout>
-#include <QtWidgets/QHBoxLayout>
 
 using QtNodes::PortType;
 using QtNodes::PortIndex;
@@ -19,9 +11,15 @@ using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
 
+namespace {
+const char* kServerRunningStyle = "QPushButton { color: white; background-color: #4CAF50; }";
+const char* kServerStoppedStyle = "QPushButton { color: white; background-color: #f44336; }";
+} // namespace
+
 LLamaModelDataModel::LLamaModelDataModel()
-    : m_ui(nullptr), m_tabWidget(nullptr), m_chatWidget(nullptr), m_netManager(new QNetworkAccessManager(this)), m_connected(false), m_serverProcess(nullptr), m_outputText(std::make_shared<TextData>("")), m_processingInput(false) {
-  buildUi();
+    : m_netManager(new QNetworkAccessManager(this))
+    , m_outputText(std::make_shared<TextData>(""))
+{
 }
 
 LLamaModelDataModel::~LLamaModelDataModel() {
@@ -44,136 +42,6 @@ void LLamaModelDataModel::start() {
   if (m_serverProcess && m_serverProcess->state() != QProcess::NotRunning)
     return;
   onStartServerClicked();
-}
-
-void LLamaModelDataModel::buildUi() {
-  m_ui = new QWidget();
-  auto* mainLayout = new QVBoxLayout(m_ui);
-  mainLayout->setContentsMargins(4, 4, 4, 4);
-  mainLayout->setSpacing(4);
-
-  m_tabWidget = new QTabWidget();
-  m_tabWidget->addTab(createServerTab(), "Сървър");
-  m_tabWidget->addTab(createDebugTab(), "Дебаг");
-  m_tabWidget->addTab(createChatTab(), "Чат");
-
-  mainLayout->addWidget(m_tabWidget);
-}
-
-QWidget* LLamaModelDataModel::createServerTab() {
-  auto* w = new QWidget();
-  auto* layout = new QVBoxLayout(w);
-  layout->setSpacing(8);
-
-  auto* connGroup = new QGroupBox("Съществуващ сървър");
-  auto* connLayout = new QFormLayout(connGroup);
-
-  auto* hostPortLayout = new QHBoxLayout();
-  m_hostEdit = new QLineEdit("127.0.0.1");
-  m_portSpin = new QSpinBox();
-  m_portSpin->setRange(1, 65535);
-  m_portSpin->setValue(8080);
-
-  hostPortLayout->addWidget(m_hostEdit);
-  hostPortLayout->addWidget(m_portSpin);
-
-  connLayout->addRow("Хост:", hostPortLayout);
-
-  auto* connBtnLayout = new QHBoxLayout();
-  m_connectBtn = new QPushButton("Свържи");
-  m_statusLabel = new QLabel("Не е свързан");
-  m_statusLabel->setStyleSheet("color: gray;");
-  connBtnLayout->addWidget(m_connectBtn);
-  connBtnLayout->addWidget(m_statusLabel);
-  connBtnLayout->addStretch();
-  connLayout->addRow("", connBtnLayout);
-
-  layout->addWidget(connGroup);
-
-  auto* localGroup = new QGroupBox("Локален сървър");
-  auto* localLayout = new QFormLayout(localGroup);
-
-  auto* exeLayout = new QHBoxLayout();
-  m_exePath = new QLineEdit();
-  m_exePath->setPlaceholderText("Път до llama.cpp (./server)");
-  m_browseExeBtn = new QPushButton("...");
-  m_browseExeBtn->setMaximumWidth(30);
-  exeLayout->addWidget(m_exePath);
-  exeLayout->addWidget(m_browseExeBtn);
-  localLayout->addRow("Изпълним:", exeLayout);
-
-  auto* modelLayout = new QHBoxLayout();
-  m_modelPath = new QLineEdit();
-  m_modelPath->setPlaceholderText("Път до модел (.gguf)");
-  m_browseModelBtn = new QPushButton("...");
-  m_browseModelBtn->setMaximumWidth(30);
-  modelLayout->addWidget(m_modelPath);
-  modelLayout->addWidget(m_browseModelBtn);
-  localLayout->addRow("Модел:", modelLayout);
-
-  m_ctxSizeSpin = new QSpinBox();
-  m_ctxSizeSpin->setRange(128, 65536);
-  m_ctxSizeSpin->setValue(2048);
-  m_ctxSizeSpin->setSingleStep(512);
-  localLayout->addRow("Контекст:", m_ctxSizeSpin);
-
-  m_useGpuCheck = new QCheckBox("Използвай GPU (ако наличен)");
-  m_useGpuCheck->setChecked(true);
-  localLayout->addRow("", m_useGpuCheck);
-
-  m_startBtn = new QPushButton("Стартирай сървър");
-  m_startBtn->setStyleSheet("QPushButton { color: white; background-color: #4CAF50; }");
-  localLayout->addRow("", m_startBtn);
-
-  layout->addWidget(localGroup);
-  layout->addStretch();
-
-  connect(m_connectBtn, &QPushButton::clicked, this, &LLamaModelDataModel::onConnectClicked);
-  connect(m_startBtn, &QPushButton::clicked, this, &LLamaModelDataModel::onStartServerClicked);
-  connect(m_browseExeBtn, &QPushButton::clicked, this, &LLamaModelDataModel::onBrowseExe);
-  connect(m_browseModelBtn, &QPushButton::clicked, this, &LLamaModelDataModel::onBrowseModel);
-
-  return w;
-}
-
-QWidget* LLamaModelDataModel::createDebugTab() {
-  auto* w = new QWidget();
-  auto* layout = new QVBoxLayout(w);
-
-  auto* pathLayout = new QHBoxLayout();
-  m_debugPath = new QLineEdit("/completion");
-  m_debugSendBtn = new QPushButton("Изпрати");
-  pathLayout->addWidget(new QLabel("Endpoint:"));
-  pathLayout->addWidget(m_debugPath);
-  pathLayout->addWidget(m_debugSendBtn);
-
-  m_debugBody = new QTextEdit();
-  m_debugBody->setPlaceholderText("JSON body (напр. {\"prompt\":\"Hello\",\"n_predict\":128})");
-  m_debugBody->setMaximumHeight(120);
-
-  m_debugResponse = new QTextEdit();
-  m_debugResponse->setReadOnly(true);
-  m_debugResponse->setPlaceholderText("Отговор...");
-
-  auto* splitter = new QSplitter(Qt::Vertical);
-  splitter->addWidget(m_debugBody);
-  splitter->addWidget(m_debugResponse);
-
-  layout->addLayout(pathLayout);
-  layout->addWidget(splitter);
-
-  connect(m_debugSendBtn, &QPushButton::clicked, this, &LLamaModelDataModel::onDebugSendClicked);
-
-  return w;
-}
-
-QWidget* LLamaModelDataModel::createChatTab() {
-  m_chatWidget = new ChatBaseWidget();
-
-  connect(m_chatWidget, &ChatBaseWidget::sendRequested,
-          this, &LLamaModelDataModel::onLocalChatSend);
-
-  return m_chatWidget;
 }
 
 unsigned int LLamaModelDataModel::nPorts(PortType portType) const {
@@ -207,8 +75,8 @@ void LLamaModelDataModel::onLocalChatSend(QString const& text, QJsonArray const&
                 if (content.isEmpty())
                   return;
 
-                // Add response to chat widget (updates session + display)
-                m_chatWidget->addResponse(content);
+                // Add response to the chat widget (updates session + display)
+                Q_EMIT chatResponseReceived(content, QJsonObject());
               });
 }
 
@@ -265,9 +133,8 @@ void LLamaModelDataModel::sendToModel(QJsonArray const& messages, double tempera
             m_outputText = std::make_shared<TextData>(fullOutput);
             Q_EMIT dataUpdated(0);
 
-            // Добавяме exchange JSON в локалния JSON tree
-            if (m_chatWidget != nullptr)
-              m_chatWidget->appendJsonToTree(exchangeObj, false);
+            // Add the exchange JSON to the local JSON tree
+            Q_EMIT chatResponseReceived(content, exchangeObj);
 
             if (onResult)
               onResult(content);
@@ -282,7 +149,7 @@ void LLamaModelDataModel::sendToModel(QJsonArray const& messages, double tempera
 }
 
 // ---------------------------------------------------------------------------
-// setInData - външна заявка от Console
+// setInData - external request from Console
 // ---------------------------------------------------------------------------
 void LLamaModelDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex const) {
   if (m_processingInput)
@@ -307,7 +174,7 @@ void LLamaModelDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex co
   if (messages.isEmpty())
     return;
 
-  // Stateless: не пипаме UI/сесии, само изпращаме
+  // Stateless: we don't touch the UI/sessions, we only send
   sendToModel(messages, temperature, nPredict);
 }
 
@@ -317,144 +184,165 @@ void LLamaModelDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex co
 void LLamaModelDataModel::onConnectClicked() {
   if (m_connected) {
     m_connected = false;
-    m_connectBtn->setText("Свържи");
-    setStatus("Изключен", false);
+    Q_EMIT connectButtonChanged(QStringLiteral("Свържи"), true);
+    setStatus(QStringLiteral("Изключен"), false);
     return;
   }
 
-  QString host = m_hostEdit->text().trimmed();
-  int port = m_portSpin->value();
-  m_baseUrl = QString("http://%1:%2").arg(host).arg(port);
+  m_baseUrl = QString("http://%1:%2").arg(m_host.trimmed()).arg(m_port);
 
-  m_connectBtn->setEnabled(false);
-  setStatus("Свързване...", false);
+  Q_EMIT connectButtonChanged(m_connected ? QStringLiteral("Изключи") : QStringLiteral("Свържи"), false);
+  setStatus(QStringLiteral("Свързване..."), false);
   checkHealth();
 }
 
 void LLamaModelDataModel::checkHealth() {
+  m_healthPending = true;
+
   QUrl url(m_baseUrl + "/health");
   QNetworkRequest req(url);
   req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
-  auto* reply = m_netManager->get(req);
+  QNetworkReply* reply = m_netManager->get(req);
   connect(reply, &QNetworkReply::finished, this, [this, reply]() {
     reply->deleteLater();
+
+    bool healthy = false;
+    QString error;
     if (reply->error() == QNetworkReply::NoError) {
       QByteArray data = reply->readAll();
       QJsonDocument doc = QJsonDocument::fromJson(data);
       if (doc.isObject()) {
-        QJsonObject obj = doc.object();
-        QString status = obj["status"].toString();
-        if (status == "ok" || status == "running" || status == "healthy") {
-          m_connected = true;
-          m_connectBtn->setText("Изключи");
-          setStatus("Свързан", true);
-          m_connectBtn->setEnabled(true);
-          return;
-        }
+        QString status = doc.object()["status"].toString();
+        healthy = (status == "ok" || status == "running" || status == "healthy");
       }
+    } else {
+      error = reply->errorString();
     }
-    m_connected = false;
-    m_connectBtn->setText("Свържи");
-    setStatus("Грешка: " + reply->errorString(), false);
-    m_connectBtn->setEnabled(true);
+
+    onHealthReply(healthy, error);
   });
+}
+
+void LLamaModelDataModel::onHealthReply(bool healthy, QString const& error) {
+  m_healthPending = false;
+
+  if (healthy) {
+    m_connected = true;
+    Q_EMIT connectButtonChanged(QStringLiteral("Изключи"), true);
+    setStatus(QStringLiteral("Свързан"), true);
+    return;
+  }
+
+  m_connected = false;
+  Q_EMIT connectButtonChanged(QStringLiteral("Свържи"), true);
+  setStatus(QStringLiteral("Грешка: ") + error, false);
 }
 
 void LLamaModelDataModel::onStartServerClicked() {
   if (m_serverProcess && m_serverProcess->state() != QProcess::NotRunning) {
     m_serverProcess->terminate();
     m_serverProcess->waitForFinished(3000);
-    m_startBtn->setText("Стартирай сървър");
-    m_startBtn->setStyleSheet("QPushButton { color: white; background-color: #4CAF50; }");
-    setStatus("Локален сървър спрян", false);
+    Q_EMIT startButtonChanged(QStringLiteral("Стартирай сървър"), QString::fromLatin1(kServerRunningStyle));
+    setStatus(QStringLiteral("Локален сървър спрян"), false);
     m_connected = false;
-    m_connectBtn->setText("Свържи");
+    Q_EMIT connectButtonChanged(QStringLiteral("Свържи"), true);
     return;
   }
 
-  QString exe = m_exePath->text().trimmed();
-  QString model = m_modelPath->text().trimmed();
+  QString exe = m_exePath.trimmed();
+  QString model = m_modelPath.trimmed();
 
   if (exe.isEmpty()) {
-    setStatus("Няма избран изпълним файл", false);
+    setStatus(QStringLiteral("Няма избран изпълним файл"), false);
     return;
   }
   if (model.isEmpty()) {
-    setStatus("Няма избран модел", false);
+    setStatus(QStringLiteral("Няма избран модел"), false);
     return;
   }
 
   m_serverProcess = new QProcess(this);
   QStringList args;
   args << "-m" << model
-       << "--host" << m_hostEdit->text().trimmed()
-       << "--port" << QString::number(m_portSpin->value())
-       << "-c" << QString::number(m_ctxSizeSpin->value());
+       << "--host" << m_host.trimmed()
+       << "--port" << QString::number(m_port)
+       << "-c" << QString::number(m_ctxSize);
 
-  if (m_useGpuCheck->isChecked()) {
+  if (m_useGpu) {
     args << "-ngl" << "99";
   }
 
-  connect(m_serverProcess, &QProcess::started, this, [this]() {
-    m_startBtn->setText("Спри сървър");
-    m_startBtn->setStyleSheet("QPushButton { color: white; background-color: #f44336; }");
-    setStatus("Локален сървър стартира...", false);
-  });
-
+  connect(m_serverProcess, &QProcess::started,
+          this, &LLamaModelDataModel::onProcessStarted);
   connect(m_serverProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-          this, [this](int exitCode, QProcess::ExitStatus) {
-            m_startBtn->setText("Стартирай сървър");
-            m_startBtn->setStyleSheet("QPushButton { color: white; background-color: #4CAF50; }");
-            setStatus(QString("Сървър спрян (код: %1)").arg(exitCode), false);
-            m_connected = false;
-            m_connectBtn->setText("Свържи");
-          });
-
-  connect(m_serverProcess, &QProcess::readyReadStandardOutput, this, [this]() {
-    QByteArray out = m_serverProcess->readAllStandardOutput();
-    if (out.contains("running") || out.contains("start") || out.contains("listen")) {
-      setStatus("Локален сървър работи", true);
-      m_connected = true;
-      m_connectBtn->setText("Изключи");
-
-      QString host = m_hostEdit->text().trimmed();
-      int port = m_portSpin->value();
-      m_baseUrl = QString("http://%1:%2").arg(host).arg(port);
-    }
-  });
-
-  connect(m_serverProcess, &QProcess::readyReadStandardError, this, [this]() {
-    QByteArray err = m_serverProcess->readAllStandardError();
-    if (err.contains("running") || err.contains("start") || err.contains("listen")) {
-      setStatus("Локален сървър работи", true);
-      m_connected = true;
-      m_connectBtn->setText("Изключи");
-    }
-  });
+          this, &LLamaModelDataModel::onProcessFinished);
+  connect(m_serverProcess, &QProcess::readyReadStandardOutput,
+          this, &LLamaModelDataModel::onProcessStdout);
+  connect(m_serverProcess, &QProcess::readyReadStandardError,
+          this, &LLamaModelDataModel::onProcessStderr);
 
   m_serverProcess->start(exe, args);
 }
 
-void LLamaModelDataModel::onBrowseExe() {
-  QString path = QFileDialog::getOpenFileName(m_ui, "Изберете llama.cpp сървър");
-  if (!path.isEmpty())
-    m_exePath->setText(path);
+void LLamaModelDataModel::onProcessStarted() {
+  Q_EMIT startButtonChanged(QStringLiteral("Спри сървър"), QString::fromLatin1(kServerStoppedStyle));
+  setStatus(QStringLiteral("Локален сървър стартира..."), false);
 }
 
-void LLamaModelDataModel::onBrowseModel() {
-  QString path = QFileDialog::getOpenFileName(m_ui, "Изберете модел (.gguf)", QString(), "GGUF файлове (*.gguf)");
-  if (!path.isEmpty())
-    m_modelPath->setText(path);
+void LLamaModelDataModel::onProcessFinished(int exitCode, QProcess::ExitStatus) {
+  Q_EMIT startButtonChanged(QStringLiteral("Стартирай сървър"), QString::fromLatin1(kServerRunningStyle));
+  setStatus(QString("Сървър спрян (код: %1)").arg(exitCode), false);
+  m_connected = false;
+  Q_EMIT connectButtonChanged(QStringLiteral("Свържи"), true);
+}
+
+void LLamaModelDataModel::onProcessStdout() {
+  QByteArray out = m_serverProcess->readAllStandardOutput();
+  if (out.contains("running") || out.contains("start") || out.contains("listen")) {
+    setStatus(QStringLiteral("Локален сървър работи"), true);
+    m_connected = true;
+    Q_EMIT connectButtonChanged(QStringLiteral("Изключи"), true);
+    m_baseUrl = QString("http://%1:%2").arg(m_host.trimmed()).arg(m_port);
+  }
+}
+
+void LLamaModelDataModel::onProcessStderr() {
+  QByteArray err = m_serverProcess->readAllStandardError();
+  if (err.contains("running") || err.contains("start") || err.contains("listen")) {
+    setStatus(QStringLiteral("Локален сървър работи"), true);
+    m_connected = true;
+    Q_EMIT connectButtonChanged(QStringLiteral("Изключи"), true);
+  }
+}
+
+void LLamaModelDataModel::onExePathSelected(QString const& path) {
+  m_exePath = path;
+}
+
+void LLamaModelDataModel::onModelPathSelected(QString const& path) {
+  m_modelPath = path;
+}
+
+void LLamaModelDataModel::onDebugPathChanged(QString const& path) {
+  m_debugPath = path;
+}
+
+void LLamaModelDataModel::onDebugBodyChanged(QString const& body) {
+  m_debugBody = body;
+}
+
+void LLamaModelDataModel::onChatConfigChanged(QJsonObject const& config) {
+  m_chatConfig = config;
 }
 
 void LLamaModelDataModel::onDebugSendClicked() {
   if (!m_connected) {
-    m_debugResponse->setPlainText("Няма свързан сървър.");
+    Q_EMIT debugResponseReceived(QStringLiteral("Няма свързан сървър."));
     return;
   }
 
-  QString endpoint = m_debugPath->text().trimmed();
+  QString endpoint = m_debugPath.trimmed();
   if (!endpoint.startsWith("/"))
     endpoint = "/" + endpoint;
 
@@ -462,7 +350,7 @@ void LLamaModelDataModel::onDebugSendClicked() {
   QNetworkRequest req(url);
   req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
-  QString bodyText = m_debugBody->toPlainText().trimmed();
+  QString bodyText = m_debugBody.trimmed();
   QByteArray bodyData;
   if (!bodyText.isEmpty()) {
     bodyData = bodyText.toUtf8();
@@ -488,20 +376,15 @@ void LLamaModelDataModel::onDebugSendClicked() {
         result = QString::fromUtf8(data);
       }
     } else {
-      result = "Грешка: " + reply->errorString();
+      result = QStringLiteral("Грешка: ") + reply->errorString();
     }
 
-    m_debugResponse->setPlainText(result);
+    Q_EMIT debugResponseReceived(result);
   });
 }
 
 void LLamaModelDataModel::setStatus(QString const& status, bool connected) {
-  m_statusLabel->setText(status);
-  if (connected) {
-    m_statusLabel->setStyleSheet("color: green;");
-  } else {
-    m_statusLabel->setStyleSheet("color: gray;");
-  }
+  Q_EMIT statusChanged(status, connected);
 }
 
 // ---------------------------------------------------------------------------
@@ -509,31 +392,27 @@ void LLamaModelDataModel::setStatus(QString const& status, bool connected) {
 // ---------------------------------------------------------------------------
 QJsonObject LLamaModelDataModel::save() const {
   QJsonObject obj = NodeDelegateModel::save();
-  obj["host"] = m_hostEdit->text();
-  obj["port"] = m_portSpin->value();
-  obj["exePath"] = m_exePath->text();
-  obj["modelPath"] = m_modelPath->text();
-  obj["ctxSize"] = m_ctxSizeSpin->value();
-  obj["useGpu"] = m_useGpuCheck->isChecked();
+  obj["host"] = m_host;
+  obj["port"] = m_port;
+  obj["exePath"] = m_exePath;
+  obj["modelPath"] = m_modelPath;
+  obj["ctxSize"] = m_ctxSize;
+  obj["useGpu"] = m_useGpu;
 
-  if (m_chatWidget != nullptr) {
-    QJsonObject chatConfig = m_chatWidget->saveConfig();
-    // Merge chat config into root
-    for (auto it = chatConfig.begin(); it != chatConfig.end(); ++it)
-      obj[it.key()] = it.value();
-  }
+  // Merge chat config into root
+  for (auto it = m_chatConfig.begin(); it != m_chatConfig.end(); ++it)
+    obj[it.key()] = it.value();
 
   return obj;
 }
 
 void LLamaModelDataModel::load(QJsonObject const& p) {
-  if (p.contains("host")) m_hostEdit->setText(p["host"].toString());
-  if (p.contains("port")) m_portSpin->setValue(p["port"].toInt());
-  if (p.contains("exePath")) m_exePath->setText(p["exePath"].toString());
-  if (p.contains("modelPath")) m_modelPath->setText(p["modelPath"].toString());
-  if (p.contains("ctxSize")) m_ctxSizeSpin->setValue(p["ctxSize"].toInt());
-  if (p.contains("useGpu")) m_useGpuCheck->setChecked(p["useGpu"].toBool());
+  if (p.contains("host")) m_host = p["host"].toString();
+  if (p.contains("port")) m_port = p["port"].toInt();
+  if (p.contains("exePath")) m_exePath = p["exePath"].toString();
+  if (p.contains("modelPath")) m_modelPath = p["modelPath"].toString();
+  if (p.contains("ctxSize")) m_ctxSize = p["ctxSize"].toInt();
+  if (p.contains("useGpu")) m_useGpu = p["useGpu"].toBool();
 
-  if (m_chatWidget != nullptr)
-    m_chatWidget->loadConfig(p);
+  m_chatConfig = p;
 }

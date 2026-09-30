@@ -639,7 +639,7 @@ private:
 ### 4.3 CLI Integration
 
 ```cpp
-// DaqsterHeadless / NodeRunner main.cpp additions
+// NodeRunner main.cpp additions
 parser.addOption(QCommandLineOption("rest-port",
     "Enable REST API server on <port> (0 to disable)", "port", "8080"));
 parser.addOption(QCommandLineOption("rest-token",
@@ -780,7 +780,7 @@ void RestApiServerTest::testPostNodeConfigValidation() {
 
 ```bash
 # Start headless server
-./build_qt5/bin/DaqsterHeadless --run tests/data/video_effect_chain.flow \
+./build_qt5/bin/NodeRunner --headless --run tests/data/video_effect_chain.flow \
     --rest-port 18080 --rest-token test123 --log-console-enabled 1 &
 
 SERVER_PID=$!

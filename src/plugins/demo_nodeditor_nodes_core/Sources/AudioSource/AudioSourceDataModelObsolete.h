@@ -2,7 +2,7 @@
 #define AUDIOSOURCEDATAMODELOBSOLETE_H
 
 #include "AudioCompat.h"
-#include "AudioSourceDataModelUI.h"
+#include "AudioStartStop.h"
 
 #include <QtCore/QObject>
 #include <QtNodes/NodeDelegateModel>
@@ -59,8 +59,13 @@ public:
     void
     setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex const port) override;
 
+    /// Core model has no QtWidgets dependency — the config UI is created by the
+    /// GUI plugin and wired through NodeWidgetFactory (REQ-SW-PL-051).
     QWidget *
-    embeddedWidget() override;
+    embeddedWidget() override { return nullptr; }
+
+    QAudioDeviceInfo* deviceInfo() { return &m_DevInfo; }
+    QAudioFormat* audioFormat() { return &m_FormatAudio; }
 
     void IO_connect(std::shared_ptr<QIODevice> io);
 
@@ -75,15 +80,17 @@ public:
 
 signals:
     void disconnected();
-    void StartAudio(AudioSourceDataModelUI::StartStop start);
+    void StartAudio(AudioStartStop start);
     void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
+    /// Worker audio state, forwarded to AudioSourceDataModelUI by the GUI
+    /// plugin's NodeWidgetFactory.
+    void audioStateChanged(QAudio::State state);
 
 private slots:
     void destroyedObj(QObject *obj);
 
 private:
     std::shared_ptr<AudioNodeQdevIoConnectorObsolete> m_connector;
-    AudioSourceDataModelUI* m_Widget;
     QAudioDeviceInfo m_DevInfo;
     QAudioFormat m_FormatAudio;
 };
