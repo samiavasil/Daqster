@@ -1,6 +1,8 @@
 #ifndef SYSTEMMONITORMODEL_H
 #define SYSTEMMONITORMODEL_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include "NodeDataTypes/SampledData.h"
 #include "SystemMonitorEngine.h"
 #include "shared/IStoppable.h"
@@ -27,7 +29,7 @@
  * connection exists; removing the last connection auto-stops the polling
  * (clean teardown).
  */
-class SystemMonitorModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
+class DEMO_NODEDITOR_NODES_CORE_EXPORT SystemMonitorModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 

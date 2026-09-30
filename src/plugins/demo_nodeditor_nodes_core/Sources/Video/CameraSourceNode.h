@@ -1,6 +1,8 @@
 #ifndef CAMERASOURCENODE_H
 #define CAMERASOURCENODE_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include "VideoCompat.h"
 
 #include "NodeDataTypes/SampledData.h"
@@ -43,7 +45,7 @@ class VideoFrameData;
  * here as `m_selectedDeviceIndex` and reported to the widget through
  * devicesChanged(); user actions come back through the public slots below.
  */
-class CameraSourceNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
+class DEMO_NODEDITOR_NODES_CORE_EXPORT CameraSourceNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 

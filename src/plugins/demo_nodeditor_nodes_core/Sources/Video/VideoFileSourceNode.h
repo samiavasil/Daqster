@@ -1,6 +1,8 @@
 #ifndef VIDEOFILESOURCENODE_H
 #define VIDEOFILESOURCENODE_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include "VideoCompat.h"
 
 #include "NodeDataTypes/SampledData.h"
@@ -53,7 +55,7 @@ class VideoFrameData;
  * created through NodeWidgetFactory. The file path is kept here as m_filePath
  * and pushed to the widget through filePathChanged().
  */
-class VideoFileSourceNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
+class DEMO_NODEDITOR_NODES_CORE_EXPORT VideoFileSourceNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 

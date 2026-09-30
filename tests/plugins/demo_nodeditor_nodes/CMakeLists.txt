@@ -26,6 +26,18 @@ endif()
 # is self-contained when tests are built standalone.
 set(CMAKE_AUTOMOC ON)
 
+# The core model/engine headers include the plugin's generated export header
+# (demo_nodeditor_nodes_core_export.h). These test binaries compile core sources
+# directly instead of linking the plugin .so, so they need two things:
+#   - the generated directory on their own include path (they do not inherit the
+#     plugin's PUBLIC include directories);
+#   - DEMO_NODEDITOR_NODES_CORE_STATIC_DEFINE, which turns the export macro into
+#     nothing. Without it the header would ask for __declspec(dllimport) on
+#     Windows while the definitions are compiled straight into the test binary
+#     (LNK2001 / C2491).
+set(DEMO_CORE_EXPORT_INCLUDE_DIR ${CMAKE_BINARY_DIR}/src/plugins/demo_nodeditor_nodes_core)
+set(DEMO_CORE_EXPORT_DEFINITIONS DEMO_NODEDITOR_NODES_CORE_STATIC_DEFINE)
+
 set(TEST_SOURCES
     test_main.cpp
     test_video_transform_ops.cpp test_video_transform_ops.h
@@ -47,7 +59,9 @@ target_include_directories(demo_nodeditor_nodes_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DEMO_CORE_EXPORT_INCLUDE_DIR}
 )
+target_compile_definitions(demo_nodeditor_nodes_tests PRIVATE ${DEMO_CORE_EXPORT_DEFINITIONS})
 
 target_link_libraries(demo_nodeditor_nodes_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test
@@ -100,7 +114,9 @@ target_include_directories(demo_nodeditor_display_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/GenericDisplay
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DEMO_CORE_EXPORT_INCLUDE_DIR}
 )
+target_compile_definitions(demo_nodeditor_display_tests PRIVATE ${DEMO_CORE_EXPORT_DEFINITIONS})
 
 target_link_libraries(demo_nodeditor_display_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test
@@ -189,7 +205,9 @@ target_include_directories(demo_nodeditor_videooutput_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
     ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/perf
+    ${DEMO_CORE_EXPORT_INCLUDE_DIR}
 )
+target_compile_definitions(demo_nodeditor_videooutput_tests PRIVATE ${DEMO_CORE_EXPORT_DEFINITIONS})
 
 target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test
@@ -254,7 +272,9 @@ target_include_directories(demo_nodeditor_videoeffect_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DEMO_CORE_EXPORT_INCLUDE_DIR}
 )
+target_compile_definitions(demo_nodeditor_videoeffect_tests PRIVATE ${DEMO_CORE_EXPORT_DEFINITIONS})
 
 target_link_libraries(demo_nodeditor_videoeffect_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test

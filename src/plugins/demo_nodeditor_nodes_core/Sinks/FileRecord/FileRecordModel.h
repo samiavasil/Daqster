@@ -1,6 +1,8 @@
 #ifndef FILERECORDMODEL_H
 #define FILERECORDMODEL_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include "NodeDataTypes/SampledData.h"
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
@@ -25,7 +27,7 @@
  * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
  * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  */
-class FileRecordModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
+class DEMO_NODEDITOR_NODES_CORE_EXPORT FileRecordModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 

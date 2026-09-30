@@ -2,6 +2,7 @@
 
 #include <QTimer>
 
+#ifdef HAVE_GAMEPAD
 #include <fcntl.h>
 #include <linux/joystick.h>
 #include <unistd.h>
@@ -18,6 +19,7 @@ float normalizeAxis(__s16 value)
 }
 
 } // namespace
+#endif // HAVE_GAMEPAD
 
 GamepadEngine::GamepadEngine(QObject *parent)
     : QObject(parent)
@@ -49,6 +51,7 @@ void GamepadEngine::setPollRate(int hz)
 
 bool GamepadEngine::open()
 {
+#ifdef HAVE_GAMEPAD
     if (m_fd >= 0)
         return true;
 
@@ -76,14 +79,24 @@ bool GamepadEngine::open()
                            .arg(axes)
                            .arg(buttons));
     return true;
+#else
+    // Built without the Linux joystick API — the node is not registered on
+    // this platform (see the HAVE_GAMEPAD guard in the node registry), this
+    // stub only exists so the class has a definition on every platform.
+    emit errorOccurred(QStringLiteral("Gamepad node built without joystick support"));
+    emit statusChanged(QStringLiteral("error: no joystick API"));
+    return false;
+#endif
 }
 
 void GamepadEngine::close()
 {
+#ifdef HAVE_GAMEPAD
     if (m_fd >= 0) {
         ::close(m_fd);
         m_fd = -1;
     }
+#endif
 }
 
 void GamepadEngine::start()
@@ -102,6 +115,7 @@ void GamepadEngine::stop()
 
 void GamepadEngine::poll()
 {
+#ifdef HAVE_GAMEPAD
     if (m_fd < 0)
         return;
 
@@ -141,4 +155,5 @@ void GamepadEngine::poll()
     // Emit the current state after draining — one "frame" per poll at the
     // configured rate (matches the SampledStreamDescriptor sampleRate).
     emit stateReady(m_state);
+#endif // HAVE_GAMEPAD
 }

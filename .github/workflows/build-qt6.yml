@@ -105,7 +105,12 @@ jobs:
 
       - name: Build
         run: |
-          cmake --build build -j
+          # -j without a number means NO LIMIT under Unix Makefiles (this job
+          # uses the default generator), which spawns one cc1plus per source
+          # file and exhausts the runner's 16 GB — it died with
+          # "c++: fatal error: Killed signal terminated program cc1plus"
+          # followed by exit code 143. Bound it to the available cores.
+          cmake --build build -j "$(nproc)"
 
       - name: Run tests (offscreen)
         env:
@@ -288,17 +293,33 @@ jobs:
           # windeployqt on Daqster.exe alone only deploys what the exe directly
           # links (Core, Gui, Widgets). The plugins link additional Qt modules
           # (Multimedia, MultimediaWidgets, Charts, OpenGL, Qml, Quick,
-          # QuickControls2, WebSockets), so pass each plugin DLL as an extra
+          # QuickControls2), so every staged exe/DLL must be passed as an extra
           # target to make windeployqt analyze its dependencies and deploy the
           # needed Qt modules + plugins. Plugins install to bin/ on Windows
-          # (RUNTIME DESTINATION = CMAKE_INSTALL_BINDIR).
-          $targets = @(
-            "$bin\Daqster.exe",
-            "$bin\DemoNodeEditorNodesPlugin.dll",
-            "$bin\QtCoinTraderPlugin.dll",
-            "$bin\NodeEditorPluginIde.dll",
-            "$bin\RequirementsManagerPlugin.dll"
-          )
+          # (RUNTIME DESTINATION = CMAKE_INSTALL_BINDIR), as do the shared
+          # helper libs (FrameworkCore, FrameworkGui, NodeEditorLibrary,
+          # QtNodes, qtrest, qtrest_lib) — NodeEditorLibrary is the one that
+          # links QtCharts and QtMultimedia, so it must be analysed too.
+          #
+          # REQ-SW-PL-051: the list is derived from the staging dir instead of
+          # being hardcoded. The plugin set changed twice during this work and
+          # each hardcoded list silently broke packaging:
+          #   DemoNodeEditorNodesPlugin -> DemoNodeEditorNodesCorePlugin
+          #                                    + DemoNodeEditorNodesGuiPlugin
+          #   NodeEditorPluginIde       -> NodeEditorIde
+          # The stale first entry is what stopped windeployqt with
+          # "...\DemoNodeEditorNodesPlugin.dll does not exist".
+          if (-not (Test-Path "$bin\Daqster.exe")) {
+            throw "Daqster.exe missing from staging dir: $bin"
+          }
+          $targets = @(Get-ChildItem -Path "$bin\*.exe", "$bin\*.dll" -File |
+            ForEach-Object { $_.FullName })
+          if ($targets.Count -eq 0) {
+            throw "no deploy targets found in staging dir: $bin"
+          }
+          Write-Host "windeployqt targets ($($targets.Count)):"
+          Get-ChildItem -Path "$bin\*.exe", "$bin\*.dll" -File |
+            ForEach-Object { Write-Host "  - $($_.Name)" }
 
           # QtCoinTrader uses QML (QQmlApplicationEngine / QQuickStyle), so point
           # --qmldir at the Qt QML dir to deploy the qml/ tree (QtQuick, QtQml,
@@ -370,25 +391,45 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           $stage = "${{ github.workspace }}\stage-win"
-          # Verify the plugin DLLs are present in the deploy dir — they are
-          # loaded by Daqster at startup via QPluginManager, and a missing
-          # plugin (or one whose Qt deps are missing) would fail to load with
+          # Verify the deployed DLLs are present in the deploy dir — the plugins
+          # are loaded by Daqster at startup via QPluginManager, and each plugin
+          # loads the shared helper libs, so a missing DLL fails to load with
           # error 126.
+          #
+          # REQ-SW-PL-051: the plugin list follows the current core/gui split.
+          # It is deliberately explicit rather than derived: this check exists to
+          # fail loudly when a plugin stops shipping, and a derived list cannot
+          # detect a plugin that vanished from the build in the first place.
           $plugins = @(
-            "DemoNodeEditorNodesPlugin.dll",
+            "DemoNodeEditorNodesCorePlugin.dll",
+            "DemoNodeEditorNodesGuiPlugin.dll",
+            "FrameworkCorePlugin.dll",
+            "FrameworkGuiPlugin.dll",
+            "NodeEditorIde.dll",
             "QtCoinTraderPlugin.dll",
-            "NodeEditorPluginIde.dll",
             "RequirementsManagerPlugin.dll"
           )
+          # Shared helper libs: installed to bin/ alongside the plugins (all are
+          # SHARED targets with RUNTIME DESTINATION = CMAKE_INSTALL_BINDIR).
+          # FrameworkCore.dll / FrameworkGui.dll / NodeEditorLibrary.dll /
+          # QtNodes.dll / qtrest.dll / qtrest_lib.dll.
+          $libs = @(
+            "FrameworkCore.dll",
+            "FrameworkGui.dll",
+            "NodeEditorLibrary.dll",
+            "QtNodes.dll",
+            "qtrest.dll",
+            "qtrest_lib.dll"
+          )
           $missingPlugins = @()
-          foreach ($p in $plugins) {
+          foreach ($p in $plugins + $libs) {
             if (-not (Test-Path "$stage\bin\$p")) { $missingPlugins += $p }
           }
           if ($missingPlugins.Count -gt 0) {
-            Write-Host "FAIL: plugin DLLs missing from deploy dir: $($missingPlugins -join ', ')"
+            Write-Host "FAIL: DLLs missing from deploy dir: $($missingPlugins -join ', ')"
             exit 1
           }
-          Write-Host "Plugin DLLs present in deploy dir: $($plugins -join ', ')"
+          Write-Host "Deploy dir contains all $($plugins.Count) plugins and $($libs.Count) shared libs"
 
           $proc = Start-Process -FilePath "$stage\bin\Daqster.exe" -PassThru
           if ($proc.WaitForExit(15000)) {

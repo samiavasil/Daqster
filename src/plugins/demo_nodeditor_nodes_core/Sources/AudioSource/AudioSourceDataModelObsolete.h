@@ -1,6 +1,8 @@
 #ifndef AUDIOSOURCEDATAMODELOBSOLETE_H
 #define AUDIOSOURCEDATAMODELOBSOLETE_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include "AudioCompat.h"
 #include "AudioStartStop.h"
 
@@ -11,7 +13,7 @@
 class AudioNodeQdevIoConnectorObsolete;
 class EventThreadPullObsolete;
 
-class AudioSourceDataModelObsolete : public QtNodes::NodeDelegateModel
+class DEMO_NODEDITOR_NODES_CORE_EXPORT AudioSourceDataModelObsolete : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 

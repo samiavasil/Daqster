@@ -82,9 +82,7 @@ set(FRAMEWORK_CORE_SOURCES
     # Platform abstraction (factory + both backends; the factory selects)
     base/src/platform/ShutdownHandler.h
     base/src/platform/ShutdownHandlerFactory.cpp
-    base/src/platform/UnixShutdownHandler.cpp
     base/src/platform/UnixShutdownHandler.h
-    base/src/platform/WindowsShutdownHandler.cpp
     base/src/platform/WindowsShutdownHandler.h
 
     # Process management + performance profiling
@@ -95,6 +93,17 @@ set(FRAMEWORK_CORE_SOURCES
     base/src/perf/ProcessCpu.cpp
     base/src/perf/ProcessCpu.h
 )
+
+# Platform-specific shutdown handler implementation
+if(WIN32)
+    list(APPEND FRAMEWORK_CORE_SOURCES
+        base/src/platform/WindowsShutdownHandler.cpp
+    )
+else()
+    list(APPEND FRAMEWORK_CORE_SOURCES
+        base/src/platform/UnixShutdownHandler.cpp
+    )
+endif()
 
 if(DAQSTER_BUILD_STATIC)
     add_library(FrameworkCore STATIC ${FRAMEWORK_CORE_SOURCES})

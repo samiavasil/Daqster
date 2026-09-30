@@ -1,5 +1,7 @@
 #pragma once
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include <QtCore/QObject>
 #include <QtCore/QEvent>
 
@@ -9,7 +11,7 @@
 #include <memory>
 #include "NodeDataTypes/NumericType.h"
 
-class NumberDisplayDataModel : public QtNodes::NodeDelegateModel
+class DEMO_NODEDITOR_NODES_CORE_EXPORT NumberDisplayDataModel : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 

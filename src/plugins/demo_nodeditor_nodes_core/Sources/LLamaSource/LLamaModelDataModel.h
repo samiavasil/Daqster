@@ -1,5 +1,7 @@
 #pragma once
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include <QtCore/QObject>
 #include <QtCore/QProcess>
 #include <QtNetwork/QNetworkAccessManager>
@@ -25,7 +27,7 @@
  * model member here, user edits arrive through the public on* slots, and the
  * model reports state back through the signals below.
  */
-class LLamaModelDataModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable {
+class DEMO_NODEDITOR_NODES_CORE_EXPORT LLamaModelDataModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable {
   Q_OBJECT
 
 public:

@@ -5,17 +5,24 @@
 
 // Export/import markup for the NodeEditorLibrary shared library.
 //
-// On Windows, moc-generated meta-object data symbols (e.g. the static
-// QMetaObject QDevIoDisplayModelObsolete::staticMetaObject) are NOT linkable
-// from consumers through CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS alone: global data
-// symbols must be marked with __declspec(dllexport/dllimport) so the consumer
-// references them via the import thunk (__imp_*). Without this, consumers
-// fail to link with LNK2019 (unresolved external symbol ...::staticMetaObject).
-//
 //   NODE_EDITOR_LIBRARY_BUILD - defined when building the NodeEditorLibrary
 //                               shared library (Q_DECL_EXPORT)
 //   (not defined)             - consuming the library from another target
 //                               (Q_DECL_IMPORT)
+//
+// NOTE (REQ-SW-PL-051): the four obsolete QDevIO display classes
+// (QDevIoDisplayModelObsolete, QDevioDisplayModelUiObsolete,
+// XYSeriesIODeviceObsolete, EventThreadPullObsolete) are deliberately NOT
+// marked with this macro. Their .cpp files are compiled into BOTH
+// NodeEditorLibrary (GUI builds) and DemoNodeEditorNodesCore (all builds —
+// headless has no NodeEditorLibrary at all, see the ROUTING_NODES block in
+// demo_nodeditor_nodes_core/CMakeLists.txt). Every consumer therefore compiles
+// its own copy, so no cross-DLL import is ever needed. Marking them would make
+// DemoNodeEditorNodesCore expand this to __declspec(dllimport), and its
+// AUTOMOC pass — which runs over those same headers because the .cpp files are
+// in its SOURCES — then fails to define staticMetaObject:
+//   error C2491: definition of dllimport static data member not allowed
+// plus a wall of C4273 'inconsistent dll linkage' warnings.
 #if defined(NODE_EDITOR_LIBRARY_BUILD)
 #  define NODE_EDITOR_LIBRARY_EXPORT Q_DECL_EXPORT
 #else

@@ -4,9 +4,7 @@
 #include <QObject>
 #include <QThread>
 
-#include "NodeEditorLibraryExport.h"
-
-class NODE_EDITOR_LIBRARY_EXPORT EventThreadPullObsolete : public QObject
+class EventThreadPullObsolete : public QObject
 {
     Q_OBJECT
 public:

@@ -41,8 +41,11 @@ struct GamepadState {
  * drain. Timer-based (not a worker thread) — a full drain is a few syscalls
  * on a small buffer, well under 1 ms at 60 Hz.
  *
- * Linux-only: the node is guarded by HAVE_GAMEPAD (CMake if(NOT WIN32)), so
- * this file is only compiled on non-Windows platforms.
+ * Linux-only in effect: the node is registered only when HAVE_GAMEPAD is
+ * defined (CMake if(NOT WIN32)), but the class is compiled on every platform
+ * so its symbols exist for consumers that link against this plugin. The
+ * translation unit guards its Linux includes and bodies with #ifdef
+ * HAVE_GAMEPAD and degrades to reporting the missing joystick API.
  */
 class GamepadEngine : public QObject
 {

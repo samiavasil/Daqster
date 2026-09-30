@@ -1,6 +1,8 @@
 #ifndef NETWORKSOURCEMODEL_H
 #define NETWORKSOURCEMODEL_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include "NodeDataTypes/SampledData.h"
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
@@ -31,7 +33,7 @@ class QUdpSocket;
  * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
  * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  */
-class NetworkSourceModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
+class DEMO_NODEDITOR_NODES_CORE_EXPORT NetworkSourceModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 

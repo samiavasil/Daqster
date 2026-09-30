@@ -1,6 +1,8 @@
 #ifndef GPUMONITORMODEL_H
 #define GPUMONITORMODEL_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include "GpuMonitorEngine.h"
 #include "NodeDataTypes/SampledData.h"
 #include "shared/IStoppable.h"
@@ -22,7 +24,7 @@
  * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
  * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  */
-class GpuMonitorModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
+class DEMO_NODEDITOR_NODES_CORE_EXPORT GpuMonitorModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 

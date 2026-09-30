@@ -43,6 +43,16 @@ register_component(NodeEditorLibrary
         Qt${QT_VERSION_MAJOR}::Multimedia
         Qt${QT_VERSION_MAJOR}::Charts
         QtNodes
+        # NodeEditorWidget.cpp, EventThreadPullObsolete.cpp,
+        # XYSeriesIODeviceObsolete.cpp, QDevioDisplayModelObsolete.cpp and
+        # QDevioDisplayModelUiObsolete.cpp all log through lcNodeEditor(),
+        # which is defined in base/src/logging/LogCategories.cpp (part of
+        # FrameworkCore) and declared FRAMEWORK_CORE_EXPORT. Without this,
+        # linking NodeEditorLibrary.dll fails with:
+        #   error LNK2001: unresolved external symbol
+        #   "__declspec(dllimport) ... lcNodeEditor(void)"
+        #   fatal error LNK1120: 1 unresolved externals
+        FrameworkCore
 )
 
 get_property(NODE_EDITOR_LIB_ENABLED GLOBAL PROPERTY COMPONENT_NodeEditorLibrary_ENABLED)
@@ -175,6 +185,18 @@ create_plugin(NodeEditorIde
     REQUIRES_LIBRARIES
         NodeEditorLibrary
         QtNodes
+        # NodeEditorIdeObject.cpp opens the plugin manager dialog:
+        #   new Daqster::QPluginManagerGui(m_Win)
+        # QPluginManagerGui is declared FRAMEWORK_GUI_EXPORT and its
+        # constructor/destructor/vtable live in FrameworkGui.dll. Without this,
+        # linking the plugin fails on Windows with:
+        #   error LNK2001: unresolved external symbol
+        #   "__declspec(dllimport) ... QPluginManagerGui::QPluginManagerGui(QWidget*)"
+        #   fatal error LNK1120: N unresolved externals
+        # Linux tolerates it (undefined symbols resolve lazily at dlopen),
+        # Windows does not. QtCoinTrader does the same thing and already
+        # links FrameworkGui.
+        FrameworkGui
       INCLUDE_DIRECTORIES
           ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/NumberDisplay
 )

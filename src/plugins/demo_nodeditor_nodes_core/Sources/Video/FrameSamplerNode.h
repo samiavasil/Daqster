@@ -1,6 +1,8 @@
 #ifndef FRAMESAMPLERNODE_H
 #define FRAMESAMPLERNODE_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include <QtNodes/NodeDelegateModel>
 
 #include <QElapsedTimer>
@@ -28,7 +30,7 @@ class VideoFrameData;
  * parameter spin boxes live in FrameSamplerWidget (GUI plugin) and are created
  * through NodeWidgetFactory.
  */
-class FrameSamplerNode : public QtNodes::NodeDelegateModel
+class DEMO_NODEDITOR_NODES_CORE_EXPORT FrameSamplerNode : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 

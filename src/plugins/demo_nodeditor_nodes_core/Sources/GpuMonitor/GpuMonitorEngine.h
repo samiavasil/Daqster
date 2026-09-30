@@ -1,6 +1,8 @@
 #ifndef GPUMONITORENGINE_H
 #define GPUMONITORENGINE_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include <QObject>
 #include <QString>
 
@@ -18,7 +20,7 @@ class QTimer;
  * calls nvmlShutdown(). The caller (GpuMonitorModel) owns the engine and is
  * responsible for calling stop()/shutdown() on destruction.
  */
-class GpuMonitorEngine : public QObject
+class DEMO_NODEDITOR_NODES_CORE_EXPORT GpuMonitorEngine : public QObject
 {
     Q_OBJECT
 

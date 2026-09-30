@@ -1,5 +1,7 @@
 #pragma once
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include <QtCore/QObject>
 #include <QtNodes/NodeDelegateModel>
 #include <memory>
@@ -7,7 +9,7 @@
 
 class QTimer;
 
-class NumberSourceDataModel
+class DEMO_NODEDITOR_NODES_CORE_EXPORT NumberSourceDataModel
     : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT

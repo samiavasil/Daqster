@@ -1,6 +1,8 @@
 #ifndef PLUTOSDRENGINE_H
 #define PLUTOSDRENGINE_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include <QByteArray>
 #include <QObject>
 #include <QString>
@@ -32,7 +34,7 @@ struct iio_buffer;
  * Threading: samplesReady/statusChanged/errorOccurred are emitted from the
  * worker thread; the model connects with auto (queued) connections.
  */
-class PlutoSdrEngine : public QObject
+class DEMO_NODEDITOR_NODES_CORE_EXPORT PlutoSdrEngine : public QObject
 {
     Q_OBJECT
 

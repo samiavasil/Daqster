@@ -1,6 +1,8 @@
 #ifndef PLUTOSDRMODEL_H
 #define PLUTOSDRMODEL_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include "NodeDataTypes/SampledData.h"
 #include "PlutoSdrEngine.h"
 #include "shared/IStoppable.h"
@@ -25,7 +27,7 @@
  * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
  * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  */
-class PlutoSdrModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
+class DEMO_NODEDITOR_NODES_CORE_EXPORT PlutoSdrModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 

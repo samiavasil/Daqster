@@ -1,6 +1,8 @@
 #ifndef SYSTEMMONITORENGINE_H
 #define SYSTEMMONITORENGINE_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include <QObject>
 #include <QString>
 
@@ -34,7 +36,7 @@ struct SystemMonitorMetrics {
  * Linux-only: the node is guarded by HAVE_SYSTEM_MONITOR (CMake if(NOT WIN32)),
  * so this file is only compiled on non-Windows platforms.
  */
-class SystemMonitorEngine : public QObject
+class DEMO_NODEDITOR_NODES_CORE_EXPORT SystemMonitorEngine : public QObject
 {
     Q_OBJECT
 

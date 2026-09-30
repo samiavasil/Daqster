@@ -109,6 +109,25 @@ find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS Core Gui Widgets)
 # NodeEditor - Qt5/Qt6 (upstream has unified Qt${QT_VERSION_MAJOR} handling)
 create_external_library(nodeeditor)
 
+# REQ-SW-PL-051: QtNodes is a DLL on Windows and exports only the classes that
+# carry NODE_EDITOR_PUBLIC in their headers. GroupGraphicsObject is missing that
+# markup upstream, and NodeEditorIdeObject.cpp calls GroupGraphicsObject::locked()
+# (group serialization in saveSceneToFile), so linking NodeEditorIde.dll fails:
+#   error LNK2019: unresolved external symbol
+#   "public: bool __cdecl QtNodes::GroupGraphicsObject::locked(void)const"
+#   fatal error LNK1120: 1 unresolved externals
+# Linux cannot surface this: the symbol stays undefined and resolves at dlopen.
+#
+# WINDOWS_EXPORT_ALL_SYMBOLS is the fix from this side of the submodule, and it
+# is sufficient here: locked() is a plain function, so the generated import
+# library provides a thunk under the plain decorated name. (Data symbols such as
+# staticMetaObject or a vtable get only the __imp_ form and would still need real
+# export markup — that is why the other two Windows fixes in this series are
+# explicit macros on the classes, not this property.)
+if(WIN32 AND TARGET QtNodes)
+    set_target_properties(QtNodes PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 # QtRest library - Qt5/Qt6 dual-mode
 create_external_library(qtrest_lib)
 

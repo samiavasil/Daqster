@@ -5,7 +5,6 @@
 #ifdef Q_OS_WIN
 #include <QWinEventNotifier>
 #include <windows.h>
-#endif
 
 namespace Daqster {
 
@@ -26,10 +25,10 @@ public:
     bool initialize() override;
 
 private:
-#ifdef Q_OS_WIN
     static BOOL WINAPI consoleCtrlHandler(DWORD signal);
     static WindowsShutdownHandler* s_instance; // skipcq: CXX-W2009
-#endif
 };
 
 } // namespace Daqster
+
+#endif // Q_OS_WIN

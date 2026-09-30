@@ -1,6 +1,8 @@
 #ifndef JACKDETECTENGINE_H
 #define JACKDETECTENGINE_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include <QObject>
 #include <QString>
 #include <QVector>
@@ -19,7 +21,7 @@ class QTimer;
  * polling, stop() stops the timer. The caller (JackDetectModel) owns the
  * engine and is responsible for calling stop() on destruction.
  */
-class JackDetectEngine : public QObject
+class DEMO_NODEDITOR_NODES_CORE_EXPORT JackDetectEngine : public QObject
 {
     Q_OBJECT
 

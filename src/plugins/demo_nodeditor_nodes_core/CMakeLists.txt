@@ -6,6 +6,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
+# Provides generate_export_header() for demo_nodeditor_nodes_core_export.h.
+# The module sets its own directory-scoped path variable, so it has to be
+# included here and not only where another target happens to use it.
+include(GenerateExportHeader)
+
 # Windows: export all symbols so the plugin DLL can be loaded by QPluginLoader
 if(WIN32)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -114,7 +119,25 @@ else()
 endif()
 
 # ── Optional libiio PlutoSDR node ───────────────────────────────────
-set(PLUTOSDR_SOURCES)
+# NOTE ON THE SIX OPTIONAL NODE FAMILIES BELOW (PlutoSDR, System Monitor,
+# Gamepad, GPU Monitor, Jack Detect, Pcap): their *_SOURCES lists are NOT
+# conditional, only their *_DEFINITIONS / *_INCLUDE_DIRS / *_LINK_LIBRARIES
+# are. Every one of these translation units already guards its platform or
+# third-party calls with #ifdef HAVE_* and degrades to a runtime error (or a
+# no-op) when the dependency is missing, so the class must exist in the DLL
+# unconditionally. Dropping the sources instead leaves the class undefined,
+# and the consumers that reference it — this plugin's own node registry and
+# the GUI plugin's NodeWidgetFactory — then fail to link. Linux tolerates that
+# (undefined symbols in a shared object are resolved lazily at dlopen), but
+# the Windows linker reports it as LNK2019/LNK1120. The node is still only
+# *registered* when the HAVE_* macro is defined, so the node palette stays
+# platform-correct; only the compiled surface is unconditional.
+set(PLUTOSDR_SOURCES
+    Sources/PlutoSdr/PlutoSdrEngine.h
+    Sources/PlutoSdr/PlutoSdrEngine.cpp
+    Sources/PlutoSdr/PlutoSdrModel.h
+    Sources/PlutoSdr/PlutoSdrModel.cpp
+)
 set(PLUTOSDR_DEFINITIONS)
 set(PLUTOSDR_INCLUDE_DIRS)
 set(PLUTOSDR_LINK_LIBRARIES)
@@ -127,12 +150,6 @@ if(NOT IIO_FOUND)
 endif()
 if(IIO_FOUND)
     message(STATUS "demo_nodeditor_nodes_core: libiio ${IIO_VERSION} found — enabling PlutoSDR RX DAQ node")
-    list(APPEND PLUTOSDR_SOURCES
-        Sources/PlutoSdr/PlutoSdrEngine.h
-        Sources/PlutoSdr/PlutoSdrEngine.cpp
-        Sources/PlutoSdr/PlutoSdrModel.h
-        Sources/PlutoSdr/PlutoSdrModel.cpp
-    )
     list(APPEND PLUTOSDR_DEFINITIONS HAVE_LIBIIO)
     list(APPEND PLUTOSDR_INCLUDE_DIRS ${IIO_INCLUDE_DIRS})
     if(TARGET IIO::IIO)
@@ -145,32 +162,34 @@ else()
 endif()
 
 # ── Optional System Monitor source node ─────────────────────────────
-set(SYSTEM_MONITOR_SOURCES)
+# Always compiled — see the note on the optional node families above.
+set(SYSTEM_MONITOR_SOURCES
+    Sources/SystemMonitor/SystemMonitorEngine.h
+    Sources/SystemMonitor/SystemMonitorEngine.cpp
+    Sources/SystemMonitor/SystemMonitorModel.h
+    Sources/SystemMonitor/SystemMonitorModel.cpp
+)
 set(SYSTEM_MONITOR_DEFINITIONS)
 if(NOT WIN32)
     message(STATUS "demo_nodeditor_nodes_core: System Monitor source node enabled (Linux /proc + /sys)")
-    list(APPEND SYSTEM_MONITOR_SOURCES
-        Sources/SystemMonitor/SystemMonitorEngine.h
-        Sources/SystemMonitor/SystemMonitorEngine.cpp
-        Sources/SystemMonitor/SystemMonitorModel.h
-        Sources/SystemMonitor/SystemMonitorModel.cpp
-    )
     list(APPEND SYSTEM_MONITOR_DEFINITIONS HAVE_SYSTEM_MONITOR)
 else()
     message(STATUS "demo_nodeditor_nodes_core: System Monitor source node disabled (Windows)")
 endif()
 
 # ── Optional Gamepad source node ────────────────────────────────────
-set(GAMEPAD_SOURCES)
+# Always compiled — see the note on the optional node families above.
+# GamepadEngine.cpp needs its Linux-only includes and poll()/open() bodies
+# wrapped in #ifdef HAVE_GAMEPAD to build on Windows; see that file.
+set(GAMEPAD_SOURCES
+    Sources/Gamepad/GamepadEngine.h
+    Sources/Gamepad/GamepadEngine.cpp
+    Sources/Gamepad/GamepadModel.h
+    Sources/Gamepad/GamepadModel.cpp
+)
 set(GAMEPAD_DEFINITIONS)
 if(NOT WIN32)
     message(STATUS "demo_nodeditor_nodes_core: Gamepad source node enabled (Linux joystick API)")
-    list(APPEND GAMEPAD_SOURCES
-        Sources/Gamepad/GamepadEngine.h
-        Sources/Gamepad/GamepadEngine.cpp
-        Sources/Gamepad/GamepadModel.h
-        Sources/Gamepad/GamepadModel.cpp
-    )
     list(APPEND GAMEPAD_DEFINITIONS HAVE_GAMEPAD)
 else()
     message(STATUS "demo_nodeditor_nodes_core: Gamepad source node disabled (Windows)")
@@ -196,7 +215,13 @@ set(NETWORK_NODES
 )
 
 # ── Optional NVML GPU Monitor source ────────────────────────────────
-set(GPU_MONITOR_SOURCES)
+# Always compiled — see the note on the optional node families above.
+set(GPU_MONITOR_SOURCES
+    Sources/GpuMonitor/GpuMonitorEngine.h
+    Sources/GpuMonitor/GpuMonitorEngine.cpp
+    Sources/GpuMonitor/GpuMonitorModel.h
+    Sources/GpuMonitor/GpuMonitorModel.cpp
+)
 set(GPU_MONITOR_DEFINITIONS)
 set(GPU_MONITOR_INCLUDE_DIRS)
 set(GPU_MONITOR_LINK_LIBRARIES)
@@ -204,10 +229,6 @@ find_library(NVML_LIBRARY NAMES nvidia-ml)
 find_path(NVML_INCLUDE_DIR NAMES nvml.h)
 if(NVML_LIBRARY AND NVML_INCLUDE_DIR)
     message(STATUS "demo_nodeditor_nodes_core: NVML found — enabling GPU Monitor source node")
-    list(APPEND GPU_MONITOR_SOURCES
-        Sources/GpuMonitor/GpuMonitorEngine.cpp
-        Sources/GpuMonitor/GpuMonitorModel.cpp
-    )
     list(APPEND GPU_MONITOR_DEFINITIONS HAVE_NVML)
     list(APPEND GPU_MONITOR_INCLUDE_DIRS ${NVML_INCLUDE_DIR})
     list(APPEND GPU_MONITOR_LINK_LIBRARIES ${NVML_LIBRARY})
@@ -216,21 +237,31 @@ else()
 endif()
 
 # ── Optional Jack-detect source ─────────────────────────────────────
-set(JACK_DETECT_SOURCES)
+# Always compiled — see the note on the optional node families above.
+set(JACK_DETECT_SOURCES
+    Sources/JackDetect/JackDetectEngine.h
+    Sources/JackDetect/JackDetectEngine.cpp
+    Sources/JackDetect/JackDetectModel.h
+    Sources/JackDetect/JackDetectModel.cpp
+)
 set(JACK_DETECT_DEFINITIONS)
 if(NOT WIN32)
     message(STATUS "demo_nodeditor_nodes_core: Jack-detect source node enabled (Linux HDA /proc/asound)")
-    list(APPEND JACK_DETECT_SOURCES
-        Sources/JackDetect/JackDetectEngine.cpp
-        Sources/JackDetect/JackDetectModel.cpp
-    )
     list(APPEND JACK_DETECT_DEFINITIONS HAVE_JACK_DETECT)
 else()
     message(STATUS "demo_nodeditor_nodes_core: Jack-detect source node disabled (Windows)")
 endif()
 
 # ── Optional libpcap Packet Capture source ──────────────────────────
-set(PCAP_SOURCES)
+# Always compiled — see the note on the optional node families above.
+# PcapEngine.h/.cpp already carry a void*-based fallback for the missing
+# HAVE_PCAP case, so the class builds without libpcap.
+set(PCAP_SOURCES
+    Sources/Pcap/PcapEngine.h
+    Sources/Pcap/PcapEngine.cpp
+    Sources/Pcap/PcapModel.h
+    Sources/Pcap/PcapModel.cpp
+)
 set(PCAP_DEFINITIONS)
 set(PCAP_INCLUDE_DIRS)
 set(PCAP_LINK_LIBRARIES)
@@ -243,10 +274,6 @@ else()
 endif()
 if(PCAP_LIBRARY AND PCAP_INCLUDE_DIR)
     message(STATUS "demo_nodeditor_nodes_core: libpcap found — enabling Pcap Capture source node")
-    list(APPEND PCAP_SOURCES
-        Sources/Pcap/PcapEngine.cpp
-        Sources/Pcap/PcapModel.cpp
-    )
     list(APPEND PCAP_DEFINITIONS HAVE_PCAP)
     list(APPEND PCAP_INCLUDE_DIRS ${PCAP_INCLUDE_DIR})
     list(APPEND PCAP_LINK_LIBRARIES ${PCAP_LIBRARY})
@@ -410,6 +437,20 @@ if(TARGET DemoNodeEditorNodesCore)
     if(WIN32)
         set_target_properties(DemoNodeEditorNodesCore PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
     endif()
+
+    # demo_nodeditor_nodes_core_export.h is generated here and exposed publicly
+    # so that DemoNodeEditorNodesGui receives DEMO_NODEDITOR_NODES_CORE_EXPORT
+    # through its link to this plugin. WINDOWS_EXPORT_ALL_SYMBOLS alone does not
+    # export the core classes that the GUI plugin references at link time.
+    generate_export_header(DemoNodeEditorNodesCore
+        BASE_NAME demo_nodeditor_nodes_core
+        EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/demo_nodeditor_nodes_core_export.h
+    )
+    target_include_directories(DemoNodeEditorNodesCore
+        PUBLIC
+            ${CMAKE_CURRENT_BINARY_DIR}
+    )
+
     if(TARGET NodeEditorLibrary)
         add_dependencies(DemoNodeEditorNodesCore NodeEditorLibrary)
     endif()

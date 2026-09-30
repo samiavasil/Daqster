@@ -2,6 +2,7 @@
 
 #include "ShutdownHandler.h"
 
+#ifndef Q_OS_WIN
 #include <array>
 #include <csignal>
 
@@ -43,3 +44,5 @@ private:
 };
 
 } // namespace Daqster
+
+#endif // Q_OS_WIN

@@ -1,6 +1,8 @@
 #ifndef GAMEPADMODEL_H
 #define GAMEPADMODEL_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include "NodeDataTypes/SampledData.h"
 #include "GamepadEngine.h"
 #include "shared/IStoppable.h"
@@ -29,7 +31,7 @@
  * connection exists; removing the last connection auto-stops the polling
  * (clean teardown).
  */
-class GamepadModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
+class DEMO_NODEDITOR_NODES_CORE_EXPORT GamepadModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 

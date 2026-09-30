@@ -4,6 +4,7 @@
 #include <memory>
 #include <QtNodes/Definitions>
 
+#include "NodeEditorLibraryExport.h"
 #include "capabilities/IWidgetProvider.h"
 
 namespace QtNodes {
@@ -15,7 +16,18 @@ class GraphicsView;
 
 class QVBoxLayout;
 
-class NodeEditorWidget : public QWidget
+// NODE_EDITOR_LIBRARY_EXPORT (REQ-SW-PL-051): NodeEditorWidget lives in
+// NodeEditorLibrary.dll and is used from other modules — RuntimeShell
+// constructs it, NodeEditorIdeObject connects to its signal. staticMetaObject
+// and the vtable are DATA symbols, and WINDOWS_EXPORT_ALL_SYMBOLS only emits
+// the __imp_ form of those in the import library, so a consumer without
+// explicit markup fails on Windows with:
+//   error LNK2019: unresolved external symbol
+//   "public: static struct QMetaObject const NodeEditorWidget::staticMetaObject"
+//   fatal error LNK1120: 1 unresolved externals
+// Linux cannot surface this: the symbol stays undefined and resolves lazily
+// (or never) at dlopen.
+class NODE_EDITOR_LIBRARY_EXPORT NodeEditorWidget : public QWidget
 {
     Q_OBJECT
 public:

@@ -1,6 +1,8 @@
 #ifndef PCAPENGINE_H
 #define PCAPENGINE_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include <QObject>
 #include <QString>
 #include <QVector>
@@ -25,7 +27,7 @@ class QThread;
  * pcap_breakloop() and waits for the thread to finish. The caller (PcapModel)
  * owns the engine and is responsible for calling stop() on destruction.
  */
-class PcapEngine : public QObject
+class DEMO_NODEDITOR_NODES_CORE_EXPORT PcapEngine : public QObject
 {
     Q_OBJECT
 

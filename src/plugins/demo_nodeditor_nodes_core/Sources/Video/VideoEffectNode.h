@@ -1,6 +1,8 @@
 #ifndef VIDEOEFFECTNODE_H
 #define VIDEOEFFECTNODE_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include "VideoEffectGLProcessor.h"
 #include "VideoEffectOps.h"
 #include "shared/IStoppable.h"
@@ -60,7 +62,7 @@ class VideoFrameData;
  * parameters are kept here as plain fields and pushed to the widget via
  * configChanged().
  */
-class VideoEffectNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
+class DEMO_NODEDITOR_NODES_CORE_EXPORT VideoEffectNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 

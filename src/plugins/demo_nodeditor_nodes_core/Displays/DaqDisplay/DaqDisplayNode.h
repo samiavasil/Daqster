@@ -1,6 +1,8 @@
 #ifndef DAQDISPLAYNODE_H
 #define DAQDISPLAYNODE_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include "NodeDataTypes/SampledData.h"
 
 #include "shared/IStoppable.h"
@@ -102,7 +104,7 @@ private:
  * the JIT-ready extension point; each card holds its own PreprocessFn bound to
  * its own channel (REQ-SW-PL-023 §1).
  */
-class DaqDisplayNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
+class DEMO_NODEDITOR_NODES_CORE_EXPORT DaqDisplayNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
 {
     Q_OBJECT
 

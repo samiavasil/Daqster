@@ -29,7 +29,12 @@ namespace Daqster {
  * IStartable/IStoppable interfaces. Integrates with ShutdownHandler for
  * graceful shutdown.
  */
-class HeadlessEngine : public QObject
+// FRAMEWORK_CORE_EXPORT: FrameworkCorePluginObject constructs a HeadlessEngine
+// (cross-DLL). A QObject subclass carries a vtable and a staticMetaObject, both
+// DATA symbols; WINDOWS_EXPORT_ALL_SYMBOLS emits only the __imp_ form of those
+// in the import library, so a consumer without explicit markup fails to link on
+// Windows. Linux cannot surface this (undefined symbols resolve at dlopen).
+class FRAMEWORK_CORE_EXPORT HeadlessEngine : public QObject
 {
     Q_OBJECT
 public:

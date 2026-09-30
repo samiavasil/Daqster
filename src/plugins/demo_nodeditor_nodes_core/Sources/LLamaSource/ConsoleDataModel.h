@@ -1,5 +1,7 @@
 #pragma once
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include <QtCore/QObject>
 #include <QtNodes/NodeDelegateModel>
 
@@ -11,7 +13,7 @@
 
 #include "NodeDataTypes/TextData.h"
 
-class ConsoleDataModel : public QtNodes::NodeDelegateModel
+class DEMO_NODEDITOR_NODES_CORE_EXPORT ConsoleDataModel : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 

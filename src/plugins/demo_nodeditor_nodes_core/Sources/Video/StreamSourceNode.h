@@ -1,6 +1,8 @@
 #ifndef STREAMSOURCENODE_H
 #define STREAMSOURCENODE_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 #include "VideoCompat.h"
 
 #include "NodeDataTypes/SampledData.h"
@@ -53,7 +55,7 @@ class VideoFrameData;
  * created through NodeWidgetFactory. The URL is kept here as m_url and pushed
  * to the widget through urlChanged().
  */
-class StreamSourceNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
+class DEMO_NODEDITOR_NODES_CORE_EXPORT StreamSourceNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
 {
     Q_OBJECT
 

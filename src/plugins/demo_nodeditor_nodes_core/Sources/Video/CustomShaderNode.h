@@ -1,6 +1,8 @@
 #ifndef CUSTOMSHADERNODE_H
 #define CUSTOMSHADERNODE_H
 
+#include "demo_nodeditor_nodes_core_export.h"
+
 // SPDX-License-Identifier: MIT
 //
 // Runtime GLSL shader node (REQ-SW-PL-029). Accepts VideoFrameData on
@@ -37,7 +39,7 @@ struct ShaderConfig {
 };
 
 /// Runtime GLSL shader node — Shadertoy-style mainImage contract.
-class CustomShaderNode : public QtNodes::NodeDelegateModel
+class DEMO_NODEDITOR_NODES_CORE_EXPORT CustomShaderNode : public QtNodes::NodeDelegateModel
 {
     Q_OBJECT
 
