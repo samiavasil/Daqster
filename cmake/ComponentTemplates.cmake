@@ -166,7 +166,7 @@ function(create_plugin COMPONENT_NAME)
         )
     else()
         set_target_properties(${COMPONENT_NAME} PROPERTIES
-            INSTALL_RPATH "$ORIGIN/../.."
+            INSTALL_RPATH "$ORIGIN:$ORIGIN/../.."
         )
     endif()
     

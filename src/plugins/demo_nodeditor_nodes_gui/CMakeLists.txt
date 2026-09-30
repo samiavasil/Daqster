@@ -8,6 +8,11 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# Windows: export all symbols so the plugin DLL can be loaded by QPluginLoader
+if(WIN32)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 set(DEMO_GUI_RUNTIME_LIBS)
 if(QT_VERSION_MAJOR GREATER_EQUAL 6)
     list(APPEND DEMO_GUI_RUNTIME_LIBS
@@ -154,4 +159,8 @@ if(TARGET DemoNodeEditorNodesGui)
     set_target_properties(DemoNodeEditorNodesGui PROPERTIES
         OUTPUT_NAME "DemoNodeEditorNodesGuiPlugin"
     )
+    # Windows: export all symbols from the plugin DLL
+    if(WIN32)
+        set_target_properties(DemoNodeEditorNodesGui PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    endif()
 endif()

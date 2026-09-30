@@ -115,6 +115,11 @@ set_target_properties(FrameworkCore PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
 
+# Windows: export all symbols (in addition to explicit FRAMEWORK_CORE_EXPORT)
+if(WIN32)
+    set_target_properties(FrameworkCore PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 # framework_core_export.h is generated here and exposed publicly so that every
 # plugin and application receives FRAMEWORK_CORE_EXPORT through the link.
 generate_export_header(FrameworkCore
@@ -220,6 +225,11 @@ if(DAQSTER_BUILD_GUI)
         AUTORCC ON
         POSITION_INDEPENDENT_CODE ON
     )
+
+    # Windows: export all symbols (in addition to explicit FRAMEWORK_GUI_EXPORT)
+    if(WIN32)
+        set_target_properties(FrameworkGui PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    endif()
 
     # framework_gui_export.h is generated here and exposed publicly.
     generate_export_header(FrameworkGui

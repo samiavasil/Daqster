@@ -117,11 +117,17 @@ cmd_set() {
     # NOTE: root CMakeLists.txt is intentionally NOT updated here — it reads the
     # VERSION file at configure time (single source of truth).
 
-    # Plugin CMakeLists project() declarations (3)
-    update_version "src/plugins/demo_nodeditor_nodes/CMakeLists.txt" \
+    # Plugin CMakeLists project() declarations (4)
+    # demo_nodeditor_nodes was split into _core and _gui (REQ-SW-PL-051).
+    update_version "src/plugins/demo_nodeditor_nodes_core/CMakeLists.txt" \
         's/.*project\([a-zA-Z_]+ VERSION ([0-9.]+).*/\1/p' \
         "s/(project\([a-zA-Z_]+ VERSION )[0-9.]+/\1$NEW_VERSION/" \
-        "demo_nodeditor_nodes CMakeLists.txt"
+        "demo_nodeditor_nodes_core CMakeLists.txt"
+
+    update_version "src/plugins/demo_nodeditor_nodes_gui/CMakeLists.txt" \
+        's/.*project\([a-zA-Z_]+ VERSION ([0-9.]+).*/\1/p' \
+        "s/(project\([a-zA-Z_]+ VERSION )[0-9.]+/\1$NEW_VERSION/" \
+        "demo_nodeditor_nodes_gui CMakeLists.txt"
 
     update_version "src/plugins/node_editor_ide/CMakeLists.txt" \
         's/.*project\([a-zA-Z_]+ VERSION ([0-9.]+).*/\1/p' \
@@ -133,7 +139,7 @@ cmd_set() {
         "s/(project\([a-zA-Z_]+ VERSION )[0-9.]+/\1$NEW_VERSION/" \
         "requirements_manager CMakeLists.txt"
 
-    # Plugin Interface.json metadata (8) — NOT edited here. The JSONs are
+    # Plugin Interface.json metadata (9) — NOT edited here. The JSONs are
     # GENERATED from .json.in templates by configure_file() at CMake configure
     # time (REQ-SW-PL-035), substituting @DAQSTER_VERSION@ from the root VERSION
     # file. Bumping VERSION and re-running cmake regenerates them; the committed
@@ -213,10 +219,13 @@ cmd_check() {
         "project\(Daqster VERSION [0-9]" \
         "root CMakeLists.txt reads VERSION (no hardcoded project version)"
 
-    # Plugin CMakeLists project() declarations (3)
-    check_present "src/plugins/demo_nodeditor_nodes/CMakeLists.txt" \
-        "project\(demo_nodeditor_nodes VERSION $VERSION" \
-        "demo_nodeditor_nodes CMakeLists.txt"
+    # Plugin CMakeLists project() declarations (4)
+    check_present "src/plugins/demo_nodeditor_nodes_core/CMakeLists.txt" \
+        "project\(demo_nodeditor_nodes_core VERSION $VERSION" \
+        "demo_nodeditor_nodes_core CMakeLists.txt"
+    check_present "src/plugins/demo_nodeditor_nodes_gui/CMakeLists.txt" \
+        "project\(demo_nodeditor_nodes_gui VERSION $VERSION" \
+        "demo_nodeditor_nodes_gui CMakeLists.txt"
     check_present "src/plugins/node_editor_ide/CMakeLists.txt" \
         "project\(node_editor_ide VERSION $VERSION" \
         "node_editor_ide CMakeLists.txt"
@@ -224,7 +233,7 @@ cmd_check() {
         "project\(requirements_manager VERSION $VERSION" \
         "requirements_manager CMakeLists.txt"
 
-    # Plugin Interface.json metadata (8) — generated from .json.in templates
+    # Plugin Interface.json metadata (9) — generated from .json.in templates
     # by configure_file() (REQ-SW-PL-035). Check that:
     #   1. each template contains @DAQSTER_VERSION@ (no hardcoded version), and
     #   2. each generated JSON is committed and carries the current VERSION
@@ -255,9 +264,12 @@ cmd_check() {
         fi
     }
 
-    check_json_template "src/plugins/demo_nodeditor_nodes/DemoNodeEditorNodesInterface.json.in" \
-        "src/plugins/demo_nodeditor_nodes/DemoNodeEditorNodesInterface.json" \
-        "DemoNodeEditorNodesInterface"
+    check_json_template "src/plugins/demo_nodeditor_nodes_core/DemoNodeEditorNodesCoreInterface.json.in" \
+        "src/plugins/demo_nodeditor_nodes_core/DemoNodeEditorNodesCoreInterface.json" \
+        "DemoNodeEditorNodesCoreInterface"
+    check_json_template "src/plugins/demo_nodeditor_nodes_gui/DemoNodeEditorNodesGuiInterface.json.in" \
+        "src/plugins/demo_nodeditor_nodes_gui/DemoNodeEditorNodesGuiInterface.json" \
+        "DemoNodeEditorNodesGuiInterface"
     check_json_template "src/plugins/node_editor_ide/NodeEditorIdeInterface.json.in" \
         "src/plugins/node_editor_ide/NodeEditorIdeInterface.json" \
         "NodeEditorIdeInterface"

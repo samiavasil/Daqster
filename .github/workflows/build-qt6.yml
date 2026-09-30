@@ -118,6 +118,8 @@ jobs:
           sudo cmake --install build --prefix "$PWD/stage"
 
       - name: Create AppImage
+        env:
+          ARCH: x86_64
         run: |
           chmod +x ./tools/create_appimage.sh
           QT_DIR="$QT_ROOT_DIR" ./tools/create_appimage.sh --mode ci
@@ -252,7 +254,16 @@ jobs:
 
       - name: Build (Release)
         run: |
-          cmake --build build -j
+          cmake --build build -j -v 2>&1 | tee build.log
+        shell: bash
+
+      - name: Upload Windows build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-log
+          path: build.log
+          retention-days: 5
 
       - name: Run tests (offscreen)
         shell: pwsh

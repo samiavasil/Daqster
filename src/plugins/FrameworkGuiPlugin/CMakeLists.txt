@@ -8,6 +8,11 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# Windows: export all symbols so the plugin DLL can be loaded by QPluginLoader
+if(WIN32)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 # ── Plugin JSON metadata (generated from template) ──────────────────
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/FrameworkGuiPluginInterface.json.in"
@@ -70,6 +75,11 @@ create_plugin(FrameworkGuiPlugin
 # Qt6 splits OpenGL widgets out of Qt::OpenGLWidgets; Qt5 has no such module.
 if(QT_VERSION_MAJOR GREATER_EQUAL 6)
     target_link_libraries(FrameworkGuiPlugin PUBLIC Qt${QT_VERSION_MAJOR}::OpenGLWidgets)
+endif()
+
+# Windows: export all symbols from the plugin DLL
+if(WIN32)
+    set_target_properties(FrameworkGuiPlugin PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
 # ── Output name must contain "plugin" substring (QPluginManager filter) ────

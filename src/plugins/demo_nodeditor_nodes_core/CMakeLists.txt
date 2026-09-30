@@ -6,6 +6,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
+# Windows: export all symbols so the plugin DLL can be loaded by QPluginLoader
+if(WIN32)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 set(DEMO_CORE_GUI_LIBS)
 if(QT_VERSION_MAJOR GREATER_EQUAL 6)
     list(APPEND DEMO_CORE_GUI_LIBS
@@ -401,6 +406,10 @@ if(TARGET DemoNodeEditorNodesCore)
     set_target_properties(DemoNodeEditorNodesCore PROPERTIES
         OUTPUT_NAME "DemoNodeEditorNodesCorePlugin"
     )
+    # Windows: export all symbols from the plugin DLL
+    if(WIN32)
+        set_target_properties(DemoNodeEditorNodesCore PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    endif()
     if(TARGET NodeEditorLibrary)
         add_dependencies(DemoNodeEditorNodesCore NodeEditorLibrary)
     endif()
