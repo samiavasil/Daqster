@@ -225,6 +225,18 @@ QStringList RequirementsParser::discoverRepoRoots()
         canonical.append(canon);
     }
     std::sort(canonical.begin(), canonical.end());
+
+    // 4. Warn if only one root found -- the private/public sibling is missing.
+    //    REQ-SW-PL-012 expects both repos side-by-side: ../daqster (public) and
+    //    ../DaqsterAiStudio (private). Without both, cross-repo references
+    //    (traceability-matrix, RDD-STATUS) cannot be resolved correctly.
+    if (canonical.size() == 1) {
+        qCWarning(lcFramework) << "RequirementsManager: only ONE requirements root found:"
+                               << canonical.first()
+                               << "\nExpected TWO sibling roots (public + private):"
+                               << "\n  e.g. /path/to/daqster and /path/to/DaqsterAiStudio"
+                               << "\nCross-repo traceability will be incomplete.";
+    }
     return canonical;
 }
 

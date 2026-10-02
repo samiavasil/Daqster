@@ -1,52 +1,42 @@
-# Requirements — Daqster Framework Tools & Requirements Manager
+# Requirements — ONE-WAY EXPORT
 
-Система за проследими изисквания за **общите инструменти и компоненти на
-frame_work** и приложенията в публичното Daqster repo, както и частните плъгини (напр. `DaqsterAiStudio`).
+> **This directory is a read-only export.**
+>
+> The **source of truth** for all requirements (both public `REQ-SW-*` and private
+> `REQ-AI-*` / `REQ-PLG-*` / `REQ-SEC-*`) is the **private mono-repo**:
+> `../DaqsterAiStudio/DevelopmentProcess/requirements/`
+>
+> Do not edit files here directly. Changes made here will be overwritten by the
+> next export from the private repo.
 
-## Структура
+## Structure (mirrored from private repo)
 
 ```
-DevelopmentProcess/requirements/
-├── README.md              # Този файл
-├── traceability-matrix.md # Матрица за проследимост (REQ ⟷ Коммит ⟷ Тест)
-├── active/                # Активни (незавършени) изисквания
-│   ├── plugins/           # REQ-SW-PL-* (requirements manager, node editor, demo plugins)
-│   ├── framework/         # REQ-SW-FW-* (frame_work core: plugin manager, discovery, logging, process, shutdown)
-│   ├── app/               # REQ-SW-APP-* (application host, apps)
-│   └── build/             # REQ-SW-BLD-* (CMake инфраструктура, unit test инфраструктура)
-└── archive/               # Завършени/имплементирани изисквания
+../DaqsterAiStudio/DevelopmentProcess/requirements/
+├── README.md                    ← this file (export)
+├── RDD-PROCESS.md               ← RDD process definition
+├── RDD-STATUS.md                ← current phase state (export)
+├── traceability-matrix.md       ← REQ ⟷ Commit ⟷ Test matrix (export)
+├── active/
+│   ├── app/                     REQ-SW-APP-*
+│   ├── framework/               REQ-SW-FW-*
+│   └── plugins/                 REQ-SW-PL-*
+│   ├── REQ-AI-*                 private AI Studio requirements
+│   ├── REQ-PLG-*                private plugin requirements
+│   └── REQ-SEC-*                private security requirements
+└── archive/
+    ├── app/
+    ├── build/
+    ├── framework/
+    └── plugins/
 ```
 
-## Именуване
+## Verification
 
-Публичните изисквания (това repo) ползват **типизирана схема** `REQ-SW-<ТИП>-<NN>`
-с трицифрен номер (напр. `REQ-SW-PL-001`). Частните изисквания
-(DaqsterAiStudio) ползват `REQ-<ПРЕФИКС>-<NN>`.
+Run from the private repo root:
+```bash
+./scripts/validate-traceability.sh
+```
 
-| Префикс | Област |
-|---------|--------|
-| `REQ-SW-PL-*` | Plugins (requirements manager, node editor, demo plugins) |
-| `REQ-SW-FW-*` | Framework (frame_work core: plugin manager, discovery, logging, process, shutdown) |
-| `REQ-SW-APP-*` | App (application host, apps) |
-| `REQ-SW-BLD-*` | Build & tooling (CMake инфраструктура, unit test инфраструктура) |
-| `REQ-PLG-*` / `REQ-AI-*` / `REQ-SEC-*` / `REQ-DOC-*` | Частни (DaqsterAiStudio): plugin framework, AI Studio, сигурност, документация |
-
-> **Superseded ID-та:** старите публични ID-та с префикс `REQ-SW-` без типов
-> сегмент (номера 001–024) са заменени от типизираните `REQ-SW-PL-*` /
-> `REQ-SW-FW-*` / `REQ-SW-APP-*` / `REQ-SW-BLD-*`. Пълният mapping старо → ново
-> е в `RDD-PROCESS.md`.
-
-## Връзки и Проследимост (Relationship Axes)
-
-Всяко изискване съдържа задължителни метаданни за връзки:
-- **Родител:** ID на по-общото изискване, от което произтича (йерархия).
-- **Зависи от:** ID на изискванията, които трябва да бъдат изпълнени преди или заедно с това (зависимости).
-
-## Многоагентен работен процес
-
-| Роля | Какво прави |
-|------|-------------|
-| Oscar | Оркестрира, делегира и синтезира |
-| Scout | Проучване (research) + планиране |
-| Ivan | Имплементация + git |
-| Jester | Reality-check / критика |
+This script validates commit hashes against **both** repos (public + private)
+using repo-qualified refs.
