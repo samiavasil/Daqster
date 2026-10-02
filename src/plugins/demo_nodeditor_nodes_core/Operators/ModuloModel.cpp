@@ -17,8 +17,7 @@ ModuloModel::~ModuloModel() {}
 
 QJsonObject ModuloModel::save() const
 {
-    QJsonObject modelJson;
-    modelJson["name"] = name();
+    QJsonObject modelJson = NodeDelegateModel::save();
     modelJson["type"] = (m_currentType == DataType::Int) ? "int" : "double";
     return modelJson;
 }

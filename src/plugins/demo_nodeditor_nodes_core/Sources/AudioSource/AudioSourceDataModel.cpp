@@ -61,9 +61,7 @@ void AudioSourceDataModel::start()
 
 QJsonObject AudioSourceDataModel::save() const
 {
-    QJsonObject modelJson;
-
-    modelJson["name"] = name();
+    QJsonObject modelJson = NodeDelegateModel::save();
     return modelJson;
 }
 

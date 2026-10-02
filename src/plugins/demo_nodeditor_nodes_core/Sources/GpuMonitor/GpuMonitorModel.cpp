@@ -41,8 +41,7 @@ void GpuMonitorModel::start()
 
 QJsonObject GpuMonitorModel::save() const
 {
-    QJsonObject modelJson;
-    modelJson["name"] = name();
+    QJsonObject modelJson = NodeDelegateModel::save();
     modelJson["intervalSeconds"] = m_engine ? m_engine->intervalSeconds() : 1.0;
     return modelJson;
 }

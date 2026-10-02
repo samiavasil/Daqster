@@ -39,8 +39,7 @@ QString ArithmeticLogicModel::defaultExpression() const
 
 QJsonObject ArithmeticLogicModel::save() const
 {
-    QJsonObject modelJson;
-    modelJson["name"] = name();
+    QJsonObject modelJson = NodeDelegateModel::save();
     modelJson["type"] = (m_currentType == DataType::Int) ? "int" : "double";
     modelJson["inputs"] = m_inputCount;
     modelJson["expression"] = m_expression;

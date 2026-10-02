@@ -301,6 +301,79 @@ add_test(NAME demo_nodeditor_videoeffect_tests
 set_tests_properties(demo_nodeditor_videoeffect_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# ── model-name serialization invariant (flow save/load round-trip) ──────────
+#
+# DataFlowGraphModel::loadNode resolves a node's type from
+# <node>["internal-data"]["model-name"], a key written by the BASE
+# NodeDelegateModel::save(). A model that overrode save() with a fresh
+# QJsonObject dropped that key, so the node saved fine but resolved to an empty
+# type on load — skipped as "<unnamed>" together with every connection touching
+# it. Silent data loss with no save-time warning.
+#
+# The test instantiates each affected model and asserts save() carries
+# "model-name". The engines (Pcap/GpuMonitor/JackDetect/AudioSource) are
+# parented to the model and idle until start(), so constructing them is inert.
+#
+# Scope: the three *Obsolete* models (AudioSourceDataModelObsolete,
+# DemuxNodeObsolete, MuxNodeObsolete) carry the same fix but are NOT covered
+# here — instantiating them drags in the whole legacy QDevIO audio/display
+# stack (QDevIoDisplayModelObsolete -> XYSeriesIODeviceObsolete ->
+# QDevioDisplayModelUiObsolete, which needs QtCharts widgets), which would make
+# this a GUI test for node types that are deprecated. The fix is the same
+# one-liner in each; their coverage gap is noted rather than paid for.
+set(MODEL_NAME_TEST_SOURCES
+    test_model_name_serialization.cpp
+    test_model_name_serialization.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/NumberDisplay/NumberDisplayDataModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Operators/ArithmeticLogic/ArithmeticLogicModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Operators/ModuloModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/AudioSource/AudioSourceDataModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/GpuMonitor/GpuMonitorEngine.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/GpuMonitor/GpuMonitorModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/JackDetect/JackDetectEngine.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/JackDetect/JackDetectModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Pcap/PcapEngine.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Pcap/PcapModel.cpp
+    # Transitive definitions the models reference but do not implement:
+    # ExprParser backs ArithmeticLogicModel, MicCaptureWorker backs
+    # AudioSourceDataModel.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Operators/ArithmeticLogic/ExprParser.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/AudioSource/MicCaptureWorker.cpp
+)
+
+add_executable(demo_nodeditor_modelname_tests ${MODEL_NAME_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_modelname_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/AudioSource
+    # MicCaptureWorker.h pulls AudioBufferToSampled.h from the Video sources.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+    ${DEMO_CORE_EXPORT_INCLUDE_DIR}
+)
+target_compile_definitions(demo_nodeditor_modelname_tests PRIVATE ${DEMO_CORE_EXPORT_DEFINITIONS})
+
+target_link_libraries(demo_nodeditor_modelname_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Multimedia
+    QtNodes
+    # AudioCompat (used by AudioSourceDataModel's constructor) is a FrameworkCore
+    # utility; the models themselves are compiled in above rather than linked
+    # from the core plugin .so.
+    FrameworkCore
+)
+
+add_test(NAME demo_nodeditor_modelname_tests
+         COMMAND demo_nodeditor_modelname_tests)
+set_tests_properties(demo_nodeditor_modelname_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # ── ComputePool unit tests (REQ-SW-PL-039) ───────────────────────────────────
 #
 # QtCore-only (QTEST_GUILESS_MAIN, no widgets). The pool source is compiled

@@ -37,8 +37,7 @@ void JackDetectModel::start()
 
 QJsonObject JackDetectModel::save() const
 {
-    QJsonObject modelJson;
-    modelJson["name"] = name();
+    QJsonObject modelJson = NodeDelegateModel::save();
     modelJson["intervalSeconds"] = m_engine ? m_engine->intervalSeconds() : 0.5;
     return modelJson;
 }

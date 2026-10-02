@@ -19,8 +19,7 @@ DemuxNodeObsolete::~DemuxNodeObsolete()
 
 QJsonObject DemuxNodeObsolete::save() const
 {
-    QJsonObject modelJson;
-    modelJson["name"] = name();
+    QJsonObject modelJson = NodeDelegateModel::save();
     return modelJson;
 }
 

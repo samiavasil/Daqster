@@ -41,8 +41,7 @@ void PcapModel::stop()
 
 QJsonObject PcapModel::save() const
 {
-    QJsonObject modelJson;
-    modelJson["name"] = name();
+    QJsonObject modelJson = NodeDelegateModel::save();
     // Interface/filter/snaplen/promiscuous are saved by GUI widget
     return modelJson;
 }
