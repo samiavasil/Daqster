@@ -97,7 +97,6 @@ private:
     void stopListening();
     void handleFrame(const QByteArray &payload);
     void updateStatus(const QString &status);
-    SampledStreamDescriptor buildDescriptor() const;
 
     QUdpSocket *m_udpSocket = nullptr;
     QTcpServer *m_tcpServer = nullptr;
@@ -108,8 +107,12 @@ private:
     bool m_userStarted = false;
     bool m_listening = false;
     qint64 m_bytesReceived = 0;
+    bool m_warnedDescriptorMismatch = false;
 
-    // Config from GUI widget
+    // Config from GUI widget. sampleRate / channelCount / channelType are
+    // ADVISORY since frame v2: the wire descriptor is authoritative and the
+    // payload is never re-interpreted to match these. They are kept so the node
+    // can report when they disagree with the stream it is actually receiving.
     QString m_protocol = "UDP";
     QString m_host = "127.0.0.1";
     int m_port = 5000;

@@ -249,20 +249,24 @@ void NetworkSourceModel::onTcpReadyRead()
 
     m_tcpBuffer.append(m_tcpSocket->readAll());
 
-    while (m_tcpBuffer.size() >= 4) {
-        quint32 frameSize = qFromBigEndian<quint32>(reinterpret_cast<const uchar*>(m_tcpBuffer.constData()));
-        if (frameSize > 1024 * 1024) { // Sanity check
+    while (m_tcpBuffer.size() >= NetworkFrame::LengthPrefixSize) {
+        const quint32 frameSize = qFromLittleEndian<quint32>(
+            reinterpret_cast<const uchar *>(m_tcpBuffer.constData()));
+
+        if (frameSize < static_cast<quint32>(NetworkFrame::HeaderSize)
+            || frameSize > static_cast<quint32>(NetworkFrame::MaxFrameSize)) {
             m_tcpBuffer.clear();
-            updateStatus(tr("Invalid frame size"));
+            updateStatus(tr("Invalid frame size %1").arg(frameSize));
             return;
         }
-        if (m_tcpBuffer.size() < 4 + frameSize)
-            break;
 
-        m_tcpBuffer.remove(0, 4);
-        QByteArray payload = m_tcpBuffer.left(frameSize);
-        m_tcpBuffer.remove(0, frameSize);
-        handleFrame(payload);
+        const int total = NetworkFrame::LengthPrefixSize + static_cast<int>(frameSize);
+        if (m_tcpBuffer.size() < total)
+            break; // frame still incomplete — wait for the rest of the stream
+
+        handleFrame(m_tcpBuffer.mid(NetworkFrame::LengthPrefixSize,
+                                    static_cast<int>(frameSize)));
+        m_tcpBuffer.remove(0, total);
     }
 }
 
@@ -278,40 +282,43 @@ void NetworkSourceModel::onTcpDisconnected()
 
 void NetworkSourceModel::handleFrame(const QByteArray &payload)
 {
-    if (payload.size() < 8) {
-        updateStatus(tr("Invalid frame size"));
+    NetworkFrame::Header hdr;
+    QByteArray raw;
+    if (!NetworkFrame::decode(payload, hdr, raw)) {
+        updateStatus(tr("Invalid frame (magic, version or length)"));
         return;
     }
 
-    // Parse MSSD frame header
-    // Magic "MSSD" (4 bytes) + descriptor (variable) + sample data
-    if (payload.left(4) != QByteArray("MSSD")) {
-        updateStatus(tr("Invalid magic"));
-        return;
-    }
-
-    // For simplicity, assume the payload after magic is raw sample data
-    // with the descriptor already configured via widget
-    SampledStreamDescriptor desc = buildDescriptor();
-    m_output = std::make_shared<SampledData>(payload.mid(4), desc);
-    m_bytesReceived += payload.size();
-    emit dataUpdated(0);
-    updateStatus(tr("Received %1 bytes").arg(m_bytesReceived));
-}
-
-SampledStreamDescriptor NetworkSourceModel::buildDescriptor() const
-{
-    SampledStreamDescriptor desc;
-    desc.sampleRate = m_sampleRate;
-    for (int i = 0; i < m_channelCount; ++i) {
-        desc.channels.append({QStringLiteral("ch%1").arg(i), sampleTypeFromName(m_channelType)});
-    }
-    desc.endianness = SampleEndian::LittleEndian;
-    desc.unit = QStringLiteral("raw");
-    desc.domain = QStringLiteral("network");
+    // v2 carries the real descriptor, so the receiving side never has to guess
+    // how to interpret the bytes it was handed.
+    SampledStreamDescriptor desc = NetworkFrame::descriptorFor(hdr);
     desc.deviceId = m_host.isEmpty() ? QStringLiteral("local") : m_host;
     desc.sourceName = QStringLiteral("Network Source");
-    return desc;
+
+    m_output = std::make_shared<SampledData>(raw, desc);
+    m_bytesReceived += raw.size();
+    emit dataUpdated(0);
+
+    // The widget's descriptor fields are advisory now — they cannot change how
+    // the payload is read. Warn once when they disagree with the wire, so a
+    // stale hand-typed rate is visible instead of silently ignored.
+    const bool uiDiffers = hdr.sampleRate != m_sampleRate
+        || static_cast<int>(hdr.channelCount) != m_channelCount
+        || sampleTypeName(hdr.sampleType).compare(m_channelType, Qt::CaseInsensitive) != 0;
+
+    if (uiDiffers && !m_warnedDescriptorMismatch) {
+        m_warnedDescriptorMismatch = true;
+        updateStatus(tr("Wire %1 Hz / %2 ch / %3 overrides UI %4 Hz / %5 ch / %6")
+                         .arg(hdr.sampleRate)
+                         .arg(hdr.channelCount)
+                         .arg(sampleTypeName(hdr.sampleType))
+                         .arg(m_sampleRate)
+                         .arg(m_channelCount)
+                         .arg(m_channelType));
+        return;
+    }
+
+    updateStatus(tr("Received %1 bytes").arg(m_bytesReceived));
 }
 
 void NetworkSourceModel::updateStatus(const QString &status)

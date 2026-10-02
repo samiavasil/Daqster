@@ -84,13 +84,16 @@ void NetworkSinkModel::setInData(std::shared_ptr<QtNodes::NodeData> data,
     if (buffer.isEmpty())
         return;
 
-    const int frameBytes = sampled->descriptor().bytesPerFrame();
-    const quint32 sampleCount = frameBytes > 0
-        ? static_cast<quint32>(buffer.size() / frameBytes)
-        : 0;
-    const quint32 bytesPerSample = static_cast<quint32>(frameBytes);
+    const SampledStreamDescriptor &desc = sampled->descriptor();
 
-    sendFrame(NetworkFrame::encode(buffer, sampleCount, bytesPerSample));
+    // v2 describes the stream in one sample type for all channels. A mixed
+    // layout would be transmitted wrongly, so say so instead of mangling it.
+    if (!NetworkFrame::isHomogeneous(desc)) {
+        updateStatus(tr("Cannot send: channels use different sample types"));
+        return;
+    }
+
+    sendFrame(NetworkFrame::encode(buffer, desc));
 }
 
 // ── Public slots (called by GUI widget via NodeWidgetFactory) ──────────────
@@ -187,7 +190,11 @@ void NetworkSinkModel::sendFrame(const QByteArray &payload)
             updateStatus(tr("TCP not connected"));
             return;
         }
-        const qint64 written = m_tcpSocket->write(payload);
+        // TCP is a byte stream: a length prefix tells the reader where one frame
+        // ends. v1 wrote no prefix at all, so the reader read "MSSD" as a frame
+        // size and every connection died on the first sanity check.
+        const qint64 written = m_tcpSocket->write(NetworkFrame::lengthPrefix(payload)
+                                                  + payload);
         if (written < 0) {
             updateStatus(tr("TCP write error: %1")
                             .arg(m_tcpSocket->errorString()));
