@@ -169,8 +169,13 @@ void DaqDisplayWidget::rebuildCards()
         return;
 
     // Drop the old cards first — the model drives the whole list.
-    while (!m_cards.isEmpty())
+    // destroyCard() only clears the entry in place; the entry itself must also
+    // be removed, or isEmpty() (which tests the size) never turns true and this
+    // loop spins forever — freezing the GUI thread on the first data update.
+    while (!m_cards.isEmpty()) {
         destroyCard(m_cards.last());
+        m_cards.removeLast();
+    }
 
     const int count = m_model->cardCount();
     m_cards.reserve(count);

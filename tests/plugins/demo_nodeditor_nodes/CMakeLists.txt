@@ -98,6 +98,11 @@ set(DISPLAY_TEST_SOURCES
     # GenericDisplayNode is a thin DaqDisplayNode subclass (name/caption only) —
     # compiled so the alias behavior + registry resolution tests link standalone.
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/GenericDisplay/GenericDisplayNode.cpp
+    # DaqDisplayWidget comes from the GUI plugin. It is compiled in rather than
+    # linked from the .so so the rebuildCards() card-list invariant can be tested
+    # directly — the freeze it caused was only reachable through a live audio
+    # stream, which no headless test could reproduce.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Displays/DaqDisplay/DaqDisplayWidget.cpp
     # DaqDisplayNode now submits compute to the shared ComputePool
     # (REQ-SW-PL-039) — compile the pool source so the test binary links
     # standalone.
@@ -113,6 +118,8 @@ target_include_directories(demo_nodeditor_display_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/DaqDisplay
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/GenericDisplay
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Displays/DaqDisplay
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
     ${DEMO_CORE_EXPORT_INCLUDE_DIR}
 )
@@ -131,7 +138,12 @@ target_link_libraries(demo_nodeditor_display_tests PRIVATE
 add_test(NAME demo_nodeditor_display_tests
          COMMAND demo_nodeditor_display_tests)
 set_tests_properties(demo_nodeditor_display_tests PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    # widget_rebuildCards_terminatesAndIsStable drives rebuildCards() directly.
+    # The defect it guards against is an unbounded loop, so a regression shows
+    # up as a hang rather than an assertion failure — bound it so CI fails fast
+    # instead of sitting on the default 1500 s timeout.
+    TIMEOUT 120)
 
 # ── VideoFrameData value-semantic tests (REQ-SW-PL-020, AC 6) ────────────────
 #

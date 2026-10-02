@@ -2,8 +2,10 @@
 #include <QApplication>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QPushButton>
 
 #include "DaqDisplayNode.h"
+#include "DaqDisplayWidget.h"
 #include "GenericDisplayNode.h"
 #include "NodeDataTypes/SampledData.h"
 #include "test_daq_display_node.h"
@@ -357,6 +359,122 @@ void DaqDisplayNodeTest::registry_aliasResolution()
     QVERIFY(audio != nullptr);
     QVERIFY(dynamic_cast<DaqDisplayNode *>(audio.get()) != nullptr);
     QCOMPARE(audio->name(), QStringLiteral("AudioDisplay"));
+}
+
+// ── plotCardsChanged must not fire per incoming sample ──────────────────────
+//
+// The widget rebuilds its entire chart tree (Chart + ChartView + 2 axes +
+// series per card) on plotCardsChanged, deleting the old cards with
+// deleteLater(). When this fired once per audio buffer, an active source kept
+// the GUI thread at ~99% CPU building and destroying widget trees, and the app
+// was unusable. A steady stream with an unchanged descriptor must therefore be
+// silent.
+void DaqDisplayNodeTest::plotCardsChanged_notFiredPerSample()
+{
+    DaqDisplayNode node;
+    node.addPlotCard(QStringLiteral("Plot"), PT::TimeDomain, 0, DM::Normalized, true);
+
+    QSignalSpy spy(&node, &DaqDisplayNode::plotCardsChanged);
+
+    const SampledStreamDescriptor desc = makeInt16Descriptor(1, 1000.0);
+
+    // First block establishes the descriptor — that one must broadcast.
+    SampledData first(makeInterleavedInt16({{0, 1, 2, 3}}), desc);
+    node.setInData(std::make_shared<SampledData>(first), 0);
+    QCOMPARE(spy.count(), 1);
+
+    // 50 further blocks, same descriptor: data is arriving, nothing changed.
+    for (int i = 1; i <= 50; ++i) {
+        SampledData block(makeInterleavedInt16({{qint16(i), qint16(i + 1)}}), desc);
+        node.setInData(std::make_shared<SampledData>(block), 0);
+    }
+
+    QCOMPARE(spy.count(), 1);
+}
+
+// The suppression must not swallow a real change: when the stream switches to a
+// different channel count, the card channel combos DO need repopulating.
+void DaqDisplayNodeTest::plotCardsChanged_firedWhenDescriptorChanges()
+{
+    DaqDisplayNode node;
+    node.addPlotCard(QStringLiteral("Plot"), PT::TimeDomain, 0, DM::Normalized, true);
+
+    QSignalSpy spy(&node, &DaqDisplayNode::plotCardsChanged);
+
+    SampledData mono(makeInterleavedInt16({{1, 2, 3, 4}}), makeInt16Descriptor(1, 1000.0));
+    node.setInData(std::make_shared<SampledData>(mono), 0);
+    QCOMPARE(spy.count(), 1);
+
+    // Same rate, but now stereo — the channel list genuinely changed.
+    SampledData stereo(makeInterleavedInt16({{1, 2}, {3, 4}}),
+                       makeInt16Descriptor(2, 1000.0));
+    node.setInData(std::make_shared<SampledData>(stereo), 0);
+    QCOMPARE(spy.count(), 2);
+
+    // Re-delivering the same descriptor again must stay quiet.
+    SampledData stereo2(makeInterleavedInt16({{5, 6}, {7, 8}}),
+                        makeInt16Descriptor(2, 1000.0));
+    node.setInData(std::make_shared<SampledData>(stereo2), 0);
+    QCOMPARE(spy.count(), 2);
+
+    // A rate change alters the header text, so it must broadcast too.
+    SampledData stereo2k(makeInterleavedInt16({{9, 10}, {11, 12}}),
+                         makeInt16Descriptor(2, 2000.0));
+    node.setInData(std::make_shared<SampledData>(stereo2k), 0);
+    QCOMPARE(spy.count(), 3);
+}
+
+// ── rebuildCards() must terminate and keep the card list bounded ────────────
+//
+// If this test hangs, rebuildCards() has reintroduced its drain loop.
+void DaqDisplayNodeTest::widget_rebuildCards_terminatesAndIsStable()
+{
+    DaqDisplayNode node;
+    node.addPlotCard(QStringLiteral("First"), PT::TimeDomain, 0, DM::Normalized, true);
+    node.addPlotCard(QStringLiteral("Second"), PT::FrequencySpectrum, 0, DM::Normalized,
+                     true);
+
+    DaqDisplayWidget widget(&node);
+
+    // Each card owns exactly one "✕" remove button, so counting those is an
+    // API-free view of how many cards the widget currently holds. Old cards are
+    // retired with deleteLater(), so the deferred deletes must be flushed before
+    // counting — otherwise the previous generation is still parented.
+    const auto cardCountInWidget = [&widget]() {
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        QCoreApplication::processEvents();
+
+        const auto buttons = widget.findChildren<QPushButton *>();
+        int cards = 0;
+        for (const QPushButton *button : buttons) {
+            if (button->text() == QStringLiteral("✕"))
+                ++cards;
+        }
+        return cards;
+    };
+
+    QCOMPARE(cardCountInWidget(), node.cardCount());
+
+    // Rebuild repeatedly — through the public slot and through the signal path
+    // the widget factory wires up. Each pass must return (no drain loop) and
+    // leave the count mirroring the model (no accumulation).
+    for (int pass = 0; pass < 5; ++pass) {
+        widget.rebuildCards();
+        QCOMPARE(cardCountInWidget(), node.cardCount());
+
+        Q_EMIT node.plotCardsChanged();
+        widget.rebuildCards();
+        QCOMPARE(cardCountInWidget(), node.cardCount());
+    }
+
+    // Growing the model must be reflected exactly once, still without growth
+    // beyond the model.
+    node.addPlotCard(QStringLiteral("Third"), PT::TimeDomain, 0, DM::Normalized, true);
+    QCOMPARE(node.cardCount(), 3);
+    widget.rebuildCards();
+    QCOMPARE(cardCountInWidget(), 3);
+    widget.rebuildCards();
+    QCOMPARE(cardCountInWidget(), 3);
 }
 
 QTEST_MAIN(DaqDisplayNodeTest)

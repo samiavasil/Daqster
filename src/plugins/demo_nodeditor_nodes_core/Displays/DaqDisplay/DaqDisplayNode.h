@@ -304,6 +304,14 @@ private:
     double m_ringSeconds = 10.0;          // N-second rolling window (config)
     quint64 m_dataGeneration = 0;         // identity of the current m_lastData block
     ComputeState m_ring;                  // worker-owned rolling history (worker ONLY)
+
+    // Last descriptor summary broadcast to the widget. refresh() runs on every
+    // incoming sample, but plotCardsChanged() makes the widget tear down and
+    // rebuild its whole chart tree — so it must fire only when the descriptor
+    // actually changed. Empty until the first refresh(), which always emits.
+    QString m_lastDescriptorHeader;
+    QStringList m_lastChannelNames;
+    bool m_descriptorBroadcast = false;
 };
 
 #endif // DAQDISPLAYNODE_H

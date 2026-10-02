@@ -637,8 +637,22 @@ void DaqDisplayNode::refresh()
         applyAxisTitlesFor(card, desc);
     }
 
-    Q_EMIT descriptorInfoChanged(QStringLiteral("%1 · %2").arg(domain, rateText),
-                                 channelNames);
+    const QString header = QStringLiteral("%1 · %2").arg(domain, rateText);
+
+    // refresh() runs on every incoming sample, but plotCardsChanged() makes the
+    // widget destroy and rebuild its entire chart tree. Rebuilding that per
+    // audio buffer saturated the GUI thread and froze the app. Only broadcast
+    // when the descriptor really changed — which is what "channel combos need
+    // repopulating" actually means.
+    if (m_descriptorBroadcast && header == m_lastDescriptorHeader
+        && channelNames == m_lastChannelNames)
+        return;
+
+    m_descriptorBroadcast = true;
+    m_lastDescriptorHeader = header;
+    m_lastChannelNames = channelNames;
+
+    Q_EMIT descriptorInfoChanged(header, channelNames);
     Q_EMIT plotCardsChanged(); // channel combos need repopulating
 }
 
