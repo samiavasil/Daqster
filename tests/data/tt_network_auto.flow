@@ -1,0 +1,214 @@
+{
+    "connections": [
+        {
+            "inNodeId": 1,
+            "inPortIndex": 0,
+            "outNodeId": 5,
+            "outPortIndex": 0
+        },
+        {
+            "inNodeId": 3,
+            "inPortIndex": 0,
+            "outNodeId": 4,
+            "outPortIndex": 0
+        },
+        {
+            "inNodeId": 0,
+            "inPortIndex": 0,
+            "outNodeId": 2,
+            "outPortIndex": 0
+        }
+    ],
+    "nodes": [
+        {
+            "id": 0,
+            "internal-data": {
+                "model-name": "DaqDisplay",
+                "plots": [
+                    {
+                        "channel": 0,
+                        "mode": "normalized",
+                        "processing": "time",
+                        "title": "Plot 1",
+                        "unitAxes": true
+                    }
+                ],
+                "ringSeconds": 10
+            },
+            "label": "",
+            "labelVisible": true,
+            "position": {
+                "x": 890,
+                "y": -38
+            }
+        },
+        {
+            "id": 1,
+            "internal-data": {
+                "model-name": "DaqDisplay",
+                "plots": [
+                    {
+                        "channel": 0,
+                        "mode": "normalized",
+                        "processing": "time",
+                        "title": "Plot 1",
+                        "unitAxes": true
+                    }
+                ],
+                "ringSeconds": 10
+            },
+            "label": "",
+            "labelVisible": true,
+            "position": {
+                "x": 1176,
+                "y": 201
+            }
+        },
+        {
+            "id": 2,
+            "internal-data": {
+                "channelCount": 2,
+                "channelType": "INT16",
+                "model-name": "NetworkSource",
+                "port": 5000,
+                "protocol": "UDP",
+                "sampleRate": 1000
+            },
+            "label": "",
+            "labelVisible": true,
+            "position": {
+                "x": 434,
+                "y": 185
+            }
+        },
+        {
+            "id": 3,
+            "internal-data": {
+                "host": "127.0.0.1",
+                "model-name": "NetworkSink",
+                "port": 5000,
+                "protocol": "UDP"
+            },
+            "label": "",
+            "labelVisible": true,
+            "position": {
+                "x": 219,
+                "y": 418
+            }
+        },
+        {
+            "id": 4,
+            "internal-data": {
+                "model-name": "AudioSource"
+            },
+            "label": "",
+            "labelVisible": true,
+            "position": {
+                "x": 84,
+                "y": 757
+            }
+        },
+        {
+            "id": 5,
+            "internal-data": {
+                "model-name": "AudioSource"
+            },
+            "label": "",
+            "labelVisible": true,
+            "position": {
+                "x": -220,
+                "y": 955
+            }
+        }
+    ],
+    "ui": {
+        "nodes": {
+            "0": {
+                "autoStart": true,
+                "deembedded": true,
+                "geometry": {
+                    "h": 578,
+                    "maximized": false,
+                    "w": 860,
+                    "x": 2078,
+                    "y": 248
+                },
+                "workspace": 0
+            },
+            "1": {
+                "autoStart": true,
+                "deembedded": true,
+                "geometry": {
+                    "h": 638,
+                    "maximized": false,
+                    "w": 840,
+                    "x": 1270,
+                    "y": 966
+                },
+                "workspace": 0
+            },
+            "2": {
+                "autoStart": true,
+                "deembedded": true,
+                "geometry": {
+                    "h": 202,
+                    "maximized": false,
+                    "w": 198,
+                    "x": 607,
+                    "y": 424
+                },
+                "workspace": 0
+            },
+            "3": {
+                "autoStart": true,
+                "deembedded": true,
+                "geometry": {
+                    "h": 142,
+                    "maximized": false,
+                    "w": 200,
+                    "x": 532,
+                    "y": 874
+                },
+                "workspace": 0
+            },
+            "4": {
+                "autoStart": true,
+                "deembedded": true,
+                "geometry": {
+                    "h": 47,
+                    "maximized": false,
+                    "w": 95,
+                    "x": 243,
+                    "y": 1027
+                },
+                "workspace": 0
+            },
+            "5": {
+                "autoStart": true,
+                "deembedded": true,
+                "geometry": {
+                    "h": 47,
+                    "maximized": false,
+                    "w": 95,
+                    "x": 406,
+                    "y": 1543
+                },
+                "workspace": 0
+            }
+        },
+        "version": 1,
+        "workspaces": [
+            {
+                "geometry": {
+                    "h": 1670,
+                    "maximized": true,
+                    "w": 3072,
+                    "x": 0,
+                    "y": 29
+                },
+                "id": 0,
+                "tabbed": true
+            }
+        ]
+    }
+}

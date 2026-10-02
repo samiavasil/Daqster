@@ -1,0 +1,26 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "internal-data": {
+        "model-name": "NumberSource",
+        "value": 1.0
+      }
+    },
+    {
+      "id": 1,
+      "internal-data": {
+        "model-name": "FileRecord",
+        "filePath": "/tmp/test_out.dat"
+      }
+    }
+  ],
+  "connections": [
+    [
+      0,
+      0,
+      1,
+      0
+    ]
+  ]
+}
