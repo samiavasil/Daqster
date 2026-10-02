@@ -90,39 +90,19 @@
   id + параметри, backward compatible. Комит: `615f53e`. AC 1–5 `[x]`.
   Тестове: `demo_nodeditor_videooutput_tests` 10/10 (Qt5 + Qt6).
 
-## Фаза 4 — Runtime Mode (REQ-SW-PL-048..054)
+## Фаза 4 — Runtime Mode (REQ-SW-PL-048..052)
 
-**Статус: Phase 1 DONE ✅ | Phase 2 IN PROGRESS | Phase 3 PLANNED**
+**Статус: DONE (Phase 1)** ✅ (2026-09-09)
 
 Архитектурно предложение: `docs/Architecture/runtime-mode-architecture.md`.
 Визия: "Node diagram = application" — `Daqster --run <flow.flow>` стартира
 runtime режим, деембеднатите виджети формират UI-то на приложението.
 
-**Phase 1 (Core Runtime) — DONE ✅ (2026-09-09):**
-- **REQ-SW-PL-048** — Runtime режим на приложението (--run, presentation toggle) — **DONE**
-- **REQ-SW-PL-049** — .flow ui секция (deembedded, geometry, autoStart) — **DONE**
-- **REQ-SW-PL-050** — Thread lifecycle протокол (stop/wait) — **DONE**
-
-**Phase 2 (Core/GUI Split + Headless) — IN PROGRESS:**
-- **REQ-SW-PL-051** — Core/GUI разделение + headless — **ACTIVE, миграцията
-  завършена с 1 изключение** (28/30 модела разделени; остават `VideoOutput`,
-  чакащ REQ-SW-PL-053, и `AudioDisplayObsolete`). AC 2 е **БЛОКИРАН** — виж
-  по-долу
-- **REQ-SW-PL-052** — Clean Headless Validation — **DONE** ✅ (commits 7dc0b5d, b41b217)
-- **REQ-SW-PL-053** — NodeEditorIde Split (FrameworkCorePlugin + FrameworkGuiPlugin) — **DONE** ✅ (AC 7 изключен — виж по-долу)
-- **REQ-SW-PL-054** — REST API & Remote Control за Headless — **PLANNED / NOT IMPLEMENTED** (depends on REQ-053)
-
-**Известно ограничение на REQ-SW-PL-053 (AC 7) и REQ-SW-PL-051 (AC 2):** headless
-binary **без** `QtWidgets` не е постижим. `NodeRunner` вече не линква нито един
-Daqster plugin (само `FrameworkCore`), но `QApplication` (Qt5: в `QtWidgets`)
-остава необходим за headless, а `demo_nodeditor_nodes_core` още компилира 7
-QtWidgets translation unit-а от `node_editor_ide/BuiltInNodes/Library` заради
-`AudioDisplayObsolete` (наследява widget-building `QDevIoDisplayModelObsolete`).
-per-node core/GUI split-ът е извършен за 28 от 30 модела; останалите два не
-пълнят AC 2.
-
-**Phase 3 (Distribution) — PLANNED:**
-- **REQ-SW-PL-052** — Пакетиране (Flatpak/AppImage) — **PLANNED**
+- **REQ-SW-PL-048** — Runtime режим на приложението (--run, presentation toggle) — **DONE** (Фаза 1)
+- **REQ-SW-PL-049** — .flow ui секция (deembedded, geometry, autoStart) — **DONE** (Фаза 1)
+- **REQ-SW-PL-050** — Thread lifecycle протокол (stop/wait) — **DONE** (Фаза 1)
+- **REQ-SW-PL-051** — Core/GUI разделение + headless — **PLANNED** (Фаза 2)
+- **REQ-SW-PL-052** — Пакетиране (Flatpak/AppImage) — **PLANNED** (Фаза 3)
 
 Бранч: `feat/REQ-SW-PL-048-runtime-mode` (от PL-049 tip `13e2dbe`).
 Имплементация завършена и верифицирана: Qt5/Qt6 builds PASS + --run smoke PASS + MDI layout PASS + autoStart PASS + window flags PASS (Qt5/Qt6) + clean exit PASS + invalid flow PASS + F11 toggle PASS.
@@ -134,10 +114,8 @@ per-node core/GUI split-ът е извършен за 28 от 30 модела; �
 | REQ-SW-PL-048 | **DONE** (Фаза 1 — Runtime режим) |
 | REQ-SW-PL-049 | **DONE** (Фаза 1 — .flow ui секция) |
 | REQ-SW-PL-050 | **DONE** (Фаза 1 — thread lifecycle) |
-| REQ-SW-PL-051 | ACTIVE — 28/30 модела разделени и работещи; AC 2 блокиран (`QApplication` + 7 QtWidgets TU в `_core`) |
-| REQ-SW-PL-052 | **DONE** (Clean Headless Validation) |
-| REQ-SW-PL-053 | **DONE** (AC 7 изключен — headless без QtWidgets блокиран от per-node ctor widgets) |
-| REQ-SW-PL-054 | **PLANNED / NOT IMPLEMENTED** (REST API & Remote Control) |
+| REQ-SW-PL-051 | Планирано (Фаза 2 — headless) |
+| REQ-SW-PL-052 | Планирано (Фаза 3 — дистрибуция) |
 | REQ-SW-PL-020 | Имплементирано |
 | REQ-SW-PL-021 | Частично (AC 1-3); AC 4/6/7 отворени |
 | REQ-SW-PL-022 | Имплементирано; nPorts fix (`d5145c2`) поправи AC 8 |
