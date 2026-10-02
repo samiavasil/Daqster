@@ -7,6 +7,8 @@
 #include <QMutex>
 #include <atomic>
 
+#include "framework_core_export.h"
+
 // Compile-time opt-out: CMake defines DAQSTER_ENABLE_PERF=1/0 via PUBLIC
 // compile definition. Fallback to 0 if undefined.
 #ifndef DAQSTER_ENABLE_PERF
@@ -18,7 +20,7 @@ namespace Daqster::Perf {
 // Fixed-capacity rolling statistics. add() is O(1) with no heap allocation in
 // the hot path (vector reserved once at construction). avg/min/max are computed
 // on demand (called from flush(), not the hot path).
-class RollingStats {
+class FRAMEWORK_CORE_EXPORT RollingStats {
 public:
     explicit RollingStats(std::size_t capacity = 256);
     void add(std::int64_t value);
@@ -38,7 +40,7 @@ private:
 // relaxed atomic (safe to toggle from another thread). record() is a no-op when
 // disabled; it is NOT thread-safe by itself — a domain is intended to be
 // recorded from a single (usually the GUI) thread.
-class Domain {
+class FRAMEWORK_CORE_EXPORT Domain {
 public:
     static Domain &get(const char *name);      // thread-safe get-or-create
     const char *name() const;
@@ -63,7 +65,7 @@ private:
 
 // RAII timer for synchronous blocks. Zero cost when the domain is disabled
 // (no clock read, no record).
-class Scope {
+class FRAMEWORK_CORE_EXPORT Scope {
 public:
     Scope(Domain &d, const char *stage);
     ~Scope();
@@ -79,7 +81,7 @@ private:
 
 // Reusable stopwatch for async/event measurement. mark() returns nanoseconds
 // elapsed since the previous mark()/reset()/construction.
-class Stopwatch {
+class FRAMEWORK_CORE_EXPORT Stopwatch {
 public:
     Stopwatch();
     std::int64_t mark();

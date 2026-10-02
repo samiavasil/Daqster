@@ -1,10 +1,21 @@
 #pragma once
 
+#include "FlowUiSection.h"
 #include "QBasePluginObject.h"
 #include <QtNodes/Definitions>
 
+#include <QEvent>
+#include <vector>
+
 class NodeEditorWidget;
 class QMainWindow;
+class QWidget;
+namespace Daqster {
+class IWidgetProvider;
+}
+namespace QtNodes {
+class NodeDelegateModel;
+}
 
 class NodeEditorIdeObject : public Daqster::QBasePluginObject
 {
@@ -15,25 +26,18 @@ public:
     void SetName(const QString& name);
     virtual bool Initialize();
 
-protected:
-    virtual void DeInitialize();
+    // ── Public registration + loading API (REQ-SW-PL-048) ─────────────
+    // These were private before; they are now public so the GUI runtime in
+    // FrameworkGuiPlugin (RuntimeShell) can reuse the same registration and
+    // loading logic without duplication.
+    //
+    // REQ-SW-PL-051: the built-in node models (NumberSource, NumberDisplay,
+    // Modulo, Arithmetic/Logic) are owned by demo_nodeditor_nodes_core and
+    // arrive through INodeProvider like every other plugin node. There is no
+    // local registration left — see registerNodes().
 
-public slots:
-    void MainWinDestroyed(QObject* obj);
-    void ShowPlugins();
-
-protected slots:
-    void nodeDoubleClicked(QtNodes::NodeId nodeId);
-
-private:
-    void registerBuiltInNodes();
-    void discoverAndRegisterExternalNodes();
-
-    /// Dev driver (DAQSTER_AUTOSTART_VIDEO=1): builds a video source ->
-    /// VideoOutput graph, connects it, starts playback from DAQSTER_VIDEO_FILE /
-    /// DAQSTER_STREAM_URL and enables the "Perf" checkbox — no GUI interaction
-    /// needed (used by the PERF measurement harness).
-    void autoStartVideo();
+    /// Registers every node provided by the loaded INodeProvider plugins.
+    void registerNodes();
 
     /// Tolerant scene load (REQ-SW-PL-037): opens a .flow file, skips nodes
     /// whose model type is not registered in the current environment (instead
@@ -49,6 +53,36 @@ private:
     /// types. Returns true on success (including partial loads).
     bool loadSceneFromFile(const QString& fileName);
 
+protected:
+    virtual void DeInitialize();
+    virtual bool eventFilter(QObject* watched, QEvent* event);
+
+public slots:
+    void MainWinDestroyed(QObject* obj);
+    void ShowPlugins();
+
+    /// REQ-SW-PL-051: re-discover and register nodes from newly loaded
+    /// INodeProvider plugins (connected to QPluginManager::PluginsListChangeDetected).
+    void discoverAndRegisterExternalNodes();
+
+    /// Presentation mode toggle (REQ-SW-PL-048): F11 key handler.
+    /// Hides GraphicsView + shows deembedded widgets; toggles back.
+    void togglePresentationMode();
+
+protected slots:
+    void nodeDoubleClicked(QtNodes::NodeId nodeId);
+
+private:
+    /// REQ-SW-PL-051: hands an IWidgetProvider to the editor widget and
+    /// watches its plugin object, re-discovering if it dies.
+    void adoptWidgetProvider(Daqster::IWidgetProvider* provider);
+
+    /// Dev driver (DAQSTER_AUTOSTART_VIDEO=1): builds a video source ->
+    /// VideoOutput graph, connects it, starts playback from DAQSTER_VIDEO_FILE /
+    /// DAQSTER_STREAM_URL and enables the "Perf" checkbox — no GUI interaction
+    /// needed (used by the PERF measurement harness).
+    void autoStartVideo();
+
     /// Dev driver (DAQSTER_AUTOSTART_VIDEO=1 / DAQSTER_AUTOSTART_FLOW +
     /// DAQSTER_VIDEO_FILE, REQ-SW-PL-038): finds the VideoFileSource and
     /// VideoOutput nodes in the current graph by model-name, configures the
@@ -56,6 +90,34 @@ private:
     /// the "Perf" checkbox on the output (plus DAQSTER_SCENE_VIDEO handling).
     void startVideoPlayback();
 
+    /// Saves the current scene to a .flow file (REQ-SW-PL-049): graph model
+    /// JSON + groups (byte-identical to DataFlowGraphicsScene::save()) + the
+    /// "ui" section captured from the current runtime layout. Opens a file
+    /// dialog. Returns true on success.
+    bool saveSceneToFile();
+
+    /// Captures the current runtime UI layout (REQ-SW-PL-049): workspace
+    /// geometry from m_workspaces (or the main window default) and per-node
+    /// deembed state + geometry + autoStart for every node with a widget.
+    FlowUi::UiSection captureUiSection() const;
+
+    /// Restores the runtime UI layout from a loaded "ui" section
+    /// (REQ-SW-PL-049): stores workspaces, records autoStart flags and
+    /// deembeds nodes whose saved state says so (tolerant — missing nodes
+    /// are skipped).
+    void applyUiSection(const FlowUi::UiSection& ui);
+
     QMainWindow* m_Win;
     NodeEditorWidget* m_Widget;
+
+    /// Workspace layout captured at save time (REQ-SW-PL-049). Empty until a
+    /// .flow with a "ui" section is loaded or a save captures the default.
+    std::vector<FlowUi::WorkspaceUi> m_workspaces;
+
+    /// Per-node autoStart flags restored from the "ui" section (REQ-SW-PL-049).
+    QHash<QtNodes::NodeId, bool> m_autoStartNodes;
+
+    /// Presentation mode state (REQ-SW-PL-048): true = canvas hidden, deembedded
+    /// widgets shown; false = normal editor mode.
+    bool m_presentationMode = false;
 };

@@ -13,7 +13,7 @@ string(REPLACE "." ";" _daqster_version_parts "${DAQSTER_VERSION}")
 list(GET _daqster_version_parts 0 DAQSTER_VERSION_MAJOR)
 list(GET _daqster_version_parts 1 DAQSTER_VERSION_MINOR)
 list(GET _daqster_version_parts 2 DAQSTER_VERSION_PATCH)
-project(Daqster VERSION ${DAQSTER_VERSION} LANGUAGES CXX)
+project(Daqster VERSION ${DAQSTER_VERSION} LANGUAGES CXX C)
 
 # Generate daqster_version.h from the VERSION file (single source of truth)
 set(DAQSTER_VERSION_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include")
@@ -35,6 +35,9 @@ option(DAQSTER_VERBOSE_DEPENDENCIES "Show detailed dependency checks" OFF)
 
 # Automatically initialize missing external submodule directories when enabled
 option(DAQSTER_AUTO_INIT_SUBMODULES "Automatically run 'git submodule update --init' for missing external submodules" ON)
+
+# Build GUI components (default ON)
+option(DAQSTER_BUILD_GUI "Build GUI components (FrameworkGui, demo_nodeditor_nodes_gui, node_editor_ide)" ON)
 
 # Detect Qt version (Qt6 preferred, Qt5 fallback)
 include(FindQtVersion)
@@ -75,9 +78,6 @@ find_package(Git QUIET)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY  ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY  ${CMAKE_BINARY_DIR}/bin)
 
-#set_target_properties(Daqster PROPERTIES LIBRARY_OUTPUT_DIRECTORY $<1:${PROJECT_SOURCE_DIR}/lib>)
-#set_target_properties(Daqster PROPERTIES RUNTIME_OUTPUT_DIRECTORY $<1:${PROJECT_SOURCE_DIR}/bin>)
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -96,9 +96,7 @@ set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 set(CMAKE_BUILD_RPATH "${PROJECT_BINARY_DIR}/bin")
 
-add_subdirectory(src/frame_work)
-
-# External libraries - conditional based on Qt version and dependencies
+# ── External libraries - conditional based on Qt version and dependencies ────
 message(STATUS "=== External Libraries Status ===")
 
 # Find required packages for external libraries
@@ -111,14 +109,48 @@ find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS Core Gui Widgets)
 # NodeEditor - Qt5/Qt6 (upstream has unified Qt${QT_VERSION_MAJOR} handling)
 create_external_library(nodeeditor)
 
+# REQ-SW-PL-051: QtNodes is a DLL on Windows and exports only the classes that
+# carry NODE_EDITOR_PUBLIC in their headers. GroupGraphicsObject is missing that
+# markup upstream, and NodeEditorIdeObject.cpp calls GroupGraphicsObject::locked()
+# (group serialization in saveSceneToFile), so linking NodeEditorIde.dll fails:
+#   error LNK2019: unresolved external symbol
+#   "public: bool __cdecl QtNodes::GroupGraphicsObject::locked(void)const"
+#   fatal error LNK1120: 1 unresolved externals
+# Linux cannot surface this: the symbol stays undefined and resolves at dlopen.
+#
+# WINDOWS_EXPORT_ALL_SYMBOLS is the fix from this side of the submodule, and it
+# is sufficient here: locked() is a plain function, so the generated import
+# library provides a thunk under the plain decorated name. (Data symbols such as
+# staticMetaObject or a vtable get only the __imp_ form and would still need real
+# export markup — that is why the other two Windows fixes in this series are
+# explicit macros on the classes, not this property.)
+if(WIN32 AND TARGET QtNodes)
+    set_target_properties(QtNodes PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 # QtRest library - Qt5/Qt6 dual-mode
 create_external_library(qtrest_lib)
 
-# Plugins - dependency система автоматично изключва неподдържани
-add_subdirectory(src/plugins/node_editor_ide)
-add_subdirectory(src/plugins/demo_nodeditor_nodes)
-add_subdirectory(src/plugins/requirements_manager)
-add_subdirectory(src/plugins/QtCoinTrader)
+# ── Framework libraries (FrameworkCore + FrameworkGui) ─────────────────────
+# src/frame_work owns both framework targets. FrameworkGui is gated on
+# DAQSTER_BUILD_GUI inside that file, so one add_subdirectory() is enough.
+# It must come after the Qt module search and after the external libraries,
+# because FrameworkCore links QtNodes and FrameworkGui links Qt Gui/Widgets.
+add_subdirectory(src/frame_work)
+
+# ── Plugins ───────────────────────────────────────────────────────────
+# Core plugins (always built)
+add_subdirectory(src/plugins/demo_nodeditor_nodes_core)
+add_subdirectory(src/plugins/FrameworkCorePlugin)
+
+# GUI plugins (only when DAQSTER_BUILD_GUI=ON)
+if(DAQSTER_BUILD_GUI)
+    add_subdirectory(src/plugins/node_editor_ide)
+    add_subdirectory(src/plugins/demo_nodeditor_nodes_gui)
+    add_subdirectory(src/plugins/FrameworkGuiPlugin)
+    add_subdirectory(src/plugins/requirements_manager)
+    add_subdirectory(src/plugins/QtCoinTrader)
+endif()
 
 # Test plugins - gated behind their own option (default OFF) so they are not
 # part of normal packaging/release builds. Independent from DAQSTER_BUILD_TESTS:
@@ -132,8 +164,14 @@ if(DAQSTER_BUILD_TEST_PLUGINS)
     add_subdirectory(src/plugins/tests/template_plugin_daqster)
 endif()
 
-# Apps - after plugins are processed (frame_work is built in plugins)
-add_subdirectory(src/apps/Daqster)
+# ── Apps ──────────────────────────────────────────────────────────────
+# Headless app (always built)
+add_subdirectory(src/apps/NodeRunner)
+
+# GUI app (only when DAQSTER_BUILD_GUI=ON)
+if(DAQSTER_BUILD_GUI)
+    add_subdirectory(src/apps/Daqster)
+endif()
 
 # Unit tests - gated behind their own option (default OFF).
 # We intentionally do NOT set BUILD_TESTING / include(CTest) here: nodeeditor
@@ -148,4 +186,3 @@ endif()
 # Print final build configuration summary
 print_build_configuration_summary()
 print_component_status_summary()
-

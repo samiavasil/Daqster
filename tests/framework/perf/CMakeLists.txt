@@ -24,7 +24,8 @@ set(TEST_SOURCES
 add_executable(perf_profiler_tests ${TEST_SOURCES})
 
 target_link_libraries(perf_profiler_tests PRIVATE
-    frame_work
+    FrameworkCore
+    NodeEditorLibrary
     Qt${QT_VERSION_MAJOR}::Test
     Qt${QT_VERSION_MAJOR}::Core
 )

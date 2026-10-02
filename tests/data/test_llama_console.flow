@@ -1,0 +1,26 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "internal-data": {
+        "model-name": "LLamaModel",
+        "modelPath": "/tmp/model.gguf",
+        "prompt": "hello"
+      }
+    },
+    {
+      "id": 1,
+      "internal-data": {
+        "model-name": "Console"
+      }
+    }
+  ],
+  "connections": [
+    [
+      0,
+      0,
+      1,
+      0
+    ]
+  ]
+}

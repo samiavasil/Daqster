@@ -16,7 +16,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
 General Public Licence for more details.
 
 Initial version of this file was created on 12.03.2017 at 20:54:50
-**************************************************************************/
+*************************************************************************/
 
 #include "QPluginInterface.h"
 #include "QBasePluginObject.h"
@@ -176,12 +176,12 @@ PluginDescription::PluginType_t QPluginInterface::GetType () const
 }
 
 /**
- * Return plugin embeded icon.
- * @return QIcon
+ * Return plugin embedded icon path (for GUI plugins).
+ * @return icon file path or resource path, empty if not set
  */
-QIcon QPluginInterface::GetIcon () const
+QString QPluginInterface::GetIconPath() const
 {
-    return m_PluginDescriptor.GetIcon();
+    return m_PluginDescriptor.GetProperty(PLUGIN_ICON_PATH).toString();
 }
 
 

@@ -1,6 +1,7 @@
 #ifndef PLUGINDETAILS_H
 #define PLUGINDETAILS_H
 
+#include "framework_gui_export.h"
 #include <QDialog>
 #include <QString>
 #include <memory>
@@ -11,7 +12,7 @@ class PluginDetails;
 }
 
 namespace Daqster {
-class PluginDetails : public QDialog
+class FRAMEWORK_GUI_EXPORT PluginDetails : public QDialog
 {
     Q_OBJECT
 

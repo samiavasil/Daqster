@@ -1,7 +1,9 @@
 #include "NodeEditorIdeObject.h"
 #include "NodeEditorWidget.h"
 #include "QPluginManager.h"
+#include "QPluginManagerGui.h"
 #include "capabilities/INodeProvider.h"
+#include "capabilities/IWidgetProvider.h"
 #include "debug.h"
 #include "LogCategories.h"
 
@@ -18,9 +20,11 @@
 #include <QJsonDocument>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QSet>
 #include <QDir>
+#include <QKeyEvent>
 
 #include <exception>
 
@@ -29,13 +33,14 @@
 #include <QtNodes/DataFlowGraphModel>
 #include <QtNodes/DataFlowGraphicsScene>
 #include <QtNodes/ConnectionStyle>
+#include <QtNodes/internal/NodeGraphicsObject.hpp>
+#include <QtNodes/internal/NodeGroup.hpp>
+#include <QtNodes/internal/GroupGraphicsObject.hpp>
 
 #include <QtWidgets/QVBoxLayout>
 
-#include "NumberSourceDataModel.h"
-#include "NumberDisplayDataModel.h"
-#include "ModuloModel.h"
-#include "ArithmeticLogicModel.h"
+// REQ-SW-PL-051: no built-in node model headers here — they are owned by
+// demo_nodeditor_nodes_core and reach the editor through INodeProvider.
 
 static void setStyle()
 {
@@ -95,26 +100,33 @@ bool NodeEditorIdeObject::Initialize()
 
     m_Widget = new NodeEditorWidget(mainWidget);
 
-    // Phase 1: Register built-in nodes (from former node_editor_app)
-    registerBuiltInNodes();
+    // Phase 1+2: Register built-in nodes + external INodeProvider plugins
+    registerNodes();
 
-    // Phase 2: Discover and register external INodeProvider plugins
-    discoverAndRegisterExternalNodes();
+    // REQ-SW-PL-051: plugins may load in any order. When a new INodeProvider
+    // plugin appears (or is reloaded), re-discover and register its nodes.
+    Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
+    if (pm) {
+        connect(pm, &Daqster::QPluginManager::PluginsListChangeDetected,
+                this, &NodeEditorIdeObject::discoverAndRegisterExternalNodes);
+    }
+
+    // REQ-SW-PL-051: registerNodes() above already picked up both the node
+    // providers and the IWidgetProvider (see adoptWidgetProvider).
 
     // Build canvas AFTER all nodes are registered
     m_Widget->buildCanvas();
 
     // ── File menu (REQ-SW-PL-037): Save/Load scene ─────────────────────────
-    // Save uses QtNodes' native DataFlowGraphicsScene::save() (opens its own
-    // file dialog, writes .flow JSON). Load uses the tolerant path that skips
-    // unregistered node types instead of crashing.
+    // Save uses saveSceneToFile() (REQ-SW-PL-049): graph model JSON + groups +
+    // the "ui" section (runtime layout). Load uses the tolerant path that
+    // skips unregistered node types instead of crashing.
     QMenu* fileMenu = m_Win->menuBar()->addMenu(tr("&File"));
 
     QAction* saveAction = fileMenu->addAction(tr("Save Scene…"));
     saveAction->setShortcut(QKeySequence::Save);
     connect(saveAction, &QAction::triggered, this, [this]() {
-        if (m_Widget->scene() != nullptr)
-            m_Widget->scene()->save();
+        saveSceneToFile();
     });
 
     QAction* loadAction = fileMenu->addAction(tr("Load Scene…"));
@@ -153,35 +165,75 @@ bool NodeEditorIdeObject::Initialize()
             this, &NodeEditorIdeObject::nodeDoubleClicked);
     connect(m_Win, SIGNAL(destroyed(QObject*)), this, SLOT(MainWinDestroyed(QObject*)));
     connect(button, SIGNAL(clicked(bool)), this, SLOT(ShowPlugins()));
+
+    // Install event filter for F11 presentation mode toggle (REQ-SW-PL-048)
+    m_Win->installEventFilter(this);
+
     return true;
 }
 
-void NodeEditorIdeObject::registerBuiltInNodes()
+void NodeEditorIdeObject::registerNodes()
 {
-    auto* registry = m_Widget->getInjectedRegistry();
-
-    registry->registerModel<NumberSourceDataModel>("General/Sources");
-    registry->registerModel<NumberDisplayDataModel>("General/Display");
-    registry->registerModel<ModuloModel>("General/Processing");
-    registry->registerModel<ArithmeticLogicModel>("General/Processing");
+    // REQ-SW-PL-051: the built-in models live in demo_nodeditor_nodes_core and
+    // are registered by its INodeProvider, together with every other node.
+    discoverAndRegisterExternalNodes();
 }
+
+// ── Runtime mode (REQ-SW-PL-053) ─────────────────────────────────────────
+// Running a .flow with deembedded widgets as the UI is no longer an editor
+// responsibility: the visible runtime lives in FrameworkGuiPlugin's
+// RuntimeShell, reached by the runner through QPluginManager::runtimeHosts().
+// The editor keeps only its own F11 presentation mode (see setPresentationMode).
 
 void NodeEditorIdeObject::discoverAndRegisterExternalNodes()
 {
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
     if (!pm) return;
 
-    QObjectList providers = pm->instances(INodeProvider_IID);
+    // The editor window can already be gone when this runs: the
+    // IWidgetProvider 'destroyed' re-discovery below fires while
+    // QPluginManager::ShutdownPluginManager destroys the plugin objects, and
+    // MainWinDestroyed() has nulled m_Widget by then. Registering nodes into a
+    // destroyed editor segfaulted on quit.
+    if (!m_Widget) return;
+
     auto* registry = m_Widget->getInjectedRegistry();
 
-    for (QObject* obj : providers) {
-        auto* provider = qobject_cast<Daqster::INodeProvider*>(obj);
+    for (Daqster::INodeProvider* provider : pm->nodeProviders()) {
         if (!provider) continue;
 
-        QString name = obj->property("name").toString();
-        DEBUG << "Discovered INodeProvider plugin:" << name;
+        DEBUG << "Discovered INodeProvider plugin";
 
         provider->registerNodes(*registry);
+    }
+
+    // REQ-SW-PL-051: also discover IWidgetProvider plugins (they may load
+    // in any order). Pass the provider to the editor widget so split models
+    // get their widgets.
+    for (Daqster::IWidgetProvider* provider : pm->widgetProviders()) {
+        if (!provider) continue;
+
+        DEBUG << "Discovered IWidgetProvider plugin";
+        adoptWidgetProvider(provider);
+        break; // Use the first one
+    }
+}
+
+void NodeEditorIdeObject::adoptWidgetProvider(Daqster::IWidgetProvider* provider)
+{
+    if (!provider || !m_Widget)
+        return;
+
+    m_Widget->setWidgetProvider(provider);
+
+    // The graph model caches the raw pointer, so re-resolve it when the plugin
+    // object dies (plugin reload / unload). PluginRegistry recreates a fresh,
+    // initialized object on the next widgetProviders() call.
+    if (auto* owner = dynamic_cast<QObject*>(provider)) {
+        connect(owner, &QObject::destroyed, this, [this]() {
+            DEBUG << "IWidgetProvider plugin object destroyed, re-discovering";
+            discoverAndRegisterExternalNodes();
+        });
     }
 }
 
@@ -202,6 +254,15 @@ void NodeEditorIdeObject::nodeDoubleClicked(QtNodes::NodeId nodeId)
 
 void NodeEditorIdeObject::DeInitialize()
 {
+    // Application/plugin shutdown that does not go through the editor window's
+    // close event (e.g. QPluginManager::ShutdownPluginManager on aboutToQuit).
+    // IStoppable::stop() is idempotent, so nodes already stopped by the close
+    // event are not stopped twice. m_Widget is nulled by MainWinDestroyed as
+    // soon as the window takes the graph down with it.
+    if (nullptr != m_Widget) {
+        m_Widget->stopAllNodes();
+    }
+
     if (nullptr != m_Win) {
         m_Win->deleteLater();
     }
@@ -222,7 +283,97 @@ void NodeEditorIdeObject::ShowPlugins()
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
     if (nullptr != pm) {
         DEBUG << "Plugin Manager: " << pm;
-        pm->ShowPluginManagerGui(m_Win);
+        auto* managerDialog = new Daqster::QPluginManagerGui(m_Win);
+        managerDialog->setAttribute(Qt::WA_DeleteOnClose, true);
+        managerDialog->show();
+    }
+}
+
+// ── Presentation mode toggle (REQ-SW-PL-048) ──────────────────────────────────
+// F11 key handler: hides GraphicsView + shows deembedded widgets (or arranges
+// in MDI); toggles back: shows GraphicsView, hides deembedded widgets.
+// Reversible — Pure Data style presentation mode.
+bool NodeEditorIdeObject::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == m_Win && event->type() == QEvent::KeyPress) {
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+        if (keyEvent->key() == Qt::Key_F11 && !keyEvent->isAutoRepeat()) {
+            togglePresentationMode();
+            return true; // Event handled
+        }
+    }
+
+    // Closing the editor window (the X button) tears the graph down, so the
+    // running nodes must be stopped first — the runner does the same from its
+    // close handler. Without this the stop of a loaded flow is never invoked.
+    if (watched == m_Win && event->type() == QEvent::Close && m_Widget) {
+        m_Widget->stopAllNodes();
+    }
+
+    return QObject::eventFilter(watched, event);
+}
+
+void NodeEditorIdeObject::togglePresentationMode()
+{
+    if (!m_Widget || !m_Widget->scene() || !m_Win)
+        return;
+
+    m_presentationMode = !m_presentationMode;
+
+    if (m_presentationMode) {
+        // Enter presentation mode: hide canvas, show deembedded widgets
+        m_Widget->hide();
+
+        // Deembed all nodes that have widgets and are not already deembedded
+        for (const QtNodes::NodeId nodeId : m_Widget->graphModel()->allNodeIds()) {
+            QtNodes::NodeGraphicsObject* node = m_Widget->scene()->nodeGraphicsObject(nodeId);
+            if (node == nullptr || !node->hasWidget() || !node->isWidgetEmbedded())
+                continue;
+
+            auto* model = m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
+            // The graph model's cached instance - the very widget the proxy
+            // holds. Going to the IWidgetProvider directly would build a SECOND
+            // widget for the same model and orphan the first one.
+            QWidget* w = m_Widget->nodeWidget(nodeId);
+            if (w == nullptr)
+                continue;
+
+            // Two-step deembed: setWidgetEmbedded(false) FIRST
+            node->setWidgetEmbedded(false);
+
+            // Show as top-level window
+            w->setWindowFlags(Qt::Window);
+            w->setWindowTitle(model->caption());
+            w->show();
+        }
+
+        qCInfo(lcNodeEditor) << "Presentation mode: ON (canvas hidden, deembedded widgets shown)";
+    } else {
+        // Exit presentation mode: show canvas, re-embed widgets
+        m_Widget->show();
+
+        // Re-embed all deembedded widgets
+        for (const QtNodes::NodeId nodeId : m_Widget->graphModel()->allNodeIds()) {
+            QtNodes::NodeGraphicsObject* node = m_Widget->scene()->nodeGraphicsObject(nodeId);
+            if (node == nullptr || !node->hasWidget() || node->isWidgetEmbedded())
+                continue;
+
+            auto* model = m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
+            QWidget* w = m_Widget->nodeWidget(nodeId);
+            if (w == nullptr)
+                continue;
+
+            // Hide the top-level window first
+            w->hide();
+
+            // Re-embed: setWidgetEmbedded(true) will re-parent to the proxy widget
+            node->setWidgetEmbedded(true);
+
+            // Clear window flags
+            w->setWindowFlags(Qt::Widget);
+        }
+
+        qCInfo(lcNodeEditor) << "Presentation mode: OFF (canvas shown, widgets re-embedded)";
     }
 }
 
@@ -268,6 +419,13 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
     }
 
     QJsonObject sceneJson = sceneDocument.object();
+
+    // Extract the "ui" section (REQ-SW-PL-049) BEFORE the node-cleaning loop:
+    // it is not part of the graph model JSON and must not be passed to load().
+    // Missing "ui" (old flow) → empty section → current behavior.
+    const FlowUi::UiSection uiSection = FlowUi::UiSection::fromJson(sceneJson["ui"].toObject());
+    sceneJson.remove("ui");
+
     const QJsonArray nodesJsonArray = sceneJson["nodes"].toArray();
 
     auto* registry = m_Widget->getInjectedRegistry();
@@ -313,6 +471,9 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
         return false;
     }
 
+    // Restore the runtime UI layout captured in the "ui" section (REQ-SW-PL-049).
+    applyUiSection(uiSection);
+
     const int loadedNodeCount = static_cast<int>(m_Widget->graphModel()->allNodeIds().size());
     const int loadedConnCount = static_cast<int>(
         sceneJson["connections"].toArray().size());
@@ -331,6 +492,169 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
     }
 
     return true;
+}
+
+// ── Save with "ui" section (REQ-SW-PL-049) ──────────────────────────────────
+// Saves the scene as graph model JSON + groups (byte-identical to
+// DataFlowGraphicsScene::save()) + the "ui" section describing the runtime
+// layout of deembedded node widgets. The "ui" section is written indented so
+// it is human-inspectable in the .flow file.
+bool NodeEditorIdeObject::saveSceneToFile()
+{
+    if (m_Widget == nullptr || m_Widget->scene() == nullptr) {
+        qCWarning(lcNodeEditor) << "saveSceneToFile: no scene to save";
+        return false;
+    }
+
+    QString fileName = QFileDialog::getSaveFileName(
+        m_Win, tr("Save Flow Scene"), QDir::homePath(), tr("Flow Scene Files (*.flow)"));
+    if (fileName.isEmpty())
+        return false;
+    if (!fileName.endsWith("flow", Qt::CaseInsensitive))
+        fileName += ".flow";
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly)) {
+        qCWarning(lcNodeEditor) << "saveSceneToFile: cannot open" << fileName;
+        return false;
+    }
+
+    QJsonObject sceneJson = m_Widget->graphModel()->save();
+
+    // Replicate DataFlowGraphicsScene::save() groups serialization
+    // (byte-identical): groups()/name()/nodeIDs()/groupGraphicsObject().locked()
+    // are all public API.
+    QJsonArray groupsJsonArray;
+    for (const auto& [groupId, groupPtr] : m_Widget->scene()->groups()) {
+        if (!groupPtr)
+            continue;
+
+        QJsonObject groupJson;
+        groupJson["id"] = static_cast<qint64>(groupId);
+        groupJson["name"] = groupPtr->name();
+
+        QJsonArray nodeIdsJson;
+        for (const QtNodes::NodeId nodeId : groupPtr->nodeIDs()) {
+            nodeIdsJson.append(static_cast<qint64>(nodeId));
+        }
+        groupJson["nodes"] = nodeIdsJson;
+        groupJson["locked"] = groupPtr->groupGraphicsObject().locked();
+
+        groupsJsonArray.append(groupJson);
+    }
+    if (!groupsJsonArray.isEmpty()) {
+        sceneJson["groups"] = groupsJsonArray;
+    }
+
+    sceneJson["ui"] = captureUiSection().toJson();
+
+    file.write(QJsonDocument(sceneJson).toJson(QJsonDocument::Indented));
+    qCInfo(lcNodeEditor) << "saveSceneToFile: saved" << fileName;
+    return true;
+}
+
+FlowUi::UiSection NodeEditorIdeObject::captureUiSection() const
+{
+    FlowUi::UiSection ui;
+    ui.version = 1;
+
+    // Workspaces: stored layout (from a loaded "ui" section) or the main
+    // window default {id:0, tabbed:true, geometry: m_Win->geometry()+maximized}.
+    if (m_workspaces.empty()) {
+        FlowUi::WorkspaceUi ws;
+        ws.id = 0;
+        ws.tabbed = true;
+        if (m_Win != nullptr) {
+            const QRect geo = m_Win->geometry();
+            ws.geometry.x = geo.x();
+            ws.geometry.y = geo.y();
+            ws.geometry.w = geo.width();
+            ws.geometry.h = geo.height();
+            ws.geometry.maximized = m_Win->isMaximized();
+        }
+        ui.workspaces.push_back(ws);
+    } else {
+        ui.workspaces = m_workspaces;
+    }
+
+    if (m_Widget == nullptr || m_Widget->scene() == nullptr)
+        return ui;
+
+    // Per-node layout: ALL nodes get an entry; geometry only for deembedded.
+    for (const QtNodes::NodeId nodeId : m_Widget->graphModel()->allNodeIds()) {
+        QtNodes::NodeGraphicsObject* node = m_Widget->scene()->nodeGraphicsObject(nodeId);
+        if (node == nullptr || !node->hasWidget())
+            continue;
+
+        FlowUi::NodeUi nui;
+        nui.deembedded = !node->isWidgetEmbedded();
+        nui.workspace = 0;
+        nui.autoStart = m_autoStartNodes.value(nodeId, false);
+
+        if (nui.deembedded) {
+            auto* model =
+                m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
+            QWidget* w = m_Widget->nodeWidget(nodeId);
+            if (w != nullptr) {
+                const QRect geo = w->geometry();
+                nui.geometry.x = geo.x();
+                nui.geometry.y = geo.y();
+                nui.geometry.w = geo.width();
+                nui.geometry.h = geo.height();
+                nui.geometry.maximized = w->isMaximized();
+            }
+        }
+
+        ui.nodes.insert(nodeId, nui);
+    }
+
+    return ui;
+}
+
+void NodeEditorIdeObject::applyUiSection(const FlowUi::UiSection& ui)
+{
+    // Workspaces are stored (not applied) — the MDI workspace shell is a
+    // runtime-mode concern (REQ-SW-PL-048); the IDE keeps the layout for the
+    // next save.
+    m_workspaces = ui.workspaces;
+
+    if (m_Widget == nullptr || m_Widget->scene() == nullptr)
+        return;
+
+    for (auto it = ui.nodes.constBegin(); it != ui.nodes.constEnd(); ++it) {
+        const QtNodes::NodeId nodeId = it.key();
+        const FlowUi::NodeUi& nui = it.value();
+
+        // Tolerant load guard: nodes skipped by loadSceneFromFile() (missing
+        // model type) are not in the graph — ignore their ui entry.
+        if (!m_Widget->graphModel()->nodeExists(nodeId))
+            continue;
+
+        m_autoStartNodes.insert(nodeId, nui.autoStart);
+
+        if (!nui.deembedded)
+            continue;
+
+        QtNodes::NodeGraphicsObject* node = m_Widget->scene()->nodeGraphicsObject(nodeId);
+        if (node == nullptr || !node->isWidgetEmbedded())
+            continue;
+
+        // Direct call is safe here — no context-menu loop is open during load.
+        // setWidgetEmbedded(false) detaches the graph model's cached widget and
+        // hands its ownership back, so the SAME instance is moved out of the
+        // node below — a second widget from the provider would orphan this one.
+        node->setWidgetEmbedded(false);
+
+        QWidget* w = m_Widget->nodeWidget(nodeId);
+        if (w == nullptr)
+            continue;
+
+        w->setWindowState(Qt::WindowNoState);
+        w->setGeometry(QRect(nui.geometry.x, nui.geometry.y,
+                             nui.geometry.w, nui.geometry.h));
+        if (nui.geometry.maximized)
+            w->setWindowState(Qt::WindowMaximized);
+    }
 }
 
 // ── Dev driver: DAQSTER_AUTOSTART_VIDEO=1 ────────────────────────────────────
@@ -505,7 +829,7 @@ void NodeEditorIdeObject::startVideoPlayback()
             cfg["url"] = streamUrl;
         srcModel->load(cfg);
 
-        QWidget* w = srcModel->embeddedWidget();
+        QWidget* w = m_Widget->nodeWidget(srcId);
         if (w != nullptr) {
             const auto buttons = w->findChildren<QPushButton*>();
             for (QPushButton* b : buttons) {
@@ -522,7 +846,7 @@ void NodeEditorIdeObject::startVideoPlayback()
     // line + badge).
     auto* outModel = gm->delegateModel<QtNodes::NodeDelegateModel>(outId);
     if (outModel != nullptr) {
-        QWidget* w = outModel->embeddedWidget();
+        QWidget* w = m_Widget->nodeWidget(outId);
         if (w != nullptr) {
             const auto checks = w->findChildren<QCheckBox*>();
             for (QCheckBox* c : checks) {

@@ -1,0 +1,89 @@
+{
+    "connections": [
+        {
+            "inNodeId": 0,
+            "inPortIndex": 0,
+            "outNodeId": 1,
+            "outPortIndex": 0
+        }
+    ],
+    "nodes": [
+        {
+            "id": 0,
+            "internal-data": {
+                "model-name": "AudioDisplay",
+                "plots": [
+                    {
+                        "channel": 0,
+                        "mode": "normalized",
+                        "processing": "time",
+                        "title": "Plot 1",
+                        "unitAxes": true
+                    }
+                ],
+                "ringSeconds": 10
+            },
+            "label": "",
+            "labelVisible": true,
+            "position": {
+                "x": -91,
+                "y": -227
+            }
+        },
+        {
+            "id": 1,
+            "internal-data": {
+                "model-name": "AudioSource",
+                "name": "AudioSource"
+            },
+            "label": "",
+            "labelVisible": true,
+            "position": {
+                "x": -200,
+                "y": 178
+            }
+        }
+    ],
+    "ui": {
+        "nodes": {
+            "0": {
+                "autoStart": true,
+                "deembedded": true,
+                "geometry": {
+                    "h": 739,
+                    "maximized": false,
+                    "w": 1012,
+                    "x": 2249,
+                    "y": 1076
+                },
+                "workspace": 0
+            },
+            "1": {
+                "autoStart": true,
+                "deembedded": true,
+                "geometry": {
+                    "h": 55,
+                    "maximized": false,
+                    "w": 95,
+                    "x": 1590,
+                    "y": 1245
+                },
+                "workspace": 0
+            }
+        },
+        "version": 1,
+        "workspaces": [
+            {
+                "geometry": {
+                    "h": 1291,
+                    "maximized": false,
+                    "w": 1753,
+                    "x": 1408,
+                    "y": 696
+                },
+                "id": 0,
+                "tabbed": true
+            }
+        ]
+    }
+}

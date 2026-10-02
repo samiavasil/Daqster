@@ -1,0 +1,38 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "internal-data": {
+        "model-name": "VideoFileSource",
+        "filePath": "/tmp/test.mp4"
+      }
+    },
+    {
+      "id": 1,
+      "internal-data": {
+        "model-name": "FrameSampler",
+        "interval": 5
+      }
+    },
+    {
+      "id": 2,
+      "internal-data": {
+        "model-name": "VideoOutput"
+      }
+    }
+  ],
+  "connections": [
+    [
+      0,
+      0,
+      1,
+      0
+    ],
+    [
+      1,
+      0,
+      2,
+      0
+    ]
+  ]
+}

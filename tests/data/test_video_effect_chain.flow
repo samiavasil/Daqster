@@ -1,0 +1,51 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "internal-data": {
+        "model-name": "VideoFileSource",
+        "filePath": "/tmp/test.mp4"
+      }
+    },
+    {
+      "id": 1,
+      "internal-data": {
+        "model-name": "VideoEffect",
+        "effect": "blur"
+      }
+    },
+    {
+      "id": 2,
+      "internal-data": {
+        "model-name": "VideoEffect",
+        "effect": "edge"
+      }
+    },
+    {
+      "id": 3,
+      "internal-data": {
+        "model-name": "VideoOutput"
+      }
+    }
+  ],
+  "connections": [
+    [
+      0,
+      0,
+      1,
+      0
+    ],
+    [
+      1,
+      0,
+      2,
+      0
+    ],
+    [
+      2,
+      0,
+      3,
+      0
+    ]
+  ]
+}

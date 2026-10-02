@@ -1,0 +1,124 @@
+#ifndef NETWORKSOURCEMODEL_H
+#define NETWORKSOURCEMODEL_H
+
+#include "demo_nodeditor_nodes_core_export.h"
+
+#include "NodeDataTypes/SampledData.h"
+#include "shared/IStoppable.h"
+#include "shared/IStartable.h"
+
+#include <QtNodes/NodeDelegateModel>
+
+#include <QByteArray>
+#include <QHostAddress>
+
+#include <memory>
+
+class QTcpServer;
+class QTcpSocket;
+class QUdpSocket;
+
+/**
+ * @brief Network Source node model (REQ-SW-PL-044).
+ *
+ * Thin NodeDelegateModel controller: 1 output port (SampledData "sample").
+ * Listens on a port (UDP via QUdpSocket, TCP via QTcpServer), receives
+ * length-prefixed frames (magic "MSSD"), reconstructs a SampledData using the
+ * UI-configured descriptor (sampleRate, channels) and emits dataUpdated(0).
+ *
+ * Connection-count gating (model of SystemMonitorModel/FilePlaybackModel): the
+ * listener runs only while the user pressed Start AND at least one output
+ * connection exists; removing the last connection auto-stops the listener.
+ *
+ * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
+ * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
+ */
+class DEMO_NODEDITOR_NODES_CORE_EXPORT NetworkSourceModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
+{
+    Q_OBJECT
+
+public:
+    NetworkSourceModel();
+    ~NetworkSourceModel() override;
+
+    QString caption() const override
+    { return QStringLiteral("Network Source"); }
+
+    bool captionVisible() const override
+    { return false; }
+
+    QString name() const override
+    { return QStringLiteral("NetworkSource"); }
+
+    QJsonObject save() const override;
+    void load(QJsonObject const &p) override;
+
+    unsigned int nPorts(QtNodes::PortType portType) const override;
+
+    QtNodes::NodeDataType dataType(QtNodes::PortType portType,
+                                   QtNodes::PortIndex portIndex) const override;
+
+    std::shared_ptr<QtNodes::NodeData> outData(QtNodes::PortIndex port) override;
+
+    void setInData(std::shared_ptr<QtNodes::NodeData> data,
+                   QtNodes::PortIndex port) override;
+
+    QWidget *embeddedWidget() override { return nullptr; }
+
+    /// Stop the network listener. Idempotent — safe to call multiple times
+    /// (REQ-SW-PL-050).
+    void stop() override;
+
+    /// Start listening programmatically (runtime autoStart, REQ-SW-PL-048).
+    void start() override;
+
+    void outputConnectionCreated(QtNodes::ConnectionId const &) override;
+    void outputConnectionDeleted(QtNodes::ConnectionId const &) override;
+
+signals:
+    void statusChanged(const QString &status);
+
+public slots:
+    void onStartRequested();
+    void onStopRequested();
+    void onProtocolChanged(const QString &protocol);
+    void onHostChanged(const QString &host);
+    void onPortChanged(int port);
+    void onSampleRateChanged(double rate);
+    void onChannelCountChanged(int count);
+    void onChannelTypeChanged(const QString &type);
+    void onUdpReadyRead();
+    void onTcpNewConnection();
+    void onTcpReadyRead();
+    void onTcpDisconnected();
+
+private:
+    void startListening();
+    void stopListening();
+    void handleFrame(const QByteArray &payload);
+    void updateStatus(const QString &status);
+
+    QUdpSocket *m_udpSocket = nullptr;
+    QTcpServer *m_tcpServer = nullptr;
+    QTcpSocket *m_tcpSocket = nullptr;
+    QByteArray m_tcpBuffer;
+    std::shared_ptr<SampledData> m_output;
+    int m_connectionCount = 0;
+    bool m_userStarted = false;
+    bool m_listening = false;
+    qint64 m_bytesReceived = 0;
+    bool m_warnedDescriptorMismatch = false;
+
+    // Config from GUI widget. sampleRate / channelCount / channelType are
+    // ADVISORY since frame v2: the wire descriptor is authoritative and the
+    // payload is never re-interpreted to match these. They are kept so the node
+    // can report when they disagree with the stream it is actually receiving.
+    QString m_protocol = "UDP";
+    QString m_host = "127.0.0.1";
+    int m_port = 5000;
+    double m_sampleRate = 1000.0;
+    int m_channelCount = 2;
+    QString m_channelType = "INT16";
+};
+
+#endif // NETWORKSOURCEMODEL_H

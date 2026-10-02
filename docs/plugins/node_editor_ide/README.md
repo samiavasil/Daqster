@@ -11,7 +11,7 @@
 - QtNodes canvas с поддръжка на кръгови връзки
 
 **Локация:** `src/plugins/node_editor_ide/`
-**Име на .so:** `libNodeEditorPluginIde.so`
+**Име на .so:** `libNodeEditorIde.so` (REQ-SW-PL-051: преименувано от `libNodeEditorPluginIde.so`)
 
 ## Архитектура
 

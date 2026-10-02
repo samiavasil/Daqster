@@ -1,0 +1,95 @@
+#ifndef SYSTEMMONITORMODEL_H
+#define SYSTEMMONITORMODEL_H
+
+#include "demo_nodeditor_nodes_core_export.h"
+
+#include "NodeDataTypes/SampledData.h"
+#include "SystemMonitorEngine.h"
+#include "shared/IStoppable.h"
+#include "shared/IStartable.h"
+
+#include <QtNodes/NodeDelegateModel>
+
+#include <memory>
+
+/**
+ * @brief System Monitor source node model (REQ-SW-PL-041).
+ *
+ * Thin NodeDelegateModel controller: 1 output port (SampledData "sample"),
+ * owns the SystemMonitorEngine (Linux /proc + /sys telemetry). Each poll wraps
+ * the current metric values in a shared_ptr<SampledData> with a
+ * SampledStreamDescriptor (domain="system", 5 FLOAT32 channels) and emits
+ * dataUpdated(0).
+ *
+ * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
+ * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
+ *
+ * Connection-count gating (model of PlutoSdrModel/VideoFileSourceNode): the
+ * engine polls only while the user pressed Start AND at least one output
+ * connection exists; removing the last connection auto-stops the polling
+ * (clean teardown).
+ */
+class DEMO_NODEDITOR_NODES_CORE_EXPORT SystemMonitorModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
+{
+    Q_OBJECT
+
+public:
+    SystemMonitorModel();
+    ~SystemMonitorModel() override;
+
+    QString caption() const override
+    { return QStringLiteral("System Monitor"); }
+
+    bool captionVisible() const override
+    { return false; }
+
+    QString name() const override
+    { return QStringLiteral("SystemMonitor"); }
+
+    QJsonObject save() const override;
+    void load(QJsonObject const &p) override;
+
+    unsigned int nPorts(QtNodes::PortType portType) const override;
+
+    QtNodes::NodeDataType dataType(QtNodes::PortType portType,
+                                   QtNodes::PortIndex portIndex) const override;
+
+    std::shared_ptr<QtNodes::NodeData> outData(QtNodes::PortIndex port) override;
+
+    void setInData(std::shared_ptr<QtNodes::NodeData> data,
+                   QtNodes::PortIndex port) override;
+
+    QWidget *embeddedWidget() override { return nullptr; }
+
+    /// Stop the polling timer. Idempotent — safe to call multiple times
+    /// (REQ-SW-PL-050).
+    void stop() override;
+
+    /// Start polling programmatically (runtime autoStart, REQ-SW-PL-048).
+    void start() override;
+
+    void outputConnectionCreated(QtNodes::ConnectionId const &) override;
+    void outputConnectionDeleted(QtNodes::ConnectionId const &) override;
+
+    // Accessor for GUI widget factory
+    SystemMonitorEngine* engine() const { return m_engine; }
+
+public slots:
+    void onStartRequested();
+    void onStopRequested();
+    void onIntervalChanged(double sec);
+    void onMetricsChanged(bool cpu, bool ram, bool temp, bool network);
+    void onMetricsReady(const SystemMonitorMetrics &m);
+    void onErrorOccurred(const QString &message);
+
+private:
+    void updateEngineConfig();
+    void setPollingEnabled(bool enabled);
+
+    SystemMonitorEngine *m_engine = nullptr;
+    std::shared_ptr<SampledData> m_output;
+    int m_connectionCount = 0;
+    bool m_userStarted = false;
+};
+
+#endif // SYSTEMMONITORMODEL_H

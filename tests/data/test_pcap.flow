@@ -1,0 +1,26 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "internal-data": {
+        "model-name": "PcapCapture",
+        "interface": "any",
+        "filter": ""
+      }
+    },
+    {
+      "id": 1,
+      "internal-data": {
+        "model-name": "NumberResult"
+      }
+    }
+  ],
+  "connections": [
+    [
+      0,
+      0,
+      1,
+      0
+    ]
+  ]
+}

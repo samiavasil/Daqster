@@ -1,0 +1,25 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "internal-data": {
+        "model-name": "StreamSource",
+        "url": "http://localhost:8080/stream"
+      }
+    },
+    {
+      "id": 1,
+      "internal-data": {
+        "model-name": "VideoOutput"
+      }
+    }
+  ],
+  "connections": [
+    [
+      0,
+      0,
+      1,
+      0
+    ]
+  ]
+}

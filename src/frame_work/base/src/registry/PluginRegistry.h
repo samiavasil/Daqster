@@ -1,8 +1,9 @@
 #ifndef PLUGINREGISTRY_H
 #define PLUGINREGISTRY_H
 
-#include "build_cfg.h"
+#include "framework_core_export.h"
 #include "PluginDescription.h"
+#include <capabilities/IRuntimeHost.h>  // RuntimeMode (by value in the API)
 #include <QObject>
 #include <QMap>
 #include <QString>
@@ -13,6 +14,8 @@ namespace Daqster {
 
 class QPluginInterface;
 class QBasePluginObject;
+class INodeProvider;
+class IWidgetProvider;
 
 /**
  * @brief Handles runtime plugin registration and instance management.
@@ -23,7 +26,7 @@ class QBasePluginObject;
  * - Managing plugin lifecycle (enable/disable, shutdown)
  * - Providing capability discovery via instances()
  */
-class FRAME_WORKSHARED_EXPORT PluginRegistry : public QObject
+class FRAMEWORK_CORE_EXPORT PluginRegistry : public QObject
 {
     Q_OBJECT
 
@@ -114,11 +117,61 @@ public:
     void shutdownAll();
 
     /**
+     * @brief Collect all live plugin object instances across all interfaces.
+     *
+     * Used by QPluginManager::ShutdownPluginManager() to synchronously delete
+     * plugin objects (and join their threads) while the event loop is still
+     * alive — the async deleteLater() chain is not processed once the loop
+     * exits (aboutToQuit), leaving threads running during ~QApplication.
+     *
+     * @return List of all QBasePluginObject instances
+     */
+    QList<QBasePluginObject*> allPluginInstances() const;
+
+    /**
      * @brief Find all instances implementing a given interface
      * @param iid Interface ID string
      * @return List of QObject pointers implementing the interface
      */
     QList<QObject*> instances(const char* iid);
+
+    /**
+     * @brief Find all plugin objects implementing the INodeProvider capability.
+     *
+     * INodeProvider is a non-QObject interface (implementers already inherit
+     * QObject via QBasePluginObject), so it cannot participate in
+     * Q_INTERFACES/qt_metacast. Use this instead of instances(INodeProvider_IID).
+     *
+     * @return List of INodeProvider pointers (lazily instantiating plugins)
+     */
+    QList<Daqster::INodeProvider*> nodeProviders();
+
+    /**
+     * @brief Find all plugin objects implementing the IWidgetProvider capability
+     *        (REQ-SW-PL-051 core/gui split).
+     *
+     * A node model whose widget lives in a separate GUI plugin returns nullptr
+     * from embeddedWidget(); the node editor asks these providers for the
+     * widget instead. Probed with dynamic_cast for the same reason as
+     * nodeProviders() — IWidgetProvider is a non-QObject interface.
+     *
+     * @return List of IWidgetProvider pointers (lazily instantiating plugins)
+     */
+    QList<Daqster::IWidgetProvider*> widgetProviders();
+
+    /**
+     * @brief Find all plugin objects implementing the IRuntimeHost capability
+     *        for a given runtime mode (REQ-SW-PL-053).
+     *
+     * IRuntimeHost is a non-QObject interface, so like INodeProvider it is
+     * probed with dynamic_cast rather than qt_metacast. Hosts of the other
+     * mode are filtered out so a runner can ask for exactly the flavour it
+     * needs and never accidentally start the wrong engine.
+     *
+     * @param mode Runtime mode to filter by
+     * @return List of IRuntimeHost pointers (lazily instantiating plugins)
+     */
+    QList<Daqster::IRuntimeHost*> runtimeHosts(Daqster::RuntimeMode mode);
 
     // ── Additional methods for full QPluginManager delegation ─────
 
@@ -156,6 +209,27 @@ signals:
     void pluginListChanged();
 
 private:
+    /**
+     * @brief Instance list of a plugin interface, creating a registry-owned
+     *        object when the plugin has none yet.
+     *
+     * Capability objects are handed out as raw pointers to callers that keep
+     * them for the whole session (the node editor stores IWidgetProvider in
+     * its graph model), so anything this method creates is parented to the
+     * registry and dies with it instead of floating free.
+     */
+    QList<QBasePluginObject*> capabilityInstances(QPluginInterface* iface, const QString& hash);
+
+    /**
+     * @brief Call Initialize() on a plugin object at most once.
+     *
+     * A capability object is useless until initialized (e.g.
+     * DemoNodeEditorNodesGuiObject builds its NodeWidgetFactory there), and
+     * plugins are not guaranteed to have been initialized by the launcher.
+     * Objects that failed to initialize are retried on the next discovery.
+     */
+    static void ensureInitialized(QBasePluginObject* obj);
+
     QMap<QString, QPluginInterface*> m_pluginMap;
     QMap<QString, PluginDescription> m_descriptions;
     std::function<void(const PluginDescription&)> m_persistenceCallback;

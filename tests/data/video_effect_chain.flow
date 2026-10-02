@@ -1,73 +1,165 @@
 {
+    "connections": [
+        {
+            "inNodeId": 1,
+            "inPortIndex": 0,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        },
+        {
+            "inNodeId": 2,
+            "inPortIndex": 0,
+            "outNodeId": 1,
+            "outPortIndex": 0
+        },
+        {
+            "inNodeId": 3,
+            "inPortIndex": 0,
+            "outNodeId": 2,
+            "outPortIndex": 0
+        }
+    ],
     "nodes": [
         {
             "id": 0,
             "internal-data": {
-                "model-name": "VideoFileSource",
-                "filePath": ""
+                "filePath": "/mnt/Builder/Projects/samiavasil/DaqsterAiStudio/tests/data/bars_h265_1080p25_x3.mp4",
+                "model-name": "VideoFileSource"
             },
             "label": "VideoFileSource",
             "labelVisible": true,
             "position": {
-                "x": -400.0,
-                "y": 0.0
+                "x": -400,
+                "y": 0
             }
         },
         {
             "id": 1,
             "internal-data": {
-                "model-name": "VideoEffect"
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "effect": "brightness",
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoEffect",
+                "thresholdValue": 128
             },
             "label": "VideoEffect",
             "labelVisible": true,
             "position": {
-                "x": -130.0,
-                "y": 0.0
+                "x": -130,
+                "y": 0
             }
         },
         {
             "id": 2,
             "internal-data": {
-                "model-name": "VideoEffect"
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "effect": "brightness",
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoEffect",
+                "thresholdValue": 128
             },
             "label": "VideoEffect",
             "labelVisible": true,
             "position": {
-                "x": 130.0,
-                "y": 0.0
+                "x": 130,
+                "y": 0
             }
         },
         {
             "id": 3,
             "internal-data": {
-                "model-name": "VideoOutput"
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoOutput",
+                "thresholdValue": 128
             },
             "label": "VideoOutput",
             "labelVisible": true,
             "position": {
-                "x": 400.0,
-                "y": 0.0
+                "x": 400,
+                "y": 0
             }
         }
     ],
-    "connections": [
-        {
-            "outNodeId": 0,
-            "outPortIndex": 0,
-            "inNodeId": 1,
-            "inPortIndex": 0
+    "ui": {
+        "nodes": {
+            "0": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 109,
+                    "maximized": false,
+                    "w": 333,
+                    "x": 1260,
+                    "y": 690
+                },
+                "workspace": 0
+            },
+            "1": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 160,
+                    "maximized": false,
+                    "w": 366,
+                    "x": 1593,
+                    "y": 690
+                },
+                "workspace": 0
+            },
+            "2": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 160,
+                    "maximized": false,
+                    "w": 366,
+                    "x": 1593,
+                    "y": 886
+                },
+                "workspace": 0
+            },
+            "3": {
+                "autoStart": false,
+                "deembedded": true,
+                "geometry": {
+                    "h": 474,
+                    "maximized": false,
+                    "w": 328,
+                    "x": 1239,
+                    "y": 1159
+                },
+                "workspace": 0
+            }
         },
-        {
-            "outNodeId": 1,
-            "outPortIndex": 0,
-            "inNodeId": 2,
-            "inPortIndex": 0
-        },
-        {
-            "outNodeId": 2,
-            "outPortIndex": 0,
-            "inNodeId": 3,
-            "inPortIndex": 0
-        }
-    ]
+        "version": 1,
+        "workspaces": [
+            {
+                "geometry": {
+                    "h": 1173,
+                    "maximized": false,
+                    "w": 1624,
+                    "x": 2143,
+                    "y": 535
+                },
+                "id": 0,
+                "tabbed": true
+            }
+        ]
+    }
 }

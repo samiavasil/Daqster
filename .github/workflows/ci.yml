@@ -78,7 +78,9 @@ jobs:
 
       - name: Build
         run: |
-          cmake --build build -j
+          # Same OOM as the Linux Qt6 job: `-j` with no number is unbounded
+          # under Unix Makefiles and kills cc1plus on the 16 GB runner.
+          cmake --build build -j "$(nproc)"
 
       - name: Run tests (offscreen)
         env:

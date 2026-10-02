@@ -28,4 +28,20 @@ private slots:
     // alias (not the QDevIO obsolete node).
     void genericDisplay_aliasBehavior();
     void registry_aliasResolution();
+
+    // The widget rebuilds its whole chart tree on plotCardsChanged. That signal
+    // used to fire on EVERY incoming sample (refresh() ran from setInData()),
+    // so an audio stream tore down and rebuilt the QtCharts tree per buffer and
+    // pinned the GUI thread at ~99% — the app froze and had to be killed.
+    void plotCardsChanged_notFiredPerSample();
+    void plotCardsChanged_firedWhenDescriptorChanges();
+
+    // DaqDisplayWidget::rebuildCards() drained its card list with
+    //   while (!m_cards.isEmpty()) destroyCard(m_cards.last());
+    // but destroyCard() only zeroes the entry — it never removed it, and
+    // isEmpty() tests the size. The loop therefore never terminated and the
+    // GUI thread spun at 100% forever on the first rebuild of a non-empty
+    // model. A rebuild of a populated model must return and keep the card
+    // count stable across repeated rebuilds.
+    void widget_rebuildCards_terminatesAndIsStable();
 };

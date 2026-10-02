@@ -9,13 +9,11 @@
 #include <QMap>
 #include <QVector>
 
-#include "NodeEditorLibraryExport.h"
-
 namespace Ui {
 class QDevioDisplayModelUiObsolete;
 }
 
-class NODE_EDITOR_LIBRARY_EXPORT QDevioDisplayModelUiObsolete : public QWidget
+class QDevioDisplayModelUiObsolete : public QWidget
 {
     Q_OBJECT
 

@@ -6,7 +6,204 @@
 
 ## [Unreleased]
 
+### Added (core/gui split)
+- **REQ-SW-PL-051** — **`IWidgetProvider` capability**
+  (`src/plugins/common/capabilities/IWidgetProvider.h`): плосък (non-QObject)
+  интерфейс `createWidget(NodeDelegateModel*)` за плъгини, които доставят widget-а
+  на модел, живеещ в widget-free core plugin. Открива се с `dynamic_cast` през
+  `PluginRegistry::widgetProviders()`, както `INodeProvider` и `IRuntimeHost`.
+- **REQ-SW-PL-051** — **`NodeWidgetFactory`** в `demo_nodeditor_nodes_gui`: 28
+  creators, ключирани по `NodeDelegateModel::name()`. Widget-ите не държат pointer
+  към модела — дърпат състояние чрез setter-и и връщат заявки чрез сигнали, така че
+  зависимостта е еднопосочна (gui → core).
+- **REQ-SW-PL-051** — **`ChatGraphModel::nodeData(NodeRole::Widget)` override** —
+  единственото място в дървото, където се вика `provider->createWidget()`, с
+  per-`NodeId` кеш (`QPointer<QWidget>`), чистен на `nodeDeleted` и при смяна на
+  provider-а. Кешът е задължителен: QtNodes пита `NodeRole::Widget` 4–5 пъти на
+  node, а нов widget без layout измерва 640×480, така че без кеш node box-ът се
+  оразмерява по изхвърлен widget.
+- **REQ-SW-PL-051** — **`PluginRegistry::capabilityInstances()` /
+  `ensureInitialized()`** — споделени probes за node/widget providers, преизползвани
+  от `instances()` и `runtimeHosts()`.
+- **REQ-SW-PL-051** — `NodeEditorWidget::nodeWidget()` и `stopAllNodes()`, плюс
+  `RuntimeShell` deembed през тях: plugin-и извън node editor-а не се сблъскват с
+  `ChatGraphModel`.
+
+### Changed (core/gui split)
+- **REQ-SW-PL-051** — 28 от 30 node модела вече не конструират widget-и:
+  `embeddedWidget()` връща `nullptr`, а widget-ът идва от GUI plugin-а. Покрити са
+  video, audio, display, number, operator, file, network, system, gamepad и LLM
+  моделите, плюс alias-ите им.
+- **REQ-SW-PL-051** — премахнати дублираните built-in node модели в
+  `node_editor_ide/BuiltInNodes/{Sources,Displays,Operators}/` и целият
+  `NodeEditorBuiltInNodes` компонент; `PluginsListChangeDetected` е свързан, за да
+  се откриват новозаредени external plugin-и.
+- **REQ-SW-PL-051** — `PluginRegistry::nodeProviders()` и `instances(iid)` вече **не**
+  инициализират plugin object, когото не са съвпаднали по capability. Иначе
+  `FrameworkGuiPluginObject` — който конструира цял `RuntimeShell` (MDI +
+  QtWidgets + OpenGL) в конструктора си — се издърпваше в headless процес.
+- **REQ-SW-PL-051** — plugin обектите са parentless
+  (`createPluginObject(hash, nullptr)`). Родителството към registry-то ги правеше
+  QObject деца, а `QPluginManager::ShutdownPluginManager()` вече ги `delete`-ва
+  изрично → double-free.
+- **REQ-SW-PL-051** — `Daqster/main.cpp::PluginsInit()` не унищожава повече
+  обектите, които създава. `deleteLater()`-ването на обект, чийто `IWidgetProvider`
+  е кеширан в `ChatGraphModel`, оставяше dangling vtable и чупеше при всяко
+  следващо добавяне на node.
+
+### Fixed (core/gui split)
+- **REQ-SW-PL-051** — падане при затваряне на NodeEditorIDE прозореца по време на
+  възпроизвеждане на flow (SIGSEGV при exit). `NodeEditorIdeObject::
+  discoverAndRegisterExternalNodes()` dereference-ваше `m_Widget` без null-проверка;
+  `MainWinDestroyed()` вече беше го занулил, а plugin teardown минава след
+  затварянето на прозореца. Еквивалентът в `RuntimeShell` имаше проверката.
+- **REQ-SW-PL-051** — `NodeEditorWidget::stopAllNodes()` се вика при затваряне на IDE
+  прозореца (`QEvent::Close` + `DeInitialize()`) — flow-ът спираше да върви.
+- **REQ-SW-PL-051** — `RuntimeShell::arrangeWorkspaces()` показваше само един
+  VideoOutput tab. Ползваше `model->embeddedWidget()`, който е `nullptr` за всички
+  разделени модели; сега ползва `m_editorWidget->nodeWidget(nodeId)`.
+- **REQ-SW-PL-051** — node-ите не се оразмеряваха спрямо widget-а си. Втори widget за
+  същия модел се строеше в 6 места — всички вече ползват един кеширан accessor, а
+  дублирането беше причината segfault-ът да се проявява надеждно.
+- **REQ-SW-PL-051** — `NodeRunner --headless --run` падаше (exit 134/139) на flow-и с
+  неподдържани headless типове. Пътят минава през `return` от `main()` преди
+  `ShutdownPluginManager()`, така че lifetime грешките се проявяваха точно там — като
+  heap corruption при разтоварване на `libGLX`. Сега излиза чисто с exit 1.
+
+### Removed (core/gui split)
+- **REQ-SW-PL-051** — мъртви include директории от `src/frame_work/CMakeLists.txt` и
+  `src/plugins/node_editor_ide/CMakeLists.txt`, сочещи към изтрити
+  `BuiltInNodes/{Sources,Displays,Operators}/`.
+
+### Known limitations (core/gui split)
+- **REQ-SW-PL-051** — 2 от 30 node модела не са разделени. `VideoOutputNode`
+  конструира `VideoGLBlitWidget` + `VideoPerfBadge` и е отложен до обединението с
+  video-display веригата (REQ-SW-PL-053) — то пренарежда точно този файл и сменя
+  начина на доставяне на widget-а. `AudioDisplayModelObsolete` наследява
+  widget-building `QDevIoDisplayModelObsolete` от `BuiltInNodes/Library/display/`,
+  затова `_core` още компилира 7 QtWidgets translation unit-а оттам.
+- **REQ-SW-PL-051 AC 2 е блокиран** (същото ограничение като AC 7 на REQ-SW-PL-053):
+  headless binary без `QtWidgets` не е постижим. `NodeRunner` не линква нито един
+  Daqster plugin (само `FrameworkCore`), но `QApplication` (Qt5: в `QtWidgets`)
+  остава необходим за headless.
+- **REQ-SW-PL-051 AC 7** — unit тестове за split-а са отложени по стоящата инструкция
+  „НОВИ ТЕСТОВЕ СТОП". `ctest` 11/11 на Qt5 и Qt6.
+
+### Documentation (core/gui split)
+- **REQ-SW-PL-051** — пренаписан `docs/Architecture/core-gui-split.md` в
+  съответствие с реалната топология (`src/frame_work/`, `src/plugins/`,
+  `src/apps/`), с `IWidgetProvider`, кеша на widget-ите, инварианта „един widget на
+  node", правилата, които пазят headless режима headless, и миграционен гайд за нов
+  node. REQ файлът е актуализиран с измереното състояние (28/30) и с откритите при
+  прегледа регресии.
+- **REQ-SW-PL-051** — plan-ът
+  `DevelopmentProcess/plans/REQ-SW-PL-051-core-gui-split-implementation.md` е
+  маркиран **SUPERSEDED**: описва дизайн (`DaqsterCore`/`DaqsterGui` библиотеки,
+  `DaqsterHeadless`, `DAQSTER_BUILD_STATIC`), който не е имплементиран. Оставен е за
+  история, не като pending work.
+
 ### Added
+- **REQ-SW-PL-053** (Core/Gui plugin split — runtime, избран от plugin management):
+  - **Едно dual-mode приложение `NodeRunner`**, което избира engine-а **в runtime**
+    според опциите, вместо да ги линква:
+    - `NodeRunner --run <flow.flow>` → `FrameworkGuiPlugin` → `RuntimeShell` (GUI)
+    - `NodeRunner --headless --run <flow.flow>` → `FrameworkCorePlugin` → `HeadlessEngine`
+  - **`IRuntimeHost` capability** (`src/plugins/common/capabilities/IRuntimeHost.h`):
+    плосък (non-QObject) интерфейс с `runtimeMode()` / `loadFlow()` / `stopAllNodes()`.
+    Открива се с `dynamic_cast`, както `INodeProvider` — не през `qt_metacast`.
+  - **`QPluginManager::runtimeHosts(RuntimeMode)`** +
+    `PluginRegistry::runtimeHosts(RuntimeMode)`: lazy инстанциране на plugin-ите и
+    филтриране по мод. Runner-ът не реферира конкретен plugin тип — само интерфейса.
+  - **`FrameworkGuiPlugin`** (`src/plugins/FrameworkGuiPlugin/`): нов plugin,
+    надягащ на `RuntimeShell` (преместен от `node_editor_ide`) и `VideoGLBlitWidget`;
+    притежава `RuntimeShell` като QObject дете. Само той носи QtWidgets.
+  - **`FrameworkCorePlugin`** вече притежава `HeadlessEngine` и имплементира
+    `IRuntimeHost` (Headless mode).
+  - **Plugin isolation:** `readelf -d build_qt5/bin/NodeRunner` показва единствено
+    `libFrameworkCore.so` от страната на Daqster — `NodeEditorIde`,
+    `FrameworkGuiPlugin`, `FrameworkCorePlugin` и `DemoNodeEditorNodesCore` се
+    резолвират изцяло чрез `dlopen`. Размер на `NodeRunner`: 74 KB → **56 KB**
+    (Qt5) / 90 KB (Qt6).
+
+### Changed
+- **REQ-SW-PL-053:** `NodeEditorWidget`, `CustomDataFlowScene` и `FlowUiSection`
+  преместени от plugin-а `NodeEditorIde` в споделената библиотека
+  `NodeEditorLibrary`. `RuntimeShell` ги използва (registry, scene, graph model),
+  така че иначе `FrameworkGuiPlugin` би трябвало да резолвира символи от друг
+  plugin (`undefined symbol: NodeEditorWidget::getInjectedRegistry()`).
+- **REQ-SW-PL-053:** `NodeEditorIdeObject::RunRuntime()` премахнат (мъртъв код след
+  REQ-SW-PL-051); редакторът вече не изпълнява flows. F11 presentation mode
+  остава редакторска функция.
+- **REQ-SW-PL-053:** коректен shutdown ред в `NodeRunner` — `stopAllNodes()` се
+  вика през `aboutToQuit`, **свързан преди** `QPluginManager::Initialize()`.
+  `ShutdownPluginManager()` е свързан към `aboutToQuit` и унищожава plugin
+  обектите (и engine-а, който притежават) *преди* `app.exec()` да върне; извикване
+  след `exec()` работи през dangling pointer и дава „pure virtual method called".
+  Нодовете вече се спират при SIGTERM (`HeadlessEngine: stopping all nodes`).
+
+### Known limitations
+- **REQ-SW-PL-053 AC 7 е изключен:** headless binary **без** `QtWidgets` не е
+  постижим в момента. Причини: (1) в Qt5 `QApplication` е в `QtWidgets`, а
+  dual-mode binary трябва да може да показва GUI; (2) node моделите конструират
+  widgets в конструктора си, така че дори `QGuiApplication` build пада в
+  `QWidgetPrivate::init()`. Изисква per-node core/GUI split (продължение на
+  REQ-SW-PL-051).
+
+### Documentation
+- **REQ-SW-PL-054** (REST API & Remote Control) — **PLANNED / NOT IMPLEMENTED**.
+  Изискване: `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-054-rest-api-remote-control.md`.
+  Архитектурен документ (**PLANNED**, не описва реализиран код):
+  `docs/Architecture/rest-api-remote-control.md` — generic REST server върху
+  `NodeDelegateModel::save()/load()`, Thin Client remote GUI, streaming и
+  multi-user като бъдещи REQ-и.
+- Дублиращият се REQ-SW-PL-053 файл (`nodeeditor-plugin-split.md`) е премахнат;
+  каноничен е `nodeeditoride-split.md`.
+
+### Added (runtime mode)
+- **REQ-SW-PL-048** (Runtime режим — `--run <flow.flow>`, MDI workspaces, autoStart, presentation toggle):
+  - CLI: `Daqster --run <file.flow>` стартира runtime режим без editor canvas
+  - `RuntimeShell` class (`src/plugins/node_editor_ide/RuntimeShell.{h,cpp}`):
+    - QMainWindow shell с QMdiArea workspaces (SDRangel модел)
+    - Reuses `NodeEditorIdeObject` registration + loading logic
+    - MDI layout: per-workspace QMdiArea, tabbed/SubWindow view mode
+    - Two-step deembed: `setWidgetEmbedded(false)` → `QMdiSubWindow::setWidget()`
+    - Window flags: `Qt::WindowStaysOnTopHint` cleared after reparenting
+    - Auto-start: generic `IStartable` interface implemented by all source/sink nodes
+    - Clean shutdown: `IStoppable::stop()` on all nodes on window close
+  - `IStartable` interface (`src/plugins/demo_nodeditor_nodes/shared/IStartable.h`):
+    - Implemented by: PlutoSdr, Pcap, VideoFileSource, StreamSource, CameraSource,
+      AudioSource, Gamepad, SystemMonitor, GpuMonitor, JackDetect, FilePlayback,
+      NetworkSource, FileRecord, NetworkSink, LLamaModel
+    - Delegates to existing start logic (onStartRequested/onPlayPauseClicked/onConnectClicked/onStartStopClicked)
+  - Presentation toggle в editor-а (F11): скрива canvas, показва деембеднати виджети
+    като top-level прозорци; toggle back възстановява editor режим
+  - Код: `src/apps/Daqster/main.cpp` (--run флаг), `src/plugins/node_editor_ide/`
+    (RuntimeShell, NodeEditorIdeObject), `src/plugins/demo_nodeditor_nodes/`
+    (IStartable implementations)
+  - Верификация: Qt5/Qt6 builds PASS + --run smoke PASS + MDI layout PASS +
+    autoStart PASS + window flags PASS (Qt5/Qt6) + clean exit PASS + invalid flow
+    PASS + F11 toggle PASS
+
+- **REQ-SW-PL-049** (.flow "ui" секция — runtime layout на деембеднатите виджети):
+  - `FlowUiSection.{h,cpp}` — plain structs (без Q_OBJECT): `FlowUi::Geometry`
+    `{x,y,w,h,maximized}`, `FlowUi::NodeUi` (deembedded, workspace, geometry,
+    autoStart), `FlowUi::WorkspaceUi` (id, geometry, tabbed), `FlowUi::UiSection`
+    (version, workspaces, nodes) с `toJson()`/`fromJson()`
+  - Save (`NodeEditorIdeObject::saveSceneToFile()`): граф JSON + groups
+    (byte-identical на `DataFlowGraphicsScene::save()`) + `"ui"` секция;
+    файлът се записва indented; geometry key се емитира само за deembedded
+    нодове; custom формат `{x,y,w,h,maximized}` (НЕ `QWidget::saveGeometry`)
+  - Load (`loadSceneFromFile()` + `applyUiSection()`): "ui" секцията се
+    извлича преди node-cleaning loop-а и се прилага след успешен load —
+    възстановява deembed state + geometry + autoStart флагове; tolerant
+    guard за липсващи нодове; стар .flow без "ui" → текущо поведение;
+    version > 1 → warning + празна секция
+  - Код: `src/plugins/node_editor_ide/` (FlowUiSection, NodeEditorIdeObject)
+  - Верификация: Qt5/Qt6 builds PASS + ctest 11/11 green (Qt5) + FlowUiSection
+    JSON round-trip smoke PASS + IDE smoke PASS (capture/apply: deembed +
+    geometry + autoStart, offscreen) + load smoke PASS (ръчен .flow с "ui"
+    секция, без crash) + old-flow regression PASS (без "ui", без crash);
+    unit тестове отложени (стоящата инструкция „НОВИ ТЕСТОВЕ СТОП")
 - **REQ-SW-PL-044** (UDP/TCP Source + Sink network DAQ nodes — MSSD framing):
   - `NetworkSourceModel` — нов **source** нод в `demo_nodeditor_nodes`,
     регистриран под `"Daq/Sources"`; 1 изходен порт `SampledData`
@@ -162,7 +359,9 @@
     ПУСНАТО видео (VideoFileSource → N× VideoOutput fan-out / effect chain)
   - `tools/measure_flow_memory.sh` — харнес за RSS/CPU измерване на flow сцени
     с `DAQSTER_VIDEO_FILE` (видео върви + Perf включен), PERF-верификация
-    (`[PERF] video … fps=25`), 2 s RSS/CPU семпли, blocking stdin
+    (`[PERF] video … fps=25`), 5 s RSS семпли + външно CPU семплиране от
+    `/proc/<pid>/stat` (utime+stime делти — единна методология за всички
+    commits, независимо от вътрешния ProcessCpu), blocking stdin
   - `tests/performance/flow-memory-perf-2026-09-02.md` — резултати: scene cost
     с видео (Qt5 + Qt6), per-view cost (~7.8 MB Qt5 / ~11.4 MB Qt6), node
     deletion memory release, Qt5 vs Qt6 сравнение
@@ -217,6 +416,26 @@
   - Тестове: `demo_nodeditor_videoframe_tests` — `frameToImageCpu_*` (RGB32/ARGB32 wrap, NV12/YUV420P BT.601, unsupported → null) и на Qt5, и на Qt6
 
 ### Refactored
+- **REQ-SW-PL-050** (node thread lifecycle — IStoppable interface):
+  - **Дизайн решение (потребител, 2026-09-08): НЯМА промени по външни
+    submodules (nodeeditor).** Първоначалната имплементация добавяше
+    `virtual void stop()` в `NodeDelegateModel.hpp` + `deleteNode()` викаше
+    `model->stop()` в `DataFlowGraphModel.cpp` — **revert-ната** (submodule
+    върнат към `906e300`).
+  - Вместо това Daqster дефинира `shared/IStoppable.h` в
+    `demo_nodeditor_nodes`: чист интерфейс `Daqster::IStoppable` с
+    `virtual void stop() = 0` (идемпотентен)
+  - 18 node модела с background работа (threads/timers/processes) вече
+    имплементират `IStoppable` вместо override на `NodeDelegateModel::stop`:
+    PlutoSdr, Pcap, AudioSource, VideoEffect, LLama, Gamepad, SystemMonitor,
+    GpuMonitor, JackDetect, VideoFileSource, StreamSource, CameraSource,
+    VideoOutput, DaqDisplay, FileRecord, NetworkSink, FilePlayback,
+    NetworkSource — деструкторите викат `stop()` като единствен shutdown path
+  - Framework fix-ът остава: `QPluginManager::ShutdownPluginManager()`
+    синхронно изтрива plugin instances след `shutdownAll()` (join на нишките
+    докато event loop-ът е жив) + `PluginRegistry::allPluginInstances()`
+  - Верификация: Qt5/Qt6 builds PASS + headless crash test 3× EXIT 0
+    (SIGTERM с активни нишки) + `nm -D` stop symbols 62
 - **Display consolidation (SampledData display world → DaqDisplayNode)**:
   - `AudioDisplayAlias` (DemoNodeEditorNodesObject.cpp) — нов тънък alias на `DaqDisplayNode` (само `name()` → `"AudioDisplay"`), заменя `AudioDisplayModelObsoleteAlias`; регистрацията на ключа `"AudioDisplay"` е преместена от `Obsolete` в `Daq/Display` — старите saved графи вече разрешават към реалния multi-plot/FFT/ring-buffer SampledData display, а не към QDevIO obsolete нода
   - `AudioDisplayModelObsolete` (name `"AudioDisplayObsolete"`, категория `Obsolete`) остава непроменен — QDevIO display world-ът живее за старите QDevIO графи

@@ -43,6 +43,13 @@ namespace Daqster {
  *
  * The node_editor_ide plugin calls registerNodes() on each discovered
  * INodeProvider to populate its NodeDelegateModelRegistry.
+ *
+ * NOTE: this is deliberately a plain (non-QObject) interface and must stay one.
+ * Implementers already inherit QObject through QBasePluginObject, so deriving
+ * this interface from QObject as well would make QObject an ambiguous base and
+ * break moc. A non-QObject interface cannot be listed in Q_INTERFACES and is
+ * never matched by QObject::qt_metacast(), so discovery uses dynamic_cast via
+ * QPluginManager::nodeProviders() rather than instances(INodeProvider_IID).
  */
 class INodeProvider {
 public:
@@ -58,6 +65,17 @@ public:
      * @param registry The node editor's model registry (owned by NodeEditorWidget)
      */
     virtual void registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const = 0;
+
+    /**
+     * @brief Register only headless-compatible node types into the given registry.
+     *
+     * Called by HeadlessEngine when running in headless mode.
+     * Implementations should ONLY register node types that have NO widget dependencies
+     * (no embeddedWidget, no GUI configuration, no display/output widgets).
+     *
+     * @param registry The headless graph model registry (owned by HeadlessEngine)
+     */
+    virtual void registerNodesHeadless(QtNodes::NodeDelegateModelRegistry& registry) const = 0;
 };
 
 } // namespace Daqster

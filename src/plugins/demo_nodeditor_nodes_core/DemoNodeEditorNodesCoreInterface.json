@@ -1,0 +1,14 @@
+{
+  "Name": "DemoNodeEditorNodesCore",
+  "Version": "0.3.2",
+  "Description": "Core node models for Daqster demo node editor (no GUI widgets)",
+  "Author": "Vasil Vasilev",
+  "License": "GPL-3.0",
+  "Type": "Application",
+  "TypeName": "Core Nodes",
+  "Hash": "",
+  "Location": "",
+  "Enabled": true,
+  "HealthyState": 0,
+  "IconPath": ""
+}

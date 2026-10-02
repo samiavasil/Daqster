@@ -38,7 +38,7 @@ function(check_plugin_dependencies PLUGIN_NAME)
             string(REGEX REPLACE "^Qt[0-9]+::" "" MODULE_NAME ${LIBRARY})
             
             # First try to find the module
-            find_package(Qt${QT_VERSION_MAJOR}${MODULE_NAME} QUIET)
+            find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS ${MODULE_NAME})
 
             # Check if target exists
             if(TARGET ${LIBRARY})
@@ -85,10 +85,10 @@ endfunction()
 function(register_component COMPONENT_NAME)
     set(options)
     set(oneValueArgs)
-    set(multiValueArgs REQUIRES_LIBRARIES)
+    set(multiValueArgs REQUIRES_LIBRARIES INCLUDE_DIRECTORIES)
     cmake_parse_arguments(PLUGIN_DEPS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
-    # Check dependencies
+    # Check dependencies (only REQUIRES_LIBRARIES, not INCLUDE_DIRECTORIES)
     check_plugin_dependencies(${COMPONENT_NAME}
         REQUIRES_LIBRARIES ${PLUGIN_DEPS_REQUIRES_LIBRARIES}
     )
@@ -143,8 +143,29 @@ function(link_component_dependencies COMPONENT_NAME)
             # Link each library only if available to avoid hard failures
             foreach(LIBRARY ${LIBRARIES})
                         if(TARGET ${LIBRARY})
-                            target_link_libraries(${COMPONENT_NAME} PRIVATE ${LIBRARY})
-                            verbose_status("Linked target ${LIBRARY} -> ${COMPONENT_NAME}")
+                            # Visibility keyword selection.
+                            #
+                            # PUBLIC is required whenever the dependency's *interface*
+                            # is part of this component's own public interface:
+                            #   - Qt module targets (Qt5::Core, Qt6::Gui, ...) carry
+                            #     include directories and version definitions.
+                            #   - Project-internal libraries (DaqsterCore, DaqsterGui,
+                            #     NodeEditorLibrary, NodeEditorBuiltInNodes, plugins)
+                            #     carry generated export headers
+                            #     (daqster_core_export.h / daqster_gui_export.h) plus
+                            #     PUBLIC compile definitions such as DAQSTER_ENABLE_PERF.
+                            #     Linking them PRIVATE would compile this component
+                            #     correctly but silently deny the same interface to
+                            #     anything that links *this* component.
+                            # Imported targets (find_package results) stay PRIVATE.
+                            get_target_property(LIBRARY_IS_IMPORTED ${LIBRARY} IMPORTED)
+                            if(LIBRARY MATCHES "^Qt[0-9]+::" OR NOT LIBRARY_IS_IMPORTED)
+                                target_link_libraries(${COMPONENT_NAME} PUBLIC ${LIBRARY})
+                                verbose_status("Linked target PUBLIC ${LIBRARY} -> ${COMPONENT_NAME}")
+                            else()
+                                target_link_libraries(${COMPONENT_NAME} PRIVATE ${LIBRARY})
+                                verbose_status("Linked target PRIVATE ${LIBRARY} -> ${COMPONENT_NAME}")
+                            endif()
                         else()
                     # Check if it's a registered external library
                     get_property(IS_AVAILABLE GLOBAL PROPERTY EXTERNAL_LIB_${LIBRARY}_AVAILABLE)

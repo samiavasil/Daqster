@@ -1,0 +1,50 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "internal-data": {
+        "model-name": "NumberSource",
+        "value": 17.0
+      }
+    },
+    {
+      "id": 1,
+      "internal-data": {
+        "model-name": "NumberSource",
+        "value": 5.0
+      }
+    },
+    {
+      "id": 2,
+      "internal-data": {
+        "model-name": "Modulo"
+      }
+    },
+    {
+      "id": 3,
+      "internal-data": {
+        "model-name": "NumberResult"
+      }
+    }
+  ],
+  "connections": [
+    [
+      0,
+      0,
+      2,
+      0
+    ],
+    [
+      1,
+      0,
+      2,
+      1
+    ],
+    [
+      2,
+      0,
+      3,
+      0
+    ]
+  ]
+}

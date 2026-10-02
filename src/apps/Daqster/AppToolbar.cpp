@@ -174,8 +174,9 @@ void AppToolbar::buildPluginButtons() {
         act->setToolTip(QString("%1\n%2")
             .arg(name)
             .arg(val.GetProperty(PLUGIN_DESCRIPTION).toString()));
-        if (!val.GetIcon().isNull())
-            act->setIcon(val.GetIcon());
+        const QIcon icon(val.GetIconPath());
+        if (!icon.isNull())
+            act->setIcon(icon);
         connect(act, SIGNAL(triggered(bool)), this, SLOT(OnActionTrigered()));
         addAction(act);
     }

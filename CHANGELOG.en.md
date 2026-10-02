@@ -7,6 +7,50 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **REQ-SW-PL-048** (Runtime mode — `--run <flow.flow>`, MDI workspaces, autoStart, presentation toggle):
+  - CLI: `Daqster --run <file.flow>` starts runtime mode without editor canvas
+  - `RuntimeShell` class (`src/plugins/node_editor_ide/RuntimeShell.{h,cpp}`):
+    - QMainWindow shell with QMdiArea workspaces (SDRangel model)
+    - Reuses `NodeEditorIdeObject` registration + loading logic
+    - MDI layout: per-workspace QMdiArea, tabbed/SubWindow view mode
+    - Two-step deembed: `setWidgetEmbedded(false)` → `QMdiSubWindow::setWidget()`
+    - Window flags: `Qt::WindowStaysOnTopHint` cleared after reparenting
+    - Auto-start: generic `IStartable` interface implemented by all source/sink nodes
+    - Clean shutdown: `IStoppable::stop()` on all nodes on window close
+  - `IStartable` interface (`src/plugins/demo_nodeditor_nodes/shared/IStartable.h`):
+    - Implemented by: PlutoSdr, Pcap, VideoFileSource, StreamSource, CameraSource,
+      AudioSource, Gamepad, SystemMonitor, GpuMonitor, JackDetect, FilePlayback,
+      NetworkSource, FileRecord, NetworkSink, LLamaModel
+    - Delegates to existing start logic (onStartRequested/onPlayPauseClicked/onConnectClicked/onStartStopClicked)
+  - Presentation toggle in editor (F11): hides canvas, shows deembedded widgets
+    as top-level windows; toggle back restores editor mode
+  - Code: `src/apps/Daqster/main.cpp` (--run flag), `src/plugins/node_editor_ide/`
+    (RuntimeShell, NodeEditorIdeObject), `src/plugins/demo_nodeditor_nodes/`
+    (IStartable implementations)
+  - Verification: Qt5/Qt6 builds PASS + --run smoke PASS + MDI layout PASS +
+    autoStart PASS + window flags PASS (Qt5/Qt6) + clean exit PASS + invalid flow
+    PASS + F11 toggle PASS
+
+- **REQ-SW-PL-049** (.flow "ui" section — runtime layout of deembedded widgets):
+  - `FlowUiSection.{h,cpp}` — plain structs (no Q_OBJECT): `FlowUi::Geometry`
+    `{x,y,w,h,maximized}`, `FlowUi::NodeUi` (deembedded, workspace, geometry,
+    autoStart), `FlowUi::WorkspaceUi` (id, geometry, tabbed), `FlowUi::UiSection`
+    (version, workspaces, nodes) with `toJson()`/`fromJson()`
+  - Save (`NodeEditorIdeObject::saveSceneToFile()`): graph JSON + groups
+    (byte-identical to `DataFlowGraphicsScene::save()`) + `"ui"` section;
+    file written indented; geometry key emitted only for deembedded nodes;
+    custom format `{x,y,w,h,maximized}` (NOT `QWidget::saveGeometry`)
+  - Load (`loadSceneFromFile()` + `applyUiSection()`): the "ui" section is
+    extracted before the node-cleaning loop and applied after a successful
+    load — restores deembed state + geometry + autoStart flags; tolerant
+    guard for missing nodes; old .flow without "ui" → current behavior;
+    version > 1 → warning + empty section
+  - Code: `src/plugins/node_editor_ide/` (FlowUiSection, NodeEditorIdeObject)
+  - Verification: Qt5/Qt6 builds PASS + ctest 11/11 green (Qt5) + FlowUiSection
+    JSON round-trip smoke PASS + IDE smoke PASS (capture/apply: deembed +
+    geometry + autoStart, offscreen) + load smoke PASS (hand-written .flow
+    with "ui" section, no crash) + old-flow regression PASS (no "ui", no
+    crash); unit tests deferred (standing instruction)
 - **REQ-SW-PL-047** (pcap Packet Capture source node — libpcap):
   - `PcapEngine` — libpcap wrapper: `pcap_open_live()`, `pcap_compile()`/`pcap_setfilter()` for BPF, `pcap_loop()` in worker thread (QThread), `pcap_breakloop()` for stop, `pcap_close()` in destructor; thread-safe packet queue to Model
   - `PcapModel` (`NodeDelegateModel`) — 1 output port `SampledData` ("packet"), connection-count gating (auto start/stop) + user Start/Stop, wraps packets in `SampledData` with `SampledStreamDescriptor` (domain="pcap", deviceId=interface name, sourceName="pcap capture", BYTES channel for payload, sampleRate=0 event-driven), metadata (timestamp, caplen, len) in packet; emits `dataUpdated(0)`; save/load of interface/filter/snaplen/promiscuous
@@ -28,6 +72,27 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Registered as `"Daq/Sources"` in `registerNodes()` (guarded by `#ifdef HAVE_NVML`)
   - NVML — optional dependency (`find_library` + `find_path`, OpenCV model): without NVML build passes without node
   - Code: `src/plugins/demo_nodeditor_nodes/Sources/GpuMonitor/`
+
+### Refactored
+- **REQ-SW-PL-050** (node thread lifecycle — IStoppable interface):
+  - **Design decision (user, 2026-09-08): NO changes to external submodules
+    (nodeeditor).** The initial implementation added `virtual void stop()` to
+    `NodeDelegateModel.hpp` + `deleteNode()` calling `model->stop()` in
+    `DataFlowGraphModel.cpp` — **reverted** (submodule back to `906e300`).
+  - Instead Daqster defines `shared/IStoppable.h` in `demo_nodeditor_nodes`:
+    a pure interface `Daqster::IStoppable` with `virtual void stop() = 0`
+    (idempotent)
+  - 18 node models with background work (threads/timers/processes) now
+    implement `IStoppable` instead of overriding `NodeDelegateModel::stop`:
+    PlutoSdr, Pcap, AudioSource, VideoEffect, LLama, Gamepad, SystemMonitor,
+    GpuMonitor, JackDetect, VideoFileSource, StreamSource, CameraSource,
+    VideoOutput, DaqDisplay, FileRecord, NetworkSink, FilePlayback,
+    NetworkSource — destructors call `stop()` as the single shutdown path
+  - Framework fix kept: `QPluginManager::ShutdownPluginManager()` synchronously
+    deletes plugin instances after `shutdownAll()` (joins threads while the
+    event loop is alive) + `PluginRegistry::allPluginInstances()`
+  - Verification: Qt5/Qt6 builds PASS + headless crash test 3× EXIT 0
+    (SIGTERM with active threads) + `nm -D` stop symbols 62
 
 ## [0.3.2] - 2026-09-02
 

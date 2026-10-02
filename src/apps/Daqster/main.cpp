@@ -15,6 +15,7 @@
 #include <QSettings>
 #include <QLoggingCategory>
 #include <QMessageBox>
+#include <QMetaObject>
 #include "QConsoleListener.h"
 #include "main.h"
 
@@ -27,30 +28,31 @@
 #endif
 
 void PluginsInit() {
-  /*TODO:  Move this on some initialization routine*/
   Daqster::QPluginManager *PluginManager = Daqster::QPluginManager::instance();
 
   if (nullptr != PluginManager) {
     PluginManager->SearchForPlugins();
     qCDebug(lcApp) << "Plugin Manager: " << PluginManager;
-    //  PluginManager->SearchForPlugins();
-    // PluginManager->ShowPluginManagerGui();
     QList<Daqster::PluginDescription> PluginsList =
         PluginManager->GetPluginList();
-    /*Just try to load/unload all plugins in initialization phase*/
     foreach (const Daqster::PluginDescription &Desc, PluginsList) {
-      if (!Desc.IsEnabled()) continue;  // Skip disabled plugins
+      if (!Desc.IsEnabled()) continue;
       for (int i = 0; i < 1; i++) {
-        Daqster::QBasePluginObject* obj = PluginManager->CreatePluginObject(Desc.GetProperty(PLUGIN_HASH).toString(),nullptr);
-        if(obj != NULL)
-          obj->deleteLater();
+        Daqster::QBasePluginObject* obj = PluginManager->CreatePluginObject(Desc.GetProperty(PLUGIN_HASH).toString(), nullptr);
+        // The object is intentionally NOT deleted here. Capability interfaces
+        // (INodeProvider / IWidgetProvider / IRuntimeHost, REQ-SW-PL-051) hand
+        // out pointers to their plugin objects, and those pointers are cached
+        // for the whole session — the node editor keeps its IWidgetProvider in
+        // ChatGraphModel. Destroying the objects at the first event-loop turn
+        // left that pointer dangling and every node placement segfaulted.
+        // PluginRegistry::shutdownAll() disposes of them on exit.
+        Q_UNUSED(obj)
       }
     }
   }
 }
 
 int main(int argc, char *argv[]) {
-
   int res = 0;
 
   Daqster::LogManager::instance()->initialize();
@@ -58,29 +60,17 @@ int main(int argc, char *argv[]) {
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
-  //  // detach from the current console window
-  //   // if launched from a console window, that will still run waiting for the
-  //   new console (below) to close
-  //   // it is useful to detach from Qt Creator's <Application output> panel
-  //   FreeConsole();
 
-  //   // create a separate new console window
-  //   AllocConsole();
-
-  //   // attach the new console to this application's process
-  //   AttachConsole(GetCurrentProcessId());
-
-  // TODO: Check argument parser: http://doc.qt.io/qt-5/qcommandlineparser.html
   QApplication::setAttribute(Qt::AA_ShareOpenGLContexts, true);
   QApplication a(argc, argv);
   QApplication::setApplicationName("Daqster");
   QApplication::setApplicationVersion(DAQSTER_VERSION_STRING);
 
-  auto *shutdownHandler = ShutdownHandler::create(&a);
+  auto* shutdownHandler = Daqster::ShutdownHandler::create(&a);
   shutdownHandler->initialize();
-  QObject::connect(shutdownHandler, &ShutdownHandler::shutdownRequested, &a, &QCoreApplication::quit);
+  QObject::connect(shutdownHandler, &Daqster::ShutdownHandler::shutdownRequested, &a, &QCoreApplication::quit);
 
-  // Load theme if configured (default: system/light)
+  // Load theme if configured
   QSettings appSettings("Daqster", "Daqster");
   QString theme = appSettings.value("Theme/Style", "default").toString();
   if (theme == "dark") {
@@ -92,20 +82,16 @@ int main(int argc, char *argv[]) {
   }
 
   QCommandLineParser parser;
-  parser.setApplicationDescription(
-      "This program is used to run Daqster Application plugins");
+  parser.setApplicationDescription("Daqster - Plugin Application Launcher & Node Editor");
   parser.addHelpOption();
   parser.addVersionOption();
   parser.addPositionalArgument(
-      "apps ...", QCoreApplication::translate(
-                      "main", "One ore more Application plugin names which "
-                              "will be automaticaly started"));
-  // An option with a value
-  QCommandLineOption targetDirectoryOption(
-      QStringList() << "t"
-                    << "target-directory",
+      "apps ...",
       QCoreApplication::translate("main",
-                                  "Copy all source files into <directory>."),
+                                  "One or more Application plugin names to start automatically"));
+  QCommandLineOption targetDirectoryOption(
+      QStringList() << "t" << "target-directory",
+      QCoreApplication::translate("main", "Copy all source files into <directory>."),
       QCoreApplication::translate("main", "directory"));
   parser.addOption(targetDirectoryOption);
 
@@ -133,7 +119,6 @@ int main(int argc, char *argv[]) {
       "rules");
   parser.addOption(logRulesOption);
 
-  // Process the actual command line arguments given by the user
   parser.process(a);
 
   if (parser.isSet(instanceIdOption)) {
@@ -162,11 +147,9 @@ int main(int argc, char *argv[]) {
 
   const QStringList args = parser.positionalArguments();
 
-  qCDebug(lcApp) << "Positional Argumments: " << args;
+  qCDebug(lcApp) << "Positional Arguments: " << args;
 
-  Daqster::QPluginManager *PluginManager = Daqster::QPluginManager::instance();
-  // For correct plugoins shutdown behaviour QPluginManager initialization
-  // should be called.
+  Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
   if (!PluginManager->Initialize()) {
     qCDebug(lcApp) << "QPluginManager Initialization Error";
   }
@@ -175,7 +158,6 @@ int main(int argc, char *argv[]) {
   PluginsInit();
   qCDebug(lcApp) << "ARGS: " << args;
 
-  // Define Filter outside if/else scope so it can be used in both sections
   Daqster::PluginFilter Filter;
   Filter.AddFilter(
       PLUGIN_TYPE,
@@ -188,15 +170,12 @@ int main(int argc, char *argv[]) {
     ctr++;
     qCDebug(lcApp) << "  Plugin" << ctr << ": " << Desc.GetProperty(PLUGIN_NAME).toString();
     qCDebug(lcApp) << "  Location" << ctr << ": " << Desc.GetProperty(PLUGIN_LOCATION).toString();
-
   }
 
-  // Console listener: stdin "quit" handler — created unconditionally so it is
-  // available on ALL startup paths (main app launcher, single- and multi-arg).
-  QConsoleListener *console = new QConsoleListener();
+  // Console listener: stdin "quit" handler
+  QConsoleListener* console = new QConsoleListener();
   QObject::connect(
-      console, &QConsoleListener::newLine, [&a](const QString &strNewLine) {
-        // quit
+      console, &QConsoleListener::newLine, [&a](const QString& strNewLine) {
         if (strNewLine.trimmed().compare("quit", Qt::CaseInsensitive) == 0) {
           qCDebug(lcApp) << "Goodbye";
           a.quit();
@@ -206,31 +185,13 @@ int main(int argc, char *argv[]) {
   if (args.count() > 0) {
     if (args.count() > 1) {
       foreach (auto Name, args) {
-        // Try multiple approaches for starting the application
-        QString executablePath;
-        
-        // 1. Check if we're in AppImage and AppRun exists
-        QString appImageEnv = qgetenv("APPIMAGE");
-        if (!appImageEnv.isEmpty()) {
-          QString appImagePath = qApp->applicationDirPath() + "/../AppRun";
-          if (QFile::exists(appImagePath)) {
-            executablePath = appImagePath;
-            qCDebug(lcApp) << "Using AppRun script for AppImage environment";
-          }
-        }
-        
-        // 2. If no AppRun found, try direct executable
-        if (executablePath.isEmpty()) {
-          executablePath = "./Daqster";
-          qCDebug(lcApp) << "Using direct executable";
-        }
-        
+        QString executablePath = "./Daqster";
         ApplicationsManager::Instance().StartApplication(executablePath, QStringList(Name));
         qCDebug(lcApp) << "Start Application: " << Name << " via " << executablePath;
       }
     } else {
       QString input = args[0];
-      Daqster::QBasePluginObject *obj = nullptr;
+      Daqster::QBasePluginObject* obj = nullptr;
       qCDebug(lcApp) << "\nSearch for plugin: " << input;
       int ctr = 0;
       QString matchedHash;
@@ -249,19 +210,16 @@ int main(int argc, char *argv[]) {
       }
 
       // Second pass: try NAME match (CLI convenience)
-      // Prioritize plugins from current build directory
       if (matchedHash.isEmpty()) {
         QString bestMatch;
         foreach (const Daqster::PluginDescription &Desc, PluginsList) {
           if (0 == Desc.GetProperty(PLUGIN_NAME).toString().compare(input, Qt::CaseInsensitive)) {
             QString location = Desc.GetProperty(PLUGIN_LOCATION).toString();
-            // Prefer plugin from current directory
             if (location.startsWith(currentDir)) {
               bestMatch = Desc.GetProperty(PLUGIN_HASH).toString();
               qCDebug(lcApp) << "  Found by name (current dir): " << input << " -> " << bestMatch;
               break;
             }
-            // First match if no current dir match found
             if (bestMatch.isEmpty()) {
               bestMatch = Desc.GetProperty(PLUGIN_HASH).toString();
               qCDebug(lcApp) << "  Found by name: " << input << " -> " << bestMatch;
@@ -271,7 +229,6 @@ int main(int argc, char *argv[]) {
         matchedHash = bestMatch;
       }
 
-      // Create and run the plugin
       if (!matchedHash.isEmpty()) {
         obj = PluginManager->CreatePluginObject(matchedHash, nullptr);
         if (nullptr != obj) {
@@ -285,8 +242,6 @@ int main(int argc, char *argv[]) {
               nullptr, "Daqster",
               QString("Application plugin \"%1\" was found but failed to load.")
                   .arg(input));
-          // Plugin creation failed: do NOT stay alive as an empty window.
-          // Exit with non-zero code after the user dismisses the dialog.
           return 1;
         }
       } else {
@@ -297,8 +252,6 @@ int main(int argc, char *argv[]) {
                     "plugin or launch the Daqster main window and use the "
                     "toolbar.")
                 .arg(input));
-        // Plugin not found: do NOT stay alive as an empty window. Exit with
-        // non-zero code after the user dismisses the dialog.
         return 1;
       }
     }

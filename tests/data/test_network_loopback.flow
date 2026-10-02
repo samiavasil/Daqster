@@ -1,0 +1,32 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "internal-data": {
+        "model-name": "NetworkSource",
+        "protocol": "UDP",
+        "port": 5001,
+        "sampleRate": 1000,
+        "channelCount": 1,
+        "channelType": "INT16"
+      }
+    },
+    {
+      "id": 1,
+      "internal-data": {
+        "model-name": "NetworkSink",
+        "protocol": "UDP",
+        "host": "127.0.0.1",
+        "port": 5001
+      }
+    }
+  ],
+  "connections": [
+    [
+      0,
+      0,
+      1,
+      0
+    ]
+  ]
+}

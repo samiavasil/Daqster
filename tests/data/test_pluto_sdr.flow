@@ -1,0 +1,25 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "internal-data": {
+        "model-name": "PlutoSdr",
+        "uri": "ip:192.168.2.1"
+      }
+    },
+    {
+      "id": 1,
+      "internal-data": {
+        "model-name": "DaqDisplay"
+      }
+    }
+  ],
+  "connections": [
+    [
+      0,
+      0,
+      1,
+      0
+    ]
+  ]
+}

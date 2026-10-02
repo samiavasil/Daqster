@@ -18,12 +18,23 @@ configure_file(
     @ONLY
 )
 
-# ══════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════════
+# REQ-SW-PL-051: the built-in node models (NumberSource, NumberDisplay,
+# Modulo, Arithmetic/Logic) live in the DemoNodeEditorNodesCore plugin and
+# are exposed through INodeProvider. They used to be DUPLICATED here and
+# registered by NodeEditorIdeObject *before* the core plugin — since
+# NodeDelegateModelRegistry::registerModel is first-wins by model name, the
+# core (widget-free) versions were shadowed and never instantiated.
+# The NodeEditorBuiltInNodes library that carried those duplicates is removed.
+# ════════════════════════════════════════════════════════════════════════
+
+
+# ═════════════════════════════════════════════════════════════════════════
 # Shared Library: NodeEditorLibrary
 # Extracted so both NodeEditorIde and DemoNodeEditorNodes plugins
 # can link against it without cross-plugin symbol resolution issues.
 # Conditional on required Qt modules being available.
-# ══════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════════
 
 register_component(NodeEditorLibrary
     REQUIRES_LIBRARIES
@@ -32,19 +43,40 @@ register_component(NodeEditorLibrary
         Qt${QT_VERSION_MAJOR}::Multimedia
         Qt${QT_VERSION_MAJOR}::Charts
         QtNodes
-        frame_work
+        # NodeEditorWidget.cpp, EventThreadPullObsolete.cpp,
+        # XYSeriesIODeviceObsolete.cpp, QDevioDisplayModelObsolete.cpp and
+        # QDevioDisplayModelUiObsolete.cpp all log through lcNodeEditor(),
+        # which is defined in base/src/logging/LogCategories.cpp (part of
+        # FrameworkCore) and declared FRAMEWORK_CORE_EXPORT. Without this,
+        # linking NodeEditorLibrary.dll fails with:
+        #   error LNK2001: unresolved external symbol
+        #   "__declspec(dllimport) ... lcNodeEditor(void)"
+        #   fatal error LNK1120: 1 unresolved externals
+        FrameworkCore
 )
 
 get_property(NODE_EDITOR_LIB_ENABLED GLOBAL PROPERTY COMPONENT_NodeEditorLibrary_ENABLED)
 
 if(NODE_EDITOR_LIB_ENABLED)
     set(LIB_SOURCES
+        FlowUiSection.h
+        FlowUiSection.cpp
+        # Editor canvas (REQ-SW-PL-053): RuntimeShell in FrameworkGuiPlugin
+        # drives a NodeEditorWidget to obtain the registry, the scene and the
+        # graph model, so these belong in the shared library rather than in the
+        # NodeEditorIde plugin — otherwise FrameworkGuiPlugin would have to
+        # resolve symbols out of another plugin.
+        NodeEditorWidget.h
+        NodeEditorWidget.cpp
+        CustomDataFlowScene.h
+        CustomDataFlowScene.cpp
         BuiltInNodes/Library/types/GenericNumericTypes.h
         BuiltInNodes/Library/types/GenericNumericTypes.cpp
         BuiltInNodes/Library/types/IStreamDecoderObsolete.h
         BuiltInNodes/Library/types/QDevIOStreamConfigObsolete.h
         BuiltInNodes/Library/types/StreamChannelObsolete.h
         BuiltInNodes/Library/types/ChatGraphModel.h
+        BuiltInNodes/Library/types/ChatGraphModel.cpp
         BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnectorObsolete.h
         BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnectorObsolete.cpp
         BuiltInNodes/Library/connectors/GenericQDevIoConnectorObsolete.h
@@ -83,13 +115,20 @@ if(NODE_EDITOR_LIB_ENABLED)
     target_compile_definitions(NodeEditorLibrary PRIVATE NODE_EDITOR_LIBRARY_BUILD)
 
     target_include_directories(NodeEditorLibrary PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/connectors
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/decoders
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/display
         ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/threading
-        ${DAQSTER_SOURCE_DIR}/src/plugins/common
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
+        ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/gui
+        ${DAQSTER_SOURCE_DIR}/src/plugins/common
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui
+        # framework_core_export.h is generated in the public daqster build tree
+        ${CMAKE_BINARY_DIR}/src/frame_work
     )
 
     link_component_dependencies(NodeEditorLibrary)
@@ -119,31 +158,14 @@ else()
     endforeach()
 endif()
 
-# ══════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════
 # Plugin: NodeEditorIde (IDE shell + built-in nodes)
-# ══════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════
 
-set(BUILTIN_SOURCE_NODES
-    BuiltInNodes/Sources/NumberSource/NumberSourceDataModel.h
-    BuiltInNodes/Sources/NumberSource/NumberSourceDataModel.cpp
-    BuiltInNodes/Sources/NumberSource/NumberSourceDataUi.h
-    BuiltInNodes/Sources/NumberSource/NumberSourceDataUi.cpp
-    BuiltInNodes/Sources/NumberSource/NumberSourceDataUi.ui
-)
-
-set(BUILTIN_DISPLAY_NODES
-    BuiltInNodes/Displays/NumberDisplay/NumberDisplayDataModel.h
-    BuiltInNodes/Displays/NumberDisplay/NumberDisplayDataModel.cpp
-)
-
-set(BUILTIN_OPERATOR_NODES
-    BuiltInNodes/Operators/Modulo/ModuloModel.h
-    BuiltInNodes/Operators/Modulo/ModuloModel.cpp
-    BuiltInNodes/Operators/ArithmeticLogic/ExprParser.h
-    BuiltInNodes/Operators/ArithmeticLogic/ExprParser.cpp
-    BuiltInNodes/Operators/ArithmeticLogic/ArithmeticLogicModel.h
-    BuiltInNodes/Operators/ArithmeticLogic/ArithmeticLogicModel.cpp
-)
+# REQ-SW-PL-051: the built-in models are owned by demo_nodeditor_nodes_core and
+# reach this plugin through its INodeProvider. Nothing is compiled here: a
+# second copy of the same class in another .so would break the dynamic_cast in
+# DemoNodeEditorNodesGui::NodeWidgetFactory, which links the core plugin.
 
 set(PLUGIN_RESOURCES
     node_editor.qrc
@@ -154,51 +176,32 @@ set(IDE_SOURCES
     NodeEditorIdeInterface.h
     NodeEditorIdeObject.cpp
     NodeEditorIdeObject.h
-    NodeEditorWidget.cpp
-    NodeEditorWidget.h
-    CustomDataFlowScene.cpp
-    CustomDataFlowScene.h
 )
 
 create_plugin(NodeEditorIde
     SOURCES
         ${IDE_SOURCES}
-        ${BUILTIN_SOURCE_NODES}
-        ${BUILTIN_DISPLAY_NODES}
-        ${BUILTIN_OPERATOR_NODES}
         ${PLUGIN_RESOURCES}
     REQUIRES_LIBRARIES
         NodeEditorLibrary
-        Qt${QT_VERSION_MAJOR}::Core
-        Qt${QT_VERSION_MAJOR}::Gui
-        Qt${QT_VERSION_MAJOR}::Network
-        Qt${QT_VERSION_MAJOR}::Multimedia
-        Qt${QT_VERSION_MAJOR}::Charts
-        Qt${QT_VERSION_MAJOR}::OpenGL
         QtNodes
-        frame_work
-    INCLUDE_DIRECTORIES
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${DAQSTER_SOURCE_DIR}/src/plugins/common
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Sources/NumberSource
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Displays/NumberDisplay
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/Modulo
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Operators/ArithmeticLogic
-    COMPILE_DEFINITIONS
-        NODE_EDITOR_SHARED
+        # NodeEditorIdeObject.cpp opens the plugin manager dialog:
+        #   new Daqster::QPluginManagerGui(m_Win)
+        # QPluginManagerGui is declared FRAMEWORK_GUI_EXPORT and its
+        # constructor/destructor/vtable live in FrameworkGui.dll. Without this,
+        # linking the plugin fails on Windows with:
+        #   error LNK2001: unresolved external symbol
+        #   "__declspec(dllimport) ... QPluginManagerGui::QPluginManagerGui(QWidget*)"
+        #   fatal error LNK1120: N unresolved externals
+        # Linux tolerates it (undefined symbols resolve lazily at dlopen),
+        # Windows does not. QtCoinTrader does the same thing and already
+        # links FrameworkGui.
+        FrameworkGui
+      INCLUDE_DIRECTORIES
+          ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/NumberDisplay
 )
 
-if(TARGET NodeEditorIde)
-    set_target_properties(NodeEditorIde PROPERTIES
-        OUTPUT_NAME "NodeEditorPluginIde"
-    )
-    # Explicit ordering guarantee: NodeEditorPluginIde.dll links against
-    # NodeEditorLibrary's import library on Windows. The link already goes
-    # through the target name (link_component_dependencies), which makes
-    # Ninja track the import library as an implicit dependency — this
-    # add_dependencies() is a belt-and-braces order-only edge so the
-    # library is always built before the plugin links (LNK1181 guard).
-    if(TARGET NodeEditorLibrary)
-        add_dependencies(NodeEditorIde NodeEditorLibrary)
-    endif()
-endif()
+# ══════════════════════════════════════════════════════════════════════════
+# Built-in nodes are now in NodeEditorBuiltInNodes library
+# The plugin just uses them via NodeEditorLibrary
+# ═══════════════════════════════════════════════════════════════════════════

@@ -6,8 +6,8 @@
 
 INodeProvider плъгин, който доставя Audio, Video, LLaMA, Display и Routing нодове към Node Editor IDE. Това е основният доставчик на нодове за Daqster node editor-а.
 
-**Локация:** `src/plugins/demo_nodeditor_nodes/`
-**Име на .so:** `libDemoNodeEditorNodesPlugin.so`
+**Локация:** `src/plugins/demo_nodeditor_nodes_core/` и `src/plugins/demo_nodeditor_nodes_gui/`
+**Име на .so:** `libDemoNodeEditorNodesCorePlugin.so` (core) и `libDemoNodeEditorNodesGuiPlugin.so` (GUI) — REQ-SW-PL-051 раздели единия плъгин на два
 
 ## Архитектура
 
