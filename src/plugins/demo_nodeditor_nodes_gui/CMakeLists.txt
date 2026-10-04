@@ -93,13 +93,12 @@ set(GUI_WIDGETS
     Sources/Video/CustomShaderWidget.cpp
     Sources/Video/VideoEffectWidget.h
     Sources/Video/VideoEffectWidget.cpp
-    # REQ-SW-PL-055: display seam + its software backend. VideoDisplayWidget is a
-    # pure interface (NOT a QWidget base — the GL backend must stay a
-    # QOpenGLWidget for zero-copy presentation, and Qt forbids inheriting two
-    # QObject-derived classes). VideoGLBlitWidget arrives in the next block and
-    # combines the same interface with its own widget base.
-    Sources/Video/VideoDisplayWidget.h
-    Sources/Video/VideoDisplayWidget.cpp
+    # REQ-SW-PL-055: the software display backend. VideoDisplayWidget itself
+    # lives in demo_nodeditor_nodes_core — it is a pure interface with no
+    # QWidget, and VideoOutputNode in _core holds a VideoDisplayWidget* to push
+    # frames through, so the interface has to be nameable from _core. This
+    # plugin supplies the implementations. VideoGLBlitWidget arrives in the next
+    # block and combines the same interface with its own widget base.
     Sources/Video/VideoSoftwareWidget.h
     Sources/Video/VideoSoftwareWidget.cpp
 )

@@ -77,6 +77,13 @@ set(VIDEO_NODES
     Sources/Video/StreamUrlValidator.h
     Sources/Video/StreamUrlValidator.cpp
     Sources/Video/VideoDisplayBackend.h
+    # REQ-SW-PL-055: the display seam. Pure interface — no QWidget, no Q_OBJECT,
+    # QWidget only forward-declared. VideoOutputNode in this plugin holds a
+    # VideoDisplayWidget* and pushes frames through it every frame, so the
+    # interface must be nameable from _core; the implementations
+    # (VideoGLBlitWidget, VideoSoftwareWidget) live in _gui.
+    Sources/Video/VideoDisplayWidget.h
+    Sources/Video/VideoDisplayWidget.cpp
     Sources/Video/VideoOutputNode.h
     Sources/Video/VideoOutputNode.cpp
     Sources/Video/VideoPerfBadge.h

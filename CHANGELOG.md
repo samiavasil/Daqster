@@ -7,7 +7,7 @@
 ## [Unreleased]
 
 ### Added (core/gui split)
-- **REQ-SW-PL-055** — **`VideoDisplayWidget`** (`demo_nodeditor_nodes_gui/Sources/Video/`):
+- **REQ-SW-PL-055** — **`VideoDisplayWidget`** (`demo_nodeditor_nodes_core/Sources/Video/`):
   чист интерфейс за видео display повърхност — `presentFrame` / `presentImage` /
   `presentTexture` / `presentYuvTexture` / `setVideoSize` / `clear` /
   `backendName` / `isGpuBackend` / `widget()`. Умишлено **не** наследява `QWidget`:
