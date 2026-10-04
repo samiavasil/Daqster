@@ -52,6 +52,16 @@
   следващо добавяне на node.
 
 ### Fixed (core/gui split)
+- **REQ-SW-PL-032** — `VideoGLContextManager::hasHardwareGL()` вече връща `false`
+  вместо да се срива, когато няма `QGuiApplication`. `instance()` конструира
+  `QOpenGLContext` + `QOffscreenSurface`, а нито един от двата не може да бъде
+  конструиран преди съществуването на `QGuiApplication` — това е, което
+  инициализира платформената интеграция, върху която са построени. Останалата
+  част от функцията вече се деградира (`makeCurrent` провал → `false`), така че
+  липсващият GUI стек трябва да мине по същия път. Детекция, която пада на
+  въпроса „има ли GPU?", не отговаря на нищо. Засяга 5 callers-а в `develop`
+  (`VideoOutputNode` ×2, `VideoEffectNode`, `CustomShaderNode` и новия
+  `detectVideoBackend()`).
 - **REQ-SW-PL-051** — падане при затваряне на NodeEditorIDE прозореца по време на
   възпроизвеждане на flow (SIGSEGV при exit). `NodeEditorIdeObject::
   discoverAndRegisterExternalNodes()` dereference-ваше `m_Widget` без null-проверка;

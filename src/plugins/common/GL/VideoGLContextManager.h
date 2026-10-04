@@ -26,6 +26,7 @@
 #include <QtGui/qopengl.h>
 
 #include <QDebug>
+#include <QGuiApplication>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
@@ -50,6 +51,7 @@ public:
     /// True when a hardware GL renderer is available (not llvmpipe / softpipe /
     /// SwiftShader). Lazy — the detection runs once and the result is cached
     /// for the process lifetime. Moved from VideoEffectGLProcessor.
+    /// Returns false rather than crashing when no QGuiApplication exists.
     static bool hasHardwareGL();
 
     /// Deletes a texture owned by this share group. Safe to call with 0.
@@ -132,6 +134,21 @@ inline void VideoGLContextManager::doneCurrent()
 
 inline bool VideoGLContextManager::hasHardwareGL()
 {
+    // instance() constructs a QOpenGLContext + QOffscreenSurface, and neither
+    // may be constructed before a QGuiApplication exists — QGuiApplication is
+    // what initialises the platform integration they are built on. Calling
+    // this from a plain console program or a QCoreApplication segfaults inside
+    // QOpenGLContext rather than returning a value.
+    //
+    // The rest of this function is written to degrade (makeCurrent failure ->
+    // false), so a missing GUI stack belongs on the same path: report no
+    // hardware GL and let callers pick the software backend. Detection that
+    // crashes on the question "is there a GPU?" answers nothing.
+    if (QGuiApplication::instance() == nullptr) {
+        qWarning().noquote() << QStringLiteral(
+            "VideoGLContextManager | GL detection: no QGuiApplication, assuming software");
+        return false;
+    }
     static const bool cached = []() {
         VideoGLContextManager &mgr = instance();
         if (!mgr.makeCurrent()) {
