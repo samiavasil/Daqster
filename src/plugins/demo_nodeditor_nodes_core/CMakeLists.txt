@@ -107,8 +107,12 @@ set(VIDEO_NODES
     Sources/Video/CustomShaderNode.cpp
     Sources/Video/FrameSamplerNode.h
     Sources/Video/FrameSamplerNode.cpp
-    # Texture pool for GPU effect outputs (REQ-SW-PL-032 Issue #7)
-    ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
+    # Texture pool for GPU effect outputs (REQ-SW-PL-032 Issue #7) is NOT
+    # compiled here: TexturePool::instance() is a process-wide singleton of GL
+    # texture names, and a second copy in this .so would be a second pool —
+    # exactly the duplication that made the pre-split build hand a texture back
+    # to one pool while another still considered it live. It is defined once in
+    # PluginsCommonLibrary and linked below.
     # Common compute thread pool (REQ-SW-PL-039)
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ComputePool.cpp
 )
@@ -314,7 +318,7 @@ set(ROUTING_NODES
     # NodeEditorLibrary, but this plugin is configured *before* node_editor_ide
     # (root CMakeLists.txt), so that target does not exist yet and cannot be
     # linked here. Compile the translation unit directly instead, following the
-    # same pattern used for TexturePool.cpp / ComputePool.cpp below.
+    # same pattern used for ComputePool.cpp below.
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/connectors/GenericQDevIoConnectorObsolete.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnectorObsolete.cpp
     # QDevIoDisplayModelObsolete is needed by AudioDisplayModelObsolete and
@@ -409,6 +413,10 @@ create_plugin(DemoNodeEditorNodesCore
         ${DEMO_CORE_GUI_LIBS}
         QtNodes
         FrameworkCore
+        # REQ-SW-PL-032: the single definition of TexturePool. Same pattern as
+        # NodeEditorLibrary. Configured before this plugin (root CMakeLists.txt
+        # adds src/plugins/common above the core plugins).
+        PluginsCommonLibrary
     COMPILE_DEFINITIONS
         ${VIDEO_OPENCV_DEFINITIONS}
         ${PLUTOSDR_DEFINITIONS}

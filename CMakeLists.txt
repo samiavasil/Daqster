@@ -139,6 +139,11 @@ create_external_library(qtrest_lib)
 add_subdirectory(src/frame_work)
 
 # ── Plugins ───────────────────────────────────────────────────────────
+# Shared plugin infrastructure (REQ-SW-PL-032): TexturePool lives here as a
+# shared library so every consumer links ONE definition of the singleton.
+# Must precede the plugins that link it.
+add_subdirectory(src/plugins/common)
+
 # Core plugins (always built)
 add_subdirectory(src/plugins/demo_nodeditor_nodes_core)
 add_subdirectory(src/plugins/FrameworkCorePlugin)

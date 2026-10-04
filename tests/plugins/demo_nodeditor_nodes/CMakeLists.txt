@@ -153,10 +153,10 @@ set_tests_properties(demo_nodeditor_display_tests PROPERTIES
 set(VIDEO_FRAME_TEST_SOURCES
     test_video_frame_data.cpp
     test_video_frame_data.h
-    # VideoFrameData::releaseTextures() now returns pooled textures to the
-    # global TexturePool (REQ-SW-PL-038) — compile the pool source so the test
-    # binary links standalone.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
+    # VideoFrameData::releaseTextures() returns pooled textures to the global
+    # TexturePool (REQ-SW-PL-038). The pool is NOT compiled here — it is linked
+    # from PluginsCommonLibrary below, so the test binary and the plugin share
+    # ONE pool instead of each owning a private copy.
 )
 
 add_executable(demo_nodeditor_videoframe_tests ${VIDEO_FRAME_TEST_SOURCES})
@@ -173,6 +173,7 @@ target_link_libraries(demo_nodeditor_videoframe_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Multimedia
     QtNodes
     NodeEditorLibrary
+    PluginsCommonLibrary
 )
 
 add_test(NAME demo_nodeditor_videoframe_tests
@@ -208,9 +209,9 @@ set(VIDEO_OUTPUT_TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoEffectOps.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoTransformOps.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoEffectGLProcessor.cpp
-    # VideoEffectGLProcessor now uses the shared TexturePool (REQ-SW-PL-032
-    # Issue #7) — compile the pool source so the test binary links standalone.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
+    # VideoEffectGLProcessor uses the shared TexturePool (REQ-SW-PL-032
+    # Issue #7) — linked from PluginsCommonLibrary below, one definition in the
+    # process.
 )
 
 add_executable(demo_nodeditor_videooutput_tests ${VIDEO_OUTPUT_TEST_SOURCES})
@@ -244,6 +245,7 @@ target_link_libraries(demo_nodeditor_videooutput_tests PRIVATE
     # are in NodeEditorLibrary from node_editor_ide plugin.
     NodeEditorLibrary
     FrameworkCore
+    PluginsCommonLibrary
 )
 
 # QVideoWidget lives in Qt6::MultimediaWidgets (Qt5 bundles it in Multimedia).
@@ -279,9 +281,9 @@ set(VIDEO_EFFECT_TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoTransformOps.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoEffectGLProcessor.cpp
     # VideoEffectGLProcessor uses the shared TexturePool (REQ-SW-PL-032
-    # Issue #7) and the CPU path uses the shared ComputePool (REQ-SW-PL-039) —
-    # compile both pool sources so the test binary links standalone.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
+    # Issue #7) — linked from PluginsCommonLibrary below; the CPU path uses the
+    # shared ComputePool (REQ-SW-PL-039), which is still compiled here because it
+    # has no library target yet.
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ComputePool.cpp
 )
 
@@ -306,6 +308,7 @@ target_link_libraries(demo_nodeditor_videoeffect_tests PRIVATE
     QtNodes
     NodeEditorLibrary
     FrameworkCore
+    PluginsCommonLibrary
 )
 
 if(QT_VERSION_MAJOR GREATER_EQUAL 6)
