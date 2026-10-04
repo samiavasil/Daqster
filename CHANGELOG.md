@@ -7,6 +7,19 @@
 ## [Unreleased]
 
 ### Added (core/gui split)
+- **REQ-SW-PL-055** — **`VideoDisplayWidget`** (`demo_nodeditor_nodes_gui/Sources/Video/`):
+  чист интерфейс за видео display повърхност — `presentFrame` / `presentImage` /
+  `presentTexture` / `presentYuvTexture` / `setVideoSize` / `clear` /
+  `backendName` / `isGpuBackend` / `widget()`. Умишлено **не** наследява `QWidget`:
+  GL бекендът трябва да остане `QOpenGLWidget` (zero-copy презентация,
+  REQ-SW-PL-053 AC1), а Qt не позволява наследяване от две QObject-производни
+  класове, така че всеки бекенд комбинира интерфейса със собствения си widget
+  базов клас. `widget()` връща конкретния QWidget, за да може node-ът да вгради
+  display-а в layout, без да знае конкретния бекенд.
+- **REQ-SW-PL-055** — **`VideoSoftwareWidget`**: software бекендът
+  (`QWidget` + `VideoDisplayWidget`). GPU-resident входовете се четат обратно
+  през ленивия `QImage` кеш на `VideoFrameData` (REQ-SW-PL-032) — най-много
+  една конверсия на кадър. Без видео рисува placeholder-а „No video input".
 - **REQ-SW-PL-051** — **`IWidgetProvider` capability**
   (`src/plugins/common/capabilities/IWidgetProvider.h`): плосък (non-QObject)
   интерфейс `createWidget(NodeDelegateModel*)` за плъгини, които доставят widget-а

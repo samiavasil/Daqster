@@ -93,6 +93,15 @@ set(GUI_WIDGETS
     Sources/Video/CustomShaderWidget.cpp
     Sources/Video/VideoEffectWidget.h
     Sources/Video/VideoEffectWidget.cpp
+    # REQ-SW-PL-055: display seam + its software backend. VideoDisplayWidget is a
+    # pure interface (NOT a QWidget base — the GL backend must stay a
+    # QOpenGLWidget for zero-copy presentation, and Qt forbids inheriting two
+    # QObject-derived classes). VideoGLBlitWidget arrives in the next block and
+    # combines the same interface with its own widget base.
+    Sources/Video/VideoDisplayWidget.h
+    Sources/Video/VideoDisplayWidget.cpp
+    Sources/Video/VideoSoftwareWidget.h
+    Sources/Video/VideoSoftwareWidget.cpp
 )
 
 # ── NodeWidgetFactory for core/gui connection ───────────────────────
