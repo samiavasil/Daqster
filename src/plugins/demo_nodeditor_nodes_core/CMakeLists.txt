@@ -76,6 +76,7 @@ set(VIDEO_NODES
     Sources/Video/StreamSourceNode.cpp
     Sources/Video/StreamUrlValidator.h
     Sources/Video/StreamUrlValidator.cpp
+    Sources/Video/VideoDisplayBackend.h
     Sources/Video/VideoOutputNode.h
     Sources/Video/VideoOutputNode.cpp
     Sources/Video/VideoPerfBadge.h
