@@ -101,6 +101,15 @@ set(GUI_WIDGETS
     # block and combines the same interface with its own widget base.
     Sources/Video/VideoSoftwareWidget.h
     Sources/Video/VideoSoftwareWidget.cpp
+    # The GL backend plus the Video Output node's whole widget tree. These three
+    # used to be compiled into demo_nodeditor_nodes_core (its EMBEDDED_WIDGETS
+    # list) because VideoOutputNode constructed them directly. It no longer does:
+    # the model holds an IVideoOutputUi supplied by IWidgetProvider, and this
+    # plugin implements it.
+    Sources/Video/VideoGLBlitWidget.h
+    Sources/Video/VideoGLBlitWidget.cpp
+    Sources/Video/VideoOutputUi.h
+    Sources/Video/VideoOutputUi.cpp
 )
 
 # ── NodeWidgetFactory for core/gui connection ───────────────────────

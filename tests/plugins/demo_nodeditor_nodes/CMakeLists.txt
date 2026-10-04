@@ -191,9 +191,14 @@ set(VIDEO_OUTPUT_TEST_SOURCES
     test_video_output_node.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoOutputNode.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoPerfBadge.cpp
-    # VideoOutputNode references VideoGLBlitWidget (DAQSTER_GL_BLIT display path);
-    # compile the widget source so the test binary links standalone:
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoGLBlitWidget.cpp
+    # REQ-SW-PL-055: the model constructs no widget — it receives an
+    # IVideoOutputUi from IWidgetProvider. The test is not a plugin host, so it
+    # plays the GUI plugin's role and compiles the whole widget side directly:
+    # VideoOutputUi plus BOTH display backends, because which one it builds
+    # depends on detectVideoBackend() at runtime, not on the test's wishes.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Sources/Video/VideoOutputUi.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Sources/Video/VideoGLBlitWidget.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Sources/Video/VideoSoftwareWidget.cpp
     # Embedded effects (REQ-SW-PL-034): VideoOutputNode now uses
     # VideoEffectOps::allSpecs() + VideoEffectGLProcessor::processTexture().
     # VideoEffectOps.cpp delegates to VideoTransformOps.cpp for the CPU apply
@@ -213,6 +218,10 @@ add_executable(demo_nodeditor_videooutput_tests ${VIDEO_OUTPUT_TEST_SOURCES})
 target_include_directories(demo_nodeditor_videooutput_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
+    # REQ-SW-PL-055: the GUI plugin's own root, because VideoOutputUi.h is
+    # included as "VideoOutputUi.h" from the test.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Sources/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include

@@ -7,6 +7,39 @@
 ## [Unreleased]
 
 ### Added (core/gui split)
+- **REQ-SW-PL-055 / REQ-SW-PL-051** — **пълно развързване на Video Output node-а**
+  от `_core`/`_gui`. Това е най-големият хоризонтален блок от порта на
+  `consolidate_save_from_pedal`; функционалността е пренесена и едновременно
+  разделена по зависимост от QtWidgets, а не по редовете на consolidate.
+- **REQ-SW-PL-055** — **`IVideoOutputUi` + `IVideoOutputUiHandler`**
+  (`demo_nodeditor_nodes_core/Sources/Video/IVideoOutputUi.h`): плосък non-QObject
+  шев. core→core (`IVideoOutputUi`, core държи указател) и gui→core
+  (`IVideoOutputUiHandler`, gui държи указател). Без moc, без link зависимост —
+  споделеният тип е в `_core` заглавния файл, конкретният обект е в `_gui`.
+  Редактор→модел (`setPerfEnabled`, `forceLiveDisplay`) остава през
+  `QMetaObject::invokeMethod`, защото този извиквач е **трети** плъгин.
+- **REQ-SW-PL-055** — **`VideoGLBlitWidget` → `demo_nodeditor_nodes_gui/Sources/Video/`**,
+  дословно от consolidate. Това беше последният елемент на `EMBEDDED_WIDGETS` в
+  `_core`; списъкът вече е празен и екипът `_gui` го държи за двата TU-та, които
+  още чакат (`VideoEffectNode.cpp` → `QLabel`,
+  `AudioDisplayModelObsolete.cpp` → `QStackedWidget`). Widget-зависимите TU-та в
+  `_core` падат от 7 на 2; `Qt::Widgets` остава в link линията докато те са там.
+- **REQ-SW-PL-055** — **`VideoOutputUi`** (`_gui`): целият widget дърво на node-а —
+  `QStackedWidget` (preview страница / live страница), `QSplitter` (display вляво,
+  контроли вдясно), perf панел с 8 етикета и effect контролите (combo + параметърни
+  страници). Backend-ът се избира **веднъж** при конструкция
+  (`DAQSTER_VIDEO_BACKEND=gl|software`, иначе `hasHardwareGL()`), а не на кадър.
+- **REQ-SW-PL-055** — `VideoFrameData::frameToImageScaled(frame, maxWidth)`: конвертира
+  **директно** в ~200 px preview вместо да материализира пълното 1080p QImage и после
+  да скалира. NV12/YUV420P се субсмплират по време на YUV→RGB конверсията, така че
+  пълното изображение никога не се построява (~(200/1920)² от пълна конверсия).
+- **Fixed** — `VideoOutputNode::~VideoOutputNode` извикваше `stop()` →
+  `resetVideoState()` → `m_ui->clearPreview()` / `display()->clear()`, докато UI-то е
+  притежавано от widget дървото на редактора, а не от модела. При вграждане
+  `rootWidget()` се reparent-ва в сцената, така че дървото може да унищожи UI-то
+  първо и да остави модела жив → use-after-free. Указателят се занулява **преди**
+  `stop()`.
+
 - **REQ-SW-PL-055** — **`VideoDisplayWidget`** (`demo_nodeditor_nodes_core/Sources/Video/`):
   чист интерфейс за видео display повърхност — `presentFrame` / `presentImage` /
   `presentTexture` / `presentYuvTexture` / `setVideoSize` / `clear` /

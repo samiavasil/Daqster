@@ -27,8 +27,12 @@ private slots:
     // (asImage() readback) instead of being skipped by the old isGpuRgba gate.
     void cpuEffectAppliesToGpuRgbaInput();
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    // Stage 2C (REQ-SW-PL-032): GpuRgba → GL blit widget on Qt6.
-    void gpuRgbaRoutesToGlBlitWidget();
-#endif
+    // REQ-SW-PL-055 unified display. NOT guarded by Qt version: with
+    // DAQSTER_VIDEO_BACKEND replacing the per-Qt DAQSTER_GL_BLIT switch, the
+    // routing decision is identical on Qt5 and Qt6, and these tests no longer
+    // need a GL context because they observe the seam, not the pixels.
+    void gpuRgbaRoutesZeroCopyToDisplay();
+    void cpuFrameUsesYuvPathOnSameDisplay();
+    void noDisplayUntilUiIsAttached();
+    void backendChosenOnceNotPerFrame();
 };

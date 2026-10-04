@@ -12,11 +12,11 @@
 #include <Sources/Video/FrameSamplerNode.h>
 #include <Sources/Video/CustomShaderNode.h>
 #include <Sources/Video/VideoEffectNode.h>
+#include <Sources/Video/VideoOutputNode.h>
 #include <Sources/LLamaSource/ConsoleDataModel.h>
 #include <Sources/Video/CameraSourceNode.h>
 #include <Sources/Video/VideoFileSourceNode.h>
 #include <Sources/Video/StreamSourceNode.h>
-#include <Sources/Video/VideoOutputNode.h>
 #include <Sources/Video/VideoEffectNode.h>
 #include <Sources/Video/CustomShaderNode.h>
 #include <Sources/Video/FrameSamplerNode.h>
@@ -45,9 +45,10 @@
 
 // GUI widgets.
 //
-// Note: VideoGLBlitWidget and VideoPerfBadge are NOT listed here — those classes
-// live in demo_nodeditor_nodes_core and are still constructed by their own
-// models (deferred, see REQ-SW-PL-051).
+// Note: VideoGLBlitWidget is NOT a creator of its own — it is the display
+// backend inside VideoOutputUi, created for the "VideoOutput" creator below.
+// VideoPerfBadge is still deferred: it lives in demo_nodeditor_nodes_core and is
+// still constructed by its own model (see REQ-SW-PL-051).
 #include "Sources/PlutoSdr/PlutoSdrWidget.h"
 #include "Sources/SystemMonitor/SystemMonitorWidget.h"
 #include "Sources/FilePlayback/FilePlaybackWidget.h"
@@ -74,6 +75,7 @@
 #include "Sources/Video/FrameSamplerWidget.h"
 #include "Sources/Video/CustomShaderWidget.h"
 #include "Sources/Video/VideoEffectWidget.h"
+#include "Sources/Video/VideoOutputUi.h"
 
 // Core engines (from core plugin)
 #include <Sources/SystemMonitor/SystemMonitorEngine.h>
@@ -391,6 +393,19 @@ void registerDefaultWidgetCreators(NodeWidgetFactory* factory)
     });
 
     // VideoEffect
+    // VideoOutput (REQ-SW-PL-055): the node's entire UI in one creator. The
+    // model in _core constructs no widget at all and returns nullptr from
+    // embeddedWidget(); it receives the IVideoOutputUi here and pushes frames
+    // through it. Parameter widgets are bound directly to the model's
+    // EffectParams, so there is no per-field setter wiring like VideoEffect has.
+    factory->registerWidgetCreator("VideoOutput", [](QtNodes::NodeDelegateModel* model) -> QWidget* {
+        auto* m = safeCast<VideoOutputNode>(model, "VideoOutput");
+        if (!m) return nullptr;
+        auto* ui = new VideoOutputUi(m->effectSpecs(), m->effectParams(), m->uiHandler());
+        m->setUi(ui);
+        return ui->rootWidget();
+    });
+
     factory->registerWidgetCreator("VideoEffect", [](QtNodes::NodeDelegateModel* model) -> QWidget* {
         auto* m = safeCast<VideoEffectNode>(model, "VideoEffect");
         if (!m) return nullptr;

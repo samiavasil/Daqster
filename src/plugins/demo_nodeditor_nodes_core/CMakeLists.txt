@@ -84,6 +84,10 @@ set(VIDEO_NODES
     # (VideoGLBlitWidget, VideoSoftwareWidget) live in _gui.
     Sources/Video/VideoDisplayWidget.h
     Sources/Video/VideoDisplayWidget.cpp
+    # REQ-SW-PL-055: the core side of the Video Output UI seam. Plain
+    # non-QObject interfaces, header-only, so VideoOutputNode can hold the UI
+    # and be called back by it without linking QtWidgets and without moc.
+    Sources/Video/IVideoOutputUi.h
     Sources/Video/VideoOutputNode.h
     Sources/Video/VideoOutputNode.cpp
     Sources/Video/VideoPerfBadge.h
@@ -361,9 +365,14 @@ set(BUILTIN_OPERATOR_NODES
 # into this plugin as well — otherwise the plugin keeps undefined references
 # and dlopen() fails, which silently disables every core node type.
 # The GUI plugin keeps its own copies for the editor-side embedding.
+#
+# UPDATE (REQ-SW-PL-055): this list is now EMPTY. VideoGLBlitWidget was the
+# last entry; it moved to demo_nodeditor_nodes_gui and VideoOutputNode reaches
+# it through IVideoOutputUi / IWidgetProvider instead of constructing it. The
+# mechanism above stays in place for the TUs still to move (VideoEffectNode's
+# QLabel, AudioDisplayModelObsolete's QStackedWidget) — see
+# NodeWidgetFactory.cpp:48 in the GUI plugin for the recorded deferral list.
 set(EMBEDDED_WIDGETS
-    Sources/Video/VideoGLBlitWidget.h
-    Sources/Video/VideoGLBlitWidget.cpp
 )
 
 # ── Use the Daqster plugin template ──────────────────────────────────

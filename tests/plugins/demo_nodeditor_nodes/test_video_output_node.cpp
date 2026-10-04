@@ -11,10 +11,7 @@
 #include <QSignalSpy>
 #include <QVideoFrame>
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QApplication>
-#include <QVideoWidget>
-#endif
 
 using QtNodes::ConnectionId;
 using QtNodes::PortIndex;
@@ -34,6 +31,98 @@ static ConnectionId makeConId(PortIndex inPort, PortIndex outPort)
 // On both Qt versions the node exposes a single input port (video-frame) plus
 // one output (REQ-SW-PL-020, NV12-direct, single video-frame type
 // REQ-SW-PL-032).
+// ── Recording seam (REQ-SW-PL-055) ─────────────────────────────────────────────
+//
+// The unified display means ONE VideoDisplayWidget for the whole node lifetime,
+// chosen once at construction by detectVideoBackend() — not per frame and not by
+// pixel residency. Before REQ-SW-PL-055 the model swapped a QVideoWidget for a
+// detached VideoGLBlitWidget whenever a GpuRgba frame arrived, so this file used
+// to scrape QApplication::topLevelWidgets() to see which widget existed.
+//
+// Scraping widgets cannot observe the routing decision, and it needed a GL
+// context. RecordingDisplay below observes the decision itself: it counts which
+// present*() the model chose. That is the property REQ-SW-PL-032 (zero-copy, no
+// readback) and REQ-SW-PL-055 (one backend, chosen once) actually care about, and
+// it is deterministic on Qt5, Qt6 and on a software renderer.
+class RecordingDisplay : public VideoDisplayWidget
+{
+public:
+    QWidget *widget() override { return m_widget; }
+    void presentFrame(const QVideoFrame &) override { ++frameCalls; }
+    void presentImage(const QImage &) override { ++imageCalls; }
+    void presentTexture(const VideoTextureHandle &,
+                        std::shared_ptr<VideoFrameData>) override
+    { ++textureCalls; }
+    void presentYuvTexture(const VideoTextureHandle &,
+                           std::shared_ptr<VideoFrameData>) override
+    { ++yuvTextureCalls; }
+    void setVideoSize(const QSize &) override {}
+    void clear() override { ++clearCalls; }
+    QString backendName() const override { return QStringLiteral("recording"); }
+    bool isGpuBackend() const override { return false; }
+
+    int frameCalls = 0;
+    int imageCalls = 0;
+    int textureCalls = 0;
+    int yuvTextureCalls = 0;
+    int clearCalls = 0;
+
+private:
+    QWidget *m_widget = nullptr;
+};
+
+// Minimal IVideoOutputUi: everything the model touches is recorded, nothing is
+// drawn. Implements every pure virtual so the test cannot silently drift from
+// the interface.
+class RecordingUi : public IVideoOutputUi
+{
+public:
+    explicit RecordingUi(IVideoOutputUiHandler *handler)
+        : m_handler(handler) {}
+
+    QWidget *rootWidget() const override { return m_root; }
+    VideoDisplayWidget *display() const override { return &m_display; }
+    QWidget *controlsWidget() const override { return m_controls; }
+    void setLiveActive(bool live) override { liveActive = live; }
+    bool isLiveActive() const override { return liveActive; }
+    bool isEmbeddedInProxy() const override { return inProxy; }
+    void setPreviewImage(const QImage &) override { ++previewCalls; }
+    void clearPreview() override { ++clearPreviewCalls; }
+    bool previewVisible() const override { return false; }
+    void setEffectPage(int index) override { effectPage = index; }
+    void syncEffectParams() override { ++syncCalls; }
+    void updatePerfStats(const VideoPerfStats &s) override { lastStats = s; }
+    void setPerfChecked(bool checked) override { perfOn = checked; }
+    bool perfChecked() const override { return perfOn; }
+
+    void setInProxy(bool value) { inProxy = value; }
+
+    // mutable: display() is a const accessor returning a non-const pointer (the
+    // model presents through it), so a direct &m_display in a const method would
+    // otherwise deduce const and fail to convert.
+    mutable RecordingDisplay m_display;
+    QWidget *m_root = nullptr;
+    QWidget *m_controls = nullptr;
+    bool liveActive = true;
+    bool inProxy = false;
+    bool perfOn = false;
+    int effectPage = -1;
+    int previewCalls = 0;
+    int clearPreviewCalls = 0;
+    int syncCalls = 0;
+    VideoPerfStats lastStats;
+
+private:
+    IVideoOutputUiHandler *m_handler = nullptr;
+};
+
+// Build a model with its UI already attached, as the GUI plugin would.
+static void attachUi(VideoOutputNode &node, RecordingUi &ui)
+{
+    node.setUi(&ui);
+    node.forceLiveDisplay();   // live page, so setInData presents
+}
+
 void VideoOutputNodeTest::portTopology()
 {
     VideoOutputNode node;
@@ -313,61 +402,102 @@ void VideoOutputNodeTest::cpuEffectAppliesToGpuRgbaInput()
     QCOMPARE(out->asImage().size(), QSize(w, h));
 }
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-// ── gpuRgbaRoutesToGlBlitWidget (REQ-SW-PL-032 Stage 2C) ─────────────────────
-//
-// On Qt6, GpuRgba frames (effect outputs) must route to the GL blit widget
-// (zero-copy presentTexture) instead of the native QVideoWidget (readback +
-// per-sink RHI upload). The routing requires hardware GL — on software
-// renderers (llvmpipe/softpipe/SwiftShader) the native path stays and the
-// test is skipped.
-void VideoOutputNodeTest::gpuRgbaRoutesToGlBlitWidget()
-{
-    if (!VideoGLContextManager::hasHardwareGL())
-        QSKIP("No hardware GL — GpuRgba routing to GL blit requires hardware GL");
+// ── Unified display routing (REQ-SW-PL-055 + REQ-SW-PL-032) ───────────────────
 
+// A GpuRgba frame must go to presentTexture — the handle is handed over, never
+// read back. This is the property that made the old native-QVideoWidget fallback
+// unacceptable: asImage() on a GPU-resident frame costs a full download plus a
+// per-sink RHI upload, every frame.
+void VideoOutputNodeTest::gpuRgbaRoutesZeroCopyToDisplay()
+{
     VideoOutputNode node;
+    RecordingUi ui(node.uiHandler());
+    attachUi(node, ui);
     node.inputConnectionCreated(makeConId(0, 0));
 
-    // GpuRgba frame (effect output). The texture handle is a placeholder —
-    // the routing decision only needs isGpuRgba() + hardware GL.
     VideoTextureHandle h;
     h.width = 320;
     h.height = 240;
     h.rgba = true;
     node.setInData(VideoFrameData::fromTexture(h), 0);
 
-    // The detached display must be the GL blit widget (top-level window).
-    bool foundGlBlit = false;
-    const QWidgetList topLevels = QApplication::topLevelWidgets();
-    for (QWidget *w : topLevels) {
-        if (qobject_cast<VideoGLBlitWidget *>(w) != nullptr) {
-            foundGlBlit = true;
-            break;
-        }
-    }
-    QVERIFY(foundGlBlit);
+    QCOMPARE(ui.m_display.textureCalls, 1);
+    QCOMPARE(ui.m_display.imageCalls, 0);      // no readback
+    QCOMPARE(ui.m_display.frameCalls, 0);      // not the CPU frame path
+    QCOMPARE(ui.m_display.yuvTextureCalls, 0);
+}
 
-    // Transition: a CPU frame must switch to the native QVideoWidget and
-    // destroy the GL blit window (only one detached display at a time).
+// A CPU-resident YUV frame must take the YUV path — also as a texture handle
+// (VideoFrameData exposes NV12/YUV420P planes as a GPU-uploadable handle), never
+// through presentImage.
+void VideoOutputNodeTest::cpuFrameUsesYuvPathOnSameDisplay()
+{
+    VideoOutputNode node;
+    RecordingUi ui(node.uiHandler());
+    attachUi(node, ui);
+    node.inputConnectionCreated(makeConId(0, 0));
+
     QImage img(320, 240, QImage::Format_ARGB32);
     img.fill(Qt::red);
-    QVideoFrame vf(img);
-    node.setInData(std::make_shared<VideoFrameData>(vf), 0);
-    QTest::qWait(10);  // flush the deferred delete of the GL blit window
+    node.setInData(std::make_shared<VideoFrameData>(QVideoFrame(img)), 0);
 
-    bool foundNative = false;
-    bool glBlitGone = true;
-    const QWidgetList topLevels2 = QApplication::topLevelWidgets();
-    for (QWidget *w : topLevels2) {
-        if (qobject_cast<VideoGLBlitWidget *>(w) != nullptr)
-            glBlitGone = false;
-        if (qobject_cast<QVideoWidget *>(w) != nullptr)
-            foundNative = true;
-    }
-    QVERIFY(foundNative);
-    QVERIFY(glBlitGone);
+    // Whichever of the two YUV routes the frame supports, the point is that it
+    // is NOT presentImage and NOT presentTexture(GpuRgba).
+    QVERIFY(ui.m_display.yuvTextureCalls + ui.m_display.frameCalls == 1);
+    QCOMPARE(ui.m_display.imageCalls, 0);
+    QCOMPARE(ui.m_display.textureCalls, 0);
 }
-#endif  // QT_VERSION >= 0x060000
+
+// No UI attached → no display at all, and embeddedWidget() is null. This is the
+// IWidgetProvider contract: the editor asks providers first, and only falls back
+// to embeddedWidget() — so a null embeddedWidget() with a provider registered is
+// the intended configuration, not a broken node.
+void VideoOutputNodeTest::noDisplayUntilUiIsAttached()
+{
+    VideoOutputNode node;
+    QVERIFY(node.embeddedWidget() == nullptr);
+    QVERIFY(node.displayWidget() == nullptr);
+    QVERIFY(node.controlsWidget() == nullptr);
+
+    // Frames must still be accepted with no UI — a headless flow run has no
+    // widgets at all, and it must not drop frames or crash.
+    node.inputConnectionCreated(makeConId(0, 0));
+    VideoTextureHandle h;
+    h.width = 16; h.height = 16; h.rgba = true;
+    node.setInData(VideoFrameData::fromTexture(h), 0);
+}
+
+// The backend is decided ONCE, at UI construction. A change in pixel residency
+// must not swap the display object — that swap was the bug REQ-SW-PL-055 fixed.
+void VideoOutputNodeTest::backendChosenOnceNotPerFrame()
+{
+    VideoOutputNode node;
+    RecordingUi ui(node.uiHandler());
+    attachUi(node, ui);
+    node.inputConnectionCreated(makeConId(0, 0));
+
+    VideoDisplayWidget *first = node.displayWidget();
+    QVERIFY(first != nullptr);
+
+    // GpuRgba, then CPU, then GpuRgba again — three different residencies.
+    VideoTextureHandle gpuHandle;
+    gpuHandle.width = 64; gpuHandle.height = 64; gpuHandle.rgba = true;
+    node.setInData(VideoFrameData::fromTexture(gpuHandle), 0);
+
+    QImage img(64, 64, QImage::Format_ARGB32);
+    img.fill(Qt::blue);
+    node.setInData(std::make_shared<VideoFrameData>(QVideoFrame(img)), 0);
+
+    node.setInData(VideoFrameData::fromTexture(gpuHandle), 0);
+
+    QCOMPARE(node.displayWidget(), first);   // same object throughout
+    QCOMPARE(ui.m_display.backendName(), QStringLiteral("recording"));
+    // Exactly one present per frame — no frame is presented twice because a
+    // backend swap re-issued it.
+    QCOMPARE(ui.m_display.textureCalls + ui.m_display.imageCalls
+                 + ui.m_display.frameCalls + ui.m_display.yuvTextureCalls,
+             3);
+}
+
 
 QTEST_MAIN(VideoOutputNodeTest)
