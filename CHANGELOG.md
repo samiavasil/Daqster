@@ -7,6 +7,29 @@
 ## [Unreleased]
 
 ### Added (core/gui split)
+- **REQ-SW-PL-053** — **schema-v2 layout tree + widget builder в `node_editor_ide`**,
+  пренесени дословно от `consolidate`:
+  - `LayoutTree.{h,cpp}` — data моделът на v2 „ui" секцията (рекурсивно дърво от
+    `split` / `grid` / `tab` контейнери с `panel` листа, плюс workspace-level
+    `docks[]`) и JSON round-trip. QtCore само, без `Q_OBJECT` — тества се headless.
+  - `LayoutEngine.{h,cpp}` — builder/capturer-ът, който превръща дървото в реални
+    widget-и (`QMainWindow`, `QSplitter`, `QTabWidget`, `QGridLayout`,
+    `QDockWidget`) и обратно. QtWidgets.
+  - Парсингът е толерантен: непознат тип пада на празен panel, липсващи полета
+    вземат стойности по подразбиране, а секция с `version != 2` парсва до празна
+    `LayoutSection` (извиквачът остава на v1 пътя).
+  - `FlowUiSection.h` се различава от consolidate само по 7-редовия документиращ
+    коментар на `NodeUi::autoStart` — полето е налице и в двата, затова портът е
+    дословен.
+  - **Потребителите още не са закачени:** `NodeEditorIdeObject` (F11 v2 workspace) и
+    `RuntimeShell::arrangeLayout` все още ползват v1 пътя. Това е следващият блок;
+    дотогава тези четири TU-та се компилират и се тестват, но не са достижими по
+    време на изпълнение.
+- **REQ-SW-PL-053** — нов тест таргет `node_editor_ide_tests`
+  (`tests/plugins/node_editor_ide/`, 21 теста: 12 за `LayoutTree` round-trip и
+  tolerant parsing, 9 за `LayoutEngine` build/capture). `QApplication`, върви
+  headless през offscreen platform.
+
 - **REQ-SW-PL-055 / REQ-SW-PL-051** — **пълно развързване на Video Output node-а**
   от `_core`/`_gui`. Това е най-големият хоризонтален блок от порта на
   `consolidate_save_from_pedal`; функционалността е пренесена и едновременно

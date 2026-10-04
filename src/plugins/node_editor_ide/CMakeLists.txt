@@ -176,6 +176,24 @@ set(IDE_SOURCES
     NodeEditorIdeInterface.h
     NodeEditorIdeObject.cpp
     NodeEditorIdeObject.h
+    # Workspace layout engine (REQ-SW-PL-053 Phase 2a): schema-v2 layout tree
+    # data model + widget builder/capturer. Ported verbatim from consolidate.
+    #
+    # LayoutTree is QtCore-only (data model + JSON) but it lives here rather than
+    # in a core plugin on purpose: it reuses FlowUi::Geometry / FlowUi::NodeUi
+    # from the v1 section model in this plugin, and nothing outside node_editor_ide
+    # parses a "ui" section. LayoutEngine is QtWidgets (QMainWindow, QSplitter,
+    # QTabWidget, QDockWidget) — node_editor_ide is a GUI-side plugin, so this is
+    # the correct side of the core/gui line.
+    #
+    # The consumers are NOT wired up yet — NodeEditorIdeObject's F11 v2 workspace
+    # and RuntimeShell::arrangeLayout still use the v1 path. That rewire is the
+    # next block; until it lands these four TUs compile and are unit-tested but
+    # not reachable at runtime, which is stated rather than hidden.
+    LayoutTree.cpp
+    LayoutTree.h
+    LayoutEngine.cpp
+    LayoutEngine.h
 )
 
 create_plugin(NodeEditorIde
