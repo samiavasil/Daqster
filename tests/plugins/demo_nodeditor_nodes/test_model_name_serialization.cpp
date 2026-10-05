@@ -119,4 +119,12 @@ void ModelNameSerializationTest::modelSpecificKeysSurvive()
              "ArithmeticLogicModel::load() reads \"inputs\" — save() must keep it");
 }
 
+// This source is compiled into TWO targets (demo_nodeditor_modelname_tests and
+// demo_nodeditor_lifecycle_tests) and only the former owns main().
+// demo_nodeditor_lifecycle_tests supplies its own test_lifecycle_main.cpp so it
+// can register a second test class in the same binary — two mains in one binary
+// do not link, and a silently unregistered test class is worse than a build
+// error.
+#ifndef DAQSTER_SHARED_TESTS_PROVIDE_MAIN
 QTEST_MAIN(ModelNameSerializationTest)
+#endif

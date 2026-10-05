@@ -3,6 +3,7 @@
 
 #include "test_layout_tree.h"
 #include "test_layout_engine.h"
+#include "test_flow_fixtures.h"
 
 // Shared main for the node_editor_ide layout tests. LayoutEngine builds real
 // widgets (QSplitter/QGridLayout/QTabWidget/QDockWidget), so the binary runs
@@ -21,6 +22,10 @@ int main(int argc, char *argv[])
     {
         TestLayoutEngine layoutEngine;
         status |= QTest::qExec(&layoutEngine, argc, argv);
+    }
+    {
+        TestFlowFixtures flowFixtures;
+        status |= QTest::qExec(&flowFixtures, argc, argv);
     }
     return status;
 }

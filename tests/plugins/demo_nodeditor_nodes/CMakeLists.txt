@@ -421,3 +421,159 @@ target_link_libraries(demo_nodeditor_computepool_tests PRIVATE
 
 add_test(NAME demo_nodeditor_computepool_tests
          COMMAND demo_nodeditor_computepool_tests)
+
+# ── VideoFrameData / TexturePool consolidation invariants (REQ-SW-PL-032, AC 12) ─
+#
+# QTEST_MAIN (QGuiApplication, not QCoreApplication): the GL checks build a
+# QOpenGLContext / QOffscreenSurface through VideoGLContextManager, and Qt
+# segfaults doing that without a QGuiApplication. Qt::Widgets is deliberately
+# NOT linked, so QTest builds a plain QGuiApplication.
+#
+# Links PluginsCommonLibrary rather than compiling TexturePool.cpp, so the pool
+# under test is the same singleton the plugins use (REQ-SW-PL-032 E1, commit
+# f6f184d) — a test with its own copy would pass while the plugins leaked a
+# texture per frame.
+set(CONSOLIDATION_TEST_SOURCES
+    test_video_frame_consolidation.cpp
+    test_video_frame_consolidation.h
+)
+
+add_executable(demo_nodeditor_consolidation_tests ${CONSOLIDATION_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_consolidation_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+)
+
+target_link_libraries(demo_nodeditor_consolidation_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Multimedia
+    QtNodes
+    NodeEditorLibrary
+    PluginsCommonLibrary
+    # VideoGLContextManager is header-only but QOpenGLContext /
+    # QOffscreenSurface live in QtGui + (Qt6) QtOpenGLWidgets.
+)
+if(QT_VERSION_MAJOR GREATER_EQUAL 6)
+    target_link_libraries(demo_nodeditor_consolidation_tests PRIVATE
+        Qt${QT_VERSION_MAJOR}::OpenGL
+        Qt${QT_VERSION_MAJOR}::OpenGLWidgets)
+else()
+    target_link_libraries(demo_nodeditor_consolidation_tests PRIVATE
+        Qt${QT_VERSION_MAJOR}::OpenGL)
+endif()
+
+add_test(NAME demo_nodeditor_consolidation_tests
+         COMMAND demo_nodeditor_consolidation_tests)
+set_tests_properties(demo_nodeditor_consolidation_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# ── FrameSamplerNode behavioural tests (REQ-SW-PL-030, AC 6) ─────────────────
+#
+# QTEST_GUILESS_MAIN — the model owns no widget (embeddedWidget() is nullptr
+# by REQ-SW-PL-051), so no QApplication, no OpenCV and no GL context. The
+# node source is compiled directly into the test binary (same pattern as
+# demo_nodeditor_videooutput_tests).
+set(FRAME_SAMPLER_TEST_SOURCES
+    test_frame_sampler_node.cpp
+    test_frame_sampler_node.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/FrameSamplerNode.cpp
+)
+
+add_executable(demo_nodeditor_framesampler_tests ${FRAME_SAMPLER_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_framesampler_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DEMO_CORE_EXPORT_INCLUDE_DIR}
+)
+target_compile_definitions(demo_nodeditor_framesampler_tests PRIVATE ${DEMO_CORE_EXPORT_DEFINITIONS})
+
+target_link_libraries(demo_nodeditor_framesampler_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    # VideoFrameData::type()/hasFrame() and QVideoFrame(QImage) — Multimedia.
+    Qt${QT_VERSION_MAJOR}::Multimedia
+    QtNodes
+    # VideoFrameData's destructor calls releaseTextures(), which reaches
+    # TexturePool::release() on the pooled path (REQ-SW-PL-032 E1). The pool is
+    # linked, not compiled in, so this test binary shares the one process-wide
+    # pool the plugins use.
+    PluginsCommonLibrary
+)
+
+add_test(NAME demo_nodeditor_framesampler_tests
+         COMMAND demo_nodeditor_framesampler_tests)
+
+# ── IStoppable lifecycle tests (REQ-SW-PL-050, AC 7) ─────────────────────────
+#
+# QTEST_GUILESS_MAIN. Reuses the model-name suite's source list: both targets
+# instantiate the same hardware-free engines (SystemMonitor, GpuMonitor,
+# JackDetect, Pcap), so the engine sources are compiled in rather than linked
+# from the core plugin .so.
+set(LIFECYCLE_TEST_SOURCES
+    test_lifecycle_main.cpp
+    test_thread_lifecycle.cpp
+    test_thread_lifecycle.h
+    ${MODEL_NAME_TEST_SOURCES}
+    # SystemMonitorModel is not in MODEL_NAME_TEST_SOURCES (the model-name
+    # suite covers a different set) but it IS one of the four nodes whose
+    # IStoppable contract this target asserts. Its engine carries the actual
+    # poller thread, so it has to come along too — the lifecycle tests are
+    # about that thread being joined.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/SystemMonitor/SystemMonitorModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/SystemMonitor/SystemMonitorEngine.cpp
+)
+
+add_executable(demo_nodeditor_lifecycle_tests ${LIFECYCLE_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_lifecycle_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/AudioSource
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+    ${DEMO_CORE_EXPORT_INCLUDE_DIR}
+)
+target_compile_definitions(demo_nodeditor_lifecycle_tests PRIVATE
+    ${DEMO_CORE_EXPORT_DEFINITIONS}
+    # Suppresses QTEST_MAIN in test_model_name_serialization.cpp — this target
+    # registers both test classes from test_lifecycle_main.cpp instead.
+    DAQSTER_SHARED_TESTS_PROVIDE_MAIN)
+
+target_link_libraries(demo_nodeditor_lifecycle_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Multimedia
+    QtNodes
+    FrameworkCore
+)
+
+add_test(NAME demo_nodeditor_lifecycle_tests
+         COMMAND demo_nodeditor_lifecycle_tests)
+# stopWithActiveWorkIsSafe joins the poller threads. If a regression breaks the
+# join, the binary hangs rather than failing an assertion — bound it so CI
+# fails fast instead of sitting on the default 1500 s timeout.
+set_tests_properties(demo_nodeditor_lifecycle_tests PROPERTIES TIMEOUT 120)
+
+# ── core/gui split guard (REQ-SW-PL-051, AC 3 / AC 7) ────────────────────────
+#
+# Static analysis rather than a C++ test: the invariant is a build-graph
+# property ("_core names no QtWidgets class"), which no runtime assertion can
+# observe. Runs as a `cmake -P` script so it needs no toolchain and works on
+# Windows without a POSIX shell.
+add_test(NAME demo_nodeditor_core_widgets_free
+         COMMAND ${CMAKE_COMMAND}
+                 -DCORE_DIR=${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/check_core_widgets_free.cmake)
