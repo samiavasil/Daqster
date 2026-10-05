@@ -6,6 +6,28 @@
 
 ## [Unreleased]
 
+### Tests (core/gui split)
+- **REQ-SW-PL-050** — lifecycle suite-ът вече твърди shutdown контракта на **16-те**
+  достижими `IStoppable` модела, не на 4. Предишната бележка „14-те нода с
+  хардуер не са тестируеми" била невярна: хардуер е нужен само на `start()`,
+  а всичките 14 конструират инертно (pollers/timers/thread-ове се създават, но
+  не се стартират; `QMediaDevices` само изброява и връща празно под
+  `QCoreApplication`). Затова кастът от shutdown path-а, идемпотентността на
+  `stop()` и трите реда на разрушаване вече се твърдят на пълния ростър, докато
+  `stopWithActiveWorkIsSafe` / `startThenStopIsClean` остават на отделен тесен
+  списък от 4 — „изчакване на работещ poller" не се достига без стартиране.
+  Добавени са **два броещи tripwire-а** (доказано стрелят), `PlutoSdrModel` е
+  включен само при намерен libiio, а очакваната стойност следва същото условие.
+  Непокрити остават 2: `VideoEffectNode` (нуждава свързан `ComputePool` → тест на
+  PL-039) и `VideoOutputNode` (жива GL повърхност → `demo_nodeditor_videooutput_tests`).
+  Верификация: `ctest` **17/17** Qt 6.9.2 и **17/17** Qt 5.15.2.
+  - **Открит, но непоправен дефект:** `StreamSourceNode` и `VideoFileSourceNode`
+    правят `connect()` към `m_audioBufferOutput`, който е `nullptr` освен ако
+    зареденият медиен поток няма аудио дорожка
+    (`QObject::connect(QObject, Unknown): invalid nullptr parameter`). Открит е
+    защото тези модели вече се конструират в suite-а; извън обхвата на този
+    коммит.
+
 ### Added (core/gui split)
 - **REQ-SW-PL-053** — **schema-v2 layout tree + widget builder в `node_editor_ide`**,
   пренесени дословно от `consolidate`:
