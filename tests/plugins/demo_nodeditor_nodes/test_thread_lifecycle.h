@@ -56,15 +56,22 @@ private slots:
     void shutdownPathCastMatchesTheModelsInterface();
 
 private:
-    /// One entry per hardware-free node that owns background work: a label
-    /// plus a factory. Anything needing a physical device is excluded — see
-    /// the kExcludedModels table in the .cpp; an untestable node is recorded
-    /// there, not quietly pretended away.
+    /// One entry per node that owns background work: a label plus a factory.
     struct ModelEntry
     {
         QString label;
         std::function<std::unique_ptr<QtNodes::NodeDelegateModel>()> create;
     };
 
-    static QVector<ModelEntry> hardwareFreeModels();
+    /// Every model in _core that inherits Daqster::IStoppable and constructs
+    /// inertly — pollers, timers and threads are created but never started, and
+    /// no device is opened. This is the list the cast / idempotency /
+    /// destruction assertions run over, because none of those need a device.
+    static QVector<ModelEntry> allStoppableModels();
+
+    /// The subset whose start() is also safe with no hardware attached. Only
+    /// the two active-work assertions need this: joining a running poller is
+    /// the failure that hangs at shutdown, and it is unreachable without
+    /// actually starting the thread.
+    static QVector<ModelEntry> startableWithoutDeviceModels();
 };

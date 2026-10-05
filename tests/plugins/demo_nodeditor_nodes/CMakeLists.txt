@@ -530,7 +530,54 @@ set(LIFECYCLE_TEST_SOURCES
     # about that thread being joined.
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/SystemMonitor/SystemMonitorModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/SystemMonitor/SystemMonitorEngine.cpp
+
+    # ── The rest of the IStoppable roster (REQ-SW-PL-050, AC 7) ───────────────
+    #
+    # The suite's whole premise is that HeadlessEngine::stopAllNodes() casts
+    # every model in the graph and calls stop() on it. Covering only the four
+    # models whose pollers can also be *started* left 14 of 18 IStoppable
+    # models unchecked — and the assertions that matter here (is the cast
+    # reachable, is stop() idempotent, is destruction without stop() safe) need
+    # no device at all. Only start() needs the hardware, so only the two
+    # active-work tests stay restricted to the device-free four.
+    #
+    # Every constructor below is inert without its device: pollers/timers/
+    # threads are created but not started, and the two models that touch
+    # QMediaDevices (AudioSource, CameraSource) only *enumerate* — both calls
+    # return empty under QCoreApplication, which the modelname suite already
+    # exercises for AudioSourceDataModel.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/DaqDisplay/DaqDisplayNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sinks/FileRecord/FileRecordModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sinks/NetworkSink/NetworkSinkModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/FilePlayback/FilePlaybackModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Gamepad/GamepadModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Gamepad/GamepadEngine.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/LLamaSource/LLamaModelDataModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/NetworkSource/NetworkSourceModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/CameraSourceNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/StreamSourceNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoFileSourceNode.cpp
+
+    # Transitive definitions those models reference but do not implement:
+    # StreamUrlValidator backs StreamSourceNode; DaqDisplayNode submits to the
+    # shared ComputePool (REQ-SW-PL-039); VideoFrameData::releaseTextures()
+    # reaches TexturePool, which E1 moved into the common GL library.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/StreamUrlValidator.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ComputePool.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
 )
+
+# PlutoSdrEngine calls iio_create_context_from_uri() and friends, so the model
+# only links where the SDK is present. The plugin builds it unconditionally
+# (src/plugins/demo_nodeditor_nodes_core/CMakeLists.txt:152), which is a build
+# -graph question of its own; here the model is simply skipped when libiio is
+# absent, so the lifecycle assertions stay runnable on a box without the SDK.
+if(IIO_FOUND)
+    list(APPEND LIFECYCLE_TEST_SOURCES
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/PlutoSdr/PlutoSdrModel.cpp
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/PlutoSdr/PlutoSdrEngine.cpp
+    )
+endif()
 
 add_executable(demo_nodeditor_lifecycle_tests ${LIFECYCLE_TEST_SOURCES})
 
@@ -549,6 +596,15 @@ target_compile_definitions(demo_nodeditor_lifecycle_tests PRIVATE
     # Suppresses QTEST_MAIN in test_model_name_serialization.cpp — this target
     # registers both test classes from test_lifecycle_main.cpp instead.
     DAQSTER_SHARED_TESTS_PROVIDE_MAIN)
+
+# PlutoSdrEngine keys its iio_* calls off HAVE_LIBIIO exactly as the plugin
+# does, and the suite's model count depends on whether the model is in the
+# build at all, so both the flag and the SDK headers have to reach this target.
+if(IIO_FOUND)
+    target_compile_definitions(demo_nodeditor_lifecycle_tests PRIVATE HAVE_LIBIIO)
+    target_include_directories(demo_nodeditor_lifecycle_tests PRIVATE ${IIO_INCLUDE_DIRS})
+    target_link_libraries(demo_nodeditor_lifecycle_tests PRIVATE ${IIO_LIBRARIES})
+endif()
 
 target_link_libraries(demo_nodeditor_lifecycle_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test
