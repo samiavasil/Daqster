@@ -84,6 +84,8 @@ VideoOutputUi::VideoOutputUi(const QVector<EffectSpec> &specs, EffectParams *par
 {
     m_root = new QWidget(parent);
     m_root->installEventFilter(this);
+    m_root->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    m_root->setMinimumSize(320, 240);
 
     m_previewPage = createPreviewPage();
     m_livePage = new QWidget();

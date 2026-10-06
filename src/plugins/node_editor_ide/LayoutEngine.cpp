@@ -135,6 +135,14 @@ QWidget* buildGrid(const LayoutNode& node, const LayoutEngine::NodeWidgetProvide
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
+    // Ensure equal space distribution for all cells — critical for QOpenGLWidget
+    // children (VideoDisplayWidget) which have 0 size hints and need explicit
+    // stretch to get paint events and visible space.
+    for (int r = 0; r < node.rows; ++r)
+        layout->setRowStretch(r, 1);
+    for (int c = 0; c < node.cols; ++c)
+        layout->setColumnStretch(c, 1);
+
     const int cellCount = node.rows * node.cols;
     for (int index = 0; index < cellCount; ++index) {
         if (index >= static_cast<int>(node.cells.size()) || !node.cells[index].has_value())
