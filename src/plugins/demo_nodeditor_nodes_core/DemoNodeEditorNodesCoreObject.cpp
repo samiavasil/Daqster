@@ -117,8 +117,6 @@ void DemoNodeEditorNodesCoreObject::registerNodes(QtNodes::NodeDelegateModelRegi
     // Migrated from old plugin: generic/obsolete displays
     registry.registerModel<GenericDisplayNode>("Displays/DAQ");
     registry.registerModel<AudioDisplayModelObsolete>("Displays/DAQ");
-    // QDevIoDisplayModelObsolete is provided by node_editor_ide/NodeSupport,
-    // not by this core plugin. Available when GUI plugin loads.
     // Aliases for old saved graphs (name() override only)
     class DemuxNodeObsoleteAlias : public DemuxNodeObsolete {
     public:
@@ -196,11 +194,11 @@ void DemoNodeEditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateM
     // provider exists in headless mode. That is the intended behaviour, not
     // an error — see the log note in HeadlessEngine.
     //
-    // None of the six constructs a widget (verified file by file 2026-10-08):
-    // embeddedWidget() returns nullptr in every one of them, VideoOutputNode
-    // and DaqDisplayNode own only a QTimer, and AudioDisplayModelObsolete's
-    // single QStackedWidget include is dead — the file contains no `new` at
-    // all. So registering them pulls no QtWidgets into the headless path.
+    // The _core plugin is 100% widget-include-free since 2026-10-08
+    // (check_core_widgets_free.cmake, 120 TUs, EMPTY allow-list): QDevIo
+    // display models are model-only (embeddedWidget() returns nullptr) and
+    // the waveform view lives in the GUI plugin. Registering these pulls no
+    // QtWidgets into the headless path.
     registry.registerModel<DaqDisplayNode>("Displays/DAQ");
     // Migrated from old plugin: generic/obsolete displays
     registry.registerModel<GenericDisplayNode>("Displays/DAQ");

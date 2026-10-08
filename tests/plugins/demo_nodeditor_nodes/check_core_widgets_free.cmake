@@ -16,9 +16,10 @@
 # translation unit needs the real definition, i.e. it will not link headless.
 #
 # ALLOW_LIST below is the recorded deferral list from REQ-SW-PL-051 AC2 +
-# REQ-SW-PL-056. When one is moved, delete its entry here; the test then
-# guards the direction of travel instead of silently tolerating whatever is
-# present today.
+# REQ-SW-PL-056. EMPTY since 2026-10-08 (REQ-SW-PL-056 split): every _core TU
+# is widget-include-free, including the obsolete QDevIO display world (model →
+# core, view → demo_nodeditor_nodes_gui). If a widget include ever has to come
+# back, it must land in ALLOW_LIST with a reason first — never silently.
 #
 # Usage (target-source scan — the REQ-SW-PL-056 form):
 #   cmake -DCORE_DIR=<demo_nodeditor_nodes_core>
@@ -40,13 +41,20 @@
 # widgets header.
 
 # ── Known deferrals (REQ-SW-PL-051 AC2 / REQ-SW-PL-056) ──────────────────────
+# EMPTY since 2026-10-08 (REQ-SW-PL-056 split). The last four widget-tainted
+# translation units are gone:
+#   * Sources/Video/VideoEffectNode.cpp          — QLabel/QApplication removed;
+#     metricLabelText() accessor (friend test) instead.
+#   * Displays/AudioDisplay/AudioDisplayModelObsolete.cpp — QStackedWidget dead
+#     include removed; configureAudioView() emits audioViewConfigChanged().
+#   * NodeSupport/display/QDevIoDisplayModelObsolete.cpp — widget UI stack
+#     removed; pure model (device + routing), embeddedWidget()=nullptr.
+#   * NodeSupport/display/QDevioDisplayModelUiObsolete.{cpp,h,ui} — moved to
+#     demo_nodeditor_nodes_gui/Displays/ObsoleteAudioDisplay/, built by
+#     NodeWidgetFactory's "AudioDisplayObsolete" creator.
+# ChatGraphModel.cpp was never compiled into the _core target (it only ever
+# lived in NodeEditorLibrary) — its old entry here was dead config and is gone.
 set(ALLOW_LIST
-    "Displays/AudioDisplay/AudioDisplayModelObsolete.cpp|QStackedWidget — dead include: the TU contains no widget `new` (verified 2026-10-08); deferred with the obsolete component itself"
-    "Sources/Video/VideoEffectNode.cpp|QLabel + QApplication — test-only metric label, NOW constructed lazily and only under QApplication (REQ-SW-PL-056): headless QGuiApplication never builds it; the real UI label lives in VideoEffectWidget"
-    "../node_editor_ide/NodeSupport/display/QDevIoDisplayModelObsolete.cpp|QApplication/QStackedWidget/QVBoxLayout/QLabel/QComboBox/QPushButton/QFormLayout — obsolete display model + base of REGISTERED AudioDisplayModelObsolete; UI stack NOW built lazily by ensureUi() only under QApplication (REQ-SW-PL-056); headless routes data + drives the audio device widget-free"
-    "../node_editor_ide/NodeSupport/display/QDevioDisplayModelUiObsolete.cpp|QMenu/QtWidgets — obsolete audio waveform view (QWidget subclass w/ QtCharts); instantiated only via ensureUi() inside QDevIoDisplayModelObsolete, i.e. only under QApplication; deferred with the obsolete display world"
-    "../node_editor_ide/NodeSupport/display/QDevioDisplayModelUiObsolete.h|QWidget — the view class derives from QWidget; constructed only under QApplication (see .cpp); deferred with the obsolete display world"
-    "../node_editor_ide/NodeSupport/types/ChatGraphModel.cpp|QWidget — GUI-scene graph model: QWidget* node cache + IWidgetProvider call; nodeWidget() is reached only via the editor scene (NodeRole::Widget), never by the headless engine; no widget construction in the ctor"
 )
 
 # QtWidgets public headers that, when included from _core, put the widget
