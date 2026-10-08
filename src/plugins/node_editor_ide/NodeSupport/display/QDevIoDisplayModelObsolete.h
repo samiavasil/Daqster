@@ -5,29 +5,27 @@
 #include "QDevIOStreamConfigObsolete.h"
 
 #include <QtCore/QObject>
-#include <QtCore/QMap>
 #include <QtNodes/NodeDelegateModel>
 #include <memory>
 
 class NodeDataModelToQIODeviceConnectorObsolete;
 class GenericQDevIoConnectorObsolete;
-class QStackedWidget;
 class QWidget;
 
 /**
- * @brief Generic display model for QDevIO streams.
+ * @brief Generic display model for QDevIO streams (core side, REQ-SW-PL-056).
  *
- * Uses a QStackedWidget to switch between views based on stream metadata.
- * - If connector has streamConfig → auto-route by config.type
- * - If no config → show manual config panel
- * - Mixed streams → activate all matching views
+ * Model-only: routes QDevIO connector data, owns the audio device
+ * (XYSeriesIODeviceObsolete) and exposes the stream config. NO widgets — the
+ * waveform/filter view (QDevioDisplayModelUiObsolete) moved to the GUI plugin
+ * (demo_nodeditor_nodes_gui) and is created by NodeWidgetFactory, which
+ * connects device bufferReady + audioConnectionChanged to the view.
+ * embeddedWidget() returns nullptr (REQ-SW-PL-051 model/gui pattern).
  *
  * Audio-specific subclass (AudioDisplayModelObsolete) overrides for demux.
  *
- * @note Renamed to *_obsolete (REQ-SW-PL-023 §7) — implementation unchanged.
- *       Kept working until the QDevIO display world is deleted at the very end.
- *       Registered under its new name AND aliased under the old "QDevIoDisplay"
- *       key so old saved graphs still load.
+ * @note Renamed to *_obsolete (REQ-SW-PL-023 §7) — kept working until the
+ *       QDevIO display world is deleted at the very end.
  */
 class QDevIoDisplayModelObsolete : public QtNodes::NodeDelegateModel
 {
@@ -75,32 +73,21 @@ public:
 
     std::shared_ptr<QIODevice> device() const;
 
-    // ── View Registration ──────────────────────────────────────
-    void registerView(const QString& type, QWidget* widget);
-    int viewIndex(const QString& type) const;
-
 public slots:
     void ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio);
 
+signals:
+    /// Emitted when the audio format changes (legacy ChangeAudioConnection
+    /// path). The GUI view (QDevioDisplayModelUiObsolete) sets its series
+    /// count / switches to the audio page from this (REQ-SW-PL-056 split).
+    void audioConnectionChanged(const QAudioFormat &format);
+
 protected:
     void handleGenericConnector(std::shared_ptr<GenericQDevIoConnectorObsolete> connector);
-    void showConfigPanel();
-
-    /// Lazily build the widget stack (audio view + config panel) — only when a
-    /// QApplication exists (GUI). Headless (QGuiApplication-only) processes
-    /// never construct widgets (REQ-SW-PL-056); the model still routes data and
-    /// drives the audio device.
-    void ensureUi();
 
     std::shared_ptr<NodeDataModelToQIODeviceConnectorObsolete> m_connector;
     std::shared_ptr<QIODevice> m_device;
     QDevIOStreamConfigObsolete m_currentConfig;
-
-    // ── Stacked Widget Pages ───────────────────────────────────
-    std::unique_ptr<QStackedWidget> m_stack;
-    QMap<QString, int> m_typeToWidget;  // "audio"→0, "video"→1, etc.
-    int m_configPanelIndex = -1;        // index of manual config panel
-    int m_audioViewIndex = -1;          // index of audio waveform view
 };
 
 #endif // QDEVIODISPLAYOBSOLETE_H

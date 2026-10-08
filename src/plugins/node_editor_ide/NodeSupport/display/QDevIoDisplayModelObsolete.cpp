@@ -3,17 +3,8 @@
 #include <XYSeriesIODeviceObsolete.h>
 #include <AudioCompat.h>
 #include <QDevIoDisplayModelObsolete.h>
-#include <QDevioDisplayModelUiObsolete.h>
 #include <QDebug>
 #include "LogCategories.h"
-
-#include <QApplication>
-#include <QStackedWidget>
-#include <QVBoxLayout>
-#include <QLabel>
-#include <QComboBox>
-#include <QPushButton>
-#include <QFormLayout>
 
 using QtNodes::PortType;
 using QtNodes::PortIndex;
@@ -31,50 +22,11 @@ QDevIoDisplayModelObsolete::QDevIoDisplayModelObsolete()
     s.ShadowEnabled = false;
     this->setNodeStyle(s);
 
-    // The widget stack (audio view + config panel) is NOT built here anymore —
-    // it is created lazily by ensureUi() only when a QApplication exists
-    // (REQ-SW-PL-056: a headless QGuiApplication process never constructs
-    // widgets). Data routing and the audio device work without any UI.
-}
-
-void QDevIoDisplayModelObsolete::ensureUi()
-{
-    if (m_stack)
-        return;
-
-    // Headless (QGuiApplication only, no QApplication): never build widgets.
-    if (QApplication::instance() == nullptr)
-        return;
-
-    m_stack = std::make_unique<QStackedWidget>();
-
-    // Page 0: Audio waveform view (existing UI)
-    auto* audioView = new QDevioDisplayModelUiObsolete();
-    m_audioViewIndex = m_stack->addWidget(audioView);
-    m_typeToWidget["audio"] = m_audioViewIndex;
-
-    // Connect audio device buffer to audio view
-    connect(m_device.get(), SIGNAL(bufferReady(QVector<QPointF>&, int)),
-            audioView, SLOT(bufferReady(QVector<QPointF>&, int)));
-
-    // Page 1: Manual config panel
-    auto* configPanel = new QWidget();
-    auto* configLayout = new QFormLayout(configPanel);
-
-    auto* typeCombo = new QComboBox();
-    typeCombo->addItem("Audio", "audio");
-    typeCombo->addItem("Sensor", "sensor");
-    typeCombo->addItem("Video (future)", "video");
-    typeCombo->addItem("Generic", "generic");
-    configLayout->addRow("Stream Type:", typeCombo);
-
-    auto* applyBtn = new QPushButton("Apply");
-    configLayout->addRow(applyBtn);
-
-    m_configPanelIndex = m_stack->addWidget(configPanel);
-
-    // Start on config panel (no data yet)
-    m_stack->setCurrentIndex(m_configPanelIndex);
+    // Model-only since REQ-SW-PL-056: the widget stack (audio view + config
+    // panel) moved to the GUI plugin. The view is created by
+    // NodeWidgetFactory ("AudioDisplayObsolete" creator) and connects to
+    // device() bufferReady + audioConnectionChanged. embeddedWidget() below
+    // returns nullptr, so a headless process constructs zero widgets.
 }
 
 QDevIoDisplayModelObsolete::~QDevIoDisplayModelObsolete()
@@ -115,9 +67,6 @@ void QDevIoDisplayModelObsolete::setInData(std::shared_ptr<NodeData> data, PortI
 {
     if (portIndex != 0) return;
 
-    // Build the UI lazily if a QApplication exists; no-op headless.
-    ensureUi();
-
     auto conData = std::dynamic_pointer_cast<NodeDataModelToQIODeviceConnectorObsolete>(data);
 
     if (conData)
@@ -145,9 +94,7 @@ void QDevIoDisplayModelObsolete::setInData(std::shared_ptr<NodeData> data, PortI
         if(m_connector) {
             m_connector.reset();
         }
-        // Show config panel when disconnected
-        if (m_stack)
-            m_stack->setCurrentIndex(m_configPanelIndex);
+        // No UI anymore (REQ-SW-PL-056): the GUI view shows its own empty state.
     }
 }
 
@@ -156,48 +103,12 @@ void QDevIoDisplayModelObsolete::handleGenericConnector(std::shared_ptr<GenericQ
     if (connector->hasStreamConfig()) {
         auto config = connector->streamConfig();
         m_currentConfig = config;
-
-        // Auto-route by type
-        int idx = m_typeToWidget.value(config.type, -1);
-        if (idx >= 0) {
-            if (m_stack)
-                m_stack->setCurrentIndex(idx);
-        } else {
-            // Unknown type — show config panel
-            showConfigPanel();
-        }
-
-        // For mixed streams, activate all matching views
-        if (connector->isMixed()) {
-            // Future: iterate payload channels and activate each matching view
-        }
-    } else {
-        // No metadata — show config panel for manual configuration
-        showConfigPanel();
+        // View routing (which page is active) is the GUI view's job now
+        // (REQ-SW-PL-056 split) — the model only keeps the stream config.
     }
 
     // Connect the device
     m_connector->ConnectModels(this);
-}
-
-void QDevIoDisplayModelObsolete::showConfigPanel()
-{
-    if (m_stack)
-        m_stack->setCurrentIndex(m_configPanelIndex);
-}
-
-void QDevIoDisplayModelObsolete::registerView(const QString& type, QWidget* widget)
-{
-    // Headless never has a stack; registration is a GUI-only view concern.
-    if (!m_stack)
-        return;
-    int idx = m_stack->addWidget(widget);
-    m_typeToWidget[type] = idx;
-}
-
-int QDevIoDisplayModelObsolete::viewIndex(const QString& type) const
-{
-    return m_typeToWidget.value(type, -1);
 }
 
 void QDevIoDisplayModelObsolete::ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio)
@@ -216,27 +127,17 @@ void QDevIoDisplayModelObsolete::ChangeAudioConnection(QAudioDeviceInfo devInfo,
 
     device->ReinitDevice(formatAudio);
 
-    // Widget part is GUI-only (REQ-SW-PL-056): headless has no UI stack.
-    if (!m_stack)
-        return;
-
-    QDevioDisplayModelUiObsolete *displayUi = dynamic_cast<QDevioDisplayModelUiObsolete*>(m_stack->widget(m_audioViewIndex));
-    if (displayUi == nullptr) {
-        qCWarning(lcNodeEditor) << "Ignore invalid audio format update (no audio view):" << formatAudio;
-        return;
-    }
-
-    displayUi->SetSeries(0, formatAudio.channelCount());
-
-    // Auto-switch to audio view when format changes
-    m_stack->setCurrentIndex(m_audioViewIndex);
+    // View part is GUI-only (REQ-SW-PL-056): the GUI view reacts to
+    // audioConnectionChanged by setting its series count / switching pages.
+    Q_EMIT audioConnectionChanged(formatAudio);
 }
 
 QWidget* QDevIoDisplayModelObsolete::embeddedWidget()
 {
-    // Build the UI lazily when a QApplication exists; headless returns nullptr.
-    ensureUi();
-    return m_stack.get();
+    // Model-only (REQ-SW-PL-056): the view is built by NodeWidgetFactory's
+    // "AudioDisplayObsolete" creator in the GUI plugin. Headless processes
+    // therefore construct zero widgets for this model.
+    return nullptr;
 }
 
 std::shared_ptr<QIODevice> QDevIoDisplayModelObsolete::device() const

@@ -1,9 +1,6 @@
 #include "AudioDisplayModelObsolete.h"
 #include <GenericQDevIoConnectorObsolete.h>
-#include <QDevioDisplayModelUiObsolete.h>
-#include <XYSeriesIODeviceObsolete.h>
 #include <QDebug>
-#include <QStackedWidget>
 #include "LogCategories.h"
 
 AudioDisplayModelObsolete::AudioDisplayModelObsolete()
@@ -33,20 +30,11 @@ void AudioDisplayModelObsolete::setInData(std::shared_ptr<QtNodes::NodeData> dat
 
 void AudioDisplayModelObsolete::configureAudioView(int channels, int sampleRate)
 {
-    // Real view configuration — replaces the old no-op stub (REQ-SW-PL-022
-    // AC 6). The base QDevioDisplayModelUiObsolete renders the waveform; here
-    // we make sure the series count matches the stream and the audio view is
-    // current. No-op headless — the UI stack is not built there (REQ-SW-PL-056).
-    ensureUi();
-    if (!m_stack)
-        return;
-
-    auto *displayUi = dynamic_cast<QDevioDisplayModelUiObsolete *>(m_stack->widget(m_audioViewIndex));
-    if (displayUi == nullptr)
-        return;
-
-    displayUi->SetSeries(0, qMax(1, channels));
-    m_stack->setCurrentIndex(m_audioViewIndex);
+    // Model-only since REQ-SW-PL-056: the waveform view lives in the GUI
+    // plugin (QDevioDisplayModelUiObsolete, created by NodeWidgetFactory's
+    // "AudioDisplayObsolete" creator) and reacts to this signal — it sets its
+    // series count to the stream's channel count.
+    Q_EMIT audioViewConfigChanged(qMax(1, channels), sampleRate);
     qCInfo(lcDemoNodes) << "AudioDisplayModelObsolete: configured for" << channels
                         << "channels at" << sampleRate << "Hz";
 }

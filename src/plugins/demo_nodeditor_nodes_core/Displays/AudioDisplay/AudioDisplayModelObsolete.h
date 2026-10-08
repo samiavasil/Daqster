@@ -33,6 +33,12 @@ public:
     void setInData(std::shared_ptr<QtNodes::NodeData> data,
                    QtNodes::PortIndex const portIndex) override;
 
+signals:
+    /// Emitted from configureAudioView() when an audio stream config is seen.
+    /// The GUI view (NodeWidgetFactory "AudioDisplayObsolete" creator) listens
+    /// and sets its series count (REQ-SW-PL-056 split).
+    void audioViewConfigChanged(int channels, int sampleRate);
+
 private:
     void configureAudioView(int channels, int sampleRate);
 };
