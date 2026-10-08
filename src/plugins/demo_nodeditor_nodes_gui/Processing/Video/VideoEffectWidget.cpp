@@ -1,7 +1,7 @@
 #include "VideoEffectWidget.h"
 
 #include "VideoEffectOps.h"
-#include "VideoEffectNode.h"
+#include "Processing/Video/VideoEffectNode.h"
 
 #include <QtCore/QSignalBlocker>
 #include <QtWidgets/QComboBox>

@@ -9,17 +9,17 @@
 #include <Sources/Video/CameraSourceNode.h>
 #include <Sources/Video/StreamSourceNode.h>
 #include <Sources/Video/VideoFileSourceNode.h>
-#include <Sources/Video/FrameSamplerNode.h>
-#include <Sources/Video/CustomShaderNode.h>
-#include <Sources/Video/VideoEffectNode.h>
-#include <Sources/Video/VideoOutputNode.h>
+#include <Processing/Video/FrameSamplerNode.h>
+#include <Processing/Video/CustomShaderNode.h>
+#include <Processing/Video/VideoEffectNode.h>
+#include <Sinks/Video/VideoOutputNode.h>
 #include <Sources/LLamaSource/ConsoleDataModel.h>
 #include <Sources/Video/CameraSourceNode.h>
 #include <Sources/Video/VideoFileSourceNode.h>
 #include <Sources/Video/StreamSourceNode.h>
-#include <Sources/Video/VideoEffectNode.h>
-#include <Sources/Video/CustomShaderNode.h>
-#include <Sources/Video/FrameSamplerNode.h>
+#include <Processing/Video/VideoEffectNode.h>
+#include <Processing/Video/CustomShaderNode.h>
+#include <Processing/Video/FrameSamplerNode.h>
 #include <Sources/PlutoSdr/PlutoSdrModel.h>
 #include <Sources/SystemMonitor/SystemMonitorModel.h>
 #include <Sources/Gamepad/GamepadModel.h>
@@ -78,10 +78,10 @@
 #include "Sources/Video/CameraSourceWidget.h"
 #include "Sources/Video/StreamSourceWidget.h"
 #include "Sources/Video/VideoFileSourceWidget.h"
-#include "Sources/Video/FrameSamplerWidget.h"
-#include "Sources/Video/CustomShaderWidget.h"
-#include "Sources/Video/VideoEffectWidget.h"
-#include "Sources/Video/VideoOutputUi.h"
+#include "Processing/Video/FrameSamplerWidget.h"
+#include "Processing/Video/CustomShaderWidget.h"
+#include "Processing/Video/VideoEffectWidget.h"
+#include "Sinks/Video/VideoOutputUi.h"
 
 // Core engines (from core plugin)
 #include <Sources/SystemMonitor/SystemMonitorEngine.h>

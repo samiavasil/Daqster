@@ -94,29 +94,29 @@ set(GUI_WIDGETS
     Sources/Video/StreamSourceWidget.cpp
     Sources/Video/VideoFileSourceWidget.h
     Sources/Video/VideoFileSourceWidget.cpp
-    Sources/Video/FrameSamplerWidget.h
-    Sources/Video/FrameSamplerWidget.cpp
-    Sources/Video/CustomShaderWidget.h
-    Sources/Video/CustomShaderWidget.cpp
-    Sources/Video/VideoEffectWidget.h
-    Sources/Video/VideoEffectWidget.cpp
+    Processing/Video/FrameSamplerWidget.h
+    Processing/Video/FrameSamplerWidget.cpp
+    Processing/Video/CustomShaderWidget.h
+    Processing/Video/CustomShaderWidget.cpp
+    Processing/Video/VideoEffectWidget.h
+    Processing/Video/VideoEffectWidget.cpp
     # REQ-SW-PL-055: the software display backend. VideoDisplayWidget itself
     # lives in demo_nodeditor_nodes_core — it is a pure interface with no
     # QWidget, and VideoOutputNode in _core holds a VideoDisplayWidget* to push
     # frames through, so the interface has to be nameable from _core. This
     # plugin supplies the implementations. VideoGLBlitWidget arrives in the next
     # block and combines the same interface with its own widget base.
-    Sources/Video/VideoSoftwareWidget.h
-    Sources/Video/VideoSoftwareWidget.cpp
+    Sinks/Video/VideoSoftwareWidget.h
+    Sinks/Video/VideoSoftwareWidget.cpp
     # The GL backend plus the Video Output node's whole widget tree. These three
     # used to be compiled into demo_nodeditor_nodes_core (its EMBEDDED_WIDGETS
     # list) because VideoOutputNode constructed them directly. It no longer does:
     # the model holds an IVideoOutputUi supplied by IWidgetProvider, and this
     # plugin implements it.
-    Sources/Video/VideoGLBlitWidget.h
-    Sources/Video/VideoGLBlitWidget.cpp
-    Sources/Video/VideoOutputUi.h
-    Sources/Video/VideoOutputUi.cpp
+    Sinks/Video/VideoGLBlitWidget.h
+    Sinks/Video/VideoGLBlitWidget.cpp
+    Sinks/Video/VideoOutputUi.h
+    Sinks/Video/VideoOutputUi.cpp
 )
 
 # ── NodeWidgetFactory for core/gui connection ───────────────────────
@@ -149,6 +149,8 @@ create_plugin(DemoNodeEditorNodesGui
         ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
         ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/AudioSource
         ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sinks/Video
+        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Processing/Video
         ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/GpuMonitor
         ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/JackDetect
         ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Pcap
@@ -165,6 +167,8 @@ create_plugin(DemoNodeEditorNodesGui
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/AudioSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video
+        ${CMAKE_CURRENT_SOURCE_DIR}/Processing/Video
+        ${CMAKE_CURRENT_SOURCE_DIR}/Sinks/Video
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/PlutoSdr
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/SystemMonitor
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Gamepad
