@@ -31,6 +31,10 @@
 #include <Sources/JackDetect/JackDetectModel.h>
 #include <Sources/Pcap/PcapModel.h>
 #include <Displays/DaqDisplay/DaqDisplayNode.h>
+#include <Displays/AudioDisplay/AudioDisplayModelObsolete.h>
+#include <QDevIoDisplayModelObsolete.h>
+#include <XYSeriesIODeviceObsolete.h>
+#include <QAudioFormat>
 #include <Displays/NumberDisplay/NumberDisplayDataModel.h>
 #include <Operators/ModuloModel.h>
 #include <Operators/ArithmeticLogic/ArithmeticLogicModel.h>
@@ -47,8 +51,9 @@
 //
 // Note: VideoGLBlitWidget is NOT a creator of its own — it is the display
 // backend inside VideoOutputUi, created for the "VideoOutput" creator below.
-// VideoPerfBadge is still deferred: it lives in demo_nodeditor_nodes_core and is
-// still constructed by its own model (see REQ-SW-PL-051).
+// VideoPerfBadge is a pure QtCore formatter (no QObject, no widgets) compiled
+// into demo_nodeditor_nodes_core; the on-screen badge is rendered here in
+// VideoOutputUi from its text (REQ-SW-PL-027/051).
 #include "Sources/PlutoSdr/PlutoSdrWidget.h"
 #include "Sources/SystemMonitor/SystemMonitorWidget.h"
 #include "Sources/FilePlayback/FilePlaybackWidget.h"
@@ -60,6 +65,7 @@
 #include "Sources/Pcap/PcapWidget.h"
 #include "Displays/DaqDisplay/DaqDisplayNode.h"
 #include "Displays/DaqDisplay/DaqDisplayWidget.h"
+#include "Displays/ObsoleteAudioDisplay/QDevioDisplayModelUiObsolete.h"
 #include "Displays/NumberDisplay/NumberDisplayWidget.h"
 #include "Operators/ModuloWidget.h"
 #include "Operators/ArithmeticLogicWidget.h"
@@ -276,6 +282,39 @@ void registerDefaultWidgetCreators(NodeWidgetFactory* factory)
     factory->registerWidgetCreator("DaqDisplay", createDaqDisplay);
     factory->registerWidgetCreator("GenericDisplay", createDaqDisplay);
     factory->registerWidgetCreator("AudioDisplay", createDaqDisplay);
+
+    // AudioDisplayObsolete (REQ-SW-PL-056 split): the obsolete QDevIO display
+    // world is model-in-core / view-in-gui. The model (QDevIoDisplayModelObsolete
+    // in demo_nodeditor_nodes_core) routes data and owns the audio device
+    // (XYSeriesIODeviceObsolete) but returns nullptr from embeddedWidget();
+    // this creator supplies the waveform/filter view and wires it up.
+    factory->registerWidgetCreator("AudioDisplayObsolete", [](QtNodes::NodeDelegateModel* model) -> QWidget* {
+        auto* m = qobject_cast<QDevIoDisplayModelObsolete*>(model);
+        if (!m) return nullptr;
+        auto* view = new QDevioDisplayModelUiObsolete();
+
+        // Data path: the model's device pushes buffers straight into the view
+        // (string-based connection preserved from the pre-split embedded stack).
+        if (auto dev = m->device()) {
+            QObject::connect(dev.get(), SIGNAL(bufferReady(QVector<QPointF>&, int)),
+                             view, SLOT(bufferReady(QVector<QPointF>&, int)));
+        }
+
+        // Legacy ChangeAudioConnection path (AudioNodeQdevIoConnectorObsolete).
+        QObject::connect(m, &QDevIoDisplayModelObsolete::audioConnectionChanged,
+                         view, [view](const QAudioFormat &format) {
+                             view->SetSeries(0, qMax(1, format.channelCount()));
+                         });
+
+        // New GenericQDevIoConnectorObsolete path (AudioDisplayModelObsolete).
+        if (auto* audioModel = qobject_cast<AudioDisplayModelObsolete*>(m)) {
+            QObject::connect(audioModel, &AudioDisplayModelObsolete::audioViewConfigChanged,
+                             view, [view](int channels, int /*sampleRate*/) {
+                                 view->SetSeries(0, qMax(1, channels));
+                             });
+        }
+        return view;
+    });
 
     // CameraSource
     factory->registerWidgetCreator("CameraSource", [](QtNodes::NodeDelegateModel* model) -> QWidget* {

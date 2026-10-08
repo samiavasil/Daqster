@@ -10,14 +10,17 @@
 //   (not defined)             - consuming the library from another target
 //                               (Q_DECL_IMPORT)
 //
-// NOTE (REQ-SW-PL-051): the four obsolete QDevIO display classes
-// (QDevIoDisplayModelObsolete, QDevioDisplayModelUiObsolete,
-// XYSeriesIODeviceObsolete, EventThreadPullObsolete) are deliberately NOT
-// marked with this macro. Their .cpp files are compiled into BOTH
-// NodeEditorLibrary (GUI builds) and DemoNodeEditorNodesCore (all builds —
-// headless has no NodeEditorLibrary at all, see the ROUTING_NODES block in
-// demo_nodeditor_nodes_core/CMakeLists.txt). Every consumer therefore compiles
-// its own copy, so no cross-DLL import is ever needed. Marking them would make
+// NOTE (REQ-SW-PL-051/056): three obsolete QDevIO classes
+// (QDevIoDisplayModelObsolete, XYSeriesIODeviceObsolete,
+// EventThreadPullObsolete) are deliberately NOT marked with this macro.
+// Their .cpp files are compiled into BOTH NodeEditorLibrary (GUI builds) and
+// DemoNodeEditorNodesCore (all builds — headless has no NodeEditorLibrary at
+// all, see the ROUTING_NODES block in
+// demo_nodeditor_nodes_core/CMakeLists.txt). Every consumer therefore
+// compiles its own copy, so no cross-DLL import is ever needed. The fourth
+// class, QDevioDisplayModelUiObsolete (the waveform VIEW), moved OUT of this
+// library entirely: it lives in demo_nodeditor_nodes_gui since the
+// REQ-SW-PL-056 core/gui split (2026-10-08). Marking the three would make
 // DemoNodeEditorNodesCore expand this to __declspec(dllimport), and its
 // AUTOMOC pass — which runs over those same headers because the .cpp files are
 // in its SOURCES — then fails to define staticMetaObject:

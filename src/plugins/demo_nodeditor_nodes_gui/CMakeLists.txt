@@ -81,6 +81,13 @@ set(GUI_WIDGETS
     Sources/LLamaSource/LLamaModelWidget.cpp
     Displays/DaqDisplay/DaqDisplayWidget.h
     Displays/DaqDisplay/DaqDisplayWidget.cpp
+    # REQ-SW-PL-056: the obsolete QDevIO display VIEW moved here from
+    # node_editor_ide/NodeSupport/display — NodeWidgetFactory's
+    # "AudioDisplayObsolete" creator builds it and connects the model's device
+    # bufferReady + audioConnectionChanged + audioViewConfigChanged signals.
+    Displays/ObsoleteAudioDisplay/QDevioDisplayModelUiObsolete.h
+    Displays/ObsoleteAudioDisplay/QDevioDisplayModelUiObsolete.cpp
+    Displays/ObsoleteAudioDisplay/QDevioDisplayModelUiObsolete.ui
     Sources/Video/CameraSourceWidget.h
     Sources/Video/CameraSourceWidget.cpp
     Sources/Video/StreamSourceWidget.h

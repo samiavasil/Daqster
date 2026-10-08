@@ -327,8 +327,6 @@ set(ROUTING_NODES
     # XYSeriesIODeviceObsolete is needed by AudioDisplayModelObsolete and
     # AudioNodeQdevIoConnectorObsolete. Compile it directly.
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/display/XYSeriesIODeviceObsolete.cpp
-    # QDevioDisplayModelUiObsolete is needed by AudioDisplayModelObsolete. Compile it directly.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/display/QDevioDisplayModelUiObsolete.cpp
     # EventThreadPullObsolete and AudioFrameDecoder are needed by
     # AudioDisplayModelObsolete and AudioNodeQdevIoConnectorObsolete.
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/threading/EventThreadPullObsolete.cpp
@@ -372,10 +370,13 @@ set(BUILTIN_OPERATOR_NODES
 #
 # UPDATE (REQ-SW-PL-055): this list is now EMPTY. VideoGLBlitWidget was the
 # last entry; it moved to demo_nodeditor_nodes_gui and VideoOutputNode reaches
-# it through IVideoOutputUi / IWidgetProvider instead of constructing it. The
-# mechanism above stays in place for the TUs still to move (VideoEffectNode's
-# QLabel, AudioDisplayModelObsolete's QStackedWidget) — see
-# NodeWidgetFactory.cpp:48 in the GUI plugin for the recorded deferral list.
+# it through IVideoOutputUi / IWidgetProvider instead of constructing it.
+# UPDATE (REQ-SW-PL-056, 2026-10-08): the remaining deferrals are ALSO gone —
+# VideoEffectNode's test-only QLabel and AudioDisplayModelObsolete's dead
+# QStackedWidget include were removed, and the obsolete QDevIO display view
+# (QDevioDisplayModelUiObsolete) moved to demo_nodeditor_nodes_gui
+# (Displays/ObsoleteAudioDisplay/). check_core_widgets_free.cmake now scans
+# 120 TUs with an EMPTY allow-list — no widget include may return to core.
 set(EMBEDDED_WIDGETS
 )
 

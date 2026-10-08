@@ -17,11 +17,13 @@ Library/
 │   ├── GenericQDevIoConnector.h/.cpp # Generic connector with metadata
 │   └── NodeDataModelToQIODeviceConnector.h/.cpp  # Base connector class
 ├── display/
-│   ├── QDevIoDisplayModel.h/.cpp     # Generic display with stacked widget
-│   ├── QDevioDisplayModelUi.h/.cpp   # Chart UI widget
-│   ├── XYSeriesIODevice.h/.cpp       # Ring buffer device for waveform display
-│   ├── AudioCompat.h                 # Qt5/Qt6 audio compatibility
-│   └── QtChartsCompat.h              # Qt5/Qt6 charts compatibility
+│   ├── QDevIoDisplayModelObsolete.h/.cpp # Model-only obsolete display (device +
+│   │                                     # routing; NO widgets since REQ-SW-PL-056)
+│   ├── XYSeriesIODeviceObsolete.h/.cpp   # Ring buffer device for waveform display
+│   ├── AudioCompat.h                     # Qt5/Qt6 audio compatibility
+│   └── QtChartsCompat.h                  # Qt5/Qt6 charts compatibility
+│   (The waveform VIEW — QDevioDisplayModelUiObsolete — moved to
+│    demo_nodeditor_nodes_gui/Displays/ObsoleteAudioDisplay/ on 2026-10-08.)
 ├── threading/
 │   └── EventThreadPull.h/.cpp        # Background worker thread management
 └── decoders/

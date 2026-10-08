@@ -44,8 +44,8 @@ register_component(NodeEditorLibrary
         Qt${QT_VERSION_MAJOR}::Charts
         QtNodes
         # NodeEditorWidget.cpp, EventThreadPullObsolete.cpp,
-        # XYSeriesIODeviceObsolete.cpp, QDevioDisplayModelObsolete.cpp and
-        # QDevioDisplayModelUiObsolete.cpp all log through lcNodeEditor(),
+        # XYSeriesIODeviceObsolete.cpp and QDevioDisplayModelObsolete.cpp all
+        # log through lcNodeEditor(),
         # which is defined in base/src/logging/LogCategories.cpp (part of
         # FrameworkCore) and declared FRAMEWORK_CORE_EXPORT. Without this,
         # linking NodeEditorLibrary.dll fails with:
@@ -85,9 +85,6 @@ if(NODE_EDITOR_LIB_ENABLED)
         NodeSupport/decoders/AudioFrameDecoder.cpp
         NodeSupport/display/QDevIoDisplayModelObsolete.h
         NodeSupport/display/QDevIoDisplayModelObsolete.cpp
-        NodeSupport/display/QDevioDisplayModelUiObsolete.h
-        NodeSupport/display/QDevioDisplayModelUiObsolete.cpp
-        NodeSupport/display/QDevioDisplayModelUiObsolete.ui
         NodeSupport/display/XYSeriesIODeviceObsolete.h
         NodeSupport/display/XYSeriesIODeviceObsolete.cpp
         NodeSupport/display/AudioCompat.h
