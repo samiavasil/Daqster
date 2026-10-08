@@ -204,6 +204,13 @@ private:
     /// GUI-side UI. Null until the GUI plugin attaches one.
     IVideoOutputUi *m_ui = nullptr;
 
+    /// Frames processed while m_ui was null. In headless mode no provider ever
+    /// attaches a UI, so these frames are counted and never presented — which
+    /// used to be completely silent. Reported once from stop() as
+    /// "N frames, no display" (REQ-SW-PL-056 AC4). Reset on each report so a
+    /// stop/play cycle reports its own segment.
+    quint64 m_framesWithoutUi = 0;
+
     // Perf (REQ-SW-PL-027). The domain, the samplers and the timers stay in
     // core — they are QtCore/PERF facilities; only the rendered text is a widget.
     /// 500 ms refresh timer feeding the UI perf panel.

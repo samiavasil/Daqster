@@ -62,6 +62,20 @@ VideoOutputNode::~VideoOutputNode()
 
 void VideoOutputNode::stop()
 {
+    // Report a run that processed frames but had no UI to render into
+    // (REQ-SW-PL-056 AC4). Only ever non-zero in headless mode: in the GUI the
+    // factory attaches a UI before frames arrive, so the counter stays zero
+    // and this stays silent. Emitted unconditionally at qInfo with no category,
+    // because the log categories are disabled by default and a line the user
+    // never sees is the same as no line (same reasoning as logPerfLine()).
+    if (m_framesWithoutUi > 0) {
+        qInfo().noquote()
+            << QStringLiteral("VideoOutputNode: %1 frame(s) processed, no display "
+                              "backend attached — nothing was rendered (headless)")
+                   .arg(m_framesWithoutUi);
+        m_framesWithoutUi = 0;
+    }
+
     // Idempotent: stopping an already-stopped timer is a no-op.
     if (m_perfRefreshTimer != nullptr)
         m_perfRefreshTimer->stop();
@@ -427,6 +441,14 @@ void VideoOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
     // clears it and clears the display with it.
     if (!m_videoInputConnected)
         return;
+
+    // Headless accounting (REQ-SW-PL-056 AC4): no widget provider exists in
+    // headless mode, so m_ui stays null and nothing below reaches a display.
+    // Counted here so stop() can say what the run did instead of reporting
+    // nothing — a run that renders zero frames must not look like a run that
+    // never happened.
+    if (m_ui == nullptr)
+        ++m_framesWithoutUi;
 
     // Perf markers for the panel (REQ-SW-PL-027). No-op while the domain is off.
     if (PERF_ENABLED("video")) {

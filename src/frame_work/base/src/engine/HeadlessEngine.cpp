@@ -20,10 +20,63 @@
 
 namespace Daqster {
 
+namespace {
+
+/**
+ * @brief The registered headless node types, sorted, ready for a message.
+ *
+ * Derived from the registry rather than hardcoded. Both error paths below used
+ * to carry their own literal list of supported types, and both had to be edited
+ * by hand every time registerNodesHeadless() grew — they did drift. A message
+ * that can be silently wrong is worse than a shorter true one (INC-015).
+ */
+QStringList supportedHeadlessTypes(QtNodes::NodeDelegateModelRegistry const &registry)
+{
+    QStringList names;
+    const auto &creators = registry.registeredModelCreators();
+    names.reserve(static_cast<int>(creators.size()));
+    for (auto const &entry : creators)
+        names.append(entry.first);
+    names.sort();
+    return names;
+}
+
+/**
+ * @brief The fail-fast message for flow types missing from the headless registry.
+ */
+QString unsupportedHeadlessMessage(QStringList const &types,
+                                   QtNodes::NodeDelegateModelRegistry const &registry)
+{
+    const QStringList supported = supportedHeadlessTypes(registry);
+
+    QString msg = QStringLiteral("Flow contains node types not supported in headless mode:\n  - ");
+    msg += types.join(QStringLiteral("\n  - "));
+    msg += QStringLiteral("\n\nRegistered headless node types (%1):\n  - ")
+               .arg(supported.size());
+    msg += supported.join(QStringLiteral(", "));
+    msg += QStringLiteral("\n\nThese types are not registered for headless mode — either their "
+                          "plugin is not loaded, or the type exists only in the GUI runtime. "
+                          "'NodeRunner --run <file.flow>' runs the GUI runtime, which registers "
+                          "every loaded type.");
+    return msg;
+}
+
+} // namespace
+
 HeadlessEngine::HeadlessEngine(QObject* parent)
     : QObject(parent)
     , m_pluginManager(QPluginManager::instance())
 {
+    // Nothing else consumes errorOccurred — verified 2026-10-08: no connect()
+    // to this signal exists anywhere in src/. The rich fail-fast message
+    // (unsupportedHeadlessMessage: the offending types plus the registered
+    // set) was therefore emitted into the void, and the user only ever saw the
+    // terse "flow validation failed during parse: <types>" line. AC2 asks for
+    // a clear message; a message nobody prints is not one (INC-015).
+    connect(this, &HeadlessEngine::errorOccurred, this,
+            [this](const QString& message) {
+                qCCritical(lcNodeEditor).noquote() << message;
+            });
 }
 
 HeadlessEngine::~HeadlessEngine()
@@ -163,9 +216,7 @@ bool HeadlessEngine::validateFlow()
         // Remove duplicates
         unregisteredTypes.removeDuplicates();
 
-        QString errorMsg = QStringLiteral("Flow contains node types not supported in headless mode:\n  - ");
-        errorMsg += unregisteredTypes.join(QStringLiteral("\n  - "));
-        errorMsg += QStringLiteral("\n\nSupported headless node types:\n  - NumberSource, NumberDisplay, Modulo, ArithmeticLogic\n  - AudioSource, VideoFileSource, StreamSource, CameraSource\n  - VideoEffect, CustomShaderNode, FrameSamplerNode\n  - AudioSource, LLamaModel, ConsoleDataModel\n  - PlutoSdr, SystemMonitor, Gamepad, GpuMonitor, JackDetect, Pcap\n  - FilePlayback, FileRecord, NetworkSource, NetworkSink\n  - DemuxNode, MuxNode (obsolete)\n\nUse 'NodeRunner --run <file.flow>' (GUI runtime) for flows with display/output nodes.");
+        const QString errorMsg = unsupportedHeadlessMessage(unregisteredTypes, *m_registry);
 
         qCCritical(lcNodeEditor) << "HeadlessEngine: flow validation failed:" << unregisteredTypes.join(", ");
         emit errorOccurred(errorMsg);
@@ -261,9 +312,7 @@ bool HeadlessEngine::parseFlowFile(const QString& fileName)
 
     if (!skippedTypes.isEmpty()) {
         skippedTypes.removeDuplicates();
-        QString errorMsg = QStringLiteral("Flow contains node types not supported in headless mode:\n  - ");
-        errorMsg += skippedTypes.join(QStringLiteral("\n  - "));
-        errorMsg += QStringLiteral("\n\nSupported headless node types:\n  - NumberSource, NumberDisplay, Modulo, ArithmeticLogic\n  - AudioSource, VideoFileSource, StreamSource, CameraSource\n  - VideoEffect, CustomShaderNode, FrameSamplerNode\n  - AudioSource, LLamaModel, ConsoleDataModel\n  - PlutoSdr, SystemMonitor, Gamepad, GpuMonitor, JackDetect, Pcap\n  - FilePlayback, FileRecord, NetworkSource, NetworkSink\n  - DemuxNode, MuxNode (obsolete)\n\nUse 'NodeRunner --run <file.flow>' (GUI runtime) for flows with display/output nodes.");
+        const QString errorMsg = unsupportedHeadlessMessage(skippedTypes, *m_registry);
 
         qCCritical(lcNodeEditor) << "HeadlessEngine: flow validation failed during parse:" << skippedTypes.join(", ");
         emit errorOccurred(errorMsg);

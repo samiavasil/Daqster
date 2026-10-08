@@ -150,11 +150,15 @@ void DemoNodeEditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateM
 
     // Sources - pure logic, programmatic configuration
     registry.registerModel<AudioSourceDataModel>("Sources/Audio");
+    // Migrated from old plugin: obsolete audio models (REQ-SW-PL-056 AC4).
+    // Registered as-is — no refactor, no removal; see the AC4 note below.
+    registry.registerModel<AudioSourceDataModelObsolete>("Obsolete");
     registry.registerModel<LLamaModelDataModel>("Sources/LLM");
     registry.registerModel<ConsoleDataModel>("Sources/LLM");
     registry.registerModel<CameraSourceNode>("Sources/Video");
     registry.registerModel<VideoFileSourceNode>("Sources/Video");
     registry.registerModel<StreamSourceNode>("Sources/Video");
+    registry.registerModel<VideoOutputNode>("Sinks/Video");
     registry.registerModel<VideoEffectNode>("Processing/Video");
     registry.registerModel<CustomShaderNode>("Processing/Video");
     registry.registerModel<FrameSamplerNode>("Processing/Video");
@@ -187,6 +191,21 @@ void DemoNodeEditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateM
     registry.registerModel<NetworkSourceModel>("Sources/Network");
     registry.registerModel<NetworkSinkModel>("Sinks/Network");
 
+    // ── Displays (REQ-SW-PL-056 AC4) ─────────────────────────────────────
+    // Headless runs the flow; these render nothing, because no widget
+    // provider exists in headless mode. That is the intended behaviour, not
+    // an error — see the log note in HeadlessEngine.
+    //
+    // None of the six constructs a widget (verified file by file 2026-10-08):
+    // embeddedWidget() returns nullptr in every one of them, VideoOutputNode
+    // and DaqDisplayNode own only a QTimer, and AudioDisplayModelObsolete's
+    // single QStackedWidget include is dead — the file contains no `new` at
+    // all. So registering them pulls no QtWidgets into the headless path.
+    registry.registerModel<DaqDisplayNode>("Displays/DAQ");
+    // Migrated from old plugin: generic/obsolete displays
+    registry.registerModel<GenericDisplayNode>("Displays/DAQ");
+    registry.registerModel<AudioDisplayModelObsolete>("Displays/DAQ");
+
     // Routing (obsolete) - no widgets
     registry.registerModel<DemuxNodeObsolete>("Routing");
     registry.registerModel<MuxNodeObsolete>("Routing");
@@ -198,8 +217,15 @@ void DemoNodeEditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateM
     public:
         QString name() const override { return QStringLiteral("MuxNode"); }
     };
+    class AudioDisplayAlias : public DaqDisplayNode {
+    public:
+        QString name() const override { return QStringLiteral("AudioDisplay"); }
+    };
     registry.registerModel<DemuxNodeObsoleteAlias>("Routing");
     registry.registerModel<MuxNodeObsoleteAlias>("Routing");
+    // Alias for old saved graphs — 5 of the tracked .flow files name it
+    // "AudioDisplay" (REQ-SW-PL-056 AC4).
+    registry.registerModel<AudioDisplayAlias>("Displays/DAQ");
 }
 
 } // namespace Daqster
