@@ -73,8 +73,8 @@ void VideoEffectNodeTest::cpuPath_gpuOrCpu_fallsBackToCpu()
 
 // ── Metric label refresh ─────────────────────────────────────────────────────
 //
-// After a CPU result, the widget label must show the pool's per-key counters
-// ("CPU <completed>/<submitted> · <skipped> skipped · <fps> fps out").
+// After a CPU result, the metric accessor must reflect the pool's per-key
+// counters ("CPU <completed>/<submitted> · <skipped> skipped · <fps> fps out").
 void VideoEffectNodeTest::cpuPath_metricLabel_refreshed()
 {
     VideoEffectNode node;
@@ -83,8 +83,8 @@ void VideoEffectNodeTest::cpuPath_metricLabel_refreshed()
     node.setInData(makeSolidFrame(QSize(32, 32), Qt::green), 0);
     QTRY_VERIFY_WITH_TIMEOUT(node.outData(0) != nullptr, 5000);
 
-    QVERIFY(node.m_metricLabel != nullptr);
-    const QString text = node.m_metricLabel->text();
+    const QString text = node.metricLabelText();
+    QVERIFY2(!text.isEmpty(), qPrintable(text));
     QVERIFY2(text.startsWith(QStringLiteral("CPU ")), qPrintable(text));
     QVERIFY2(text.contains(QStringLiteral("skipped")), qPrintable(text));
     QVERIFY2(text.contains(QStringLiteral("fps out")), qPrintable(text));

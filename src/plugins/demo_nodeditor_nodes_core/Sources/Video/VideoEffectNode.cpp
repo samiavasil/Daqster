@@ -6,9 +6,7 @@
 #include "PerfProfiler.h"
 #include "Threading/ComputePool.h"
 
-#include <QApplication>
 #include <QJsonObject>
-#include <QLabel>
 #include <QTimer>
 
 #include <algorithm>
@@ -27,16 +25,6 @@ VideoEffectNode::VideoEffectNode()
     // Per-node key into the shared ComputePool (REQ-SW-PL-039): per-key
     // latest-wins submission + serialization for the CPU path.
     m_poolKey = QByteArray::number(reinterpret_cast<quintptr>(this));
-
-    // Metric label for test compatibility ONLY (friend class VideoEffectNodeTest
-    // checks m_metricLabel->text()): allocated lazily and only when a
-    // QApplication exists — a headless QGuiApplication process (REQ-SW-PL-056)
-    // never constructs widgets. The actual UI label lives in VideoEffectWidget
-    // (GUI plugin, REQ-SW-PL-051).
-    if (QApplication::instance() != nullptr) {
-        m_metricLabel = new QLabel();
-        m_metricLabel->setText(QStringLiteral("CPU 0/0 · 0 skipped · 0.0 fps out"));
-    }
 
     // Optional [PERF] effect console line (5 s timer, mirrors
     // VideoOutputNode::logPerfLine). No-op unless the "video" perf domain is
@@ -356,23 +344,23 @@ void VideoEffectNode::onCpuResult(QImage result)
     // Metric label is updated by the widget from pool counters
 }
 
-void VideoEffectNode::updateMetricLabel()
+QString VideoEffectNode::metricLabelText() const
 {
-    // Update the dummy label for test compatibility. The real UI
-    // label in VideoEffectWidget (GUI plugin) gets the same text via
-    // cpuPathUsed()/gpuPathUsed() signals.
-    if (m_metricLabel) {
-        const quint64 submitted = ComputePool::instance().submitted(m_poolKey);
-        const quint64 completed = ComputePool::instance().completed(m_poolKey);
-        const quint64 skipped = ComputePool::instance().skipped(m_poolKey);
-        const double fps = ComputePool::instance().fps(m_poolKey);
+    // Format the LIVE pool counters for this node's key (REQ-SW-PL-056). The
+    // old updateMetricLabel() pushed this into a core-owned QLabel that was
+    // only ever read by the friend test — the real UI label in VideoEffectWidget
+    // (gui plugin) builds the same text from the cpuPathUsed()/gpuPathUsed()
+    // signals. The accessor keeps the format assertable without any widgets.
+    const quint64 submitted = ComputePool::instance().submitted(m_poolKey);
+    const quint64 completed = ComputePool::instance().completed(m_poolKey);
+    const quint64 skipped = ComputePool::instance().skipped(m_poolKey);
+    const double fps = ComputePool::instance().fps(m_poolKey);
 
-        m_metricLabel->setText(QStringLiteral("CPU %1/%2 · %3 skipped · %4 fps out")
-                                   .arg(completed)
-                                   .arg(submitted)
-                                   .arg(skipped)
-                                   .arg(fps, 0, 'f', 1));
-    }
+    return QStringLiteral("CPU %1/%2 · %3 skipped · %4 fps out")
+        .arg(completed)
+        .arg(submitted)
+        .arg(skipped)
+        .arg(fps, 0, 'f', 1);
 }void VideoEffectNode::logPerfLine()
 {
     // Optional [PERF] effect console line — mirrors VideoOutputNode::logPerfLine

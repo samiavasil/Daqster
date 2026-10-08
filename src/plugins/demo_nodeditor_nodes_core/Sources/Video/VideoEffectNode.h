@@ -19,7 +19,7 @@
 #include <memory>
 
 class QWidget;
-class QLabel;
+
 class VideoFrameData;
 
 /**
@@ -170,8 +170,13 @@ private:
     /// members), so it is safe to call from a ComputePool worker thread.
     QImage applyCpu(const QImage &source, const EffectSpec &spec,
                     const EffectParams &params) const;
-    /// Refresh the CPU metric label from the pool's per-key counters.
-    void updateMetricLabel();
+    /// Test-visible metric text (REQ-SW-PL-056). The old QLabel member existed
+    /// in core only so the friend test (VideoEffectNodeTest) could assert the
+    /// pool counters; the real UI label lives in VideoEffectWidget (gui plugin,
+    /// REQ-SW-PL-051) and is fed by cpuPathUsed()/gpuPathUsed(). This accessor
+    /// formats the LIVE pool counters with the same "CPU x/y · z skipped · w fps
+    /// out" layout.
+    QString metricLabelText() const;
 
     QVector<EffectSpec> m_specs;
     int m_effectIndex = 0;
@@ -187,8 +192,6 @@ private:
     quint64 m_totalFrames = 0;          // all valid setInData calls
     QTimer *m_perfTimer = nullptr;      // 5 s [PERF] effect console line
 
-    // Kept for test compatibility (friend class VideoEffectNodeTest)
-    QLabel *m_metricLabel = nullptr;
-};
+    };
 
 #endif // VIDEOEFFECTNODE_H
