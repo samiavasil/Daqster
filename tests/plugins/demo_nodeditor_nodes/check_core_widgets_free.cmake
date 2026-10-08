@@ -15,20 +15,38 @@
 # that must NOT fail. Including <QWidget> or <QStackedWidget> means the
 # translation unit needs the real definition, i.e. it will not link headless.
 #
-# ALLOW_LIST below is the recorded deferral list from REQ-SW-PL-051 AC2 — the
-# two TUs still pulling widgets into _core. When one is moved, delete its entry
-# here; the test then guards the direction of travel instead of silently
-# tolerating whatever is present today.
+# ALLOW_LIST below is the recorded deferral list from REQ-SW-PL-051 AC2 +
+# REQ-SW-PL-056. When one is moved, delete its entry here; the test then
+# guards the direction of travel instead of silently tolerating whatever is
+# present today.
 #
-# Usage: cmake -DCORE_DIR=<path to demo_nodeditor_nodes_core> -P check_core_widgets_free.cmake
+# Usage (target-source scan — the REQ-SW-PL-056 form):
+#   cmake -DCORE_DIR=<demo_nodeditor_nodes_core>
+#         -DCORE_SOURCES="<semicolon-separated TARGET source list>"
+#         [-DCORE_EXPECTED_SOURCES=<N>]
+#         -P check_core_widgets_free.cmake
+#
+#   CORE_SOURCES supplies the _core TARGET's own SOURCES (from
+#   get_target_property). The guard scans exactly the compiled set — including
+#   the translation units physically under node_editor_ide/NodeSupport that
+#   the target compiles directly, which a directory GLOB used to blind-spot.
+#   Entries missing from disk fail loudly; CORE_EXPECTED_SOURCES (when given)
+#   pins the scanned count so a silently-empty SOURCES query cannot pass.
+#
+# Legacy fallback (tree scan, kept for manual runs / other check sites):
+#   cmake -DCORE_DIR=<path to demo_nodeditor_nodes_core> -P check_core_widgets_free.cmake
 #
 # Exits non-zero with a report on stderr when a non-allow-listed TU includes a
 # widgets header.
 
-# ── Known deferrals (REQ-SW-PL-051 AC2) ──────────────────────────────────────
+# ── Known deferrals (REQ-SW-PL-051 AC2 / REQ-SW-PL-056) ──────────────────────
 set(ALLOW_LIST
-    "Displays/AudioDisplay/AudioDisplayModelObsolete.cpp|QStackedWidget — dead include: the TU contains no `new` at all (verified 2026-10-08), so nothing is constructed and the include only has to go; deferred with the obsolete component itself"
-    "Sources/Video/VideoEffectNode.cpp|QLabel — effect preview label still constructed by the model; scheduled for NodeWidgetFactory"
+    "Displays/AudioDisplay/AudioDisplayModelObsolete.cpp|QStackedWidget — dead include: the TU contains no widget `new` (verified 2026-10-08); deferred with the obsolete component itself"
+    "Sources/Video/VideoEffectNode.cpp|QLabel + QApplication — test-only metric label, NOW constructed lazily and only under QApplication (REQ-SW-PL-056): headless QGuiApplication never builds it; the real UI label lives in VideoEffectWidget"
+    "../node_editor_ide/NodeSupport/display/QDevIoDisplayModelObsolete.cpp|QApplication/QStackedWidget/QVBoxLayout/QLabel/QComboBox/QPushButton/QFormLayout — obsolete display model + base of REGISTERED AudioDisplayModelObsolete; UI stack NOW built lazily by ensureUi() only under QApplication (REQ-SW-PL-056); headless routes data + drives the audio device widget-free"
+    "../node_editor_ide/NodeSupport/display/QDevioDisplayModelUiObsolete.cpp|QMenu/QtWidgets — obsolete audio waveform view (QWidget subclass w/ QtCharts); instantiated only via ensureUi() inside QDevIoDisplayModelObsolete, i.e. only under QApplication; deferred with the obsolete display world"
+    "../node_editor_ide/NodeSupport/display/QDevioDisplayModelUiObsolete.h|QWidget — the view class derives from QWidget; constructed only under QApplication (see .cpp); deferred with the obsolete display world"
+    "../node_editor_ide/NodeSupport/types/ChatGraphModel.cpp|QWidget — GUI-scene graph model: QWidget* node cache + IWidgetProvider call; nodeWidget() is reached only via the editor scene (NodeRole::Widget), never by the headless engine; no widget construction in the ctor"
 )
 
 # QtWidgets public headers that, when included from _core, put the widget
@@ -112,12 +130,57 @@ foreach(ENTRY ${ALLOW_LIST})
     list(APPEND ALLOWED_PATHS "${PATH_PART}")
 endforeach()
 
-# Collect every source file under _core.
-file(GLOB_RECURSE CORE_SOURCES
-    "${CORE_DIR}/*.cpp"
-    "${CORE_DIR}/*.h"
-    "${CORE_DIR}/*.hpp"
-)
+# ── Source collection ─────────────────────────────────────────────────────────
+# REQ-SW-PL-056: scan the _core TARGET's own source list, not the directory.
+# GLOB was the blind spot: _core compiles translation units that physically
+# live under node_editor_ide/NodeSupport (absolute entries in the target
+# SOURCES), so a tree scan skipped exactly those seven — and their widget
+# includes went undetected. Scanning the compiled set closes the gap.
+if(DEFINED CORE_SOURCES)
+    set(SCAN_MODE "target source list")
+    set(CORE_SOURCES_FILTERED)
+    foreach(SOURCE ${CORE_SOURCES})
+        # Relative SOURCES entries are relative to the plugin dir (CORE_DIR);
+        # the plugin's absolute foreign TUs (node_editor_ide/...) stay as-is.
+        if(NOT IS_ABSOLUTE "${SOURCE}")
+            set(SOURCE "${CORE_DIR}/${SOURCE}")
+        endif()
+        if(NOT EXISTS "${SOURCE}")
+            message(FATAL_ERROR
+                "CORE_SOURCES entry does not exist: ${SOURCE}\n"
+                "The _core target's SOURCES list drifted from disk — investigate before trusting the scan.")
+        endif()
+        # Keep only compilable/header TUs (skip .ui etc.).
+        string(REGEX MATCH "\\.(cpp|cc|cxx|h|hpp)$" SOURCE_EXT "${SOURCE}")
+        if(SOURCE_EXT)
+            list(APPEND CORE_SOURCES_FILTERED "${SOURCE}")
+        endif()
+    endforeach()
+    set(CORE_SOURCES "${CORE_SOURCES_FILTERED}")
+else()
+    # Legacy fallback: tree scan (manual runs only). Missing-file semantics do
+    # not apply here — the GLOB only returns what exists.
+    set(SCAN_MODE "directory GLOB (legacy)")
+    file(GLOB_RECURSE CORE_SOURCES
+        "${CORE_DIR}/*.cpp"
+        "${CORE_DIR}/*.h"
+        "${CORE_DIR}/*.hpp"
+    )
+endif()
+
+list(LENGTH CORE_SOURCES N_SCANNED)
+if(N_SCANNED LESS 80)
+    message(FATAL_ERROR
+        "REQ-SW-PL-056: only ${N_SCANNED} sources collected for the widgets-free\n"
+        "scan (mode: ${SCAN_MODE}). The real _core target compiles 100+ TUs — a\n"
+        "scan this small means the source query broke. Refusing to run.")
+endif()
+if(DEFINED CORE_EXPECTED_SOURCES AND NOT N_SCANNED EQUAL CORE_EXPECTED_SOURCES)
+    message(FATAL_ERROR
+        "REQ-SW-PL-056: scanned ${N_SCANNED} sources but the invoke site pinned\n"
+        "CORE_EXPECTED_SOURCES=${CORE_EXPECTED_SOURCES}. The target's SOURCES\n"
+        "changed — update the invocation.")
+endif()
 
 set(VIOLATIONS "")
 set(ALLOWED_HITS "")
@@ -177,4 +240,4 @@ if(VIOLATIONS)
 endif()
 
 list(LENGTH CORE_SOURCES N)
-message(STATUS "core_is_widgets_free: ${N} sources scanned in ${CORE_DIR}, 0 undeclared QtWidgets includes")
+message(STATUS "core_is_widgets_free: ${N} sources scanned (${SCAN_MODE}) in ${CORE_DIR}, 0 undeclared QtWidgets includes")

@@ -623,13 +623,29 @@ add_test(NAME demo_nodeditor_lifecycle_tests
 # fails fast instead of sitting on the default 1500 s timeout.
 set_tests_properties(demo_nodeditor_lifecycle_tests PROPERTIES TIMEOUT 120)
 
-# ── core/gui split guard (REQ-SW-PL-051, AC 3 / AC 7) ────────────────────────
+# ── core/gui split guard (REQ-SW-PL-051, AC 3 / AC 7; hardened by
+#    REQ-SW-PL-056) ─────────────────────────────────────────────────────────
 #
 # Static analysis rather than a C++ test: the invariant is a build-graph
 # property ("_core names no QtWidgets class"), which no runtime assertion can
 # observe. Runs as a `cmake -P` script so it needs no toolchain and works on
 # Windows without a POSIX shell.
+#
+# The scan uses the _core TARGET's own SOURCES (get_target_property) instead of
+# a directory GLOB: _core compiles translation units physically under
+# node_editor_ide/NodeSupport, which the old tree scan blind-spotted. The
+# scanned count is pinned via CORE_EXPECTED_SOURCES (same filtered property —
+# guards against a silently-empty query).
+get_target_property(_CORE_SOURCES DemoNodeEditorNodesCore SOURCES)
+set(_CORE_EXPECTED_SOURCES 0)
+foreach(_CORE_S ${_CORE_SOURCES})
+    if(_CORE_S MATCHES "\\.(cpp|cc|cxx|h|hpp)$")
+        math(EXPR _CORE_EXPECTED_SOURCES "${_CORE_EXPECTED_SOURCES}+1")
+    endif()
+endforeach()
 add_test(NAME demo_nodeditor_core_widgets_free
          COMMAND ${CMAKE_COMMAND}
-                 -DCORE_DIR=${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
+                 "-DCORE_DIR=${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core"
+                 "-DCORE_SOURCES=${_CORE_SOURCES}"
+                 "-DCORE_EXPECTED_SOURCES=${_CORE_EXPECTED_SOURCES}"
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/check_core_widgets_free.cmake)
