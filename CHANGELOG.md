@@ -6,6 +6,30 @@
 
 ## [Unreleased]
 
+### Added (headless for all node components)
+- **REQ-SW-PL-056 (цел A)** — `registerNodesHeadless()` вече регистрира **всичките
+  33** нод типа, които има `registerNodes()`: добавени са липсващите 6 —
+  `VideoOutputNode`, `DaqDisplayNode`, `GenericDisplayNode`, `AudioDisplayAlias`,
+  `AudioSourceDataModelObsolete`, `AudioDisplayModelObsolete`. Паритетът е
+  проверен механически (двата `registerModel<>` сет-а са идентични, в един и
+  същ ред) и с новия `ctest` запис `node_runner_headless_registry`. Нито един
+  от 6-те не конструира widget — съществуващото разделяне core/gui не се пипа.
+  Следствие: **всички 25 `.flow` файла, които преди се отхвърляха в headless
+  режим, вече се зареждат и изпълняват** (преди: 16 от 41 работещи).
+  - `HeadlessEngine`: двата хардкоднати списъка „поддържани headless типове"
+    са заменени с `supportedHeadlessTypes()` / `unsupportedHeadlessMessage()`,
+    производни от registry-та — съобщението не може да изостане от кода.
+    `errorOccurred` се логира: сигналът **нямаше нито един консуматор** в
+    `src/`, така че богатата грешка никога не е стигала до потребителя.
+  - `VideoOutputNode`: брояч на кадрите, пристигнали без дисплей
+    (`m_ui == nullptr`), и отчет от `stop()` — „N frame(s) processed, no
+    display backend attached". Това прави headless изпълнението различимо от
+    „нищо не е текло", вместо да мълчи.
+  - Верификация: `ctest` **18/18** Qt 6.9.2 и **18/18** Qt 5.15.2; ръчно с
+    реален дисплей — `NodeRunner --headless --run tests/data/video_4views_1.flow`
+    → exit 0 (грейсфулно спиране) + 4× отчета по-горе; GUI `NodeEditorIde` със
+    същия flow → exit 0, 25 fps, **0** записа от новия лог (без регресия).
+
 ### Tests (core/gui split)
 - **REQ-SW-PL-050** — lifecycle suite-ът вече твърди shutdown контракта на **16-те**
   достижими `IStoppable` модела, не на 4. Предишната бележка „14-те нода с
