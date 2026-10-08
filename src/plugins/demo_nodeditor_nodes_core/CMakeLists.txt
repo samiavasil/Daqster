@@ -88,8 +88,8 @@ set(VIDEO_NODES
     # non-QObject interfaces, header-only, so VideoOutputNode can hold the UI
     # and be called back by it without linking QtWidgets and without moc.
     Sources/Video/IVideoOutputUi.h
-    Sources/Video/VideoOutputNode.h
-    Sources/Video/VideoOutputNode.cpp
+    Sinks/Video/VideoOutputNode.h
+    Sinks/Video/VideoOutputNode.cpp
     Sources/Video/VideoPerfBadge.h
     Sources/Video/VideoPerfBadge.cpp
     Sources/Video/VideoTransformOps.h
@@ -99,14 +99,14 @@ set(VIDEO_NODES
     Sources/Video/VideoEffectOps.cpp
     Sources/Video/VideoEffectGLProcessor.h
     Sources/Video/VideoEffectGLProcessor.cpp
-    Sources/Video/VideoEffectNode.h
-    Sources/Video/VideoEffectNode.cpp
+    Processing/Video/VideoEffectNode.h
+    Processing/Video/VideoEffectNode.cpp
     Sources/Video/CustomShaderGLProcessor.h
     Sources/Video/CustomShaderGLProcessor.cpp
-    Sources/Video/CustomShaderNode.h
-    Sources/Video/CustomShaderNode.cpp
-    Sources/Video/FrameSamplerNode.h
-    Sources/Video/FrameSamplerNode.cpp
+    Processing/Video/CustomShaderNode.h
+    Processing/Video/CustomShaderNode.cpp
+    Processing/Video/FrameSamplerNode.h
+    Processing/Video/FrameSamplerNode.cpp
     # Texture pool for GPU effect outputs (REQ-SW-PL-032 Issue #7) is NOT
     # compiled here: TexturePool::instance() is a process-wide singleton of GL
     # texture names, and a second copy in this .so would be a second pool —
@@ -434,6 +434,8 @@ create_plugin(DemoNodeEditorNodesCore
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/AudioSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video
+        ${CMAKE_CURRENT_SOURCE_DIR}/Sinks/Video
+        ${CMAKE_CURRENT_SOURCE_DIR}/Processing/Video
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/SystemMonitor
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Gamepad
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Pcap
