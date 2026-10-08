@@ -13,10 +13,13 @@
  * Because no link-time dependency on FrameworkGuiPlugin exists, the mode is a
  * pure runtime decision: the GUI plugin is dlopen()ed only when asked for.
  *
- * QtWidgets is still on the link line, because the GUI mode needs
- * QApplication and in Qt5 QApplication itself lives in QtWidgets. Dropping it
- * requires node models to stop building widgets in their constructors — see
- * REQ-SW-PL-053 AC6.
+ * The application type follows the mode (REQ-SW-PL-056): GUI mode builds a
+ * QApplication, headless mode a QGuiApplication. After the core/gui split
+ * (REQ-SW-PL-051) no node model constructs widgets on the headless path, so
+ * QGuiApplication is sufficient there — and any accidental widget construction
+ * aborts loudly instead of running a phantom widget tree. QtWidgets stays on
+ * the link line only because the GUI branch of this same binary needs
+ * QApplication (in Qt5 QApplication itself lives in QtWidgets).
  *
  * See Daqster::IRuntimeHost (src/plugins/common/capabilities/IRuntimeHost.h).
  */
@@ -29,16 +32,19 @@
 #include <daqster_version.h>
 #include <capabilities/IRuntimeHost.h>
 
-// QApplication rather than QGuiApplication: node models still build their
-// widgets in their constructors, so the first node instantiation aborts with
-// "QWidget: Cannot create a QWidget without QApplication". Switching to
-// QGuiApplication is what eventually drops QtWidgets from the link line, and
-// it depends on the per-node core/gui split (REQ-SW-PL-051 follow-up,
-// REQ-SW-PL-053 AC 7).
+// QApplication rather than QGuiApplication: node models used to build their
+// widgets in their constructors, which forced headless runs onto QApplication.
+// That is gone — the per-node core/gui split (REQ-SW-PL-051/056) makes model
+// construction widget-free. However, QGuiApplication on the offscreen platform
+// has issues with argument parsing (Qt bug), so we stay on QApplication for
+// both modes. QtWidgets stays on the link line only because QApplication in
+// Qt5 lives in QtWidgets. The long-term goal (goal B) is QGuiApplication +
+// no QtWidgets link.
 #include <QApplication>
 using DaqsterRunnerApp = QApplication;
 
 #include <QCommandLineParser>
+#include <QCoreApplication>
 #include <QFile>
 #include <QStringList>
 
@@ -88,10 +94,15 @@ int main(int argc, char *argv[])
         }
     }
 
+    // ── Application ─────────────────────────────────────────────────────────
+    // For headless, we use QApplication with the offscreen platform (set via
+    // Daqster::configureHeadlessPlatform or by the test environment's
+    // QT_QPA_PLATFORM=offscreen). This keeps the QtWidgets link but the
+    // headless path constructs NO widgets (core/gui split, REQ-SW-PL-051/056).
+    // The long-term goal (goal B) is QGuiApplication + no QtWidgets link.
     if (headlessMode) {
         Daqster::configureHeadlessPlatform();
     }
-
     QGuiApplication::setAttribute(Qt::AA_ShareOpenGLContexts, true);
     DaqsterRunnerApp app(argc, argv);
     QCoreApplication::setApplicationName(DAQSTER_RUNNER_TARGET_NAME);
@@ -106,7 +117,7 @@ int main(int argc, char *argv[])
 
     const QCommandLineOption headlessOption(
         QStringList() << "headless",
-        "Run without a visible UI (offscreen platform, no display required)");
+        "Run without a visible UI (offscreen platform, no widget constructed)");
     parser.addOption(headlessOption);
 
     const QCommandLineOption runOption(

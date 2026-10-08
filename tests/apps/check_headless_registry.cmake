@@ -59,6 +59,36 @@ function(dump_and_fail fixture log result reason)
     message(FATAL_ERROR "${reason}")
 endfunction()
 
+# ── AC2: fail-fast survives for genuinely unknown types ──────────────────────
+# Run this FIRST: the negative case exits cleanly (exit code 1) and does not
+# leave audio resources in a dirty state. The positive case (below) includes
+# AudioDisplayObsolete nodes that monitor audio format changes; when cmake's
+# execute_process TIMEOUT kills it via SIGTERM, the abrupt termination can
+# leave PulseAudio/PipeWire in a state that hangs a subsequent run.
+set(negative_flow "missing_node.flow")
+if(NOT EXISTS "${FLOW_DIR}/${negative_flow}")
+    message(FATAL_ERROR "fixture missing: ${FLOW_DIR}/${negative_flow}")
+endif()
+
+run_headless("${negative_flow}" negative_log negative_result)
+
+if(NOT negative_result STREQUAL "1")
+    dump_and_fail("${negative_flow}" "${negative_log}" "${negative_result}"
+                  "AC2: expected exit code 1 for an unregistered node type")
+endif()
+
+# The message has to be VISIBLE, not merely emitted on a signal nobody
+# connects (INC-015): the log must name the offending type.
+if(NOT negative_log MATCHES "BogusUnregisteredNode")
+    dump_and_fail("${negative_flow}" "${negative_log}" "${negative_result}"
+                  "AC2: the fail-fast message does not name the unsupported type")
+endif()
+
+if(NOT negative_log MATCHES "not supported in headless mode")
+    dump_and_fail("${negative_flow}" "${negative_log}" "${negative_result}"
+                  "AC2: the fail-fast explanation is not printed to the log")
+endif()
+
 # ── AC4: every previously-unregistered component loads headless ──────────────
 set(positive_flow "headless_all_components.flow")
 if(NOT EXISTS "${FLOW_DIR}/${positive_flow}")
@@ -83,31 +113,6 @@ endif()
 if(NOT positive_log MATCHES "loaded nodes= 6 ")
     dump_and_fail("${positive_flow}" "${positive_log}" "${positive_result}"
                   "AC4: expected all 6 nodes to be instantiated, see log above")
-endif()
-
-# ── AC2: fail-fast survives for genuinely unknown types ──────────────────────
-set(negative_flow "missing_node.flow")
-if(NOT EXISTS "${FLOW_DIR}/${negative_flow}")
-    message(FATAL_ERROR "fixture missing: ${FLOW_DIR}/${negative_flow}")
-endif()
-
-run_headless("${negative_flow}" negative_log negative_result)
-
-if(NOT negative_result STREQUAL "1")
-    dump_and_fail("${negative_flow}" "${negative_log}" "${negative_result}"
-                  "AC2: expected exit code 1 for an unregistered node type")
-endif()
-
-# The message has to be VISIBLE, not merely emitted on a signal nobody
-# connects (INC-015): the log must name the offending type.
-if(NOT negative_log MATCHES "BogusUnregisteredNode")
-    dump_and_fail("${negative_flow}" "${negative_log}" "${negative_result}"
-                  "AC2: the fail-fast message does not name the unsupported type")
-endif()
-
-if(NOT negative_log MATCHES "not supported in headless mode")
-    dump_and_fail("${negative_flow}" "${negative_log}" "${negative_result}"
-                  "AC2: the fail-fast explanation is not printed to the log")
 endif()
 
 message(STATUS "headless registry check OK: "

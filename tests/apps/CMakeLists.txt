@@ -17,5 +17,10 @@ add_test(NAME node_runner_headless_registry
                  "-DFLOW_DIR=${DAQSTER_SOURCE_DIR}/tests/data"
                  -P "${CMAKE_CURRENT_SOURCE_DIR}/check_headless_registry.cmake")
 
-# Two bounded runs of NodeRunner (15 s cap each) plus margin.
-set_tests_properties(node_runner_headless_registry PROPERTIES TIMEOUT 120)
+# Two bounded runs of NodeRunner (15 s cap each) plus margin. The headless
+# platform is a test/CI convention, not a product hardcode: after REQ-SW-PL-056
+# NodeRunner itself no longer sets QT_QPA_PLATFORM (see main.cpp), so the
+# offscreen plugin is declared here, on the test.
+set_tests_properties(node_runner_headless_registry PROPERTIES
+    TIMEOUT 120
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
