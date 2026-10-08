@@ -86,6 +86,12 @@ protected:
     void handleGenericConnector(std::shared_ptr<GenericQDevIoConnectorObsolete> connector);
     void showConfigPanel();
 
+    /// Lazily build the widget stack (audio view + config panel) — only when a
+    /// QApplication exists (GUI). Headless (QGuiApplication-only) processes
+    /// never construct widgets (REQ-SW-PL-056); the model still routes data and
+    /// drives the audio device.
+    void ensureUi();
+
     std::shared_ptr<NodeDataModelToQIODeviceConnectorObsolete> m_connector;
     std::shared_ptr<QIODevice> m_device;
     QDevIOStreamConfigObsolete m_currentConfig;

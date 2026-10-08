@@ -6,6 +6,7 @@
 #include "PerfProfiler.h"
 #include "Threading/ComputePool.h"
 
+#include <QApplication>
 #include <QJsonObject>
 #include <QLabel>
 #include <QTimer>
@@ -27,11 +28,15 @@ VideoEffectNode::VideoEffectNode()
     // latest-wins submission + serialization for the CPU path.
     m_poolKey = QByteArray::number(reinterpret_cast<quintptr>(this));
 
-    // Allocate metric label for test compatibility (friend class
-    // VideoEffectNodeTest checks m_metricLabel->text()). The actual UI
-    // label lives in VideoEffectWidget (GUI plugin, REQ-SW-PL-051).
-    m_metricLabel = new QLabel();
-    m_metricLabel->setText(QStringLiteral("CPU 0/0 · 0 skipped · 0.0 fps out"));
+    // Metric label for test compatibility ONLY (friend class VideoEffectNodeTest
+    // checks m_metricLabel->text()): allocated lazily and only when a
+    // QApplication exists — a headless QGuiApplication process (REQ-SW-PL-056)
+    // never constructs widgets. The actual UI label lives in VideoEffectWidget
+    // (GUI plugin, REQ-SW-PL-051).
+    if (QApplication::instance() != nullptr) {
+        m_metricLabel = new QLabel();
+        m_metricLabel->setText(QStringLiteral("CPU 0/0 · 0 skipped · 0.0 fps out"));
+    }
 
     // Optional [PERF] effect console line (5 s timer, mirrors
     // VideoOutputNode::logPerfLine). No-op unless the "video" perf domain is

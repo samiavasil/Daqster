@@ -7,6 +7,7 @@
 #include <QDebug>
 #include "LogCategories.h"
 
+#include <QApplication>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 #include <QLabel>
@@ -22,7 +23,6 @@ using QtNodes::NodeValidationState;
 
 QDevIoDisplayModelObsolete::QDevIoDisplayModelObsolete()
     : m_connector(nullptr)
-    , m_stack(std::make_unique<QStackedWidget>())
     , m_device(std::shared_ptr<XYSeriesIODeviceObsolete>(new XYSeriesIODeviceObsolete()))
 {
     // Display nodes must never get a graphics effect (perf): the shadow blur
@@ -30,6 +30,23 @@ QDevIoDisplayModelObsolete::QDevIoDisplayModelObsolete()
     QtNodes::NodeStyle s = this->nodeStyle();
     s.ShadowEnabled = false;
     this->setNodeStyle(s);
+
+    // The widget stack (audio view + config panel) is NOT built here anymore —
+    // it is created lazily by ensureUi() only when a QApplication exists
+    // (REQ-SW-PL-056: a headless QGuiApplication process never constructs
+    // widgets). Data routing and the audio device work without any UI.
+}
+
+void QDevIoDisplayModelObsolete::ensureUi()
+{
+    if (m_stack)
+        return;
+
+    // Headless (QGuiApplication only, no QApplication): never build widgets.
+    if (QApplication::instance() == nullptr)
+        return;
+
+    m_stack = std::make_unique<QStackedWidget>();
 
     // Page 0: Audio waveform view (existing UI)
     auto* audioView = new QDevioDisplayModelUiObsolete();
@@ -98,6 +115,9 @@ void QDevIoDisplayModelObsolete::setInData(std::shared_ptr<NodeData> data, PortI
 {
     if (portIndex != 0) return;
 
+    // Build the UI lazily if a QApplication exists; no-op headless.
+    ensureUi();
+
     auto conData = std::dynamic_pointer_cast<NodeDataModelToQIODeviceConnectorObsolete>(data);
 
     if (conData)
@@ -126,7 +146,8 @@ void QDevIoDisplayModelObsolete::setInData(std::shared_ptr<NodeData> data, PortI
             m_connector.reset();
         }
         // Show config panel when disconnected
-        m_stack->setCurrentIndex(m_configPanelIndex);
+        if (m_stack)
+            m_stack->setCurrentIndex(m_configPanelIndex);
     }
 }
 
@@ -139,7 +160,8 @@ void QDevIoDisplayModelObsolete::handleGenericConnector(std::shared_ptr<GenericQ
         // Auto-route by type
         int idx = m_typeToWidget.value(config.type, -1);
         if (idx >= 0) {
-            m_stack->setCurrentIndex(idx);
+            if (m_stack)
+                m_stack->setCurrentIndex(idx);
         } else {
             // Unknown type — show config panel
             showConfigPanel();
@@ -160,11 +182,15 @@ void QDevIoDisplayModelObsolete::handleGenericConnector(std::shared_ptr<GenericQ
 
 void QDevIoDisplayModelObsolete::showConfigPanel()
 {
-    m_stack->setCurrentIndex(m_configPanelIndex);
+    if (m_stack)
+        m_stack->setCurrentIndex(m_configPanelIndex);
 }
 
 void QDevIoDisplayModelObsolete::registerView(const QString& type, QWidget* widget)
 {
+    // Headless never has a stack; registration is a GUI-only view concern.
+    if (!m_stack)
+        return;
     int idx = m_stack->addWidget(widget);
     m_typeToWidget[type] = idx;
 }
@@ -177,19 +203,29 @@ int QDevIoDisplayModelObsolete::viewIndex(const QString& type) const
 void QDevIoDisplayModelObsolete::ChangeAudioConnection(QAudioDeviceInfo devInfo, QAudioFormat formatAudio)
 {
     std::shared_ptr<XYSeriesIODeviceObsolete> device = std::dynamic_pointer_cast<XYSeriesIODeviceObsolete>(m_device);
-    QDevioDisplayModelUiObsolete *displayUi = dynamic_cast<QDevioDisplayModelUiObsolete*>(m_stack->widget(m_audioViewIndex));
 
     qCInfo(lcNodeEditor) << "Changed: " << formatAudio << AudioCompat::deviceName(devInfo);
 
     const bool validChannels = formatAudio.channelCount() > 0;
     const bool validSampleSize = AudioCompat::sampleSize(formatAudio) > 0;
     const bool knownSampleType = AudioCompat::sampleType(formatAudio) != AudioCompat::Unknown;
-    if (!device.get() || displayUi == nullptr || !validChannels || !validSampleSize || !knownSampleType) {
+    if (!device.get() || !validChannels || !validSampleSize || !knownSampleType) {
         qCWarning(lcNodeEditor) << "Ignore invalid audio format update:" << formatAudio;
         return;
     }
 
     device->ReinitDevice(formatAudio);
+
+    // Widget part is GUI-only (REQ-SW-PL-056): headless has no UI stack.
+    if (!m_stack)
+        return;
+
+    QDevioDisplayModelUiObsolete *displayUi = dynamic_cast<QDevioDisplayModelUiObsolete*>(m_stack->widget(m_audioViewIndex));
+    if (displayUi == nullptr) {
+        qCWarning(lcNodeEditor) << "Ignore invalid audio format update (no audio view):" << formatAudio;
+        return;
+    }
+
     displayUi->SetSeries(0, formatAudio.channelCount());
 
     // Auto-switch to audio view when format changes
@@ -198,6 +234,8 @@ void QDevIoDisplayModelObsolete::ChangeAudioConnection(QAudioDeviceInfo devInfo,
 
 QWidget* QDevIoDisplayModelObsolete::embeddedWidget()
 {
+    // Build the UI lazily when a QApplication exists; headless returns nullptr.
+    ensureUi();
     return m_stack.get();
 }
 

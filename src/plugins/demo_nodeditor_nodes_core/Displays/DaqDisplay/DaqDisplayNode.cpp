@@ -715,6 +715,13 @@ void DaqDisplayNode::onRefreshTick()
     if (!m_dataDirty || !m_lastData)
         return;
 
+    // Nobody consumes the plot → the 30 Hz compute pass would burn CPU for an
+    // unread result (headless — REQ-SW-PL-056). The GUI widget connects to
+    // plotResultReady() when the node's UI is created (NodeWidgetFactory), so
+    // this is 0 exactly when there is no display consumer.
+    if (receivers(SIGNAL(plotResultReady(const PlotResult&))) == 0)
+        return;
+
     // Snapshot immutable copies on the GUI thread; the worker touches only these
     // (REQ-SW-PL-023 §4) — no data mutex.
     const std::shared_ptr<const SampledData> dataCopy = m_lastData;

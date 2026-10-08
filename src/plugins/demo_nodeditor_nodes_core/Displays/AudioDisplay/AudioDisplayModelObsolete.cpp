@@ -36,7 +36,11 @@ void AudioDisplayModelObsolete::configureAudioView(int channels, int sampleRate)
     // Real view configuration — replaces the old no-op stub (REQ-SW-PL-022
     // AC 6). The base QDevioDisplayModelUiObsolete renders the waveform; here
     // we make sure the series count matches the stream and the audio view is
-    // current.
+    // current. No-op headless — the UI stack is not built there (REQ-SW-PL-056).
+    ensureUi();
+    if (!m_stack)
+        return;
+
     auto *displayUi = dynamic_cast<QDevioDisplayModelUiObsolete *>(m_stack->widget(m_audioViewIndex));
     if (displayUi == nullptr)
         return;
