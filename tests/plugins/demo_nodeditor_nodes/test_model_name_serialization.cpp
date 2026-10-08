@@ -3,6 +3,8 @@
 #include <Displays/NumberDisplay/NumberDisplayDataModel.h>
 #include <Operators/ArithmeticLogic/ArithmeticLogicModel.h>
 #include <Operators/ModuloModel.h>
+#include <Routing/Demux/DemuxNodeObsolete.h>
+#include <Routing/Mux/MuxNodeObsolete.h>
 #include <Sources/AudioSource/AudioSourceDataModel.h>
 #include <Sources/GpuMonitor/GpuMonitorModel.h>
 #include <Sources/JackDetect/JackDetectModel.h>
@@ -70,6 +72,23 @@ void ModelNameSerializationTest::arithmeticLogic_savesModelName()
 void ModelNameSerializationTest::modulo_savesModelName()
 {
     ModuloModel node;
+    assertCarriesModelName(node);
+}
+
+// REQ-SW-PL-056 split (2026-10-08): these used to be excluded because their
+// constructor chain dragged in QDevioDisplayModelUiObsolete (QtCharts widgets);
+// the split moved the VIEW to the GUI plugin, so now they compile and run in
+// this widget-free test binary. Their save() delegates to the base (framework
+// QtNodes fork writes "model-name" itself).
+void ModelNameSerializationTest::demux_savesModelName()
+{
+    DemuxNodeObsolete node;
+    assertCarriesModelName(node);
+}
+
+void ModelNameSerializationTest::mux_savesModelName()
+{
+    MuxNodeObsolete node;
     assertCarriesModelName(node);
 }
 

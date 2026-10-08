@@ -338,13 +338,18 @@ set_tests_properties(demo_nodeditor_videoeffect_tests PROPERTIES
 # "model-name". The engines (Pcap/GpuMonitor/JackDetect/AudioSource) are
 # parented to the model and idle until start(), so constructing them is inert.
 #
-# Scope: the three *Obsolete* models (AudioSourceDataModelObsolete,
-# DemuxNodeObsolete, MuxNodeObsolete) carry the same fix but are NOT covered
-# here — instantiating them drags in the whole legacy QDevIO audio/display
-# stack (QDevIoDisplayModelObsolete -> XYSeriesIODeviceObsolete ->
-# QDevioDisplayModelUiObsolete, which needs QtCharts widgets), which would make
-# this a GUI test for node types that are deprecated. The fix is the same
-# one-liner in each; their coverage gap is noted rather than paid for.
+# Scope: AudioSourceDataModelObsolete carries the same base-delegated fix but
+# is still NOT covered here — its constructor chain pulls the full legacy audio
+# worker stack (AudioNodeQdevIoConnectorObsolete → QDevIoDisplayModelObsolete +
+# XYSeriesIODeviceObsolete + EventThreadPullObsolete + AudioWorkerObsolete),
+# which is widget-free after the REQ-SW-PL-056 split but heavy; the node is
+# however constructed headless by the lifecycle tests and its save() fix is
+# the same one-liner.
+# REQ-SW-PL-056 split (2026-10-08): DemuxNodeObsolete + MuxNodeObsolete ARE
+# covered now — previously excluded because their chain dragged in
+# QDevioDisplayModelUiObsolete (QtCharts widgets), which would have made this
+# a GUI test for deprecated node types. The split moved the VIEW to the GUI
+# plugin, so the pair compiles and runs in this widget-free binary.
 set(MODEL_NAME_TEST_SOURCES
     test_model_name_serialization.cpp
     test_model_name_serialization.h
@@ -363,6 +368,14 @@ set(MODEL_NAME_TEST_SOURCES
     # AudioSourceDataModel.
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Operators/ArithmeticLogic/ExprParser.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/AudioSource/MicCaptureWorker.cpp
+    # REQ-SW-PL-056: Demux/Mux + their GenericQDevIo connector dependency
+    # (header-only StreamChannelObsolete/QDevIOStreamConfigObsolete types);
+    # GenericQDevIoConnectorObsolete's base ctor comes from
+    # NodeDataModelToQIODeviceConnectorObsolete.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Routing/Demux/DemuxNodeObsolete.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Routing/Mux/MuxNodeObsolete.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/connectors/GenericQDevIoConnectorObsolete.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/connectors/NodeDataModelToQIODeviceConnectorObsolete.cpp
 )
 
 add_executable(demo_nodeditor_modelname_tests ${MODEL_NAME_TEST_SOURCES})
@@ -372,6 +385,10 @@ target_include_directories(demo_nodeditor_modelname_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/AudioSource
     # MicCaptureWorker.h pulls AudioBufferToSampled.h from the Video sources.
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
+    # Demux/Mux headers include GenericQDevIoConnectorObsolete.h (connectors)
+    # and StreamChannelObsolete.h / QDevIOStreamConfigObsolete.h (types).
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/connectors
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/types
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include

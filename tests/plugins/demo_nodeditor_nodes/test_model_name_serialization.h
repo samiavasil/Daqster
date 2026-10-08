@@ -29,6 +29,12 @@ private slots:
     void arithmeticLogic_savesModelName();
     void modulo_savesModelName();
 
+    // REQ-SW-PL-056 split (2026-10-08): the routing Mux/Demux pair became
+    // widget-free testable — their save() delegates to the base (which writes
+    // "model-name"), asserted the same way here instead of by eye.
+    void demux_savesModelName();
+    void mux_savesModelName();
+
     // The dead "name" key must be gone: it duplicated the type and invited
     // the mistake that caused this defect.
     void save_doesNotWriteBareNameKey();
