@@ -1,6 +1,6 @@
 #include "test_frame_sampler_node.h"
 
-#include "FrameSamplerNode.h"
+#include "Processing/Video/FrameSamplerNode.h"
 #include "NodeDataTypes/VideoFrameData.h"
 
 #include <QElapsedTimer>

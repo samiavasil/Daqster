@@ -2,7 +2,7 @@
 
 #include "NodeDataTypes/VideoFrameData.h"
 #include "Threading/ComputePool.h"
-#include "VideoEffectNode.h"
+#include "Processing/Video/VideoEffectNode.h"
 
 #include <QImage>
 #include <QLabel>

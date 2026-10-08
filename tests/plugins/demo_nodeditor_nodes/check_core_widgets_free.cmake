@@ -43,7 +43,7 @@
 # ── Known deferrals (REQ-SW-PL-051 AC2 / REQ-SW-PL-056) ──────────────────────
 # EMPTY since 2026-10-08 (REQ-SW-PL-056 split). The last four widget-tainted
 # translation units are gone:
-#   * Sources/Video/VideoEffectNode.cpp          — QLabel/QApplication removed;
+#   * Processing/Video/VideoEffectNode.cpp        — QLabel/QApplication removed;
 #     metricLabelText() accessor (friend test) instead.
 #   * Displays/AudioDisplay/AudioDisplayModelObsolete.cpp — QStackedWidget dead
 #     include removed; configureAudioView() emits audioViewConfigChanged().

@@ -3,7 +3,7 @@
 #include "GL/VideoGLContextManager.h"
 #include "NodeDataTypes/VideoFrameData.h"
 #include "VideoGLBlitWidget.h"
-#include "VideoOutputNode.h"
+#include "Sinks/Video/VideoOutputNode.h"
 
 #include <QColor>
 #include <QImage>

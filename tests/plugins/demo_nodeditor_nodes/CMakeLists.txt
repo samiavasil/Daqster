@@ -190,16 +190,16 @@ set_tests_properties(demo_nodeditor_videoframe_tests PROPERTIES
 set(VIDEO_OUTPUT_TEST_SOURCES
     test_video_output_node.cpp
     test_video_output_node.h
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoOutputNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sinks/Video/VideoOutputNode.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoPerfBadge.cpp
     # REQ-SW-PL-055: the model constructs no widget — it receives an
     # IVideoOutputUi from IWidgetProvider. The test is not a plugin host, so it
     # plays the GUI plugin's role and compiles the whole widget side directly:
     # VideoOutputUi plus BOTH display backends, because which one it builds
     # depends on detectVideoBackend() at runtime, not on the test's wishes.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Sources/Video/VideoOutputUi.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Sources/Video/VideoGLBlitWidget.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Sources/Video/VideoSoftwareWidget.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Sinks/Video/VideoOutputUi.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Sinks/Video/VideoGLBlitWidget.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Sinks/Video/VideoSoftwareWidget.cpp
     # Embedded effects (REQ-SW-PL-034): VideoOutputNode now uses
     # VideoEffectOps::allSpecs() + VideoEffectGLProcessor::processTexture().
     # VideoEffectOps.cpp delegates to VideoTransformOps.cpp for the CPU apply
@@ -219,10 +219,13 @@ add_executable(demo_nodeditor_videooutput_tests ${VIDEO_OUTPUT_TEST_SOURCES})
 target_include_directories(demo_nodeditor_videooutput_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sinks/Video
     # REQ-SW-PL-055: the GUI plugin's own root, because VideoOutputUi.h is
     # included as "VideoOutputUi.h" from the test.
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Processing/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Sinks/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
@@ -276,7 +279,7 @@ set_tests_properties(demo_nodeditor_videooutput_tests PROPERTIES
 set(VIDEO_EFFECT_TEST_SOURCES
     test_video_effect_node.cpp
     test_video_effect_node.h
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoEffectNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Processing/Video/VideoEffectNode.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoEffectOps.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoTransformOps.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/VideoEffectGLProcessor.cpp
@@ -292,6 +295,7 @@ add_executable(demo_nodeditor_videoeffect_tests ${VIDEO_EFFECT_TEST_SOURCES})
 target_include_directories(demo_nodeditor_videoeffect_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Processing/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
@@ -497,7 +501,7 @@ set_tests_properties(demo_nodeditor_consolidation_tests PROPERTIES
 set(FRAME_SAMPLER_TEST_SOURCES
     test_frame_sampler_node.cpp
     test_frame_sampler_node.h
-    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video/FrameSamplerNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Processing/Video/FrameSamplerNode.cpp
 )
 
 add_executable(demo_nodeditor_framesampler_tests ${FRAME_SAMPLER_TEST_SOURCES})
@@ -505,6 +509,7 @@ add_executable(demo_nodeditor_framesampler_tests ${FRAME_SAMPLER_TEST_SOURCES})
 target_include_directories(demo_nodeditor_framesampler_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Processing/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
