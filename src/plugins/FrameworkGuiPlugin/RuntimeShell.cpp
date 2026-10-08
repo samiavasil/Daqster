@@ -9,7 +9,7 @@
 #include "shared/IStoppable.h"
 
 // REQ-SW-PL-051: no built-in node model headers here — the models are owned by
-// demo_nodeditor_nodes_core and registered through its INodeProvider below.
+// nodeditor_nodes_core and registered through its INodeProvider below.
 
 #include <QMainWindow>
 #include <QMdiArea>
@@ -184,7 +184,7 @@ bool RuntimeShell::registerNodes()
 
     // REQ-SW-PL-051: every node — including the built-in ones (NumberSource,
     // NumberDisplay, Modulo, Arithmetic/Logic) — is registered by the
-    // demo_nodeditor_nodes_core INodeProvider, so there is no local list here.
+    // nodeditor_nodes_core INodeProvider, so there is no local list here.
     // Discover and register external nodes.
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
     if (pm) {

@@ -1,6 +1,6 @@
 # Shared library for common plugin infrastructure (REQ-SW-PL-032).
 #
-# Extracted so demo_nodeditor_nodes_core, its _gui sibling, private plugins
+# Extracted so nodeditor_nodes_core, its _gui sibling, private plugins
 # (ai_studio_plugin) and their test binaries can share ONE definition of
 # TexturePool — the same pattern as NodeEditorLibrary
 # (node_editor_ide/CMakeLists.txt).

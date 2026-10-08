@@ -18,7 +18,7 @@ class QWidget;
  * Model-only: routes QDevIO connector data, owns the audio device
  * (XYSeriesIODeviceObsolete) and exposes the stream config. NO widgets — the
  * waveform/filter view (QDevioDisplayModelUiObsolete) moved to the GUI plugin
- * (demo_nodeditor_nodes_gui) and is created by NodeWidgetFactory, which
+ * (nodeditor_nodes_gui) and is created by NodeWidgetFactory, which
  * connects device bufferReady + audioConnectionChanged to the view.
  * embeddedWidget() returns nullptr (REQ-SW-PL-051 model/gui pattern).
  *

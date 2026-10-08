@@ -6,7 +6,7 @@
 // Export/import markup for the PluginsCommonLibrary shared library.
 //
 // On Windows, symbols must be marked with __declspec(dllexport/dllimport) so
-// consumers (demo_nodeditor_nodes_core, its _gui sibling, private plugins such
+// consumers (nodeditor_nodes_core, its _gui sibling, private plugins such
 // as ai_studio_plugin, and their test binaries) can link against the library.
 // WINDOWS_EXPORT_ALL_SYMBOLS alone is not enough for a global data symbol —
 // the singleton behind TexturePool::instance() has to be exported explicitly.

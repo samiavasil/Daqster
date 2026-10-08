@@ -63,9 +63,9 @@ create_plugin(FrameworkGuiPlugin
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/gui
-        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
-        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Sources/Video
-        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_core
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_core/Sources/Video
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_gui
         # Editor canvas pieces reused by RuntimeShell (kept in node_editor_ide)
         ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide
         ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport

@@ -40,7 +40,7 @@
 #include <QtWidgets/QVBoxLayout>
 
 // REQ-SW-PL-051: no built-in node model headers here — they are owned by
-// demo_nodeditor_nodes_core and reach the editor through INodeProvider.
+// nodeditor_nodes_core and reach the editor through INodeProvider.
 
 static void setStyle()
 {
@@ -174,7 +174,7 @@ bool NodeEditorIdeObject::Initialize()
 
 void NodeEditorIdeObject::registerNodes()
 {
-    // REQ-SW-PL-051: the built-in models live in demo_nodeditor_nodes_core and
+    // REQ-SW-PL-051: the built-in models live in nodeditor_nodes_core and
     // are registered by its INodeProvider, together with every other node.
     discoverAndRegisterExternalNodes();
 }

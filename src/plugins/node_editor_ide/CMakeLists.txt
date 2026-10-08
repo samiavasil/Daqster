@@ -122,8 +122,8 @@ if(NODE_EDITOR_LIB_ENABLED)
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/gui
         ${DAQSTER_SOURCE_DIR}/src/plugins/common
-        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
-        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_core
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_gui
         # framework_core_export.h is generated in the public daqster build tree
         ${CMAKE_BINARY_DIR}/src/frame_work
     )
@@ -159,7 +159,7 @@ endif()
 # Plugin: NodeEditorIde (IDE shell + built-in nodes)
 # ══════════════════════════════════════════════════════════════════════════
 
-# REQ-SW-PL-051: the built-in models are owned by demo_nodeditor_nodes_core and
+# REQ-SW-PL-051: the built-in models are owned by nodeditor_nodes_core and
 # reach this plugin through its INodeProvider. Nothing is compiled here: a
 # second copy of the same class in another .so would break the dynamic_cast in
 # DemoNodeEditorNodesGui::NodeWidgetFactory, which links the core plugin.
@@ -213,7 +213,7 @@ create_plugin(NodeEditorIde
         # links FrameworkGui.
         FrameworkGui
       INCLUDE_DIRECTORIES
-          ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/NumberDisplay
+          ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_core/Displays/NumberDisplay
 )
 
 # ══════════════════════════════════════════════════════════════════════════

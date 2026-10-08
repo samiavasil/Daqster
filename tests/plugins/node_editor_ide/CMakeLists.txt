@@ -7,7 +7,7 @@
 # dispatch itself. Those two ACs were previously marked "tests deferred".
 #
 # Both sources are compiled directly into the test binary (same pattern as
-# demo_nodeditor_nodes_tests) instead of linking the plugin .so. The test
+# nodeditor_nodes_tests) instead of linking the plugin .so. The test
 # classes are declared in headers and share a single binary
 # (node_editor_ide_tests) whose main() lives in test_main.cpp — QApplication,
 # because LayoutEngine builds real widgets. The binary runs headless via the
