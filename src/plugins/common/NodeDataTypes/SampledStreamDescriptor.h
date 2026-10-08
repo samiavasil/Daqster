@@ -83,7 +83,7 @@ struct StreamChannelDescriptor {
 /**
  * @brief Canonical descriptor for a sampled stream (audio, DAQ, sensors).
  *
- * Consolidates the legacy GenericStreamConfig (BuiltInNodes/Library/types/
+ * Consolidates the legacy GenericStreamConfig (NodeSupport/types/
  * GenericNumericTypes.h) and QDevIOStreamConfig (QDevIOStreamConfigObsolete.h)
  * into a
  * single self-describing descriptor carried by SampledData (REQ-SW-PL-022

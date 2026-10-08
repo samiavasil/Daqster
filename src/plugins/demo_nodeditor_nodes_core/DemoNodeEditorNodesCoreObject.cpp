@@ -117,7 +117,7 @@ void DemoNodeEditorNodesCoreObject::registerNodes(QtNodes::NodeDelegateModelRegi
     // Migrated from old plugin: generic/obsolete displays
     registry.registerModel<GenericDisplayNode>("Displays/DAQ");
     registry.registerModel<AudioDisplayModelObsolete>("Displays/DAQ");
-    // QDevIoDisplayModelObsolete is provided by node_editor_ide/BuiltInNodes plugin,
+    // QDevIoDisplayModelObsolete is provided by node_editor_ide/NodeSupport,
     // not by this core plugin. Available when GUI plugin loads.
     // Aliases for old saved graphs (name() override only)
     class DemuxNodeObsoleteAlias : public DemuxNodeObsolete {

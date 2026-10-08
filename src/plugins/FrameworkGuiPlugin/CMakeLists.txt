@@ -68,8 +68,7 @@ create_plugin(FrameworkGuiPlugin
         ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui
         # Editor canvas pieces reused by RuntimeShell (kept in node_editor_ide)
         ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport
 )
 
 # Qt6 splits OpenGL widgets out of Qt::OpenGLWidgets; Qt5 has no such module.

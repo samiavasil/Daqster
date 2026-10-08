@@ -252,7 +252,7 @@ today. Two reasons, both tracked in the REQ file:
    and `QTimer` need an event loop object. Switching the headless path to
    `QCoreApplication` is a separate change.
 2. `demo_nodeditor_nodes_core/CMakeLists.txt` still compiles seven QtWidgets
-   translation units out of `node_editor_ide/BuiltInNodes/Library` because
+   translation units out of `node_editor_ide/NodeSupport` because
    `AudioDisplayModelObsolete` inherits a widget-building display model.
 
 ## Plugin object lifetime

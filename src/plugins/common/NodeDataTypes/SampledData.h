@@ -285,7 +285,7 @@ inline qreal decodeNormalizedSample(const char *samplePtr, SampleType type,
 /**
  * @brief Unified sampled-data NodeData type (audio, DAQ, sensors).
  *
- * Evolution of the legacy GenericNumericData (BuiltInNodes/Library/types/
+ * Evolution of the legacy GenericNumericData (NodeSupport/types/
  * GenericNumericTypes.h) promoted to src/plugins/common/NodeDataTypes/
  * (REQ-SW-PL-022 AC 2). Carries a raw QByteArray buffer + a
  * SampledStreamDescriptor and decodes to per-channel normalized doubles in

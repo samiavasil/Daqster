@@ -147,13 +147,12 @@ target_include_directories(FrameworkCore
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/process
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/perf
         ${CMAKE_CURRENT_BINARY_DIR}
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/types
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/connectors
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/decoders
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/threading
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/types
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/display
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/connectors
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/decoders
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/threading
 )
 
 target_link_libraries(FrameworkCore

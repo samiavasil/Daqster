@@ -3,6 +3,11 @@
 ## Status
 Accepted
 
+> **2026-10-08 note (paths only, decision unchanged):** the `BuiltInNodes/Library/`
+> directory was renamed/flattened to `NodeSupport/{connectors,decoders,display,
+> docs,threading,types}`. The three-layer decision above is untouched; all
+> paths below are superseded by the new location.
+
 ## Context
 The node editor needs shared infrastructure (display models, connectors, decoders) that multiple plugins can use. Domain-specific nodes (Audio, LLM, etc.) should be in separate plugins for maintainability.
 

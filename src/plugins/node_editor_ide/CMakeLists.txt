@@ -70,30 +70,30 @@ if(NODE_EDITOR_LIB_ENABLED)
         NodeEditorWidget.cpp
         CustomDataFlowScene.h
         CustomDataFlowScene.cpp
-        BuiltInNodes/Library/types/GenericNumericTypes.h
-        BuiltInNodes/Library/types/GenericNumericTypes.cpp
-        BuiltInNodes/Library/types/IStreamDecoderObsolete.h
-        BuiltInNodes/Library/types/QDevIOStreamConfigObsolete.h
-        BuiltInNodes/Library/types/StreamChannelObsolete.h
-        BuiltInNodes/Library/types/ChatGraphModel.h
-        BuiltInNodes/Library/types/ChatGraphModel.cpp
-        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnectorObsolete.h
-        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnectorObsolete.cpp
-        BuiltInNodes/Library/connectors/GenericQDevIoConnectorObsolete.h
-        BuiltInNodes/Library/connectors/GenericQDevIoConnectorObsolete.cpp
-        BuiltInNodes/Library/decoders/AudioFrameDecoder.h
-        BuiltInNodes/Library/decoders/AudioFrameDecoder.cpp
-        BuiltInNodes/Library/display/QDevIoDisplayModelObsolete.h
-        BuiltInNodes/Library/display/QDevIoDisplayModelObsolete.cpp
-        BuiltInNodes/Library/display/QDevioDisplayModelUiObsolete.h
-        BuiltInNodes/Library/display/QDevioDisplayModelUiObsolete.cpp
-        BuiltInNodes/Library/display/QDevioDisplayModelUiObsolete.ui
-        BuiltInNodes/Library/display/XYSeriesIODeviceObsolete.h
-        BuiltInNodes/Library/display/XYSeriesIODeviceObsolete.cpp
-        BuiltInNodes/Library/display/AudioCompat.h
-        BuiltInNodes/Library/display/QtChartsCompat.h
-        BuiltInNodes/Library/threading/EventThreadPullObsolete.h
-        BuiltInNodes/Library/threading/EventThreadPullObsolete.cpp
+        NodeSupport/types/GenericNumericTypes.h
+        NodeSupport/types/GenericNumericTypes.cpp
+        NodeSupport/types/IStreamDecoderObsolete.h
+        NodeSupport/types/QDevIOStreamConfigObsolete.h
+        NodeSupport/types/StreamChannelObsolete.h
+        NodeSupport/types/ChatGraphModel.h
+        NodeSupport/types/ChatGraphModel.cpp
+        NodeSupport/connectors/NodeDataModelToQIODeviceConnectorObsolete.h
+        NodeSupport/connectors/NodeDataModelToQIODeviceConnectorObsolete.cpp
+        NodeSupport/connectors/GenericQDevIoConnectorObsolete.h
+        NodeSupport/connectors/GenericQDevIoConnectorObsolete.cpp
+        NodeSupport/decoders/AudioFrameDecoder.h
+        NodeSupport/decoders/AudioFrameDecoder.cpp
+        NodeSupport/display/QDevIoDisplayModelObsolete.h
+        NodeSupport/display/QDevIoDisplayModelObsolete.cpp
+        NodeSupport/display/QDevioDisplayModelUiObsolete.h
+        NodeSupport/display/QDevioDisplayModelUiObsolete.cpp
+        NodeSupport/display/QDevioDisplayModelUiObsolete.ui
+        NodeSupport/display/XYSeriesIODeviceObsolete.h
+        NodeSupport/display/XYSeriesIODeviceObsolete.cpp
+        NodeSupport/display/AudioCompat.h
+        NodeSupport/display/QtChartsCompat.h
+        NodeSupport/threading/EventThreadPullObsolete.h
+        NodeSupport/threading/EventThreadPullObsolete.cpp
     )
 
     add_library(NodeEditorLibrary SHARED ${LIB_SOURCES})
@@ -116,11 +116,11 @@ if(NODE_EDITOR_LIB_ENABLED)
 
     target_include_directories(NodeEditorLibrary PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/connectors
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/decoders
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/display
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/threading
+        ${CMAKE_CURRENT_SOURCE_DIR}/NodeSupport/types
+        ${CMAKE_CURRENT_SOURCE_DIR}/NodeSupport/connectors
+        ${CMAKE_CURRENT_SOURCE_DIR}/NodeSupport/decoders
+        ${CMAKE_CURRENT_SOURCE_DIR}/NodeSupport/display
+        ${CMAKE_CURRENT_SOURCE_DIR}/NodeSupport/threading
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/gui

@@ -84,7 +84,7 @@ add_test(NAME demo_nodeditor_nodes_tests COMMAND $<TARGET_FILE:demo_nodeditor_no
 # (same pattern as requirements_manager_gui_tests). QTEST_MAIN in
 # test_daq_display_node.cpp provides the QApplication main.
 #
-# The QtChartsCompat.h header is in node_editor_ide/BuiltInNodes/Library/display/.
+# The QtChartsCompat.h header is in node_editor_ide/NodeSupport/display/.
 # DaqDisplayNode.cpp transitively depends on FftUtil.h + SampledData.h (both
 # header-only, in src/plugins/common/) and on SampledStreamDescriptor.h (in
 # NodeDataTypes/).
@@ -117,7 +117,7 @@ target_include_directories(demo_nodeditor_display_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/DaqDisplay
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/GenericDisplay
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/display
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui
     ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui/Displays/DaqDisplay
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include

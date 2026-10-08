@@ -21,17 +21,13 @@ node_editor_ide/
 ├── NodeEditorIdeInterface.json      # Plugin metadata
 ├── NodeEditorIdeObject.{h,cpp}      # QBasePluginObject — runtime
 ├── NodeEditorWidget.{h,cpp}         # Вграден QWidget (бивш node_editor_widget)
-├── BuiltInNodes/                    # Вградени нодове
-│   ├── Library/                     # Споделена библиотека (NodeEditorLibrary.so)
-│   │   ├── types/                   # NumericType, ChatGraphModel, IStreamDecoder...
-│   │   ├── connectors/              # GenericQDevIoConnector, NodeDataModelToQIODeviceConnector
-│   │   ├── display/                 # QDevIoDisplayModel, XYSeriesIODevice, AudioCompat
-│   │   ├── threading/               # EventThreadPull
-│   │   └── decoders/                # AudioFrameDecoder
-│   ├── Sources/NumberSource/        # Числов генератор
-│   ├── Displays/NumberDisplay/      # Числов дисплей
-│   ├── Operators/Modulo/            # Модуло операция
-│   └── Operators/ArithmeticLogic/   # Аритметичен/логичен израз (ExprParser)
+├── NodeSupport/                     # Споделена библиотека (NodeEditorLibrary.so)
+│   ├── types/                       # GenericNumericTypes, ChatGraphModel, IStreamDecoder...
+│   ├── connectors/                  # GenericQDevIoConnector, NodeDataModelToQIODeviceConnector
+│   ├── display/                     # QDevIoDisplayModelObsolete, XYSeriesIODevice, AudioCompat
+│   ├── threading/                   # EventThreadPull
+│   ├── decoders/                    # AudioFrameDecoder
+│   └── docs/                        # ADR-001..003 (история на решенията)
 └── node_editor.qrc                  # Ресурси (икона)
 ```
 
@@ -64,9 +60,13 @@ NodeEditorIdeObject → QBasePluginObject
 ### INodeProvider — НЕ
 NodeEditorIdeObject **не** имплементира INodeProvider. Той е **потребител** на INodeProvider — открива външни доставчици и извиква `registerNodes()` върху тях.
 
-## Вградени нодове (Built-in)
+## Вградени нодове (демо набори)
 
-Регистрирани директно в `registerBuiltInNodes()`:
+> **ВАЖНО:** редът по-долу е исторически — бившите `BuiltInNodes/Sources|Displays|Operators`
+> (NumberSource, NumberDisplay, Modulo, ArithmeticLogic) са преместени в
+> `demo_nodeditor_nodes_core` при REQ-SW-PL-051 и се регистрират в
+> `DemoNodeEditorNodesCoreObject::registerNodes()`. `NodeEditorIdeObject` не
+> регистрира собствени нодове — той **открива** външни `INodeProvider` плъгини.
 
 | Категория | Нод | Описание |
 |-----------|-----|----------|

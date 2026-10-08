@@ -319,20 +319,20 @@ set(ROUTING_NODES
     # (root CMakeLists.txt), so that target does not exist yet and cannot be
     # linked here. Compile the translation unit directly instead, following the
     # same pattern used for ComputePool.cpp below.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/connectors/GenericQDevIoConnectorObsolete.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnectorObsolete.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/connectors/GenericQDevIoConnectorObsolete.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/connectors/NodeDataModelToQIODeviceConnectorObsolete.cpp
     # QDevIoDisplayModelObsolete is needed by AudioDisplayModelObsolete and
     # AudioNodeQdevIoConnectorObsolete in this plugin. Compile it directly.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display/QDevIoDisplayModelObsolete.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/display/QDevIoDisplayModelObsolete.cpp
     # XYSeriesIODeviceObsolete is needed by AudioDisplayModelObsolete and
     # AudioNodeQdevIoConnectorObsolete. Compile it directly.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display/XYSeriesIODeviceObsolete.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/display/XYSeriesIODeviceObsolete.cpp
     # QDevioDisplayModelUiObsolete is needed by AudioDisplayModelObsolete. Compile it directly.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display/QDevioDisplayModelUiObsolete.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/display/QDevioDisplayModelUiObsolete.cpp
     # EventThreadPullObsolete and AudioFrameDecoder are needed by
     # AudioDisplayModelObsolete and AudioNodeQdevIoConnectorObsolete.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/threading/EventThreadPullObsolete.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/decoders/AudioFrameDecoder.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/threading/EventThreadPullObsolete.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/decoders/AudioFrameDecoder.cpp
 )
 
 # ── Shared types ────────────────────────────────────────────────────
