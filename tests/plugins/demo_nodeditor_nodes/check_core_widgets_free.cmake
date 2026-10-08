@@ -27,7 +27,7 @@
 
 # ── Known deferrals (REQ-SW-PL-051 AC2) ──────────────────────────────────────
 set(ALLOW_LIST
-    "Displays/AudioDisplay/AudioDisplayModelObsolete.cpp|QStackedWidget — legacy audio display still builds its own view stack; scheduled for the _gui plugin"
+    "Displays/AudioDisplay/AudioDisplayModelObsolete.cpp|QStackedWidget — dead include: the TU contains no `new` at all (verified 2026-10-08), so nothing is constructed and the include only has to go; deferred with the obsolete component itself"
     "Sources/Video/VideoEffectNode.cpp|QLabel — effect preview label still constructed by the model; scheduled for NodeWidgetFactory"
 )
 
