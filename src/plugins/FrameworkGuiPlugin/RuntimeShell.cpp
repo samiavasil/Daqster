@@ -196,15 +196,12 @@ bool RuntimeShell::registerNodes()
         }
     }
 
-    // REQ-SW-PL-051: Pass the widget provider from the GUI plugin to the editor
-    // widget so nodes with split core/gui models get their widgets.
+    // REQ-SW-PL-051: Pass the widget providers from the GUI plugins to the
+    // editor widget so nodes with split core/gui models get their widgets.
+    // More than one plugin may implement IWidgetProvider (each serves widgets
+    // for its own core models); ALL of them must be consulted, in order.
     if (pm) {
-        for (Daqster::IWidgetProvider* provider : pm->widgetProviders()) {
-            if (!provider) continue;
-            DEBUG << "RuntimeShell: Discovered IWidgetProvider plugin";
-            adoptWidgetProvider(provider);
-            break; // Use the first one
-        }
+        adoptWidgetProviders(pm->widgetProviders());
     }
 
     // REQ-SW-PL-051: plugins may load in any order. When a new INodeProvider
@@ -241,33 +238,33 @@ void RuntimeShell::discoverAndRegisterExternalNodes()
     }
 
     // REQ-SW-PL-051: also discover IWidgetProvider plugins (they may load
-    // in any order). Pass the provider to the editor widget so split models
+    // in any order). Pass all of them to the editor widget so split models
     // get their widgets.
-    for (Daqster::IWidgetProvider* provider : pm->widgetProviders()) {
-        if (!provider)
-            continue;
-
-        DEBUG << "RuntimeShell: Discovered IWidgetProvider plugin";
-        adoptWidgetProvider(provider);
-        break; // Use the first one
-    }
+    adoptWidgetProviders(pm->widgetProviders());
 }
 
-void RuntimeShell::adoptWidgetProvider(Daqster::IWidgetProvider* provider)
+void RuntimeShell::adoptWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers)
 {
-    if (!provider || !m_editorWidget)
+    if (providers.isEmpty() || !m_editorWidget)
         return;
 
-    m_editorWidget->setWidgetProvider(provider);
+    for (Daqster::IWidgetProvider* provider : providers) {
+        if (!provider) continue;
+        DEBUG << "RuntimeShell: Discovered IWidgetProvider plugin";
+    }
 
-    // The graph model caches the raw pointer, so re-resolve it when the plugin
-    // object dies (plugin reload / unload). PluginRegistry recreates a fresh,
-    // initialized object on the next widgetProviders() call.
-    if (auto* owner = dynamic_cast<QObject*>(provider)) {
-        connect(owner, &QObject::destroyed, this, [this]() {
-            DEBUG << "RuntimeShell: IWidgetProvider plugin object destroyed, re-discovering";
-            discoverAndRegisterExternalNodes();
-        });
+    m_editorWidget->setWidgetProviders(providers);
+
+    // The graph model caches the raw pointers, so re-resolve them when any
+    // plugin object dies (plugin reload / unload). PluginRegistry recreates
+    // fresh, initialized objects on the next widgetProviders() call.
+    for (Daqster::IWidgetProvider* provider : providers) {
+        if (auto* owner = dynamic_cast<QObject*>(provider)) {
+            connect(owner, &QObject::destroyed, this, [this]() {
+                DEBUG << "RuntimeShell: IWidgetProvider plugin object destroyed, re-discovering";
+                discoverAndRegisterExternalNodes();
+            });
+        }
     }
 }
 

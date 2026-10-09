@@ -112,7 +112,7 @@ bool NodeEditorIdeObject::Initialize()
     }
 
     // REQ-SW-PL-051: registerNodes() above already picked up both the node
-    // providers and the IWidgetProvider (see adoptWidgetProvider).
+    // providers and the widget providers (see adoptWidgetProviders).
 
     // Build canvas AFTER all nodes are registered
     m_Widget->buildCanvas();
@@ -208,32 +208,28 @@ void NodeEditorIdeObject::discoverAndRegisterExternalNodes()
     }
 
     // REQ-SW-PL-051: also discover IWidgetProvider plugins (they may load
-    // in any order). Pass the provider to the editor widget so split models
+    // in any order). Pass all of them to the editor widget so split models
     // get their widgets.
-    for (Daqster::IWidgetProvider* provider : pm->widgetProviders()) {
-        if (!provider) continue;
-
-        DEBUG << "Discovered IWidgetProvider plugin";
-        adoptWidgetProvider(provider);
-        break; // Use the first one
-    }
+    adoptWidgetProviders(pm->widgetProviders());
 }
 
-void NodeEditorIdeObject::adoptWidgetProvider(Daqster::IWidgetProvider* provider)
+void NodeEditorIdeObject::adoptWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers)
 {
-    if (!provider || !m_Widget)
+    if (providers.isEmpty() || !m_Widget)
         return;
 
-    m_Widget->setWidgetProvider(provider);
+    m_Widget->setWidgetProviders(providers);
 
-    // The graph model caches the raw pointer, so re-resolve it when the plugin
-    // object dies (plugin reload / unload). PluginRegistry recreates a fresh,
-    // initialized object on the next widgetProviders() call.
-    if (auto* owner = dynamic_cast<QObject*>(provider)) {
-        connect(owner, &QObject::destroyed, this, [this]() {
-            DEBUG << "IWidgetProvider plugin object destroyed, re-discovering";
-            discoverAndRegisterExternalNodes();
-        });
+    // The graph model caches the raw pointers, so re-resolve them when any
+    // plugin object dies (plugin reload / unload). PluginRegistry recreates
+    // fresh, initialized objects on the next widgetProviders() call.
+    for (Daqster::IWidgetProvider* provider : providers) {
+        if (auto* owner = dynamic_cast<QObject*>(provider)) {
+            connect(owner, &QObject::destroyed, this, [this]() {
+                DEBUG << "IWidgetProvider plugin object destroyed, re-discovering";
+                discoverAndRegisterExternalNodes();
+            });
+        }
     }
 }
 

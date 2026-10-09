@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QWidget>
+#include <QList>
 #include <memory>
 #include <QtNodes/Definitions>
 
@@ -49,9 +50,10 @@ public:
 
     void buildCanvas();
 
-    /// Set the widget provider for creating node widgets (REQ-SW-PL-051).
-    /// The provider is owned by DemoNodeEditorNodesGuiObject.
-    void setWidgetProvider(Daqster::IWidgetProvider* provider);
+    /// Set the widget providers for creating node widgets (REQ-SW-PL-051).
+    /// Providers are owned by the GUI plugin objects (DemoNodeEditorNodesGuiObject,
+    /// AiStudioPluginGuiObject, ...) and must outlive the editor widget.
+    void setWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers);
 
     /// The GUI widget of a node, or nullptr when the node has none.
     ///
@@ -80,5 +82,5 @@ private:
     QtNodes::GraphicsView* m_view = nullptr;
     QVBoxLayout* m_layout;
     bool m_canvasBuilt = false;
-    Daqster::IWidgetProvider* m_widgetProvider = nullptr;
+    QList<Daqster::IWidgetProvider*> m_widgetProviders;
 };

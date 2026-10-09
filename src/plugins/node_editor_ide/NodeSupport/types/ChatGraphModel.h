@@ -3,6 +3,7 @@
 #include <QtNodes/DataFlowGraphModel>
 
 #include <QHash>
+#include <QList>
 #include <QPointer>
 
 #include "capabilities/IWidgetProvider.h"
@@ -18,9 +19,14 @@ public:
 
     bool loopsEnabled() const override { return true; }
 
-    /// Set the widget provider for creating node widgets (REQ-SW-PL-051).
-    /// The provider is owned by DemoNodeEditorNodesGuiObject.
-    void setWidgetProvider(Daqster::IWidgetProvider* provider);
+    /// Set the widget providers for creating node widgets (REQ-SW-PL-051).
+    ///
+    /// More than one plugin may implement IWidgetProvider (each GUI plugin
+    /// serves widgets for ITS OWN core models): the node editor must consult
+    /// ALL of them, in order, and take the first widget a provider returns.
+    /// Providers are owned by their plugin objects (DemoNodeEditorNodesGuiObject,
+    /// AiStudioPluginGuiObject, ...) and must outlive this model.
+    void setWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers);
 
     /// Provider-aware accessor for the GUI widget of a node (REQ-SW-PL-051).
     ///
@@ -42,7 +48,9 @@ public:
     QVariant nodeData(QtNodes::NodeId nodeId, QtNodes::NodeRole role) const override;
 
 private:
-    Daqster::IWidgetProvider* m_widgetProvider = nullptr;
+    /// Widget providers from every GUI plugin that implements IWidgetProvider.
+    /// Consulted in order; the first provider that returns a widget wins.
+    QList<Daqster::IWidgetProvider*> m_widgetProviders;
 
     /// One widget instance per node, created on first request.
     mutable QHash<QtNodes::NodeId, QPointer<QWidget>> m_widgetCache;

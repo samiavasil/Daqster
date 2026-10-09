@@ -39,17 +39,17 @@ void NodeEditorWidget::setConnectionStyle(const QString& json)
     ConnectionStyle::setConnectionStyle(json);
 }
 
-void NodeEditorWidget::setWidgetProvider(Daqster::IWidgetProvider* provider)
+void NodeEditorWidget::setWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers)
 {
-    // The graph model is created in buildCanvas(), so we set the provider there.
-    // If buildCanvas() was already called, we can set it immediately.
+    // The graph model is created in buildCanvas(), so we set the providers there.
+    // If buildCanvas() was already called, we can set them immediately.
     if (m_graphModel) {
         if (auto* chatModel = dynamic_cast<ChatGraphModel*>(m_graphModel)) {
-            chatModel->setWidgetProvider(provider);
+            chatModel->setWidgetProviders(providers);
         }
     }
     // Store for later if buildCanvas() hasn't been called yet
-    m_widgetProvider = provider;
+    m_widgetProviders = providers;
 }
 
 QWidget* NodeEditorWidget::nodeWidget(QtNodes::NodeId nodeId) const
@@ -85,9 +85,9 @@ void NodeEditorWidget::buildCanvas()
         return;
 
     m_graphModel = new ChatGraphModel(m_registry);
-    // Pass the widget provider to the graph model (REQ-SW-PL-051)
-    if (m_widgetProvider) {
-        static_cast<ChatGraphModel*>(m_graphModel)->setWidgetProvider(m_widgetProvider);
+    // Pass the widget providers to the graph model (REQ-SW-PL-051)
+    if (!m_widgetProviders.isEmpty()) {
+        static_cast<ChatGraphModel*>(m_graphModel)->setWidgetProviders(m_widgetProviders);
     }
     m_scene = new CustomDataFlowScene(*m_graphModel, this);
     m_view = new GraphicsView(m_scene, this);

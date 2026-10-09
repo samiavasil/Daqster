@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+### Fixed
+- **REQ-SW-PL-051 — празен runtime, когато има два `IWidgetProvider`**
+  (2026-10-09, клон `feat/REQ-SW-PL-056-headless-all-node-components`) —
+  `RuntimeShell` и `NodeEditorIdeObject` адоптваха само **първия** provider от
+  `QPluginManager::widgetProviders()` (`break; // Use the first one`). Щом две
+  GUI приставки имплементират `IWidgetProvider` (напр. `DemoNodeEditorNodesGui`
+  + `AiStudioPluginGui`), hash-редът на registry-то решаваше кой печели; ако
+  първият не познава модела, `createWidget()` връща `nullptr`, а fallback-ът
+  `embeddedWidget()` също е `nullptr` при split модел → **всички node widget-и
+  изчезват и runtime canvas-ът остава празен**. Поправка: `ChatGraphModel` вече
+  държи списък от provider-и и пита **всички** по ред (първият non-null печели)
+  — съвпада с открай време документирания договор в `IWidgetProvider.h`
+  („ask every discovered IWidgetProvider … before falling back"). Нов
+  регресионен тест `test_widget_provider_fallback` (Qt5 **и** Qt6).
+
 ### Added (headless for all node components)
 - **REQ-SW-PL-056 (цел A)** — `registerNodesHeadless()` вече регистрира **всичките
   33** нод типа, които има `registerNodes()`: добавени са липсващите 6 —

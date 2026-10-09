@@ -9,6 +9,7 @@
 #include <QMdiArea>
 #include <QMdiSubWindow>
 #include <QHash>
+#include <QList>
 #include <vector>
 
 namespace Daqster {
@@ -49,9 +50,10 @@ private:
     /// INodeProvider plugins (connected to QPluginManager::PluginsListChangeDetected).
     void discoverAndRegisterExternalNodes();
 
-    /// REQ-SW-PL-051: hands an IWidgetProvider to the editor widget and
-    /// watches its plugin object, re-discovering if it dies.
-    void adoptWidgetProvider(Daqster::IWidgetProvider* provider);
+    /// REQ-SW-PL-051: hands ALL IWidgetProvider plugins to the editor widget
+    /// (each GUI plugin serves widgets for its own core models) and watches
+    /// their plugin objects, re-discovering if any of them dies.
+    void adoptWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers);
 
 public:
     void stopAllNodes();

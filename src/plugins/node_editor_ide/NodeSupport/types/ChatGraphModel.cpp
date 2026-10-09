@@ -14,14 +14,14 @@ ChatGraphModel::ChatGraphModel(std::shared_ptr<QtNodes::NodeDelegateModelRegistr
     });
 }
 
-void ChatGraphModel::setWidgetProvider(Daqster::IWidgetProvider* provider)
+void ChatGraphModel::setWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers)
 {
-    if (m_widgetProvider == provider)
+    if (m_widgetProviders == providers)
         return;
 
-    m_widgetProvider = provider;
+    m_widgetProviders = providers;
 
-    // The widgets already handed out belong to the previous provider, so they
+    // The widgets already handed out belong to the previous providers, so they
     // must not be served again. We cannot delete them (a proxy may own them),
     // so we only drop the references; already embedded widgets keep working.
     m_widgetCache.clear();
@@ -53,13 +53,19 @@ QWidget* ChatGraphModel::nodeWidget(QtNodes::NodeId nodeId) const
 
     QWidget* widget = nullptr;
 
-    // First try the widget provider (for split models, REQ-SW-PL-051)
-    if (m_widgetProvider) {
+    // First try the widget providers (for split models, REQ-SW-PL-051). There
+    // can be several GUI plugins, each serving widgets for its own core models;
+    // the first provider that returns a widget wins.
+    for (Daqster::IWidgetProvider* provider : m_widgetProviders) {
+        if (!provider)
+            continue;
         try {
-            widget = m_widgetProvider->createWidget(model);
+            widget = provider->createWidget(model);
         } catch (...) {
             widget = nullptr;
         }
+        if (widget)
+            break;
     }
 
     // Fallback: models that still build their own widget (e.g. VideoOutput)
