@@ -38,18 +38,18 @@ create_plugin(FrameworkCorePlugin
         Qt${QT_VERSION_MAJOR}::OpenGL
         QtNodes
         FrameworkCore
-        DemoNodeEditorNodesCore
+        NodeditorNodesCore
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${DAQSTER_SOURCE_DIR}/src/plugins/common
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/engine
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_core
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_core/Sources
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_core/Displays
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_core/Operators
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_core/shared
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Displays
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Operators
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/shared
 )
 
 # Windows: export all symbols from the plugin DLL

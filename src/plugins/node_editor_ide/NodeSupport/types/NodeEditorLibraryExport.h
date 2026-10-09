@@ -14,14 +14,14 @@
 // (QDevIoDisplayModelObsolete, XYSeriesIODeviceObsolete,
 // EventThreadPullObsolete) are deliberately NOT marked with this macro.
 // Their .cpp files are compiled into BOTH NodeEditorLibrary (GUI builds) and
-// DemoNodeEditorNodesCore (all builds — headless has no NodeEditorLibrary at
+// NodeditorNodesCore (all builds — headless has no NodeEditorLibrary at
 // all, see the ROUTING_NODES block in
-// nodeditor_nodes_core/CMakeLists.txt). Every consumer therefore
+// nodeditor_nodes/core/CMakeLists.txt). Every consumer therefore
 // compiles its own copy, so no cross-DLL import is ever needed. The fourth
 // class, QDevioDisplayModelUiObsolete (the waveform VIEW), moved OUT of this
-// library entirely: it lives in nodeditor_nodes_gui since the
+// library entirely: it lives in nodeditor_nodes/gui since the
 // REQ-SW-PL-056 core/gui split (2026-10-08). Marking the three would make
-// DemoNodeEditorNodesCore expand this to __declspec(dllimport), and its
+// NodeditorNodesCore expand this to __declspec(dllimport), and its
 // AUTOMOC pass — which runs over those same headers because the .cpp files are
 // in its SOURCES — then fails to define staticMetaObject:
 //   error C2491: definition of dllimport static data member not allowed

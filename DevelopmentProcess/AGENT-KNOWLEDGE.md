@@ -40,7 +40,7 @@
 
 ## 4. Video Nodes (Видео нодове, публичен demo plugin)
 
-- Категория `"Video"` в `demo_nodeditor_nodes` (`Sources/Video/`):
+- Категория `"Video"` в `nodeditor_nodes` (`Sources/Video/`):
   `CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`, `VideoOutputNode`,
   `VideoEffectNode` (един нод с комбо, REQ-SW-PL-028), `CustomShaderNode`
   (REQ-SW-PL-029), `FrameSamplerNode` (REQ-SW-PL-030).
@@ -113,6 +113,6 @@
 
 | Документ | Език |
 |----------|------|
-| `docs/plugins/<plugin>/README.md` (demo_nodeditor_nodes, node_editor_ide, QtCoinTrader) | Български |
+| `docs/plugins/<plugin>/README.md` (nodeditor_nodes, node_editor_ide, QtCoinTrader) | Български |
 | `docs/plugins/README.md` | Български |
 | `docs/Architecture/` | Български (+ някои `.en.md`) |

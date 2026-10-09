@@ -18,7 +18,7 @@ using DM = DaqDisplayNode::PlotCard::DecodeMode;
 // ── ring buffer test helpers (REQ-SW-PL-025 AC 3/AC 4) ──────────────────────
 namespace {
 
-// Local mirror of the plugin's AudioDisplayAlias (DemoNodeEditorNodesObject.cpp):
+// Local mirror of the plugin's AudioDisplayAlias (NodeditorNodesCoreObject.cpp):
 // a thin DaqDisplayNode subclass that only overrides name() to return the
 // historical "AudioDisplay" registry key. No Q_OBJECT — no new signals/slots,
 // the QObject meta-object is inherited from DaqDisplayNode.

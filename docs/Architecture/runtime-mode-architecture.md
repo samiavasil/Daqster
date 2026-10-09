@@ -86,13 +86,13 @@
   - `DaqsterGui` — QtWidgets: QPluginManagerGui, NodeEditorWidget, RuntimeShell, built-in nodes, merged NodeEditorLibrary
   
 - **Плъгини:**
-  - `demo_nodeditor_nodes_core` — Core node models (24+), NO widgets, `embeddedWidget() = nullptr`, implements IStoppable/IStartable
-  - `demo_nodeditor_nodes_gui` — GUI widgets + NodeWidgetFactory, registers `modelName → widget creator` lambdas
+  - `nodeditor_nodes/core` — Core node models (24+), NO widgets, `embeddedWidget() = nullptr`, implements IStoppable/IStartable
+  - `nodeditor_nodes/gui` — GUI widgets + NodeWidgetFactory, registers `modelName → widget creator` lambdas
   - `node_editor_ide` — IDE shell, depends on DaqsterGui
 
 - **NodeWidgetFactory контракт:**
   ```cpp
-  // In demo_nodeditor_nodes_gui plugin
+  // In nodeditor_nodes/gui plugin
   factory->registerWidgetCreator("AudioSource", [](NodeDelegateModel* m) {
       return new AudioSourceDataModelUI(qobject_cast<AudioSourceDataModel*>(m));
   });

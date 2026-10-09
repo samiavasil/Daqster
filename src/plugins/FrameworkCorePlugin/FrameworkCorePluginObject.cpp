@@ -49,7 +49,7 @@ void FrameworkCorePluginObject::stopAllNodes()
 void FrameworkCorePluginObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
 {
     // No-op: the framework itself ships no node types. Node models come from
-    // dedicated providers (e.g. DemoNodeEditorNodesCore), which the core and
+    // dedicated providers (e.g. NodeditorNodesCore), which the core and
     // GUI engines each discover through QPluginManager::nodeProviders().
     Q_UNUSED(registry)
 }

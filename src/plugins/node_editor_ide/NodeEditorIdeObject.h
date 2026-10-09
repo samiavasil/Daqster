@@ -33,7 +33,7 @@ public:
     // loading logic without duplication.
     //
     // REQ-SW-PL-051: the built-in node models (NumberSource, NumberDisplay,
-    // Modulo, Arithmetic/Logic) are owned by nodeditor_nodes_core and
+    // Modulo, Arithmetic/Logic) are owned by nodeditor_nodes/core and
     // arrive through INodeProvider like every other plugin node. There is no
     // local registration left — see registerNodes().
 

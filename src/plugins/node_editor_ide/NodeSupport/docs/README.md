@@ -23,7 +23,7 @@ Library/
 │   ├── AudioCompat.h                     # Qt5/Qt6 audio compatibility
 │   └── QtChartsCompat.h                  # Qt5/Qt6 charts compatibility
 │   (The waveform VIEW — QDevioDisplayModelUiObsolete — moved to
-│    demo_nodeditor_nodes_gui/Displays/ObsoleteAudioDisplay/ on 2026-10-08.)
+│    demo_nodeditor_nodes/gui/Displays/ObsoleteAudioDisplay/ on 2026-10-08.)
 ├── threading/
 │   └── EventThreadPull.h/.cpp        # Background worker thread management
 └── decoders/

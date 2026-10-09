@@ -6,7 +6,17 @@
 
 ## [Unreleased]
 
+### Changed
+- **REQ-SW-PL-060 — node-provider конвенция `<plugin>/{core,gui}` + преименуване на shared support библиотеката** (2026-10-09, клон `feat/REQ-SW-PL-056-headless-all-node-components`):
+  - `src/plugins/nodeditor_nodes_core/` + `src/plugins/nodeditor_nodes_gui/` се сливат в **един** плъгин `src/plugins/nodeditor_nodes/{core,gui}/` — документирана framework конвенция (`docs/Architecture/core-gui-split.md`, `docs/Architecture/plugins/PluginDevelopment.md`): `core/` е headless (без `QWidget`), `gui/` държи widget-ите и `IWidgetProvider`.
+  - Класове/target-и/OUTPUT_NAME: `DemoNodeEditorNodesCore*` → `NodeditorNodesCore*`, `DemoNodeEditorNodesGui*` → `NodeditorNodesGui*` (`libNodeditorNodesCorePlugin.so` / `libNodeditorNodesGuiPlugin.so`). Обновени са plugin `Name` в JSON и `Dependencies` в `FrameworkCorePlugin`/`FrameworkGuiPlugin`.
+  - `docs/plugins/demo_nodeditor_nodes/` → `docs/plugins/nodeditor_nodes/`.
+- **REQ-SW-PL-060 — shared support библиотеката вече няма „plugin" в името**: `PluginsCommonLibrary` → `DaqsterCommonLibrary` (target + `OUTPUT_NAME` + `DaqsterCommonExport.h` / `DAQSTERCOMMON_*`). Иначе `PluginDiscovery::isCandidatePluginFile()` (`toLower().contains("plugin")`) засича `libPluginsCommonLibrary.so` и логва `Bad Plugin`.
+
 ### Fixed
+- **REQ-SW-PL-050 „Оставащ дълг" #1 — дублиран `IStoppable`/`IStartable`** (2026-10-09): `src/plugins/nodeditor_nodes/core/shared/{IStoppable,IStartable}.h` стават forwarding shim-ове към каноничните `src/plugins/common/capabilities/*`. Една дефиниция → премахва риска двата байт-идентични layout-а да се разминат и cast-ът `stop()` да сочи грешно отместване. `demo_nodeditor_lifecycle_tests` вече се компилира (преди: redefinition) и `bothInterfaceHeadersDeclareTheSameType()` проверява структурната идентичност.
+- **Тестова инфраструктура — side-by-side build** (2026-10-09): `DEMO_CORE_EXPORT_INCLUDE_DIR` вече се взима от `get_target_property(DemoNodeEditorNodesCore BINARY_DIR)` вместо хардкоднато `${CMAKE_BINARY_DIR}/src/...`, което чупеше `demo_nodeditor_modelname_tests` при `add_subdirectory(../daqster)` (липсващ `daqster/` префикс). Static-define-ът е `NODEDITOR_NODES_CORE_STATIC_DEFINE` (беше с невалиден `DEMO_` префикс — Windows latent).
+
 - **REQ-SW-PL-051 — празен runtime, когато има два `IWidgetProvider`**
   (2026-10-09, клон `feat/REQ-SW-PL-056-headless-all-node-components`) —
   `RuntimeShell` и `NodeEditorIdeObject` адоптваха само **първия** provider от

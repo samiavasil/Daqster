@@ -16,8 +16,9 @@ package "src/plugins/node_editor_ide/" <<Rectangle>> {
   [NodeEditorLibrary] as NEL
 }
 
-package "src/plugins/demo_nodeditor_nodes/" <<Rectangle>> {
-  [DemoNodeEditorNodes\n(DemoNodeEditorNodesPlugin)] as DEMO
+package "src/plugins/nodeditor_nodes/" <<Rectangle>> {
+  [core/\n(NodeditorNodesCorePlugin)] as DEMO
+  [gui/\n(NodeditorNodesGuiPlugin)] as DEMOGUI
 }
 
 package "src/plugins/requirements_manager/" <<Rectangle>> {
@@ -53,6 +54,9 @@ DEMO --> NEL : links
 DEMO --> NODEEDITOR : links PUBLIC\n(QtNodes)
 DEMO --> FW : links
 
+DEMOGUI --> DEMO : links (IWidgetProvider)
+DEMOGUI --> FW : links
+
 RM --> FW : links
 
 QCT --> QTREST : links
@@ -61,6 +65,7 @@ QCT --> FW : links
 HOST --> QPM : uses
 QPM ..> IDE : discovers
 QPM ..> DEMO : discovers
+QPM ..> DEMOGUI : discovers
 QPM ..> RM : discovers
 QPM ..> QCT : discovers
 QPM ..> TEST : discovers (optional)

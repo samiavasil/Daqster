@@ -36,7 +36,7 @@ Daqster/
 │       │   ├── capabilities/     # INodeProvider.h
 │       │   └── NodeDataTypes/    # TextData, FloatData, EmbeddingData, ...
 │       ├── node_editor_ide/      # Визуален node-based редактор + вградени нодове
-│       ├── demo_nodeditor_nodes/  # INodeProvider — AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux + Video нодове (Camera/File/Stream/Output/Effect/CustomShader/Sampler)
+│       ├── nodeditor_nodes/  # INodeProvider — AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux + Video нодове (Camera/File/Stream/Output/Effect/CustomShader/Sampler)
 │       ├── QtCoinTrader/         # QtCoinTrader плъгин
 │       └── tests/                # Тестови плъгини
 ├── tools/                        # Инструменти за билд
@@ -51,7 +51,7 @@ Daqster/
 │   │   ├── framework/
 │   │   └── plugins/
 │   │       ├── node_editor_ide/  # Node Editor IDE plugin docs
-│       │       └── demo_nodeditor_nodes/ # Demo NodeEditor Nodes plugin docs
+│       │       └── nodeditor_nodes/ # Demo NodeEditor Nodes plugin docs
 │   ├── development/              # Разработка и дебъг
 │   │   ├── README.md
 │   │   ├── DeveloperGuide.md
@@ -110,7 +110,7 @@ Daqster/
 
 **Типове плъгини:**
 - **APPLICATION_PLUGIN** — Самостоятелни приложения с GUI (node_editor_ide, QtCoinTrader)
-- **Node Provider** — Headless плъгини доставящи нодове чрез INodeProvider (demo_nodeditor_nodes)
+- **Node Provider** — Headless плъгини доставящи нодове чрез INodeProvider (nodeditor_nodes)
 
 **Plugin Discovery:**
 1. Build директория (`./plugins`, `../lib/daqster/plugins`)

@@ -48,7 +48,7 @@ void FrameworkGuiPluginObject::stopAllNodes()
 // ── INodeProvider ──────────────────────────────────────────────────────────
 void FrameworkGuiPluginObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
 {
-    // No-op: display/output node models ship in DemoNodeEditorNodesCore, and
+    // No-op: display/output node models ship in NodeditorNodesCore, and
     // RuntimeShell::registerNodes() pulls every provider in through
     // QPluginManager::nodeProviders(). This plugin contributes the runtime host
     // and its widgets, not new node types.

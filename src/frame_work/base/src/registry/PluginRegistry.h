@@ -224,7 +224,7 @@ private:
      * @brief Call Initialize() on a plugin object at most once.
      *
      * A capability object is useless until initialized (e.g.
-     * DemoNodeEditorNodesGuiObject builds its NodeWidgetFactory there), and
+     * NodeditorNodesGuiObject builds its NodeWidgetFactory there), and
      * plugins are not guaranteed to have been initialized by the launcher.
      * Objects that failed to initialize are retried on the next discovery.
      */

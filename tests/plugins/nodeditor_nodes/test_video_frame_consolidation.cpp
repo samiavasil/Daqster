@@ -233,7 +233,7 @@ void TestVideoFrameConsolidation::twoFramesEachGetTheirOwnCallback()
 void TestVideoFrameConsolidation::poolIsASingleton()
 {
     // E1 (commit f6f184d): TexturePool::instance() moved out of line so it is
-    // emitted once by PluginsCommonLibrary. Before that, an inline
+    // emitted once by DaqsterCommonLibrary. Before that, an inline
     // function-local static gave each consumer translation unit its own pool
     // on Windows, so a texture released by the effect plugin was invisible to
     // the display plugin and both grew without bound. Same address, every

@@ -20,7 +20,7 @@ configure_file(
 
 # ════════════════════════════════════════════════════════════════════════
 # REQ-SW-PL-051: the built-in node models (NumberSource, NumberDisplay,
-# Modulo, Arithmetic/Logic) live in the DemoNodeEditorNodesCore plugin and
+# Modulo, Arithmetic/Logic) live in the NodeditorNodesCore plugin and
 # are exposed through INodeProvider. They used to be DUPLICATED here and
 # registered by NodeEditorIdeObject *before* the core plugin — since
 # NodeDelegateModelRegistry::registerModel is first-wins by model name, the
@@ -31,7 +31,7 @@ configure_file(
 
 # ═════════════════════════════════════════════════════════════════════════
 # Shared Library: NodeEditorLibrary
-# Extracted so both NodeEditorIde and DemoNodeEditorNodes plugins
+# Extracted so both NodeEditorIde and NodeditorNodes plugins
 # can link against it without cross-plugin symbol resolution issues.
 # Conditional on required Qt modules being available.
 # ═════════════════════════════════════════════════════════════════════════
@@ -107,7 +107,7 @@ if(NODE_EDITOR_LIB_ENABLED)
     # When building NodeEditorLibrary itself, Q_OBJECT classes marked with
     # NODE_EDITOR_LIBRARY_EXPORT expand to __declspec(dllexport) on Windows so
     # their staticMetaObject data symbols are exported from the DLL. Consumers
-    # (NodeEditorIde, DemoNodeEditorNodes) do NOT define this macro, so the
+    # (NodeEditorIde, NodeditorNodes) do NOT define this macro, so the
     # macro expands to __declspec(dllimport) there. No-op on Linux/macOS.
     target_compile_definitions(NodeEditorLibrary PRIVATE NODE_EDITOR_LIBRARY_BUILD)
 
@@ -122,8 +122,8 @@ if(NODE_EDITOR_LIB_ENABLED)
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/gui
         ${DAQSTER_SOURCE_DIR}/src/plugins/common
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_core
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_gui
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui
         # framework_core_export.h is generated in the public daqster build tree
         ${CMAKE_BINARY_DIR}/src/frame_work
     )
@@ -159,10 +159,10 @@ endif()
 # Plugin: NodeEditorIde (IDE shell + built-in nodes)
 # ══════════════════════════════════════════════════════════════════════════
 
-# REQ-SW-PL-051: the built-in models are owned by nodeditor_nodes_core and
+# REQ-SW-PL-051: the built-in models are owned by nodeditor_nodes/core and
 # reach this plugin through its INodeProvider. Nothing is compiled here: a
 # second copy of the same class in another .so would break the dynamic_cast in
-# DemoNodeEditorNodesGui::NodeWidgetFactory, which links the core plugin.
+# NodeditorNodesGui::NodeWidgetFactory, which links the core plugin.
 
 set(PLUGIN_RESOURCES
     node_editor.qrc
@@ -213,7 +213,7 @@ create_plugin(NodeEditorIde
         # links FrameworkGui.
         FrameworkGui
       INCLUDE_DIRECTORIES
-          ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_core/Displays/NumberDisplay
+          ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Displays/NumberDisplay
 )
 
 # ══════════════════════════════════════════════════════════════════════════

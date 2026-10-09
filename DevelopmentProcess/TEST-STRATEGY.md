@@ -51,7 +51,7 @@
 - `VideoOutputNode::name()` → `"VideoOutput"`.
 
 Регистрацията е в `src/plugins/node_editor_ide/NodeEditorIdeObject.cpp:145-153`
-(built-in) и `src/plugins/demo_nodeditor_nodes/DemoNodeEditorNodesObject.cpp:88-128`
+(built-in) и `src/plugins/nodeditor_nodes/core/NodeditorNodesCoreObject.cpp:88-128`
 (demo нодове).
 
 ### 1.2 Как се използват

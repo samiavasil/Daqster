@@ -6,6 +6,15 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **REQ-SW-PL-060 — node-provider `<plugin>/{core,gui}` convention + shared-library rename** (2026-10-09, branch `feat/REQ-SW-PL-056-headless-all-node-components`):
+  - `src/plugins/nodeditor_nodes_core/` + `src/plugins/nodeditor_nodes_gui/` merged into one plugin `src/plugins/nodeditor_nodes/{core,gui}/` (framework convention documented in `docs/Architecture/core-gui-split.md` and `docs/Architecture/plugins/PluginDevelopment.md`).
+  - Classes/targets/OUTPUT_NAME: `DemoNodeEditorNodesCore*` → `NodeditorNodesCore*`, `DemoNodeEditorNodesGui*` → `NodeditorNodesGui*` (`libNodeditorNodesCorePlugin.so` / `libNodeditorNodesGuiPlugin.so`).
+  - Shared support library renamed `PluginsCommonLibrary` → `DaqsterCommonLibrary` so `PluginDiscovery::isCandidatePluginFile()` no longer treats it as a plugin.
+
+### Fixed
+- **Duplicated `IStoppable`/`IStartable`** (REQ-SW-PL-050 debt): the `core/shared/` copies are now forwarding shims to the canonical `common/capabilities/` headers — one definition, no layout-divergence hazard; `demo_nodeditor_lifecycle_tests` now compiles.
+
 ### Added
 - **REQ-SW-PL-048** (Runtime mode — `--run <flow.flow>`, MDI workspaces, autoStart, presentation toggle):
   - CLI: `Daqster --run <file.flow>` starts runtime mode without editor canvas

@@ -9,6 +9,6 @@
         "PluginType": "gui",
         "PluginCategory": "Framework",
         "Capabilities": ["INodeProvider"],
-        "Dependencies": ["FrameworkCore", "FrameworkGui", "DemoNodeEditorNodesCore", "DemoNodeEditorNodesGui"]
+        "Dependencies": ["FrameworkCore", "FrameworkGui", "NodeditorNodesCore", "NodeditorNodesGui"]
     }
 }

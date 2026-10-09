@@ -1,0 +1,41 @@
+#ifndef DEMONODEEDITORNODESGUIOBJECT_H
+#define DEMONODEEDITORNODESGUIOBJECT_H
+
+#include "QBasePluginObject.h"
+#include <capabilities/INodeProvider.h>
+#include <capabilities/IWidgetProvider.h>
+#include "NodeWidgetFactory.h"
+
+namespace QtNodes {
+class NodeDelegateModel;
+}
+
+namespace Daqster {
+
+class NodeditorNodesGuiObject : public QBasePluginObject
+                                  , public IWidgetProvider
+{
+    Q_OBJECT
+
+public:
+    explicit NodeditorNodesGuiObject(QObject* parent = nullptr);
+    ~NodeditorNodesGuiObject() override;
+
+    // QBasePluginObject interface
+    bool Initialize() override;
+
+    // IWidgetProvider interface — supplies the QWidget of nodes whose model
+    // lives in nodeditor_nodes/core and returns nullptr from
+    // embeddedWidget() (REQ-SW-PL-051).
+    QWidget* createWidget(QtNodes::NodeDelegateModel* model) const override;
+
+protected:
+    void DeInitialize() override;
+
+private:
+    NodeWidgetFactory* m_widgetFactory = nullptr;
+};
+
+} // namespace Daqster
+
+#endif // DEMONODEEDITORNODESGUIOBJECT_H

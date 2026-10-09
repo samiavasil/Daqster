@@ -12,7 +12,7 @@
 
 ### Node Provider — Headless плъгин доставящ нодове
 Имплементира `INodeProvider` и доставя `NodeDelegateModel` типове към node editor-а.
-Пример: `demo_nodeditor_nodes`
+Пример: `nodeditor_nodes`
 
 ## 2. Създай скеле
 
@@ -30,6 +30,11 @@ src/plugins/MyPlugin/
 
 ### Node Provider
 
+Node-provider plugins follow the `<plugin>/{core,gui}` directory convention
+(REQ-SW-PL-060): one plugin directory, two halves. `core/` is headless (models,
+engines — no `QWidget`); `gui/` holds the `QWidget`s and the `IWidgetProvider`
+and links `core/`. The factory/metadata/lifecycle classes stay at the root.
+
 ```
 src/plugins/my_nodes/
 ├── CMakeLists.txt
@@ -38,8 +43,16 @@ src/plugins/my_nodes/
 ├── MyNodesInterface.json
 ├── MyNodesObject.h
 ├── MyNodesObject.cpp
-└── MyNodeModel.{h,cpp}
+├── core/                       # headless models/engines (no QtWidgets)
+│   └── MyNodeModel.{h,cpp}
+└── gui/                        # QWidgets + NodeWidgetFactory
+    └── MyNodeWidget.{h,cpp}
 ```
+
+Both halves are loaded as separate `.so` files by the same plugin manager. The
+`QPluginManager` only scans files whose name contains `plugin` (lower-case
+match), so the shared support library `src/plugins/common/` is named
+`DaqsterCommonLibrary` — never `*Plugin*` — and is ignored by the scanner.
 
 ## 3. Имплементирай интерфейсите
 
@@ -141,7 +154,7 @@ create_plugin(MyNodes
 set_target_properties(MyNodes PROPERTIES OUTPUT_NAME "MyNodesPlugin")
 ```
 
-**Важно:** OUTPUT_NAME трябва да съдържа `"plugin"` — `PluginDiscovery::isCandidatePluginFile()` го изисква.
+**Важно:** OUTPUT_NAME на **плъгин** target трябва да съдържа `"plugin"` — `PluginDiscovery::isCandidatePluginFile()` го изисква. Обратно, споделената support библиотека `src/plugins/common/` е `DaqsterCommonLibrary` (без `plugin`) именно за да не бъде засечена като плъгин. Всяка node-provider половинка (`core`/`gui`) е отделен `create_plugin()` target с име, съдържащо `plugin`.
 
 ## 5. Plugin Metadata JSON
 

@@ -118,16 +118,17 @@ cmd_set() {
     # VERSION file at configure time (single source of truth).
 
     # Plugin CMakeLists project() declarations (4)
-    # demo_nodeditor_nodes was split into _core and _gui (REQ-SW-PL-051).
-    update_version "src/plugins/demo_nodeditor_nodes_core/CMakeLists.txt" \
+    # nodeditor_nodes was split into core/ and gui/ subdirectories (REQ-SW-PL-051,
+    # directory convention REQ-SW-PL-060).
+    update_version "src/plugins/nodeditor_nodes/core/CMakeLists.txt" \
         's/.*project\([a-zA-Z_]+ VERSION ([0-9.]+).*/\1/p' \
         "s/(project\([a-zA-Z_]+ VERSION )[0-9.]+/\1$NEW_VERSION/" \
-        "demo_nodeditor_nodes_core CMakeLists.txt"
+        "nodeditor_nodes/core CMakeLists.txt"
 
-    update_version "src/plugins/demo_nodeditor_nodes_gui/CMakeLists.txt" \
+    update_version "src/plugins/nodeditor_nodes/gui/CMakeLists.txt" \
         's/.*project\([a-zA-Z_]+ VERSION ([0-9.]+).*/\1/p' \
         "s/(project\([a-zA-Z_]+ VERSION )[0-9.]+/\1$NEW_VERSION/" \
-        "demo_nodeditor_nodes_gui CMakeLists.txt"
+        "nodeditor_nodes/gui CMakeLists.txt"
 
     update_version "src/plugins/node_editor_ide/CMakeLists.txt" \
         's/.*project\([a-zA-Z_]+ VERSION ([0-9.]+).*/\1/p' \
@@ -220,12 +221,12 @@ cmd_check() {
         "root CMakeLists.txt reads VERSION (no hardcoded project version)"
 
     # Plugin CMakeLists project() declarations (4)
-    check_present "src/plugins/demo_nodeditor_nodes_core/CMakeLists.txt" \
-        "project\(demo_nodeditor_nodes_core VERSION $VERSION" \
-        "demo_nodeditor_nodes_core CMakeLists.txt"
-    check_present "src/plugins/demo_nodeditor_nodes_gui/CMakeLists.txt" \
-        "project\(demo_nodeditor_nodes_gui VERSION $VERSION" \
-        "demo_nodeditor_nodes_gui CMakeLists.txt"
+    check_present "src/plugins/nodeditor_nodes/core/CMakeLists.txt" \
+        "project\(nodeditor_nodes_core VERSION $VERSION" \
+        "nodeditor_nodes/core CMakeLists.txt"
+    check_present "src/plugins/nodeditor_nodes/gui/CMakeLists.txt" \
+        "project\(nodeditor_nodes_gui VERSION $VERSION" \
+        "nodeditor_nodes/gui CMakeLists.txt"
     check_present "src/plugins/node_editor_ide/CMakeLists.txt" \
         "project\(node_editor_ide VERSION $VERSION" \
         "node_editor_ide CMakeLists.txt"
@@ -264,12 +265,12 @@ cmd_check() {
         fi
     }
 
-    check_json_template "src/plugins/demo_nodeditor_nodes_core/DemoNodeEditorNodesCoreInterface.json.in" \
-        "src/plugins/demo_nodeditor_nodes_core/DemoNodeEditorNodesCoreInterface.json" \
-        "DemoNodeEditorNodesCoreInterface"
-    check_json_template "src/plugins/demo_nodeditor_nodes_gui/DemoNodeEditorNodesGuiInterface.json.in" \
-        "src/plugins/demo_nodeditor_nodes_gui/DemoNodeEditorNodesGuiInterface.json" \
-        "DemoNodeEditorNodesGuiInterface"
+    check_json_template "src/plugins/nodeditor_nodes/core/NodeditorNodesCoreInterface.json.in" \
+        "src/plugins/nodeditor_nodes/core/NodeditorNodesCoreInterface.json" \
+        "NodeditorNodesCoreInterface"
+    check_json_template "src/plugins/nodeditor_nodes/gui/NodeditorNodesGuiInterface.json.in" \
+        "src/plugins/nodeditor_nodes/gui/NodeditorNodesGuiInterface.json" \
+        "NodeditorNodesGuiInterface"
     check_json_template "src/plugins/node_editor_ide/NodeEditorIdeInterface.json.in" \
         "src/plugins/node_editor_ide/NodeEditorIdeInterface.json" \
         "NodeEditorIdeInterface"

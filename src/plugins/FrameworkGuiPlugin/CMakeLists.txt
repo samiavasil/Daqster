@@ -54,8 +54,8 @@ create_plugin(FrameworkGuiPlugin
         QtNodes
         FrameworkCore
         FrameworkGui
-        DemoNodeEditorNodesCore
-        DemoNodeEditorNodesGui
+        NodeditorNodesCore
+        NodeditorNodesGui
         NodeEditorLibrary
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -63,9 +63,9 @@ create_plugin(FrameworkGuiPlugin
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/gui
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_core
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_core/Sources/Video
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes_gui
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui
         # Editor canvas pieces reused by RuntimeShell (kept in node_editor_ide)
         ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide
         ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport

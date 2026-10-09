@@ -51,7 +51,7 @@ public:
     void buildCanvas();
 
     /// Set the widget providers for creating node widgets (REQ-SW-PL-051).
-    /// Providers are owned by the GUI plugin objects (DemoNodeEditorNodesGuiObject,
+    /// Providers are owned by the GUI plugin objects (NodeditorNodesGuiObject,
     /// AiStudioPluginGuiObject, ...) and must outlive the editor widget.
     void setWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers);
 

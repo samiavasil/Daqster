@@ -1,6 +1,6 @@
 # Shared library for common plugin infrastructure (REQ-SW-PL-032).
 #
-# Extracted so nodeditor_nodes_core, its _gui sibling, private plugins
+# Extracted so nodeditor_nodes/core, its gui sibling, private plugins
 # (ai_studio_plugin) and their test binaries can share ONE definition of
 # TexturePool — the same pattern as NodeEditorLibrary
 # (node_editor_ide/CMakeLists.txt).
@@ -19,23 +19,23 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-project(plugins_common LANGUAGES CXX)
+project(daqster_common LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-register_component(PluginsCommonLibrary
+register_component(DaqsterCommonLibrary
     REQUIRES_LIBRARIES
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
         Qt${QT_VERSION_MAJOR}::OpenGL
 )
 
-get_property(PLUGINS_COMMON_LIB_ENABLED GLOBAL PROPERTY COMPONENT_PluginsCommonLibrary_ENABLED)
+get_property(DAQSTER_COMMON_LIB_ENABLED GLOBAL PROPERTY COMPONENT_DaqsterCommonLibrary_ENABLED)
 
-if(PLUGINS_COMMON_LIB_ENABLED)
-    add_library(PluginsCommonLibrary SHARED
+if(DAQSTER_COMMON_LIB_ENABLED)
+    add_library(DaqsterCommonLibrary SHARED
         GL/TexturePool.cpp
     )
 
@@ -43,42 +43,42 @@ if(PLUGINS_COMMON_LIB_ENABLED)
     # and emit the import library (.lib) — without it the DLL exports nothing
     # and consumers fail with LNK1181. No-op on Linux/macOS (.so/.dylib export
     # everything by default).
-    set_target_properties(PluginsCommonLibrary PROPERTIES
+    set_target_properties(DaqsterCommonLibrary PROPERTIES
         WINDOWS_EXPORT_ALL_SYMBOLS ON
     )
 
-    # Export macro for Windows: define PLUGINSCOMMON_LIBRARY when building the
-    # library so PluginsCommonExport.h expands PLUGINSCOMMON_EXPORT to
+    # Export macro for Windows: define DAQSTERCOMMON_LIBRARY when building the
+    # library so DaqsterCommonExport.h expands DAQSTERCOMMON_EXPORT to
     # __declspec(dllexport) (consumers do NOT define this macro, so it expands
     # to __declspec(dllimport) there). Global data symbols (e.g. the
     # TexturePool singleton) are NOT linkable from consumers through
     # WINDOWS_EXPORT_ALL_SYMBOLS alone — they must be marked explicitly.
-    target_compile_definitions(PluginsCommonLibrary PRIVATE PLUGINSCOMMON_LIBRARY)
+    target_compile_definitions(DaqsterCommonLibrary PRIVATE DAQSTERCOMMON_LIBRARY)
 
-    target_include_directories(PluginsCommonLibrary PUBLIC
+    target_include_directories(DaqsterCommonLibrary PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
-    link_component_dependencies(PluginsCommonLibrary)
+    link_component_dependencies(DaqsterCommonLibrary)
 
     if(TARGET Qt${QT_VERSION_MAJOR}::OpenGL)
-        target_link_libraries(PluginsCommonLibrary PUBLIC Qt${QT_VERSION_MAJOR}::OpenGL)
+        target_link_libraries(DaqsterCommonLibrary PUBLIC Qt${QT_VERSION_MAJOR}::OpenGL)
     endif()
 
-    set_target_properties(PluginsCommonLibrary PROPERTIES
-        OUTPUT_NAME "PluginsCommonLibrary"
+    set_target_properties(DaqsterCommonLibrary PROPERTIES
+        OUTPUT_NAME "DaqsterCommonLibrary"
     )
 
-    install(TARGETS PluginsCommonLibrary
+    install(TARGETS DaqsterCommonLibrary
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 
-    message(STATUS "Created internal library: PluginsCommonLibrary")
+    message(STATUS "Created internal library: DaqsterCommonLibrary")
 else()
-    get_property(REASONS GLOBAL PROPERTY COMPONENT_PluginsCommonLibrary_REASONS)
-    message(STATUS "Skipping library PluginsCommonLibrary - dependencies not met:")
+    get_property(REASONS GLOBAL PROPERTY COMPONENT_DaqsterCommonLibrary_REASONS)
+    message(STATUS "Skipping library DaqsterCommonLibrary - dependencies not met:")
     foreach(REASON ${REASONS})
         message(STATUS "  - ${REASON}")
     endforeach()

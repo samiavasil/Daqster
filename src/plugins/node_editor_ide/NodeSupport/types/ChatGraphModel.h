@@ -24,7 +24,7 @@ public:
     /// More than one plugin may implement IWidgetProvider (each GUI plugin
     /// serves widgets for ITS OWN core models): the node editor must consult
     /// ALL of them, in order, and take the first widget a provider returns.
-    /// Providers are owned by their plugin objects (DemoNodeEditorNodesGuiObject,
+    /// Providers are owned by their plugin objects (NodeditorNodesGuiObject,
     /// AiStudioPluginGuiObject, ...) and must outlive this model.
     void setWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers);
 

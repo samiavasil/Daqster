@@ -64,8 +64,8 @@ NodeEditorIdeObject **не** имплементира INodeProvider. Той е *
 
 > **ВАЖНО:** редът по-долу е исторически — бившите `BuiltInNodes/Sources|Displays|Operators`
 > (NumberSource, NumberDisplay, Modulo, ArithmeticLogic) са преместени в
-> `demo_nodeditor_nodes_core` при REQ-SW-PL-051 и се регистрират в
-> `DemoNodeEditorNodesCoreObject::registerNodes()`. `NodeEditorIdeObject` не
+> `nodeditor_nodes/core` при REQ-SW-PL-051 и се регистрират в
+> `NodeditorNodesCoreObject::registerNodes()`. `NodeEditorIdeObject` не
 > регистрира собствени нодове — той **открива** външни `INodeProvider` плъгини.
 
 | Категория | Нод | Описание |
@@ -87,7 +87,7 @@ void NodeEditorIdeObject::discoverAndRegisterExternalNodes() {
 }
 ```
 
-Външните INodeProvider плъгини (напр. `demo_nodeditor_nodes`) се откриват автоматично чрез `QPluginManager::instances(INodeProvider_IID)` и техните нодове се добавят към registry-я преди `buildCanvas()`.
+Външните INodeProvider плъгини (напр. `nodeditor_nodes`) се откриват автоматично чрез `QPluginManager::instances(INodeProvider_IID)` и техните нодове се добавят към registry-я преди `buildCanvas()`.
 
 ## Известни зависимости
 

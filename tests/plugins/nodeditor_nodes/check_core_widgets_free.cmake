@@ -18,11 +18,11 @@
 # ALLOW_LIST below is the recorded deferral list from REQ-SW-PL-051 AC2 +
 # REQ-SW-PL-056. EMPTY since 2026-10-08 (REQ-SW-PL-056 split): every _core TU
 # is widget-include-free, including the obsolete QDevIO display world (model →
-# core, view → nodeditor_nodes_gui). If a widget include ever has to come
+# core, view → nodeditor_nodes/gui). If a widget include ever has to come
 # back, it must land in ALLOW_LIST with a reason first — never silently.
 #
 # Usage (target-source scan — the REQ-SW-PL-056 form):
-#   cmake -DCORE_DIR=<nodeditor_nodes_core>
+#   cmake -DCORE_DIR=<nodeditor_nodes/core>
 #         -DCORE_SOURCES="<semicolon-separated TARGET source list>"
 #         [-DCORE_EXPECTED_SOURCES=<N>]
 #         -P check_core_widgets_free.cmake
@@ -35,7 +35,7 @@
 #   pins the scanned count so a silently-empty SOURCES query cannot pass.
 #
 # Legacy fallback (tree scan, kept for manual runs / other check sites):
-#   cmake -DCORE_DIR=<path to nodeditor_nodes_core> -P check_core_widgets_free.cmake
+#   cmake -DCORE_DIR=<path to nodeditor_nodes/core> -P check_core_widgets_free.cmake
 #
 # Exits non-zero with a report on stderr when a non-allow-listed TU includes a
 # widgets header.
@@ -50,7 +50,7 @@
 #   * NodeSupport/display/QDevIoDisplayModelObsolete.cpp — widget UI stack
 #     removed; pure model (device + routing), embeddedWidget()=nullptr.
 #   * NodeSupport/display/QDevioDisplayModelUiObsolete.{cpp,h,ui} — moved to
-#     nodeditor_nodes_gui/Displays/ObsoleteAudioDisplay/, built by
+#     nodeditor_nodes/gui/Displays/ObsoleteAudioDisplay/, built by
 #     NodeWidgetFactory's "AudioDisplayObsolete" creator.
 # ChatGraphModel.cpp was never compiled into the _core target (it only ever
 # lived in NodeEditorLibrary) — its old entry here was dead config and is gone.
@@ -240,7 +240,7 @@ if(VIOLATIONS)
     message(FATAL_ERROR
         "REQ-SW-PL-051 regression: ${CORE_DIR} includes QtWidgets outside the recorded deferral list.\n"
         "The core plugin is supposed to link without QtWidgets so it can be loaded by a\n"
-        "headless runtime. Move the widget to nodeditor_nodes_gui and reach it through\n"
+        "headless runtime. Move the widget to nodeditor_nodes/gui and reach it through\n"
         "NodeWidgetFactory / IWidgetProvider, or — if it genuinely belongs to a model that is\n"
         "scheduled for removal — add it to ALLOW_LIST in check_core_widgets_free.cmake with a\n"
         "reason, so the deferral stays recorded instead of becoming invisible.\n"

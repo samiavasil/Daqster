@@ -11,7 +11,7 @@
 | Plugin | Локация | Тип | Описание |
 |--------|---------|-----|----------|
 | **Node Editor IDE** | `src/plugins/node_editor_ide/` | APPLICATION_PLUGIN | Визуален node-based редактор с вградени нодове (NumberSource, NumberDisplay, Modulo, ArithmeticLogic) |
-| **Demo NodeEditor Nodes** | `src/plugins/demo_nodeditor_nodes/` | Node Provider | INodeProvider — доставя AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux + Video нодове (Camera/File/Stream/Output/Effect/CustomShader/Sampler) |
+| **Demo NodeEditor Nodes** | `src/plugins/nodeditor_nodes/` | Node Provider | INodeProvider — доставя AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux + Video нодове (Camera/File/Stream/Output/Effect/CustomShader/Sampler) |
 | **QtCoinTrader** | `src/plugins/QtCoinTrader/` | APPLICATION_PLUGIN | Cryptocurrency trading plugin |
 | **Requirements Manager** | `src/plugins/requirements_manager/` | APPLICATION_PLUGIN | Markdown-based traceable requirements viewer/editor (REQ-SW-PL-*) |
 
@@ -20,7 +20,7 @@
 Всяка основна плъгин компонента има своя документация:
 
 - [Node Editor IDE](../../plugins/node_editor_ide/README.md) — архитектура, вградени нодове, INodeProvider discovery
-- [Demo NodeEditor Nodes](../../plugins/demo_nodeditor_nodes/README.md) — INodeProvider пример, доставени нодове
+- [Demo NodeEditor Nodes](../../plugins/nodeditor_nodes/README.md) — INodeProvider пример, доставени нодове
 
 ### Requirements Manager (REQ-SW-PL-009 — Interactive Dependency Graph Viewer)
 
@@ -266,4 +266,4 @@ Environment variables:
 
 - [Plugin Development](./PluginDevelopment.md)
 - [Node Editor IDE](../../plugins/node_editor_ide/README.md)
-- [Demo NodeEditor Nodes](../../plugins/demo_nodeditor_nodes/README.md)
+- [Demo NodeEditor Nodes](../../plugins/nodeditor_nodes/README.md)

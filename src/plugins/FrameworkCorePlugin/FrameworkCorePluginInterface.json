@@ -9,6 +9,6 @@
         "PluginType": "core",
         "PluginCategory": "Framework",
         "Capabilities": ["INodeProvider"],
-        "Dependencies": ["FrameworkCore", "DemoNodeEditorNodesCore"]
+        "Dependencies": ["FrameworkCore", "NodeditorNodesCore"]
     }
 }
