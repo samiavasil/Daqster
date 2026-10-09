@@ -74,8 +74,8 @@ void NodeditorNodesCoreObject::registerNodes(QtNodes::NodeDelegateModelRegistry&
     registry.registerModel<AudioSourceDataModel>("Sources/Audio");
     // Migrated from old plugin: obsolete audio models
     registry.registerModel<AudioSourceDataModelObsolete>("Obsolete");
-    registry.registerModel<LLamaModelDataModel>("Sources/LLM");
-    registry.registerModel<ConsoleDataModel>("Sources/LLM");
+    registry.registerModel<LLamaModelDataModel>("AI/LLM");
+    registry.registerModel<ConsoleDataModel>("AI/LLM");
     registry.registerModel<CameraSourceNode>("Sources/Video");
     registry.registerModel<VideoFileSourceNode>("Sources/Video");
     registry.registerModel<StreamSourceNode>("Sources/Video");
@@ -151,8 +151,8 @@ void NodeditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateModelR
     // Migrated from old plugin: obsolete audio models (REQ-SW-PL-056 AC4).
     // Registered as-is — no refactor, no removal; see the AC4 note below.
     registry.registerModel<AudioSourceDataModelObsolete>("Obsolete");
-    registry.registerModel<LLamaModelDataModel>("Sources/LLM");
-    registry.registerModel<ConsoleDataModel>("Sources/LLM");
+    registry.registerModel<LLamaModelDataModel>("AI/LLM");
+    registry.registerModel<ConsoleDataModel>("AI/LLM");
     registry.registerModel<CameraSourceNode>("Sources/Video");
     registry.registerModel<VideoFileSourceNode>("Sources/Video");
     registry.registerModel<StreamSourceNode>("Sources/Video");

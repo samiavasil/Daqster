@@ -16,6 +16,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - The hosts live in a **family** directory `src/plugins/runtime_host/{headless,gui}/` (parent = role, leaf = variant) — same shape as `nodeditor_nodes/{core,gui}`.
   - `src/plugins/QtCoinTrader/` → `src/plugins/qt_coin_trader/` and `docs/plugins/QtCoinTrader/` → `docs/plugins/qt_coin_trader/`. Rule: plugin **directories** are `snake_case`, C++ classes/CMake targets are `PascalCase`.
   - Headless host JSON `PluginType`: `"core"` → `"headless"`; `Capabilities` now includes `"IRuntimeHost"` on both hosts.
+- **REQ-SW-PL-062 — public LLM nodes under the `AI/LLM` category** (2026-10-09, branch `feat/REQ-SW-PL-056-headless-all-node-components`): `LLamaModelDataModel` (`LLaMA Model`) and `ConsoleDataModel` (`Конзола`) are registered in both `registerNodes()` and `registerNodesHeadless()` under `"AI/LLM"` instead of `"Sources/LLM"`, matching the private `LlamaGenerateModel` so all LLM nodes appear on one menu path. Saved `.flow` files reference nodes by `name()`, not category → no migration.
 
 ### Fixed
 - **Duplicated `IStoppable`/`IStartable`** (REQ-SW-PL-050 debt): the `core/shared/` copies are now forwarding shims to the canonical `common/capabilities/` headers — one definition, no layout-divergence hazard; `demo_nodeditor_lifecycle_tests` now compiles.

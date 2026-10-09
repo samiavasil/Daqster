@@ -17,6 +17,7 @@
   - Хост-овете живеят в **семейна** директория `src/plugins/runtime_host/{headless,gui}/` (родител = роля, листо = вариант) — същият модел като `nodeditor_nodes/{core,gui}`.
   - `src/plugins/QtCoinTrader/` → `src/plugins/qt_coin_trader/` и `docs/plugins/QtCoinTrader/` → `docs/plugins/qt_coin_trader/`. Правило: plugin **директориите** са `snake_case`, C++ класове/CMake target-и са `PascalCase`.
   - JSON `PluginType` на headless хоста: `"core"` → `"headless"`; `Capabilities` вече включва `"IRuntimeHost"` при двата хоста.
+- **REQ-SW-PL-062 — публичните LLM нодове в категорията `AI/LLM`** (2026-10-09, клон `feat/REQ-SW-PL-056-headless-all-node-components`): `LLamaModelDataModel` (`LLaMA Model`) и `ConsoleDataModel` (`Конзола`) се регистрират в `registerNodes()` и `registerNodesHeadless()` под `"AI/LLM"` вместо `"Sources/LLM"` — вече съвпадат с частния `LlamaGenerateModel`, така че всички LLM нодове излизат на един път в менюто. Записаните `.flow` реферират нодовете по `name()`, не по категория → без миграция.
 
 ### Fixed
 - **REQ-SW-PL-060 — застояли CI DLL имена** (2026-10-09): Windows smoke test-ът в
