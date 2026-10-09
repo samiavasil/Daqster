@@ -1,14 +1,14 @@
 {
     "IID": "org.daqster.QPluginInterface/1.0",
     "MetaData": {
-        "Name": "FrameworkGuiPlugin",
+        "Name": "RuntimeHostGuiPlugin",
         "Version": "0.3.2",
-        "Description": "Framework GUI Plugin - RuntimeShell, VideoDisplay, display/output nodes",
+        "Description": "Runtime host for GUI mode - deembedded-widget runtime window (RuntimeShell)",
         "Author": "Daqster Team",
         "License": "GPL-2.0-or-later",
         "PluginType": "gui",
         "PluginCategory": "Framework",
-        "Capabilities": ["INodeProvider"],
+        "Capabilities": ["INodeProvider", "IRuntimeHost"],
         "Dependencies": ["FrameworkCore", "FrameworkGui", "NodeditorNodesCore", "NodeditorNodesGui"]
     }
 }

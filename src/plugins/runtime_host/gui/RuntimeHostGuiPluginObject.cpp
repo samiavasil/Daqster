@@ -1,4 +1,4 @@
-#include "FrameworkGuiPluginObject.h"
+#include "RuntimeHostGuiPluginObject.h"
 #include "RuntimeShell.h"
 
 #include <QtNodes/NodeDelegateModelRegistry>
@@ -6,47 +6,47 @@
 
 namespace Daqster {
 
-FrameworkGuiPluginObject::FrameworkGuiPluginObject(QObject* parent)
+RuntimeHostGuiPluginObject::RuntimeHostGuiPluginObject(QObject* parent)
     : QBasePluginObject(parent)
     , m_runtimeShell(new RuntimeShell(this))
 {
 }
 
-FrameworkGuiPluginObject::~FrameworkGuiPluginObject()
+RuntimeHostGuiPluginObject::~RuntimeHostGuiPluginObject()
 {
     // m_runtimeShell is a QObject child — Qt deletes it. stopAllNodes() must be
     // called explicitly by the runner while the graph is still valid.
 }
 
-bool FrameworkGuiPluginObject::Initialize()
+bool RuntimeHostGuiPluginObject::Initialize()
 {
-    qCInfo(lcNodeEditor) << "FrameworkGuiPlugin initialized (GUI runtime host ready)";
+    qCInfo(lcNodeEditor) << "RuntimeHostGuiPlugin initialized (GUI runtime host ready)";
     return true;
 }
 
-void FrameworkGuiPluginObject::DeInitialize()
+void RuntimeHostGuiPluginObject::DeInitialize()
 {
-    qCInfo(lcNodeEditor) << "FrameworkGuiPlugin deinitialized";
+    qCInfo(lcNodeEditor) << "RuntimeHostGuiPlugin deinitialized";
 }
 
 // ── IRuntimeHost (RuntimeMode::Gui) ────────────────────────────────────────
-RuntimeMode FrameworkGuiPluginObject::runtimeMode() const
+RuntimeMode RuntimeHostGuiPluginObject::runtimeMode() const
 {
     return RuntimeMode::Gui;
 }
 
-bool FrameworkGuiPluginObject::loadFlow(const QString& flowPath)
+bool RuntimeHostGuiPluginObject::loadFlow(const QString& flowPath)
 {
     return m_runtimeShell->RunRuntime(flowPath);
 }
 
-void FrameworkGuiPluginObject::stopAllNodes()
+void RuntimeHostGuiPluginObject::stopAllNodes()
 {
     m_runtimeShell->stopAllNodes();
 }
 
 // ── INodeProvider ──────────────────────────────────────────────────────────
-void FrameworkGuiPluginObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
+void RuntimeHostGuiPluginObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
 {
     // No-op: display/output node models ship in NodeditorNodesCore, and
     // RuntimeShell::registerNodes() pulls every provider in through
@@ -55,7 +55,7 @@ void FrameworkGuiPluginObject::registerNodes(QtNodes::NodeDelegateModelRegistry&
     Q_UNUSED(registry)
 }
 
-void FrameworkGuiPluginObject::registerNodesHeadless(QtNodes::NodeDelegateModelRegistry& registry) const
+void RuntimeHostGuiPluginObject::registerNodesHeadless(QtNodes::NodeDelegateModelRegistry& registry) const
 {
     // Never registers anything headless: the GUI runtime is not available when
     // no display exists, which is precisely why headless mode must not see it.

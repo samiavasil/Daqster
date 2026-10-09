@@ -12,7 +12,7 @@
 |--------|---------|-----|----------|
 | **Node Editor IDE** | `src/plugins/node_editor_ide/` | APPLICATION_PLUGIN | Визуален node-based редактор с вградени нодове (NumberSource, NumberDisplay, Modulo, ArithmeticLogic) |
 | **Demo NodeEditor Nodes** | `src/plugins/nodeditor_nodes/` | Node Provider | INodeProvider — доставя AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux + Video нодове (Camera/File/Stream/Output/Effect/CustomShader/Sampler) |
-| **QtCoinTrader** | `src/plugins/QtCoinTrader/` | APPLICATION_PLUGIN | Cryptocurrency trading plugin |
+| **QtCoinTrader** | `src/plugins/qt_coin_trader/` | APPLICATION_PLUGIN | Cryptocurrency trading plugin |
 | **Requirements Manager** | `src/plugins/requirements_manager/` | APPLICATION_PLUGIN | Markdown-based traceable requirements viewer/editor (REQ-SW-PL-*) |
 
 ### Plugin документация

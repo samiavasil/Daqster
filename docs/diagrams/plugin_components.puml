@@ -25,7 +25,7 @@ package "src/plugins/requirements_manager/" <<Rectangle>> {
   [RequirementsManager\n(RequirementsManagerPlugin)] as RM
 }
 
-package "src/plugins/QtCoinTrader/" <<Rectangle>> {
+package "src/plugins/qt_coin_trader/" <<Rectangle>> {
   [QtCoinTraderPlugin] as QCT
 }
 

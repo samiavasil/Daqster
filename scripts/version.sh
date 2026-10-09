@@ -150,10 +150,10 @@ cmd_set() {
     # the DAQSTER_PLUGIN_VERSION compile definition from create_plugin().
 
     # Plugin docs READMEs (2)
-    update_version "docs/plugins/demo_nodeditor_nodes/README.md" \
+    update_version "docs/plugins/nodeditor_nodes/README.md" \
         's/.*PLUGIN_VERSION    = "([0-9.]+)".*/\1/p' \
         "s/(PLUGIN_VERSION    = \")[0-9.]+(\")/\1$NEW_VERSION\2/" \
-        "docs/plugins/demo_nodeditor_nodes/README.md"
+        "docs/plugins/nodeditor_nodes/README.md"
 
     update_version "docs/plugins/node_editor_ide/README.md" \
         's/.*PLUGIN_VERSION    = "([0-9.]+)".*/\1/p' \
@@ -277,8 +277,8 @@ cmd_check() {
     check_json_template "src/plugins/requirements_manager/RequirementsManagerInterface.json.in" \
         "src/plugins/requirements_manager/RequirementsManagerInterface.json" \
         "RequirementsManagerInterface"
-    check_json_template "src/plugins/QtCoinTrader/QtCoinTraderInterface.json.in" \
-        "src/plugins/QtCoinTrader/QtCoinTraderInterface.json" \
+    check_json_template "src/plugins/qt_coin_trader/QtCoinTraderInterface.json.in" \
+        "src/plugins/qt_coin_trader/QtCoinTraderInterface.json" \
         "QtCoinTraderInterface"
     check_json_template "src/plugins/tests/plugin_main_test/PluginMainTest.json.in" \
         "src/plugins/tests/plugin_main_test/PluginMainTest.json" \
@@ -305,9 +305,9 @@ cmd_check() {
     fi
 
     # Plugin docs READMEs (2)
-    check_present "docs/plugins/demo_nodeditor_nodes/README.md" \
+    check_present "docs/plugins/nodeditor_nodes/README.md" \
         "PLUGIN_VERSION    = \"$VERSION\"" \
-        "docs/plugins/demo_nodeditor_nodes/README.md"
+        "docs/plugins/nodeditor_nodes/README.md"
     check_present "docs/plugins/node_editor_ide/README.md" \
         "PLUGIN_VERSION    = \"$VERSION\"" \
         "docs/plugins/node_editor_ide/README.md"

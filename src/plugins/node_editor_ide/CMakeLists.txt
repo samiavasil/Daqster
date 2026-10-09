@@ -61,10 +61,10 @@ if(NODE_EDITOR_LIB_ENABLED)
     set(LIB_SOURCES
         FlowUiSection.h
         FlowUiSection.cpp
-        # Editor canvas (REQ-SW-PL-053): RuntimeShell in FrameworkGuiPlugin
+        # Editor canvas (REQ-SW-PL-053): RuntimeShell in RuntimeHostGuiPlugin
         # drives a NodeEditorWidget to obtain the registry, the scene and the
         # graph model, so these belong in the shared library rather than in the
-        # NodeEditorIde plugin — otherwise FrameworkGuiPlugin would have to
+        # NodeEditorIde plugin — otherwise RuntimeHostGuiPlugin would have to
         # resolve symbols out of another plugin.
         NodeEditorWidget.h
         NodeEditorWidget.cpp

@@ -354,7 +354,7 @@ Daqster/
 │   │   │       └── CMakeLists.txt  # External library (own build system)
 │   │   ├── node_editor_ide/      # Visual node-based editor (plugin)
 │   │   │   └── CMakeLists.txt  # Plugin (uses create_plugin)
-│   │   ├── QtCoinTrader/
+│   │   ├── qt_coin_trader/
 │   │   │   └── CMakeLists.txt  # Plugin (uses create_plugin)
 │   │   └── tests/
 │   │       ├── plugin_main_test/
@@ -389,7 +389,7 @@ create_external_library(qtrest_lib)       # -> target: qtrest_lib
 
 # 4. Plugins — all are added; the dependency system excludes them automatically
 add_subdirectory(src/plugins/node_editor_ide)     # Visual node-based editor (plugin)
-add_subdirectory(src/plugins/QtCoinTrader)       # Qt5/Qt6 (requires qtrest_lib)
+add_subdirectory(src/plugins/qt_coin_trader)       # Qt5/Qt6 (requires qtrest_lib)
 add_subdirectory(src/plugins/tests/plugin_main_test)
 add_subdirectory(src/plugins/tests/plugin_fancy_test)
 add_subdirectory(src/plugins/tests/plugin_uggly_test)
@@ -945,7 +945,7 @@ set_target_properties(${COMPONENT_NAME} PROPERTIES
     
     # Plugins
     add_subdirectory(src/plugins/node_editor_ide)
-    add_subdirectory(src/plugins/QtCoinTrader)
+    add_subdirectory(src/plugins/qt_coin_trader)
     
     # Applications
     add_subdirectory(src/apps/Daqster)

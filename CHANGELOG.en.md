@@ -11,6 +11,11 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `src/plugins/nodeditor_nodes_core/` + `src/plugins/nodeditor_nodes_gui/` merged into one plugin `src/plugins/nodeditor_nodes/{core,gui}/` (framework convention documented in `docs/Architecture/core-gui-split.md` and `docs/Architecture/plugins/PluginDevelopment.md`).
   - Classes/targets/OUTPUT_NAME: `DemoNodeEditorNodesCore*` → `NodeditorNodesCore*`, `DemoNodeEditorNodesGui*` → `NodeditorNodesGui*` (`libNodeditorNodesCorePlugin.so` / `libNodeditorNodesGuiPlugin.so`).
   - Shared support library renamed `PluginsCommonLibrary` → `DaqsterCommonLibrary` so `PluginDiscovery::isCandidatePluginFile()` no longer treats it as a plugin.
+- **REQ-SW-PL-061 — runtime-host plugins renamed + unified folder naming** (2026-10-09, branch `feat/REQ-SW-PL-056-headless-all-node-components`):
+  - `FrameworkCorePlugin` → **`RuntimeHostHeadlessPlugin`**, `FrameworkGuiPlugin` → **`RuntimeHostGuiPlugin`** (classes `*Interface`/`*Object`, CMake target/`OUTPUT_NAME`, JSON `Name`, CI `.dll` names, comments and docs). The names now match `IRuntimeHost`/`RuntimeMode` (`Headless`/`Gui`) and no longer collide with the `FrameworkCore`/`FrameworkGui` libraries.
+  - The hosts live in a **family** directory `src/plugins/runtime_host/{headless,gui}/` (parent = role, leaf = variant) — same shape as `nodeditor_nodes/{core,gui}`.
+  - `src/plugins/QtCoinTrader/` → `src/plugins/qt_coin_trader/` and `docs/plugins/QtCoinTrader/` → `docs/plugins/qt_coin_trader/`. Rule: plugin **directories** are `snake_case`, C++ classes/CMake targets are `PascalCase`.
+  - Headless host JSON `PluginType`: `"core"` → `"headless"`; `Capabilities` now includes `"IRuntimeHost"` on both hosts.
 
 ### Fixed
 - **Duplicated `IStoppable`/`IStartable`** (REQ-SW-PL-050 debt): the `core/shared/` copies are now forwarding shims to the canonical `common/capabilities/` headers — one definition, no layout-divergence hazard; `demo_nodeditor_lifecycle_tests` now compiles.

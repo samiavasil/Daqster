@@ -11,8 +11,8 @@ set(CMAKE_AUTOMOC ON)
 # QPluginManager::runtimeHosts(), so no concrete plugin type is referenced from
 # application code and the GUI engine arrives purely as a dlopen()ed .so.
 #
-#   NodeRunner --run <flow.flow>            -> FrameworkGuiPlugin  (RuntimeShell)
-#   NodeRunner --headless --run <flow.flow>  -> FrameworkCorePlugin (HeadlessEngine)
+#   NodeRunner --run <flow.flow>            -> RuntimeHostGuiPlugin  (RuntimeShell)
+#   NodeRunner --headless --run <flow.flow>  -> RuntimeHostHeadlessPlugin (HeadlessEngine)
 #
 # QtWidgets is on the link line because both modes use QApplication (in Qt5
 # QApplication itself lives in QtWidgets). The headless path runs on the

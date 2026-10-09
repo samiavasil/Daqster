@@ -4,30 +4,25 @@
 #include <capabilities/INodeProvider.h>
 #include <capabilities/IRuntimeHost.h>
 
-class RuntimeShell;
-
-/**
- * @brief GUI framework plugin — the visible runtime host.
- *
- * Owns the RuntimeShell (deembedded-widget runtime with MDI workspaces) and
- * advertises it as an IRuntimeHost with RuntimeMode::Gui, so the runner
- * application can start it purely through QPluginManager discovery
- * (REQ-SW-PL-053) without linking this plugin.
- *
- * Because this plugin is the only one that pulls in QtWidgets, keeping the
- * runner free of a link-time dependency on it is what makes the headless
- * binary free of QtWidgets too.
- */
 namespace Daqster {
 
-class FrameworkGuiPluginObject : public QBasePluginObject, public INodeProvider, public IRuntimeHost
+class HeadlessEngine;
+
+/**
+ * @brief Core framework plugin — the headless runtime host.
+ *
+ * Owns the HeadlessEngine and advertises it as an IRuntimeHost with
+ * RuntimeMode::Headless, so the runner application can start it purely through
+ * QPluginManager discovery (REQ-SW-PL-053) without linking this plugin.
+ */
+class RuntimeHostHeadlessPluginObject : public QBasePluginObject, public INodeProvider, public IRuntimeHost
 {
     Q_OBJECT
     // No Q_INTERFACES here: INodeProvider/IRuntimeHost are non-QObject interfaces
 
 public:
-    explicit FrameworkGuiPluginObject(QObject* parent = nullptr);
-    ~FrameworkGuiPluginObject() override;
+    explicit RuntimeHostHeadlessPluginObject(QObject* parent = nullptr);
+    ~RuntimeHostHeadlessPluginObject() override;
 
     // INodeProvider interface
     void registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const override;
@@ -46,7 +41,7 @@ protected:
 
 private:
     /// Owned by this object, so its lifetime follows plugin shutdown.
-    RuntimeShell* m_runtimeShell = nullptr;
+    HeadlessEngine* m_engine = nullptr;
 };
 
 } // namespace Daqster

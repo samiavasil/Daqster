@@ -37,7 +37,7 @@ Daqster/
 │       │   └── NodeDataTypes/    # TextData, FloatData, EmbeddingData, ...
 │       ├── node_editor_ide/      # Визуален node-based редактор + вградени нодове
 │       ├── nodeditor_nodes/  # INodeProvider — AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux + Video нодове (Camera/File/Stream/Output/Effect/CustomShader/Sampler)
-│       ├── QtCoinTrader/         # QtCoinTrader плъгин
+│       ├── qt_coin_trader/         # QtCoinTrader плъгин
 │       └── tests/                # Тестови плъгини
 ├── tools/                        # Инструменти за билд
 │   ├── create_appimage.sh        # AppImage създаване

@@ -7,6 +7,6 @@
 // both layouts stayed identical, and silently corrupting stop() offsets if they
 // ever diverged. Keeping one definition removes the hazard.
 //
-// Kept as a stable include path for the node models and FrameworkGuiPlugin,
+// Kept as a stable include path for the node models and RuntimeHostGuiPlugin,
 // which include "shared/IStoppable.h".
 #include <capabilities/IStoppable.h>

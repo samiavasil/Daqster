@@ -1,4 +1,4 @@
-#include "FrameworkCorePluginObject.h"
+#include "RuntimeHostHeadlessPluginObject.h"
 #include <HeadlessEngine.h>
 #include <logging/LogCategories.h>
 
@@ -6,47 +6,47 @@
 
 namespace Daqster {
 
-FrameworkCorePluginObject::FrameworkCorePluginObject(QObject* parent)
+RuntimeHostHeadlessPluginObject::RuntimeHostHeadlessPluginObject(QObject* parent)
     : QBasePluginObject(parent)
     , m_engine(new HeadlessEngine(this))
 {
 }
 
-FrameworkCorePluginObject::~FrameworkCorePluginObject()
+RuntimeHostHeadlessPluginObject::~RuntimeHostHeadlessPluginObject()
 {
     // m_engine is a QObject child — Qt deletes it. stopAllNodes() must be
     // called explicitly by the runner while the graph is still valid.
 }
 
-bool FrameworkCorePluginObject::Initialize()
+bool RuntimeHostHeadlessPluginObject::Initialize()
 {
-    qCInfo(lcNodeEditor) << "FrameworkCorePlugin initialized (headless runtime host ready)";
+    qCInfo(lcNodeEditor) << "RuntimeHostHeadlessPlugin initialized (headless runtime host ready)";
     return true;
 }
 
-void FrameworkCorePluginObject::DeInitialize()
+void RuntimeHostHeadlessPluginObject::DeInitialize()
 {
-    qCInfo(lcNodeEditor) << "FrameworkCorePlugin deinitialized";
+    qCInfo(lcNodeEditor) << "RuntimeHostHeadlessPlugin deinitialized";
 }
 
 // ── IRuntimeHost (RuntimeMode::Headless) ──────────────────────────────────
-RuntimeMode FrameworkCorePluginObject::runtimeMode() const
+RuntimeMode RuntimeHostHeadlessPluginObject::runtimeMode() const
 {
     return RuntimeMode::Headless;
 }
 
-bool FrameworkCorePluginObject::loadFlow(const QString& flowPath)
+bool RuntimeHostHeadlessPluginObject::loadFlow(const QString& flowPath)
 {
     return m_engine->loadFlow(flowPath);
 }
 
-void FrameworkCorePluginObject::stopAllNodes()
+void RuntimeHostHeadlessPluginObject::stopAllNodes()
 {
     m_engine->stopAllNodes();
 }
 
 // ── INodeProvider ──────────────────────────────────────────────────────────
-void FrameworkCorePluginObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
+void RuntimeHostHeadlessPluginObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
 {
     // No-op: the framework itself ships no node types. Node models come from
     // dedicated providers (e.g. NodeditorNodesCore), which the core and
@@ -54,7 +54,7 @@ void FrameworkCorePluginObject::registerNodes(QtNodes::NodeDelegateModelRegistry
     Q_UNUSED(registry)
 }
 
-void FrameworkCorePluginObject::registerNodesHeadless(QtNodes::NodeDelegateModelRegistry& registry) const
+void RuntimeHostHeadlessPluginObject::registerNodesHeadless(QtNodes::NodeDelegateModelRegistry& registry) const
 {
     // Same as registerNodes() — see above. HeadlessEngine gathers node types from
     // all discovered INodeProvider plugins, not from this one.

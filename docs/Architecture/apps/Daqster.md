@@ -151,7 +151,7 @@ Daqster Application
 │
 └── Plugins
     ├── NodeEditor
-    ├── QtCoinTrader
+    ├── qt_coin_trader
     └── ... (extensible)
 ```
 

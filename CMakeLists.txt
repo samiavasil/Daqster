@@ -146,15 +146,15 @@ add_subdirectory(src/plugins/common)
 
 # Core plugins (always built)
 add_subdirectory(src/plugins/nodeditor_nodes/core)
-add_subdirectory(src/plugins/FrameworkCorePlugin)
+add_subdirectory(src/plugins/runtime_host/headless)
 
 # GUI plugins (only when DAQSTER_BUILD_GUI=ON)
 if(DAQSTER_BUILD_GUI)
     add_subdirectory(src/plugins/node_editor_ide)
     add_subdirectory(src/plugins/nodeditor_nodes/gui)
-    add_subdirectory(src/plugins/FrameworkGuiPlugin)
+    add_subdirectory(src/plugins/runtime_host/gui)
     add_subdirectory(src/plugins/requirements_manager)
-    add_subdirectory(src/plugins/QtCoinTrader)
+    add_subdirectory(src/plugins/qt_coin_trader)
 endif()
 
 # Test plugins - gated behind their own option (default OFF) so they are not

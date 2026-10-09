@@ -117,8 +117,8 @@ public:
    * and picks the engine at runtime from the plugins that are actually loaded,
    * rather than referencing a concrete plugin/engine type at link time.
    *
-   *   --headless -> FrameworkCorePlugin (HeadlessEngine)
-   *   default    -> FrameworkGuiPlugin  (RuntimeShell)
+   *   --headless -> RuntimeHostHeadlessPlugin (HeadlessEngine)
+   *   default    -> RuntimeHostGuiPlugin  (RuntimeShell)
    *
    * Plugins are lazily instantiated by this call. Empty result means no loaded
    * plugin provides that mode.

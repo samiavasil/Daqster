@@ -42,9 +42,11 @@ src/
 │   ├── nodeditor_nodes/          # node-provider plugin, split in two halves
 │   │   ├── core/                 # core models, embeddedWidget() == nullptr
 │   │   └── gui/                  # QWidgets + NodeWidgetFactory
-│   ├── FrameworkCorePlugin/      # headless runtime host
-│   ├── FrameworkGuiPlugin/       # GUI runtime host (RuntimeShell)
-│   └── node_editor_ide/          # IDE shell
+│   ├── runtime_host/             # runtime hosts, one plugin per RuntimeMode
+│   │   ├── headless/             # RuntimeHostHeadlessPlugin (HeadlessEngine)
+│   │   └── gui/                  # RuntimeHostGuiPlugin (RuntimeShell)
+│   ├── node_editor_ide/          # IDE shell
+│   └── qt_coin_trader/           # GUI-only application plugin
 └── apps/
     ├── Daqster/                  # GUI app
     └── NodeRunner/               # dual-mode: --run (GUI) / --headless --run
@@ -69,9 +71,18 @@ src/plugins/<plugin>/
   other way round.
 - The interface/object classes stay at the plugin root, like
   `plugins/ai_studio_plugin/` in the private repo.
-- This applies to **node-provider** plugins. The framework runtime hosts
-  (`FrameworkCorePlugin` / `FrameworkGuiPlugin`) and the IDE shell
-  (`node_editor_ide`) are separate plugins, not node providers, and stay flat.
+- This applies to **node-provider** plugins: the two halves are the *layers*
+  `core/` (models) and `gui/` (widgets).
+- A plugin **family** with two variants lives under one family directory —
+  parent dir = role, leaf = variant. The runtime hosts follow the same shape
+  with *mode* leaves: `runtime_host/{headless,gui}`, i.e.
+  `RuntimeHostHeadlessPlugin` (HeadlessEngine) and `RuntimeHostGuiPlugin`
+  (RuntimeShell). They are two separate plugins, not two halves of one.
+- Plugin **directories** are `snake_case`; C++ classes and CMake targets are
+  `PascalCase` (e.g. dir `runtime_host/headless/` → target
+  `RuntimeHostHeadlessPlugin`).
+- Flat plugins that have no second variant: the IDE shell (`node_editor_ide`),
+  the GUI-only app plugins (`requirements_manager`, `qt_coin_trader`).
 - `src/plugins/common/` is a shared **support library**, not a plugin: its target
   name must not contain `plugin` (`DaqsterCommonLibrary`), otherwise
   `PluginDiscovery::isCandidatePluginFile()` picks it up and logs
@@ -234,7 +245,7 @@ This was a real segfault-on-quit during the migration.
 ```
 
 The mode is decided before any plugin is instantiated: `--headless` selects
-`FrameworkCorePlugin` (headless engine), otherwise `FrameworkGuiPlugin`
+`RuntimeHostHeadlessPlugin` (headless engine), otherwise `RuntimeHostGuiPlugin`
 (`RuntimeShell`, an MDI workspace shell). `NodeditorNodesCoreObject` has
 both `registerNodes()` and `registerNodesHeadless()` for this reason.
 
@@ -250,13 +261,13 @@ headless process.
 **1. A capability probe must not initialize what it did not match.**
 `PluginRegistry::ensureInitialized()` calls `Initialize()`, and a plugin object's
 constructor can own arbitrary UI:
-`FrameworkGuiPluginObject` builds a whole `RuntimeShell` (MDI area, QtWidgets,
+`RuntimeHostGuiPluginObject` builds a whole `RuntimeShell` (MDI area, QtWidgets,
 OpenGL) in its constructor. So `nodeProviders()` must *not* call
 `ensureInitialized()` — `registerNodes()` is `const` and works on a bare object.
 Likewise `instances(iid)` has to run `qt_metacast(iid)` **before**
 `ensureInitialized()`, never after. Initializing a GUI runtime host during a
 node-provider probe in headless mode is what made `--headless` load
-`libFrameworkGuiPlugin` and `libGLX`.
+`libRuntimeHostGuiPlugin` and `libGLX`.
 
 **2. Plugin objects are parentless on purpose.**
 `capabilityInstances()` calls `createPluginObject(hash, nullptr)`, never
@@ -326,10 +337,10 @@ means the teardown is broken.
 # Should print "failed to load flow" then exit 1 — not crash
 ./build_qt5/bin/NodeRunner --headless --run tests/data/audio_graph.flow; echo $?
 
-# Should NOT mention FrameworkGuiPlugin — that would mean the GUI runtime host
+# Should NOT mention RuntimeHostGuiPlugin — that would mean the GUI runtime host
 # was constructed inside a headless process
 ./build_qt5/bin/NodeRunner --headless --run tests/data/number_graph.flow \
-    --log-console-enabled 1 --log-level Info 2>&1 | grep FrameworkGuiPlugin
+    --log-console-enabled 1 --log-level Info 2>&1 | grep RuntimeHostGuiPlugin
 ```
 
 Unit tests for the split itself are deferred under the standing
@@ -358,5 +369,5 @@ Unit tests for the split itself are deferred under the standing
 - SDRangel: `sdrangel` (GUI) vs `sdrangelsrv` (headless)
 - Runtime mode phases: `docs/Architecture/runtime-mode-architecture.md` (§4.4)
 - Plugin pattern: `DevelopmentProcess/AGENT-PROCESS.md`
-- REQ-SW-PL-053 — the IDE split (`FrameworkCorePlugin` + `FrameworkGuiPlugin`)
+- REQ-SW-PL-053 — the IDE split (`RuntimeHostHeadlessPlugin` + `RuntimeHostGuiPlugin`)
   that this requirement builds on

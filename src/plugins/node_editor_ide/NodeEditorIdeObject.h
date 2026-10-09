@@ -29,7 +29,7 @@ public:
 
     // ── Public registration + loading API (REQ-SW-PL-048) ─────────────
     // These were private before; they are now public so the GUI runtime in
-    // FrameworkGuiPlugin (RuntimeShell) can reuse the same registration and
+    // RuntimeHostGuiPlugin (RuntimeShell) can reuse the same registration and
     // loading logic without duplication.
     //
     // REQ-SW-PL-051: the built-in node models (NumberSource, NumberDisplay,

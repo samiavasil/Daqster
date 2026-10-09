@@ -6,11 +6,11 @@
  * the requested runtime mode.
  *
  *   NodeRunner --run <flow.flow>            -> RuntimeMode::Gui
- *                                             FrameworkGuiPlugin  (RuntimeShell)
+ *                                             RuntimeHostGuiPlugin  (RuntimeShell)
  *   NodeRunner --headless --run <flow.flow>  -> RuntimeMode::Headless
- *                                             FrameworkCorePlugin (HeadlessEngine)
+ *                                             RuntimeHostHeadlessPlugin (HeadlessEngine)
  *
- * Because no link-time dependency on FrameworkGuiPlugin exists, the mode is a
+ * Because no link-time dependency on RuntimeHostGuiPlugin exists, the mode is a
  * pure runtime decision: the GUI plugin is dlopen()ed only when asked for.
  *
  * The application type follows the mode (REQ-SW-PL-056): GUI mode builds a

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(FrameworkGuiPlugin VERSION 0.3.2 LANGUAGES CXX)
+project(RuntimeHostGuiPlugin VERSION 0.3.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -15,17 +15,17 @@ endif()
 
 # ── Plugin JSON metadata (generated from template) ──────────────────
 configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/FrameworkGuiPluginInterface.json.in"
-    "${CMAKE_CURRENT_SOURCE_DIR}/FrameworkGuiPluginInterface.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/RuntimeHostGuiPluginInterface.json.in"
+    "${CMAKE_CURRENT_SOURCE_DIR}/RuntimeHostGuiPluginInterface.json"
     @ONLY
 )
 
 # ── Plugin infrastructure (root level) ──────────────────────────────
 set(PLUGIN_SOURCES
-    FrameworkGuiPluginInterface.cpp
-    FrameworkGuiPluginInterface.h
-    FrameworkGuiPluginObject.cpp
-    FrameworkGuiPluginObject.h
+    RuntimeHostGuiPluginInterface.cpp
+    RuntimeHostGuiPluginInterface.h
+    RuntimeHostGuiPluginObject.cpp
+    RuntimeHostGuiPluginObject.h
 )
 
 # ── GUI runtime (REQ-SW-PL-053: moved out of node_editor_ide) ──────
@@ -38,7 +38,7 @@ set(RUNTIME_SOURCES
 )
 
 # ── Use the Daqster plugin template ──────────────────────────────────
-create_plugin(FrameworkGuiPlugin
+create_plugin(RuntimeHostGuiPlugin
     SOURCES
         ${PLUGIN_SOURCES}
         ${RUNTIME_SOURCES}
@@ -73,17 +73,17 @@ create_plugin(FrameworkGuiPlugin
 
 # Qt6 splits OpenGL widgets out of Qt::OpenGLWidgets; Qt5 has no such module.
 if(QT_VERSION_MAJOR GREATER_EQUAL 6)
-    target_link_libraries(FrameworkGuiPlugin PUBLIC Qt${QT_VERSION_MAJOR}::OpenGLWidgets)
+    target_link_libraries(RuntimeHostGuiPlugin PUBLIC Qt${QT_VERSION_MAJOR}::OpenGLWidgets)
 endif()
 
 # Windows: export all symbols from the plugin DLL
 if(WIN32)
-    set_target_properties(FrameworkGuiPlugin PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    set_target_properties(RuntimeHostGuiPlugin PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
 # ── Output name must contain "plugin" substring (QPluginManager filter) ────
-if(TARGET FrameworkGuiPlugin)
-    set_target_properties(FrameworkGuiPlugin PROPERTIES
-        OUTPUT_NAME "FrameworkGuiPlugin"
+if(TARGET RuntimeHostGuiPlugin)
+    set_target_properties(RuntimeHostGuiPlugin PROPERTIES
+        OUTPUT_NAME "RuntimeHostGuiPlugin"
     )
 endif()

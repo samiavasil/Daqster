@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(FrameworkCorePlugin VERSION 0.3.2 LANGUAGES CXX)
+project(RuntimeHostHeadlessPlugin VERSION 0.3.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -13,21 +13,21 @@ endif()
 
 # ── Plugin JSON metadata (generated from template) ──────────────────
 configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/FrameworkCorePluginInterface.json.in"
-    "${CMAKE_CURRENT_SOURCE_DIR}/FrameworkCorePluginInterface.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/RuntimeHostHeadlessPluginInterface.json.in"
+    "${CMAKE_CURRENT_SOURCE_DIR}/RuntimeHostHeadlessPluginInterface.json"
     @ONLY
 )
 
 # ── Plugin infrastructure (root level) ──────────────────────────────
 set(PLUGIN_SOURCES
-    FrameworkCorePluginInterface.cpp
-    FrameworkCorePluginInterface.h
-    FrameworkCorePluginObject.cpp
-    FrameworkCorePluginObject.h
+    RuntimeHostHeadlessPluginInterface.cpp
+    RuntimeHostHeadlessPluginInterface.h
+    RuntimeHostHeadlessPluginObject.cpp
+    RuntimeHostHeadlessPluginObject.h
 )
 
 # ── Use the Daqster plugin template ──────────────────────────────────
-create_plugin(FrameworkCorePlugin
+create_plugin(RuntimeHostHeadlessPlugin
     SOURCES
         ${PLUGIN_SOURCES}
     REQUIRES_LIBRARIES
@@ -54,12 +54,12 @@ create_plugin(FrameworkCorePlugin
 
 # Windows: export all symbols from the plugin DLL
 if(WIN32)
-    set_target_properties(FrameworkCorePlugin PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    set_target_properties(RuntimeHostHeadlessPlugin PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
 # ── Output name must contain "plugin" substring ──────────────────────
-if(TARGET FrameworkCorePlugin)
-    set_target_properties(FrameworkCorePlugin PROPERTIES
-        OUTPUT_NAME "FrameworkCorePlugin"
+if(TARGET RuntimeHostHeadlessPlugin)
+    set_target_properties(RuntimeHostHeadlessPlugin PROPERTIES
+        OUTPUT_NAME "RuntimeHostHeadlessPlugin"
     )
 endif()

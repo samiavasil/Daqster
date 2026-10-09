@@ -48,8 +48,8 @@ enum class RuntimeMode {
  * asks QPluginManager::runtimeHosts(mode) for a host, and the plugin that
  * implements the requested mode does the work:
  *
- *   - FrameworkCorePlugin -> HeadlessEngine  (RuntimeMode::Headless)
- *   - FrameworkGuiPlugin  -> RuntimeShell    (RuntimeMode::Gui)
+ *   - RuntimeHostHeadlessPlugin -> HeadlessEngine  (RuntimeMode::Headless)
+ *   - RuntimeHostGuiPlugin  -> RuntimeShell    (RuntimeMode::Gui)
  *
  * Both implementations are owned by their plugin object and are QObject children
  * of it, so their lifetime follows plugin shutdown.

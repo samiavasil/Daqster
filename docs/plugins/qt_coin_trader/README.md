@@ -6,13 +6,13 @@
 
 APPLICATION_PLUGIN за cryptocurrency trading, използващ QML за потребителски интерфейс. Демонстрира интеграция с QtRest библиотеката за REST API комуникация и QtCharts за визуализация.
 
-**Локация:** `src/plugins/QtCoinTrader/`
+**Локация:** `src/plugins/qt_coin_trader/`
 **Тип:** APPLICATION_PLUGIN (самостоятелно GUI приложение)
 
 ## Архитектура
 
 ```
-QtCoinTrader/
+qt_coin_trader/
 ├── QtCoinTraderInterface.{h,cpp}      # QPluginInterface — factory
 ├── QtCoinTraderInterface.json          # Plugin metadata
 ├── QtCoinTraderPluginObject.{h,cpp}    # QBasePluginObject — lifecycle

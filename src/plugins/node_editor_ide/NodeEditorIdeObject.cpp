@@ -181,7 +181,7 @@ void NodeEditorIdeObject::registerNodes()
 
 // ── Runtime mode (REQ-SW-PL-053) ─────────────────────────────────────────
 // Running a .flow with deembedded widgets as the UI is no longer an editor
-// responsibility: the visible runtime lives in FrameworkGuiPlugin's
+// responsibility: the visible runtime lives in RuntimeHostGuiPlugin's
 // RuntimeShell, reached by the runner through QPluginManager::runtimeHosts().
 // The editor keeps only its own F11 presentation mode (see setPresentationMode).
 
