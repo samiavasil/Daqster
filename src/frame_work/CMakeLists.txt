@@ -257,7 +257,7 @@ if(DAQSTER_BUILD_GUI)
             Qt${QT_VERSION_MAJOR}::Core
             Qt${QT_VERSION_MAJOR}::Gui
             Qt${QT_VERSION_MAJOR}::Widgets
-            QtNodesCoreCore
+            QtNodesCore
     )
 
     # Optional Qt modules used by the framework GUI widgets.
