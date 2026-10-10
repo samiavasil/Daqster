@@ -4,7 +4,7 @@ include(GenerateExportHeader)
 #
 # This directory owns the two framework libraries:
 #
-#   FrameworkCore - QtCore + QtNodes (+ optional QtMultimedia / QtOpenGL)
+#   FrameworkCore - QtCore + QtNodesCore (+ optional QtMultimedia / QtOpenGL)
 #                 plugin infrastructure, discovery, registry, persistence,
 #                 logging, platform abstraction, process management,
 #                 performance profiling and the headless engine.
@@ -25,7 +25,7 @@ include(GenerateExportHeader)
 option(DAQSTER_BUILD_STATIC "Build FrameworkCore/FrameworkGui as static libraries" OFF)
 option(DAQSTER_ENABLE_PERF "Enable lightweight runtime profiling" ON)
 
-# QtNodes is the external "nodeeditor" component; the headless engine uses its
+# QtNodesCore is the external "nodeeditor" model half; the headless engine uses its
 # DataFlowGraphModel/registry only (no graphics scene is instantiated).
 set(DAQSTER_FRAMEWORK_INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src
@@ -158,7 +158,7 @@ target_include_directories(FrameworkCore
 target_link_libraries(FrameworkCore
     PUBLIC
         Qt${QT_VERSION_MAJOR}::Core
-        QtNodes
+        QtNodesCore
 )
 
 # QtMultimedia / QtOpenGL are optional but required by the shared NodeData
@@ -192,7 +192,7 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/FrameworkCore
 )
 
-message(STATUS "Created library: FrameworkCore (QtCore + QtNodes)")
+message(STATUS "Created library: FrameworkCore (QtCore + QtNodesCore)")
 
 # ═══════════════════════════════════════════════════════════════════════════
 # FrameworkGui
@@ -257,7 +257,7 @@ if(DAQSTER_BUILD_GUI)
             Qt${QT_VERSION_MAJOR}::Core
             Qt${QT_VERSION_MAJOR}::Gui
             Qt${QT_VERSION_MAJOR}::Widgets
-            QtNodes
+            QtNodesCoreCore
     )
 
     # Optional Qt modules used by the framework GUI widgets.

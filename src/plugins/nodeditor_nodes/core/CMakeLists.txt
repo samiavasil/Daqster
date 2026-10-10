@@ -19,8 +19,7 @@ endif()
 set(DEMO_CORE_GUI_LIBS)
 if(QT_VERSION_MAJOR GREATER_EQUAL 6)
     list(APPEND DEMO_CORE_GUI_LIBS
-        Qt${QT_VERSION_MAJOR}::MultimediaWidgets
-        Qt${QT_VERSION_MAJOR}::OpenGLWidgets
+
     )
 endif()
 
@@ -410,9 +409,7 @@ create_plugin(NodeditorNodesCore
         Qt${QT_VERSION_MAJOR}::Multimedia
         Qt${QT_VERSION_MAJOR}::Network
         Qt${QT_VERSION_MAJOR}::OpenGL
-        Qt${QT_VERSION_MAJOR}::Widgets
-        ${DEMO_CORE_GUI_LIBS}
-        QtNodes
+        QtNodesCore
         FrameworkCore
         # REQ-SW-PL-032: the single definition of TexturePool. Same pattern as
         # NodeEditorLibrary. Configured before this plugin (root CMakeLists.txt

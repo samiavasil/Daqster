@@ -36,7 +36,7 @@ create_plugin(RuntimeHostHeadlessPlugin
         Qt${QT_VERSION_MAJOR}::Multimedia
         Qt${QT_VERSION_MAJOR}::Network
         Qt${QT_VERSION_MAJOR}::OpenGL
-        QtNodes
+        QtNodesCore
         FrameworkCore
         NodeditorNodesCore
     INCLUDE_DIRECTORIES

@@ -124,8 +124,13 @@ create_external_library(nodeeditor)
 # staticMetaObject or a vtable get only the __imp_ form and would still need real
 # export markup — that is why the other two Windows fixes in this series are
 # explicit macros on the classes, not this property.)
-if(WIN32 AND TARGET QtNodes)
-    set_target_properties(QtNodes PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+if(WIN32)
+    if(TARGET QtNodes)
+        set_target_properties(QtNodes PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    endif()
+    if(TARGET QtNodesCore)
+        set_target_properties(QtNodesCore PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    endif()
 endif()
 
 # QtRest library - Qt5/Qt6 dual-mode
