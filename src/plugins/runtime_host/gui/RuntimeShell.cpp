@@ -8,6 +8,11 @@
 #include "shared/IStartable.h"
 #include "shared/IStoppable.h"
 
+// REQ-SW-PL-054: the control plane is a mode-agnostic seam. ControlPlaneServer
+// lives in FrameworkCore; the GUI host plugs itself in as the RuntimeController.
+#include "ControlPlaneServer.h"
+#include "NodeSchemaBuilder.h"
+
 // REQ-SW-PL-051: no built-in node model headers here — the models are owned by
 // nodeditor_nodes/core and registered through its INodeProvider below.
 
@@ -66,6 +71,7 @@ RuntimeShell::~RuntimeShell()
 {
     // Nodes are already stopped in closeEvent before window destruction.
     // DeInitialize only cleans up pointers, does NOT call stopAllNodes().
+    stopControlPlane();
     if (m_mainWindow) {
         m_mainWindow->deleteLater();
         m_mainWindow = nullptr;
@@ -81,6 +87,7 @@ void RuntimeShell::DeInitialize()
 {
     // Virtual override for QBasePluginObject - cleanup only, no stopAllNodes()
     // (nodes already stopped in closeEvent before window destruction)
+    stopControlPlane();
     if (m_mainWindow) {
         m_mainWindow->deleteLater();
         m_mainWindow = nullptr;
@@ -136,30 +143,17 @@ bool RuntimeShell::RunRuntime(const QString& flowPath)
         return false;
     }
 
-    // 4. Load flow file
+    // 4. Load flow file (parses and stores the UI section; shows its own error)
     if (!loadFlow(flowPath)) {
         // Error message already shown by loadFlow
         return false;
     }
 
-    // 5. Parse UI section from the flow file (extract BEFORE load, like NodeEditorIdeObject does)
-    QFile file(flowPath);
-    FlowUi::UiSection uiSection;
-    if (file.open(QIODevice::ReadOnly)) {
-        QByteArray data = file.readAll();
-        QJsonParseError parseError{};
-        QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
-        if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
-            QJsonObject sceneJson = doc.object();
-            uiSection = FlowUi::UiSection::fromJson(sceneJson["ui"].toObject());
-        }
-    }
+    // 5. Arrange deembedded widgets in MDI workspaces
+    arrangeWorkspaces(m_uiSection);
 
-    // 6. Arrange deembedded widgets in MDI workspaces
-    arrangeWorkspaces(uiSection);
-
-    // 7. Auto-start nodes
-    autoStartNodes(uiSection);
+    // 6. Auto-start nodes
+    autoStartNodes(m_uiSection);
 
     // Show the runtime window
     m_mainWindow->setWindowTitle(tr("Daqster Runtime — %1").arg(QFileInfo(flowPath).fileName()));
@@ -281,12 +275,14 @@ bool RuntimeShell::loadFlow(const QString& fileName)
 {
     if (!m_editorWidget || !m_editorWidget->scene() || !m_editorWidget->graphModel()) {
         qCWarning(lcNodeEditor) << "loadFlow: editor not initialized";
+        emit errorOccurred(tr("editor not initialized"));
         return false;
     }
 
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly)) {
         qCWarning(lcNodeEditor) << "loadFlow: cannot open" << fileName;
+        emit errorOccurred(tr("Cannot open flow file: %1").arg(fileName));
         QMessageBox::critical(m_mainWindow, tr("Runtime Mode"),
                               tr("Cannot open flow file: %1").arg(fileName));
         return false;
@@ -298,12 +294,47 @@ bool RuntimeShell::loadFlow(const QString& fileName)
     if (parseError.error != QJsonParseError::NoError || !sceneDocument.isObject()) {
         qCWarning(lcNodeEditor) << "loadFlow: invalid JSON in" << fileName
                                 << ":" << parseError.errorString();
+        emit errorOccurred(tr("Invalid JSON in flow file: %1").arg(parseError.errorString()));
         QMessageBox::critical(m_mainWindow, tr("Runtime Mode"),
                               tr("Invalid JSON in flow file: %1").arg(parseError.errorString()));
         return false;
     }
 
-    QJsonObject sceneJson = sceneDocument.object();
+    QStringList skippedTypes;
+    QString error;
+    if (!applySceneJson(sceneDocument.object(), &skippedTypes, &error)) {
+        QMessageBox::critical(m_mainWindow, tr("Runtime Mode"),
+                              tr("Failed to load flow: %1").arg(error));
+        return false;
+    }
+
+    const int loadedNodeCount = static_cast<int>(m_editorWidget->graphModel()->allNodeIds().size());
+    qCInfo(lcNodeEditor) << "loadFlow: loaded" << fileName
+                         << "nodes=" << loadedNodeCount;
+
+    if (!skippedTypes.isEmpty()) {
+        qCWarning(lcNodeEditor) << "loadFlow: skipped unregistered node types:"
+                                << skippedTypes.join(QStringLiteral(", "));
+        QMessageBox::warning(m_mainWindow,
+                             tr("Load Flow"),
+                             tr("The following node types are not registered in this "
+                                "environment and were skipped:\n%1")
+                                 .arg(skippedTypes.join(QLatin1Char('\n'))));
+    }
+
+    return true;
+}
+
+bool RuntimeShell::applySceneJson(QJsonObject sceneJson,
+                                  QStringList* skippedTypes,
+                                  QString* errorMessage)
+{
+    if (!m_editorWidget || !m_editorWidget->scene() || !m_editorWidget->graphModel()) {
+        qCWarning(lcNodeEditor) << "applySceneJson: editor not initialized";
+        if (errorMessage) *errorMessage = tr("editor not initialized");
+        emit errorOccurred(tr("editor not initialized"));
+        return false;
+    }
 
     // Extract the "ui" section (REQ-SW-PL-049) BEFORE the node-cleaning loop:
     // it is not part of the graph model JSON and must not be passed to load().
@@ -315,7 +346,7 @@ bool RuntimeShell::loadFlow(const QString& fileName)
     auto* registry = m_editorWidget->getInjectedRegistry();
     const auto& creators = registry->registeredModelCreators();
 
-    QStringList skippedTypes;
+    QStringList skipped;
     QSet<QtNodes::NodeId> skippedNodeIds;
 
     QJsonArray cleanedNodes;
@@ -323,7 +354,7 @@ bool RuntimeShell::loadFlow(const QString& fileName)
         const QJsonObject nodeJson = nodeValue.toObject();
         const QString modelName = nodeJson["internal-data"].toObject()["model-name"].toString();
         if (modelName.isEmpty() || creators.count(modelName) == 0) {
-            skippedTypes << (modelName.isEmpty() ? tr("<unnamed>") : modelName);
+            skipped << (modelName.isEmpty() ? tr("<unnamed>") : modelName);
             skippedNodeIds.insert(static_cast<QtNodes::NodeId>(nodeJson["id"].toInt()));
             continue;
         }
@@ -351,34 +382,25 @@ bool RuntimeShell::loadFlow(const QString& fileName)
         m_editorWidget->scene()->clearScene();
         m_editorWidget->graphModel()->load(sceneJson);
     } catch (const std::exception& e) {
-        qCWarning(lcNodeEditor) << "loadFlow: load failed:" << e.what();
-        QMessageBox::critical(m_mainWindow, tr("Runtime Mode"),
-                              tr("Failed to load flow: %1").arg(e.what()));
+        qCWarning(lcNodeEditor) << "applySceneJson: load failed:" << e.what();
+        if (errorMessage) *errorMessage = QString::fromUtf8(e.what());
+        emit errorOccurred(QString::fromUtf8(e.what()));
         return false;
     }
 
-    // Store workspaces and autoStart flags for later use
+    // Store the full UI section plus the derived autoStart flags for later use.
+    m_uiSection = uiSection;
     m_workspaces = uiSection.workspaces;
     m_autoStartNodes.clear();
     for (auto it = uiSection.nodes.constBegin(); it != uiSection.nodes.constEnd(); ++it) {
         m_autoStartNodes.insert(it.key(), it.value().autoStart);
     }
 
-    const int loadedNodeCount = static_cast<int>(m_editorWidget->graphModel()->allNodeIds().size());
-    const int loadedConnCount = static_cast<int>(sceneJson["connections"].toArray().size());
-    qCInfo(lcNodeEditor) << "loadFlow: loaded" << fileName
-                         << "nodes=" << loadedNodeCount
-                         << "connections=" << loadedConnCount;
+    // A fresh graph means nothing is running yet.
+    m_runningNodes.clear();
 
-    if (!skippedTypes.isEmpty()) {
-        qCWarning(lcNodeEditor) << "loadFlow: skipped unregistered node types:"
-                                << skippedTypes.join(QStringLiteral(", "));
-        QMessageBox::warning(m_mainWindow,
-                             tr("Load Flow"),
-                             tr("The following node types are not registered in this "
-                                "environment and were skipped:\n%1")
-                                 .arg(skippedTypes.join(QLatin1Char('\n'))));
-    }
+    if (skippedTypes)
+        *skippedTypes = skipped;
 
     return true;
 }
@@ -401,6 +423,12 @@ void RuntimeShell::arrangeWorkspaces(const FlowUi::UiSection& ui)
         }
         delete existingLayout;
     }
+
+    // A reload (POST /api/flow) rebuilds the workspaces. The old MDI areas were
+    // only scheduled for deletion above, so drop their pointers now to avoid
+    // using stale entries while the new workspaces are created.
+    m_mdiAreas.clear();
+    m_workspaceIdToMdiArea.clear();
 
     // If no workspaces defined, create a default one
     std::vector<FlowUi::WorkspaceUi> workspaces = ui.workspaces;
@@ -518,6 +546,8 @@ void RuntimeShell::autoStartNodes(const FlowUi::UiSection& ui)
         if (startable) {
             qCInfo(lcNodeEditor) << "Auto-starting node:" << model->caption() << "(id=" << nodeId << ")";
             startable->start();
+            m_runningNodes[nodeId] = true;
+            emit nodeStarted(nodeId);
         }
     }
 }
@@ -536,8 +566,268 @@ void RuntimeShell::stopAllNodes()
         if (stoppable) {
             qCInfo(lcNodeEditor) << "Stopping node:" << model->caption() << "(id=" << nodeId << ")";
             stoppable->stop();
+            if (m_runningNodes.value(nodeId, false)) {
+                m_runningNodes[nodeId] = false;
+                emit nodeStopped(nodeId);
+            }
         }
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Remote control plane (REQ-SW-PL-054) — GUI mode
+//
+// The same ControlPlaneServer that serves the headless engine is reused here;
+// it only ever talks to Daqster::RuntimeController, so the HTTP/WebSocket
+// surface is identical in both runtime modes.
+// ═══════════════════════════════════════════════════════════════════════════
+
+QtNodes::DataFlowGraphModel* RuntimeShell::graphModel() const
+{
+    // startControlPlane() runs before RunRuntime() builds the canvas, so this
+    // must tolerate m_editorWidget being null (an early request sees no graph).
+    return m_editorWidget ? m_editorWidget->graphModel() : nullptr;
+}
+
+bool RuntimeShell::startControlPlane(const Daqster::ControlPlaneOptions& options,
+                                     QString* errorMessage)
+{
+    if (m_controlPlane && m_controlPlane->isListening())
+        return true;
+
+    if (!m_controlPlane)
+        m_controlPlane = std::make_unique<Daqster::ControlPlaneServer>(this);
+
+    // Stream lifecycle events to WebSocket subscribers (REQ-SW-PL-054 AC10).
+    // Connected once per freshly created server; the lambda target dies with it.
+    connect(this, &RuntimeShell::nodeStarted, m_controlPlane.get(),
+            [this](QtNodes::NodeId id) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeStarted"),
+                                               {{QStringLiteral("nodeId"), static_cast<qint64>(id)}});
+            });
+    connect(this, &RuntimeShell::nodeStopped, m_controlPlane.get(),
+            [this](QtNodes::NodeId id) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeStopped"),
+                                               {{QStringLiteral("nodeId"), static_cast<qint64>(id)}});
+            });
+    connect(this, &RuntimeShell::nodeConfigChanged, m_controlPlane.get(),
+            [this](QtNodes::NodeId id) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeConfigChanged"),
+                                               {{QStringLiteral("nodeId"), static_cast<qint64>(id)}});
+            });
+    connect(this, &RuntimeShell::errorOccurred, m_controlPlane.get(),
+            [this](const QString& message) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeError"),
+                                               {{QStringLiteral("message"), message}});
+            });
+
+    QString error;
+    if (!m_controlPlane->start(options, &error)) {
+        if (errorMessage)
+            *errorMessage = error;
+        qCCritical(lcNodeEditor) << "RuntimeShell: control plane failed to start:" << error;
+        m_controlPlane.reset();
+        return false;
+    }
+
+    qCInfo(lcNodeEditor) << "RuntimeShell: control plane listening on"
+                         << options.bindAddress << ":" << options.port;
+    return true;
+}
+
+void RuntimeShell::stopControlPlane()
+{
+    if (!m_controlPlane)
+        return;
+    m_controlPlane->stop();
+    m_controlPlane.reset();
+}
+
+bool RuntimeShell::controlPlaneEnabled() const
+{
+    return m_controlPlane && m_controlPlane->isListening();
+}
+
+QVector<Daqster::RuntimeController::NodeInfo> RuntimeShell::nodes() const
+{
+    QVector<NodeInfo> result;
+    auto* graph = graphModel();
+    if (!graph)
+        return result;
+
+    for (const QtNodes::NodeId nodeId : graph->allNodeIds()) {
+        auto* model = graph->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
+        if (!model)
+            continue;
+
+        NodeInfo info;
+        info.id = static_cast<quint64>(nodeId);
+        info.type = model->name();
+        info.name = model->caption();
+        info.state = m_runningNodes.value(nodeId, false) ? QStringLiteral("running")
+                                                         : QStringLiteral("stopped");
+        result.append(info);
+    }
+    return result;
+}
+
+bool RuntimeShell::nodeConfig(quint64 nodeId, QJsonObject& out) const
+{
+    auto* graph = graphModel();
+    if (!graph)
+        return false;
+
+    auto* model = graph->delegateModel<QtNodes::NodeDelegateModel>(
+        static_cast<QtNodes::NodeId>(nodeId));
+    if (!model)
+        return false;
+
+    out = model->save();
+    return true;
+}
+
+bool RuntimeShell::setNodeConfig(quint64 nodeId, const QJsonObject& config)
+{
+    auto* graph = graphModel();
+    if (!graph)
+        return false;
+
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    auto* model = graph->delegateModel<QtNodes::NodeDelegateModel>(id);
+    if (!model)
+        return false;
+
+    // NodeDelegateModel::load() returns void, so a malformed patch must not take
+    // the runtime down: snapshot first and roll back on a thrown error.
+    const QJsonObject before = model->save();
+    try {
+        model->load(config);
+    } catch (const std::exception& e) {
+        qCWarning(lcNodeEditor) << "RuntimeShell: node config rejected (id=" << id
+                                << "):" << e.what();
+        model->load(before);
+        return false;
+    }
+
+    emit nodeConfigChanged(id);
+    return true;
+}
+
+bool RuntimeShell::startNode(quint64 nodeId)
+{
+    auto* graph = graphModel();
+    if (!graph)
+        return false;
+
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    auto* model = graph->delegateModel<QtNodes::NodeDelegateModel>(id);
+    if (!model)
+        return false;
+
+    auto* startable = dynamic_cast<Daqster::IStartable*>(model);
+    if (!startable)
+        return false;
+
+    qCInfo(lcNodeEditor) << "RuntimeShell: starting node via control plane:"
+                         << model->caption() << "(id=" << id << ")";
+    startable->start();
+    m_runningNodes[id] = true;
+    emit nodeStarted(id);
+    return true;
+}
+
+bool RuntimeShell::stopNode(quint64 nodeId)
+{
+    auto* graph = graphModel();
+    if (!graph)
+        return false;
+
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    auto* model = graph->delegateModel<QtNodes::NodeDelegateModel>(id);
+    if (!model)
+        return false;
+
+    auto* stoppable = dynamic_cast<Daqster::IStoppable*>(model);
+    if (!stoppable)
+        return false;
+
+    qCInfo(lcNodeEditor) << "RuntimeShell: stopping node via control plane:"
+                         << model->caption() << "(id=" << id << ")";
+    stoppable->stop();
+    m_runningNodes[id] = false;
+    emit nodeStopped(id);
+    return true;
+}
+
+QJsonObject RuntimeShell::flowJson() const
+{
+    QJsonObject flow;
+    if (auto* graph = graphModel())
+        flow = graph->save(); // { "nodes": [...], "connections": [...] }
+
+    flow.insert(QStringLiteral("ui"), m_uiSection.toJson());
+    return flow;
+}
+
+QJsonObject RuntimeShell::nodeSchema(quint64 nodeId) const
+{
+    auto* graph = graphModel();
+    if (!graph || !m_editorWidget)
+        return {};
+
+    auto* model = graph->delegateModel<QtNodes::NodeDelegateModel>(
+        static_cast<QtNodes::NodeId>(nodeId));
+    if (!model)
+        return {};
+
+    auto* registry = m_editorWidget->getInjectedRegistry();
+    if (!registry)
+        return {};
+
+    const QString type = model->name();
+    const auto& creators = registry->registeredModelCreators();
+    const auto creatorIt = creators.find(type);
+    if (creatorIt == creators.end())
+        return {};
+
+    const std::unique_ptr<QtNodes::NodeDelegateModel> fresh = creatorIt->second();
+    if (!fresh)
+        return {};
+
+    // Defaults from a throw-away instance describe the expected shape.
+    return Daqster::nodeConfigSchema(fresh->save(), type);
+}
+
+bool RuntimeShell::reloadFlow(const QJsonObject& flow, QString* errorMessage)
+{
+    if (!graphModel()) {
+        if (errorMessage) *errorMessage = tr("runtime canvas not ready");
+        emit errorOccurred(tr("runtime canvas not ready"));
+        return false;
+    }
+
+    // Stop the old graph before it is replaced: clearScene() destroys the node
+    // models, which must not be left running.
+    stopAllNodes();
+
+    QStringList skippedTypes;
+    QString error;
+    if (!applySceneJson(flow, &skippedTypes, &error)) {
+        if (errorMessage) *errorMessage = error;
+        return false;
+    }
+
+    // Rebuild the MDI layout and re-run autoStart against the new UI section.
+    arrangeWorkspaces(m_uiSection);
+    autoStartNodes(m_uiSection);
+
+    if (!skippedTypes.isEmpty())
+        qCWarning(lcNodeEditor) << "reloadFlow: skipped unregistered node types:"
+                                << skippedTypes.join(QStringLiteral(", "));
+
+    qCInfo(lcNodeEditor) << "RuntimeShell: flow reloaded via control plane, nodes="
+                         << graphModel()->allNodeIds().size();
+    return true;
 }
 
 QMdiSubWindow* RuntimeShell::createSubWindow(QWidget* widget, const FlowUi::Geometry& geometry)

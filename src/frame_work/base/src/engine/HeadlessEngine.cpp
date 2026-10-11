@@ -1,6 +1,7 @@
 #include "HeadlessEngine.h"
 
 #include "ControlPlaneServer.h"
+#include "NodeSchemaBuilder.h"
 
 #include <QCoreApplication>
 #include <QJsonDocument>
@@ -472,54 +473,6 @@ QtNodes::NodeDelegateModel* HeadlessEngine::createNodeModel(const QString& model
 // Remote control plane (REQ-SW-PL-054)
 // ═══════════════════════════════════════════════════════════════════════════
 
-namespace {
-
-/// Best-effort JSON Schema Draft 7 node for one saved JSON value. The model's
-/// save() output is the authoritative shape; without per-node metadata this is
-/// the strongest schema we can derive (REQ-SW-PL-054 AC3).
-QJsonObject jsonSchemaForValue(const QJsonValue& value)
-{
-    QJsonObject schema;
-    switch (value.type()) {
-    case QJsonValue::Bool:
-        schema.insert(QStringLiteral("type"), QStringLiteral("boolean"));
-        break;
-    case QJsonValue::Double:
-        schema.insert(QStringLiteral("type"), QStringLiteral("number"));
-        break;
-    case QJsonValue::String:
-        schema.insert(QStringLiteral("type"), QStringLiteral("string"));
-        break;
-    case QJsonValue::Array: {
-        schema.insert(QStringLiteral("type"), QStringLiteral("array"));
-        const QJsonArray array = value.toArray();
-        if (!array.isEmpty())
-            schema.insert(QStringLiteral("items"), jsonSchemaForValue(array.first()));
-        break;
-    }
-    case QJsonValue::Object: {
-        schema.insert(QStringLiteral("type"), QStringLiteral("object"));
-        QJsonObject properties;
-        QJsonArray required;
-        const QJsonObject object = value.toObject();
-        for (auto it = object.constBegin(); it != object.constEnd(); ++it) {
-            properties.insert(it.key(), jsonSchemaForValue(it.value()));
-            required.append(it.key());
-        }
-        schema.insert(QStringLiteral("properties"), properties);
-        if (!required.isEmpty())
-            schema.insert(QStringLiteral("required"), required);
-        break;
-    }
-    default:
-        schema.insert(QStringLiteral("type"), QStringLiteral("null"));
-        break;
-    }
-    return schema;
-}
-
-} // namespace
-
 bool HeadlessEngine::startControlPlane(const ControlPlaneOptions& options, QString* errorMessage)
 {
     if (m_controlPlane && m_controlPlane->isListening())
@@ -756,12 +709,7 @@ QJsonObject HeadlessEngine::nodeSchema(quint64 nodeId) const
         return {};
 
     // Defaults from a throw-away instance describe the expected shape.
-    const QJsonObject defaults = fresh->save();
-    QJsonObject schema = jsonSchemaForValue(defaults);
-    schema.insert(QStringLiteral("$schema"),
-                  QStringLiteral("http://json-schema.org/draft-07/schema#"));
-    schema.insert(QStringLiteral("title"), type);
-    return schema;
+    return nodeConfigSchema(fresh->save(), type);
 }
 
 } // namespace Daqster

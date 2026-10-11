@@ -205,6 +205,7 @@ install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/app/AppBootstrap.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control/ControlPlaneServer.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control/RuntimeController.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control/NodeSchemaBuilder.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/FrameworkCore
 )
 

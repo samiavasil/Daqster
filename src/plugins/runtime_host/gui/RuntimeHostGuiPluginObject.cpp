@@ -45,6 +45,19 @@ void RuntimeHostGuiPluginObject::stopAllNodes()
     m_runtimeShell->stopAllNodes();
 }
 
+bool RuntimeHostGuiPluginObject::configureControlPlane(const ControlPlaneOptions& options)
+{
+    // REQ-SW-PL-054: GUI mode speaks the same REST/WebSocket control plane as
+    // the headless engine. RuntimeShell implements Daqster::RuntimeController
+    // and owns the ControlPlaneServer.
+    QString error;
+    if (!m_runtimeShell->startControlPlane(options, &error)) {
+        qCCritical(lcNodeEditor) << "RuntimeHostGuiPlugin: control plane rejected:" << error;
+        return false;
+    }
+    return true;
+}
+
 // ── INodeProvider ──────────────────────────────────────────────────────────
 void RuntimeHostGuiPluginObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
 {
