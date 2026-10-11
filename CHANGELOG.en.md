@@ -7,6 +7,8 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Changed
+- **REQ-SW-PL-048 — shared widget-free `AppBootstrap` in `FrameworkCore`** (2026-10-11, branch `refactor/REQ-SW-PL-048-shared-app-bootstrap`):
+  `NodeRunner` and `Daqster` duplicated the same startup choreography (logging init → `ShutdownHandler` → `QPluginManager::Initialize()`/`SearchForPlugins()` → runtime-host resolution → event loop → ordered teardown). It now lives once in `Daqster::AppBootstrap` (`src/frame_work/base/src/app/`), which is **widget-free** (FrameworkCore links only QtCore): it does not build an application object but takes an already-constructed `QCoreApplication&`, so the same bootstrap serves a headless binary (no QtWidgets) and a GUI binary (`QApplication`). `NodeRunner` is rewritten on top of it; `Daqster/main.cpp` uses it for the shared part (logging, shutdown handler, plugin init, teardown) while keeping its app-specific logic. The bootstrap also carries `--rest-port`/`--rest-bind`/`--rest-token`/`--rest-web-root` (REQ-SW-PL-054) and hands them to the host via `IRuntimeHost::configureControlPlane()` — a host without remote control makes startup fail loudly instead of silently implying a REST server is up.
 - **REQ-SW-PL-060 — node-provider `<plugin>/{core,gui}` convention + shared-library rename** (2026-10-09, branch `feat/REQ-SW-PL-056-headless-all-node-components`):
   - `src/plugins/nodeditor_nodes_core/` + `src/plugins/nodeditor_nodes_gui/` merged into one plugin `src/plugins/nodeditor_nodes/{core,gui}/` (framework convention documented in `docs/Architecture/core-gui-split.md` and `docs/Architecture/plugins/PluginDevelopment.md`).
   - Classes/targets/OUTPUT_NAME: `DemoNodeEditorNodesCore*` → `NodeditorNodesCore*`, `DemoNodeEditorNodesGui*` → `NodeditorNodesGui*` (`libNodeditorNodesCorePlugin.so` / `libNodeditorNodesGuiPlugin.so`).
@@ -19,6 +21,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **REQ-SW-PL-062 — public LLM nodes under the `AI/LLM` category** (2026-10-09, branch `feat/REQ-SW-PL-056-headless-all-node-components`): `LLamaModelDataModel` (`LLaMA Model`) and `ConsoleDataModel` (`Конзола`) are registered in both `registerNodes()` and `registerNodesHeadless()` under `"AI/LLM"` instead of `"Sources/LLM"`, matching the private `LlamaGenerateModel` so all LLM nodes appear on one menu path. Saved `.flow` files reference nodes by `name()`, not category → no migration.
 
 ### Fixed
+- **REQ-SW-PL-056 — Qt5 build of `QtNodesCore` (nodeeditor submodule)** (2026-10-11): `samiavasil/nodeeditor@305fa37` adds the missing `Q_DECLARE_METATYPE(QWidget*)` next to `Q_DECLARE_OPAQUE_POINTER(QWidget*)`. `Q_DECLARE_OPAQUE_POINTER` alone only flips `IsPointerToTypeDerivedFromQObject`; Qt5 also needs `Q_DECLARE_METATYPE` to make `QMetaTypeId2<QWidget*>::Defined` true. Without it `DataFlowGraphModel.cpp:297` (`QVariant::fromValue` of the embedded widget) broke the Qt5 compile with a static_assert. Qt6 auto-registers pointers to QObject-derived types, so the split only ever built on Qt6.
 - **Duplicated `IStoppable`/`IStartable`** (REQ-SW-PL-050 debt): the `core/shared/` copies are now forwarding shims to the canonical `common/capabilities/` headers — one definition, no layout-divergence hazard; `demo_nodeditor_lifecycle_tests` now compiles.
 
 ### Added

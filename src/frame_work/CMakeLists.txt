@@ -73,6 +73,10 @@ set(FRAMEWORK_CORE_SOURCES
     base/src/engine/HeadlessEngine.cpp
     base/src/engine/HeadlessEngine.h
 
+    # Shared widget-free application bootstrap (REQ-SW-PL-048)
+    base/src/app/AppBootstrap.cpp
+    base/src/app/AppBootstrap.h
+
     # Logging
     base/src/logging/LogCategories.cpp
     base/src/logging/LogCategories.h
@@ -143,6 +147,7 @@ target_include_directories(FrameworkCore
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/registry
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/persistence
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/engine
+        ${CMAKE_CURRENT_SOURCE_DIR}/base/src/app
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/platform
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/process
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/perf
@@ -189,6 +194,7 @@ install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/include/plugin_global.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/include/debug.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/include/build_cfg.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/base/src/app/AppBootstrap.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/FrameworkCore
 )
 
