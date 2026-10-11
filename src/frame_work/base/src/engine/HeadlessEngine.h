@@ -4,6 +4,8 @@
 #include <capabilities/INodeProvider.h>
 #include <capabilities/IStoppable.h>
 #include <capabilities/IStartable.h>
+#include <capabilities/IRuntimeHost.h>   // ControlPlaneOptions (REQ-SW-PL-054)
+#include "RuntimeController.h"
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
@@ -21,6 +23,8 @@
 
 namespace Daqster {
 
+class ControlPlaneServer;
+
 /**
  * @brief Headless engine for running flows without GUI.
  * 
@@ -34,7 +38,7 @@ namespace Daqster {
 // DATA symbols; WINDOWS_EXPORT_ALL_SYMBOLS emits only the __imp_ form of those
 // in the import library, so a consumer without explicit markup fails to link on
 // Windows. Linux cannot surface this (undefined symbols resolve at dlopen).
-class FRAMEWORK_CORE_EXPORT HeadlessEngine : public QObject
+class FRAMEWORK_CORE_EXPORT HeadlessEngine : public QObject, public RuntimeController
 {
     Q_OBJECT
 public:
@@ -63,10 +67,34 @@ public:
      */
     QtNodes::NodeDelegateModelRegistry* registry() const { return m_registry.get(); }
 
+    // ── Remote control plane (REQ-SW-PL-054) ─────────────────────────────
+    /**
+     * @brief Start the HTTP control plane described by @p options.
+     *
+     * Returns false (without listening) when the options are unsafe or the
+     * bind fails, so the caller can fail loudly.
+     */
+    bool startControlPlane(const ControlPlaneOptions& options, QString* errorMessage = nullptr);
+
+    /// Stop the control plane if it is running. Safe to call more than once.
+    void stopControlPlane();
+
+    bool controlPlaneEnabled() const;
+
+    // ── RuntimeController (used by ControlPlaneServer) ───────────────────
+    QVector<NodeInfo> nodes() const override;
+    bool nodeConfig(quint64 nodeId, QJsonObject& out) const override;
+    bool setNodeConfig(quint64 nodeId, const QJsonObject& config) override;
+    bool startNode(quint64 nodeId) override;
+    bool stopNode(quint64 nodeId) override;
+    QJsonObject flowJson() const override;
+    QJsonObject nodeSchema(quint64 nodeId) const override;
+
 Q_SIGNALS:
     void flowLoaded(bool success);
     void nodeStarted(QtNodes::NodeId nodeId);
     void nodeStopped(QtNodes::NodeId nodeId);
+    void nodeConfigChanged(QtNodes::NodeId nodeId);
     void errorOccurred(const QString& message);
 
 private:
@@ -96,6 +124,10 @@ private:
 
     // Node lifecycle
     QHash<QtNodes::NodeId, bool> m_autoStartNodes;
+    QHash<QtNodes::NodeId, bool> m_runningNodes;
+
+    // Remote control plane (REQ-SW-PL-054)
+    std::unique_ptr<ControlPlaneServer> m_controlPlane;
 
     // Helpers
     bool registerNodes();
@@ -106,6 +138,7 @@ private:
     void autoStartNodes();
     void connectNodes(const QJsonArray& connectionsJson);
     QtNodes::NodeDelegateModel* createNodeModel(const QString& modelName, const QJsonObject& nodeJson);
+    QJsonObject serializeUiSection() const;
 };
 
 } // namespace Daqster

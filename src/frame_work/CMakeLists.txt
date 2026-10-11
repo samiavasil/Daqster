@@ -4,10 +4,11 @@ include(GenerateExportHeader)
 #
 # This directory owns the two framework libraries:
 #
-#   FrameworkCore - QtCore + QtNodesCore (+ optional QtMultimedia / QtOpenGL)
+#   FrameworkCore - QtCore + QtNetwork + QtNodesCore (+ optional QtMultimedia / QtOpenGL)
 #                 plugin infrastructure, discovery, registry, persistence,
 #                 logging, platform abstraction, process management,
-#                 performance profiling and the headless engine.
+#                 performance profiling, the headless engine and the REST
+#                 control plane (REQ-SW-PL-054).
 #
 #   FrameworkGui  - QtWidgets (layered on top of FrameworkCore)
 #                 the framework plugin-manager widgets and their .ui forms.
@@ -76,6 +77,11 @@ set(FRAMEWORK_CORE_SOURCES
     # Shared widget-free application bootstrap (REQ-SW-PL-048)
     base/src/app/AppBootstrap.cpp
     base/src/app/AppBootstrap.h
+
+    # REST control plane (REQ-SW-PL-054)
+    base/src/control/ControlPlaneServer.cpp
+    base/src/control/ControlPlaneServer.h
+    base/src/control/RuntimeController.h
 
     # Logging
     base/src/logging/LogCategories.cpp
@@ -148,6 +154,7 @@ target_include_directories(FrameworkCore
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/persistence
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/engine
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/app
+        ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/platform
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/process
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/perf
@@ -163,6 +170,7 @@ target_include_directories(FrameworkCore
 target_link_libraries(FrameworkCore
     PUBLIC
         Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Network
         QtNodesCore
 )
 
@@ -195,6 +203,8 @@ install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/include/debug.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/include/build_cfg.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/app/AppBootstrap.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control/ControlPlaneServer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control/RuntimeController.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/FrameworkCore
 )
 

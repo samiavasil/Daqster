@@ -1,5 +1,7 @@
 #include "HeadlessEngine.h"
 
+#include "ControlPlaneServer.h"
+
 #include <QCoreApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -81,6 +83,8 @@ HeadlessEngine::HeadlessEngine(QObject* parent)
 
 HeadlessEngine::~HeadlessEngine()
 {
+    // Tear the network endpoint down before the graph it points at.
+    stopControlPlane();
     // stopAllNodes() is called explicitly by the caller (main.cpp)
     // to ensure graceful shutdown before graph model destruction.
 }
@@ -148,6 +152,7 @@ void HeadlessEngine::stopAllNodes()
         if (stoppable) {
             qCInfo(lcNodeEditor) << "HeadlessEngine: stopping node:" << model->caption() << "(id=" << nodeId << ")";
             stoppable->stop();
+            m_runningNodes[nodeId] = false;
             emit nodeStopped(nodeId);
         }
     }
@@ -400,6 +405,7 @@ void HeadlessEngine::autoStartNodes()
         if (startable) {
             qCInfo(lcNodeEditor) << "HeadlessEngine: auto-starting node:" << model->caption() << "(id=" << nodeId << ")";
             startable->start();
+            m_runningNodes[nodeId] = true;
             emit nodeStarted(nodeId);
         }
     }
@@ -414,6 +420,279 @@ QtNodes::NodeDelegateModel* HeadlessEngine::createNodeModel(const QString& model
         return nullptr;
 
     return creators.at(modelName)().release();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Remote control plane (REQ-SW-PL-054)
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace {
+
+/// Best-effort JSON Schema Draft 7 node for one saved JSON value. The model's
+/// save() output is the authoritative shape; without per-node metadata this is
+/// the strongest schema we can derive (REQ-SW-PL-054 AC3).
+QJsonObject jsonSchemaForValue(const QJsonValue& value)
+{
+    QJsonObject schema;
+    switch (value.type()) {
+    case QJsonValue::Bool:
+        schema.insert(QStringLiteral("type"), QStringLiteral("boolean"));
+        break;
+    case QJsonValue::Double:
+        schema.insert(QStringLiteral("type"), QStringLiteral("number"));
+        break;
+    case QJsonValue::String:
+        schema.insert(QStringLiteral("type"), QStringLiteral("string"));
+        break;
+    case QJsonValue::Array: {
+        schema.insert(QStringLiteral("type"), QStringLiteral("array"));
+        const QJsonArray array = value.toArray();
+        if (!array.isEmpty())
+            schema.insert(QStringLiteral("items"), jsonSchemaForValue(array.first()));
+        break;
+    }
+    case QJsonValue::Object: {
+        schema.insert(QStringLiteral("type"), QStringLiteral("object"));
+        QJsonObject properties;
+        QJsonArray required;
+        const QJsonObject object = value.toObject();
+        for (auto it = object.constBegin(); it != object.constEnd(); ++it) {
+            properties.insert(it.key(), jsonSchemaForValue(it.value()));
+            required.append(it.key());
+        }
+        schema.insert(QStringLiteral("properties"), properties);
+        if (!required.isEmpty())
+            schema.insert(QStringLiteral("required"), required);
+        break;
+    }
+    default:
+        schema.insert(QStringLiteral("type"), QStringLiteral("null"));
+        break;
+    }
+    return schema;
+}
+
+} // namespace
+
+bool HeadlessEngine::startControlPlane(const ControlPlaneOptions& options, QString* errorMessage)
+{
+    if (m_controlPlane && m_controlPlane->isListening())
+        return true;
+
+    if (!m_controlPlane)
+        m_controlPlane = std::make_unique<ControlPlaneServer>(this);
+
+    QString error;
+    if (!m_controlPlane->start(options, &error)) {
+        if (errorMessage)
+            *errorMessage = error;
+        qCCritical(lcNodeEditor) << "HeadlessEngine: control plane failed to start:" << error;
+        m_controlPlane.reset();
+        return false;
+    }
+    return true;
+}
+
+void HeadlessEngine::stopControlPlane()
+{
+    if (!m_controlPlane)
+        return;
+    m_controlPlane->stop();
+    m_controlPlane.reset();
+}
+
+bool HeadlessEngine::controlPlaneEnabled() const
+{
+    return m_controlPlane && m_controlPlane->isListening();
+}
+
+QVector<RuntimeController::NodeInfo> HeadlessEngine::nodes() const
+{
+    QVector<NodeInfo> result;
+    if (!m_graphModel)
+        return result;
+
+    for (const QtNodes::NodeId nodeId : m_graphModel->allNodeIds()) {
+        auto* model = m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
+        if (!model)
+            continue;
+
+        NodeInfo info;
+        info.id = static_cast<quint64>(nodeId);
+        info.type = model->name();
+        info.name = model->caption();
+        info.state = m_runningNodes.value(nodeId, false) ? QStringLiteral("running")
+                                                         : QStringLiteral("stopped");
+        result.append(info);
+    }
+    return result;
+}
+
+bool HeadlessEngine::nodeConfig(quint64 nodeId, QJsonObject& out) const
+{
+    if (!m_graphModel)
+        return false;
+
+    auto* model = m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(
+        static_cast<QtNodes::NodeId>(nodeId));
+    if (!model)
+        return false;
+
+    out = model->save();
+    return true;
+}
+
+bool HeadlessEngine::setNodeConfig(quint64 nodeId, const QJsonObject& config)
+{
+    if (!m_graphModel)
+        return false;
+
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    auto* model = m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(id);
+    if (!model)
+        return false;
+
+    // NodeDelegateModel::load() returns void, so a malformed patch must not take
+    // the whole engine down: snapshot first and roll back on a thrown error.
+    const QJsonObject before = model->save();
+    try {
+        model->load(config);
+    } catch (const std::exception& e) {
+        qCWarning(lcNodeEditor) << "HeadlessEngine: node config rejected (id=" << id
+                                << "):" << e.what();
+        model->load(before);
+        return false;
+    }
+
+    emit nodeConfigChanged(id);
+    return true;
+}
+
+bool HeadlessEngine::startNode(quint64 nodeId)
+{
+    if (!m_graphModel)
+        return false;
+
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    auto* model = m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(id);
+    if (!model)
+        return false;
+
+    auto* startable = dynamic_cast<Daqster::IStartable*>(model);
+    if (!startable)
+        return false;
+
+    qCInfo(lcNodeEditor) << "HeadlessEngine: starting node via control plane:"
+                         << model->caption() << "(id=" << id << ")";
+    startable->start();
+    m_runningNodes[id] = true;
+    emit nodeStarted(id);
+    return true;
+}
+
+bool HeadlessEngine::stopNode(quint64 nodeId)
+{
+    if (!m_graphModel)
+        return false;
+
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    auto* model = m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(id);
+    if (!model)
+        return false;
+
+    auto* stoppable = dynamic_cast<Daqster::IStoppable*>(model);
+    if (!stoppable)
+        return false;
+
+    qCInfo(lcNodeEditor) << "HeadlessEngine: stopping node via control plane:"
+                         << model->caption() << "(id=" << id << ")";
+    stoppable->stop();
+    m_runningNodes[id] = false;
+    emit nodeStopped(id);
+    return true;
+}
+
+QJsonObject HeadlessEngine::flowJson() const
+{
+    QJsonObject flow;
+    if (m_graphModel)
+        flow = m_graphModel->save(); // { "nodes": [...], "connections": [...] }
+
+    flow.insert(QStringLiteral("ui"), serializeUiSection());
+    return flow;
+}
+
+QJsonObject HeadlessEngine::serializeUiSection() const
+{
+    QJsonObject ui;
+    ui.insert(QStringLiteral("version"), m_uiSection.version);
+
+    QJsonArray workspaces;
+    for (const WorkspaceUi& ws : m_uiSection.workspaces) {
+        QJsonObject wsJson;
+        wsJson.insert(QStringLiteral("id"), ws.id);
+        wsJson.insert(QStringLiteral("tabbed"), ws.tabbed);
+        QJsonObject geometry;
+        geometry.insert(QStringLiteral("x"), ws.geometry.x);
+        geometry.insert(QStringLiteral("y"), ws.geometry.y);
+        geometry.insert(QStringLiteral("w"), ws.geometry.w);
+        geometry.insert(QStringLiteral("h"), ws.geometry.h);
+        geometry.insert(QStringLiteral("maximized"), ws.geometry.maximized);
+        wsJson.insert(QStringLiteral("geometry"), geometry);
+        workspaces.append(wsJson);
+    }
+    ui.insert(QStringLiteral("workspaces"), workspaces);
+
+    QJsonObject nodes;
+    for (auto it = m_uiSection.nodes.constBegin(); it != m_uiSection.nodes.constEnd(); ++it) {
+        const NodeUi& nui = it.value();
+        QJsonObject nodeJson;
+        nodeJson.insert(QStringLiteral("deembedded"), nui.deembedded);
+        nodeJson.insert(QStringLiteral("workspace"), nui.workspace);
+        nodeJson.insert(QStringLiteral("autoStart"), nui.autoStart);
+        if (nui.deembedded) {
+            QJsonObject geometry;
+            geometry.insert(QStringLiteral("x"), nui.geometry.x);
+            geometry.insert(QStringLiteral("y"), nui.geometry.y);
+            geometry.insert(QStringLiteral("w"), nui.geometry.w);
+            geometry.insert(QStringLiteral("h"), nui.geometry.h);
+            geometry.insert(QStringLiteral("maximized"), nui.geometry.maximized);
+            nodeJson.insert(QStringLiteral("geometry"), geometry);
+        }
+        nodes.insert(QString::number(it.key()), nodeJson);
+    }
+    ui.insert(QStringLiteral("nodes"), nodes);
+
+    return ui;
+}
+
+QJsonObject HeadlessEngine::nodeSchema(quint64 nodeId) const
+{
+    if (!m_graphModel || !m_registry)
+        return {};
+
+    auto* model = m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(
+        static_cast<QtNodes::NodeId>(nodeId));
+    if (!model)
+        return {};
+
+    const QString type = model->name();
+    const auto& creators = m_registry->registeredModelCreators();
+    const auto creatorIt = creators.find(type);
+    if (creatorIt == creators.end())
+        return {};
+
+    const std::unique_ptr<QtNodes::NodeDelegateModel> fresh = creatorIt->second();
+    if (!fresh)
+        return {};
+
+    // Defaults from a throw-away instance describe the expected shape.
+    const QJsonObject defaults = fresh->save();
+    QJsonObject schema = jsonSchemaForValue(defaults);
+    schema.insert(QStringLiteral("$schema"),
+                  QStringLiteral("http://json-schema.org/draft-07/schema#"));
+    schema.insert(QStringLiteral("title"), type);
+    return schema;
 }
 
 } // namespace Daqster

@@ -104,7 +104,9 @@ find_package(OpenSSL)
 
 # Find only the core Qt modules needed for basic functionality
 # Other modules will be found dynamically by PluginDependencyManager
-find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS Core Gui Widgets)
+# Network is needed by FrameworkCore itself for the REST control plane
+# (REQ-SW-PL-054), so it is requested here as well.
+find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS Core Gui Widgets Network)
 
 # NodeEditor - Qt5/Qt6 (upstream has unified Qt${QT_VERSION_MAJOR} handling)
 create_external_library(nodeeditor)
