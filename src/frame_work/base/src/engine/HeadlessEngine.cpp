@@ -136,6 +136,44 @@ bool HeadlessEngine::loadFlow(const QString& flowPath)
     return true;
 }
 
+bool HeadlessEngine::reloadFlow(const QJsonObject& flow, QString* errorMessage)
+{
+    if (!m_graphModel) {
+        // Nothing live yet: bring the registry/graph up first.
+        if (!registerNodes()) {
+            if (errorMessage) *errorMessage = QStringLiteral("failed to register node types");
+            return false;
+        }
+        if (!buildGraphModel()) {
+            if (errorMessage) *errorMessage = QStringLiteral("failed to build graph model");
+            return false;
+        }
+    }
+
+    qCInfo(lcNodeEditor) << "HeadlessEngine: hot-reload requested";
+
+    // The old scene must stop while its graph is still valid.
+    stopAllNodes();
+
+    if (!buildGraphModel()) {
+        if (errorMessage) *errorMessage = QStringLiteral("failed to rebuild graph model");
+        return false;
+    }
+    if (!applySceneJson(flow)) {
+        if (errorMessage) *errorMessage = QStringLiteral("invalid flow — see server log for details");
+        return false;
+    }
+    if (!validateFlow()) {
+        if (errorMessage) *errorMessage = QStringLiteral("flow validation failed (unsupported node types)");
+        return false;
+    }
+
+    autoStartNodes();
+    emit flowLoaded(true);
+    qCInfo(lcNodeEditor) << "HeadlessEngine: hot-reload complete";
+    return true;
+}
+
 void HeadlessEngine::stopAllNodes()
 {
     if (!m_graphModel)
@@ -250,7 +288,15 @@ bool HeadlessEngine::parseFlowFile(const QString& fileName)
         return false;
     }
 
-    QJsonObject sceneJson = sceneDocument.object();
+    return applySceneJson(sceneDocument.object());
+}
+
+bool HeadlessEngine::applySceneJson(QJsonObject sceneJson)
+{
+    // The scene is a fresh live graph; clear any state from a previous scene.
+    m_uiSection = UiSection{};
+    m_runningNodes.clear();
+    m_autoStartNodes.clear();
 
     // Extract the "ui" section BEFORE the node-cleaning loop
     if (!parseUiSection(sceneJson)) {
@@ -481,6 +527,29 @@ bool HeadlessEngine::startControlPlane(const ControlPlaneOptions& options, QStri
 
     if (!m_controlPlane)
         m_controlPlane = std::make_unique<ControlPlaneServer>(this);
+
+    // Stream lifecycle events to WebSocket subscribers (REQ-SW-PL-054 AC10).
+    // connected once per freshly created server; the lambda target dies with it.
+    connect(this, &HeadlessEngine::nodeStarted, m_controlPlane.get(),
+            [this](QtNodes::NodeId id) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeStarted"),
+                                               {{QStringLiteral("nodeId"), static_cast<qint64>(id)}});
+            });
+    connect(this, &HeadlessEngine::nodeStopped, m_controlPlane.get(),
+            [this](QtNodes::NodeId id) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeStopped"),
+                                               {{QStringLiteral("nodeId"), static_cast<qint64>(id)}});
+            });
+    connect(this, &HeadlessEngine::nodeConfigChanged, m_controlPlane.get(),
+            [this](QtNodes::NodeId id) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeConfigChanged"),
+                                               {{QStringLiteral("nodeId"), static_cast<qint64>(id)}});
+            });
+    connect(this, &HeadlessEngine::errorOccurred, m_controlPlane.get(),
+            [this](const QString& message) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeError"),
+                                               {{QStringLiteral("message"), message}});
+            });
 
     QString error;
     if (!m_controlPlane->start(options, &error)) {

@@ -53,6 +53,13 @@ public:
     /// "ui": {...} } — the shape written to a .flow file.
     virtual QJsonObject flowJson() const = 0;
 
+    /// Replace the live scene with @p flow (hot reload, `POST /api/flow`).
+    /// Implementations stop every running node first and only report success
+    /// after the new scene validated and its autoStart nodes have started.
+    /// On failure the implementation leaves the previous scene stopped and
+    /// fills @p errorMessage with a human-readable reason.
+    virtual bool reloadFlow(const QJsonObject& flow, QString* errorMessage = nullptr) = 0;
+
     /// JSON Schema (Draft 7, best-effort) for a node type, generated from a
     /// throw-away model instance's save() output.
     virtual QJsonObject nodeSchema(quint64 nodeId) const = 0;

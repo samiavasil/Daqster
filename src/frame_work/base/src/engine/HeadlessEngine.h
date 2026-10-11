@@ -89,6 +89,7 @@ public:
     bool stopNode(quint64 nodeId) override;
     QJsonObject flowJson() const override;
     QJsonObject nodeSchema(quint64 nodeId) const override;
+    bool reloadFlow(const QJsonObject& flow, QString* errorMessage = nullptr) override;
 
 Q_SIGNALS:
     void flowLoaded(bool success);
@@ -134,6 +135,8 @@ private:
     bool validateFlow();
     bool buildGraphModel();
     bool parseFlowFile(const QString& flowPath);
+    /// Apply an already-parsed scene object (shared by loadFlow and reloadFlow).
+    bool applySceneJson(QJsonObject sceneJson);
     bool parseUiSection(const QJsonObject& sceneJson);
     void autoStartNodes();
     void connectNodes(const QJsonArray& connectionsJson);
