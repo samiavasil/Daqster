@@ -1,6 +1,6 @@
 # Daqster REST API & Remote Control Architecture
 
-> **Status:** IMPLEMENTED (v0.2 — core control plane live; extras pending)
+> **Status:** IMPLEMENTED (v0.3 — control plane live in both runtime hosts; extras pending)
 > **Related REQ:** REQ-SW-PL-054
 > **Depends on:** REQ-SW-PL-053 (NodeEditorIde Split → dual-mode runner), REQ-SW-PL-048 (shared AppBootstrap)
 > **Date:** 2026-09-28 (draft) · 2026-10-11 (as-built rewrite)
@@ -24,7 +24,7 @@ planned is marked **(planned)**.
 │    parses --rest-*  ──► IRuntimeHost::configureControlPlane(ControlPlaneOptions)
 │                                        │                                   │
 │  ┌─────────────────────────────────────▼──────────────────────────────┐   │
-│  │ HeadlessEngine  (QCoreApplication; implements RuntimeController)    │   │
+│  │ Runtime host (RuntimeController; headless/GUI)                      │   │
 │  │  ┌────────────────────┐   ┌────────────────────────────────────┐   │   │
 │  │  │ DataFlowGraphModel │   │ ControlPlaneServer                 │   │   │
 │  │  │  node models       │◄──│  HTTP/1.1  (QTcpServer)            │   │   │
@@ -45,8 +45,11 @@ Two seams keep the surface host-agnostic:
 - **`RuntimeController`** (`framework/base/src/control/RuntimeController.h`) — a
   plain, widget-free interface (`nodes`, `nodeConfig`, `setNodeConfig`,
   `startNode`, `stopNode`, `flowJson`, `nodeSchema`, `reloadFlow`). The HTTP
-  server talks only to this, so the same control plane can later serve a GUI
-  runtime host **(planned)** — today only `HeadlessEngine` implements it.
+  server talks only to this, so the **same** control plane serves both runtime
+  hosts: `HeadlessEngine` (`--headless`) and the GUI `RuntimeShell` (`--run`).
+  The GUI host is started by the bootstrap *before* `RunRuntime()` builds the
+  canvas, so the controller resolves the `DataFlowGraphModel` lazily and an early
+  request simply sees zero nodes.
 - **`ControlPlaneOptions`** (`plugins/common/capabilities/IRuntimeHost.h`) — the
   parsed `--rest-*` options. A host that cannot serve remote control returns
   `false` from `configureControlPlane()` and the runner fails loudly.
@@ -351,6 +354,10 @@ So neither `Qt::HttpServer` nor `Qt::WebSockets` is a dependency of
 ./build_qt5/bin/NodeRunner --headless --run tests/data/system_monitor_test.flow \
     --rest-port 18080 --rest-token secret123 --log-console-enabled 1 &
 
+# The identical control plane serves the GUI host (no --headless)
+./build_qt6/bin/NodeRunner --run tests/data/video_4views_grid1.flow \
+    --rest-port 18090 --rest-token secret123 --log-console-enabled 1 &
+
 # REST
 curl -s -H "Authorization: Bearer secret123" http://localhost:18080/api/health
 curl -s -H "Authorization: Bearer secret123" http://localhost:18080/api/nodes
@@ -369,10 +376,16 @@ curl -s http://localhost:18080/api/openapi.json  # spec
 python3 -c 'import websocket; print(websocket.create_connection("ws://localhost:18080/api/events?token=secret123").recv())'
 ```
 
-Verified on Qt5 + Qt6: health/nodes/flow/openapi, config GET→POST→GET in place,
-schema, start/stop lifecycle events over WS, flow reload by JSON and by path,
-`400` on malformed flow, `401` without token, `204` OPTIONS preflight,
-path-traversal blocked.
+Verified on Qt5 + Qt6 (headless): health/nodes/flow/openapi, config
+GET→POST→GET in place, schema, start/stop lifecycle events over WS, flow reload
+by JSON and by path, `400` on malformed flow, `401` without token, `204` OPTIONS
+preflight, path-traversal blocked.
+
+Verified on Qt6 in **GUI mode** (`--run`): the same endpoints, config
+GET→POST→GET, start/stop, flow reload by JSON and by path, WS events, bearer
+`401`/`200`, and fail-closed `--rest-bind 0.0.0.0` without a token. Qt5 GUI mode
+currently aborts on an unrelated pre-existing `QWidget*` metatype conflict
+(also present without `--rest-port`); it is tracked separately.
 
 Automated unit/integration tests for the server are **(planned)**.
 
@@ -380,8 +393,6 @@ Automated unit/integration tests for the server are **(planned)**.
 
 ## 11. Future extensions (post PL-054)
 
-- **GUI runtime host**: implement `RuntimeController` on the GUI host so the
-  same API serves `NodeRunner --run`.
 - **`dataPreview`** events + a `POST /api/flow/save` endpoint.
 - **Remote GUI / thin client**, **video/audio streaming**, **multi-user RBAC**,
   **gRPC/Protobuf** — separate future requirements (IDs not yet allocated).
@@ -395,3 +406,4 @@ Automated unit/integration tests for the server are **(planned)**.
 |------|---------|--------|---------|
 | 2026-09-28 | 0.1 | Daqster Team | Initial draft (planned) |
 | 2026-10-11 | 0.2 | Daqster Team | As-built rewrite: `ControlPlaneServer` on `QTcpServer`; AC1–AC13 implemented (REST, WS events, CORS, OpenAPI + Swagger UI + web console); removed the divergent `QHttpServer`/`RestApiServer` design. |
+| 2026-10-11 | 0.3 | Daqster Team | GUI mode: `RuntimeShell` implements `RuntimeController` and owns the `ControlPlaneServer`, so `--run --rest-port` serves the same API; shared `NodeSchemaBuilder.h`. |

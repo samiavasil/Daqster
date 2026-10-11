@@ -10,7 +10,8 @@
 - **REQ-SW-PL-054 — REST control plane, първи срязък** (2026-10-11, клон `feat/REQ-SW-PL-054-rest-control-plane`):
   `FrameworkCore` вече носи преносим **HTTP/1.1 сървър върху `QTcpServer`** (не `QHttpServer`, защото Qt5 няма такъв — една реализация за двата Qt-а): `src/frame_work/base/src/control/ControlPlaneServer.{h,cpp}` + widget-free интерфейс `RuntimeController.h`. `HeadlessEngine` имплементира `RuntimeController` и `RuntimeHostHeadlessPluginObject::configureControlPlane()` вдига сървъра от `--rest-*` опциите. Реализирани endpoint-и: `GET /api/health`, `GET /api/nodes` (id/type/name/state), `GET /api/nodes/{id}/config`, `POST /api/nodes/{id}/config` (in-place `NodeDelegateModel::load()`, с rollback при грешка), `POST /api/nodes/{id}/start|stop` (през `IStartable`/`IStoppable`), `GET /api/nodes/{id}/schema` (JSON Schema Draft 7 от `save()` на празен модел), `GET /api/flow` (nodes+connections+ui), `GET /api/openapi.json`. Auth: `Authorization: Bearer <token>` с constant-time сравнение; **fail-closed** — non-loopback bind без token се отказва (exit 1). `HeadlessEngine` вече следи per-node `running/stopped` състояние (`m_runningNodes`). Qt5 + Qt6 билд; smoke тест на двата Qt-а (health/nodes/config/schema/start/stop/auth/404).
   **Довършено 2026-10-11 (втори срязък, `d9aac98`):** `POST /api/flow` hot-reload (AC9 — пълен flow обект или `{"path": ...}`, с типова валидация и `400` при лош документ), WebSocket `/api/events` (AC10 — RFC 6455 върху същия `QTcpServer`/порт, събития `nodeStarted`/`nodeStopped`/`nodeConfigChanged`/`nodeError` като `{type,data}`, `?token=` за браузъри), CORS + `OPTIONS` preflight (AC12), пълен OpenAPI 3.0.3 спек + Swagger UI `/api/docs` (AC13), вграден web console на `/` + статични файлове от `--rest-web-root`, `scripts/fetch-swagger-ui.sh` за локално vendored Swagger UI. Auth вече пази само данните: `/api/docs`, `/api/openapi.json` и статичният UI са достъпни без токен.
-  **Остават** (следващи срезове): `dataPreview`, GUI режим (`RuntimeController` върху GUI хоста), mTLS, автоматични тестове.
+  **GUI режим (2026-10-11, трети срязък, `317fe82`):** `RuntimeShell` вече имплементира `Daqster::RuntimeController` и държи `ControlPlaneServer`, така че `NodeRunner --run <flow> --rest-port N` сервира **същия** API като headless (преди `RuntimeHostGuiPluginObject` наследяваше default-ния `configureControlPlane()` → `false` и стартът се проваляше с „did not enable it"). Контролерът достъпва графа lazy, защото bootstrap-ът вдига сървъра преди `RunRuntime()` да построи canvas-а; `POST /api/flow` стопва стария граф, rebuild-ва MDI workspaces и ре-стартира autoStart нодовете; `flowJson()` round-trip-ва UI секцията през `FlowUi::UiSection::toJson()`. Извлечен е споделен `NodeSchemaBuilder.h`, за да дават headless и GUI идентичен `/api/nodes/{id}/schema`.
+  **Остават** (следващи срезове): `dataPreview`, mTLS, автоматични тестове, RBAC/rate-limit (v2).
 
 ### Changed
 - **REQ-SW-PL-048 — споделен widget-free `AppBootstrap` в `FrameworkCore`** (2026-10-11, клон `refactor/REQ-SW-PL-048-shared-app-bootstrap`):
@@ -319,13 +320,15 @@
   REQ-SW-PL-051).
 
 ### Documentation
-- **REQ-SW-PL-054** (REST API & Remote Control) — **IMPLEMENTED (v0.2, клон
-  `feat/REQ-SW-PL-054-rest-control-plane`)**. Изискване:
+- **REQ-SW-PL-054** (REST API & Remote Control) — **IMPLEMENTED (v0.3, клон
+  `feat/REQ-SW-PL-054-rest-control-plane`; GUI режим от `317fe82`)**. Изискване:
   `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-054-rest-api-remote-control.md`.
   Архитектурен документ (пренаписан 2026-10-11 като **as-built**):
   `docs/Architecture/rest-api-remote-control.md` — `ControlPlaneServer` върху
   `QTcpServer` (една реализация за Qt5/Qt6), REST + WS върху
   `NodeDelegateModel::save()/load()`, OpenAPI/Swagger UI, вграден web console.
+  `RuntimeController` е имплементиран и от GUI `RuntimeShell`, така че API-ът е
+  идентичен в двата runtime режима.
   Thin Client remote GUI, streaming и multi-user остават бъдещи REQ-и.
 - Дублиращият се REQ-SW-PL-053 файл (`nodeeditor-plugin-split.md`) е премахнат;
   каноничен е `nodeeditoride-split.md`.
