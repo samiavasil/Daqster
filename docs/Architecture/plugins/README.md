@@ -10,17 +10,24 @@
 
 | Plugin | Локация | Тип | Описание |
 |--------|---------|-----|----------|
-| **Node Editor IDE** | `src/plugins/node_editor_ide/` | APPLICATION_PLUGIN | Визуален node-based редактор с вградени нодове (NumberSource, NumberDisplay, Modulo, ArithmeticLogic) |
-| **Demo NodeEditor Nodes** | `src/plugins/nodeditor_nodes/` | Node Provider | INodeProvider — доставя AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux + Video нодове (Camera/File/Stream/Output/Effect/CustomShader/Sampler) |
-| **QtCoinTrader** | `src/plugins/qt_coin_trader/` | APPLICATION_PLUGIN | Cryptocurrency trading plugin |
-| **Requirements Manager** | `src/plugins/requirements_manager/` | APPLICATION_PLUGIN | Markdown-based traceable requirements viewer/editor (REQ-SW-PL-*) |
+| **Node Editor IDE** | `src/plugins/node_editor/node_editor_ide/` | APPLICATION_PLUGIN | IDE shell — `QMainWindow` + `NodeEditorWidget` (QtNodes canvas), открива `INodeProvider`-и; + `NodeSupport` (`libNodeEditorLibrary.so`) |
+| **Nodeditor Nodes** | `src/plugins/node_editor/nodeditor_nodes/{core,gui}/` | Node Provider (`core`) + Widget Provider (`gui`) | Доставя Audio/Video/DAQ/LLaMA/Display/Routing нодове; `core` е headless, `gui` държи widget-ите |
+| **Runtime Host Headless** | `src/plugins/runtime_host/headless/` | Runtime Host | `IRuntimeHost` — вдига граф без GUI (`HeadlessEngine`) |
+| **Runtime Host GUI** | `src/plugins/runtime_host/gui/` | Runtime Host | `IRuntimeHost` — вдига графа с прозорци (`RuntimeShell` + MDI) |
+| **QtCoinTrader** | `src/plugins/qt_coin_trader/` | APPLICATION_PLUGIN | Cryptocurrency trading plugin (QML UI) |
+| **Requirements Manager** | `src/plugins/requirements_manager/` | APPLICATION_PLUGIN | Markdown-based traceable requirements viewer/editor (RDD) |
+
+> Всеки плъгин може да има **`core`** (headless, widget-free) и **`gui`** (QtWidgets)
+> половина — виж [core-gui-split](../core-gui-split.md). Договорите:
+> [capabilities](../capabilities.md).
 
 ### Plugin документация
 
 Всяка основна плъгин компонента има своя документация:
 
-- [Node Editor IDE](../../plugins/node_editor_ide/README.md) — архитектура, вградени нодове, INodeProvider discovery
-- [Demo NodeEditor Nodes](../../plugins/nodeditor_nodes/README.md) — INodeProvider пример, доставени нодове
+- [Node Editor IDE](../../plugins/node_editor_ide/README.md) — архитектура, NodeSupport, INodeProvider discovery
+- [Nodeditor Nodes](../../plugins/nodeditor_nodes/README.md) — INodeProvider/IWidgetProvider доставчик, доставени нодове
+- [Node Editor (подсистема)](../node_editor/README.md) — цялостният изглед + [nodes.md](../node_editor/nodes.md)
 
 ### Requirements Manager (REQ-SW-PL-009 — Interactive Dependency Graph Viewer)
 
@@ -182,7 +189,7 @@ builds + unit тестове + headless smoke test) по RDD-PROCESS.md. Инд�
 
 ## External Libraries
 
-- **nodeeditor** (`src/plugins/external_libs/nodeeditor/`) — Node editor library (git submodule)
+- **nodeeditor** (`src/plugins/external_libs/nodeeditor/`) — Node editor library (git submodule) → **`QtNodesCore`** (model-only, QtCore+QtGui) + **`QtNodes`** (QtWidgets canvas)
 - **qtrest_lib** (`src/plugins/external_libs/qtrest_lib/`) — REST API client (git submodule)
 
 ## Architecture
@@ -238,7 +245,7 @@ INodeProvider             ← Standalone capability interface (Q_DECLARE_INTERFA
 Capability интерфейсите (INodeProvider) са standalone — `QBasePluginObject` наследниците ги имплементират директно чрез multiple inheritance:
 
 ```cpp
-class DemoStandardNodesObject : public QBasePluginObject, public INodeProvider
+class NodeditorNodesCoreObject : public QBasePluginObject, public Daqster::INodeProvider
 {
     Q_OBJECT
     Q_INTERFACES(Daqster::INodeProvider)
@@ -266,4 +273,6 @@ Environment variables:
 
 - [Plugin Development](./PluginDevelopment.md)
 - [Node Editor IDE](../../plugins/node_editor_ide/README.md)
-- [Demo NodeEditor Nodes](../../plugins/nodeditor_nodes/README.md)
+- [Nodeditor Nodes](../../plugins/nodeditor_nodes/README.md)
+- [Node Editor (подсистема)](../node_editor/README.md)
+- [Capabilities](../capabilities.md)

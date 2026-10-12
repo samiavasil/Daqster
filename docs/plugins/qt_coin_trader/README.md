@@ -32,7 +32,7 @@ qt_coin_trader/
 
 ### QPluginInterface ( frame_work )
 ```
-DaqsterTemplateInterface → QPluginInterface
+QtCoinTraderInterface → QPluginInterface
   ├── Q_PLUGIN_METADATA(IID "Daqster.PlugIn.QPluginInterface")
   ├── CreatePluginInternal() → създава QtCoinTraderPluginObject
   └── PLUGIN_NAME = "QtCoinTrader"

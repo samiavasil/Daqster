@@ -1,5 +1,11 @@
 # Daqster Runtime Mode — Архитектурно предложение
 
+> **Историческа бележка (2026-10-12):** това е оригиналното архитектурно
+> *предложение* за runtime режимите. Повечето вече е реализирано — **каноничното
+> описание „как е сега" е [Core/GUI Split](core-gui-split.md)** (runtime host
+> плъгини, `RuntimeMode`, споделен `AppBootstrap`, `NodeRunner`). Документът се
+> пази заради контекста и уроците (SDRangel), но **не е source of truth**.
+
 ## 1. Визия
 
 "Node diagram = application". Два режима:

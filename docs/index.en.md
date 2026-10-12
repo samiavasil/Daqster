@@ -8,7 +8,8 @@ This is the main navigation page. Only top-level entry points live here.
 
 - [Project on GitHub](https://github.com/samiavasil/Daqster) - source code, README, and project overview
 - [Architecture](./Architecture/README.en.md) - architecture hub and subsystem navigation
-- [Plugins](./plugins/README.md) - hub for plugin documentation (Node Editor IDE, Demo Nodes, QtCoinTrader) *(BG)*
+- [Node Editor](./Architecture/node_editor/README.md) - the node editor subsystem (QtNodes, IDE, nodes, ADRs, capabilities) *(BG)*
+- [Plugins](./plugins/README.md) - hub for plugin documentation (Nodeditor Nodes, Node Editor IDE, Runtime Hosts, QtCoinTrader) *(BG)*
 - [Development Topics](./development/README.md) - development workflow and debugging topics *(BG)*
 - [Operations Topics](./operations/README.md) - build, maintenance, and operational topics *(BG)*
 - [Porting Topics](./porting/README.md) - migration and compatibility topics *(BG)*

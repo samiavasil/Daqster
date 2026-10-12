@@ -85,7 +85,7 @@
 ## 3. `autoStart` семантика
 
 - **Файлово-ниво поле** в `ui.nodes[<id>].autoStart` (default `false`).
-- При `--run <flow>` RuntimeShell-ът чете флага и вика `IStartable::start()` върху нодовете, които го имплементират (source/sink нодове с „start" действие). Виж `shared/IStartable.h`.
+- При `--run <flow>` RuntimeShell-ът чете флага и вика `IStartable::start()` върху нодовете, които го имплементират (source/sink нодове с „start" действие). Виж `src/plugins/common/capabilities/IStartable.h`.
 - **Днес НЕ е конфигурируемо от IDE.** Няма UI контрол (checkbox/context menu), който да го записва. Единствените начини да се зададе:
   - ръчно редактиране на `.flow` JSON (perf/harness flows — `tests/data/*.flow`),
   - програмен път чрез dev driver env vars (`DAQSTER_AUTOSTART_VIDEO`, `DAQSTER_AUTOSTART_FLOW`).
@@ -93,7 +93,7 @@
 
 ## 4. Runtime mode `--run` (REQ-SW-PL-048)
 
-- CLI: `Daqster --run <path/to/scene.flow>` — зарежда scene и прилага `ui` секцията (workspaces, deembed state, geometry, autoStart) в runtime shell вместо редактор.
+- CLI: `NodeRunner --run <path/to/scene.flow>` (GUI) или `NodeRunner --headless --run <path/to/scene.flow>` — зарежда scene и прилага `ui` секцията (workspaces, deembed state, geometry, autoStart) в runtime shell вместо редактор.
 - MDI workspaces: `RuntimeShell` управлява sub-windows; `tabbed`/cascade според `workspaces[]`.
 - Env vars за автоматизация (dev/perf drivers):
   - `DAQSTER_AUTOSTART_VIDEO=1` — програмен video-source flow (dev driver)
@@ -102,7 +102,7 @@
 
 ## 5. Интерфейси (CP-1/CP-3)
 
-### `IStoppable` (`src/plugins/nodeditor_nodes/shared/IStoppable.h`)
+### `IStoppable` (`src/plugins/common/capabilities/IStoppable.h`)
 ```cpp
 namespace Daqster {
 class IStoppable {
@@ -115,7 +115,7 @@ class IStoppable {
 - **Idempotent:** `stop()` трябва да е безопасно за многократно извикване.
 - Реализация: всички source/sink нодове с QThread/QTimer/QProcess (по списъка в runtime-mode-architecture.md §4.3).
 
-### `IStartable` (`src/plugins/nodeditor_nodes/shared/IStartable.h`)
+### `IStartable` (`src/plugins/common/capabilities/IStartable.h`)
 ```cpp
 namespace Daqster {
 class IStartable {
