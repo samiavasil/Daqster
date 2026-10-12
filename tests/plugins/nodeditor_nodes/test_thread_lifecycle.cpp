@@ -7,7 +7,7 @@
 #include <capabilities/IStartable.h>
 #include <capabilities/IStoppable.h>
 
-// …and the models inherit it from src/plugins/nodeditor_nodes/core/shared/,
+// …and the models inherit it from src/plugins/node_editor/nodeditor_nodes/core/shared/,
 // which is now a forwarding shim to the canonical capabilities/ header
 // (REQ-SW-PL-050 "Оставащ дълг" #1). Including both paths below is deliberate,
 // and bothInterfaceHeadersDeclareTheSameType() asserts they resolve to the
@@ -176,7 +176,7 @@ QVector<TestThreadLifecycle::ModelEntry> TestThreadLifecycle::startableWithoutDe
 // Daqster::IStoppable is declared TWICE, in two byte-identical headers:
 //
 //   src/plugins/common/capabilities/IStoppable.h          ← the interface
-//   src/plugins/nodeditor_nodes/core/shared/IStoppable.h  ← a copy
+//   src/plugins/node_editor/nodeditor_nodes/core/shared/IStoppable.h  ← a copy
 //
 // All 19 node models inherit the second. The three shutdown paths cast to the
 // first:

@@ -50,8 +50,8 @@
 - `VideoEffectNode::name()` → `"VideoEffect"`;
 - `VideoOutputNode::name()` → `"VideoOutput"`.
 
-Регистрацията е в `src/plugins/node_editor_ide/NodeEditorIdeObject.cpp:145-153`
-(built-in) и `src/plugins/nodeditor_nodes/core/NodeditorNodesCoreObject.cpp:88-128`
+Регистрацията е в `src/plugins/node_editor/node_editor_ide/NodeEditorIdeObject.cpp:145-153`
+(built-in) и `src/plugins/node_editor/nodeditor_nodes/core/NodeditorNodesCoreObject.cpp:88-128`
 (demo нодове).
 
 ### 1.2 Как се използват
@@ -63,7 +63,7 @@
    - параметрите на нодовете са възстановени (напр. `VideoEffect` показва
      избрания ефект и стойностите на слайдерите).
 2. **Програмно (loadSceneTolerant):** `NodeEditorIdeObject::loadSceneTolerant()`
-   (`src/plugins/node_editor_ide/NodeEditorIdeObject.cpp:225-304`) чете файла,
+   (`src/plugins/node_editor/node_editor_ide/NodeEditorIdeObject.cpp:225-304`) чете файла,
    маха нерегистрираните нодове и dangling връзките, после вика
    `graphModel()->load()`. Същият път се ползва и от File менюто.
 3. **Round-trip проверка:** след load → Save Scene… → сравни новия файл с
@@ -109,7 +109,7 @@
 - **Skill:** `daqster-perf-testing` (частното repo, `.opencode/skills/`) —
   Qt5/Qt6 perf harness, GL blit измервания, perf профилиране.
 - **Програмен graph builder:** `NodeEditorIdeObject::autoStartVideo()`
-  (`src/plugins/node_editor_ide/NodeEditorIdeObject.cpp:311-474`) строи
+  (`src/plugins/node_editor/node_editor_ide/NodeEditorIdeObject.cpp:311-474`) строи
   `VideoFileSource → VideoOutput` граф програмно и стартира playback без GUI
   интеракция. Env vars:
   - `DAQSTER_AUTOSTART_VIDEO=1` — включва autoStartVideo;

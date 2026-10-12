@@ -314,8 +314,8 @@ grep -n "class INodeProvider" src/plugins/common/capabilities/INodeProvider.h
 ```bash
 grep -ln "nodeProviders()" \
   src/frame_work/base/src/engine/HeadlessEngine.cpp \
-  src/plugins/node_editor_ide/NodeEditorIdeObject.cpp \
-  src/plugins/node_editor_ide/RuntimeShell.cpp
+  src/plugins/node_editor/node_editor_ide/NodeEditorIdeObject.cpp \
+  src/plugins/node_editor/node_editor_ide/RuntimeShell.cpp
 ```
 **Очаквано: и трите файла**
 

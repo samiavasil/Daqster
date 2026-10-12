@@ -10,7 +10,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **REQ-SW-PL-048 — shared widget-free `AppBootstrap` in `FrameworkCore`** (2026-10-11, branch `refactor/REQ-SW-PL-048-shared-app-bootstrap`):
   `NodeRunner` and `Daqster` duplicated the same startup choreography (logging init → `ShutdownHandler` → `QPluginManager::Initialize()`/`SearchForPlugins()` → runtime-host resolution → event loop → ordered teardown). It now lives once in `Daqster::AppBootstrap` (`src/frame_work/base/src/app/`), which is **widget-free** (FrameworkCore links only QtCore): it does not build an application object but takes an already-constructed `QCoreApplication&`, so the same bootstrap serves a headless binary (no QtWidgets) and a GUI binary (`QApplication`). `NodeRunner` is rewritten on top of it; `Daqster/main.cpp` uses it for the shared part (logging, shutdown handler, plugin init, teardown) while keeping its app-specific logic. The bootstrap also carries `--rest-port`/`--rest-bind`/`--rest-token`/`--rest-web-root` (REQ-SW-PL-054) and hands them to the host via `IRuntimeHost::configureControlPlane()` — a host without remote control makes startup fail loudly instead of silently implying a REST server is up.
 - **REQ-SW-PL-060 — node-provider `<plugin>/{core,gui}` convention + shared-library rename** (2026-10-09, branch `feat/REQ-SW-PL-056-headless-all-node-components`):
-  - `src/plugins/nodeditor_nodes_core/` + `src/plugins/nodeditor_nodes_gui/` merged into one plugin `src/plugins/nodeditor_nodes/{core,gui}/` (framework convention documented in `docs/Architecture/core-gui-split.md` and `docs/Architecture/plugins/PluginDevelopment.md`).
+  - `src/plugins/node_editor/nodeditor_nodes_core/` + `src/plugins/node_editor/nodeditor_nodes_gui/` merged into one plugin `src/plugins/node_editor/nodeditor_nodes/{core,gui}/` (framework convention documented in `docs/Architecture/core-gui-split.md` and `docs/Architecture/plugins/PluginDevelopment.md`).
   - Classes/targets/OUTPUT_NAME: `DemoNodeEditorNodesCore*` → `NodeditorNodesCore*`, `DemoNodeEditorNodesGui*` → `NodeditorNodesGui*` (`libNodeditorNodesCorePlugin.so` / `libNodeditorNodesGuiPlugin.so`).
   - Shared support library renamed `PluginsCommonLibrary` → `DaqsterCommonLibrary` so `PluginDiscovery::isCandidatePluginFile()` no longer treats it as a plugin.
 - **REQ-SW-PL-061 — runtime-host plugins renamed + unified folder naming** (2026-10-09, branch `feat/REQ-SW-PL-056-headless-all-node-components`):
@@ -33,7 +33,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Every node and the whole flow can now be driven remotely with GUI parity. A transport-independent `ControlPlaneRouter` (`src/frame_work/base/src/control/ControlPlaneRouter.{h,cpp}`) — a pure `route(method,path,body,bodyValid) → {handled,status,body}` — is shared by the HTTP transport **and** the new WebSocket RPC (`{"id","method","path","body"}` → `{"id","status","body"}` on `/api/events`), so the API is defined once and is testable without a socket. `RuntimeController` gains `nodeTypes`, `connections`, `nodeDetail`, `createNode`, `removeNode`, `setNodePosition`, `setNodeLabel`, `addConnection`, `removeConnection`, `saveFlow`, `typeSchema`, implemented in **both** hosts (`HeadlessEngine` — widget-free; GUI `RuntimeShell` — new nodes are deembedded into an MDI workspace). New endpoints: `GET /api/node-types`, `POST /api/nodes`, `GET/PATCH/DELETE /api/nodes/{id}` (detail / move+label / delete), `GET/POST/DELETE /api/connections` (`POST` runs `connectionPossible()`), `POST /api/flow/save`. `GET /api/nodes/{id}` now returns a superset (`config`+`schema`+`position`+`label`+`ports`+`state`). Enriched schema via the new widget-free capability `Daqster::INodeConfigSchema` (`plugins/common/capabilities/INodeConfigSchema.h`, dynamic_cast with fallback to the previous `save()`-derived schema) — `VideoEffectNode` is the pilot (enum for `effect`, min/max/default, `visibleWhen`); `NodeSchemaBuilder.h` gains a 3-argument merge. WebSocket is now bidirectional; new events `nodeCreated`/`nodeDeleted`/`nodeMoved`/`connectionCreated`/`connectionDeleted`. The bundled web console (AC14) is rewritten: create/delete, a connections table with a **connect form** (from node:port → to node:port, ports populated from node detail) and per-edge disconnect, a **schema-generated** config form (enum→select, range→number, `visibleWhen` hides irrelevant fields, raw-JSON fallback), Save flow, live log. New headless unit test `tests/framework/control/` — 26 cases over `ControlPlaneRouter::route()` and the schema merge (`-DDAQSTER_BUILD_TESTS=ON`). Builds on Qt5 + Qt6; 19/19 ctest; smoke-tested headless and GUI (REST + WS RPC). REST mutations **bypass** `QUndoStack` (documented non-goal).
 - **REQ-SW-PL-048** (Runtime mode — `--run <flow.flow>`, MDI workspaces, autoStart, presentation toggle):
   - CLI: `Daqster --run <file.flow>` starts runtime mode without editor canvas
-  - `RuntimeShell` class (`src/plugins/node_editor_ide/RuntimeShell.{h,cpp}`):
+  - `RuntimeShell` class (`src/plugins/node_editor/node_editor_ide/RuntimeShell.{h,cpp}`):
     - QMainWindow shell with QMdiArea workspaces (SDRangel model)
     - Reuses `NodeEditorIdeObject` registration + loading logic
     - MDI layout: per-workspace QMdiArea, tabbed/SubWindow view mode
@@ -48,7 +48,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     - Delegates to existing start logic (onStartRequested/onPlayPauseClicked/onConnectClicked/onStartStopClicked)
   - Presentation toggle in editor (F11): hides canvas, shows deembedded widgets
     as top-level windows; toggle back restores editor mode
-  - Code: `src/apps/Daqster/main.cpp` (--run flag), `src/plugins/node_editor_ide/`
+  - Code: `src/apps/Daqster/main.cpp` (--run flag), `src/plugins/node_editor/node_editor_ide/`
     (RuntimeShell, NodeEditorIdeObject), `src/plugins/demo_nodeditor_nodes/`
     (IStartable implementations)
   - Verification: Qt5/Qt6 builds PASS + --run smoke PASS + MDI layout PASS +
@@ -69,7 +69,7 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     load — restores deembed state + geometry + autoStart flags; tolerant
     guard for missing nodes; old .flow without "ui" → current behavior;
     version > 1 → warning + empty section
-  - Code: `src/plugins/node_editor_ide/` (FlowUiSection, NodeEditorIdeObject)
+  - Code: `src/plugins/node_editor/node_editor_ide/` (FlowUiSection, NodeEditorIdeObject)
   - Verification: Qt5/Qt6 builds PASS + ctest 11/11 green (Qt5) + FlowUiSection
     JSON round-trip smoke PASS + IDE smoke PASS (capture/apply: deembed +
     geometry + autoStart, offscreen) + load smoke PASS (hand-written .flow
@@ -201,11 +201,11 @@ the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `ExprParser` — recursive descent C++ expression evaluator (all C/C++ operators: `+`,`-`,`*`,`/`,`%`,`&`,`|`,`^`,`~`,`<<`,`>>`,`&&`,`||`,`!`,`==`,`!=`,`<`,`>`,`<=`,`>=`,`?:`)
   - `ArithmeticLogicModel` — configurable node: type (int/double), 2–8 inputs, expression field, optional strobe
   - Variables `a`–`h` map to input ports
-- **NodeEditorWidget Shared Component** (`src/plugins/node_editor_ide/NodeEditorWidget.{h,cpp}`):
+- **NodeEditorWidget Shared Component** (`src/plugins/node_editor/node_editor_ide/NodeEditorWidget.{h,cpp}`):
   - `NodeEditorWidget` - shared Qt Widgets GUI for node-based editors (used by Node Editor IDE)
   - `ChatGraphModel` - loop-enabled graph model
   - Auto-injects the standard Daqster nodes (Audio, Media, Graphs, AI, etc.)
-- **NodeEditorIDE Plugin** (`src/plugins/node_editor_ide/`):
+- **NodeEditorIDE Plugin** (`src/plugins/node_editor/node_editor_ide/`):
   - Base graphical plugin using `NodeEditorWidget`
   - `APPLICATION_PLUGIN` type with `create_plugin()` macro
 - **Framework Architecture Refactoring** - major refactoring to extract reusable components:

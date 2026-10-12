@@ -45,11 +45,11 @@ create_plugin(RuntimeHostHeadlessPlugin
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/engine
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Displays
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Operators
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/shared
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Operators
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/shared
 )
 
 # Windows: export all symbols from the plugin DLL
