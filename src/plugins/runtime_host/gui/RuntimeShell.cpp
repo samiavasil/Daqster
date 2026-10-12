@@ -7,6 +7,7 @@
 #include "LogCategories.h"
 #include "shared/IStartable.h"
 #include "shared/IStoppable.h"
+#include "capabilities/INodeConfigSchema.h"
 
 // REQ-SW-PL-054: the control plane is a mode-agnostic seam. ControlPlaneServer
 // lives in FrameworkCore; the GUI host plugs itself in as the RuntimeController.
@@ -27,9 +28,12 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QMessageBox>
+#include <QPointF>
 #include <QSet>
 #include <QDir>
 #include <QCloseEvent>
+
+#include <algorithm>
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
@@ -620,6 +624,38 @@ bool RuntimeShell::startControlPlane(const Daqster::ControlPlaneOptions& options
                 m_controlPlane->broadcastEvent(QStringLiteral("nodeError"),
                                                {{QStringLiteral("message"), message}});
             });
+    // Graph mutations (REQ-SW-PL-063 AC13)
+    connect(this, &RuntimeShell::nodeCreated, m_controlPlane.get(),
+            [this](QtNodes::NodeId id) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeCreated"),
+                                               {{QStringLiteral("nodeId"), static_cast<qint64>(id)}});
+            });
+    connect(this, &RuntimeShell::nodeDeleted, m_controlPlane.get(),
+            [this](QtNodes::NodeId id) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeDeleted"),
+                                               {{QStringLiteral("nodeId"), static_cast<qint64>(id)}});
+            });
+    connect(this, &RuntimeShell::nodeMoved, m_controlPlane.get(),
+            [this](QtNodes::NodeId id) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeMoved"),
+                                               {{QStringLiteral("nodeId"), static_cast<qint64>(id)}});
+            });
+    connect(this, &RuntimeShell::connectionCreated, m_controlPlane.get(),
+            [this](quint64 outNodeId, int outPortIndex, quint64 inNodeId, int inPortIndex) {
+                m_controlPlane->broadcastEvent(QStringLiteral("connectionCreated"),
+                                               {{QStringLiteral("outNodeId"), static_cast<qint64>(outNodeId)},
+                                                {QStringLiteral("outPortIndex"), outPortIndex},
+                                                {QStringLiteral("inNodeId"), static_cast<qint64>(inNodeId)},
+                                                {QStringLiteral("inPortIndex"), inPortIndex}});
+            });
+    connect(this, &RuntimeShell::connectionDeleted, m_controlPlane.get(),
+            [this](quint64 outNodeId, int outPortIndex, quint64 inNodeId, int inPortIndex) {
+                m_controlPlane->broadcastEvent(QStringLiteral("connectionDeleted"),
+                                               {{QStringLiteral("outNodeId"), static_cast<qint64>(outNodeId)},
+                                                {QStringLiteral("outPortIndex"), outPortIndex},
+                                                {QStringLiteral("inNodeId"), static_cast<qint64>(inNodeId)},
+                                                {QStringLiteral("inPortIndex"), inPortIndex}});
+            });
 
     QString error;
     if (!m_controlPlane->start(options, &error)) {
@@ -772,7 +808,7 @@ QJsonObject RuntimeShell::flowJson() const
 QJsonObject RuntimeShell::nodeSchema(quint64 nodeId) const
 {
     auto* graph = graphModel();
-    if (!graph || !m_editorWidget)
+    if (!graph)
         return {};
 
     auto* model = graph->delegateModel<QtNodes::NodeDelegateModel>(
@@ -780,11 +816,18 @@ QJsonObject RuntimeShell::nodeSchema(quint64 nodeId) const
     if (!model)
         return {};
 
+    return typeSchema(model->name());
+}
+
+QJsonObject RuntimeShell::typeSchema(const QString& type) const
+{
+    if (!m_editorWidget)
+        return {};
+
     auto* registry = m_editorWidget->getInjectedRegistry();
     if (!registry)
         return {};
 
-    const QString type = model->name();
     const auto& creators = registry->registeredModelCreators();
     const auto creatorIt = creators.find(type);
     if (creatorIt == creators.end())
@@ -794,8 +837,298 @@ QJsonObject RuntimeShell::nodeSchema(quint64 nodeId) const
     if (!fresh)
         return {};
 
-    // Defaults from a throw-away instance describe the expected shape.
-    return Daqster::nodeConfigSchema(fresh->save(), type);
+    // Enriched schema when the model self-describes (REQ-SW-PL-063 AC10).
+    const auto* described = dynamic_cast<const Daqster::INodeConfigSchema*>(fresh.get());
+    const QJsonObject provided = described ? described->configSchema() : QJsonObject();
+    return Daqster::nodeConfigSchema(fresh->save(), type, provided);
+}
+
+QVector<Daqster::RuntimeController::NodeTypeInfo> RuntimeShell::nodeTypes() const
+{
+    QVector<NodeTypeInfo> result;
+    if (!m_editorWidget)
+        return result;
+
+    auto* registry = m_editorWidget->getInjectedRegistry();
+    if (!registry)
+        return result;
+
+    const auto& creators = registry->registeredModelCreators();
+    const auto& association = registry->registeredModelsCategoryAssociation();
+    result.reserve(static_cast<int>(creators.size()));
+    for (auto it = creators.begin(); it != creators.end(); ++it) {
+        NodeTypeInfo info;
+        info.type = it->first;
+        const auto catIt = association.find(it->first);
+        if (catIt != association.end())
+            info.category = catIt->second;
+        result.append(info);
+    }
+    std::sort(result.begin(), result.end(),
+              [](const NodeTypeInfo& a, const NodeTypeInfo& b) {
+                  if (a.category != b.category)
+                      return a.category < b.category;
+                  return a.type < b.type;
+              });
+    return result;
+}
+
+QVector<Daqster::RuntimeController::ConnectionInfo> RuntimeShell::connections() const
+{
+    QVector<ConnectionInfo> result;
+    auto* graph = graphModel();
+    if (!graph)
+        return result;
+
+    const QJsonArray edges = graph->save().value(QStringLiteral("connections")).toArray();
+    result.reserve(edges.size());
+    for (const QJsonValue& value : edges) {
+        const QJsonObject c = value.toObject();
+        ConnectionInfo info;
+        info.outNodeId = static_cast<quint64>(c.value(QStringLiteral("outNodeId")).toInt());
+        info.outPortIndex = c.value(QStringLiteral("outPortIndex")).toInt();
+        info.inNodeId = static_cast<quint64>(c.value(QStringLiteral("inNodeId")).toInt());
+        info.inPortIndex = c.value(QStringLiteral("inPortIndex")).toInt();
+        result.append(info);
+    }
+    return result;
+}
+
+QJsonObject RuntimeShell::nodeDetail(quint64 nodeId) const
+{
+    auto* graph = graphModel();
+    if (!graph)
+        return {};
+
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    auto* model = graph->delegateModel<QtNodes::NodeDelegateModel>(id);
+    if (!model)
+        return {};
+
+    QJsonObject ports;
+    QJsonArray inPorts;
+    for (unsigned int i = 0; i < model->nPorts(QtNodes::PortType::In); ++i) {
+        inPorts.append(QJsonObject{{QStringLiteral("index"), static_cast<int>(i)},
+                                   {QStringLiteral("caption"),
+                                    model->portCaption(QtNodes::PortType::In,
+                                                       static_cast<QtNodes::PortIndex>(i))}});
+    }
+    QJsonArray outPorts;
+    for (unsigned int i = 0; i < model->nPorts(QtNodes::PortType::Out); ++i) {
+        outPorts.append(QJsonObject{{QStringLiteral("index"), static_cast<int>(i)},
+                                    {QStringLiteral("caption"),
+                                     model->portCaption(QtNodes::PortType::Out,
+                                                        static_cast<QtNodes::PortIndex>(i))}});
+    }
+    ports.insert(QStringLiteral("in"), inPorts);
+    ports.insert(QStringLiteral("out"), outPorts);
+
+    QJsonObject position;
+    const QVariant pos = graph->nodeData(id, QtNodes::NodeRole::Position);
+    if (pos.canConvert<QPointF>()) {
+        const QPointF p = pos.toPointF();
+        position.insert(QStringLiteral("x"), p.x());
+        position.insert(QStringLiteral("y"), p.y());
+    }
+
+    QJsonObject out;
+    out.insert(QStringLiteral("id"), static_cast<qint64>(id));
+    out.insert(QStringLiteral("type"), model->name());
+    out.insert(QStringLiteral("name"), model->caption());
+    // The visible label lives on the graph model (NodeRole::Label), not on the
+    // delegate model — model->label() is the type's default annotation.
+    out.insert(QStringLiteral("label"),
+               graph->nodeData(id, QtNodes::NodeRole::Label).toString());
+    out.insert(QStringLiteral("labelVisible"),
+               graph->nodeData(id, QtNodes::NodeRole::LabelVisible).toBool());
+    out.insert(QStringLiteral("state"),
+               m_runningNodes.value(id, false) ? QStringLiteral("running")
+                                               : QStringLiteral("stopped"));
+    out.insert(QStringLiteral("position"), position);
+    out.insert(QStringLiteral("ports"), ports);
+    out.insert(QStringLiteral("config"), model->save());
+    out.insert(QStringLiteral("schema"), typeSchema(model->name()));
+    return out;
+}
+
+void RuntimeShell::deembedNewNode(QtNodes::NodeId nodeId)
+{
+    if (!m_editorWidget || !m_editorWidget->scene() || m_mdiAreas.empty())
+        return;
+
+    QtNodes::NodeGraphicsObject* node = m_editorWidget->scene()->nodeGraphicsObject(nodeId);
+    if (node == nullptr || !node->isWidgetEmbedded())
+        return;
+
+    auto* model = m_editorWidget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
+    QWidget* widget = m_editorWidget->nodeWidget(nodeId);
+    if (model == nullptr || widget == nullptr)
+        return;
+
+    node->setWidgetEmbedded(false);
+
+    QMdiArea* targetMdi = m_mdiAreas.front();
+    QMdiSubWindow* subWindow = targetMdi->addSubWindow(widget);
+    subWindow->setWindowTitle(model->caption());
+    subWindow->resize(480, 320);
+    clearWindowFlags(widget);
+    subWindow->show();
+}
+
+quint64 RuntimeShell::createNode(const QString& type, double x, double y,
+                                 const QJsonObject& config, QString* errorMessage)
+{
+    auto* graph = graphModel();
+    if (!graph || !m_editorWidget) {
+        if (errorMessage)
+            *errorMessage = tr("runtime canvas not ready");
+        return 0;
+    }
+
+    auto* registry = m_editorWidget->getInjectedRegistry();
+    if (!registry || !registry->registeredModelCreators().count(type)) {
+        if (errorMessage)
+            *errorMessage = tr("unknown node type: %1").arg(type);
+        return 0;
+    }
+
+    const QtNodes::NodeId id = graph->addNode(type);
+    graph->setNodeData(id, QtNodes::NodeRole::Position, QPointF(x, y));
+
+    if (!config.isEmpty()) {
+        if (auto* model = graph->delegateModel<QtNodes::NodeDelegateModel>(id))
+            model->load(config);
+    }
+
+    // Remember the node as a deembedded widget so flowJson()/reloadFlow()
+    // round-trip the layout it now has on screen.
+    FlowUi::NodeUi nui;
+    nui.deembedded = true;
+    nui.workspace = 0;
+    m_uiSection.nodes.insert(id, nui);
+
+    deembedNewNode(id);
+    emit nodeCreated(id);
+    return static_cast<quint64>(id);
+}
+
+bool RuntimeShell::removeNode(quint64 nodeId, QString* errorMessage)
+{
+    auto* graph = graphModel();
+    if (!graph) {
+        if (errorMessage)
+            *errorMessage = tr("runtime canvas not ready");
+        return false;
+    }
+
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    if (!graph->delegateModel<QtNodes::NodeDelegateModel>(id)) {
+        if (errorMessage)
+            *errorMessage = tr("node not found");
+        return false;
+    }
+
+    const QVector<ConnectionInfo> edges = connections();
+    graph->deleteNode(id);
+    m_runningNodes.remove(id);
+    m_uiSection.nodes.remove(id);
+
+    for (const ConnectionInfo& c : edges) {
+        if (c.outNodeId == nodeId || c.inNodeId == nodeId)
+            emit connectionDeleted(c.outNodeId, c.outPortIndex, c.inNodeId, c.inPortIndex);
+    }
+    emit nodeDeleted(id);
+    return true;
+}
+
+bool RuntimeShell::setNodePosition(quint64 nodeId, double x, double y)
+{
+    auto* graph = graphModel();
+    if (!graph)
+        return false;
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    if (!graph->delegateModel<QtNodes::NodeDelegateModel>(id))
+        return false;
+    graph->setNodeData(id, QtNodes::NodeRole::Position, QPointF(x, y));
+    emit nodeMoved(id);
+    return true;
+}
+
+bool RuntimeShell::setNodeLabel(quint64 nodeId, const QString& label, bool visible)
+{
+    auto* graph = graphModel();
+    if (!graph)
+        return false;
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    if (!graph->delegateModel<QtNodes::NodeDelegateModel>(id))
+        return false;
+    graph->setNodeData(id, QtNodes::NodeRole::Label, label);
+    graph->setNodeData(id, QtNodes::NodeRole::LabelVisible, visible);
+    emit nodeMoved(id);
+    return true;
+}
+
+bool RuntimeShell::addConnection(const ConnectionInfo& connection, QString* errorMessage)
+{
+    auto* graph = graphModel();
+    if (!graph) {
+        if (errorMessage)
+            *errorMessage = tr("runtime canvas not ready");
+        return false;
+    }
+
+    const QtNodes::ConnectionId c{
+        static_cast<QtNodes::NodeId>(connection.outNodeId),
+        static_cast<QtNodes::PortIndex>(connection.outPortIndex),
+        static_cast<QtNodes::NodeId>(connection.inNodeId),
+        static_cast<QtNodes::PortIndex>(connection.inPortIndex)};
+
+    if (!graph->connectionPossible(c)) {
+        if (errorMessage)
+            *errorMessage = tr("connection not possible");
+        return false;
+    }
+    graph->addConnection(c);
+    emit connectionCreated(connection.outNodeId, connection.outPortIndex,
+                           connection.inNodeId, connection.inPortIndex);
+    return true;
+}
+
+bool RuntimeShell::removeConnection(const ConnectionInfo& connection)
+{
+    auto* graph = graphModel();
+    if (!graph)
+        return false;
+
+    const QtNodes::ConnectionId c{
+        static_cast<QtNodes::NodeId>(connection.outNodeId),
+        static_cast<QtNodes::PortIndex>(connection.outPortIndex),
+        static_cast<QtNodes::NodeId>(connection.inNodeId),
+        static_cast<QtNodes::PortIndex>(connection.inPortIndex)};
+
+    if (!graph->deleteConnection(c))
+        return false;
+    emit connectionDeleted(connection.outNodeId, connection.outPortIndex,
+                           connection.inNodeId, connection.inPortIndex);
+    return true;
+}
+
+bool RuntimeShell::saveFlow(const QString& path, QString* errorMessage)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        if (errorMessage)
+            *errorMessage = tr("cannot open %1 for writing").arg(path);
+        return false;
+    }
+    if (file.write(QJsonDocument(flowJson()).toJson(QJsonDocument::Indented)) < 0) {
+        if (errorMessage)
+            *errorMessage = tr("cannot write %1").arg(path);
+        file.close();
+        return false;
+    }
+    file.close();
+    return true;
 }
 
 bool RuntimeShell::reloadFlow(const QJsonObject& flow, QString* errorMessage)

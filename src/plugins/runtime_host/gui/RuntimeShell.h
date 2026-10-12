@@ -67,18 +67,38 @@ public:
 
     // ── RuntimeController (used by ControlPlaneServer) ───────────────────
     QVector<NodeInfo> nodes() const override;
+    QVector<NodeTypeInfo> nodeTypes() const override;
+    QVector<ConnectionInfo> connections() const override;
     bool nodeConfig(quint64 nodeId, QJsonObject& out) const override;
     bool setNodeConfig(quint64 nodeId, const QJsonObject& config) override;
+    QJsonObject nodeDetail(quint64 nodeId) const override;
     bool startNode(quint64 nodeId) override;
     bool stopNode(quint64 nodeId) override;
+    quint64 createNode(const QString& type, double x, double y,
+                       const QJsonObject& config,
+                       QString* errorMessage = nullptr) override;
+    bool removeNode(quint64 nodeId, QString* errorMessage = nullptr) override;
+    bool setNodePosition(quint64 nodeId, double x, double y) override;
+    bool setNodeLabel(quint64 nodeId, const QString& label, bool visible) override;
+    bool addConnection(const ConnectionInfo& connection,
+                       QString* errorMessage = nullptr) override;
+    bool removeConnection(const ConnectionInfo& connection) override;
     QJsonObject flowJson() const override;
+    bool saveFlow(const QString& path, QString* errorMessage = nullptr) override;
     QJsonObject nodeSchema(quint64 nodeId) const override;
+    QJsonObject typeSchema(const QString& type) const override;
     bool reloadFlow(const QJsonObject& flow, QString* errorMessage = nullptr) override;
 
 Q_SIGNALS:
     void nodeStarted(QtNodes::NodeId nodeId);
     void nodeStopped(QtNodes::NodeId nodeId);
     void nodeConfigChanged(QtNodes::NodeId nodeId);
+    // Graph mutations (REQ-SW-PL-063 AC13)
+    void nodeCreated(QtNodes::NodeId nodeId);
+    void nodeDeleted(QtNodes::NodeId nodeId);
+    void nodeMoved(QtNodes::NodeId nodeId);
+    void connectionCreated(quint64 outNodeId, int outPortIndex, quint64 inNodeId, int inPortIndex);
+    void connectionDeleted(quint64 outNodeId, int outPortIndex, quint64 inNodeId, int inPortIndex);
     void errorOccurred(const QString& message);
 
 protected:
@@ -102,6 +122,10 @@ private:
 
     void arrangeWorkspaces(const FlowUi::UiSection& ui);
     void autoStartNodes(const FlowUi::UiSection& ui);
+
+    /// Deembed a single freshly created node into its workspace MDI area
+    /// (REQ-SW-PL-063: REST-created nodes must appear like GUI-created ones).
+    void deembedNewNode(QtNodes::NodeId nodeId);
 
     /// The active graph model, or nullptr before buildCanvas(). Controller
     /// methods must stay safe to call at any point in the lifecycle.

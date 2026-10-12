@@ -9,17 +9,22 @@
 #include <QJsonArray>
 #include <QFile>
 #include <QJsonParseError>
+#include <QPointF>
 #include <QDebug>
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtNodes/DataFlowGraphModel>
+#include <QtNodes/Definitions>
 
 #include <QPluginManager.h>
+#include <capabilities/INodeConfigSchema.h>
 #include <capabilities/INodeProvider.h>
 #include <capabilities/IStoppable.h>
 #include <capabilities/IStartable.h>
 #include <logging/LogCategories.h>
+
+#include <algorithm>
 
 namespace Daqster {
 
@@ -503,6 +508,38 @@ bool HeadlessEngine::startControlPlane(const ControlPlaneOptions& options, QStri
                 m_controlPlane->broadcastEvent(QStringLiteral("nodeError"),
                                                {{QStringLiteral("message"), message}});
             });
+    // Graph mutations (REQ-SW-PL-063 AC13)
+    connect(this, &HeadlessEngine::nodeCreated, m_controlPlane.get(),
+            [this](QtNodes::NodeId id) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeCreated"),
+                                               {{QStringLiteral("nodeId"), static_cast<qint64>(id)}});
+            });
+    connect(this, &HeadlessEngine::nodeDeleted, m_controlPlane.get(),
+            [this](QtNodes::NodeId id) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeDeleted"),
+                                               {{QStringLiteral("nodeId"), static_cast<qint64>(id)}});
+            });
+    connect(this, &HeadlessEngine::nodeMoved, m_controlPlane.get(),
+            [this](QtNodes::NodeId id) {
+                m_controlPlane->broadcastEvent(QStringLiteral("nodeMoved"),
+                                               {{QStringLiteral("nodeId"), static_cast<qint64>(id)}});
+            });
+    connect(this, &HeadlessEngine::connectionCreated, m_controlPlane.get(),
+            [this](quint64 outNodeId, int outPortIndex, quint64 inNodeId, int inPortIndex) {
+                m_controlPlane->broadcastEvent(QStringLiteral("connectionCreated"),
+                                               {{QStringLiteral("outNodeId"), static_cast<qint64>(outNodeId)},
+                                                {QStringLiteral("outPortIndex"), outPortIndex},
+                                                {QStringLiteral("inNodeId"), static_cast<qint64>(inNodeId)},
+                                                {QStringLiteral("inPortIndex"), inPortIndex}});
+            });
+    connect(this, &HeadlessEngine::connectionDeleted, m_controlPlane.get(),
+            [this](quint64 outNodeId, int outPortIndex, quint64 inNodeId, int inPortIndex) {
+                m_controlPlane->broadcastEvent(QStringLiteral("connectionDeleted"),
+                                               {{QStringLiteral("outNodeId"), static_cast<qint64>(outNodeId)},
+                                                {QStringLiteral("outPortIndex"), outPortIndex},
+                                                {QStringLiteral("inNodeId"), static_cast<qint64>(inNodeId)},
+                                                {QStringLiteral("inPortIndex"), inPortIndex}});
+            });
 
     QString error;
     if (!m_controlPlane->start(options, &error)) {
@@ -690,7 +727,7 @@ QJsonObject HeadlessEngine::serializeUiSection() const
 
 QJsonObject HeadlessEngine::nodeSchema(quint64 nodeId) const
 {
-    if (!m_graphModel || !m_registry)
+    if (!m_graphModel)
         return {};
 
     auto* model = m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(
@@ -698,7 +735,14 @@ QJsonObject HeadlessEngine::nodeSchema(quint64 nodeId) const
     if (!model)
         return {};
 
-    const QString type = model->name();
+    return typeSchema(model->name());
+}
+
+QJsonObject HeadlessEngine::typeSchema(const QString& type) const
+{
+    if (!m_registry)
+        return {};
+
     const auto& creators = m_registry->registeredModelCreators();
     const auto creatorIt = creators.find(type);
     if (creatorIt == creators.end())
@@ -708,8 +752,255 @@ QJsonObject HeadlessEngine::nodeSchema(quint64 nodeId) const
     if (!fresh)
         return {};
 
-    // Defaults from a throw-away instance describe the expected shape.
-    return nodeConfigSchema(fresh->save(), type);
+    // Enriched schema when the model self-describes (REQ-SW-PL-063 AC10);
+    // best-effort derived from a throw-away save() otherwise.
+    const auto* described = dynamic_cast<const Daqster::INodeConfigSchema*>(fresh.get());
+    const QJsonObject provided = described ? described->configSchema() : QJsonObject();
+    return nodeConfigSchema(fresh->save(), type, provided);
+}
+
+QVector<RuntimeController::NodeTypeInfo> HeadlessEngine::nodeTypes() const
+{
+    QVector<NodeTypeInfo> result;
+    if (!m_registry)
+        return result;
+
+    const auto& creators = m_registry->registeredModelCreators();
+    const auto& association = m_registry->registeredModelsCategoryAssociation();
+    result.reserve(static_cast<int>(creators.size()));
+    for (auto it = creators.begin(); it != creators.end(); ++it) {
+        NodeTypeInfo info;
+        info.type = it->first;
+        const auto catIt = association.find(it->first);
+        if (catIt != association.end())
+            info.category = catIt->second;
+        result.append(info);
+    }
+    std::sort(result.begin(), result.end(),
+              [](const NodeTypeInfo& a, const NodeTypeInfo& b) {
+                  if (a.category != b.category)
+                      return a.category < b.category;
+                  return a.type < b.type;
+              });
+    return result;
+}
+
+QVector<RuntimeController::ConnectionInfo> HeadlessEngine::connections() const
+{
+    QVector<ConnectionInfo> result;
+    if (!m_graphModel)
+        return result;
+
+    const QJsonArray edges = m_graphModel->save()
+                                 .value(QStringLiteral("connections")).toArray();
+    result.reserve(edges.size());
+    for (const QJsonValue& value : edges) {
+        const QJsonObject c = value.toObject();
+        ConnectionInfo info;
+        info.outNodeId = static_cast<quint64>(c.value(QStringLiteral("outNodeId")).toInt());
+        info.outPortIndex = c.value(QStringLiteral("outPortIndex")).toInt();
+        info.inNodeId = static_cast<quint64>(c.value(QStringLiteral("inNodeId")).toInt());
+        info.inPortIndex = c.value(QStringLiteral("inPortIndex")).toInt();
+        result.append(info);
+    }
+    return result;
+}
+
+QJsonObject HeadlessEngine::nodeDetail(quint64 nodeId) const
+{
+    if (!m_graphModel)
+        return {};
+
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    auto* model = m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(id);
+    if (!model)
+        return {};
+
+    QJsonObject ports;
+    QJsonArray inPorts;
+    for (unsigned int i = 0; i < model->nPorts(QtNodes::PortType::In); ++i) {
+        inPorts.append(QJsonObject{{QStringLiteral("index"), static_cast<int>(i)},
+                                   {QStringLiteral("caption"),
+                                    model->portCaption(QtNodes::PortType::In,
+                                                       static_cast<QtNodes::PortIndex>(i))}});
+    }
+    QJsonArray outPorts;
+    for (unsigned int i = 0; i < model->nPorts(QtNodes::PortType::Out); ++i) {
+        outPorts.append(QJsonObject{{QStringLiteral("index"), static_cast<int>(i)},
+                                    {QStringLiteral("caption"),
+                                     model->portCaption(QtNodes::PortType::Out,
+                                                        static_cast<QtNodes::PortIndex>(i))}});
+    }
+    ports.insert(QStringLiteral("in"), inPorts);
+    ports.insert(QStringLiteral("out"), outPorts);
+
+    QJsonObject position;
+    const QVariant pos = m_graphModel->nodeData(id, QtNodes::NodeRole::Position);
+    if (pos.canConvert<QPointF>()) {
+        const QPointF p = pos.toPointF();
+        position.insert(QStringLiteral("x"), p.x());
+        position.insert(QStringLiteral("y"), p.y());
+    }
+
+    QJsonObject out;
+    out.insert(QStringLiteral("id"), static_cast<qint64>(id));
+    out.insert(QStringLiteral("type"), model->name());
+    out.insert(QStringLiteral("name"), model->caption());
+    // The visible label lives on the graph model (NodeRole::Label), not on the
+    // delegate model — model->label() is the type's default annotation.
+    out.insert(QStringLiteral("label"),
+               m_graphModel->nodeData(id, QtNodes::NodeRole::Label).toString());
+    out.insert(QStringLiteral("labelVisible"),
+               m_graphModel->nodeData(id, QtNodes::NodeRole::LabelVisible).toBool());
+    out.insert(QStringLiteral("state"),
+               m_runningNodes.value(id, false) ? QStringLiteral("running")
+                                               : QStringLiteral("stopped"));
+    out.insert(QStringLiteral("position"), position);
+    out.insert(QStringLiteral("ports"), ports);
+    out.insert(QStringLiteral("config"), model->save());
+    out.insert(QStringLiteral("schema"), typeSchema(model->name()));
+    return out;
+}
+
+quint64 HeadlessEngine::createNode(const QString& type, double x, double y,
+                                   const QJsonObject& config, QString* errorMessage)
+{
+    if (!m_graphModel || !m_registry) {
+        if (errorMessage)
+            *errorMessage = QStringLiteral("graph is not ready");
+        return 0;
+    }
+    if (!m_registry->registeredModelCreators().count(type)) {
+        if (errorMessage)
+            *errorMessage = QStringLiteral("unknown node type: %1").arg(type);
+        return 0;
+    }
+
+    const QtNodes::NodeId id = m_graphModel->addNode(type);
+    m_graphModel->setNodeData(id, QtNodes::NodeRole::Position, QPointF(x, y));
+
+    if (!config.isEmpty()) {
+        if (auto* model = m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(id))
+            model->load(config);
+    }
+
+    emit nodeCreated(id);
+    return static_cast<quint64>(id);
+}
+
+bool HeadlessEngine::removeNode(quint64 nodeId, QString* errorMessage)
+{
+    if (!m_graphModel) {
+        if (errorMessage)
+            *errorMessage = QStringLiteral("graph is not ready");
+        return false;
+    }
+
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    if (!m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(id)) {
+        if (errorMessage)
+            *errorMessage = QStringLiteral("node not found");
+        return false;
+    }
+
+    // deleteNode() also removes every connection attached to the node, but the
+    // control plane cannot see which ones: capture them first for the event.
+    const QVector<ConnectionInfo> edges = connections();
+    m_graphModel->deleteNode(id);
+    m_runningNodes.remove(id);
+
+    for (const ConnectionInfo& c : edges) {
+        if (c.outNodeId == nodeId || c.inNodeId == nodeId)
+            emit connectionDeleted(c.outNodeId, c.outPortIndex, c.inNodeId, c.inPortIndex);
+    }
+    emit nodeDeleted(id);
+    return true;
+}
+
+bool HeadlessEngine::setNodePosition(quint64 nodeId, double x, double y)
+{
+    if (!m_graphModel)
+        return false;
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    if (!m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(id))
+        return false;
+    m_graphModel->setNodeData(id, QtNodes::NodeRole::Position, QPointF(x, y));
+    emit nodeMoved(id);
+    return true;
+}
+
+bool HeadlessEngine::setNodeLabel(quint64 nodeId, const QString& label, bool visible)
+{
+    if (!m_graphModel)
+        return false;
+    const QtNodes::NodeId id = static_cast<QtNodes::NodeId>(nodeId);
+    if (!m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(id))
+        return false;
+    m_graphModel->setNodeData(id, QtNodes::NodeRole::Label, label);
+    m_graphModel->setNodeData(id, QtNodes::NodeRole::LabelVisible, visible);
+    emit nodeMoved(id); // label change is a node metadata change
+    return true;
+}
+
+bool HeadlessEngine::addConnection(const ConnectionInfo& connection, QString* errorMessage)
+{
+    if (!m_graphModel) {
+        if (errorMessage)
+            *errorMessage = QStringLiteral("graph is not ready");
+        return false;
+    }
+
+    const QtNodes::ConnectionId c{
+        static_cast<QtNodes::NodeId>(connection.outNodeId),
+        static_cast<QtNodes::PortIndex>(connection.outPortIndex),
+        static_cast<QtNodes::NodeId>(connection.inNodeId),
+        static_cast<QtNodes::PortIndex>(connection.inPortIndex)};
+
+    if (!m_graphModel->connectionPossible(c)) {
+        if (errorMessage)
+            *errorMessage = QStringLiteral("connection not possible");
+        return false;
+    }
+    m_graphModel->addConnection(c);
+    emit connectionCreated(connection.outNodeId, connection.outPortIndex,
+                           connection.inNodeId, connection.inPortIndex);
+    return true;
+}
+
+bool HeadlessEngine::removeConnection(const ConnectionInfo& connection)
+{
+    if (!m_graphModel)
+        return false;
+
+    const QtNodes::ConnectionId c{
+        static_cast<QtNodes::NodeId>(connection.outNodeId),
+        static_cast<QtNodes::PortIndex>(connection.outPortIndex),
+        static_cast<QtNodes::NodeId>(connection.inNodeId),
+        static_cast<QtNodes::PortIndex>(connection.inPortIndex)};
+
+    if (!m_graphModel->deleteConnection(c))
+        return false;
+    emit connectionDeleted(connection.outNodeId, connection.outPortIndex,
+                           connection.inNodeId, connection.inPortIndex);
+    return true;
+}
+
+bool HeadlessEngine::saveFlow(const QString& path, QString* errorMessage)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        if (errorMessage)
+            *errorMessage = QStringLiteral("cannot open %1 for writing").arg(path);
+        return false;
+    }
+    if (file.write(QJsonDocument(flowJson()).toJson(QJsonDocument::Indented)) < 0) {
+        if (errorMessage)
+            *errorMessage = QStringLiteral("cannot write %1").arg(path);
+        file.close();
+        return false;
+    }
+    file.close();
+    return true;
 }
 
 } // namespace Daqster
