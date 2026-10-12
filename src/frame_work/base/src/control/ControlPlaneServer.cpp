@@ -505,6 +505,15 @@ QByteArray ControlPlaneServer::bundledIndexHtml() const
     </section>
     <section>
       <h2>Connections</h2>
+      <div class="row" style="margin-bottom:8px">
+        <span class="muted">from</span>
+        <select id="connOutNode"></select>
+        <select id="connOutPort"></select>
+        <span class="muted">→ to</span>
+        <select id="connInNode"></select>
+        <select id="connInPort"></select>
+        <button onclick="connectNodes()">Connect</button>
+      </div>
       <table><thead><tr><th>from (node:port)</th><th>to (node:port)</th><th></th></tr></thead>
       <tbody id="connections"><tr><td colspan="3" class="muted">—</td></tr></tbody></table>
     </section>
@@ -585,9 +594,62 @@ function renderConnections(conns) {
 
 function refresh() {
   return Promise.all([api("/api/nodes"), api("/api/connections")]).then(([n, c]) => {
-    renderNodes((n.body && n.body.nodes) || []);
+    const nodes = (n.body && n.body.nodes) || [];
+    renderNodes(nodes);
     renderConnections((c.body && c.body.connections) || []);
+    fillConnectNodes(nodes);
   });
+}
+
+function fillSelect(sel, items, valueOf, labelOf) {
+  const prev = sel.value;
+  sel.innerHTML = "";
+  items.forEach(it => {
+    const o = document.createElement("option");
+    o.value = valueOf(it);
+    o.textContent = labelOf(it);
+    sel.appendChild(o);
+  });
+  if (prev && items.some(it => String(valueOf(it)) === prev)) sel.value = prev;
+}
+
+function fillConnectNodes(nodes) {
+  const label = n => "#" + n.id + " " + (n.name || n.type);
+  fillSelect(document.getElementById("connOutNode"), nodes, n => n.id, label);
+  fillSelect(document.getElementById("connInNode"), nodes, n => n.id, label);
+  loadConnectPorts("out");
+  loadConnectPorts("in");
+}
+
+function loadConnectPorts(which) {
+  const nodeSel = document.getElementById(which === "out" ? "connOutNode" : "connInNode");
+  const portSel = document.getElementById(which === "out" ? "connOutPort" : "connInPort");
+  const id = nodeSel.value;
+  portSel.innerHTML = "";
+  if (id === "") return;
+  api("/api/nodes/" + id).then(r => {
+    const ports = (r.body && r.body.ports && r.body.ports[which]) || [];
+    ports.forEach(p => {
+      const o = document.createElement("option");
+      o.value = p.index;
+      o.textContent = p.caption ? (p.index + " " + p.caption) : p.index;
+      portSel.appendChild(o);
+    });
+  });
+}
+
+function connectNodes() {
+  const outNodeId = Number(document.getElementById("connOutNode").value);
+  const inNodeId = Number(document.getElementById("connInNode").value);
+  const outPortIndex = Number(document.getElementById("connOutPort").value);
+  const inPortIndex = Number(document.getElementById("connInPort").value);
+  if (!document.getElementById("connOutNode").value || !document.getElementById("connInNode").value) {
+    logLine("connect: pick both nodes"); return;
+  }
+  api("/api/connections", { method: "POST",
+    body: JSON.stringify({ outNodeId: outNodeId, outPortIndex: outPortIndex,
+                          inNodeId: inNodeId, inPortIndex: inPortIndex }) })
+    .then(r => { logLine("connect " + (r.ok ? "ok" : "failed: " + JSON.stringify(r.body))); refresh(); });
 }
 
 function loadTypes() {
@@ -747,6 +809,8 @@ function reconnect() {
   refresh().then(loadTypes).then(connectSocket);
 }
 
+document.getElementById("connOutNode").onchange = () => loadConnectPorts("out");
+document.getElementById("connInNode").onchange = () => loadConnectPorts("in");
 refresh().then(loadTypes).then(connectSocket);
 </script>
 </body>
