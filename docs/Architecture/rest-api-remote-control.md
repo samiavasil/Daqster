@@ -1,9 +1,9 @@
 # Daqster REST API & Remote Control Architecture
 
-> **Status:** IMPLEMENTED (v0.4 — full graph control over REST + WebSocket in both runtime hosts)
+> **Status:** IMPLEMENTED (v0.5 — full graph control over REST + WebSocket in both runtime hosts; web console connect form)
 > **Related REQ:** REQ-SW-PL-054 (REST control plane), REQ-SW-PL-063 (full graph control)
 > **Depends on:** REQ-SW-PL-053 (NodeEditorIde Split → dual-mode runner), REQ-SW-PL-048 (shared AppBootstrap)
-> **Date:** 2026-09-28 (draft) · 2026-10-11 (as-built rewrite) · 2026-10-12 (v0.4 full graph control)
+> **Date:** 2026-09-28 (draft) · 2026-10-11 (as-built rewrite) · 2026-10-12 (v0.4 full graph control, v0.5 web-console connect)
 > **Author:** Daqster Team
 
 This document describes the **as-built** control plane. It replaced an earlier
@@ -317,12 +317,13 @@ under `/assets/swagger-ui/` when present, otherwise the unpkg CDN. To vendor:
 ### `GET /` — bundled web console
 
 A dependency-free single-page console: node list (start/stop/config/delete),
-create-from-palette, connections table (disconnect), a **schema-generated**
-config form (enums → selects, ranges → number inputs, `visibleWhen` hides
-irrelevant fields; raw-JSON fallback), Save-flow, and a live event log fed by
-the WebSocket. Served from `<web-root>/index.html` when present, otherwise built
-into the binary. `GET /assets/*` serves files from the web root
-(path-traversal safe).
+create-from-palette, a connections table plus a **connect form** (from
+node:port → to node:port; ports are populated from each node's `ports`) and a
+disconnect button per edge, a **schema-generated** config form (enums → selects,
+ranges → number inputs, `visibleWhen` hides irrelevant fields; raw-JSON
+fallback), Save-flow, and a live event log fed by the WebSocket. Served from
+`<web-root>/index.html` when present, otherwise built into the binary.
+`GET /assets/*` serves files from the web root (path-traversal safe).
 
 ### `WS /api/events`
 
@@ -561,3 +562,4 @@ media streaming. See the requirement file for the full list.
 | 2026-10-11 | 0.2 | Daqster Team | As-built rewrite: `ControlPlaneServer` on `QTcpServer`; AC1–AC13 implemented (REST, WS events, CORS, OpenAPI + Swagger UI + web console); removed the divergent `QHttpServer`/`RestApiServer` design. |
 | 2026-10-11 | 0.3 | Daqster Team | GUI mode: `RuntimeShell` implements `RuntimeController` and owns the `ControlPlaneServer`, so `--run --rest-port` serves the same API; shared `NodeSchemaBuilder.h`. |
 | 2026-10-12 | 0.4 | Daqster Team | Full graph control (REQ-SW-PL-063): `ControlPlaneRouter` seam shared by HTTP + WS RPC; `node-types`, create/delete/move/label, connections, `flow/save`; enriched schema via `INodeConfigSchema` (VideoEffect pilot); bidirectional WS (commands + new events); schema-driven web console; router unit tests. |
+| 2026-10-12 | 0.5 | Daqster Team | Web console: added the missing connect form (from node:port → to node:port, ports populated from node detail), closing the gap where the console could only list/disconnect edges. |
