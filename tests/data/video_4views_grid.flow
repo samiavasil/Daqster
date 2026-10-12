@@ -1,0 +1,169 @@
+{
+    "connections": [
+        {
+            "inNodeId": 4,
+            "inPortIndex": 0,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        },
+        {
+            "inNodeId": 3,
+            "inPortIndex": 0,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        },
+        {
+            "inNodeId": 2,
+            "inPortIndex": 0,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        },
+        {
+            "inNodeId": 1,
+            "inPortIndex": 0,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        }
+    ],
+    "nodes": [
+        {
+            "id": 0,
+            "internal-data": {
+                "filePath": "/mnt/Builder/Projects/samiavasil/DaqsterAiStudio/tests/data/bars_h265_1080p25_x3.mp4",
+                "model-name": "VideoFileSource"
+            },
+            "label": "VideoFileSource",
+            "labelVisible": true,
+            "position": {
+                "x": -400,
+                "y": 0
+            }
+        },
+        {
+            "id": 1,
+            "internal-data": {
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoOutput",
+                "perfToggle": true,
+                "thresholdValue": 128
+            },
+            "label": "VideoOutput",
+            "labelVisible": true,
+            "position": {
+                "x": 100,
+                "y": -200
+            }
+        },
+        {
+            "id": 2,
+            "internal-data": {
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoOutput",
+                "perfToggle": true,
+                "thresholdValue": 128
+            },
+            "label": "VideoOutput",
+            "labelVisible": true,
+            "position": {
+                "x": 100,
+                "y": -70
+            }
+        },
+        {
+            "id": 3,
+            "internal-data": {
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoOutput",
+                "perfToggle": true,
+                "thresholdValue": 128
+            },
+            "label": "VideoOutput",
+            "labelVisible": true,
+            "position": {
+                "x": 100,
+                "y": 70
+            }
+        },
+        {
+            "id": 4,
+            "internal-data": {
+                "blurRadius": 0,
+                "brightness": 0,
+                "cannyHigh": 150,
+                "cannyLow": 50,
+                "contrast": 100,
+                "flipMode": "horizontal",
+                "gaussianKernel": 5,
+                "model-name": "VideoOutput",
+                "perfToggle": true,
+                "thresholdValue": 128
+            },
+            "label": "VideoOutput",
+            "labelVisible": true,
+            "position": {
+                "x": 100,
+                "y": 200
+            }
+        }
+    ],
+    "ui": {
+        "version": 2,
+        "workspaces": [
+            {
+                "id": 0,
+                "name": "Main",
+                "root": {
+                    "type": "grid",
+                    "rows": 2,
+                    "cols": 2,
+                    "cells": [
+                        {"node": 1},
+                        {"node": 2},
+                        {"node": 3},
+                        {"node": 4}
+                    ]
+                },
+                "docks": [
+                    {
+                        "node": 0,
+                        "title": "Source Config",
+                        "area": "right",
+                        "floating": false,
+                        "geometry": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 320,
+                            "h": 600,
+                            "maximized": false
+                        }
+                    }
+                ]
+            }
+        ],
+        "nodes": {
+            "0": {"autoStart": true},
+            "1": {},
+            "2": {},
+            "3": {},
+            "4": {}
+        }
+    }
+}

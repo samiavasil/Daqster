@@ -27,7 +27,7 @@
 - **`scripts/version.sh set X.Y.Z`** обновява **всичките места**, които носят
   версията:
   - `VERSION` файла
-  - plugin `CMakeLists.txt` × 3 (`demo_nodeditor_nodes`, `node_editor_ide`, `requirements_manager`)
+  - plugin `CMakeLists.txt` × 3 (`nodeditor_nodes`, `node_editor_ide`, `requirements_manager`)
   - plugin `*Interface.json` × 8 (`"Version": ...` — вкл. legacy QtCoinTrader + тестовите)
   - plugin docs `README.md` × 2 (`PLUGIN_VERSION = "..."`)
   - `CHANGELOG.md` + `CHANGELOG.en.md` (добавя секция `## [X.Y.Z] - дата` под `## [Unreleased]`)

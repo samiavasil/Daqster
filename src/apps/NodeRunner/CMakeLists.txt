@@ -11,14 +11,15 @@ set(CMAKE_AUTOMOC ON)
 # QPluginManager::runtimeHosts(), so no concrete plugin type is referenced from
 # application code and the GUI engine arrives purely as a dlopen()ed .so.
 #
-#   NodeRunner --run <flow.flow>            -> FrameworkGuiPlugin  (RuntimeShell)
-#   NodeRunner --headless --run <flow.flow>  -> FrameworkCorePlugin (HeadlessEngine)
+#   NodeRunner --run <flow.flow>            -> RuntimeHostGuiPlugin  (RuntimeShell)
+#   NodeRunner --headless --run <flow.flow>  -> RuntimeHostHeadlessPlugin (HeadlessEngine)
 #
-# QtWidgets is on the link line because the GUI mode needs QApplication, and in
-# Qt5 QApplication itself lives in QtWidgets (it moved to QtGui only in Qt6).
-# A QtWidgets-free headless binary is therefore not reachable yet: node models
-# still build their widgets in their constructors, so even a QGuiApplication
-# headless build aborts in QWidgetPrivate::init(). See REQ-SW-PL-053 AC6.
+# QtWidgets is on the link line because both modes use QApplication (in Qt5
+# QApplication itself lives in QtWidgets). The headless path runs on the
+# offscreen platform and constructs NO widgets (core/gui split REQ-SW-PL-051/056).
+# QGuiApplication was attempted for headless but has argument-parsing issues on
+# the offscreen platform (Qt bug). Goal B (separate REQ + branch) is QGuiApplication
+# + no QtWidgets link.
 add_executable(NodeRunner
     main.cpp
 )

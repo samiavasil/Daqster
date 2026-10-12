@@ -6,7 +6,160 @@
 
 ## [Unreleased]
 
+### Changed
+- **REQ-SW-PL-048 — споделен widget-free `AppBootstrap` в `FrameworkCore`** (2026-10-11, клон `refactor/REQ-SW-PL-048-shared-app-bootstrap`):
+  `NodeRunner` и `Daqster` дублираха една и съща стартова хореография (logging init → `ShutdownHandler` → `QPluginManager::Initialize()`/`SearchForPlugins()` → resolve на runtime host → event loop → подредено teardown). Тя вече живее веднъж в `Daqster::AppBootstrap` (`src/frame_work/base/src/app/`), който е **widget-free** (FrameworkCore линква само QtCore): не строи application обект, а приема вече конструиран `QCoreApplication&`, така че работи и от headless binary без QtWidgets, и от GUI binary с `QApplication`. `NodeRunner` е преписан върху него; `Daqster/main.cpp` ползва същия bootstrap за споделената част (логиране, shutdown handler, plugin init, teardown), а app-specific логиката остава в `main.cpp`. Новият bootstrap носи и `--rest-port`/`--rest-bind`/`--rest-token`/`--rest-web-root` (REQ-SW-PL-054) и ги подава към хоста през `IRuntimeHost::configureControlPlane()` — хост без remote control кара старта да се провали шумно, вместо тихо да подсказва, че REST сървърът работи.
+- **REQ-SW-PL-060 — node-provider конвенция `<plugin>/{core,gui}` + преименуване на shared support библиотеката** (2026-10-09, клон `feat/REQ-SW-PL-056-headless-all-node-components`):
+  - `src/plugins/nodeditor_nodes_core/` + `src/plugins/nodeditor_nodes_gui/` се сливат в **един** плъгин `src/plugins/nodeditor_nodes/{core,gui}/` — документирана framework конвенция (`docs/Architecture/core-gui-split.md`, `docs/Architecture/plugins/PluginDevelopment.md`): `core/` е headless (без `QWidget`), `gui/` държи widget-ите и `IWidgetProvider`.
+  - Класове/target-и/OUTPUT_NAME: `DemoNodeEditorNodesCore*` → `NodeditorNodesCore*`, `DemoNodeEditorNodesGui*` → `NodeditorNodesGui*` (`libNodeditorNodesCorePlugin.so` / `libNodeditorNodesGuiPlugin.so`). Обновени са plugin `Name` в JSON и `Dependencies` в `RuntimeHostHeadlessPlugin`/`RuntimeHostGuiPlugin`.
+  - `docs/plugins/demo_nodeditor_nodes/` → `docs/plugins/nodeditor_nodes/`.
+- **REQ-SW-PL-060 — shared support библиотеката вече няма „plugin" в името**: `PluginsCommonLibrary` → `DaqsterCommonLibrary` (target + `OUTPUT_NAME` + `DaqsterCommonExport.h` / `DAQSTERCOMMON_*`). Иначе `PluginDiscovery::isCandidatePluginFile()` (`toLower().contains("plugin")`) засича `libPluginsCommonLibrary.so` и логва `Bad Plugin`.
+- **REQ-SW-PL-061 — runtime host плъгините преименувани + уеднаквен folder naming** (2026-10-09, клон `feat/REQ-SW-PL-056-headless-all-node-components`):
+  - `FrameworkCorePlugin` → **`RuntimeHostHeadlessPlugin`**, `FrameworkGuiPlugin` → **`RuntimeHostGuiPlugin`** (класове `*Interface`/`*Object`, CMake target/`OUTPUT_NAME`, JSON `Name`, `.dll` имената в CI, коментари и docs). Имената вече съвпадат с `IRuntimeHost`/`RuntimeMode` (`Headless`/`Gui`) и не се бъркат с framework библиотеките `FrameworkCore`/`FrameworkGui`.
+  - Хост-овете живеят в **семейна** директория `src/plugins/runtime_host/{headless,gui}/` (родител = роля, листо = вариант) — същият модел като `nodeditor_nodes/{core,gui}`.
+  - `src/plugins/QtCoinTrader/` → `src/plugins/qt_coin_trader/` и `docs/plugins/QtCoinTrader/` → `docs/plugins/qt_coin_trader/`. Правило: plugin **директориите** са `snake_case`, C++ класове/CMake target-и са `PascalCase`.
+  - JSON `PluginType` на headless хоста: `"core"` → `"headless"`; `Capabilities` вече включва `"IRuntimeHost"` при двата хоста.
+- **REQ-SW-PL-062 — публичните LLM нодове в категорията `AI/LLM`** (2026-10-09, клон `feat/REQ-SW-PL-056-headless-all-node-components`): `LLamaModelDataModel` (`LLaMA Model`) и `ConsoleDataModel` (`Конзола`) се регистрират в `registerNodes()` и `registerNodesHeadless()` под `"AI/LLM"` вместо `"Sources/LLM"` — вече съвпадат с частния `LlamaGenerateModel`, така че всички LLM нодове излизат на един път в менюто. Записаните `.flow` реферират нодовете по `name()`, не по категория → без миграция.
+
+### Fixed
+- **REQ-SW-PL-056 — Qt5 build на `QtNodesCore` (nodeeditor submodule)** (2026-10-11): `samiavasil/nodeeditor@305fa37` добавя липсващия `Q_DECLARE_METATYPE(QWidget*)` до `Q_DECLARE_OPAQUE_POINTER(QWidget*)`. `Q_DECLARE_OPAQUE_POINTER` сам по себе си само обръща `IsPointerToTypeDerivedFromQObject`; за да стане `QMetaTypeId2<QWidget*>::Defined = true`, Qt5 иска и `Q_DECLARE_METATYPE`. Без него `DataFlowGraphModel.cpp:297` (`QVariant::fromValue` на embedded widget) чупеше Qt5 компилацията със static_assert. Qt6 авто-регистрира указатели към QObject-производни типове, затова split-ът мина само на Qt6.
+- **REQ-SW-PL-060 — застояли CI DLL имена** (2026-10-09): Windows smoke test-ът в
+  `.github/workflows/build-qt6.yml` още очакваше `DemoNodeEditorNodesCorePlugin.dll` /
+  `DemoNodeEditorNodesGuiPlugin.dll` след преименуването; сега проверява
+  `NodeditorNodesCorePlugin.dll` / `NodeditorNodesGuiPlugin.dll`.
+- **REQ-SW-PL-050 „Оставащ дълг" #1 — дублиран `IStoppable`/`IStartable`** (2026-10-09): `src/plugins/nodeditor_nodes/core/shared/{IStoppable,IStartable}.h` стават forwarding shim-ове към каноничните `src/plugins/common/capabilities/*`. Една дефиниция → премахва риска двата байт-идентични layout-а да се разминат и cast-ът `stop()` да сочи грешно отместване. `demo_nodeditor_lifecycle_tests` вече се компилира (преди: redefinition) и `bothInterfaceHeadersDeclareTheSameType()` проверява структурната идентичност.
+- **Тестова инфраструктура — side-by-side build** (2026-10-09): `DEMO_CORE_EXPORT_INCLUDE_DIR` вече се взима от `get_target_property(DemoNodeEditorNodesCore BINARY_DIR)` вместо хардкоднато `${CMAKE_BINARY_DIR}/src/...`, което чупеше `demo_nodeditor_modelname_tests` при `add_subdirectory(../daqster)` (липсващ `daqster/` префикс). Static-define-ът е `NODEDITOR_NODES_CORE_STATIC_DEFINE` (беше с невалиден `DEMO_` префикс — Windows latent).
+
+- **REQ-SW-PL-051 — празен runtime, когато има два `IWidgetProvider`**
+  (2026-10-09, клон `feat/REQ-SW-PL-056-headless-all-node-components`) —
+  `RuntimeShell` и `NodeEditorIdeObject` адоптваха само **първия** provider от
+  `QPluginManager::widgetProviders()` (`break; // Use the first one`). Щом две
+  GUI приставки имплементират `IWidgetProvider` (напр. `DemoNodeEditorNodesGui`
+  + `AiStudioPluginGui`), hash-редът на registry-то решаваше кой печели; ако
+  първият не познава модела, `createWidget()` връща `nullptr`, а fallback-ът
+  `embeddedWidget()` също е `nullptr` при split модел → **всички node widget-и
+  изчезват и runtime canvas-ът остава празен**. Поправка: `ChatGraphModel` вече
+  държи списък от provider-и и пита **всички** по ред (първият non-null печели)
+  — съвпада с открай време документирания договор в `IWidgetProvider.h`
+  („ask every discovered IWidgetProvider … before falling back"). Нов
+  регресионен тест `test_widget_provider_fallback` (Qt5 **и** Qt6).
+
+### Added (headless for all node components)
+- **REQ-SW-PL-056 (цел A)** — `registerNodesHeadless()` вече регистрира **всичките
+  33** нод типа, които има `registerNodes()`: добавени са липсващите 6 —
+  `VideoOutputNode`, `DaqDisplayNode`, `GenericDisplayNode`, `AudioDisplayAlias`,
+  `AudioSourceDataModelObsolete`, `AudioDisplayModelObsolete`. Паритетът е
+  проверен механически (двата `registerModel<>` сет-а са идентични, в един и
+  същ ред) и с новия `ctest` запис `node_runner_headless_registry`. Нито един
+  от 6-те не конструира widget — съществуващото разделяне core/gui не се пипа.
+  Следствие: **всички 25 `.flow` файла, които преди се отхвърляха в headless
+  режим, вече се зареждат и изпълняват** (преди: 16 от 41 работещи).
+  - `HeadlessEngine`: двата хардкоднати списъка „поддържани headless типове"
+    са заменени с `supportedHeadlessTypes()` / `unsupportedHeadlessMessage()`,
+    производни от registry-та — съобщението не може да изостане от кода.
+    `errorOccurred` се логира: сигналът **нямаше нито един консуматор** в
+    `src/`, така че богатата грешка никога не е стигала до потребителя.
+  - `VideoOutputNode`: брояч на кадрите, пристигнали без дисплей
+    (`m_ui == nullptr`), и отчет от `stop()` — „N frame(s) processed, no
+    display backend attached". Това прави headless изпълнението различимо от
+    „нищо не е текло", вместо да мълчи.
+  - Верификация: `ctest` **18/18** Qt 6.9.2 и **18/18** Qt 5.15.2; ръчно с
+    реален дисплей — `NodeRunner --headless --run tests/data/video_4views_1.flow`
+    → exit 0 (грейсфулно спиране) + 4× отчета по-горе; GUI `NodeEditorIde` със
+    същия flow → exit 0, 25 fps, **0** записа от новия лог (без регресия).
+
+### Tests (core/gui split)
+- **REQ-SW-PL-050** — lifecycle suite-ът вече твърди shutdown контракта на **16-те**
+  достижими `IStoppable` модела, не на 4. Предишната бележка „14-те нода с
+  хардуер не са тестируеми" била невярна: хардуер е нужен само на `start()`,
+  а всичките 14 конструират инертно (pollers/timers/thread-ове се създават, но
+  не се стартират; `QMediaDevices` само изброява и връща празно под
+  `QCoreApplication`). Затова кастът от shutdown path-а, идемпотентността на
+  `stop()` и трите реда на разрушаване вече се твърдят на пълния ростър, докато
+  `stopWithActiveWorkIsSafe` / `startThenStopIsClean` остават на отделен тесен
+  списък от 4 — „изчакване на работещ poller" не се достига без стартиране.
+  Добавени са **два броещи tripwire-а** (доказано стрелят), `PlutoSdrModel` е
+  включен само при намерен libiio, а очакваната стойност следва същото условие.
+  Непокрити остават 2: `VideoEffectNode` (нуждава свързан `ComputePool` → тест на
+  PL-039) и `VideoOutputNode` (жива GL повърхност → `demo_nodeditor_videooutput_tests`).
+  Верификация: `ctest` **17/17** Qt 6.9.2 и **17/17** Qt 5.15.2.
+  - **Открит, но непоправен дефект:** `StreamSourceNode` и `VideoFileSourceNode`
+    правят `connect()` към `m_audioBufferOutput`, който е `nullptr` освен ако
+    зареденият медиен поток няма аудио дорожка
+    (`QObject::connect(QObject, Unknown): invalid nullptr parameter`). Открит е
+    защото тези модели вече се конструират в suite-а; извън обхвата на този
+    коммит.
+
 ### Added (core/gui split)
+- **REQ-SW-PL-053** — **schema-v2 layout tree + widget builder в `node_editor_ide`**,
+  пренесени дословно от `consolidate`:
+  - `LayoutTree.{h,cpp}` — data моделът на v2 „ui" секцията (рекурсивно дърво от
+    `split` / `grid` / `tab` контейнери с `panel` листа, плюс workspace-level
+    `docks[]`) и JSON round-trip. QtCore само, без `Q_OBJECT` — тества се headless.
+  - `LayoutEngine.{h,cpp}` — builder/capturer-ът, който превръща дървото в реални
+    widget-и (`QMainWindow`, `QSplitter`, `QTabWidget`, `QGridLayout`,
+    `QDockWidget`) и обратно. QtWidgets.
+  - Парсингът е толерантен: непознат тип пада на празен panel, липсващи полета
+    вземат стойности по подразбиране, а секция с `version != 2` парсва до празна
+    `LayoutSection` (извиквачът остава на v1 пътя).
+  - `FlowUiSection.h` се различава от consolidate само по 7-редовия документиращ
+    коментар на `NodeUi::autoStart` — полето е налице и в двата, затова портът е
+    дословен.
+  - **Потребителите още не са закачени:** `NodeEditorIdeObject` (F11 v2 workspace) и
+    `RuntimeShell::arrangeLayout` все още ползват v1 пътя. Това е следващият блок;
+    дотогава тези четири TU-та се компилират и се тестват, но не са достижими по
+    време на изпълнение.
+- **REQ-SW-PL-053** — нов тест таргет `node_editor_ide_tests`
+  (`tests/plugins/node_editor_ide/`, 21 теста: 12 за `LayoutTree` round-trip и
+  tolerant parsing, 9 за `LayoutEngine` build/capture). `QApplication`, върви
+  headless през offscreen platform.
+
+- **REQ-SW-PL-055 / REQ-SW-PL-051** — **пълно развързване на Video Output node-а**
+  от `_core`/`_gui`. Това е най-големият хоризонтален блок от порта на
+  `consolidate_save_from_pedal`; функционалността е пренесена и едновременно
+  разделена по зависимост от QtWidgets, а не по редовете на consolidate.
+- **REQ-SW-PL-055** — **`IVideoOutputUi` + `IVideoOutputUiHandler`**
+  (`demo_nodeditor_nodes_core/Sources/Video/IVideoOutputUi.h`): плосък non-QObject
+  шев. core→core (`IVideoOutputUi`, core държи указател) и gui→core
+  (`IVideoOutputUiHandler`, gui държи указател). Без moc, без link зависимост —
+  споделеният тип е в `_core` заглавния файл, конкретният обект е в `_gui`.
+  Редактор→модел (`setPerfEnabled`, `forceLiveDisplay`) остава през
+  `QMetaObject::invokeMethod`, защото този извиквач е **трети** плъгин.
+- **REQ-SW-PL-055** — **`VideoGLBlitWidget` → `demo_nodeditor_nodes_gui/Sources/Video/`**,
+  дословно от consolidate. Това беше последният елемент на `EMBEDDED_WIDGETS` в
+  `_core`; списъкът вече е празен и екипът `_gui` го държи за двата TU-та, които
+  още чакат (`VideoEffectNode.cpp` → `QLabel`,
+  `AudioDisplayModelObsolete.cpp` → `QStackedWidget`). Widget-зависимите TU-та в
+  `_core` падат от 7 на 2; `Qt::Widgets` остава в link линията докато те са там.
+- **REQ-SW-PL-055** — **`VideoOutputUi`** (`_gui`): целият widget дърво на node-а —
+  `QStackedWidget` (preview страница / live страница), `QSplitter` (display вляво,
+  контроли вдясно), perf панел с 8 етикета и effect контролите (combo + параметърни
+  страници). Backend-ът се избира **веднъж** при конструкция
+  (`DAQSTER_VIDEO_BACKEND=gl|software`, иначе `hasHardwareGL()`), а не на кадър.
+- **REQ-SW-PL-055** — `VideoFrameData::frameToImageScaled(frame, maxWidth)`: конвертира
+  **директно** в ~200 px preview вместо да материализира пълното 1080p QImage и после
+  да скалира. NV12/YUV420P се субсмплират по време на YUV→RGB конверсията, така че
+  пълното изображение никога не се построява (~(200/1920)² от пълна конверсия).
+- **Fixed** — `VideoOutputNode::~VideoOutputNode` извикваше `stop()` →
+  `resetVideoState()` → `m_ui->clearPreview()` / `display()->clear()`, докато UI-то е
+  притежавано от widget дървото на редактора, а не от модела. При вграждане
+  `rootWidget()` се reparent-ва в сцената, така че дървото може да унищожи UI-то
+  първо и да остави модела жив → use-after-free. Указателят се занулява **преди**
+  `stop()`.
+
+- **REQ-SW-PL-055** — **`VideoDisplayWidget`** (`demo_nodeditor_nodes_core/Sources/Video/`):
+  чист интерфейс за видео display повърхност — `presentFrame` / `presentImage` /
+  `presentTexture` / `presentYuvTexture` / `setVideoSize` / `clear` /
+  `backendName` / `isGpuBackend` / `widget()`. Умишлено **не** наследява `QWidget`:
+  GL бекендът трябва да остане `QOpenGLWidget` (zero-copy презентация,
+  REQ-SW-PL-053 AC1), а Qt не позволява наследяване от две QObject-производни
+  класове, така че всеки бекенд комбинира интерфейса със собствения си widget
+  базов клас. `widget()` връща конкретния QWidget, за да може node-ът да вгради
+  display-а в layout, без да знае конкретния бекенд.
+- **REQ-SW-PL-055** — **`VideoSoftwareWidget`**: software бекендът
+  (`QWidget` + `VideoDisplayWidget`). GPU-resident входовете се четат обратно
+  през ленивия `QImage` кеш на `VideoFrameData` (REQ-SW-PL-032) — най-много
+  една конверсия на кадър. Без видео рисува placeholder-а „No video input".
 - **REQ-SW-PL-051** — **`IWidgetProvider` capability**
   (`src/plugins/common/capabilities/IWidgetProvider.h`): плосък (non-QObject)
   интерфейс `createWidget(NodeDelegateModel*)` за плъгини, които доставят widget-а
@@ -52,6 +205,16 @@
   следващо добавяне на node.
 
 ### Fixed (core/gui split)
+- **REQ-SW-PL-032** — `VideoGLContextManager::hasHardwareGL()` вече връща `false`
+  вместо да се срива, когато няма `QGuiApplication`. `instance()` конструира
+  `QOpenGLContext` + `QOffscreenSurface`, а нито един от двата не може да бъде
+  конструиран преди съществуването на `QGuiApplication` — това е, което
+  инициализира платформената интеграция, върху която са построени. Останалата
+  част от функцията вече се деградира (`makeCurrent` провал → `false`), така че
+  липсващият GUI стек трябва да мине по същия път. Детекция, която пада на
+  въпроса „има ли GPU?", не отговаря на нищо. Засяга 5 callers-а в `develop`
+  (`VideoOutputNode` ×2, `VideoEffectNode`, `CustomShaderNode` и новия
+  `detectVideoBackend()`).
 - **REQ-SW-PL-051** — падане при затваряне на NodeEditorIDE прозореца по време на
   възпроизвеждане на flow (SIGSEGV при exit). `NodeEditorIdeObject::
   discoverAndRegisterExternalNodes()` dereference-ваше `m_Widget` без null-проверка;

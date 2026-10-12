@@ -34,11 +34,20 @@
 // VideoGLContextManager::instance()) so the pool outlives every frame and no
 // static destruction-order hazard with QOpenGLContext teardown can occur.
 
+#include "DaqsterCommonExport.h"
+
 #include <QtGui/qopengl.h>
 
 #include <vector>
 
-class TexturePool
+/// DAQSTERCOMMON_EXPORT (REQ-SW-PL-032): the pool is defined ONCE, in
+/// DaqsterCommonLibrary, and linked by every consumer. instance() is
+/// deliberately NOT inline in this header — an inline function-local static
+/// would be emitted per translation unit, giving each consumer its own pool
+/// (coalesced by STB_GNU_UNIQUE on Linux, not on Windows). Out of line, the
+/// definition is emitted exactly once by the library and every consumer binds
+/// to it.
+class DAQSTERCOMMON_EXPORT TexturePool
 {
 public:
     TexturePool() = default;
@@ -69,13 +78,3 @@ private:
     std::vector<Entry> m_all;   // every texture ever allocated (ownership)
     std::vector<Entry> m_free;  // textures available for reuse
 };
-
-inline TexturePool &TexturePool::instance()
-{
-    // Function-local static pointer: intentionally leaked (never destroyed) so
-    // the pool outlives all frames and no destruction-order hazard with
-    // QOpenGLContext / QGuiApplication teardown can occur (same pattern as
-    // VideoGLContextManager::instance()).
-    static TexturePool *s_instance = new TexturePool();
-    return *s_instance;
-}

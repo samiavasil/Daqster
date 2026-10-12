@@ -231,7 +231,7 @@ QList<Daqster::INodeProvider*> PluginRegistry::nodeProviders()
         // NOTE: deliberately NOT calling ensureInitialized() here. registerNodes()
         // is const and works on a bare object, and calling Initialize() would
         // construct runtime hosts this probe has no business waking up —
-        // FrameworkGuiPluginObject builds a whole RuntimeShell (MDI + QtWidgets +
+        // RuntimeHostGuiPluginObject builds a whole RuntimeShell (MDI + QtWidgets +
         // OpenGL) in its constructor, so probing for node providers in headless
         // mode would drag the entire GUI stack into a headless process.
         // Initialization is the job of the specific consumer (see

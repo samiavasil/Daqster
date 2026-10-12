@@ -1,0 +1,14 @@
+{
+    "IID": "org.daqster.QPluginInterface/1.0",
+    "MetaData": {
+        "Name": "RuntimeHostHeadlessPlugin",
+        "Version": "0.3.2",
+        "Description": "Runtime host for headless mode - runs .flow graphs without a display (HeadlessEngine)",
+        "Author": "Daqster Team",
+        "License": "GPL-2.0-or-later",
+        "PluginType": "headless",
+        "PluginCategory": "Framework",
+        "Capabilities": ["INodeProvider", "IRuntimeHost"],
+        "Dependencies": ["FrameworkCore", "NodeditorNodesCore"]
+    }
+}

@@ -73,7 +73,7 @@
 > **Статус на секцията: ПРЕДЛОЖЕНИЕ, частично реализирано.** Записано е преди
 > REQ-SW-PL-051/053; две имена и един контракт са остарели спрямо кода:
 > `DaqsterCore`/`DaqsterGui` станаха plugin-ите `FrameworkCore` /
-> `FrameworkGuiPlugin` (REQ-SW-PL-053), а `DaqsterHeadless` — един dual-mode
+> `RuntimeHostGuiPlugin` (REQ-SW-PL-053), а `DaqsterHeadless` — един dual-mode
 > бинарник `NodeRunner --headless`. Договорът за доставяне на widget-и също е
 > променен: не `factory` в editor-а, а capability интерфейсът **`IWidgetProvider`**.
 > Реалното описание е в `docs/Architecture/core-gui-split.md`; там са и
@@ -86,13 +86,13 @@
   - `DaqsterGui` — QtWidgets: QPluginManagerGui, NodeEditorWidget, RuntimeShell, built-in nodes, merged NodeEditorLibrary
   
 - **Плъгини:**
-  - `demo_nodeditor_nodes_core` — Core node models (24+), NO widgets, `embeddedWidget() = nullptr`, implements IStoppable/IStartable
-  - `demo_nodeditor_nodes_gui` — GUI widgets + NodeWidgetFactory, registers `modelName → widget creator` lambdas
+  - `nodeditor_nodes/core` — Core node models (24+), NO widgets, `embeddedWidget() = nullptr`, implements IStoppable/IStartable
+  - `nodeditor_nodes/gui` — GUI widgets + NodeWidgetFactory, registers `modelName → widget creator` lambdas
   - `node_editor_ide` — IDE shell, depends on DaqsterGui
 
 - **NodeWidgetFactory контракт:**
   ```cpp
-  // In demo_nodeditor_nodes_gui plugin
+  // In nodeditor_nodes/gui plugin
   factory->registerWidgetCreator("AudioSource", [](NodeDelegateModel* m) {
       return new AudioSourceDataModelUI(qobject_cast<AudioSourceDataModel*>(m));
   });
@@ -126,7 +126,7 @@
 
 # НЕ бива да се появява — иначе GUI runtime host-ът е constructed в headless
 ./build_qt5/bin/NodeRunner --headless --run tests/data/number_graph.flow \
-    --log-console-enabled 1 --log-level Info 2>&1 | grep FrameworkGuiPlugin
+    --log-console-enabled 1 --log-level Info 2>&1 | grep RuntimeHostGuiPlugin
 
 # ld проверката НЕ е валиден критерий за AC 2: QApplication (Qt5: в QtWidgets)
 # остава необходим за headless, затова Qt5Widgets е верен дори днес.

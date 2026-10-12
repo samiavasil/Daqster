@@ -41,7 +41,7 @@
 - Qt5/Qt6 dual-major линкване и dependency gating в Daqster build graph.
 Причина: проектът трябва да се компилира и в Qt5, и в Qt6 без разклоняване на отделни кодови линии.
 
-- Уточнени условия за включване на QtCoinTrader/qtrest в зависимост от наличните Qt компоненти.
+- Уточнени условия за включване на qt_coin_trader/qtrest в зависимост от наличните Qt компоненти.
 Причина: да се избегнат false-positive target-и и частични конфигурации при липсващи Qt модули.
 
 - Поправени cross-platform install правила в qtrest/core/CMakeLists.txt (2026-07-30).

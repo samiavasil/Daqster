@@ -37,7 +37,7 @@ option(DAQSTER_VERBOSE_DEPENDENCIES "Show detailed dependency checks" OFF)
 option(DAQSTER_AUTO_INIT_SUBMODULES "Automatically run 'git submodule update --init' for missing external submodules" ON)
 
 # Build GUI components (default ON)
-option(DAQSTER_BUILD_GUI "Build GUI components (FrameworkGui, demo_nodeditor_nodes_gui, node_editor_ide)" ON)
+option(DAQSTER_BUILD_GUI "Build GUI components (FrameworkGui, nodeditor_nodes/gui, node_editor_ide)" ON)
 
 # Detect Qt version (Qt6 preferred, Qt5 fallback)
 include(FindQtVersion)
@@ -124,8 +124,13 @@ create_external_library(nodeeditor)
 # staticMetaObject or a vtable get only the __imp_ form and would still need real
 # export markup — that is why the other two Windows fixes in this series are
 # explicit macros on the classes, not this property.)
-if(WIN32 AND TARGET QtNodes)
-    set_target_properties(QtNodes PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+if(WIN32)
+    if(TARGET QtNodes)
+        set_target_properties(QtNodes PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    endif()
+    if(TARGET QtNodesCore)
+        set_target_properties(QtNodesCore PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    endif()
 endif()
 
 # QtRest library - Qt5/Qt6 dual-mode
@@ -139,17 +144,22 @@ create_external_library(qtrest_lib)
 add_subdirectory(src/frame_work)
 
 # ── Plugins ───────────────────────────────────────────────────────────
+# Shared plugin infrastructure (REQ-SW-PL-032): TexturePool lives here as a
+# shared library so every consumer links ONE definition of the singleton.
+# Must precede the plugins that link it.
+add_subdirectory(src/plugins/common)
+
 # Core plugins (always built)
-add_subdirectory(src/plugins/demo_nodeditor_nodes_core)
-add_subdirectory(src/plugins/FrameworkCorePlugin)
+add_subdirectory(src/plugins/nodeditor_nodes/core)
+add_subdirectory(src/plugins/runtime_host/headless)
 
 # GUI plugins (only when DAQSTER_BUILD_GUI=ON)
 if(DAQSTER_BUILD_GUI)
     add_subdirectory(src/plugins/node_editor_ide)
-    add_subdirectory(src/plugins/demo_nodeditor_nodes_gui)
-    add_subdirectory(src/plugins/FrameworkGuiPlugin)
+    add_subdirectory(src/plugins/nodeditor_nodes/gui)
+    add_subdirectory(src/plugins/runtime_host/gui)
     add_subdirectory(src/plugins/requirements_manager)
-    add_subdirectory(src/plugins/QtCoinTrader)
+    add_subdirectory(src/plugins/qt_coin_trader)
 endif()
 
 # Test plugins - gated behind their own option (default OFF) so they are not

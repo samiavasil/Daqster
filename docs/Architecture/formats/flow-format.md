@@ -102,7 +102,7 @@
 
 ## 5. Интерфейси (CP-1/CP-3)
 
-### `IStoppable` (`src/plugins/demo_nodeditor_nodes/shared/IStoppable.h`)
+### `IStoppable` (`src/plugins/nodeditor_nodes/shared/IStoppable.h`)
 ```cpp
 namespace Daqster {
 class IStoppable {
@@ -115,7 +115,7 @@ class IStoppable {
 - **Idempotent:** `stop()` трябва да е безопасно за многократно извикване.
 - Реализация: всички source/sink нодове с QThread/QTimer/QProcess (по списъка в runtime-mode-architecture.md §4.3).
 
-### `IStartable` (`src/plugins/demo_nodeditor_nodes/shared/IStartable.h`)
+### `IStartable` (`src/plugins/nodeditor_nodes/shared/IStartable.h`)
 ```cpp
 namespace Daqster {
 class IStartable {

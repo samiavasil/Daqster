@@ -14,18 +14,18 @@
 
 | Плъгин | Път (код) | Описание |
 |--------|-----------|----------|
-| [Demo NodeEditor Nodes](./demo_nodeditor_nodes/README.md) | `src/plugins/demo_nodeditor_nodes/` | INodeProvider плъгин, който доставя Audio, Video, LLaMA, Display и Routing нодове към Node Editor IDE — основният доставчик на нодове за Daqster node editor-а |
+| [Demo NodeEditor Nodes](./nodeditor_nodes/README.md) | `src/plugins/nodeditor_nodes/` | INodeProvider плъгин, който доставя Audio, Video, LLaMA, Display и Routing нодове към Node Editor IDE — основният доставчик на нодове за Daqster node editor-а |
 | [Node Editor IDE](./node_editor_ide/README.md) | `src/plugins/node_editor_ide/` | Основният GUI плъгин за визуално node-based редактиране — вградени числови нодове (Source, Display, Modulo, ArithmeticLogic), споделена `NodeEditorLibrary`, динамично откриване на външни INodeProvider плъгини, QtNodes canvas |
-| [QtCoinTrader](./QtCoinTrader/README.md) | `src/plugins/QtCoinTrader/` | APPLICATION_PLUGIN за cryptocurrency trading с QML UI; демонстрира интеграция с QtRest (REST API комуникация) и QtCharts (визуализация) |
+| [QtCoinTrader](./qt_coin_trader/README.md) | `src/plugins/qt_coin_trader/` | APPLICATION_PLUGIN за cryptocurrency trading с QML UI; демонстрира интеграция с QtRest (REST API комуникация) и QtCharts (визуализация) |
 
 ## Структура
 
 ```
 docs/plugins/
 ├── README.md                        # Този файл — хъб
-├── demo_nodeditor_nodes/README.md   # Demo NodeEditor Nodes (INodeProvider доставчик)
+├── nodeditor_nodes/README.md   # Demo NodeEditor Nodes (INodeProvider доставчик)
 ├── node_editor_ide/README.md        # Node Editor IDE (GUI node editor)
-└── QtCoinTrader/README.md           # QtCoinTrader (QML trading demo)
+└── qt_coin_trader/README.md           # QtCoinTrader (QML trading demo)
 ```
 
 ## Свързана документация

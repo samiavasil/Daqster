@@ -23,7 +23,9 @@
 #ifndef IRUNTIMEHOST_H
 #define IRUNTIMEHOST_H
 
+#include <QObject>   // Q_DECLARE_INTERFACE / qobject_interface_iid
 #include <QString>
+#include <QtGlobal>
 
 namespace Daqster {
 
@@ -39,6 +41,34 @@ enum class RuntimeMode {
 };
 
 /**
+ * @brief Configuration for the optional remote-control plane (REQ-SW-PL-054).
+ *
+ * The shared AppBootstrap parses the `--rest-*` command-line options into this
+ * struct and hands it to the selected IRuntimeHost through
+ * configureControlPlane(). A host that does not implement remote control
+ * returns false, and the bootstrap treats a requested-but-unsupported control
+ * plane as a startup error (fail loudly — never silently pretend the server is
+ * up).
+ *
+ * Defaults are the safe ones: a loopback-only HTTP server, disabled unless the
+ * caller explicitly asks for it with `--rest-port`.
+ */
+struct ControlPlaneOptions {
+    /// True only when the caller explicitly enabled the control plane.
+    bool enabled = false;
+    /// TCP port for the HTTP/WebSocket server (default 8080).
+    quint16 port = 8080;
+    /// Bind address. Loopback by default; a non-loopback bind without a token
+    /// must be refused (see REQ-SW-PL-054).
+    QString bindAddress = QStringLiteral("127.0.0.1");
+    /// Optional Bearer token. Empty means "no authentication" and is only
+    /// acceptable together with a loopback bind address.
+    QString authToken;
+    /// Optional directory with the control web UI to serve at `/`.
+    QString webRoot;
+};
+
+/**
  * @brief The IRuntimeHost interface
  *
  * Capability interface for plugins that can *execute a .flow scene*.
@@ -48,8 +78,8 @@ enum class RuntimeMode {
  * asks QPluginManager::runtimeHosts(mode) for a host, and the plugin that
  * implements the requested mode does the work:
  *
- *   - FrameworkCorePlugin -> HeadlessEngine  (RuntimeMode::Headless)
- *   - FrameworkGuiPlugin  -> RuntimeShell    (RuntimeMode::Gui)
+ *   - RuntimeHostHeadlessPlugin -> HeadlessEngine  (RuntimeMode::Headless)
+ *   - RuntimeHostGuiPlugin  -> RuntimeShell    (RuntimeMode::Gui)
  *
  * Both implementations are owned by their plugin object and are QObject children
  * of it, so their lifetime follows plugin shutdown.
@@ -90,6 +120,31 @@ public:
      * graceful shutdown while their graph is still valid.
      */
     virtual void stopAllNodes() = 0;
+
+    /**
+     * @brief Enable the optional remote-control plane (REQ-SW-PL-054).
+     *
+     * Called by AppBootstrap with the `--rest-*` command-line options before
+     * loadFlow(). The returned bool is the host's answer to "can you actually
+     * serve this?":
+     *
+     *   - true  — the host will expose the control plane,
+     *   - false — remote control is not implemented (or the options were
+     *             rejected, e.g. non-loopback bind without a token).
+     *
+     * The default implementation returns false, so existing hosts stay valid
+     * without changes and a requested-but-unsupported control plane surfaces as
+     * a startup error instead of a silent no-op.
+     *
+     * NOTE: the interface stays plain (non-QObject) on purpose — see the class
+     * comment. Keeping this virtual inline avoids forcing the plugin ABI to
+     * grow a slot.
+     */
+    virtual bool configureControlPlane(const ControlPlaneOptions& options)
+    {
+        Q_UNUSED(options);
+        return false;
+    }
 };
 
 } // namespace Daqster

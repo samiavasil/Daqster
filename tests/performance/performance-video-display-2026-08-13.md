@@ -186,6 +186,71 @@ embedded QLabel, чекбоксът се отмаркира; повторнот�
 на Qt5: uncheck → GL прозорецът се затваря и следващият кадър минава по софтуерен път;
 re-check → GL прозорецът се отваря отново.
 
+### 3.8 Embedded display — REQ-SW-PL-053 (2026-09-09) — ЕMBEDDED VIDEO DISPLAY
+
+**Контекст:** Phase 1 на REQ-SW-PL-053 обедини video display пайплайна —
+`VideoDisplayWidget` (GL blit по подразбиране / software fallback) вече е **CHILD на
+node m_widget** (EMBEDDED, не detached прозорец). Repaint fix-ът направи
+`node->update()` безусловен при пристигане на данни (премахнати geometry gate
+проверки). Env var: `DAQSTER_VIDEO_BACKEND=gl|software` (заменя стария
+`DAQSTER_GL_BLIT`); GL е default при наличие на hardware GL (auto-detect чрез
+`VideoGLContextManager::hasHardwareGL()`).
+
+**Repo / branch:** `daqster` — `feat/REQ-SW-PL-053-video-display-unification`
+**Комити:** `b543009` (changelog), `3e667ae` (repaint fix), `5184cfb` (acceptance criteria),
+`d12c782` (compile fixes), `a5e392d` (unified display doc)
+**Raw data:** `/tmp/opencode/glblit/pl053_*/` (qt5_gl, qt6_gl, qt5_sw, qt6_sw логове)
+
+Измервания (2026-09-09, `measure_gl_default.sh`, 45 s прогони, bars_h265_1080p25_x3.mp4):
+
+| Сценарий | Qt | CPU% (steady) | GLBLIT avg (steady) | GLBLIT fmt | fps | failures | ps %CPU |
+|---|---|---|---|---|---|---|---|
+| **Embedded GL (new default)** | Qt5 | **18.0-19.0%** | 2.1-2.4 µs | `Texture(NV12)` | 25 | 0 | 21.7% |
+| **Embedded GL (new default)** | Qt6 | **19.8-21.2%** | 1.8-2.3 µs | `Texture(NV12)` | 25 | 0 | 23.0% |
+| **Embedded SW** (`DAQSTER_VIDEO_BACKEND=software`) | Qt5 | **77.2-82.9%** | N/A (no GLBLIT) | — | 25 | 0 | 77.7% |
+| **Embedded SW** (`DAQSTER_VIDEO_BACKEND=software`) | Qt6 | **52.2-56.0%** | N/A (no GLBLIT) | — | 25 | 0 | 55.7% |
+
+**Сурови данни (PERF cpu=, last 6 steady-state sample-а):**
+
+Qt5 GL (`pl053_qt5_gl`): 18.0, 18.2, 18.6, 19.0, 18.2, 18.4%
+Qt6 GL (`pl053_qt6_gl`): 20.2, 21.2, 19.8, 19.8, 19.8, 20.8%
+Qt5 SW (`pl053_qt5_sw`): 80.9, 82.9, 77.3, 77.5, 77.4, 77.2%
+Qt6 SW (`pl053_qt6_sw`): 56.0, 54.4, 53.6, 55.2, 52.2, 54.6%
+
+**GLBLIT trajectory (Qt5 GL, avg µs по кадъри):**
+150: 29.1 → 300: 13.0 → 450: 8.7 → 600: 6.4 → 750: 5.0 → 900: 4.5 → 1050: 4.0 → 1200: 3.3 → 1350: 3.0 → 1500: 2.8 → 1650: 2.4 → 1800: 2.2 → 1950: 2.1 → 2100: 2.1
+
+**GLBLIT trajectory (Qt6 GL, avg µs по кадъри):**
+150: 28.0 → 300: 12.5 → 450: 8.2 → 600: 6.1 → 750: 4.8 → 900: 4.1 → 1050: 3.5 → 1200: 3.0 → 1350: 2.7 → 1500: 2.4 → 1800: 2.3 → 1950: 2.2 → 2100: 2.2 → 2250: 1.8
+
+**GLBLIT-FMT:** `fmt=Texture(NV12)` — NV12 shader path потвърден (без суфикс
+`-> toImage(N)` който означава RGB fallback). GL контекст: GL4.6, profile=2
+(compatibility), useCore=0, matrix=bt709, range=full.
+
+**Сравнение с detached (2026-08-13):**
+
+| Път | Qt | Detached (2026-08-13) | Embedded (2026-09-09) | Delta |
+|---|---|---|---|---|
+| GL blit (default) | Qt5 | **15.0-16.2%** | **18.0-19.0%** | **+2-3 pp** |
+| GL blit (default) | Qt6 | **17.8-18.2%** | **19.8-21.2%** | **+2-3 pp** |
+| Software | Qt5 | **33.8-36.0%** | **77.2-82.9%** | **+41-47 pp** |
+| Software | Qt6 | **~34%** (est) | **52.2-56.0%** | **+18-22 pp** |
+
+**Интерпретация:**
+- **GL път:** Embedded + repaint fix добавя ~2-3 pp CPU overhead. Това е очакваният
+  разход от embedding-а: `VideoDisplayWidget` вече е child на node m_widget и участва
+  в layout/resize/paint веригата на parent-а. GLBLIT blit cost е пренебрежимо нисък
+  (~2 µs steady state) — CPU-то идва от nodeeditor scene repaint overhead-а
+  (`QGraphicsScene::drawItems` / `QGraphicsItem::paint` traversal), не от самия blit.
+- **Software път:** Драматичен регрес (~2× за Qt6, ~2.3× за Qt5). Коренът е
+  че software-rendered видео вече минава през nodeeditor scene repaint pipeline-а
+  (`QGraphicsItem::paint()` → `drawPixmap()`) вместо standalone `paintEvent()` на
+  detached widget. Scene repaint-ът е значително по-скъп поради item transform,
+  clipping, overlap detection и scene invalidation на всеки кадър.
+- **present time** на Qt5 GL: 0.9-1.0 ms (бърз, vsync off както се очаква с
+  `setSwapInterval(0)`). Qt6 GL present: 2.5-2.8 ms. Software present: Qt5 3.5-4.1 ms,
+  Qt6 8.5-9.3 ms.
+
 ---
 
 ## 4. Perf анализ на тясното място (perf categories)

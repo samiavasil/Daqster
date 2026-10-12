@@ -20,7 +20,7 @@ configure_file(
 
 # ════════════════════════════════════════════════════════════════════════
 # REQ-SW-PL-051: the built-in node models (NumberSource, NumberDisplay,
-# Modulo, Arithmetic/Logic) live in the DemoNodeEditorNodesCore plugin and
+# Modulo, Arithmetic/Logic) live in the NodeditorNodesCore plugin and
 # are exposed through INodeProvider. They used to be DUPLICATED here and
 # registered by NodeEditorIdeObject *before* the core plugin — since
 # NodeDelegateModelRegistry::registerModel is first-wins by model name, the
@@ -31,7 +31,7 @@ configure_file(
 
 # ═════════════════════════════════════════════════════════════════════════
 # Shared Library: NodeEditorLibrary
-# Extracted so both NodeEditorIde and DemoNodeEditorNodes plugins
+# Extracted so both NodeEditorIde and NodeditorNodes plugins
 # can link against it without cross-plugin symbol resolution issues.
 # Conditional on required Qt modules being available.
 # ═════════════════════════════════════════════════════════════════════════
@@ -44,8 +44,8 @@ register_component(NodeEditorLibrary
         Qt${QT_VERSION_MAJOR}::Charts
         QtNodes
         # NodeEditorWidget.cpp, EventThreadPullObsolete.cpp,
-        # XYSeriesIODeviceObsolete.cpp, QDevioDisplayModelObsolete.cpp and
-        # QDevioDisplayModelUiObsolete.cpp all log through lcNodeEditor(),
+        # XYSeriesIODeviceObsolete.cpp and QDevioDisplayModelObsolete.cpp all
+        # log through lcNodeEditor(),
         # which is defined in base/src/logging/LogCategories.cpp (part of
         # FrameworkCore) and declared FRAMEWORK_CORE_EXPORT. Without this,
         # linking NodeEditorLibrary.dll fails with:
@@ -61,39 +61,36 @@ if(NODE_EDITOR_LIB_ENABLED)
     set(LIB_SOURCES
         FlowUiSection.h
         FlowUiSection.cpp
-        # Editor canvas (REQ-SW-PL-053): RuntimeShell in FrameworkGuiPlugin
+        # Editor canvas (REQ-SW-PL-053): RuntimeShell in RuntimeHostGuiPlugin
         # drives a NodeEditorWidget to obtain the registry, the scene and the
         # graph model, so these belong in the shared library rather than in the
-        # NodeEditorIde plugin — otherwise FrameworkGuiPlugin would have to
+        # NodeEditorIde plugin — otherwise RuntimeHostGuiPlugin would have to
         # resolve symbols out of another plugin.
         NodeEditorWidget.h
         NodeEditorWidget.cpp
         CustomDataFlowScene.h
         CustomDataFlowScene.cpp
-        BuiltInNodes/Library/types/GenericNumericTypes.h
-        BuiltInNodes/Library/types/GenericNumericTypes.cpp
-        BuiltInNodes/Library/types/IStreamDecoderObsolete.h
-        BuiltInNodes/Library/types/QDevIOStreamConfigObsolete.h
-        BuiltInNodes/Library/types/StreamChannelObsolete.h
-        BuiltInNodes/Library/types/ChatGraphModel.h
-        BuiltInNodes/Library/types/ChatGraphModel.cpp
-        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnectorObsolete.h
-        BuiltInNodes/Library/connectors/NodeDataModelToQIODeviceConnectorObsolete.cpp
-        BuiltInNodes/Library/connectors/GenericQDevIoConnectorObsolete.h
-        BuiltInNodes/Library/connectors/GenericQDevIoConnectorObsolete.cpp
-        BuiltInNodes/Library/decoders/AudioFrameDecoder.h
-        BuiltInNodes/Library/decoders/AudioFrameDecoder.cpp
-        BuiltInNodes/Library/display/QDevIoDisplayModelObsolete.h
-        BuiltInNodes/Library/display/QDevIoDisplayModelObsolete.cpp
-        BuiltInNodes/Library/display/QDevioDisplayModelUiObsolete.h
-        BuiltInNodes/Library/display/QDevioDisplayModelUiObsolete.cpp
-        BuiltInNodes/Library/display/QDevioDisplayModelUiObsolete.ui
-        BuiltInNodes/Library/display/XYSeriesIODeviceObsolete.h
-        BuiltInNodes/Library/display/XYSeriesIODeviceObsolete.cpp
-        BuiltInNodes/Library/display/AudioCompat.h
-        BuiltInNodes/Library/display/QtChartsCompat.h
-        BuiltInNodes/Library/threading/EventThreadPullObsolete.h
-        BuiltInNodes/Library/threading/EventThreadPullObsolete.cpp
+        NodeSupport/types/GenericNumericTypes.h
+        NodeSupport/types/GenericNumericTypes.cpp
+        NodeSupport/types/IStreamDecoderObsolete.h
+        NodeSupport/types/QDevIOStreamConfigObsolete.h
+        NodeSupport/types/StreamChannelObsolete.h
+        NodeSupport/types/ChatGraphModel.h
+        NodeSupport/types/ChatGraphModel.cpp
+        NodeSupport/connectors/NodeDataModelToQIODeviceConnectorObsolete.h
+        NodeSupport/connectors/NodeDataModelToQIODeviceConnectorObsolete.cpp
+        NodeSupport/connectors/GenericQDevIoConnectorObsolete.h
+        NodeSupport/connectors/GenericQDevIoConnectorObsolete.cpp
+        NodeSupport/decoders/AudioFrameDecoder.h
+        NodeSupport/decoders/AudioFrameDecoder.cpp
+        NodeSupport/display/QDevIoDisplayModelObsolete.h
+        NodeSupport/display/QDevIoDisplayModelObsolete.cpp
+        NodeSupport/display/XYSeriesIODeviceObsolete.h
+        NodeSupport/display/XYSeriesIODeviceObsolete.cpp
+        NodeSupport/display/AudioCompat.h
+        NodeSupport/display/QtChartsCompat.h
+        NodeSupport/threading/EventThreadPullObsolete.h
+        NodeSupport/threading/EventThreadPullObsolete.cpp
     )
 
     add_library(NodeEditorLibrary SHARED ${LIB_SOURCES})
@@ -110,23 +107,23 @@ if(NODE_EDITOR_LIB_ENABLED)
     # When building NodeEditorLibrary itself, Q_OBJECT classes marked with
     # NODE_EDITOR_LIBRARY_EXPORT expand to __declspec(dllexport) on Windows so
     # their staticMetaObject data symbols are exported from the DLL. Consumers
-    # (NodeEditorIde, DemoNodeEditorNodes) do NOT define this macro, so the
+    # (NodeEditorIde, NodeditorNodes) do NOT define this macro, so the
     # macro expands to __declspec(dllimport) there. No-op on Linux/macOS.
     target_compile_definitions(NodeEditorLibrary PRIVATE NODE_EDITOR_LIBRARY_BUILD)
 
     target_include_directories(NodeEditorLibrary PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/types
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/connectors
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/decoders
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/display
-        ${CMAKE_CURRENT_SOURCE_DIR}/BuiltInNodes/Library/threading
+        ${CMAKE_CURRENT_SOURCE_DIR}/NodeSupport/types
+        ${CMAKE_CURRENT_SOURCE_DIR}/NodeSupport/connectors
+        ${CMAKE_CURRENT_SOURCE_DIR}/NodeSupport/decoders
+        ${CMAKE_CURRENT_SOURCE_DIR}/NodeSupport/display
+        ${CMAKE_CURRENT_SOURCE_DIR}/NodeSupport/threading
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/gui
         ${DAQSTER_SOURCE_DIR}/src/plugins/common
-        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core
-        ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_gui
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
+        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui
         # framework_core_export.h is generated in the public daqster build tree
         ${CMAKE_BINARY_DIR}/src/frame_work
     )
@@ -162,10 +159,10 @@ endif()
 # Plugin: NodeEditorIde (IDE shell + built-in nodes)
 # ══════════════════════════════════════════════════════════════════════════
 
-# REQ-SW-PL-051: the built-in models are owned by demo_nodeditor_nodes_core and
+# REQ-SW-PL-051: the built-in models are owned by nodeditor_nodes/core and
 # reach this plugin through its INodeProvider. Nothing is compiled here: a
 # second copy of the same class in another .so would break the dynamic_cast in
-# DemoNodeEditorNodesGui::NodeWidgetFactory, which links the core plugin.
+# NodeditorNodesGui::NodeWidgetFactory, which links the core plugin.
 
 set(PLUGIN_RESOURCES
     node_editor.qrc
@@ -176,6 +173,24 @@ set(IDE_SOURCES
     NodeEditorIdeInterface.h
     NodeEditorIdeObject.cpp
     NodeEditorIdeObject.h
+    # Workspace layout engine (REQ-SW-PL-053 Phase 2a): schema-v2 layout tree
+    # data model + widget builder/capturer. Ported verbatim from consolidate.
+    #
+    # LayoutTree is QtCore-only (data model + JSON) but it lives here rather than
+    # in a core plugin on purpose: it reuses FlowUi::Geometry / FlowUi::NodeUi
+    # from the v1 section model in this plugin, and nothing outside node_editor_ide
+    # parses a "ui" section. LayoutEngine is QtWidgets (QMainWindow, QSplitter,
+    # QTabWidget, QDockWidget) — node_editor_ide is a GUI-side plugin, so this is
+    # the correct side of the core/gui line.
+    #
+    # The consumers are NOT wired up yet — NodeEditorIdeObject's F11 v2 workspace
+    # and RuntimeShell::arrangeLayout still use the v1 path. That rewire is the
+    # next block; until it lands these four TUs compile and are unit-tested but
+    # not reachable at runtime, which is stated rather than hidden.
+    LayoutTree.cpp
+    LayoutTree.h
+    LayoutEngine.cpp
+    LayoutEngine.h
 )
 
 create_plugin(NodeEditorIde
@@ -198,7 +213,7 @@ create_plugin(NodeEditorIde
         # links FrameworkGui.
         FrameworkGui
       INCLUDE_DIRECTORIES
-          ${DAQSTER_SOURCE_DIR}/src/plugins/demo_nodeditor_nodes_core/Displays/NumberDisplay
+          ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Displays/NumberDisplay
 )
 
 # ══════════════════════════════════════════════════════════════════════════

@@ -7,7 +7,7 @@
 #
 # Three test classes (RollingStatsTest / DomainTest / StopwatchScopeTest) are
 # declared in headers and share a single binary (perf_profiler_tests), mirroring
-# the tests/plugins/demo_nodeditor_nodes pattern.
+# the tests/plugins/nodeditor_nodes pattern.
 
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Test Core REQUIRED)
 

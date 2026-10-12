@@ -1,0 +1,48 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "internal-data": {
+        "model-name": "AudioSourceObsolete"
+      }
+    },
+    {
+      "id": 1,
+      "internal-data": {
+        "model-name": "AudioDisplayObsolete"
+      }
+    },
+    {
+      "id": 2,
+      "internal-data": {
+        "model-name": "AudioDisplay"
+      }
+    },
+    {
+      "id": 3,
+      "internal-data": {
+        "model-name": "DaqDisplay"
+      }
+    },
+    {
+      "id": 4,
+      "internal-data": {
+        "model-name": "GenericDisplay"
+      }
+    },
+    {
+      "id": 5,
+      "internal-data": {
+        "model-name": "VideoOutput"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "inNodeId": 1,
+      "inPortIndex": 0,
+      "outNodeId": 0,
+      "outPortIndex": 0
+    }
+  ]
+}

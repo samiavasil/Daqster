@@ -18,6 +18,19 @@ void setupTextureParams(QOpenGLFunctions *f, GLuint id)
 
 } // namespace
 
+TexturePool &TexturePool::instance()
+{
+    // Function-local static pointer: intentionally leaked (never destroyed) so
+    // the pool outlives all frames and no destruction-order hazard with
+    // QOpenGLContext / QGuiApplication teardown can occur (same pattern as
+    // VideoGLContextManager::instance()).
+    //
+    // This body lives in the .cpp on purpose — see the note on instance() in
+    // TexturePool.h about one pool per process, not one per translation unit.
+    static TexturePool *s_instance = new TexturePool();
+    return *s_instance;
+}
+
 TexturePool::~TexturePool()
 {
     VideoGLContextManager &mgr = VideoGLContextManager::instance();

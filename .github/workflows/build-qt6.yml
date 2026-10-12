@@ -401,10 +401,10 @@ jobs:
           # fail loudly when a plugin stops shipping, and a derived list cannot
           # detect a plugin that vanished from the build in the first place.
           $plugins = @(
-            "DemoNodeEditorNodesCorePlugin.dll",
-            "DemoNodeEditorNodesGuiPlugin.dll",
-            "FrameworkCorePlugin.dll",
-            "FrameworkGuiPlugin.dll",
+            "NodeditorNodesCorePlugin.dll",
+            "NodeditorNodesGuiPlugin.dll",
+            "RuntimeHostHeadlessPlugin.dll",
+            "RuntimeHostGuiPlugin.dll",
             "NodeEditorIde.dll",
             "QtCoinTraderPlugin.dll",
             "RequirementsManagerPlugin.dll"

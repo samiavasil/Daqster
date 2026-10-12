@@ -4,7 +4,7 @@ include(GenerateExportHeader)
 #
 # This directory owns the two framework libraries:
 #
-#   FrameworkCore - QtCore + QtNodes (+ optional QtMultimedia / QtOpenGL)
+#   FrameworkCore - QtCore + QtNodesCore (+ optional QtMultimedia / QtOpenGL)
 #                 plugin infrastructure, discovery, registry, persistence,
 #                 logging, platform abstraction, process management,
 #                 performance profiling and the headless engine.
@@ -25,7 +25,7 @@ include(GenerateExportHeader)
 option(DAQSTER_BUILD_STATIC "Build FrameworkCore/FrameworkGui as static libraries" OFF)
 option(DAQSTER_ENABLE_PERF "Enable lightweight runtime profiling" ON)
 
-# QtNodes is the external "nodeeditor" component; the headless engine uses its
+# QtNodesCore is the external "nodeeditor" model half; the headless engine uses its
 # DataFlowGraphModel/registry only (no graphics scene is instantiated).
 set(DAQSTER_FRAMEWORK_INCLUDE_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src
@@ -72,6 +72,10 @@ set(FRAMEWORK_CORE_SOURCES
     base/src/engine/HeadlessApp.h
     base/src/engine/HeadlessEngine.cpp
     base/src/engine/HeadlessEngine.h
+
+    # Shared widget-free application bootstrap (REQ-SW-PL-048)
+    base/src/app/AppBootstrap.cpp
+    base/src/app/AppBootstrap.h
 
     # Logging
     base/src/logging/LogCategories.cpp
@@ -143,23 +147,23 @@ target_include_directories(FrameworkCore
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/registry
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/persistence
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/engine
+        ${CMAKE_CURRENT_SOURCE_DIR}/base/src/app
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/platform
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/process
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/perf
         ${CMAKE_CURRENT_BINARY_DIR}
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/types
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/display
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/connectors
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/decoders
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/BuiltInNodes/Library/threading
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/types
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/display
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/connectors
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/decoders
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/threading
 )
 
 target_link_libraries(FrameworkCore
     PUBLIC
         Qt${QT_VERSION_MAJOR}::Core
-        QtNodes
+        QtNodesCore
 )
 
 # QtMultimedia / QtOpenGL are optional but required by the shared NodeData
@@ -190,10 +194,11 @@ install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/include/plugin_global.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/include/debug.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/include/build_cfg.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/base/src/app/AppBootstrap.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/FrameworkCore
 )
 
-message(STATUS "Created library: FrameworkCore (QtCore + QtNodes)")
+message(STATUS "Created library: FrameworkCore (QtCore + QtNodesCore)")
 
 # ═══════════════════════════════════════════════════════════════════════════
 # FrameworkGui
@@ -258,7 +263,7 @@ if(DAQSTER_BUILD_GUI)
             Qt${QT_VERSION_MAJOR}::Core
             Qt${QT_VERSION_MAJOR}::Gui
             Qt${QT_VERSION_MAJOR}::Widgets
-            QtNodes
+            QtNodesCore
     )
 
     # Optional Qt modules used by the framework GUI widgets.

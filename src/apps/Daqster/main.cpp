@@ -1,21 +1,21 @@
+#include "AppBootstrap.h"
 #include "ApplicationsManager.h"
 #include "QPluginManager.h"
-#include "ShutdownHandler.h"
-#include "LogManager.h"
+#include "LogCategories.h"
 #include "daqster_version.h"
 
 #include <AppToolbar.h>
 #include <QApplication>
 #include <QBasePluginObject.h>
-#include <QCommandLineParser>
-#include <QFile>
-#include <QMainWindow>
+#include <QCommandLineOption>
+#include <QCoreApplication>
 #include <QDir>
-#include "LogCategories.h"
-#include <QSettings>
+#include <QFile>
 #include <QLoggingCategory>
+#include <QMainWindow>
 #include <QMessageBox>
 #include <QMetaObject>
+#include <QSettings>
 #include "QConsoleListener.h"
 #include "main.h"
 
@@ -27,35 +27,33 @@
 #define DAQSTER_BASE_FILE __BASE_FILE__
 #endif
 
+// Create a plugin object for every enabled plugin. The objects are intentionally
+// NOT deleted here: capability interfaces (INodeProvider / IWidgetProvider /
+// IRuntimeHost, REQ-SW-PL-051) hand out pointers to their plugin objects, and
+// those pointers are cached for the whole session — the node editor keeps its
+// IWidgetProvider in ChatGraphModel. Destroying the objects at the first
+// event-loop turn left that pointer dangling and every node placement
+// segfaulted. PluginRegistry::shutdownAll() disposes of them on exit.
+//
+// Plugin discovery itself (QPluginManager::Initialize() + SearchForPlugins())
+// is done by Daqster::AppBootstrap::initializePlugins() before this runs.
 void PluginsInit() {
   Daqster::QPluginManager *PluginManager = Daqster::QPluginManager::instance();
 
   if (nullptr != PluginManager) {
-    PluginManager->SearchForPlugins();
     qCDebug(lcApp) << "Plugin Manager: " << PluginManager;
     QList<Daqster::PluginDescription> PluginsList =
         PluginManager->GetPluginList();
     foreach (const Daqster::PluginDescription &Desc, PluginsList) {
       if (!Desc.IsEnabled()) continue;
-      for (int i = 0; i < 1; i++) {
-        Daqster::QBasePluginObject* obj = PluginManager->CreatePluginObject(Desc.GetProperty(PLUGIN_HASH).toString(), nullptr);
-        // The object is intentionally NOT deleted here. Capability interfaces
-        // (INodeProvider / IWidgetProvider / IRuntimeHost, REQ-SW-PL-051) hand
-        // out pointers to their plugin objects, and those pointers are cached
-        // for the whole session — the node editor keeps its IWidgetProvider in
-        // ChatGraphModel. Destroying the objects at the first event-loop turn
-        // left that pointer dangling and every node placement segfaulted.
-        // PluginRegistry::shutdownAll() disposes of them on exit.
-        Q_UNUSED(obj)
-      }
+      Daqster::QBasePluginObject* obj = PluginManager->CreatePluginObject(Desc.GetProperty(PLUGIN_HASH).toString(), nullptr);
+      Q_UNUSED(obj)
     }
   }
 }
 
 int main(int argc, char *argv[]) {
   int res = 0;
-
-  Daqster::LogManager::instance()->initialize();
 
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
@@ -66,9 +64,24 @@ int main(int argc, char *argv[]) {
   QApplication::setApplicationName("Daqster");
   QApplication::setApplicationVersion(DAQSTER_VERSION_STRING);
 
-  auto* shutdownHandler = Daqster::ShutdownHandler::create(&a);
-  shutdownHandler->initialize();
-  QObject::connect(shutdownHandler, &Daqster::ShutdownHandler::shutdownRequested, &a, &QCoreApplication::quit);
+  // ── Shared, widget-free startup (REQ-SW-PL-048) ──────────────────────────
+  Daqster::AppBootstrap boot(
+      a, "Daqster - Plugin Application Launcher & Node Editor");
+  boot.addStandardOptions();
+
+  boot.parser().addPositionalArgument(
+      "apps ...",
+      QCoreApplication::translate("main",
+                                  "One or more Application plugin names to start automatically"));
+
+  QCommandLineOption targetDirectoryOption(
+      QStringList() << "t" << "target-directory",
+      QCoreApplication::translate("main", "Copy all source files into <directory>."),
+      QCoreApplication::translate("main", "directory"));
+  boot.parser().addOption(targetDirectoryOption);
+
+  // Parses the shared --log-* / --instance-id options and applies them.
+  boot.processArguments();
 
   // Load theme if configured
   QSettings appSettings("Daqster", "Daqster");
@@ -81,82 +94,21 @@ int main(int argc, char *argv[]) {
       }
   }
 
-  QCommandLineParser parser;
-  parser.setApplicationDescription("Daqster - Plugin Application Launcher & Node Editor");
-  parser.addHelpOption();
-  parser.addVersionOption();
-  parser.addPositionalArgument(
-      "apps ...",
-      QCoreApplication::translate("main",
-                                  "One or more Application plugin names to start automatically"));
-  QCommandLineOption targetDirectoryOption(
-      QStringList() << "t" << "target-directory",
-      QCoreApplication::translate("main", "Copy all source files into <directory>."),
-      QCoreApplication::translate("main", "directory"));
-  parser.addOption(targetDirectoryOption);
-
-  QCommandLineOption instanceIdOption(
-      QStringList() << "instance-id",
-      "Child process instance identifier (internal)",
-      "id");
-  parser.addOption(instanceIdOption);
-
-  QCommandLineOption logConsoleOption(
-      QStringList() << "log-console-enabled",
-      "Enable console logging in child process (internal)",
-      "0|1");
-  parser.addOption(logConsoleOption);
-
-  QCommandLineOption logLevelOption(
-      QStringList() << "log-level",
-      "Minimum console log level (internal)",
-      "level");
-  parser.addOption(logLevelOption);
-
-  QCommandLineOption logRulesOption(
-      QStringList() << "log-rules",
-      "Qt logging category rules (internal)",
-      "rules");
-  parser.addOption(logRulesOption);
-
-  parser.process(a);
-
-  if (parser.isSet(instanceIdOption)) {
-      Daqster::LogManager::instance()->setInstanceId(parser.value(instanceIdOption));
-  }
-
-  if (parser.isSet(logConsoleOption)) {
-      bool enabled = parser.value(logConsoleOption) == "1";
-      Daqster::LogManager::instance()->setConsoleEnabled(enabled);
-  }
-
-  if (parser.isSet(logLevelOption)) {
-      QString levelName = parser.value(logLevelOption);
-      Daqster::LogLevel level = Daqster::LogLevel::Warning;
-      if (levelName == "Debug") level = Daqster::LogLevel::Debug;
-      else if (levelName == "Info") level = Daqster::LogLevel::Info;
-      else if (levelName == "Warning") level = Daqster::LogLevel::Warning;
-      else if (levelName == "Critical") level = Daqster::LogLevel::Critical;
-      else if (levelName == "Fatal") level = Daqster::LogLevel::Fatal;
-      Daqster::LogManager::instance()->setConsoleLogLevel(level);
-  }
-
-  if (parser.isSet(logRulesOption)) {
-      QLoggingCategory::setFilterRules(parser.value(logRulesOption));
-  }
-
-  const QStringList args = parser.positionalArguments();
+  const QStringList args = boot.parser().positionalArguments();
 
   qCDebug(lcApp) << "Positional Arguments: " << args;
 
-  Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
-  if (!PluginManager->Initialize()) {
+  boot.installShutdownHandler();
+
+  if (!boot.initializePlugins()) {
     qCDebug(lcApp) << "QPluginManager Initialization Error";
   }
 
   qCDebug(lcApp) << "Show window";
   PluginsInit();
   qCDebug(lcApp) << "ARGS: " << args;
+
+  Daqster::QPluginManager* PluginManager = Daqster::QPluginManager::instance();
 
   Daqster::PluginFilter Filter;
   Filter.AddFilter(
@@ -242,6 +194,7 @@ int main(int argc, char *argv[]) {
               nullptr, "Daqster",
               QString("Application plugin \"%1\" was found but failed to load.")
                   .arg(input));
+          boot.shutdown();
           return 1;
         }
       } else {
@@ -252,6 +205,7 @@ int main(int argc, char *argv[]) {
                     "plugin or launch the Daqster main window and use the "
                     "toolbar.")
                 .arg(input));
+        boot.shutdown();
         return 1;
       }
     }
@@ -268,7 +222,6 @@ int main(int argc, char *argv[]) {
     res = a.exec();
   }
 
-  Daqster::QPluginManager::instance()->ShutdownPluginManager();
-  Daqster::LogManager::instance()->shutdown();
+  boot.shutdown();
   return res;
 }

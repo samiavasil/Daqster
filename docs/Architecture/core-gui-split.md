@@ -4,8 +4,8 @@
 
 Every node is split into two halves:
 
-- **Core model** — logic, no GUI. Lives in `demo_nodeditor_nodes_core`
-- **GUI widget** — the `QWidget`. Lives in `demo_nodeditor_nodes_gui`
+- **Core model** — logic, no GUI. Lives in `nodeditor_nodes/core`
+- **GUI widget** — the `QWidget`. Lives in `nodeditor_nodes/gui`
 
 A core model has **no** `QWidget` member and returns `nullptr` from
 `embeddedWidget()`. The widget is supplied at runtime by a separate plugin through
@@ -32,20 +32,61 @@ existed when this split was done, and the split reuses it:
 src/
 ├── frame_work/
 │   ├── base/                     # FrameworkCore — QtCore only
-│   │   └── src/registry/         # PluginRegistry, capability discovery
+│   │   ├── src/registry/         # PluginRegistry, capability discovery
 │   │   └── src/engine/           # HeadlessEngine, FlowLoader
 │   └── CMakeLists.txt
 ├── plugins/
-│   ├── common/capabilities/      # INodeProvider, IWidgetProvider, IStoppable, IStartable
-│   ├── demo_nodeditor_nodes_core/# core models, embeddedWidget() == nullptr
-│   ├── demo_nodeditor_nodes_gui/ # QWidgets + NodeWidgetFactory
-│   ├── FrameworkCorePlugin/      # headless runtime host
-│   ├── FrameworkGuiPlugin/       # GUI runtime host (RuntimeShell)
-│   └── node_editor_ide/          # IDE shell
+│   ├── common/                   # support library (NOT a plugin), capabilities
+│   │   ├── capabilities/         # INodeProvider, IWidgetProvider, IStoppable, IStartable
+│   │   └── GL/TexturePool.*      # single-definition GL pool (DaqsterCommonLibrary)
+│   ├── nodeditor_nodes/          # node-provider plugin, split in two halves
+│   │   ├── core/                 # core models, embeddedWidget() == nullptr
+│   │   └── gui/                  # QWidgets + NodeWidgetFactory
+│   ├── runtime_host/             # runtime hosts, one plugin per RuntimeMode
+│   │   ├── headless/             # RuntimeHostHeadlessPlugin (HeadlessEngine)
+│   │   └── gui/                  # RuntimeHostGuiPlugin (RuntimeShell)
+│   ├── node_editor_ide/          # IDE shell
+│   └── qt_coin_trader/           # GUI-only application plugin
 └── apps/
     ├── Daqster/                  # GUI app
     └── NodeRunner/               # dual-mode: --run (GUI) / --headless --run
 ```
+
+### Directory convention — `<plugin>/{core,gui}` (REQ-SW-PL-060)
+
+Every plugin that provides node types lives in a single directory named after
+the plugin, with two halves as subdirectories:
+
+```
+src/plugins/<plugin>/
+├── <Plugin>*Interface.{h,cpp,json}   # factory/metadata, root level
+├── <Plugin>*Object.{h,cpp}           # lifecycle + INodeProvider, root level
+├── core/                             # headless half: models, engines — no QWidget
+└── gui/                              # widget half: QWidgets, NodeWidgetFactory
+```
+
+- `core/` must not include QtWidgets and must return `nullptr` from
+  `embeddedWidget()`.
+- `gui/` holds the widgets and the `IWidgetProvider`; it links `core/`, never the
+  other way round.
+- The interface/object classes stay at the plugin root, like
+  `plugins/ai_studio_plugin/` in the private repo.
+- This applies to **node-provider** plugins: the two halves are the *layers*
+  `core/` (models) and `gui/` (widgets).
+- A plugin **family** with two variants lives under one family directory —
+  parent dir = role, leaf = variant. The runtime hosts follow the same shape
+  with *mode* leaves: `runtime_host/{headless,gui}`, i.e.
+  `RuntimeHostHeadlessPlugin` (HeadlessEngine) and `RuntimeHostGuiPlugin`
+  (RuntimeShell). They are two separate plugins, not two halves of one.
+- Plugin **directories** are `snake_case`; C++ classes and CMake targets are
+  `PascalCase` (e.g. dir `runtime_host/headless/` → target
+  `RuntimeHostHeadlessPlugin`).
+- Flat plugins that have no second variant: the IDE shell (`node_editor_ide`),
+  the GUI-only app plugins (`requirements_manager`, `qt_coin_trader`).
+- `src/plugins/common/` is a shared **support library**, not a plugin: its target
+  name must not contain `plugin` (`DaqsterCommonLibrary`), otherwise
+  `PluginDiscovery::isCandidatePluginFile()` picks it up and logs
+  `Bad Plugin libDaqsterCommonLibrary.so`.
 
 Both apps load the same plugins through `QPluginManager`. The mode only decides
 which plugin *host* is created — the node models are identical either way.
@@ -69,7 +110,7 @@ public:
 }
 ```
 
-`DemoNodeEditorNodesGuiObject` implements it by delegating to a
+`NodeditorNodesGuiObject` implements it by delegating to a
 `NodeWidgetFactory` whose creators are keyed on `NodeDelegateModel::name()`.
 
 Note the inverted ownership rule that makes this work: **the core model never
@@ -78,7 +119,7 @@ its widget will be destroyed with the model while the scene still references it.
 
 ## Node split pattern
 
-### Core model — `demo_nodeditor_nodes_core`
+### Core model — `nodeditor_nodes/core`
 
 ```cpp
 // Sources/Video/VideoFileSourceNode.h
@@ -98,7 +139,7 @@ public:
 };
 ```
 
-### GUI widget — `demo_nodeditor_nodes_gui`
+### GUI widget — `nodeditor_nodes/gui`
 
 ```cpp
 // Sources/Video/VideoFileSourceWidget.h
@@ -204,11 +245,11 @@ This was a real segfault-on-quit during the migration.
 ```
 
 The mode is decided before any plugin is instantiated: `--headless` selects
-`FrameworkCorePlugin` (headless engine), otherwise `FrameworkGuiPlugin`
-(`RuntimeShell`, an MDI workspace shell). `DemoNodeEditorNodesCoreObject` has
+`RuntimeHostHeadlessPlugin` (headless engine), otherwise `RuntimeHostGuiPlugin`
+(`RuntimeShell`, an MDI workspace shell). `NodeditorNodesCoreObject` has
 both `registerNodes()` and `registerNodesHeadless()` for this reason.
 
-In headless mode the `demo_nodeditor_nodes_gui` plugin is simply never loaded,
+In headless mode the `nodeditor_nodes/gui` plugin is simply never loaded,
 so no `QWidget` is ever constructed and `ChatGraphModel::nodeWidget()` returns
 `nullptr` for every node.
 
@@ -220,13 +261,13 @@ headless process.
 **1. A capability probe must not initialize what it did not match.**
 `PluginRegistry::ensureInitialized()` calls `Initialize()`, and a plugin object's
 constructor can own arbitrary UI:
-`FrameworkGuiPluginObject` builds a whole `RuntimeShell` (MDI area, QtWidgets,
+`RuntimeHostGuiPluginObject` builds a whole `RuntimeShell` (MDI area, QtWidgets,
 OpenGL) in its constructor. So `nodeProviders()` must *not* call
 `ensureInitialized()` — `registerNodes()` is `const` and works on a bare object.
 Likewise `instances(iid)` has to run `qt_metacast(iid)` **before**
 `ensureInitialized()`, never after. Initializing a GUI runtime host during a
 node-provider probe in headless mode is what made `--headless` load
-`libFrameworkGuiPlugin` and `libGLX`.
+`libRuntimeHostGuiPlugin` and `libGLX`.
 
 **2. Plugin objects are parentless on purpose.**
 `capabilityInstances()` calls `createPluginObject(hash, nullptr)`, never
@@ -251,8 +292,8 @@ today. Two reasons, both tracked in the REQ file:
 1. `NodeRunner` uses `QApplication` (Qt5: part of `QtWidgets`) because QtNodes
    and `QTimer` need an event loop object. Switching the headless path to
    `QCoreApplication` is a separate change.
-2. `demo_nodeditor_nodes_core/CMakeLists.txt` still compiles seven QtWidgets
-   translation units out of `node_editor_ide/BuiltInNodes/Library` because
+2. `nodeditor_nodes/core/CMakeLists.txt` still compiles seven QtWidgets
+   translation units out of `node_editor_ide/NodeSupport` because
    `AudioDisplayModelObsolete` inherits a widget-building display model.
 
 ## Plugin object lifetime
@@ -296,10 +337,10 @@ means the teardown is broken.
 # Should print "failed to load flow" then exit 1 — not crash
 ./build_qt5/bin/NodeRunner --headless --run tests/data/audio_graph.flow; echo $?
 
-# Should NOT mention FrameworkGuiPlugin — that would mean the GUI runtime host
+# Should NOT mention RuntimeHostGuiPlugin — that would mean the GUI runtime host
 # was constructed inside a headless process
 ./build_qt5/bin/NodeRunner --headless --run tests/data/number_graph.flow \
-    --log-console-enabled 1 --log-level Info 2>&1 | grep FrameworkGuiPlugin
+    --log-console-enabled 1 --log-level Info 2>&1 | grep RuntimeHostGuiPlugin
 ```
 
 Unit tests for the split itself are deferred under the standing
@@ -307,11 +348,11 @@ Unit tests for the split itself are deferred under the standing
 
 ## Migration guide for a new node
 
-1. **Core side** — move the model to `demo_nodeditor_nodes_core`, delete every
+1. **Core side** — move the model to `nodeditor_nodes/core`, delete every
    QtWidgets member and include, set
    `QWidget* embeddedWidget() override { return nullptr; }`. Add
    `IStartable`/`IStoppable` if the node has a lifecycle.
-2. **GUI side** — add `*Widget.{h,cpp}` to `demo_nodeditor_nodes_gui` with
+2. **GUI side** — add `*Widget.{h,cpp}` to `nodeditor_nodes/gui` with
    setters/getters and request signals. No model pointer.
 3. **Register** — add a `registerWidgetCreator("<ModelName>", ...)` lambda.
    The key must match `Model::name()` exactly, including `/` in names like
@@ -328,5 +369,5 @@ Unit tests for the split itself are deferred under the standing
 - SDRangel: `sdrangel` (GUI) vs `sdrangelsrv` (headless)
 - Runtime mode phases: `docs/Architecture/runtime-mode-architecture.md` (§4.4)
 - Plugin pattern: `DevelopmentProcess/AGENT-PROCESS.md`
-- REQ-SW-PL-053 — the IDE split (`FrameworkCorePlugin` + `FrameworkGuiPlugin`)
+- REQ-SW-PL-053 — the IDE split (`RuntimeHostHeadlessPlugin` + `RuntimeHostGuiPlugin`)
   that this requirement builds on

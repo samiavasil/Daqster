@@ -61,7 +61,7 @@ Examples of plugins that demonstrate the framework's capabilities.
 *   **`node_editor_ide/`**:
     *   Visual node-based editor plugin (IDE shell + built-in nodes).
     *   Uses the `nodeeditor` external library (`QtNodes` target).
-    *   Contains `NodeEditorWidget` (in `NodeEditorWidget.{h,cpp}`) and the `NodeEditorLibrary` shared library (from `BuiltInNodes/Library/`).
+    *   Contains `NodeEditorWidget` (in `NodeEditorWidget.{h,cpp}`) and the `NodeEditorLibrary` shared library (built from `NodeSupport/`).
     *   Built as an `APPLICATION_PLUGIN` using `create_plugin()` macro.
 *   **`QtCoinTrader`**:
     *   Plugin for cryptocurrency trading, using QML for user interface.
@@ -83,7 +83,7 @@ External libraries integrated as git submodules under the plugins directory.
     *   Can be used by plugins that require HTTP requests.
 
 ### 2.5. NodeEditorWidget & NodeEditorLibrary (Shared GUI Components)
-**Location:** `src/plugins/node_editor_ide/` — `NodeEditorWidget.{h,cpp}` and `BuiltInNodes/Library/` (builds the `NodeEditorLibrary` shared library)
+**Location:** `src/plugins/node_editor_ide/` — `NodeEditorWidget.{h,cpp}` and `NodeSupport/` (builds the `NodeEditorLibrary` shared library)
 
 Shared Qt Widgets GUI components for node-based editors, built and installed from the `node_editor_ide` plugin directory. Any Daqster-based GUI node application should use these components instead of building GUI from scratch.
 
