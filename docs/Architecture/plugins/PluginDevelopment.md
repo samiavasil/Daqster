@@ -197,6 +197,24 @@ public:
 - Открива се чрез `QPluginManager::instances(INodeProvider_IID)`
 - Класификацията (PLUGIN_TYPE_NAME) идва от `PluginDescription`
 
+### INodeConfigSchema — node-model capability
+
+Опционален, widget-free интерфейс (`plugins/common/capabilities/INodeConfigSchema.h`).
+Който и да е `NodeDelegateModel` подклас може да го имплементира, за да даде
+**обогатена** JSON Schema на своя `save()` изход — `enum`, `minimum`/`maximum`,
+`default`, `description` и `visibleWhen` условия. Намира се чрез `dynamic_cast`
+(без IID); при липса control plane-ът (REQ-SW-PL-063) пада обратно към
+best-effort схема, изведена от `save()`. Това е начинът per-node метаданни да
+стигнат до headless пътя без зависимост от GUI widget-и.
+
+```cpp
+class VideoEffectNode : public QtNodes::NodeDelegateModel,
+                        public Daqster::INodeConfigSchema {
+public:
+    QJsonObject configSchema() const override;  // properties fragment
+};
+```
+
 ## 8. Debug
 
 ```bash
