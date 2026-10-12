@@ -1,11 +1,16 @@
-# Node Editor Library
+# NodeSupport — shared support library (Node Editor)
+
+Родител: [Node Editor](README.md) | [Architecture](../README.md)
 
 Shared infrastructure for the Daqster Node Editor plugin system.
+
+**Артефакт:** `libNodeEditorLibrary.so` / `NodeEditorLibrary.dll` (CMake target `NodeEditorLibrary`)
+**Изходен код:** `src/plugins/node_editor/node_editor_ide/NodeSupport/`
 
 ## Architecture
 
 ```
-Library/
+NodeSupport/
 ├── types/
 │   ├── IStreamDecoder.h              # Interface: bytes → normalized doubles
 │   ├── QDevIOStreamConfig.h          # Stream metadata (type, sampleRate, channels)
@@ -23,7 +28,7 @@ Library/
 │   ├── AudioCompat.h                     # Qt5/Qt6 audio compatibility
 │   └── QtChartsCompat.h                  # Qt5/Qt6 charts compatibility
 │   (The waveform VIEW — QDevioDisplayModelUiObsolete — moved to
-│    demo_nodeditor_nodes/gui/Displays/ObsoleteAudioDisplay/ on 2026-10-08.)
+│    node_editor/nodeditor_nodes/gui/Displays/ObsoleteAudioDisplay/ on 2026-10-08.)
 ├── threading/
 │   └── EventThreadPull.h/.cpp        # Background worker thread management
 └── decoders/
