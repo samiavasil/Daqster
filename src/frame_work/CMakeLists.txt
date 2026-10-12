@@ -78,9 +78,11 @@ set(FRAMEWORK_CORE_SOURCES
     base/src/app/AppBootstrap.cpp
     base/src/app/AppBootstrap.h
 
-    # REST control plane (REQ-SW-PL-054)
+    # REST control plane (REQ-SW-PL-054, REQ-SW-PL-063)
     base/src/control/ControlPlaneServer.cpp
     base/src/control/ControlPlaneServer.h
+    base/src/control/ControlPlaneRouter.cpp
+    base/src/control/ControlPlaneRouter.h
     base/src/control/RuntimeController.h
 
     # Logging
@@ -204,6 +206,7 @@ install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/include/build_cfg.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/app/AppBootstrap.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control/ControlPlaneServer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control/ControlPlaneRouter.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control/RuntimeController.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control/NodeSchemaBuilder.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/FrameworkCore

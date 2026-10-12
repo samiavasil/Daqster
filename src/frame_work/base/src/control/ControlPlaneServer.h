@@ -2,6 +2,8 @@
 
 #include "framework_core_export.h"
 
+#include "ControlPlaneRouter.h"
+
 #include <capabilities/IRuntimeHost.h> // ControlPlaneOptions
 
 #include <QByteArray>
@@ -77,7 +79,6 @@ private:
                    const QByteArray& method,
                    const QString& path,
                    const QByteArray& body);
-    void handleFlowReload(QTcpSocket* socket, const QByteArray& body);
 
     // Static content: bundled web UI + Swagger assets from --rest-web-root.
     bool handleStatic(QTcpSocket* socket, const QString& path);
@@ -89,11 +90,14 @@ private:
 
     bool authorize(const QHash<QByteArray, QByteArray>& headers) const;
 
-    // ── WebSocket (RFC 6455, server -> client broadcast only) ──────────────
+    // ── WebSocket (RFC 6455; server -> client events + client -> server RPC) ─
     bool upgradeToWebSocket(QTcpSocket* socket,
                             const QByteArray& target,
                             const QHash<QByteArray, QByteArray>& headers);
     void handleWebSocketData(QTcpSocket* socket);
+    /// Handle one text frame: `{"id":N,"method":"...","path":"...","body":{...}}`
+    /// routed through the same ControlPlaneRouter as HTTP (REQ-SW-PL-063 AC12).
+    void handleWebSocketCommand(QTcpSocket* socket, const QByteArray& payload);
     void sendWebSocketFrame(QTcpSocket* socket, const QByteArray& payload, quint8 opcode);
     void dropWebSocketClient(QTcpSocket* socket);
 
@@ -104,6 +108,7 @@ private:
     QByteArray bundledIndexHtml() const;
 
     RuntimeController* m_controller = nullptr;
+    ControlPlaneRouter m_router; ///< shared by HTTP and WebSocket RPC
     QTcpServer m_server;
     QString m_token;
     QString m_webRoot;

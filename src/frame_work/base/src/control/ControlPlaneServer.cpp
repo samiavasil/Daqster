@@ -70,11 +70,6 @@ QHostAddress toHostAddress(const QString& address)
     return QHostAddress(address);
 }
 
-quint64 toNodeId(const QString& text, bool* ok)
-{
-    return text.toULongLong(ok);
-}
-
 /// Content-Type for the handful of asset kinds the web UI and Swagger UI ship.
 QByteArray mimeTypeForPath(const QString& path)
 {
@@ -114,6 +109,7 @@ QByteArray webSocketAccept(const QByteArray& clientKey)
 ControlPlaneServer::ControlPlaneServer(RuntimeController* controller, QObject* parent)
     : QObject(parent)
     , m_controller(controller)
+    , m_router(controller)
 {
     connect(&m_server, &QTcpServer::newConnection, this, &ControlPlaneServer::onNewConnection);
 }
@@ -304,15 +300,8 @@ bool ControlPlaneServer::handleApi(QTcpSocket* socket,
                  QByteArrayLiteral("{\"error\":\"method not allowed\"}"));
     };
 
-    if (path == QLatin1String("/api/health")) {
-        if (method != "GET") { methodNotAllowed(); return true; }
-        QJsonObject out;
-        out.insert(QStringLiteral("status"), QStringLiteral("ok"));
-        out.insert(QStringLiteral("nodes"), m_controller->nodes().size());
-        sendJson(socket, 200, out);
-        return true;
-    }
-
+    // The HTML docs page and the OpenAPI document are navigation targets for a
+    // plain browser (no token): served here, not by the router.
     if (path == QLatin1String("/api/openapi.json")) {
         if (method != "GET") { methodNotAllowed(); return true; }
         sendJson(socket, 200, buildOpenApiSpec());
@@ -325,152 +314,27 @@ bool ControlPlaneServer::handleApi(QTcpSocket* socket,
         return true;
     }
 
-    if (path == QLatin1String("/api/nodes")) {
-        if (method != "GET") { methodNotAllowed(); return true; }
-        QJsonArray arr;
-        for (const RuntimeController::NodeInfo& n : m_controller->nodes()) {
-            QJsonObject o;
-            o.insert(QStringLiteral("id"), static_cast<qint64>(n.id));
-            o.insert(QStringLiteral("type"), n.type);
-            o.insert(QStringLiteral("name"), n.name);
-            o.insert(QStringLiteral("state"), n.state);
-            arr.append(o);
-        }
-        QJsonObject out;
-        out.insert(QStringLiteral("nodes"), arr);
-        sendJson(socket, 200, out);
-        return true;
+    // Parse the JSON body once. A malformed body is passed through as
+    // bodyValid=false so the router can reject mutating calls with 400 without
+    // knowing the transport (REQ-SW-PL-063 AC11). The same router also serves
+    // WebSocket RPC commands.
+    QJsonObject bodyObj;
+    bool bodyValid = true;
+    if (!body.isEmpty()) {
+        QJsonParseError err{};
+        const QJsonDocument doc = QJsonDocument::fromJson(body, &err);
+        if (err.error != QJsonParseError::NoError || !doc.isObject())
+            bodyValid = false;
+        else
+            bodyObj = doc.object();
     }
 
-    if (path == QLatin1String("/api/flow")) {
-        if (method == "GET") {
-            sendJson(socket, 200, m_controller->flowJson());
-            return true;
-        }
-        if (method == "POST") {
-            handleFlowReload(socket, body);
-            return true;
-        }
-        methodNotAllowed();
-        return true;
-    }
-
-    // /api/nodes/{id}[/<action>]
-    if (path.startsWith(QLatin1String("/api/nodes/"))) {
-        const QStringList parts = path.split(QLatin1Char('/'), Qt::SkipEmptyParts);
-        // ["api","nodes","<id>","<action>"]
-        if (parts.size() == 3 && parts.at(1) == QLatin1String("nodes")) {
-            bool ok = false;
-            const quint64 id = toNodeId(parts.at(2), &ok);
-            if (!ok) { sendJson(socket, 400, {{QStringLiteral("error"), QStringLiteral("bad node id")}}); return true; }
-            if (method == "GET") {
-                QJsonObject cfg;
-                if (m_controller->nodeConfig(id, cfg)) { sendJson(socket, 200, cfg); return true; }
-                sendBody(socket, 404, QByteArrayLiteral("application/json"),
-                         QByteArrayLiteral("{\"error\":\"node not found\"}"));
-                return true;
-            }
-            methodNotAllowed();
-            return true;
-        }
-        if (parts.size() == 4 && parts.at(1) == QLatin1String("nodes")) {
-            bool ok = false;
-            const quint64 id = toNodeId(parts.at(2), &ok);
-            const QString action = parts.at(3);
-            if (!ok) { sendJson(socket, 400, {{QStringLiteral("error"), QStringLiteral("bad node id")}}); return true; }
-
-            if (action == QLatin1String("config")) {
-                if (method == "GET") {
-                    QJsonObject cfg;
-                    if (m_controller->nodeConfig(id, cfg)) { sendJson(socket, 200, cfg); return true; }
-                    sendBody(socket, 404, QByteArrayLiteral("application/json"),
-                             QByteArrayLiteral("{\"error\":\"node not found\"}"));
-                    return true;
-                }
-                if (method == "POST") {
-                    QJsonParseError err{};
-                    const QJsonDocument doc = QJsonDocument::fromJson(body, &err);
-                    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-                        sendBody(socket, 400, QByteArrayLiteral("application/json"),
-                                 QByteArrayLiteral("{\"error\":\"invalid JSON body\"}"));
-                        return true;
-                    }
-                    const bool applied = m_controller->setNodeConfig(id, doc.object());
-                    sendJson(socket, applied ? 200 : 400,
-                             {{QStringLiteral("applied"), applied}});
-                    return true;
-                }
-                methodNotAllowed();
-                return true;
-            }
-            if (action == QLatin1String("start") || action == QLatin1String("stop")) {
-                if (method != "POST") { methodNotAllowed(); return true; }
-                const bool okAction = (action == QLatin1String("start"))
-                    ? m_controller->startNode(id) : m_controller->stopNode(id);
-                sendJson(socket, okAction ? 200 : 400, {{QStringLiteral("ok"), okAction}});
-                return true;
-            }
-            if (action == QLatin1String("schema")) {
-                if (method != "GET") { methodNotAllowed(); return true; }
-                sendJson(socket, 200, m_controller->nodeSchema(id));
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-void ControlPlaneServer::handleFlowReload(QTcpSocket* socket, const QByteArray& body)
-{
-    QJsonParseError err{};
-    const QJsonDocument doc = QJsonDocument::fromJson(body, &err);
-    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-        sendBody(socket, 400, QByteArrayLiteral("application/json"),
-                 QByteArrayLiteral("{\"error\":\"invalid JSON body\"}"));
-        return;
-    }
-
-    QJsonObject flow = doc.object();
-
-    // Convenience: `{ "path": "/abs/file.flow" }` hot-reloads from disk, so the
-    // documented curl flow matches REQ-SW-PL-054 verification.
-    if (flow.contains(QStringLiteral("path")) && !flow.contains(QStringLiteral("nodes"))) {
-        const QString flowPath = flow.value(QStringLiteral("path")).toString();
-        QFile file(flowPath);
-        if (flowPath.isEmpty() || !file.open(QIODevice::ReadOnly)) {
-            sendJson(socket, 400, {{QStringLiteral("error"),
-                                    QStringLiteral("cannot open flow file: %1").arg(flowPath)}});
-            return;
-        }
-        QJsonParseError fileErr{};
-        const QJsonDocument fileDoc = QJsonDocument::fromJson(file.readAll(), &fileErr);
-        if (fileErr.error != QJsonParseError::NoError || !fileDoc.isObject()) {
-            sendJson(socket, 400, {{QStringLiteral("error"),
-                                    QStringLiteral("invalid JSON in flow file: %1").arg(fileErr.errorString())}});
-            return;
-        }
-        flow = fileDoc.object();
-    }
-
-    // Reject structurally wrong documents instead of silently loading an empty
-    // scene (a `"nodes": "nope"` would otherwise pass as zero nodes).
-    if ((flow.contains(QStringLiteral("nodes")) && !flow.value(QStringLiteral("nodes")).isArray())
-        || (flow.contains(QStringLiteral("connections"))
-            && !flow.value(QStringLiteral("connections")).isArray())
-        || (flow.contains(QStringLiteral("ui")) && !flow.value(QStringLiteral("ui")).isObject())) {
-        sendJson(socket, 400, {{QStringLiteral("error"),
-                                QStringLiteral("flow fields must be: nodes[], connections[], ui{}")}});
-        return;
-    }
-
-    QString error;
-    const bool applied = m_controller->reloadFlow(flow, &error);
-    QJsonObject out;
-    out.insert(QStringLiteral("applied"), applied);
-    if (!applied)
-        out.insert(QStringLiteral("error"), error);
-    sendJson(socket, applied ? 200 : 400, out);
+    const ControlPlaneRouter::Result result =
+        m_router.route(method, path, bodyObj, bodyValid);
+    if (!result.handled)
+        return false;
+    sendJson(socket, result.status, result.body);
+    return true;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -591,22 +455,29 @@ QByteArray ControlPlaneServer::bundledIndexHtml() const
 <title>Daqster Control Plane</title>
 <style>
  body{font-family:system-ui,Segoe UI,sans-serif;margin:0;background:#0f1115;color:#e7e9ee}
- header{padding:10px 16px;background:#171a21;border-bottom:1px solid #262b36;display:flex;gap:10px;align-items:center}
+ header{padding:10px 16px;background:#171a21;border-bottom:1px solid #262b36;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
  h1{font-size:14px;margin:0;font-weight:600;letter-spacing:.02em}
  header a{color:#7fb0ff;font-size:12px;margin-left:auto;text-decoration:none}
- main{padding:16px;display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
- section{background:#171a21;border:1px solid #262b36;border-radius:8px;padding:12px}
+ main{padding:16px;display:grid;grid-template-columns:1.15fr .85fr;gap:16px;align-items:start}
+ section{background:#171a21;border:1px solid #262b36;border-radius:8px;padding:12px;margin-bottom:16px}
  h2{font-size:11px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;color:#8b93a7}
  table{width:100%;border-collapse:collapse;font-size:13px}
  th,td{text-align:left;padding:4px 6px;border-bottom:1px solid #232833;vertical-align:middle}
  th{color:#8b93a7;font-weight:500}
- button{background:#2b6cff;border:0;color:#fff;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:12px}
+ button{background:#2b6cff;border:0;color:#fff;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:12px;margin-right:4px}
  button.sec{background:#3a4152}
- input{background:#0d0f13;border:1px solid #2a2f3a;color:#e7e9ee;border-radius:5px;padding:5px 7px;font:12px monospace;width:180px}
- pre{white-space:pre-wrap;word-break:break-word;font:12px/1.45 monospace;margin:0;max-height:300px;overflow:auto}
+ button.danger{background:#a33232}
+ button:disabled{opacity:.5;cursor:default}
+ input,select,textarea{background:#0d0f13;border:1px solid #2a2f3a;color:#e7e9ee;border-radius:5px;padding:5px 7px;font:12px monospace}
+ input[type=number]{width:90px}
+ textarea{width:100%;box-sizing:border-box;min-height:90px}
+ pre{white-space:pre-wrap;word-break:break-word;font:12px/1.45 monospace;margin:0;max-height:260px;overflow:auto}
  .pill{padding:1px 7px;border-radius:999px;font-size:11px}
  .running{background:#123d21;color:#5ff08a}.stopped{background:#3a1a1a;color:#ff8b8b}
  .muted{color:#8b93a7;font-size:12px}
+ .field{display:flex;gap:8px;align-items:center;margin:5px 0}
+ .field label{min-width:130px;font-size:12px;color:#aab2c4}
+ .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -614,28 +485,61 @@ QByteArray ControlPlaneServer::bundledIndexHtml() const
   <h1>Daqster Control Plane</h1>
   <input id="token" placeholder="Bearer token (optional)">
   <button onclick="reconnect()">Connect</button>
+  <button class="sec" onclick="saveFlow()">Save flow…</button>
   <a href="/api/docs">API docs (Swagger UI)</a>
 </header>
 <main>
-  <section>
-    <h2>Nodes</h2>
-    <table><thead><tr><th>id</th><th>name</th><th>type</th><th>state</th><th></th></tr></thead>
-    <tbody id="nodes"><tr><td colspan="5" class="muted">not connected</td></tr></tbody></table>
-  </section>
-  <section>
-    <h2>Events (WebSocket /api/events)</h2>
-    <pre id="events">press Connect to subscribe</pre>
-  </section>
+  <div>
+    <section>
+      <h2>Nodes</h2>
+      <table><thead><tr><th>id</th><th>name</th><th>type</th><th>state</th><th></th></tr></thead>
+      <tbody id="nodes"><tr><td colspan="5" class="muted">not connected</td></tr></tbody></table>
+    </section>
+    <section>
+      <h2>Add node</h2>
+      <div class="row">
+        <select id="types"></select>
+        <button onclick="createNode()">Create</button>
+        <span class="muted" id="typesHint"></span>
+      </div>
+    </section>
+    <section>
+      <h2>Connections</h2>
+      <table><thead><tr><th>from (node:port)</th><th>to (node:port)</th><th></th></tr></thead>
+      <tbody id="connections"><tr><td colspan="3" class="muted">—</td></tr></tbody></table>
+    </section>
+  </div>
+  <div>
+    <section>
+      <h2>Config <span class="muted" id="configFor"></span></h2>
+      <div id="form" class="muted">select a node’s “config”</div>
+      <div class="row" style="margin-top:8px">
+        <button id="applyBtn" onclick="applyConfig()" disabled>Apply config</button>
+        <button class="sec" onclick="toggleRaw()">Raw JSON</button>
+      </div>
+      <textarea id="raw" style="display:none;margin-top:8px"></textarea>
+    </section>
+    <section>
+      <h2>Events (WebSocket /api/events)</h2>
+      <pre id="events">press Connect to subscribe</pre>
+    </section>
+  </div>
 </main>
 <script>
-const state = { token: localStorage.getItem("daqster.token") || "", ws: null };
+"use strict";
+const state = { token: localStorage.getItem("daqster.token") || "", ws: null, selected: null, schema: null };
 document.getElementById("token").value = state.token;
+
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
 
 function api(path, opts) {
   opts = opts || {};
   opts.headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
   if (state.token) opts.headers["Authorization"] = "Bearer " + state.token;
-  return fetch(path, opts).then(r => r.json().then(b => ({ ok: r.ok, status: r.status, body: b })));
+  return fetch(path, opts).then(r => r.text().then(t => {
+    let body = null; try { body = t ? JSON.parse(t) : null; } catch (_) { body = t; }
+    return { ok: r.ok, status: r.status, body: body };
+  }));
 }
 
 function logLine(text) {
@@ -646,28 +550,179 @@ function logLine(text) {
   el.scrollTop = el.scrollHeight;
 }
 
-function render(nodes) {
+function renderNodes(nodes) {
   const body = document.getElementById("nodes");
   body.innerHTML = "";
   if (!nodes.length) { body.innerHTML = '<tr><td colspan="5" class="muted">no nodes</td></tr>'; return; }
   nodes.forEach(n => {
     const tr = document.createElement("tr");
-    tr.innerHTML = "<td>" + n.id + "</td><td>" + n.name + "</td><td>" + n.type +
+    tr.innerHTML = "<td>" + n.id + "</td><td>" + esc(n.name) + "</td><td>" + esc(n.type) +
       '</td><td><span class="pill ' + n.state + '">' + n.state + "</span></td><td></td>";
     const cell = tr.lastElementChild;
-    const start = document.createElement("button");
-    start.textContent = "start";
-    start.onclick = () => api("/api/nodes/" + n.id + "/start", { method: "POST" }).then(refresh);
-    const stop = document.createElement("button");
-    stop.textContent = "stop";
-    stop.className = "sec";
-    stop.onclick = () => api("/api/nodes/" + n.id + "/stop", { method: "POST" }).then(refresh);
-    cell.appendChild(start); cell.appendChild(stop);
+    const mk = (label, cls, fn) => { const b = document.createElement("button"); b.textContent = label; if (cls) b.className = cls; b.onclick = fn; cell.appendChild(b); };
+    mk("start", null, () => api("/api/nodes/" + n.id + "/start", { method: "POST" }).then(refresh));
+    mk("stop", "sec", () => api("/api/nodes/" + n.id + "/stop", { method: "POST" }).then(refresh));
+    mk("config", "sec", () => selectNode(n.id));
+    mk("delete", "danger", () => { if (confirm("Delete node " + n.id + "?")) api("/api/nodes/" + n.id, { method: "DELETE" }).then(() => { if (state.selected === n.id) clearForm(); refresh(); }); });
     body.appendChild(tr);
   });
 }
 
-function refresh() { return api("/api/nodes").then(r => render(r.body.nodes || [])); }
+function renderConnections(conns) {
+  const body = document.getElementById("connections");
+  body.innerHTML = "";
+  if (!conns.length) { body.innerHTML = '<tr><td colspan="3" class="muted">—</td></tr>'; return; }
+  conns.forEach(c => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td>" + c.outNodeId + ":" + c.outPortIndex + "</td><td>" +
+      c.inNodeId + ":" + c.inPortIndex + "</td><td></td>";
+    const b = document.createElement("button"); b.textContent = "disconnect"; b.className = "danger";
+    b.onclick = () => api("/api/connections", { method: "DELETE", body: JSON.stringify(c) }).then(refresh);
+    tr.lastElementChild.appendChild(b);
+    body.appendChild(tr);
+  });
+}
+
+function refresh() {
+  return Promise.all([api("/api/nodes"), api("/api/connections")]).then(([n, c]) => {
+    renderNodes((n.body && n.body.nodes) || []);
+    renderConnections((c.body && c.body.connections) || []);
+  });
+}
+
+function loadTypes() {
+  return api("/api/node-types").then(r => {
+    const types = (r.body && r.body.types) || [];
+    const sel = document.getElementById("types");
+    sel.innerHTML = "";
+    types.forEach(t => {
+      const o = document.createElement("option");
+      o.value = t.type;
+      o.textContent = (t.category ? t.category + " / " : "") + t.type;
+      sel.appendChild(o);
+    });
+    document.getElementById("typesHint").textContent = types.length + " types";
+  });
+}
+
+function createNode() {
+  const type = document.getElementById("types").value;
+  if (!type) return;
+  const x = 60 + Math.round(Math.random() * 300);
+  const y = 60 + Math.round(Math.random() * 300);
+  api("/api/nodes", { method: "POST", body: JSON.stringify({ type: type, position: { x: x, y: y } }) })
+    .then(r => { if (!r.ok) logLine("create failed: " + JSON.stringify(r.body)); refresh(); });
+}
+
+function clearForm() {
+  state.selected = null; state.schema = null;
+  document.getElementById("configFor").textContent = "";
+  document.getElementById("form").innerHTML = '<span class="muted">select a node’s “config”</span>';
+  document.getElementById("raw").value = "";
+  document.getElementById("applyBtn").disabled = true;
+}
+
+function fieldVisible(prop, values) {
+  if (!prop.visibleWhen) return true;
+  return Object.keys(prop.visibleWhen).every(key => {
+    const allowed = prop.visibleWhen[key];
+    return allowed.indexOf(values[key]) !== -1;
+  });
+}
+
+function buildForm(schema, config) {
+  const form = document.getElementById("form");
+  form.innerHTML = "";
+  const props = (schema && schema.properties) || {};
+  const values = Object.assign({}, config || {});
+  Object.keys(props).forEach(key => {
+    const prop = props[key];
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    wrap.dataset.field = key;
+    const label = document.createElement("label"); label.textContent = key; wrap.appendChild(label);
+    let input;
+    if (Array.isArray(prop.enum)) {
+      input = document.createElement("select");
+      const names = prop["x-enumNames"] || [];
+      prop.enum.forEach((v, i) => { const o = document.createElement("option"); o.value = v; o.textContent = names[i] ? names[i] + " (" + v + ")" : v; input.appendChild(o); });
+    } else if (prop.type === "number" || prop.type === "integer") {
+      input = document.createElement("input"); input.type = "number";
+      if (prop.minimum !== undefined) input.min = prop.minimum;
+      if (prop.maximum !== undefined) input.max = prop.maximum;
+    } else if (prop.type === "boolean") {
+      input = document.createElement("input"); input.type = "checkbox";
+    } else {
+      input = document.createElement("input"); input.type = "text";
+    }
+    input.dataset.key = key;
+    if (input.type === "checkbox") input.checked = values[key] === true;
+    else input.value = values[key] !== undefined ? values[key] : (prop.default !== undefined ? prop.default : "");
+    input.onchange = () => {
+      values[key] = input.type === "checkbox" ? input.checked : (input.type === "number" ? Number(input.value) : input.value);
+      updateVisibility(props, values);
+    };
+    wrap.appendChild(input);
+    if (prop.description) { const d = document.createElement("span"); d.className = "muted"; d.textContent = prop.description; wrap.appendChild(d); }
+    form.appendChild(wrap);
+  });
+  updateVisibility(props, values);
+  document.getElementById("raw").value = JSON.stringify(config || {}, null, 2);
+  document.getElementById("applyBtn").disabled = false;
+  state.rawTemplate = values;
+  void values;
+}
+
+function updateVisibility(props, values) {
+  document.querySelectorAll("#form .field").forEach(el => {
+    const prop = props[el.dataset.field];
+    el.style.display = fieldVisible(prop, values) ? "flex" : "none";
+  });
+  // keep a live object for applyConfig
+  const out = {};
+  document.querySelectorAll("#form [data-key]").forEach(inp => {
+    if (inp.type === "checkbox") out[inp.dataset.key] = inp.checked;
+    else if (inp.type === "number") out[inp.dataset.key] = Number(inp.value);
+    else out[inp.dataset.key] = inp.value;
+  });
+  state.currentValues = out;
+}
+
+function toggleRaw() {
+  const raw = document.getElementById("raw");
+  raw.style.display = raw.style.display === "none" ? "block" : "none";
+}
+
+function selectNode(id) {
+  state.selected = id;
+  api("/api/nodes/" + id).then(r => {
+    if (!r.ok) { logLine("node " + id + " not found"); return; }
+    const detail = r.body || {};
+    document.getElementById("configFor").textContent = "#" + id + " " + (detail.name || detail.type || "");
+    state.schema = detail.schema || null;
+    buildForm(detail.schema || null, detail.config || {});
+  });
+}
+
+function applyConfig() {
+  if (state.selected == null) return;
+  const raw = document.getElementById("raw");
+  let body;
+  if (raw.style.display !== "none" && raw.value.trim()) {
+    try { body = JSON.parse(raw.value); } catch (e) { logLine("invalid JSON: " + e.message); return; }
+  } else {
+    body = state.currentValues || {};
+  }
+  api("/api/nodes/" + state.selected + "/config", { method: "POST", body: JSON.stringify(body) })
+    .then(r => logLine("config " + (r.ok ? "applied" : "rejected") + " #" + state.selected));
+}
+
+function saveFlow() {
+  const path = prompt("Save flow to path:", "flow.flow");
+  if (!path) return;
+  api("/api/flow/save", { method: "POST", body: JSON.stringify({ path: path }) })
+    .then(r => logLine("save " + (r.ok ? "ok" : "failed: " + JSON.stringify(r.body))));
+}
 
 function connectSocket() {
   if (state.ws) { state.ws.onclose = null; state.ws.close(); state.ws = null; }
@@ -676,7 +731,12 @@ function connectSocket() {
   const ws = new WebSocket(proto + "://" + location.host + "/api/events" + q);
   state.ws = ws;
   ws.onopen = () => logLine("connected");
-  ws.onmessage = e => { try { const m = JSON.parse(e.data); logLine(m.type + " " + JSON.stringify(m.data)); } catch (_) { logLine(e.data); } };
+  ws.onmessage = e => {
+    let m; try { m = JSON.parse(e.data); } catch (_) { logLine(e.data); return; }
+    logLine(m.type + " " + JSON.stringify(m.data));
+    if (["nodeCreated","nodeDeleted","connectionCreated","connectionDeleted","nodeMoved"].indexOf(m.type) !== -1)
+      refresh();
+  };
   ws.onclose = () => logLine("disconnected");
   ws.onerror = () => logLine("socket error");
 }
@@ -684,10 +744,10 @@ function connectSocket() {
 function reconnect() {
   state.token = document.getElementById("token").value.trim();
   localStorage.setItem("daqster.token", state.token);
-  refresh().then(connectSocket);
+  refresh().then(loadTypes).then(connectSocket);
 }
 
-refresh().then(connectSocket);
+refresh().then(loadTypes).then(connectSocket);
 </script>
 </body>
 </html>
@@ -761,12 +821,15 @@ QJsonObject ControlPlaneServer::buildOpenApiSpec() const
 {
     QJsonObject info;
     info.insert(QStringLiteral("title"), QStringLiteral("Daqster Control Plane"));
-    info.insert(QStringLiteral("version"), QStringLiteral("0.2.0"));
+    info.insert(QStringLiteral("version"), QStringLiteral("0.3.0"));
     info.insert(QStringLiteral("description"),
                 QStringLiteral("REST + WebSocket control plane for a running Daqster flow "
-                               "(REQ-SW-PL-054). Node config is the generic "
-                               "NodeDelegateModel::save()/load() JSON, so every node type "
-                               "works without server-side boilerplate."));
+                               "(REQ-SW-PL-054, REQ-SW-PL-063). Full graph control: create/delete "
+                               "nodes, connect/disconnect ports, move/label nodes, edit config, "
+                               "start/stop, load/save the flow. Node config is the generic "
+                               "NodeDelegateModel::save()/load() JSON (enriched when the model "
+                               "implements INodeConfigSchema), so every node type works without "
+                               "server-side boilerplate."));
 
     QJsonArray servers;
     {
@@ -808,9 +871,37 @@ QJsonObject ControlPlaneServer::buildOpenApiSpec() const
         QJsonObject responses;
         responses.insert(QStringLiteral("200"), okResponse(QStringLiteral("Current nodes"), QStringLiteral("NodeList")));
         get.insert(QStringLiteral("responses"), responses);
+
+        QJsonObject post;
+        post.insert(QStringLiteral("tags"), QJsonArray{QStringLiteral("nodes")});
+        post.insert(QStringLiteral("summary"), QStringLiteral("Create a node"));
+        post.insert(QStringLiteral("description"),
+                    QStringLiteral("Instantiates a registered node type, optionally at a "
+                                   "position and with an initial config."));
+        post.insert(QStringLiteral("operationId"), QStringLiteral("createNode"));
+        post.insert(QStringLiteral("requestBody"), requestJsonBody(QStringLiteral("CreateNodeRequest")));
+        QJsonObject postResponses;
+        postResponses.insert(QStringLiteral("201"), okResponse(QStringLiteral("Node created"), QStringLiteral("NodeDetail")));
+        postResponses.insert(QStringLiteral("400"), jsonResponse(QStringLiteral("Cannot create node")));
+        post.insert(QStringLiteral("responses"), postResponses);
+
         QJsonObject p;
         p.insert(QStringLiteral("get"), get);
+        p.insert(QStringLiteral("post"), post);
         paths.insert(QStringLiteral("/api/nodes"), p);
+    }
+
+    {
+        QJsonObject get;
+        get.insert(QStringLiteral("tags"), QJsonArray{QStringLiteral("nodes")});
+        get.insert(QStringLiteral("summary"), QStringLiteral("List registered node types (palette)"));
+        get.insert(QStringLiteral("operationId"), QStringLiteral("listNodeTypes"));
+        QJsonObject responses;
+        responses.insert(QStringLiteral("200"), okResponse(QStringLiteral("Registered node types"), QStringLiteral("NodeTypeList")));
+        get.insert(QStringLiteral("responses"), responses);
+        QJsonObject p;
+        p.insert(QStringLiteral("get"), get);
+        paths.insert(QStringLiteral("/api/node-types"), p);
     }
 
     {
@@ -864,9 +955,9 @@ QJsonObject ControlPlaneServer::buildOpenApiSpec() const
         paths.insert(QStringLiteral("/api/nodes/{id}") + suffix, p);
     };
 
-    addNodePath(QString(), QStringLiteral("Get a node's current configuration"),
-                QStringLiteral("getNodeConfig"), QStringLiteral("get"),
-                QString(), QStringLiteral("NodeConfig"), false);
+    addNodePath(QString(), QStringLiteral("Get a node (config + schema + position + ports + state)"),
+                QStringLiteral("getNodeDetail"), QStringLiteral("get"),
+                QString(), QStringLiteral("NodeDetail"), false);
     addNodePath(QStringLiteral("/config"), QStringLiteral("Update a node's configuration"),
                 QStringLiteral("setNodeConfig"), QStringLiteral("post"),
                 QStringLiteral("NodeConfig"), QStringLiteral("MutationResult"), true);
@@ -880,13 +971,108 @@ QJsonObject ControlPlaneServer::buildOpenApiSpec() const
                 QStringLiteral("stopNode"), QStringLiteral("post"),
                 QString(), QStringLiteral("MutationResult"), false);
 
+    // /api/nodes/{id}: add PATCH (move/label) and DELETE on top of the GET above.
+    {
+        QJsonObject p = paths.value(QStringLiteral("/api/nodes/{id}")).toObject();
+
+        QJsonObject del;
+        del.insert(QStringLiteral("tags"), QJsonArray{QStringLiteral("nodes")});
+        del.insert(QStringLiteral("summary"), QStringLiteral("Delete a node and its connections"));
+        del.insert(QStringLiteral("operationId"), QStringLiteral("deleteNode"));
+        del.insert(QStringLiteral("parameters"), QJsonArray{pathParam(QStringLiteral("id"), QStringLiteral("Node id"))});
+        QJsonObject delResponses;
+        delResponses.insert(QStringLiteral("200"), okResponse(QStringLiteral("Deleted"), QStringLiteral("MutationResult")));
+        delResponses.insert(QStringLiteral("404"), jsonResponse(QStringLiteral("Node not found")));
+        del.insert(QStringLiteral("responses"), delResponses);
+        p.insert(QStringLiteral("delete"), del);
+
+        QJsonObject patch;
+        patch.insert(QStringLiteral("tags"), QJsonArray{QStringLiteral("nodes")});
+        patch.insert(QStringLiteral("summary"), QStringLiteral("Update a node's position or label"));
+        patch.insert(QStringLiteral("operationId"), QStringLiteral("patchNode"));
+        patch.insert(QStringLiteral("parameters"), QJsonArray{pathParam(QStringLiteral("id"), QStringLiteral("Node id"))});
+        patch.insert(QStringLiteral("requestBody"), requestJsonBody(QStringLiteral("PatchNodeRequest")));
+        QJsonObject patchResponses;
+        patchResponses.insert(QStringLiteral("200"), okResponse(QStringLiteral("Applied"), QStringLiteral("MutationResult")));
+        patchResponses.insert(QStringLiteral("404"), jsonResponse(QStringLiteral("Node not found")));
+        patch.insert(QStringLiteral("responses"), patchResponses);
+        p.insert(QStringLiteral("patch"), patch);
+
+        paths.insert(QStringLiteral("/api/nodes/{id}"), p);
+    }
+
+    // /api/connections: list (GET), connect (POST), disconnect (DELETE with body).
+    {
+        QJsonObject get;
+        get.insert(QStringLiteral("tags"), QJsonArray{QStringLiteral("flow")});
+        get.insert(QStringLiteral("summary"), QStringLiteral("List connections"));
+        get.insert(QStringLiteral("operationId"), QStringLiteral("listConnections"));
+        QJsonObject getResponses;
+        getResponses.insert(QStringLiteral("200"), okResponse(QStringLiteral("Current edges"), QStringLiteral("ConnectionList")));
+        get.insert(QStringLiteral("responses"), getResponses);
+
+        QJsonObject post;
+        post.insert(QStringLiteral("tags"), QJsonArray{QStringLiteral("flow")});
+        post.insert(QStringLiteral("summary"), QStringLiteral("Connect two ports"));
+        post.insert(QStringLiteral("operationId"), QStringLiteral("addConnection"));
+        post.insert(QStringLiteral("requestBody"), requestJsonBody(QStringLiteral("Connection")));
+        QJsonObject postResponses;
+        postResponses.insert(QStringLiteral("200"), okResponse(QStringLiteral("Connected"), QStringLiteral("MutationResult")));
+        postResponses.insert(QStringLiteral("400"), jsonResponse(QStringLiteral("Connection not possible")));
+        post.insert(QStringLiteral("responses"), postResponses);
+
+        QJsonObject del;
+        del.insert(QStringLiteral("tags"), QJsonArray{QStringLiteral("flow")});
+        del.insert(QStringLiteral("summary"), QStringLiteral("Disconnect two ports"));
+        del.insert(QStringLiteral("operationId"), QStringLiteral("deleteConnection"));
+        del.insert(QStringLiteral("requestBody"), requestJsonBody(QStringLiteral("Connection")));
+        QJsonObject delResponses;
+        delResponses.insert(QStringLiteral("200"), okResponse(QStringLiteral("Disconnected"), QStringLiteral("MutationResult")));
+        delResponses.insert(QStringLiteral("404"), jsonResponse(QStringLiteral("Connection not found")));
+        del.insert(QStringLiteral("responses"), delResponses);
+
+        QJsonObject p;
+        p.insert(QStringLiteral("get"), get);
+        p.insert(QStringLiteral("post"), post);
+        p.insert(QStringLiteral("delete"), del);
+        paths.insert(QStringLiteral("/api/connections"), p);
+    }
+
+    // /api/flow/save: write the current flow to disk.
+    {
+        QJsonObject post;
+        post.insert(QStringLiteral("tags"), QJsonArray{QStringLiteral("flow")});
+        post.insert(QStringLiteral("summary"), QStringLiteral("Save the current flow to a .flow file"));
+        post.insert(QStringLiteral("operationId"), QStringLiteral("saveFlow"));
+        QJsonObject req;
+        req.insert(QStringLiteral("required"), true);
+        req.insert(QStringLiteral("content"), QJsonObject{
+            {QStringLiteral("application/json"), QJsonObject{
+                {QStringLiteral("schema"), QJsonObject{
+                    {QStringLiteral("type"), QStringLiteral("object")},
+                    {QStringLiteral("properties"), QJsonObject{
+                        {QStringLiteral("path"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}}}}}}}}});
+        post.insert(QStringLiteral("requestBody"), req);
+        QJsonObject postResponses;
+        postResponses.insert(QStringLiteral("200"), okResponse(QStringLiteral("Saved"), QStringLiteral("MutationResult")));
+        postResponses.insert(QStringLiteral("400"), jsonResponse(QStringLiteral("Cannot write file")));
+        post.insert(QStringLiteral("responses"), postResponses);
+        QJsonObject p;
+        p.insert(QStringLiteral("post"), post);
+        paths.insert(QStringLiteral("/api/flow/save"), p);
+    }
+
     {
         QJsonObject get;
         get.insert(QStringLiteral("tags"), QJsonArray{QStringLiteral("events")});
         get.insert(QStringLiteral("summary"), QStringLiteral("WebSocket event stream"));
         get.insert(QStringLiteral("description"),
-                   QStringLiteral("RFC 6455 upgrade. Messages are { type, data }; types: "
-                                  "nodeStarted, nodeStopped, nodeConfigChanged, nodeError. "
+                   QStringLiteral("RFC 6455 upgrade. Server -> client events are "
+                                  "{ type, data }; types: nodeStarted, nodeStopped, "
+                                  "nodeConfigChanged, nodeError, nodeCreated, nodeDeleted, "
+                                  "connectionCreated, connectionDeleted, nodeMoved. "
+                                  "Client -> server RPC: send { id, method, path, body } and "
+                                  "receive { id, status, body } over the same socket. "
                                   "Browsers may authenticate with ?token=<bearer>."));
         get.insert(QStringLiteral("operationId"), QStringLiteral("events"));
         QJsonObject responses;
@@ -933,6 +1119,61 @@ QJsonObject ControlPlaneServer::buildOpenApiSpec() const
         {QStringLiteral("type"), QStringLiteral("object")},
         {QStringLiteral("properties"), QJsonObject{
             {QStringLiteral("nodes"), QJsonObject{{QStringLiteral("type"), QStringLiteral("array")}, {QStringLiteral("items"), refSchema(QStringLiteral("Node"))}}}}}});
+
+    schemas.insert(QStringLiteral("NodeType"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), QJsonObject{
+            {QStringLiteral("type"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
+            {QStringLiteral("category"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}, {QStringLiteral("description"), QStringLiteral("Palette path, e.g. Sources/Video")}}}}}});
+
+    schemas.insert(QStringLiteral("NodeTypeList"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), QJsonObject{
+            {QStringLiteral("types"), QJsonObject{{QStringLiteral("type"), QStringLiteral("array")}, {QStringLiteral("items"), refSchema(QStringLiteral("NodeType"))}}}}}});
+
+    schemas.insert(QStringLiteral("Connection"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), QJsonObject{
+            {QStringLiteral("outNodeId"), QJsonObject{{QStringLiteral("type"), QStringLiteral("integer")}, {QStringLiteral("format"), QStringLiteral("int64")}}},
+            {QStringLiteral("outPortIndex"), QJsonObject{{QStringLiteral("type"), QStringLiteral("integer")}}},
+            {QStringLiteral("inNodeId"), QJsonObject{{QStringLiteral("type"), QStringLiteral("integer")}, {QStringLiteral("format"), QStringLiteral("int64")}}},
+            {QStringLiteral("inPortIndex"), QJsonObject{{QStringLiteral("type"), QStringLiteral("integer")}}}}}});
+
+    schemas.insert(QStringLiteral("ConnectionList"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), QJsonObject{
+            {QStringLiteral("connections"), QJsonObject{{QStringLiteral("type"), QStringLiteral("array")}, {QStringLiteral("items"), refSchema(QStringLiteral("Connection"))}}}}}});
+
+    schemas.insert(QStringLiteral("NodeDetail"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("description"), QStringLiteral("Node summary plus config, schema, position, label and ports.")},
+        {QStringLiteral("properties"), QJsonObject{
+            {QStringLiteral("id"), QJsonObject{{QStringLiteral("type"), QStringLiteral("integer")}, {QStringLiteral("format"), QStringLiteral("int64")}}},
+            {QStringLiteral("type"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
+            {QStringLiteral("name"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
+            {QStringLiteral("state"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
+            {QStringLiteral("position"), QJsonObject{{QStringLiteral("type"), QStringLiteral("object")}}},
+            {QStringLiteral("label"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
+            {QStringLiteral("config"), refSchema(QStringLiteral("NodeConfig"))},
+            {QStringLiteral("schema"), refSchema(QStringLiteral("JsonSchema"))},
+            {QStringLiteral("ports"), QJsonObject{{QStringLiteral("type"), QStringLiteral("object")}}}}}});
+
+    schemas.insert(QStringLiteral("CreateNodeRequest"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("required"), QJsonArray{QStringLiteral("type")}},
+        {QStringLiteral("properties"), QJsonObject{
+            {QStringLiteral("type"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}, {QStringLiteral("description"), QStringLiteral("Registered model type from /api/node-types")}}},
+            {QStringLiteral("position"), QJsonObject{{QStringLiteral("type"), QStringLiteral("object")}, {QStringLiteral("properties"), QJsonObject{
+                {QStringLiteral("x"), QJsonObject{{QStringLiteral("type"), QStringLiteral("number")}}},
+                {QStringLiteral("y"), QJsonObject{{QStringLiteral("type"), QStringLiteral("number")}}}}}}},
+            {QStringLiteral("config"), refSchema(QStringLiteral("NodeConfig"))}}}});
+
+    schemas.insert(QStringLiteral("PatchNodeRequest"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), QJsonObject{
+            {QStringLiteral("position"), QJsonObject{{QStringLiteral("type"), QStringLiteral("object")}}},
+            {QStringLiteral("label"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
+            {QStringLiteral("labelVisible"), QJsonObject{{QStringLiteral("type"), QStringLiteral("boolean")}}}}}});
 
     schemas.insert(QStringLiteral("NodeConfig"), QJsonObject{
         {QStringLiteral("type"), QStringLiteral("object")},
@@ -1077,17 +1318,26 @@ void ControlPlaneServer::handleWebSocketData(QTcpSocket* socket)
             dropWebSocketClient(socket);
             return;
         }
+        QByteArray maskKey;
         if (masked) {
             if (it->size() < pos + 4) return;
-            pos += 4; // masking key: we only need control frames, not the payload
+            maskKey = it->mid(pos, 4);
+            pos += 4; // masking key precedes the payload
         }
         if (static_cast<quint64>(it->size()) < static_cast<quint64>(pos) + length)
             return;
 
-        const QByteArray payload = it->mid(pos, static_cast<int>(length));
+        QByteArray payload = it->mid(pos, static_cast<int>(length));
         it->remove(0, pos + static_cast<int>(length));
+        if (masked) { // RFC 6455: client frames are XOR-masked
+            for (int i = 0; i < payload.size(); ++i)
+                payload[i] = static_cast<char>(payload.at(i) ^ maskKey.at(i % 4));
+        }
 
         switch (opcode) {
+        case 0x1: // text: an RPC command (REQ-SW-PL-063 AC12)
+            handleWebSocketCommand(socket, payload);
+            break;
         case 0x8: // close
             dropWebSocketClient(socket);
             return;
@@ -1095,7 +1345,7 @@ void ControlPlaneServer::handleWebSocketData(QTcpSocket* socket)
             sendWebSocketFrame(socket, payload, 0xA);
             break;
         default:
-            break; // text/binary/continuation from the client: ignored
+            break; // binary/continuation from the client: ignored
         }
 
         if (!m_wsClients.contains(socket))
@@ -1103,6 +1353,52 @@ void ControlPlaneServer::handleWebSocketData(QTcpSocket* socket)
         if (it == m_wsBuffers.end())
             return;
     }
+}
+
+void ControlPlaneServer::handleWebSocketCommand(QTcpSocket* socket, const QByteArray& payload)
+{
+    auto replyError = [&](const QJsonValue& id, int status, const QString& message) {
+        QJsonObject reply;
+        reply.insert(QStringLiteral("id"), id);
+        reply.insert(QStringLiteral("status"), status);
+        reply.insert(QStringLiteral("body"), QJsonObject{{QStringLiteral("error"), message}});
+        sendWebSocketFrame(socket, QJsonDocument(reply).toJson(QJsonDocument::Compact), 0x1);
+    };
+
+    QJsonParseError err{};
+    const QJsonDocument doc = QJsonDocument::fromJson(payload, &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+        replyError(QJsonValue(), 400, QStringLiteral("invalid JSON command"));
+        return;
+    }
+
+    const QJsonObject request = doc.object();
+    const QJsonValue id = request.value(QStringLiteral("id"));
+    const QByteArray method = request.value(QStringLiteral("method")).toString().toUpper().toUtf8();
+    const QString path = request.value(QStringLiteral("path")).toString();
+
+    QJsonObject body;
+    bool bodyValid = true;
+    if (request.contains(QStringLiteral("body"))) {
+        if (request.value(QStringLiteral("body")).isObject())
+            body = request.value(QStringLiteral("body")).toObject();
+        else
+            bodyValid = false;
+    }
+
+    const ControlPlaneRouter::Result result = m_router.route(method, path, body, bodyValid);
+
+    QJsonObject reply;
+    reply.insert(QStringLiteral("id"), id);
+    if (!result.handled) {
+        reply.insert(QStringLiteral("status"), 404);
+        reply.insert(QStringLiteral("body"),
+                     QJsonObject{{QStringLiteral("error"), QStringLiteral("not found")}});
+    } else {
+        reply.insert(QStringLiteral("status"), result.status);
+        reply.insert(QStringLiteral("body"), result.body);
+    }
+    sendWebSocketFrame(socket, QJsonDocument(reply).toJson(QJsonDocument::Compact), 0x1);
 }
 
 void ControlPlaneServer::sendWebSocketFrame(QTcpSocket* socket, const QByteArray& payload,

@@ -71,4 +71,30 @@ inline QJsonObject nodeConfigSchema(const QJsonObject& defaults, const QString& 
     return schema;
 }
 
+/**
+ * @brief Enriched schema with an optional self-description (REQ-SW-PL-063).
+ *
+ * When @p provided is non-empty it is the authoritative fragment — it may carry
+ * `enum`/`minimum`/`maximum`/`default`/`visibleWhen`, which cannot be derived
+ * from a single `save()` sample. `$schema` and `title` are added only when the
+ * node did not already supply them. Falls back to the best-effort derived
+ * schema when the node provides nothing.
+ *
+ * @param defaults `NodeDelegateModel::save()` of a throw-away model instance.
+ * @param title    Node type name (`NodeDelegateModel::name()`).
+ * @param provided `INodeConfigSchema::configSchema()` or an empty object.
+ */
+inline QJsonObject nodeConfigSchema(const QJsonObject& defaults, const QString& title,
+                                    const QJsonObject& provided)
+{
+    QJsonObject schema = provided.isEmpty() ? jsonSchemaForValue(defaults) : provided;
+    if (!schema.contains(QStringLiteral("$schema"))) {
+        schema.insert(QStringLiteral("$schema"),
+                      QStringLiteral("http://json-schema.org/draft-07/schema#"));
+    }
+    if (!schema.contains(QStringLiteral("title")))
+        schema.insert(QStringLiteral("title"), title);
+    return schema;
+}
+
 } // namespace Daqster
