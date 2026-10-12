@@ -7,6 +7,11 @@ Parent: [Documentation Index](../index.en.md)
 ## Architecture Hub
 
 - [BuildSystemArchitecture.en.md](./BuildSystemArchitecture.en.md) - build architecture and dependency model
+- [core-gui-split.md](./core-gui-split.md) - core (model) / gui (widgets) split
+- [node_editor/README.md](./node_editor/README.md) - the node editor subsystem (QtNodes, IDE, nodes, ADRs)
+- [rest-api-remote-control.md](./rest-api-remote-control.md) - REST + WebSocket control plane
+- [capabilities.md](./capabilities.md) - capability interfaces (host ↔ plugin contracts)
+- [runtime-mode-architecture.md](./runtime-mode-architecture.md) - (historical) runtime modes
 - [apps/README.md](./apps/README.md) - applications subsystem
 - [framework/README.md](./framework/README.md) - framework subsystem
 - [plugins/README.md](./plugins/README.md) - plugins subsystem
@@ -55,14 +60,18 @@ The main application that provides user interface and manages plugin launching.
     *   Manages GUI elements such as menus and buttons for launching plugins.
     *   Sends requests to `ApplicationsManager` to launch selected plugins.
 
-### 2.3. Plugin System (`src/plugins`)
-Examples of plugins that demonstrate the framework's capabilities.
+> **`NodeRunner`** (`src/apps/NodeRunner`) is a second host — the same binary runs a
+> `.flow` scene in GUI mode or with `--headless`. Both hosts share the widget-free
+> `Daqster::AppBootstrap` (REQ-SW-PL-048). See [apps/NodeRunner.md](./apps/NodeRunner.md).
 
-*   **`node_editor_ide/`**:
-    *   Visual node-based editor plugin (IDE shell + built-in nodes).
-    *   Uses the `nodeeditor` external library (`QtNodes` target).
-    *   Contains `NodeEditorWidget` (in `NodeEditorWidget.{h,cpp}`) and the `NodeEditorLibrary` shared library (built from `NodeSupport/`).
-    *   Built as an `APPLICATION_PLUGIN` using `create_plugin()` macro.
+### 2.3. Plugin System (`src/plugins`)
+Plugins that add functionality to the Daqster host.
+
+*   **`node_editor/`** (group — everything around the node editor):
+    *   **`node_editor_ide/`**: `APPLICATION_PLUGIN` IDE shell — `NodeEditorIde` + `NodeEditorWidget` (QtNodes canvas), discovers external `INodeProvider` plugins; contains the shared `NodeSupport` library (builds `NodeEditorLibrary`).
+    *   **`nodeditor_nodes/{core,gui}/`**: the main node provider — `core` is headless (`INodeProvider`, no widgets), `gui` provides the widgets (`IWidgetProvider`).
+*   **`runtime_host/{headless,gui}/`**:
+    *   Runtime host plugins (`IRuntimeHost`) that bring up a `.flow` scene — headless (`HeadlessEngine`) or GUI (`RuntimeShell` + MDI).
 *   **`QtCoinTrader`**:
     *   Plugin for cryptocurrency trading, using QML for user interface.
     *   Demonstrates QML and QtCharts integration.
@@ -71,19 +80,22 @@ Examples of plugins that demonstrate the framework's capabilities.
     *   Simple plugins used for testing `QPluginManager` and `QPluginInterface` functionality.
     *   Show how to implement `QPluginInterface`.
 
+> Plugins come in `APPLICATION_PLUGIN`, Node Provider, Widget Provider and Runtime Host
+> types; the contracts live in [capabilities.md](./capabilities.md).
+
 ### 2.4. External Libraries (`src/plugins/external_libs/`)
 External libraries integrated as git submodules under the plugins directory.
 
 *   **`nodeeditor`**:
     *   Library for creating graphical node editors.
-    *   Produces the `QtNodes` target (pinned at commit `4709573`).
-    *   Used by the `NodeEditorWidget` and `NodeEditorIde`.
+    *   Produces the `QtNodesCore` (model-only) + `QtNodes` (widgets) targets (pinned at commit `4709573`).
+    *   Used by `NodeEditorWidget`, `NodeEditorIde` and the node models.
 *   **`qtrest_lib`**:
     *   Library for REST API communication.
     *   Can be used by plugins that require HTTP requests.
 
 ### 2.5. NodeEditorWidget & NodeEditorLibrary (Shared GUI Components)
-**Location:** `src/plugins/node_editor_ide/` — `NodeEditorWidget.{h,cpp}` and `NodeSupport/` (builds the `NodeEditorLibrary` shared library)
+**Location:** `src/plugins/node_editor/node_editor_ide/` — `NodeEditorWidget.{h,cpp}` and `NodeSupport/` (builds the `NodeEditorLibrary` shared library)
 
 Shared Qt Widgets GUI components for node-based editors, built and installed from the `node_editor_ide` plugin directory. Any Daqster-based GUI node application should use these components instead of building GUI from scratch.
 

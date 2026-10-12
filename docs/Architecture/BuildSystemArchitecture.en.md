@@ -975,7 +975,7 @@ set_target_properties(${COMPONENT_NAME} PROPERTIES
     create_external_library(qtrest_lib)
     
     # Plugins
-    add_subdirectory(src/plugins/node_editor_ide)
+    add_subdirectory(src/plugins/node_editor/node_editor_ide)
     add_subdirectory(src/plugins/qt_coin_trader)
     
     # Applications
