@@ -5,6 +5,7 @@
 
 #include "VideoEffectGLProcessor.h"
 #include "VideoEffectOps.h"
+#include "capabilities/INodeConfigSchema.h"
 #include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
@@ -62,7 +63,9 @@ class VideoFrameData;
  * parameters are kept here as plain fields and pushed to the widget via
  * configChanged().
  */
-class NODEDITOR_NODES_CORE_EXPORT VideoEffectNode : public QtNodes::NodeDelegateModel, public Daqster::IStoppable
+class NODEDITOR_NODES_CORE_EXPORT VideoEffectNode : public QtNodes::NodeDelegateModel,
+                                                    public Daqster::IStoppable,
+                                                    public Daqster::INodeConfigSchema
 {
     Q_OBJECT
 
@@ -133,6 +136,11 @@ public slots:
 
     QJsonObject save() const override;
     void load(QJsonObject const &p) override;
+
+    /// Enriched JSON Schema for save()'s output (REQ-SW-PL-063 AC10):
+    /// effect enum from the registered specs, parameter ranges/defaults and
+    /// `visibleWhen` conditions for the per-effect parameters.
+    QJsonObject configSchema() const override;
 
     unsigned int nPorts(QtNodes::PortType portType) const override;
 
