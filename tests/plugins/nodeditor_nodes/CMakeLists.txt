@@ -54,15 +54,15 @@ set(TEST_SOURCES
     test_audio_buffer_to_sampled.cpp test_audio_buffer_to_sampled.h
     test_video_perf_badge.cpp test_video_perf_badge.h
     # plugin logic under test (compiled directly into the test binary):
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/VideoTransformOps.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/StreamUrlValidator.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/VideoPerfBadge.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoTransformOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/StreamUrlValidator.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoPerfBadge.cpp
 )
 
 add_executable(nodeditor_nodes_tests ${TEST_SOURCES})
 
 target_include_directories(nodeditor_nodes_tests PRIVATE
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
     ${DEMO_CORE_EXPORT_INCLUDE_DIR}
@@ -100,15 +100,15 @@ set(DISPLAY_TEST_SOURCES
     test_daq_display_node.cpp
     test_daq_display_node.h
     # plugin logic under test (compiled directly into the test binary):
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Displays/DaqDisplay/DaqDisplayNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/DaqDisplay/DaqDisplayNode.cpp
     # GenericDisplayNode is a thin DaqDisplayNode subclass (name/caption only) —
     # compiled so the alias behavior + registry resolution tests link standalone.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Displays/GenericDisplay/GenericDisplayNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/GenericDisplay/GenericDisplayNode.cpp
     # DaqDisplayWidget comes from the GUI plugin. It is compiled in rather than
     # linked from the .so so the rebuildCards() card-list invariant can be tested
     # directly — the freeze it caused was only reachable through a live audio
     # stream, which no headless test could reproduce.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui/Displays/DaqDisplay/DaqDisplayWidget.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui/Displays/DaqDisplay/DaqDisplayWidget.cpp
     # DaqDisplayNode now submits compute to the shared ComputePool
     # (REQ-SW-PL-039) — compile the pool source so the test binary links
     # standalone.
@@ -120,12 +120,12 @@ add_executable(demo_nodeditor_display_tests ${DISPLAY_TEST_SOURCES})
 target_include_directories(demo_nodeditor_display_tests PRIVATE
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Displays/DaqDisplay
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Displays/GenericDisplay
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/display
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui/Displays/DaqDisplay
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/DaqDisplay
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/GenericDisplay
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/display
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui/Displays/DaqDisplay
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
     ${DEMO_CORE_EXPORT_INCLUDE_DIR}
 )
@@ -196,25 +196,25 @@ set_tests_properties(demo_nodeditor_videoframe_tests PROPERTIES
 set(VIDEO_OUTPUT_TEST_SOURCES
     test_video_output_node.cpp
     test_video_output_node.h
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sinks/Video/VideoOutputNode.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/VideoPerfBadge.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sinks/Video/VideoOutputNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoPerfBadge.cpp
     # REQ-SW-PL-055: the model constructs no widget — it receives an
     # IVideoOutputUi from IWidgetProvider. The test is not a plugin host, so it
     # plays the GUI plugin's role and compiles the whole widget side directly:
     # VideoOutputUi plus BOTH display backends, because which one it builds
     # depends on detectVideoBackend() at runtime, not on the test's wishes.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui/Sinks/Video/VideoOutputUi.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui/Sinks/Video/VideoGLBlitWidget.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui/Sinks/Video/VideoSoftwareWidget.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui/Sinks/Video/VideoOutputUi.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui/Sinks/Video/VideoGLBlitWidget.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui/Sinks/Video/VideoSoftwareWidget.cpp
     # Embedded effects (REQ-SW-PL-034): VideoOutputNode now uses
     # VideoEffectOps::allSpecs() + VideoEffectGLProcessor::processTexture().
     # VideoEffectOps.cpp delegates to VideoTransformOps.cpp for the CPU apply
     # functions; VideoEffectGLProcessor.cpp is the GPU backend. The test binary
     # compiles WITHOUT HAVE_OPENCV (the 8 base effects only) — the plugin .so
     # keeps the OpenCV-backed effects.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/VideoEffectOps.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/VideoTransformOps.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/VideoEffectGLProcessor.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoEffectOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoTransformOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoEffectGLProcessor.cpp
     # VideoEffectGLProcessor uses the shared TexturePool (REQ-SW-PL-032
     # Issue #7) — linked from DaqsterCommonLibrary below, one definition in the
     # process.
@@ -223,15 +223,15 @@ set(VIDEO_OUTPUT_TEST_SOURCES
 add_executable(demo_nodeditor_videooutput_tests ${VIDEO_OUTPUT_TEST_SOURCES})
 
 target_include_directories(demo_nodeditor_videooutput_tests PRIVATE
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sinks/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sinks/Video
     # REQ-SW-PL-055: the GUI plugin's own root, because VideoOutputUi.h is
     # included as "VideoOutputUi.h" from the test.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui/Sources/Video
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui/Processing/Video
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui/Sinks/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui/Processing/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui/Sinks/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
@@ -285,10 +285,10 @@ set_tests_properties(demo_nodeditor_videooutput_tests PROPERTIES
 set(VIDEO_EFFECT_TEST_SOURCES
     test_video_effect_node.cpp
     test_video_effect_node.h
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Processing/Video/VideoEffectNode.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/VideoEffectOps.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/VideoTransformOps.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/VideoEffectGLProcessor.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Video/VideoEffectNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoEffectOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoTransformOps.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoEffectGLProcessor.cpp
     # VideoEffectGLProcessor uses the shared TexturePool (REQ-SW-PL-032
     # Issue #7) — linked from DaqsterCommonLibrary below; the CPU path uses the
     # shared ComputePool (REQ-SW-PL-039), which is still compiled here because it
@@ -299,9 +299,9 @@ set(VIDEO_EFFECT_TEST_SOURCES
 add_executable(demo_nodeditor_videoeffect_tests ${VIDEO_EFFECT_TEST_SOURCES})
 
 target_include_directories(demo_nodeditor_videoeffect_tests PRIVATE
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Processing/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
@@ -363,42 +363,42 @@ set_tests_properties(demo_nodeditor_videoeffect_tests PROPERTIES
 set(MODEL_NAME_TEST_SOURCES
     test_model_name_serialization.cpp
     test_model_name_serialization.h
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Displays/NumberDisplay/NumberDisplayDataModel.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Operators/ArithmeticLogic/ArithmeticLogicModel.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Operators/ModuloModel.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/AudioSource/AudioSourceDataModel.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/GpuMonitor/GpuMonitorEngine.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/GpuMonitor/GpuMonitorModel.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/JackDetect/JackDetectEngine.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/JackDetect/JackDetectModel.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Pcap/PcapEngine.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Pcap/PcapModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/NumberDisplay/NumberDisplayDataModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Operators/ArithmeticLogic/ArithmeticLogicModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Operators/ModuloModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/AudioSource/AudioSourceDataModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/GpuMonitor/GpuMonitorEngine.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/GpuMonitor/GpuMonitorModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/JackDetect/JackDetectEngine.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/JackDetect/JackDetectModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Pcap/PcapEngine.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Pcap/PcapModel.cpp
     # Transitive definitions the models reference but do not implement:
     # ExprParser backs ArithmeticLogicModel, MicCaptureWorker backs
     # AudioSourceDataModel.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Operators/ArithmeticLogic/ExprParser.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/AudioSource/MicCaptureWorker.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Operators/ArithmeticLogic/ExprParser.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/AudioSource/MicCaptureWorker.cpp
     # REQ-SW-PL-056: Demux/Mux + their GenericQDevIo connector dependency
     # (header-only StreamChannelObsolete/QDevIOStreamConfigObsolete types);
     # GenericQDevIoConnectorObsolete's base ctor comes from
     # NodeDataModelToQIODeviceConnectorObsolete.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Routing/Demux/DemuxNodeObsolete.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Routing/Mux/MuxNodeObsolete.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/connectors/GenericQDevIoConnectorObsolete.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/connectors/NodeDataModelToQIODeviceConnectorObsolete.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Routing/Demux/DemuxNodeObsolete.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Routing/Mux/MuxNodeObsolete.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/connectors/GenericQDevIoConnectorObsolete.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/connectors/NodeDataModelToQIODeviceConnectorObsolete.cpp
 )
 
 add_executable(demo_nodeditor_modelname_tests ${MODEL_NAME_TEST_SOURCES})
 
 target_include_directories(demo_nodeditor_modelname_tests PRIVATE
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/AudioSource
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/AudioSource
     # MicCaptureWorker.h pulls AudioBufferToSampled.h from the Video sources.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video
     # Demux/Mux headers include GenericQDevIoConnectorObsolete.h (connectors)
     # and StreamChannelObsolete.h / QDevIOStreamConfigObsolete.h (types).
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/connectors
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/types
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/connectors
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/types
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
@@ -507,15 +507,15 @@ set_tests_properties(demo_nodeditor_consolidation_tests PROPERTIES
 set(FRAME_SAMPLER_TEST_SOURCES
     test_frame_sampler_node.cpp
     test_frame_sampler_node.h
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Processing/Video/FrameSamplerNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Video/FrameSamplerNode.cpp
 )
 
 add_executable(demo_nodeditor_framesampler_tests ${FRAME_SAMPLER_TEST_SOURCES})
 
 target_include_directories(demo_nodeditor_framesampler_tests PRIVATE
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Processing/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
@@ -556,8 +556,8 @@ set(LIFECYCLE_TEST_SOURCES
     # IStoppable contract this target asserts. Its engine carries the actual
     # poller thread, so it has to come along too — the lifecycle tests are
     # about that thread being joined.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/SystemMonitor/SystemMonitorModel.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/SystemMonitor/SystemMonitorEngine.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/SystemMonitor/SystemMonitorModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/SystemMonitor/SystemMonitorEngine.cpp
 
     # ── The rest of the IStoppable roster (REQ-SW-PL-050, AC 7) ───────────────
     #
@@ -574,45 +574,45 @@ set(LIFECYCLE_TEST_SOURCES
     # QMediaDevices (AudioSource, CameraSource) only *enumerate* — both calls
     # return empty under QCoreApplication, which the modelname suite already
     # exercises for AudioSourceDataModel.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Displays/DaqDisplay/DaqDisplayNode.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sinks/FileRecord/FileRecordModel.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sinks/NetworkSink/NetworkSinkModel.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/FilePlayback/FilePlaybackModel.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Gamepad/GamepadModel.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Gamepad/GamepadEngine.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/LLamaSource/LLamaModelDataModel.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/NetworkSource/NetworkSourceModel.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/CameraSourceNode.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/StreamSourceNode.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/VideoFileSourceNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/DaqDisplay/DaqDisplayNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sinks/FileRecord/FileRecordModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sinks/NetworkSink/NetworkSinkModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/FilePlayback/FilePlaybackModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Gamepad/GamepadModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Gamepad/GamepadEngine.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/LLamaSource/LLamaModelDataModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/NetworkSource/NetworkSourceModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/CameraSourceNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/StreamSourceNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoFileSourceNode.cpp
 
     # Transitive definitions those models reference but do not implement:
     # StreamUrlValidator backs StreamSourceNode; DaqDisplayNode submits to the
     # shared ComputePool (REQ-SW-PL-039); VideoFrameData::releaseTextures()
     # reaches TexturePool, which E1 moved into the common GL library.
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video/StreamUrlValidator.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/StreamUrlValidator.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ComputePool.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
 )
 
 # PlutoSdrEngine calls iio_create_context_from_uri() and friends, so the model
 # only links where the SDK is present. The plugin builds it unconditionally
-# (src/plugins/nodeditor_nodes/core/CMakeLists.txt:152), which is a build
+# (src/plugins/node_editor/nodeditor_nodes/core/CMakeLists.txt:152), which is a build
 # -graph question of its own; here the model is simply skipped when libiio is
 # absent, so the lifecycle assertions stay runnable on a box without the SDK.
 if(IIO_FOUND)
     list(APPEND LIFECYCLE_TEST_SOURCES
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/PlutoSdr/PlutoSdrModel.cpp
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/PlutoSdr/PlutoSdrEngine.cpp
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/PlutoSdr/PlutoSdrModel.cpp
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/PlutoSdr/PlutoSdrEngine.cpp
     )
 endif()
 
 add_executable(demo_nodeditor_lifecycle_tests ${LIFECYCLE_TEST_SOURCES})
 
 target_include_directories(demo_nodeditor_lifecycle_tests PRIVATE
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/AudioSource
-    ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/AudioSource
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
@@ -673,7 +673,7 @@ foreach(_CORE_S ${_CORE_SOURCES})
 endforeach()
 add_test(NAME demo_nodeditor_core_widgets_free
          COMMAND ${CMAKE_COMMAND}
-                 "-DCORE_DIR=${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core"
+                 "-DCORE_DIR=${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core"
                  "-DCORE_SOURCES=${_CORE_SOURCES}"
                  "-DCORE_EXPECTED_SOURCES=${_CORE_EXPECTED_SOURCES}"
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/check_core_widgets_free.cmake)

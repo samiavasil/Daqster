@@ -122,8 +122,8 @@ if(NODE_EDITOR_LIB_ENABLED)
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/gui
         ${DAQSTER_SOURCE_DIR}/src/plugins/common
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui
         # framework_core_export.h is generated in the public daqster build tree
         ${CMAKE_BINARY_DIR}/src/frame_work
     )
@@ -213,7 +213,7 @@ create_plugin(NodeEditorIde
         # links FrameworkGui.
         FrameworkGui
       INCLUDE_DIRECTORIES
-          ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Displays/NumberDisplay
+          ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/NumberDisplay
 )
 
 # ══════════════════════════════════════════════════════════════════════════

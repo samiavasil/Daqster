@@ -45,6 +45,11 @@ void RuntimeHostHeadlessPluginObject::stopAllNodes()
     m_engine->stopAllNodes();
 }
 
+bool RuntimeHostHeadlessPluginObject::configureControlPlane(const ControlPlaneOptions& options)
+{
+    return m_engine->startControlPlane(options);
+}
+
 // ── INodeProvider ──────────────────────────────────────────────────────────
 void RuntimeHostHeadlessPluginObject::registerNodes(QtNodes::NodeDelegateModelRegistry& registry) const
 {

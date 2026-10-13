@@ -104,7 +104,9 @@ find_package(OpenSSL)
 
 # Find only the core Qt modules needed for basic functionality
 # Other modules will be found dynamically by PluginDependencyManager
-find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS Core Gui Widgets)
+# Network is needed by FrameworkCore itself for the REST control plane
+# (REQ-SW-PL-054), so it is requested here as well.
+find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS Core Gui Widgets Network)
 
 # NodeEditor - Qt5/Qt6 (upstream has unified Qt${QT_VERSION_MAJOR} handling)
 create_external_library(nodeeditor)
@@ -150,13 +152,13 @@ add_subdirectory(src/frame_work)
 add_subdirectory(src/plugins/common)
 
 # Core plugins (always built)
-add_subdirectory(src/plugins/nodeditor_nodes/core)
+add_subdirectory(src/plugins/node_editor/nodeditor_nodes/core)
 add_subdirectory(src/plugins/runtime_host/headless)
 
 # GUI plugins (only when DAQSTER_BUILD_GUI=ON)
 if(DAQSTER_BUILD_GUI)
-    add_subdirectory(src/plugins/node_editor_ide)
-    add_subdirectory(src/plugins/nodeditor_nodes/gui)
+    add_subdirectory(src/plugins/node_editor/node_editor_ide)
+    add_subdirectory(src/plugins/node_editor/nodeditor_nodes/gui)
     add_subdirectory(src/plugins/runtime_host/gui)
     add_subdirectory(src/plugins/requirements_manager)
     add_subdirectory(src/plugins/qt_coin_trader)

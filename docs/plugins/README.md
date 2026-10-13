@@ -14,18 +14,25 @@
 
 | Плъгин | Път (код) | Описание |
 |--------|-----------|----------|
-| [Demo NodeEditor Nodes](./nodeditor_nodes/README.md) | `src/plugins/nodeditor_nodes/` | INodeProvider плъгин, който доставя Audio, Video, LLaMA, Display и Routing нодове към Node Editor IDE — основният доставчик на нодове за Daqster node editor-а |
-| [Node Editor IDE](./node_editor_ide/README.md) | `src/plugins/node_editor_ide/` | Основният GUI плъгин за визуално node-based редактиране — вградени числови нодове (Source, Display, Modulo, ArithmeticLogic), споделена `NodeEditorLibrary`, динамично откриване на външни INodeProvider плъгини, QtNodes canvas |
+| [Nodeditor Nodes](./nodeditor_nodes/README.md) | `src/plugins/node_editor/nodeditor_nodes/` | INodeProvider (**core**, widget-free модели) + IWidgetProvider (**gui**, widget-и) — основният доставчик на Audio, Video, DAQ, LLaMA, Display и Routing нодове |
+| [Node Editor IDE](./node_editor_ide/README.md) | `src/plugins/node_editor/node_editor_ide/` | IDE shell плъгин: `QMainWindow` + `NodeEditorWidget` (QtNodes canvas), открива външни `INodeProvider` плъгини; съдържа споделената `NodeSupport` (`libNodeEditorLibrary.so`) |
+| Runtime Host Headless | `src/plugins/runtime_host/headless/` | Headless runtime плъгин (`RuntimeHostHeadlessPlugin`) — `IRuntimeHost`, вдига граф без GUI |
+| Runtime Host GUI | `src/plugins/runtime_host/gui/` | GUI runtime shell (`RuntimeHostGuiPlugin`) — `IRuntimeHost`, вдига графа с прозорци/canvas |
 | [QtCoinTrader](./qt_coin_trader/README.md) | `src/plugins/qt_coin_trader/` | APPLICATION_PLUGIN за cryptocurrency trading с QML UI; демонстрира интеграция с QtRest (REST API комуникация) и QtCharts (визуализация) |
+| Requirements Manager | `src/plugins/requirements_manager/` | APPLICATION_PLUGIN за управление на изискванията (RDD) с GUI |
+
+> **Node Editor документацията** вече живее в собствена област:
+> [Architecture/node_editor](../../Architecture/node_editor/README.md).
 
 ## Структура
 
 ```
 docs/plugins/
-├── README.md                        # Този файл — хъб
-├── nodeditor_nodes/README.md   # Demo NodeEditor Nodes (INodeProvider доставчик)
-├── node_editor_ide/README.md        # Node Editor IDE (GUI node editor)
-└── qt_coin_trader/README.md           # QtCoinTrader (QML trading demo)
+├── README.md                       # Този файл — хъб
+├── nodeditor_nodes/README.md       # Nodeditor Nodes (INodeProvider/IWidgetProvider доставчик)
+├── node_editor_ide/README.md       # Node Editor IDE (IDE shell + NodeSupport)
+├── qt_coin_trader/README.md        # QtCoinTrader (QML trading demo)
+└── requirements_manager/README.md  # Requirements Manager (RDD UI)
 ```
 
 ## Свързана документация

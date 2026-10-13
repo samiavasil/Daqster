@@ -6,3 +6,7 @@
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/perf)
     add_subdirectory(perf)
 endif()
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/control)
+    add_subdirectory(control)
+endif()

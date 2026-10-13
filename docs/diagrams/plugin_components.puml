@@ -3,22 +3,31 @@ skinparam packageStyle rectangle
 skinparam shadowing false
 skinparam componentStyle uml2
 
-title Plugin Component Architecture (v2.3)
+title Plugin Component Architecture (v0.4)
 
 package "src/plugins/external_libs/" {
-  [nodeeditor\n(QtNodes)] as NODEEDITOR
+  [nodeeditor\n(QtNodesCore + QtNodes)] as NODEEDITOR
   [qtrest_lib] as QTREST
 }
 
-package "src/plugins/node_editor_ide/" <<Rectangle>> {
-  [NodeEditorIde\n(NodeEditorPluginIde)] as IDE
-  [NodeEditorWidget] as NEW
-  [NodeEditorLibrary] as NEL
+package "src/plugins/common/" <<Rectangle>> {
+  [DaqsterCommonLibrary\n(capabilities + NodeDataTypes)] as COMMON
 }
 
-package "src/plugins/nodeditor_nodes/" <<Rectangle>> {
-  [core/\n(NodeditorNodesCorePlugin)] as DEMO
-  [gui/\n(NodeditorNodesGuiPlugin)] as DEMOGUI
+package "src/plugins/node_editor/node_editor_ide/" <<Rectangle>> {
+  [NodeEditorIde\n(libNodeEditorIde.so)] as IDE
+  [NodeEditorWidget] as NEW
+  [NodeSupport\n(libNodeEditorLibrary.so)] as NEL
+}
+
+package "src/plugins/node_editor/nodeditor_nodes/" <<Rectangle>> {
+  [core/\n(NodeditorNodesCorePlugin)] as NODES
+  [gui/\n(NodeditorNodesGuiPlugin)] as NODESGUI
+}
+
+package "src/plugins/runtime_host/" <<Rectangle>> {
+  [headless/\n(RuntimeHostHeadlessPlugin)] as RTHL
+  [gui/\n(RuntimeHostGuiPlugin)] as RTGUI
 }
 
 package "src/plugins/requirements_manager/" <<Rectangle>> {
@@ -34,60 +43,74 @@ package "src/plugins/tests/" <<Rectangle>> {
 }
 
 package "src/frame_work/" <<Rectangle>> {
-  [frame_work] as FW
+  [FrameworkCore] as FW
   [QPluginManager] as QPM
 }
 
-package "src/apps/Daqster/" <<Rectangle>> {
+package "src/apps/" <<Rectangle>> {
   [Daqster App] as HOST
+  [NodeRunner\n(GUI | --headless)] as RUNNER
 }
 
 ' Dependencies
 NEW --> NODEEDITOR : links PUBLIC\n(QtNodes)
 IDE --> NEL : links
 IDE --> NODEEDITOR : links PUBLIC\n(QtNodes)
+IDE --> COMMON : links
 IDE --> FW : links
 NEL --> NODEEDITOR : links PUBLIC\n(QtNodes)
+NEL --> COMMON : links
 NEL --> FW : links
 
-DEMO --> NEL : links
-DEMO --> NODEEDITOR : links PUBLIC\n(QtNodes)
-DEMO --> FW : links
+NODES --> NEL : links
+NODES --> COMMON : links
+NODES --> NODEEDITOR : links PUBLIC\n(QtNodesCore)
+NODES --> FW : links
+NODESGUI --> NODES : links (IWidgetProvider)
+NODESGUI --> FW : links
 
-DEMOGUI --> DEMO : links (IWidgetProvider)
-DEMOGUI --> FW : links
+RTHL --> FW : links
+RTGUI --> FW : links
+RTHL ..> NODES : loads flow nodes (headless)
+RTGUI ..> IDE : embeds editor canvas
 
 RM --> FW : links
-
 QCT --> QTREST : links
 QCT --> FW : links
 
 HOST --> QPM : uses
+RUNNER --> QPM : uses
 QPM ..> IDE : discovers
-QPM ..> DEMO : discovers
-QPM ..> DEMOGUI : discovers
+QPM ..> NODES : discovers
+QPM ..> NODESGUI : discovers
+QPM ..> RTHL : discovers (IRuntimeHost)
+QPM ..> RTGUI : discovers (IRuntimeHost)
 QPM ..> RM : discovers
 QPM ..> QCT : discovers
 QPM ..> TEST : discovers (optional)
-
-note right of NEW
-  Part of node_editor_ide
-  NodeEditorWidget.{h,cpp}
-  Qt Widgets GUI for
-  node-based editors
-end note
-
-note right of IDE
-  APPLICATION_PLUGIN
-  IDE shell + built-in nodes
-  (NumberSource, NumberDisplay,
-  Modulo, ArithmeticLogic)
-end note
 
 note right of NEL
   SHARED library
   ChatGraphModel + shared
   node types/decoders
+end note
+
+note right of IDE
+  APPLICATION_PLUGIN
+  IDE shell; discovers
+  INodeProvider plugins
+  (built-in nodes moved to
+  nodeditor_nodes core)
+end note
+
+note right of RTHL
+  Runtime Host (IRuntimeHost)
+  headless: HeadlessEngine
+end note
+
+note right of RTGUI
+  Runtime Host (IRuntimeHost)
+  GUI: RuntimeShell + MDI
 end note
 
 note right of TEST

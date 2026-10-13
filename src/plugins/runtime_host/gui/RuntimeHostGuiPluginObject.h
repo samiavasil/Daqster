@@ -37,6 +37,7 @@ public:
     RuntimeMode runtimeMode() const override;
     bool loadFlow(const QString& flowPath) override;
     void stopAllNodes() override;
+    bool configureControlPlane(const ControlPlaneOptions& options) override;
 
     // QBasePluginObject interface
     bool Initialize() override;

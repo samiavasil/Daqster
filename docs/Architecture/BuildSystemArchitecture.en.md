@@ -132,13 +132,13 @@ External libraries are added via `create_external_library()`, which automaticall
 ```cmake
 # In root CMakeLists.txt
 # NodeEditor - Qt5/Qt6 (upstream has unified Qt${QT_VERSION_MAJOR} handling)
-create_external_library(nodeeditor)       # target: QtNodes
+create_external_library(nodeeditor)       # targets: QtNodesCore (model) + QtNodes (widgets)
 
 # QtRest is Qt5/Qt6 compatible
 create_external_library(qtrest_lib)       # target: qtrest_lib
 ```
 
-**Note:** The parameter to `create_external_library()` is the directory name under `src/plugins/external_libs/`, but the actual CMake target may differ (e.g., `nodeeditor` -> target `QtNodes`).
+**Note:** The parameter to `create_external_library()` is the directory name under `src/plugins/external_libs/`, but the actual CMake targets may differ (e.g., `nodeeditor` → targets `QtNodesCore` (model-only) + `QtNodes` (widgets)).
 
 **Meta-target:**
 ```bash
@@ -347,12 +347,23 @@ Daqster/
 │   ├── frame_work/
 │   │   └── CMakeLists.txt      # Internal library (uses create_internal_library)
 │   ├── plugins/
-│   │   ├── external_libs/      # Git submodules (nodeeditor, qtrest_lib)
+│   │   ├── external_libs/      # Git submodules (nodeeditor → QtNodesCore/QtNodes, qtrest_lib)
 │   │   │   ├── nodeeditor/
 │   │   │   │   └── CMakeLists.txt  # External library (own build system)
 │   │   │   └── qtrest_lib/
 │   │   │       └── CMakeLists.txt  # External library (own build system)
-│   │   ├── node_editor_ide/      # Visual node-based editor (plugin)
+│   │   ├── common/             # DaqsterCommonLibrary (capabilities + NodeDataTypes)
+│   │   │   └── CMakeLists.txt
+│   │   ├── node_editor/        # ← group
+│   │   │   ├── node_editor_ide/    # IDE shell (NodeEditorIde) + NodeSupport
+│   │   │   │   └── CMakeLists.txt  # Plugin (uses create_plugin)
+│   │   │   └── nodeditor_nodes/    # {core,gui} INodeProvider/IWidgetProvider
+│   │   │       ├── core/CMakeLists.txt  # core plugin (headless, always)
+│   │   │       └── gui/CMakeLists.txt   # gui plugin (DAQSTER_BUILD_GUI)
+│   │   ├── runtime_host/       # {headless,gui} (IRuntimeHost)
+│   │   │   ├── headless/CMakeLists.txt
+│   │   │   └── gui/CMakeLists.txt
+│   │   ├── requirements_manager/   # Requirements Manager (RDD)
 │   │   │   └── CMakeLists.txt  # Plugin (uses create_plugin)
 │   │   ├── qt_coin_trader/
 │   │   │   └── CMakeLists.txt  # Plugin (uses create_plugin)
@@ -363,8 +374,10 @@ Daqster/
 │   │       ├── plugin_uggly_test/
 │   │       └── template_plugin_daqster/
 │   └── apps/
-│       └── Daqster/
-│           └── CMakeLists.txt  # Application (uses create_application)
+│       ├── Daqster/
+│       │   └── CMakeLists.txt  # GUI application (DAQSTER_BUILD_GUI)
+│       └── NodeRunner/
+│           └── CMakeLists.txt  # Dual mode: GUI | --headless (always)
 ```
 
 ## Build Order
@@ -382,21 +395,39 @@ add_subdirectory(src/frame_work)
 
 # 3. External libraries
 # NodeEditor - Qt5/Qt6 (upstream has unified Qt${QT_VERSION_MAJOR} handling)
-create_external_library(nodeeditor)   # -> target: QtNodes
+create_external_library(nodeeditor)   # -> targets: QtNodesCore + QtNodes
 
 # QtRest works on Qt5/Qt6
 create_external_library(qtrest_lib)       # -> target: qtrest_lib
 
-# 4. Plugins — all are added; the dependency system excludes them automatically
-add_subdirectory(src/plugins/node_editor_ide)     # Visual node-based editor (plugin)
-add_subdirectory(src/plugins/qt_coin_trader)       # Qt5/Qt6 (requires qtrest_lib)
+# 4. Plugins
+# Shared infrastructure (DaqsterCommonLibrary — capabilities + TexturePool); before consumers
+add_subdirectory(src/plugins/common)
+
+# Core plugins (always built; headless-safe)
+add_subdirectory(src/plugins/node_editor/nodeditor_nodes/core)   # INodeProvider
+add_subdirectory(src/plugins/runtime_host/headless)              # IRuntimeHost (headless)
+
+# GUI plugins (only when DAQSTER_BUILD_GUI=ON)
+if(DAQSTER_BUILD_GUI)
+    add_subdirectory(src/plugins/node_editor/node_editor_ide)      # IDE shell (NodeEditorIde)
+    add_subdirectory(src/plugins/node_editor/nodeditor_nodes/gui)  # IWidgetProvider
+    add_subdirectory(src/plugins/runtime_host/gui)                 # IRuntimeHost (gui)
+    add_subdirectory(src/plugins/requirements_manager)
+    add_subdirectory(src/plugins/qt_coin_trader)                   # requires qtrest_lib
+endif()
+
+# Test plugins (only when DAQSTER_BUILD_TEST_PLUGINS=ON)
 add_subdirectory(src/plugins/tests/plugin_main_test)
 add_subdirectory(src/plugins/tests/plugin_fancy_test)
 add_subdirectory(src/plugins/tests/plugin_uggly_test)
 add_subdirectory(src/plugins/tests/template_plugin_daqster)
 
 # 5. Applications
-add_subdirectory(src/apps/Daqster)
+add_subdirectory(src/apps/NodeRunner)   # dual mode: GUI | --headless (always)
+if(DAQSTER_BUILD_GUI)
+    add_subdirectory(src/apps/Daqster)  # GUI host
+endif()
 
 # 6. Build summary
 print_build_configuration_summary()
@@ -409,11 +440,11 @@ print_build_configuration_summary()
 All plugin `add_subdirectory()` calls are always made. The dependency system automatically excludes them if the required external libs are missing:
 
 ```
-Qt5 build:  NodeEditorPlugin enabled, QtCoinTraderPlugin enabled, test plugins enabled
-Qt6 build:  NodeEditorPlugin enabled, QtCoinTraderPlugin enabled, test plugins enabled
+Qt5 build:  NodeEditorIde enabled, QtCoinTraderPlugin enabled, test plugins enabled
+Qt6 build:  NodeEditorIde enabled, QtCoinTraderPlugin enabled, test plugins enabled
 ```
 
-> Both `NodeEditorPlugin` and `QtCoinTraderPlugin` compile on Qt5 and Qt6: `nodeeditor` has a `USE_QT6` option (set from the root CMakeLists), and `qtrest_lib` is Qt5/Qt6 dual-mode. Components are only excluded when specific Qt modules or external libraries are missing.
+> Both `NodeEditorIde` and `QtCoinTraderPlugin` compile on Qt5 and Qt6: `nodeeditor` has a `USE_QT6` option (set from the root CMakeLists), and `qtrest_lib` is Qt5/Qt6 dual-mode. Components are only excluded when specific Qt modules or external libraries are missing.
 
 ### Dependency Based (Automatic)
 A component is excluded automatically if its dependencies are missing:
@@ -805,7 +836,7 @@ endif()
 **Symptom:**
 ```
 -- Checking nodes - target exists: FALSE
--- NodeEditorPlugin plugin: DISABLED
+-- NodeEditorIde plugin: DISABLED
 --   - nodes not available
 ```
 
@@ -944,7 +975,7 @@ set_target_properties(${COMPONENT_NAME} PROPERTIES
     create_external_library(qtrest_lib)
     
     # Plugins
-    add_subdirectory(src/plugins/node_editor_ide)
+    add_subdirectory(src/plugins/node_editor/node_editor_ide)
     add_subdirectory(src/plugins/qt_coin_trader)
     
     # Applications
@@ -1015,16 +1046,16 @@ create_plugin(NodeEditorApp
 
 **Bad:** Manual checks and target commands outside the template function
 ```cmake
-create_plugin(NodeEditorPlugin
+create_plugin(NodeEditorIde
     SOURCES ...
     REQUIRES_LIBRARIES ...
 )
 
 # Bad — manual check and target commands
-get_property(COMPONENT_ENABLED GLOBAL PROPERTY COMPONENT_NodeEditorPlugin_ENABLED)
+get_property(COMPONENT_ENABLED GLOBAL PROPERTY COMPONENT_NodeEditorIde_ENABLED)
 if(COMPONENT_ENABLED)
-    target_include_directories(NodeEditorPlugin ...)
-    target_compile_definitions(NodeEditorPlugin ...)
+    target_include_directories(NodeEditorIde ...)
+    target_compile_definitions(NodeEditorIde ...)
 endif()
 ```
 
@@ -1056,9 +1087,20 @@ if (ENABLED) -> add_library(MyPlugin ...)
 
 ## Version History
 
-### Version 2.2 (Current - July 2026)
+### Version 2.4 (Current — October 2026; 0.4.0 baseline)
+- **Core/GUI split** (REQ-SW-PL-051/060): plugins now have `core` (headless) and `gui`
+  halves; new targets `FrameworkCore`/`FrameworkGui`, `DaqsterCommonLibrary`.
+- **Renames** (REQ-SW-PL-060/061): `FrameworkCorePlugin`→`RuntimeHostHeadlessPlugin`,
+  `FrameworkGuiPlugin`→`RuntimeHostGuiPlugin`, `demo_nodeditor_nodes`→`nodeditor_nodes`,
+  `NodeEditorPlugin`→`NodeEditorIde`; plugin directories are `snake_case`.
+- **QtNodes split**: `QtNodesCore` (QtCore+QtGui) + `QtNodes` (QtWidgets).
+- **Plugin groups**: `src/plugins/node_editor/{node_editor_ide,nodeditor_nodes}`, `runtime_host/{headless,gui}`.
+- **New app**: `NodeRunner` (GUI/headless) with shared widget-free `AppBootstrap`.
+- **Runtime host plugins**: `RuntimeHostHeadlessPlugin`, `RuntimeHostGuiPlugin` (`IRuntimeHost`).
+
+### Version 2.2 (July 2026)
 - **Directory restructuring**: `src/external_libs/` → `src/plugins/external_libs/`
-- **nodeeditor target**: Changed from `nodes` to `QtNodes` (pin commit `4709573`)
+- **nodeeditor target**: Changed from `nodes` to `QtNodes` (pin commit `4709573`); since 0.4.0 it is split into `QtNodesCore` (model-only) + `QtNodes` (widgets).
 - **CI improvements**: qtrest install fix — no longer needed (upstream install rules fixed, see `docs/operations/UpstreamManagement.md`)
 
 ### Version 2.1 (October 2025)

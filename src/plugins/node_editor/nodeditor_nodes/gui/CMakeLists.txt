@@ -146,24 +146,24 @@ create_plugin(NodeditorNodesGui
         NodeditorNodesCore
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/AudioSource
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sinks/Video
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Processing/Video
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/GpuMonitor
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/JackDetect
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Pcap
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/SystemMonitor
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/PlutoSdr
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/AudioSource
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sinks/Video
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Video
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/GpuMonitor
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/JackDetect
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Pcap
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/SystemMonitor
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/PlutoSdr
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/display
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/connectors
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/decoders
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/types
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/threading
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/display
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/connectors
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/decoders
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/types
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/threading
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/AudioSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video

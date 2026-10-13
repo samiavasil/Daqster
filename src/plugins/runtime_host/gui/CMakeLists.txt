@@ -63,12 +63,12 @@ create_plugin(RuntimeHostGuiPlugin
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/gui
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/core/Sources/Video
-        ${DAQSTER_SOURCE_DIR}/src/plugins/nodeditor_nodes/gui
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui
         # Editor canvas pieces reused by RuntimeShell (kept in node_editor_ide)
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport
 )
 
 # Qt6 splits OpenGL widgets out of Qt::OpenGLWidgets; Qt5 has no such module.

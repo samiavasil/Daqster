@@ -1,6 +1,6 @@
 # Node Editor IDE Plugin
 
-Родител: [Plugins](../README.md) | [Architecture](../../Architecture/README.md)
+Родител: [Plugins](../README.md) | [Architecture](../../Architecture/README.md) | [Node Editor](../../Architecture/node_editor/README.md)
 
 ## Преглед
 
@@ -10,8 +10,13 @@
 - Динамично откриване на външни INodeProvider плъгини
 - QtNodes canvas с поддръжка на кръгови връзки
 
-**Локация:** `src/plugins/node_editor_ide/`
+**Локация:** `src/plugins/node_editor/node_editor_ide/`
 **Име на .so:** `libNodeEditorIde.so` (REQ-SW-PL-051: преименувано от `libNodeEditorPluginIde.so`)
+
+> **Бележка:** името `libNodeEditorIde.so` не съдържа подниза „plugin", затова
+> `PluginDiscovery::isCandidatePluginFile()` го приема по вградената
+> `Q_PLUGIN_METADATA`, не по име — виж
+> [PluginDevelopment](../../Architecture/plugins/PluginDevelopment.md).
 
 ## Архитектура
 
@@ -27,7 +32,7 @@ node_editor_ide/
 │   ├── display/                     # QDevIoDisplayModelObsolete, XYSeriesIODevice, AudioCompat
 │   ├── threading/                   # EventThreadPull
 │   ├── decoders/                    # AudioFrameDecoder
-│   └── docs/                        # ADR-001..003 (история на решенията)
+│   └── (docs: ADR-001..003 вече в docs/Architecture/node_editor/adr/)
 └── node_editor.qrc                  # Ресурси (икона)
 ```
 
@@ -94,14 +99,15 @@ void NodeEditorIdeObject::discoverAndRegisterExternalNodes() {
 | Зависимост | Тип | Описание |
 |-----------|-----|----------|
 | NodeEditorLibrary | Shared lib | Споделена библиотека (display, connectors, threading, types) |
-| QtNodes | External lib | nodeeditor submodule — `src/plugins/external_libs/nodeeditor/` |
+| QtNodes / QtNodesCore | External lib | nodeeditor submodule — `src/plugins/external_libs/nodeeditor/` (`QtNodesCore` = model-only, QtCore+QtGui; `QtNodes` = QtWidgets canvas, линква QtNodesCore) |
 | Qt::Core, Gui, Widgets | Qt | Основни Qt модули |
 | Qt::Multimedia, Charts, OpenGL | Qt | За display и audio нодове |
 | Qt::Network | Qt | За REST通信 |
-| frame_work | Internal | QPluginManager, QBasePluginObject, QPluginInterface |
+| frame_work / FrameworkCore | Internal | QPluginManager, QBasePluginObject, QPluginInterface |
 
 ## Свързана документация
 
+- [Node Editor (подсистема)](../../Architecture/node_editor/README.md) — цялостната архитектура на node editor-а
 - [IPluginInterface](../../Architecture/framework/README.md) — как плъгините се откриват и зареждат
 - [INodeProvider](../../Architecture/plugins/README.md#capability-discovery) — как външни плъгини доставят нодове
 - [PluginManager GUI](../../Architecture/framework/QPluginManager.md) — как плъгините се показват в UI

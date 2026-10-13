@@ -14,3 +14,7 @@ CMakeLists.txt.user.*
 /appimagetool-x86_64.AppImage
 /stage/
 *.so
+
+# Control-plane vendored web assets (scripts/fetch-swagger-ui.sh output)
+/rest-web-ui/
+/rest-web-root/

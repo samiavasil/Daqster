@@ -209,7 +209,8 @@ bool AppBootstrap::prepareHost(IRuntimeHost* host)
     if (!host->configureControlPlane(m_control)) {
         qCCritical(lcApp) << "REST control plane requested on"
                           << m_control.bindAddress << ":" << m_control.port
-                          << "but the selected runtime host does not implement it.";
+                          << "but the selected runtime host did not enable it"
+                          << "(unsupported, or rejected options — see the log above).";
         return false;
     }
 

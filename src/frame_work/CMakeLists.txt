@@ -4,10 +4,11 @@ include(GenerateExportHeader)
 #
 # This directory owns the two framework libraries:
 #
-#   FrameworkCore - QtCore + QtNodesCore (+ optional QtMultimedia / QtOpenGL)
+#   FrameworkCore - QtCore + QtNetwork + QtNodesCore (+ optional QtMultimedia / QtOpenGL)
 #                 plugin infrastructure, discovery, registry, persistence,
 #                 logging, platform abstraction, process management,
-#                 performance profiling and the headless engine.
+#                 performance profiling, the headless engine and the REST
+#                 control plane (REQ-SW-PL-054).
 #
 #   FrameworkGui  - QtWidgets (layered on top of FrameworkCore)
 #                 the framework plugin-manager widgets and their .ui forms.
@@ -76,6 +77,13 @@ set(FRAMEWORK_CORE_SOURCES
     # Shared widget-free application bootstrap (REQ-SW-PL-048)
     base/src/app/AppBootstrap.cpp
     base/src/app/AppBootstrap.h
+
+    # REST control plane (REQ-SW-PL-054, REQ-SW-PL-063)
+    base/src/control/ControlPlaneServer.cpp
+    base/src/control/ControlPlaneServer.h
+    base/src/control/ControlPlaneRouter.cpp
+    base/src/control/ControlPlaneRouter.h
+    base/src/control/RuntimeController.h
 
     # Logging
     base/src/logging/LogCategories.cpp
@@ -148,21 +156,23 @@ target_include_directories(FrameworkCore
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/persistence
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/engine
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/app
+        ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/platform
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/process
         ${CMAKE_CURRENT_SOURCE_DIR}/base/src/perf
         ${CMAKE_CURRENT_BINARY_DIR}
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/types
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/display
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/connectors
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/decoders
-        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor_ide/NodeSupport/threading
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/types
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/display
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/connectors
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/decoders
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/threading
 )
 
 target_link_libraries(FrameworkCore
     PUBLIC
         Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Network
         QtNodesCore
 )
 
@@ -195,6 +205,10 @@ install(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/include/debug.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/include/build_cfg.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/src/app/AppBootstrap.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control/ControlPlaneServer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control/ControlPlaneRouter.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control/RuntimeController.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/base/src/control/NodeSchemaBuilder.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/FrameworkCore
 )
 

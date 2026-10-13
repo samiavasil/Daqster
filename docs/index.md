@@ -8,7 +8,8 @@
 
 - [Проект в GitHub](https://github.com/samiavasil/Daqster) - код, README и общ преглед на проекта
 - [Architecture](./Architecture/README.md) - архитектурен хъб и връзки към подсистемите
-- [Plugins](./plugins/README.md) - хъб за документацията на плъгините (Node Editor IDE, Demo Nodes, QtCoinTrader)
+- [Node Editor](./Architecture/node_editor/README.md) - подсистемата node editor (QtNodes, IDE, нодове, ADR-и, capabilities)
+- [Plugins](./plugins/README.md) - хъб за документацията на плъгините (Nodeditor Nodes, Node Editor IDE, Runtime Hosts, QtCoinTrader)
 - [Development Topics](./development/README.md) - разработка, дебъг и workflow за contributors
 - [Operations Topics](./operations/README.md) - build, поддръжка и operational теми
 - [Porting Topics](./porting/README.md) - пренасяне и съвместимост между версии

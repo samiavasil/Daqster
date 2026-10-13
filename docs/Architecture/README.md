@@ -7,6 +7,11 @@
 ## Архитектурен хъб
 
 - [BuildSystemArchitecture.md](./BuildSystemArchitecture.md) - build архитектура и зависимости
+- [core-gui-split.md](./core-gui-split.md) - разделяне model (core) / widgets (gui)
+- [node_editor/README.md](./node_editor/README.md) - Node Editor подсистема (QtNodes, IDE, нодове, ADR-и)
+- [rest-api-remote-control.md](./rest-api-remote-control.md) - REST + WebSocket контролна плоскост
+- [capabilities.md](./capabilities.md) - capability интерфейси (договори host ↔ plugin)
+- [runtime-mode-architecture.md](./runtime-mode-architecture.md) - (исторически) runtime режими
 - [apps/README.md](./apps/README.md) - application подсистема
 - [framework/README.md](./framework/README.md) - framework подсистема
 - [plugins/README.md](./plugins/README.md) - plugin подсистема
@@ -24,50 +29,55 @@ Daqster е Qt-базирана рамка за създаване и зареж�
 ```
 Daqster/
 ├── src/                          # Source код
-│   ├── frame_work/               # Ядро на рамката
-│   │   ├── base/src/             # Implementation (QPluginManager, QPluginInterface, ...)
+│   ├── frame_work/               # Ядро на рамката (target: FrameworkCore; QtWidgets част: FrameworkGui)
+│   │   ├── base/src/             # Implementation (QPluginManager, QPluginInterface, control/, engine/, ...)
 │   │   │   └── include/          # Headers
-│   │   └── (IPluginComponent е премахнат — headers остават в base/src/include/)
+│   │   └── (виж docs/Architecture/core-gui-split.md)
 │   ├── apps/                     # Приложения
-│   │   └── Daqster/              # Главно приложение
+│   │   ├── Daqster/              # Главното GUI приложение (ApplicationsManager, AppToolbar)
+│   │   └── NodeRunner/           # Двоен режим: GUI или `--headless` (споделен AppBootstrap)
 │   └── plugins/                  # ВСИЧКО график/AI живее тук
-│       ├── external_libs/        # Git submodules (nodeeditor, qtrest_lib)
-│       ├── common/               # Споделени типове + capability интерфейси
-│       │   ├── capabilities/     # INodeProvider.h
-│       │   └── NodeDataTypes/    # TextData, FloatData, EmbeddingData, ...
-│       ├── node_editor_ide/      # Визуален node-based редактор + вградени нодове
-│       ├── nodeditor_nodes/  # INodeProvider — AudioSource, LLaMA, AudioDisplay, GenericDisplay, Demux/Mux + Video нодове (Camera/File/Stream/Output/Effect/CustomShader/Sampler)
-│       ├── qt_coin_trader/         # QtCoinTrader плъгин
+│       ├── external_libs/        # Git submodules (nodeeditor → QtNodesCore/QtNodes, qtrest_lib)
+│       ├── common/               # DaqsterCommonLibrary (target) + capability интерфейси
+│       │   ├── capabilities/     # INodeProvider, IWidgetProvider, INodeConfigSchema, IRuntimeHost, ...
+│       │   └── NodeDataTypes/    # VideoFrameData, SampledData, EmbeddingData, ...
+│       ├── node_editor/          # ← група: всичко около node editor-а
+│       │   ├── node_editor_ide/  # IDE shell (NodeEditorIde) + NodeSupport (libNodeEditorLibrary.so)
+│       │   └── nodeditor_nodes/  # {core,gui} — INodeProvider / IWidgetProvider доставчик
+│       ├── runtime_host/         # {headless,gui} — runtime host плъгини (IRuntimeHost)
+│       ├── qt_coin_trader/       # QtCoinTrader плъгин
+│       ├── requirements_manager/ # Requirements Manager (RDD UI) плъгин
 │       └── tests/                # Тестови плъгини
-├── tools/                        # Инструменти за билд
+├── scripts/                      # Dev/build скриптове
+│   ├── build.sh                  # Configure+build (qt5|qt6)
+│   ├── version.sh                # Синхронизира VERSION навсякъде
+│   └── suggest_version.sh        # Предлага следваща версия (semver от VERSION + git)
+├── tools/                        # Инструменти за билд/измерване
 │   ├── create_appimage.sh        # AppImage създаване
+│   ├── measure_flow_memory.sh    # Измерване на RSS по .flow сценарий
 │   └── Build_AppImage/           # Локални AppImage билдове
 ├── docs/                         # Документация
 │   ├── Architecture/             # Архитектурна документация
-│   │   ├── README.md             # Тази документация
+│   │   ├── README.md             # Този файл
 │   │   ├── README.en.md          # English версия
 │   │   ├── BuildSystemArchitecture.md
+│   │   ├── core-gui-split.md     # model (core) / widgets (gui) разделяне
+│   │   ├── capabilities.md       # capability интерфейси
+│   │   ├── rest-api-remote-control.md
+│   │   ├── node_editor/          # Node Editor подсистема (README.md, nodes.md, adr/)
 │   │   ├── apps/
 │   │   ├── framework/
 │   │   └── plugins/
-│   │       ├── node_editor_ide/  # Node Editor IDE plugin docs
-│       │       └── nodeditor_nodes/ # Demo NodeEditor Nodes plugin docs
-│   ├── development/              # Разработка и дебъг
-│   │   ├── README.md
-│   │   ├── DeveloperGuide.md
-│   │   └── HowToDebugAppImage.md
-│   ├── operations/               # Оперативни и build теми
-│   │   ├── BuildHelpers.md
-│   │   └── UpstreamManagement.md
-│   └── porting/                  # Портинг и миграции
-│       └── QtRest_Qt6_Porting.md
+│   ├── development/              # Разработка и дебъг (DeveloperGuide, HowToDebugAppImage)
+│   ├── operations/               # Оперативни и build теми (+ ReleaseVersioning.md)
+│   ├── plugins/                  # Per-plugin README-та (node_editor_ide, nodeditor_nodes, qt_coin_trader)
+│   └── porting/                  # Портинг и миграции (QtRest Qt6)
 ├── .github/workflows/            # CI/CD
 │   ├── ci.yml                    # Continuous Integration (Qt6 primary)
 │   ├── release.yml               # Release workflow
 │   ├── version-sync.yml          # Version sync check
-│   ├── pages.yml.disabled        # GitHub Pages (disabled — UI-based deployment from master/docs)
 │   ├── render-plantuml.yml       # PlantUML diagram rendering
-│   └── deepsource.yml.disabled   # DeepSource (disabled)
+│   └── pages.yml.disabled        # GitHub Pages (disabled)
 └── CMakeLists.txt                # Главен CMake файл
 ```
 
@@ -91,12 +101,17 @@ Daqster/
 
 ### 2. Host Application (Главно приложение)
 
-**Местоположение:** `src/apps/Daqster/`
+**Местоположение:** `src/apps/Daqster/` (GUI host) и `src/apps/NodeRunner/` (двоен режим)
 
-**Основни класове:**
+**Основни класове (`Daqster`):**
 - `main.cpp` - Точка на влизане
 - `ApplicationsManager` - Управление на child приложения
 - `AppToolbar` - GUI toolbar за стартиране на плъгини
+
+**`NodeRunner`** — един изпълним файл с два режима: GUI (по подразбиране) или
+`--headless`. Споделящата bootstrap логика живее в widget-free `AppBootstrap`
+(REQ-SW-PL-048), за да не се дублира между `Daqster` и `NodeRunner`. Подробно:
+[apps/NodeRunner.md](./apps/NodeRunner.md).
 
 **Отговорности:**
 - Инициализиране на Qt приложението
@@ -108,9 +123,15 @@ Daqster/
 
 **Местоположение:** `src/plugins/`
 
-**Типове плъгини:**
-- **APPLICATION_PLUGIN** — Самостоятелни приложения с GUI (node_editor_ide, QtCoinTrader)
-- **Node Provider** — Headless плъгини доставящи нодове чрез INodeProvider (nodeditor_nodes)
+**Типове плъгини** (от `PluginDescription::PLUGIN_TYPE_NAME`):
+- **APPLICATION_PLUGIN** — самостоятелни приложения (QtCoinTrader, RequirementsManager)
+- **Node Provider** — `INodeProvider` доставчик на нодове (nodeditor_nodes `core`)
+- **Widget Provider** — `IWidgetProvider` (node_editor_ide, nodeditor_nodes `gui`)
+- **Runtime Host** — `IRuntimeHost` (runtime_host `headless`/`gui`)
+
+Всеки плъгин може да има **`core`** (headless, widget-free) и **`gui`** (QtWidgets)
+половина — виж [core-gui-split](core-gui-split.md). Договорите са в
+[capabilities](capabilities.md).
 
 **Plugin Discovery:**
 1. Build директория (`./plugins`, `../lib/daqster/plugins`)
@@ -128,16 +149,21 @@ Daqster/
 **Местоположение:** `src/plugins/external_libs/`
 
 **Библиотеки:**
-- **nodeeditor** — Графичен редактор за нодове (submodule, `QtNodes`)
+- **nodeeditor** — Граф редактор за нодове (submodule) → **`QtNodesCore`** (model-only, QtCore+QtGui, без QtWidgets) + **`QtNodes`** (QtWidgets canvas, линква QtNodesCore)
 - **qtrest_lib** — REST API клиент (submodule + wrapper)
 
 ### 5. Capabilities (Споделени интерфейси)
 
 **Местоположение:** `src/plugins/common/capabilities/`
 
-Header-only интерфейси, достъпни за всеки плъгин:
+Header-only интерфейси (договори host ↔ plugin), достъпни за всеки плъгин. Пълният
+каталог: [capabilities](capabilities.md). Ключови:
 
-- **INodeProvider.h** — Standalone interface за доставка на `NodeDelegateModel` типове към node editor-а
+- **INodeProvider.h** — доставка на `NodeDelegateModel` типове към node editor-а
+- **IWidgetProvider.h** — доставка на `QWidget`-и (конфигурация/дисплей) за GUI режим
+- **INodeConfigSchema.h** — widget-free описание на конфигурацията на нод (и в headless)
+- **IRuntimeHost.h** — договор за runtime host плъгините
+- **IStartable.h / IStoppable.h** — стартиране/спиране на нодове (напр. `Start`/`Stop` в GUI)
 
 ```cpp
 class INodeProvider {

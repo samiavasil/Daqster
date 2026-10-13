@@ -6,11 +6,20 @@
 
 ## [Unreleased]
 
+### Added
+- **REQ-SW-PL-054 — REST control plane, първи срязък** (2026-10-11, клон `feat/REQ-SW-PL-054-rest-control-plane`):
+  `FrameworkCore` вече носи преносим **HTTP/1.1 сървър върху `QTcpServer`** (не `QHttpServer`, защото Qt5 няма такъв — една реализация за двата Qt-а): `src/frame_work/base/src/control/ControlPlaneServer.{h,cpp}` + widget-free интерфейс `RuntimeController.h`. `HeadlessEngine` имплементира `RuntimeController` и `RuntimeHostHeadlessPluginObject::configureControlPlane()` вдига сървъра от `--rest-*` опциите. Реализирани endpoint-и: `GET /api/health`, `GET /api/nodes` (id/type/name/state), `GET /api/nodes/{id}/config`, `POST /api/nodes/{id}/config` (in-place `NodeDelegateModel::load()`, с rollback при грешка), `POST /api/nodes/{id}/start|stop` (през `IStartable`/`IStoppable`), `GET /api/nodes/{id}/schema` (JSON Schema Draft 7 от `save()` на празен модел), `GET /api/flow` (nodes+connections+ui), `GET /api/openapi.json`. Auth: `Authorization: Bearer <token>` с constant-time сравнение; **fail-closed** — non-loopback bind без token се отказва (exit 1). `HeadlessEngine` вече следи per-node `running/stopped` състояние (`m_runningNodes`). Qt5 + Qt6 билд; smoke тест на двата Qt-а (health/nodes/config/schema/start/stop/auth/404).
+  **Довършено 2026-10-11 (втори срязък, `d9aac98`):** `POST /api/flow` hot-reload (AC9 — пълен flow обект или `{"path": ...}`, с типова валидация и `400` при лош документ), WebSocket `/api/events` (AC10 — RFC 6455 върху същия `QTcpServer`/порт, събития `nodeStarted`/`nodeStopped`/`nodeConfigChanged`/`nodeError` като `{type,data}`, `?token=` за браузъри), CORS + `OPTIONS` preflight (AC12), пълен OpenAPI 3.0.3 спек + Swagger UI `/api/docs` (AC13), вграден web console на `/` + статични файлове от `--rest-web-root`, `scripts/fetch-swagger-ui.sh` за локално vendored Swagger UI. Auth вече пази само данните: `/api/docs`, `/api/openapi.json` и статичният UI са достъпни без токен.
+  **GUI режим (2026-10-11, трети срязък, `317fe82`):** `RuntimeShell` вече имплементира `Daqster::RuntimeController` и държи `ControlPlaneServer`, така че `NodeRunner --run <flow> --rest-port N` сервира **същия** API като headless (преди `RuntimeHostGuiPluginObject` наследяваше default-ния `configureControlPlane()` → `false` и стартът се проваляше с „did not enable it"). Контролерът достъпва графа lazy, защото bootstrap-ът вдига сървъра преди `RunRuntime()` да построи canvas-а; `POST /api/flow` стопва стария граф, rebuild-ва MDI workspaces и ре-стартира autoStart нодовете; `flowJson()` round-trip-ва UI секцията през `FlowUi::UiSection::toJson()`. Извлечен е споделен `NodeSchemaBuilder.h`, за да дават headless и GUI идентичен `/api/nodes/{id}/schema`.
+  **Остават** (следващи срезове): `dataPreview`, mTLS, RBAC/rate-limit (v2). (Автоматични тестове за router-а са добавени в REQ-SW-PL-063.)
+- **REQ-SW-PL-063 — пълен контрол на графа през REST + WebSocket** (2026-10-12, клон `feat/REQ-SW-PL-063-full-graph-control`, дете на REQ-SW-PL-054):
+  Всеки нод и целият flow вече се управляват отдалечено с паритет на GUI. Извлечен е transport-независим `ControlPlaneRouter` (`src/frame_work/base/src/control/ControlPlaneRouter.{h,cpp}`) — чист `route(method,path,body,bodyValid) → {handled,status,body}`, който се ползва **и** от HTTP транспорта, **и** от новия WebSocket RPC (`{"id","method","path","body"}` → `{"id","status","body"}` на `/api/events`), така че API-то е дефинирано веднъж и е тестваемо без сокет. `RuntimeController` е разширен с `nodeTypes`, `connections`, `nodeDetail`, `createNode`, `removeNode`, `setNodePosition`, `setNodeLabel`, `addConnection`, `removeConnection`, `saveFlow`, `typeSchema`; имплементирани са в **двата** хоста (`HeadlessEngine` — вкл. widget-free; GUI `RuntimeShell` — новосъздадените нодове се deembed-ват в MDI workspace). Нови endpoint-и: `GET /api/node-types`, `POST /api/nodes` (create), `GET/PATCH/DELETE /api/nodes/{id}` (detail/move+label/delete), `GET/POST/DELETE /api/connections` (POST минава `connectionPossible()`), `POST /api/flow/save`. `GET /api/nodes/{id}` вече връща superset (`config`+`schema`+`position`+`label`+`ports`+`state`). Обогатена схема през нова widget-free способност `Daqster::INodeConfigSchema` (`plugins/common/capabilities/INodeConfigSchema.h`, dynamic_cast с fallback към досегашната `save()`-производна схема) — пилот `VideoEffectNode` (enum за `effect`, min/max/default, `visibleWhen`); `NodeSchemaBuilder.h` получава 3-аргументен merge. WebSocket вече е двупосочен; нови събития `nodeCreated`/`nodeDeleted`/`nodeMoved`/`connectionCreated`/`connectionDeleted`. Вграденият web console (AC14) е преписан: create/delete, таблица с връзки + **connect форма** (from node:port → to node:port, портовете се пълнят от node detail) и disconnect по връзка, **schema-генерирана** конфигурационна форма (enum→select, range→number, `visibleWhen` скрива неуместните полета, raw-JSON fallback), Save flow, live лог. Нов headless unit тест `tests/framework/control/` — 26 случая върху `ControlPlaneRouter::route()` и schema merge-а (`-DDAQSTER_BUILD_TESTS=ON`). Qt5 + Qt6 билд; 19/19 ctest; smoke в headless и GUI режим (REST + WS RPC). REST мутациите **заобикалят** `QUndoStack` (документиран non-goal).
+
 ### Changed
 - **REQ-SW-PL-048 — споделен widget-free `AppBootstrap` в `FrameworkCore`** (2026-10-11, клон `refactor/REQ-SW-PL-048-shared-app-bootstrap`):
   `NodeRunner` и `Daqster` дублираха една и съща стартова хореография (logging init → `ShutdownHandler` → `QPluginManager::Initialize()`/`SearchForPlugins()` → resolve на runtime host → event loop → подредено teardown). Тя вече живее веднъж в `Daqster::AppBootstrap` (`src/frame_work/base/src/app/`), който е **widget-free** (FrameworkCore линква само QtCore): не строи application обект, а приема вече конструиран `QCoreApplication&`, така че работи и от headless binary без QtWidgets, и от GUI binary с `QApplication`. `NodeRunner` е преписан върху него; `Daqster/main.cpp` ползва същия bootstrap за споделената част (логиране, shutdown handler, plugin init, teardown), а app-specific логиката остава в `main.cpp`. Новият bootstrap носи и `--rest-port`/`--rest-bind`/`--rest-token`/`--rest-web-root` (REQ-SW-PL-054) и ги подава към хоста през `IRuntimeHost::configureControlPlane()` — хост без remote control кара старта да се провали шумно, вместо тихо да подсказва, че REST сървърът работи.
 - **REQ-SW-PL-060 — node-provider конвенция `<plugin>/{core,gui}` + преименуване на shared support библиотеката** (2026-10-09, клон `feat/REQ-SW-PL-056-headless-all-node-components`):
-  - `src/plugins/nodeditor_nodes_core/` + `src/plugins/nodeditor_nodes_gui/` се сливат в **един** плъгин `src/plugins/nodeditor_nodes/{core,gui}/` — документирана framework конвенция (`docs/Architecture/core-gui-split.md`, `docs/Architecture/plugins/PluginDevelopment.md`): `core/` е headless (без `QWidget`), `gui/` държи widget-ите и `IWidgetProvider`.
+  - `src/plugins/node_editor/nodeditor_nodes_core/` + `src/plugins/node_editor/nodeditor_nodes_gui/` се сливат в **един** плъгин `src/plugins/node_editor/nodeditor_nodes/{core,gui}/` — документирана framework конвенция (`docs/Architecture/core-gui-split.md`, `docs/Architecture/plugins/PluginDevelopment.md`): `core/` е headless (без `QWidget`), `gui/` държи widget-ите и `IWidgetProvider`.
   - Класове/target-и/OUTPUT_NAME: `DemoNodeEditorNodesCore*` → `NodeditorNodesCore*`, `DemoNodeEditorNodesGui*` → `NodeditorNodesGui*` (`libNodeditorNodesCorePlugin.so` / `libNodeditorNodesGuiPlugin.so`). Обновени са plugin `Name` в JSON и `Dependencies` в `RuntimeHostHeadlessPlugin`/`RuntimeHostGuiPlugin`.
   - `docs/plugins/demo_nodeditor_nodes/` → `docs/plugins/nodeditor_nodes/`.
 - **REQ-SW-PL-060 — shared support библиотеката вече няма „plugin" в името**: `PluginsCommonLibrary` → `DaqsterCommonLibrary` (target + `OUTPUT_NAME` + `DaqsterCommonExport.h` / `DAQSTERCOMMON_*`). Иначе `PluginDiscovery::isCandidatePluginFile()` (`toLower().contains("plugin")`) засича `libPluginsCommonLibrary.so` и логва `Bad Plugin`.
@@ -22,12 +31,13 @@
 - **REQ-SW-PL-062 — публичните LLM нодове в категорията `AI/LLM`** (2026-10-09, клон `feat/REQ-SW-PL-056-headless-all-node-components`): `LLamaModelDataModel` (`LLaMA Model`) и `ConsoleDataModel` (`Конзола`) се регистрират в `registerNodes()` и `registerNodesHeadless()` под `"AI/LLM"` вместо `"Sources/LLM"` — вече съвпадат с частния `LlamaGenerateModel`, така че всички LLM нодове излизат на един път в менюто. Записаните `.flow` реферират нодовете по `name()`, не по категория → без миграция.
 
 ### Fixed
+- **Release tooling — `suggest_version.sh` предлагаше грешна следваща версия** (2026-10-12): baseline тагът се взимаше с `git describe`, но release таговете (`v0.3.1`/`v0.3.2`) живеят на `master` и **не са предшественици** на `develop` — затова `describe` връщаше древния `v0.0.1-beta` и класифицираше ~319 комита вместо реалните 123, предлагайки подвеждащ `1.0.0`. Сега baseline-ът идва от `VERSION` (таг `vX.Y.Z`; fallback: най-високият `v*` таг). Кодирано е и правилото от `RELEASE-PROCESS.md §1` — при `0.x` breaking промените се поглъщат от **MINOR** (MAJOR остава 0), вместо да форсират MAJOR. `BREAKING_PATHS` е стеснен до реалната host↔plugin ABI повърхност (`QPluginInterface.h`, `common/capabilities/`, `common/NodeDataTypes/`, `common/DaqsterCommonExport.h`) вместо цялата `src/plugins/common/` (18 → 13 „breaking" комита). Резултат за текущия release: `0.3.2` → **`0.4.0`**.
 - **REQ-SW-PL-056 — Qt5 build на `QtNodesCore` (nodeeditor submodule)** (2026-10-11): `samiavasil/nodeeditor@305fa37` добавя липсващия `Q_DECLARE_METATYPE(QWidget*)` до `Q_DECLARE_OPAQUE_POINTER(QWidget*)`. `Q_DECLARE_OPAQUE_POINTER` сам по себе си само обръща `IsPointerToTypeDerivedFromQObject`; за да стане `QMetaTypeId2<QWidget*>::Defined = true`, Qt5 иска и `Q_DECLARE_METATYPE`. Без него `DataFlowGraphModel.cpp:297` (`QVariant::fromValue` на embedded widget) чупеше Qt5 компилацията със static_assert. Qt6 авто-регистрира указатели към QObject-производни типове, затова split-ът мина само на Qt6.
 - **REQ-SW-PL-060 — застояли CI DLL имена** (2026-10-09): Windows smoke test-ът в
   `.github/workflows/build-qt6.yml` още очакваше `DemoNodeEditorNodesCorePlugin.dll` /
   `DemoNodeEditorNodesGuiPlugin.dll` след преименуването; сега проверява
   `NodeditorNodesCorePlugin.dll` / `NodeditorNodesGuiPlugin.dll`.
-- **REQ-SW-PL-050 „Оставащ дълг" #1 — дублиран `IStoppable`/`IStartable`** (2026-10-09): `src/plugins/nodeditor_nodes/core/shared/{IStoppable,IStartable}.h` стават forwarding shim-ове към каноничните `src/plugins/common/capabilities/*`. Една дефиниция → премахва риска двата байт-идентични layout-а да се разминат и cast-ът `stop()` да сочи грешно отместване. `demo_nodeditor_lifecycle_tests` вече се компилира (преди: redefinition) и `bothInterfaceHeadersDeclareTheSameType()` проверява структурната идентичност.
+- **REQ-SW-PL-050 „Оставащ дълг" #1 — дублиран `IStoppable`/`IStartable`** (2026-10-09): `src/plugins/node_editor/nodeditor_nodes/core/shared/{IStoppable,IStartable}.h` стават forwarding shim-ове към каноничните `src/plugins/common/capabilities/*`. Една дефиниция → премахва риска двата байт-идентични layout-а да се разминат и cast-ът `stop()` да сочи грешно отместване. `demo_nodeditor_lifecycle_tests` вече се компилира (преди: redefinition) и `bothInterfaceHeadersDeclareTheSameType()` проверява структурната идентичност.
 - **Тестова инфраструктура — side-by-side build** (2026-10-09): `DEMO_CORE_EXPORT_INCLUDE_DIR` вече се взима от `get_target_property(DemoNodeEditorNodesCore BINARY_DIR)` вместо хардкоднато `${CMAKE_BINARY_DIR}/src/...`, което чупеше `demo_nodeditor_modelname_tests` при `add_subdirectory(../daqster)` (липсващ `daqster/` префикс). Static-define-ът е `NODEDITOR_NODES_CORE_STATIC_DEFINE` (беше с невалиден `DEMO_` префикс — Windows latent).
 
 - **REQ-SW-PL-051 — празен runtime, когато има два `IWidgetProvider`**
@@ -235,7 +245,7 @@
 
 ### Removed (core/gui split)
 - **REQ-SW-PL-051** — мъртви include директории от `src/frame_work/CMakeLists.txt` и
-  `src/plugins/node_editor_ide/CMakeLists.txt`, сочещи към изтрити
+  `src/plugins/node_editor/node_editor_ide/CMakeLists.txt`, сочещи към изтрити
   `BuiltInNodes/{Sources,Displays,Operators}/`.
 
 ### Known limitations (core/gui split)
@@ -313,19 +323,23 @@
   REQ-SW-PL-051).
 
 ### Documentation
-- **REQ-SW-PL-054** (REST API & Remote Control) — **PLANNED / NOT IMPLEMENTED**.
-  Изискване: `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-054-rest-api-remote-control.md`.
-  Архитектурен документ (**PLANNED**, не описва реализиран код):
-  `docs/Architecture/rest-api-remote-control.md` — generic REST server върху
-  `NodeDelegateModel::save()/load()`, Thin Client remote GUI, streaming и
-  multi-user като бъдещи REQ-и.
+- **REQ-SW-PL-054** (REST API & Remote Control) — **IMPLEMENTED (v0.3, клон
+  `feat/REQ-SW-PL-054-rest-control-plane`; GUI режим от `317fe82`)**. Изискване:
+  `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-054-rest-api-remote-control.md`.
+  Архитектурен документ (пренаписан 2026-10-11 като **as-built**):
+  `docs/Architecture/rest-api-remote-control.md` — `ControlPlaneServer` върху
+  `QTcpServer` (една реализация за Qt5/Qt6), REST + WS върху
+  `NodeDelegateModel::save()/load()`, OpenAPI/Swagger UI, вграден web console.
+  `RuntimeController` е имплементиран и от GUI `RuntimeShell`, така че API-ът е
+  идентичен в двата runtime режима.
+  Thin Client remote GUI, streaming и multi-user остават бъдещи REQ-и.
 - Дублиращият се REQ-SW-PL-053 файл (`nodeeditor-plugin-split.md`) е премахнат;
   каноничен е `nodeeditoride-split.md`.
 
 ### Added (runtime mode)
 - **REQ-SW-PL-048** (Runtime режим — `--run <flow.flow>`, MDI workspaces, autoStart, presentation toggle):
   - CLI: `Daqster --run <file.flow>` стартира runtime режим без editor canvas
-  - `RuntimeShell` class (`src/plugins/node_editor_ide/RuntimeShell.{h,cpp}`):
+  - `RuntimeShell` class (`src/plugins/node_editor/node_editor_ide/RuntimeShell.{h,cpp}`):
     - QMainWindow shell с QMdiArea workspaces (SDRangel модел)
     - Reuses `NodeEditorIdeObject` registration + loading logic
     - MDI layout: per-workspace QMdiArea, tabbed/SubWindow view mode
@@ -340,7 +354,7 @@
     - Delegates to existing start logic (onStartRequested/onPlayPauseClicked/onConnectClicked/onStartStopClicked)
   - Presentation toggle в editor-а (F11): скрива canvas, показва деембеднати виджети
     като top-level прозорци; toggle back възстановява editor режим
-  - Код: `src/apps/Daqster/main.cpp` (--run флаг), `src/plugins/node_editor_ide/`
+  - Код: `src/apps/Daqster/main.cpp` (--run флаг), `src/plugins/node_editor/node_editor_ide/`
     (RuntimeShell, NodeEditorIdeObject), `src/plugins/demo_nodeditor_nodes/`
     (IStartable implementations)
   - Верификация: Qt5/Qt6 builds PASS + --run smoke PASS + MDI layout PASS +
@@ -361,7 +375,7 @@
     възстановява deembed state + geometry + autoStart флагове; tolerant
     guard за липсващи нодове; стар .flow без "ui" → текущо поведение;
     version > 1 → warning + празна секция
-  - Код: `src/plugins/node_editor_ide/` (FlowUiSection, NodeEditorIdeObject)
+  - Код: `src/plugins/node_editor/node_editor_ide/` (FlowUiSection, NodeEditorIdeObject)
   - Верификация: Qt5/Qt6 builds PASS + ctest 11/11 green (Qt5) + FlowUiSection
     JSON round-trip smoke PASS + IDE smoke PASS (capture/apply: deembed +
     geometry + autoStart, offscreen) + load smoke PASS (ръчен .flow с "ui"
@@ -742,11 +756,11 @@
   - Автоматично проверяване на dependencies
   - Условно включване на plugin subdirectories
   - Build configuration и plugin status summaries
-- **NodeEditorWidget Shared Component** (`src/plugins/node_editor_ide/NodeEditorWidget.{h,cpp}`):
+- **NodeEditorWidget Shared Component** (`src/plugins/node_editor/node_editor_ide/NodeEditorWidget.{h,cpp}`):
   - `NodeEditorWidget` - споделен Qt Widgets GUI за node-based редактори (използван от Node Editor IDE)
   - `ChatGraphModel` - loop-enabled графичен модел
   - Автоматична инжекция на стандартните Daqster ноди (Audio, Media, Graphs, AI, etc.)
-- **NodeEditorIDE Plugin** (`src/plugins/node_editor_ide/`):
+- **NodeEditorIDE Plugin** (`src/plugins/node_editor/node_editor_ide/`):
   - Базов графичен плъгин използващ `NodeEditorWidget`
   - `APPLICATION_PLUGIN` тип с `create_plugin()` макро
 - **ChatGraphModel в споделената библиотека** — преместен от `node_editor_ide/` в `BuiltInNodes/Library/types/` за generality

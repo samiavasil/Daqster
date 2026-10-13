@@ -7,6 +7,11 @@ Accepted
 > directory was renamed/flattened to `NodeSupport/{connectors,decoders,display,
 > docs,threading,types}`. The three-layer decision above is untouched; all
 > paths below are superseded by the new location.
+>
+> **2026-10-12 note (paths/naming only):** `demo_nodeditor_nodes` is now
+> `nodeditor_nodes`, split into `NodeditorNodesCore` / `NodeditorNodesGui`, and
+> both plugins live under `src/plugins/node_editor/`. The ADRs themselves now
+> live in `docs/Architecture/node_editor/adr/`. Decision unchanged.
 
 ## Context
 The node editor needs shared infrastructure (display models, connectors, decoders) that multiple plugins can use. Domain-specific nodes (Audio, LLM, etc.) should be in separate plugins for maintainability.

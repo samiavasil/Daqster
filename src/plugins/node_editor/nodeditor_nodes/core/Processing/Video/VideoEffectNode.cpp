@@ -7,6 +7,7 @@
 #include "Threading/ComputePool.h"
 
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QTimer>
 
 #include <algorithm>
@@ -101,6 +102,90 @@ void VideoEffectNode::load(QJsonObject const &p)
     setEffect(p.value(QStringLiteral("effect")).toString());
     Q_EMIT configChanged(m_effectIndex, m_params);
     reprocessCurrentFrame();
+}
+
+QJsonObject VideoEffectNode::configSchema() const
+{
+    // Describes exactly the object save() emits. `visibleWhen` is a documented
+    // extension: { "<field>": [allowed values] } — the control plane's web
+    // console hides fields whose condition is not met.
+    auto numberField = [](double minimum, double maximum, double def,
+                          const QString& description) {
+        QJsonObject field;
+        field.insert(QStringLiteral("type"), QStringLiteral("number"));
+        field.insert(QStringLiteral("minimum"), minimum);
+        field.insert(QStringLiteral("maximum"), maximum);
+        field.insert(QStringLiteral("default"), def);
+        field.insert(QStringLiteral("description"), description);
+        return field;
+    };
+    auto visibleFor = [](const QStringList& effects) {
+        QJsonArray values;
+        for (const QString& effect : effects)
+            values.append(effect);
+        return QJsonObject{{QStringLiteral("effect"), values}};
+    };
+
+    QJsonArray effectIds;
+    QJsonArray effectNames;
+    for (const EffectSpec& spec : m_specs) {
+        effectIds.append(spec.id);
+        effectNames.append(spec.displayName);
+    }
+
+    QJsonObject properties;
+
+    properties.insert(QStringLiteral("effect"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("string")},
+        {QStringLiteral("enum"), effectIds},
+        {QStringLiteral("x-enumNames"), effectNames},
+        {QStringLiteral("default"), m_specs.isEmpty() ? QString() : m_specs.first().id},
+        {QStringLiteral("description"), QStringLiteral("Video effect to apply")}});
+
+    QJsonObject brightness = numberField(-100, 100, 0,
+                                         QStringLiteral("Brightness offset (-100..+100)"));
+    brightness.insert(QStringLiteral("visibleWhen"), visibleFor({QStringLiteral("brightness")}));
+    properties.insert(QStringLiteral("brightness"), brightness);
+
+    QJsonObject contrast = numberField(0, 200, 100,
+                                       QStringLiteral("Contrast (100 = unchanged)"));
+    contrast.insert(QStringLiteral("visibleWhen"), visibleFor({QStringLiteral("contrast")}));
+    properties.insert(QStringLiteral("contrast"), contrast);
+
+    properties.insert(QStringLiteral("flipMode"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("string")},
+        {QStringLiteral("enum"), QJsonArray{QStringLiteral("horizontal"), QStringLiteral("vertical")}},
+        {QStringLiteral("default"), QStringLiteral("horizontal")},
+        {QStringLiteral("description"), QStringLiteral("Flip direction")},
+        {QStringLiteral("visibleWhen"), visibleFor({QStringLiteral("flip")})}});
+
+    QJsonObject blur = numberField(0, 10, 0, QStringLiteral("Box blur radius"));
+    blur.insert(QStringLiteral("visibleWhen"), visibleFor({QStringLiteral("blur")}));
+    properties.insert(QStringLiteral("blurRadius"), blur);
+
+    QJsonObject gaussian = numberField(1, 31, 5,
+                                       QStringLiteral("Gaussian kernel size (odd)"));
+    gaussian.insert(QStringLiteral("multipleOf"), 2);
+    gaussian.insert(QStringLiteral("visibleWhen"), visibleFor({QStringLiteral("gaussianBlur")}));
+    properties.insert(QStringLiteral("gaussianKernel"), gaussian);
+
+    QJsonObject cannyLow = numberField(0, 255, 50, QStringLiteral("Canny low threshold"));
+    cannyLow.insert(QStringLiteral("visibleWhen"), visibleFor({QStringLiteral("canny")}));
+    properties.insert(QStringLiteral("cannyLow"), cannyLow);
+
+    QJsonObject cannyHigh = numberField(0, 255, 150, QStringLiteral("Canny high threshold"));
+    cannyHigh.insert(QStringLiteral("visibleWhen"), visibleFor({QStringLiteral("canny")}));
+    properties.insert(QStringLiteral("cannyHigh"), cannyHigh);
+
+    QJsonObject threshold = numberField(0, 255, 128,
+                                        QStringLiteral("Binary threshold value"));
+    threshold.insert(QStringLiteral("visibleWhen"), visibleFor({QStringLiteral("threshold")}));
+    properties.insert(QStringLiteral("thresholdValue"), threshold);
+
+    QJsonObject schema;
+    schema.insert(QStringLiteral("type"), QStringLiteral("object"));
+    schema.insert(QStringLiteral("properties"), properties);
+    return schema;
 }
 
 unsigned int VideoEffectNode::nPorts(PortType portType) const
