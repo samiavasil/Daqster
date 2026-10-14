@@ -3,6 +3,7 @@
 
 #include "test_layout_tree.h"
 #include "test_layout_engine.h"
+#include "test_layout_designer.h"
 #include "test_flow_fixtures.h"
 #include "test_widget_provider_fallback.h"
 
@@ -23,6 +24,10 @@ int main(int argc, char *argv[])
     {
         TestLayoutEngine layoutEngine;
         status |= QTest::qExec(&layoutEngine, argc, argv);
+    }
+    {
+        TestLayoutDesigner layoutDesigner;
+        status |= QTest::qExec(&layoutDesigner, argc, argv);
     }
     {
         TestFlowFixtures flowFixtures;

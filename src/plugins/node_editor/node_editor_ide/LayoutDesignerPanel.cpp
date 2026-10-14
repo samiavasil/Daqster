@@ -1,7 +1,5 @@
 #include "LayoutDesignerPanel.h"
 
-#include "LogCategories.h"
-
 #include <QAction>
 #include <QBrush>
 #include <QColor>
@@ -248,28 +246,8 @@ QToolBar* LayoutDesignerPanel::buildToolbar()
 
     add(tr("Clear Slot"), [this]() { removeSelected(); });
     add(tr("Capture"), [this]() { captureCurrent(); });
-    add(tr("Undo"), [this]() {
-        if (m_undoStack.isEmpty())
-            return;
-        m_redoStack.push_back(m_section);
-        m_section = m_undoStack.takeLast();
-        if (m_currentWorkspace >= m_section.workspaces.size())
-            m_currentWorkspace = qMax(0, static_cast<int>(m_section.workspaces.size()) - 1);
-        refreshWorkspaceCombo();
-        rebuildStructure();
-        rebuildPreview();
-    });
-    add(tr("Redo"), [this]() {
-        if (m_redoStack.isEmpty())
-            return;
-        m_undoStack.push_back(m_section);
-        m_section = m_redoStack.takeLast();
-        if (m_currentWorkspace >= m_section.workspaces.size())
-            m_currentWorkspace = qMax(0, static_cast<int>(m_section.workspaces.size()) - 1);
-        refreshWorkspaceCombo();
-        rebuildStructure();
-        rebuildPreview();
-    });
+    add(tr("Undo"), [this]() { undo(); });
+    add(tr("Redo"), [this]() { redo(); });
     addSep();
 
     add(tr("Save Layout"), [this]() { Q_EMIT saveRequested(); });
@@ -613,8 +591,49 @@ void LayoutDesignerPanel::removeWorkspace()
     refreshWorkspaceCombo();
 }
 
-// ── available widgets ───────────────────────────────────────────────────────
+// ── undo / redo / assignment ────────────────────────────────────────────────
 
+void LayoutDesignerPanel::undo()
+{
+    if (m_undoStack.isEmpty())
+        return;
+
+    m_redoStack.push_back(m_section);
+    m_section = m_undoStack.takeLast();
+    if (m_currentWorkspace >= static_cast<int>(m_section.workspaces.size()))
+        m_currentWorkspace = qMax(0, static_cast<int>(m_section.workspaces.size()) - 1);
+    ensureWorkspace();
+    refreshWorkspaceCombo();
+    rebuildStructure();
+    rebuildPreview();
+}
+
+void LayoutDesignerPanel::redo()
+{
+    if (m_redoStack.isEmpty())
+        return;
+
+    m_undoStack.push_back(m_section);
+    m_section = m_redoStack.takeLast();
+    if (m_currentWorkspace >= static_cast<int>(m_section.workspaces.size()))
+        m_currentWorkspace = qMax(0, static_cast<int>(m_section.workspaces.size()) - 1);
+    ensureWorkspace();
+    refreshWorkspaceCombo();
+    rebuildStructure();
+    rebuildPreview();
+}
+
+void LayoutDesignerPanel::assignSlot(int slotIndex, NodeId nodeId)
+{
+    if (slotIndex < 0 || slotIndex >= m_assigners.size())
+        return;
+
+    // Copy: applyMutation() rebuilds the tree, which clears m_assigners.
+    const std::function<void(NodeId)> assign = m_assigners[slotIndex];
+    applyMutation([assign, nodeId]() { assign(nodeId); });
+}
+
+// ── available widgets ───────────────────────────────────────────────────────
 void LayoutDesignerPanel::rebuildAvailable()
 {
     if (!m_availableList)

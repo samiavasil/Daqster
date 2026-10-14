@@ -60,6 +60,24 @@ public:
     /// Rebuild preview + structure tree (e.g. after the host changed providers).
     void refresh();
 
+    // ── Programmatic commands (also used by the toolbar) ────────────────────
+    void addSplit(FlowUi::LayoutNode::Orientation orientation);
+    void addGrid();
+    void addTab();
+    void addDock(FlowUi::DockLayout::Area area);
+    void captureCurrent();
+    void undo();
+    void redo();
+    void addWorkspace();
+    void removeWorkspace();
+
+    /// Number of drop targets currently offered by the Structure tree.
+    int slotCount() const { return m_assigners.size(); }
+
+    /// Assign `nodeId` to the slot at `slotIndex` — the same path the drag&drop
+    /// handler uses (InvalidNodeId clears the slot).
+    void assignSlot(int slotIndex, QtNodes::NodeId nodeId);
+
 Q_SIGNALS:
     /// The user pressed "Save Layout" — the host serializes layoutSection().
     void saveRequested();
@@ -94,14 +112,7 @@ private:
     void clearPreview();
 
     // ── actions ─────────────────────────────────────────────────────────────
-    void addSplit(FlowUi::LayoutNode::Orientation orientation);
-    void addGrid();
-    void addTab();
-    void addDock(FlowUi::DockLayout::Area area);
-    void captureCurrent();
     void removeSelected();
-    void addWorkspace();
-    void removeWorkspace();
 
     void rebuildAvailable();
     void refreshWorkspaceCombo();

@@ -24,11 +24,14 @@ set(TEST_SOURCES
     test_main.cpp
     test_layout_tree.cpp test_layout_tree.h
     test_layout_engine.cpp test_layout_engine.h
+    test_layout_designer.cpp test_layout_designer.h
     test_flow_fixtures.cpp test_flow_fixtures.h
     test_widget_provider_fallback.cpp test_widget_provider_fallback.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutTree.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutEngine.cpp
+    # Visual layout designer (REQ-SW-PL-059): panel commands + serialization.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutDesignerPanel.cpp
     # REQ-SW-PL-051: multi-IWidgetProvider fallback in the node editor
     # (nodeWidget() consults every provider, first non-null wins).
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/types/ChatGraphModel.cpp
