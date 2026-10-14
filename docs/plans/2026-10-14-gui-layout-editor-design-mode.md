@@ -2,7 +2,7 @@
 
 > **STATUS: COMPLETE (2026-10-15).** Всичките 15 задачи са имплементирани и
 > верифицирани на клон `feat/REQ-SW-PL-059-layout-designer` (публичен `daqster`).
-> Qt5 + Qt6 пълен билд; `ctest` 19/19 × 2; `node_editor_ide_tests` 52/52.
+> Qt5 + Qt6 пълен билд; `ctest` 19/19 × 2; `node_editor_ide_tests` 53/53.
 > Виж `DevelopmentProcess/plans/2026-10-15-status.md` (частен репо) за детайли и
 > остатъчни ограничения.
 
