@@ -1,5 +1,11 @@
 # GUI Layout Editor (Design Mode) Implementation Plan
 
+> **STATUS: COMPLETE (2026-10-15).** Всичките 15 задачи са имплементирани и
+> верифицирани на клон `feat/REQ-SW-PL-059-layout-designer` (публичен `daqster`).
+> Qt5 + Qt6 пълен билд; `ctest` 19/19 × 2; `node_editor_ide_tests` 52/52.
+> Виж `DevelopmentProcess/plans/2026-10-15-status.md` (частен репо) за детайли и
+> остатъчни ограничения.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build a visual Layout Designer Mode inside NodeEditor IDE to design v2 layout trees (split/grid/tab/panel + docks) by drag-drop, using existing LayoutTree/LayoutEngine, serialize to `.flow` "ui" section (version 2).
