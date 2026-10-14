@@ -191,6 +191,11 @@ set(IDE_SOURCES
     LayoutTree.h
     LayoutEngine.cpp
     LayoutEngine.h
+    # Visual layout designer (REQ-SW-PL-059): edits a v2 LayoutSection with the
+    # mouse (structure tree + live LayoutEngine preview) instead of hand-editing
+    # the .flow "ui" JSON.
+    LayoutDesignerPanel.cpp
+    LayoutDesignerPanel.h
 )
 
 create_plugin(NodeEditorIde
