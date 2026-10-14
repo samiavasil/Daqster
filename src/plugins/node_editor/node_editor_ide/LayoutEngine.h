@@ -23,16 +23,35 @@
  */
 namespace FlowUi {
 
+/// Build-time knobs for LayoutEngine. Defaults reproduce runtime behaviour.
+/// Declared at namespace scope (not nested in LayoutEngine) because GCC rejects
+/// using a nested class that has a default member initializer as a default
+/// argument of the enclosing class ("default member initializer required before
+/// the end of its enclosing class").
+struct LayoutBuildOptions
+{
+    /// When true, empty panels / grid cells / tab pages render as a visible
+    /// dashed "empty" placeholder instead of being skipped entirely. The
+    /// Layout Designer sets this so the structure is visible before widgets
+    /// are dropped in; runtime (RuntimeShell) leaves it false so empty slots
+    /// take no space.
+    bool placeholders = false;
+};
+
 class LayoutEngine
 {
 public:
     /// Returns the widget for a node, or nullptr if the node is unavailable.
     using NodeWidgetProvider = std::function<QWidget*(QtNodes::NodeId)>;
 
+    /// Build-time knobs (alias kept for readability at call sites).
+    using BuildOptions = LayoutBuildOptions;
+
     /// Creates a QMainWindow whose central widget is `workspace.root` and whose
     /// docks are built from `workspace.docks`. The caller owns the window.
     static QMainWindow* buildWorkspace(const WorkspaceLayout& workspace,
-                                       const NodeWidgetProvider& provider);
+                                       const NodeWidgetProvider& provider,
+                                       const BuildOptions& options = BuildOptions());
 
     /// Builds `workspace` into an existing window: replaces its central widget
     /// (buildNode) and adds its docks. Returns true when at least one widget was
@@ -40,7 +59,8 @@ public:
     /// runtime main window instead of creating a second QMainWindow.
     static bool buildInto(QMainWindow* window,
                           const WorkspaceLayout& workspace,
-                          const NodeWidgetProvider& provider);
+                          const NodeWidgetProvider& provider,
+                          const BuildOptions& options = BuildOptions());
 
     /// Reconstructs a WorkspaceLayout from a window produced by buildWorkspace().
     static WorkspaceLayout captureWorkspace(QMainWindow* window);

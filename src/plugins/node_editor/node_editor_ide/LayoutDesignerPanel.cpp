@@ -44,10 +44,8 @@ public:
         auto* mime = new QMimeData();
         if (!items.isEmpty()) {
             const quint32 nodeId = items.first()->data(Qt::UserRole).toUInt();
-            QByteArray payload;
-            QDataStream stream(&payload, QIODevice::WriteOnly);
-            stream << nodeId;
-            mime->setData(QLatin1String(kNodeMime), payload);
+            mime->setData(QLatin1String(kNodeMime),
+                          LayoutDesignerPanel::encodeNodeMime(nodeId));
         }
         return mime;
     }
@@ -107,6 +105,25 @@ LayoutDesignerPanel::LayoutDesignerPanel(QWidget* parent)
 LayoutDesignerPanel::~LayoutDesignerPanel()
 {
     clearPreview();
+}
+
+QByteArray LayoutDesignerPanel::encodeNodeMime(NodeId nodeId)
+{
+    QByteArray payload;
+    QDataStream stream(&payload, QIODevice::WriteOnly);
+    stream << static_cast<quint32>(nodeId);
+    return payload;
+}
+
+NodeId LayoutDesignerPanel::decodeNodeMime(const QByteArray& payload)
+{
+    QDataStream stream(payload); // read-only
+    quint32 rawId = 0;
+    stream >> rawId;
+    // A short/corrupt payload must not silently decode as node 0.
+    if (stream.status() != QDataStream::Ok)
+        return InvalidNodeId;
+    return static_cast<NodeId>(rawId);
 }
 
 void LayoutDesignerPanel::setProvider(Provider provider)
@@ -436,7 +453,11 @@ void LayoutDesignerPanel::rebuildPreview()
 
     ensureWorkspace();
     const FlowUi::WorkspaceLayout& ws = currentWorkspace();
-    m_preview = FlowUi::LayoutEngine::buildWorkspace(ws, m_provider);
+    // placeholders = true: show empty slots as dashed boxes so the structure is
+    // visible before widgets are dropped in (runtime leaves them invisible).
+    FlowUi::LayoutEngine::BuildOptions options;
+    options.placeholders = true;
+    m_preview = FlowUi::LayoutEngine::buildWorkspace(ws, m_provider, options);
     if (!m_preview)
         return;
 
@@ -690,10 +711,8 @@ bool LayoutDesignerPanel::eventFilter(QObject* watched, QEvent* event)
             if (!dropEvent->mimeData()->hasFormat(QLatin1String(kNodeMime)))
                 break;
 
-            const quint32 rawId = dropEvent->mimeData()
-                                      ->data(QLatin1String(kNodeMime))
-                                      .toUInt();
-            const NodeId id = static_cast<NodeId>(rawId);
+            const NodeId id = LayoutDesignerPanel::decodeNodeMime(
+                dropEvent->mimeData()->data(QLatin1String(kNodeMime)));
 
             QTreeWidgetItem* item = m_structure->itemAt(dropPosition(dropEvent));
             while (item) {

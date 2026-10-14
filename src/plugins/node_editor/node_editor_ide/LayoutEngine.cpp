@@ -1,12 +1,15 @@
 #include "LayoutEngine.h"
 
 #include <QDockWidget>
+#include <QFrame>
 #include <QGridLayout>
+#include <QLabel>
 #include <QLayout>
 #include <QLayoutItem>
 #include <QList>
 #include <QSplitter>
 #include <QTabWidget>
+#include <QVBoxLayout>
 #include <QWidget>
 
 #include <QString>
@@ -26,11 +29,36 @@ const char* const kDockTitle = "layoutDockTitle";
 const char* const kDockArea = "layoutDockArea";
 const char* const kWorkspaceId = "layoutWorkspaceId";
 const char* const kWorkspaceName = "layoutWorkspaceName";
+// Designer-only: marks an empty-slot placeholder. It is deliberately NOT tagged
+// with kNodeType, so captureNode() reads it back as an empty Panel (InvalidNodeId).
+const char* const kPlaceholder = "layoutPlaceholder";
 
 void tagWidget(QWidget* widget, const char* type)
 {
     if (widget)
         widget->setProperty(kNodeType, QString::fromLatin1(type));
+}
+
+/// A visible stand-in for an empty panel/grid cell, shown only when
+/// BuildOptions::placeholders is set (Layout Designer preview). Runtime never
+/// builds these, so empty slots keep taking no space there.
+QWidget* makePlaceholder(const QString& text)
+{
+    auto* frame = new QFrame();
+    frame->setProperty(kPlaceholder, true);
+    frame->setFrameShape(QFrame::StyledPanel);
+    frame->setMinimumSize(56, 36);
+    frame->setStyleSheet(QStringLiteral(
+        "QFrame[layoutPlaceholder=\"true\"] {"
+        " border: 1px dashed #9aa0a6; background: #f1f3f4; }"));
+    auto* layout = new QVBoxLayout(frame);
+    layout->setContentsMargins(2, 2, 2, 2);
+    auto* label = new QLabel(text, frame);
+    label->setAlignment(Qt::AlignCenter);
+    label->setWordWrap(true);
+    label->setStyleSheet(QStringLiteral("color: #5f6368; border: none;"));
+    layout->addWidget(label);
+    return frame;
 }
 
 QString areaToString(DockLayout::Area area)
@@ -76,16 +104,22 @@ QString displayTitle(const LayoutNode& node, QWidget* widget)
     return QString();
 }
 
-QWidget* buildNode(const LayoutNode& node, const LayoutEngine::NodeWidgetProvider& provider);
+QWidget* buildNode(const LayoutNode& node,
+                   const LayoutEngine::NodeWidgetProvider& provider,
+                   const LayoutEngine::BuildOptions& options);
 
-QWidget* buildPanel(const LayoutNode& node, const LayoutEngine::NodeWidgetProvider& provider)
+QWidget* buildPanel(const LayoutNode& node,
+                    const LayoutEngine::NodeWidgetProvider& provider,
+                    const LayoutEngine::BuildOptions& options)
 {
     if (node.nodeId == QtNodes::InvalidNodeId)
-        return nullptr;
+        return options.placeholders ? makePlaceholder(QObject::tr("empty")) : nullptr;
 
     QWidget* widget = provider ? provider(node.nodeId) : nullptr;
     if (!widget)
-        return nullptr;
+        return options.placeholders
+                   ? makePlaceholder(QObject::tr("node #%1 (no widget)").arg(node.nodeId))
+                   : nullptr;
 
     tagWidget(widget, "panel");
     widget->setProperty(kNodeId, static_cast<uint>(node.nodeId));
@@ -93,7 +127,9 @@ QWidget* buildPanel(const LayoutNode& node, const LayoutEngine::NodeWidgetProvid
     return widget;
 }
 
-QWidget* buildSplit(const LayoutNode& node, const LayoutEngine::NodeWidgetProvider& provider)
+QWidget* buildSplit(const LayoutNode& node,
+                    const LayoutEngine::NodeWidgetProvider& provider,
+                    const LayoutEngine::BuildOptions& options)
 {
     const Qt::Orientation orientation = node.orientation == LayoutNode::Orientation::Vertical
         ? Qt::Vertical
@@ -102,7 +138,7 @@ QWidget* buildSplit(const LayoutNode& node, const LayoutEngine::NodeWidgetProvid
     tagWidget(splitter, "split");
 
     for (const LayoutNode& child : node.children) {
-        if (QWidget* childWidget = buildNode(child, provider))
+        if (QWidget* childWidget = buildNode(child, provider, options))
             splitter->addWidget(childWidget);
     }
 
@@ -121,7 +157,9 @@ QWidget* buildSplit(const LayoutNode& node, const LayoutEngine::NodeWidgetProvid
     return splitter;
 }
 
-QWidget* buildGrid(const LayoutNode& node, const LayoutEngine::NodeWidgetProvider& provider)
+QWidget* buildGrid(const LayoutNode& node,
+                   const LayoutEngine::NodeWidgetProvider& provider,
+                   const LayoutEngine::BuildOptions& options)
 {
     if (node.rows <= 0 || node.cols <= 0)
         return nullptr;
@@ -145,30 +183,50 @@ QWidget* buildGrid(const LayoutNode& node, const LayoutEngine::NodeWidgetProvide
 
     const int cellCount = node.rows * node.cols;
     for (int index = 0; index < cellCount; ++index) {
-        if (index >= static_cast<int>(node.cells.size()) || !node.cells[index].has_value())
-            continue; // empty cell — leave the grid position unused
+        const int row = index / node.cols;
+        const int col = index % node.cols;
+
+        if (index >= static_cast<int>(node.cells.size()) || !node.cells[index].has_value()) {
+            // Empty cell — leave unused at runtime, show a placeholder in the
+            // designer so the grid structure is visible.
+            if (options.placeholders)
+                layout->addWidget(makePlaceholder(QObject::tr("empty")), row, col);
+            continue;
+        }
 
         QWidget* widget = provider ? provider(*node.cells[index]) : nullptr;
-        if (!widget)
+        if (!widget) {
+            if (options.placeholders)
+                layout->addWidget(
+                    makePlaceholder(QObject::tr("node #%1 (no widget)").arg(*node.cells[index])),
+                    row, col);
             continue; // provider could not supply the node — skip cell
+        }
 
         tagWidget(widget, "panel");
         widget->setProperty(kNodeId, static_cast<uint>(*node.cells[index]));
-        layout->addWidget(widget, index / node.cols, index % node.cols);
+        layout->addWidget(widget, row, col);
     }
     return container;
 }
 
-QWidget* buildTab(const LayoutNode& node, const LayoutEngine::NodeWidgetProvider& provider)
+QWidget* buildTab(const LayoutNode& node,
+                  const LayoutEngine::NodeWidgetProvider& provider,
+                  const LayoutEngine::BuildOptions& options)
 {
     auto* tabs = new QTabWidget();
     tagWidget(tabs, "tab");
 
+    int page = 1;
     for (const LayoutNode& child : node.children) {
-        QWidget* childWidget = buildNode(child, provider);
+        QWidget* childWidget = buildNode(child, provider, options);
         if (!childWidget)
             continue;
-        tabs->addTab(childWidget, displayTitle(child, childWidget));
+        QString title = displayTitle(child, childWidget);
+        if (title.isEmpty())
+            title = QObject::tr("Page %1").arg(page);
+        tabs->addTab(childWidget, title);
+        ++page;
     }
 
     if (tabs->count() == 0) {
@@ -181,13 +239,15 @@ QWidget* buildTab(const LayoutNode& node, const LayoutEngine::NodeWidgetProvider
     return tabs;
 }
 
-QWidget* buildNode(const LayoutNode& node, const LayoutEngine::NodeWidgetProvider& provider)
+QWidget* buildNode(const LayoutNode& node,
+                   const LayoutEngine::NodeWidgetProvider& provider,
+                   const LayoutEngine::BuildOptions& options)
 {
     switch (node.type) {
-    case LayoutNode::Type::Panel: return buildPanel(node, provider);
-    case LayoutNode::Type::Split: return buildSplit(node, provider);
-    case LayoutNode::Type::Grid:  return buildGrid(node, provider);
-    case LayoutNode::Type::Tab:   return buildTab(node, provider);
+    case LayoutNode::Type::Panel: return buildPanel(node, provider, options);
+    case LayoutNode::Type::Split: return buildSplit(node, provider, options);
+    case LayoutNode::Type::Grid:  return buildGrid(node, provider, options);
+    case LayoutNode::Type::Tab:   return buildTab(node, provider, options);
     }
     return nullptr;
 }
@@ -249,16 +309,18 @@ LayoutNode captureNode(QWidget* widget)
 } // namespace
 
 QMainWindow* LayoutEngine::buildWorkspace(const WorkspaceLayout& workspace,
-                                          const NodeWidgetProvider& provider)
+                                          const NodeWidgetProvider& provider,
+                                          const BuildOptions& options)
 {
     auto* window = new QMainWindow();
-    buildInto(window, workspace, provider);
+    buildInto(window, workspace, provider, options);
     return window;
 }
 
 bool LayoutEngine::buildInto(QMainWindow* window,
                              const WorkspaceLayout& workspace,
-                             const NodeWidgetProvider& provider)
+                             const NodeWidgetProvider& provider,
+                             const BuildOptions& options)
 {
     if (!window)
         return false;
@@ -268,7 +330,7 @@ bool LayoutEngine::buildInto(QMainWindow* window,
 
     bool built = false;
 
-    if (QWidget* central = buildNode(workspace.root, provider)) {
+    if (QWidget* central = buildNode(workspace.root, provider, options)) {
         window->setCentralWidget(central);
         built = true;
     }

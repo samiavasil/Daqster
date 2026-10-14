@@ -19,4 +19,5 @@ private slots:
     void addSplitWrapsExistingRoot();
     void undoRestoresPreviousSection();
     void addAndRemoveWorkspace();
+    void nodeMimeRoundTripsNodeId();
 };

@@ -78,6 +78,12 @@ public:
     /// handler uses (InvalidNodeId clears the slot).
     void assignSlot(int slotIndex, QtNodes::NodeId nodeId);
 
+    /// MIME payload codec for the "Available Widgets" → Structure drag & drop.
+    /// Both the drag source (QListWidget::mimeData) and the drop target
+    /// (eventFilter) MUST go through these so the round-trip stays in sync.
+    static QByteArray encodeNodeMime(QtNodes::NodeId nodeId);
+    static QtNodes::NodeId decodeNodeMime(const QByteArray& payload);
+
 Q_SIGNALS:
     /// The user pressed "Save Layout" — the host serializes layoutSection().
     void saveRequested();

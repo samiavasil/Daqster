@@ -159,3 +159,22 @@ void TestLayoutDesigner::addAndRemoveWorkspace()
     panel.removeWorkspace();
     QCOMPARE(static_cast<int>(panel.layoutSection().workspaces.size()), 1);
 }
+
+// Regression (2026-10-15): the drag source wrote the node id with QDataStream
+// but the drop target read it back with QByteArray::toUInt() (decimal parse),
+// so every drop decoded as node 0. Both sides now share encode/decodeNodeMime.
+void TestLayoutDesigner::nodeMimeRoundTripsNodeId()
+{
+    for (const NodeId id : {NodeId(0), NodeId(1), NodeId(42), NodeId(65535), NodeId(16777216)}) {
+        const QByteArray payload = LayoutDesignerPanel::encodeNodeMime(id);
+        QCOMPARE(LayoutDesignerPanel::decodeNodeMime(payload), id);
+    }
+
+    // The sentinel survives, and a corrupt/short payload is rejected safely
+    // (returns InvalidNodeId rather than silently assigning node 0).
+    QCOMPARE(LayoutDesignerPanel::decodeNodeMime(
+                 LayoutDesignerPanel::encodeNodeMime(InvalidNodeId)),
+             InvalidNodeId);
+    QCOMPARE(LayoutDesignerPanel::decodeNodeMime(QByteArray()), InvalidNodeId);
+    QCOMPARE(LayoutDesignerPanel::decodeNodeMime(QByteArray("12")), InvalidNodeId);
+}

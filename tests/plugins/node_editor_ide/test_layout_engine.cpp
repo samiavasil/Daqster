@@ -141,6 +141,45 @@ void TestLayoutEngine::buildIntoReplacesExistingCentralWidget()
     QCOMPARE(host.property("layoutWorkspaceId").toInt(), 0);
 }
 
+// REQ-SW-PL-059: the Layout Designer preview must show EMPTY slots (dashed
+// placeholders) so the structure is visible before widgets are dropped in,
+// while runtime keeps empty slots invisible. captureWorkspace() must still read
+// placeholders back as empty cells.
+void TestLayoutEngine::placeholdersFillEmptyCells()
+{
+    FlowUi::WorkspaceLayout ws;
+    ws.id = 0;
+    FlowUi::LayoutNode grid;
+    grid.type = FlowUi::LayoutNode::Type::Grid;
+    grid.rows = 2;
+    grid.cols = 2;
+    grid.cells.assign(4, std::nullopt);
+    ws.root = grid;
+
+    // Runtime default: empty cells contribute no widget.
+    QMainWindow* runtime = FlowUi::LayoutEngine::buildWorkspace(ws, dummyProvider());
+    auto* runtimeGrid = qobject_cast<QGridLayout*>(runtime->centralWidget()->layout());
+    QVERIFY(runtimeGrid != nullptr);
+    QCOMPARE(runtimeGrid->count(), 0);
+    delete runtime;
+
+    // Designer: one placeholder per empty cell.
+    FlowUi::LayoutEngine::BuildOptions options;
+    options.placeholders = true;
+    QMainWindow* designer = FlowUi::LayoutEngine::buildWorkspace(ws, dummyProvider(), options);
+    auto* designerGrid = qobject_cast<QGridLayout*>(designer->centralWidget()->layout());
+    QVERIFY(designerGrid != nullptr);
+    QCOMPARE(designerGrid->count(), 4);
+
+    // Round-trip: placeholders are not mistaken for assigned nodes.
+    const FlowUi::WorkspaceLayout captured = FlowUi::LayoutEngine::captureWorkspace(designer);
+    QCOMPARE(captured.root.type, FlowUi::LayoutNode::Type::Grid);
+    QCOMPARE(static_cast<int>(captured.root.cells.size()), 4);
+    for (const auto& cell : captured.root.cells)
+        QVERIFY(!cell.has_value());
+    delete designer;
+}
+
 void TestLayoutEngine::splitRestoresSizes()
 {
     FlowUi::WorkspaceLayout ws;
