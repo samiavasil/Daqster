@@ -34,6 +34,14 @@ public:
     static QMainWindow* buildWorkspace(const WorkspaceLayout& workspace,
                                        const NodeWidgetProvider& provider);
 
+    /// Builds `workspace` into an existing window: replaces its central widget
+    /// (buildNode) and adds its docks. Returns true when at least one widget was
+    /// built. Used by RuntimeShell (REQ-SW-PL-053) to apply a v2 layout to the
+    /// runtime main window instead of creating a second QMainWindow.
+    static bool buildInto(QMainWindow* window,
+                          const WorkspaceLayout& workspace,
+                          const NodeWidgetProvider& provider);
+
     /// Reconstructs a WorkspaceLayout from a window produced by buildWorkspace().
     static WorkspaceLayout captureWorkspace(QMainWindow* window);
 };

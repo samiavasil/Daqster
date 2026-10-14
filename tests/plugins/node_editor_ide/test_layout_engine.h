@@ -13,6 +13,7 @@ class TestLayoutEngine : public QObject
 
 private slots:
     void gridBuildsCentralWidget();
+    void buildIntoReplacesExistingCentralWidget();
     void splitRestoresSizes();
     void tabRestoresCurrent();
     void dockBuildsInRightArea();

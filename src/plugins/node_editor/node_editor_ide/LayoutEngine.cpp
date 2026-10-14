@@ -252,11 +252,26 @@ QMainWindow* LayoutEngine::buildWorkspace(const WorkspaceLayout& workspace,
                                           const NodeWidgetProvider& provider)
 {
     auto* window = new QMainWindow();
+    buildInto(window, workspace, provider);
+    return window;
+}
+
+bool LayoutEngine::buildInto(QMainWindow* window,
+                             const WorkspaceLayout& workspace,
+                             const NodeWidgetProvider& provider)
+{
+    if (!window)
+        return false;
+
     window->setProperty(kWorkspaceId, workspace.id);
     window->setProperty(kWorkspaceName, workspace.name);
 
-    if (QWidget* central = buildNode(workspace.root, provider))
+    bool built = false;
+
+    if (QWidget* central = buildNode(workspace.root, provider)) {
         window->setCentralWidget(central);
+        built = true;
+    }
 
     for (const DockLayout& dockLayout : workspace.docks) {
         QWidget* widget = provider ? provider(dockLayout.node) : nullptr;
@@ -284,8 +299,10 @@ QMainWindow* LayoutEngine::buildWorkspace(const WorkspaceLayout& workspace,
             dock->setGeometry(QRect(dockLayout.geometry.x, dockLayout.geometry.y,
                                     dockLayout.geometry.w, dockLayout.geometry.h));
         }
+        built = true;
     }
-    return window;
+
+    return built;
 }
 
 WorkspaceLayout LayoutEngine::captureWorkspace(QMainWindow* window)

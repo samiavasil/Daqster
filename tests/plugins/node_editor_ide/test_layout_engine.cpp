@@ -119,6 +119,28 @@ void TestLayoutEngine::gridBuildsCentralWidget()
     delete window;
 }
 
+// REQ-SW-PL-053/REQ-SW-PL-059: RuntimeShell applies a v2 layout to its existing
+// runtime window via buildInto() instead of creating a second QMainWindow.
+void TestLayoutEngine::buildIntoReplacesExistingCentralWidget()
+{
+    QMainWindow host;
+    QWidget* oldCentral = new QWidget(&host);
+    host.setCentralWidget(oldCentral);
+
+    const FlowUi::WorkspaceLayout ws = makeGridWorkspace();
+    const bool built = FlowUi::LayoutEngine::buildInto(&host, ws, dummyProvider());
+    QVERIFY(built);
+
+    QWidget* central = host.centralWidget();
+    QVERIFY(central != nullptr);
+    QVERIFY(central != oldCentral);
+    QCOMPARE(central->property("layoutNodeType").toString(), QStringLiteral("grid"));
+
+    // The dock declared by the workspace is attached to the host window.
+    QCOMPARE(host.findChildren<QDockWidget*>().size(), 1);
+    QCOMPARE(host.property("layoutWorkspaceId").toInt(), 0);
+}
+
 void TestLayoutEngine::splitRestoresSizes()
 {
     FlowUi::WorkspaceLayout ws;
