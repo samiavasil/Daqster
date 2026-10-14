@@ -183,10 +183,10 @@ set(IDE_SOURCES
     # QTabWidget, QDockWidget) — node_editor_ide is a GUI-side plugin, so this is
     # the correct side of the core/gui line.
     #
-    # The consumers are NOT wired up yet — NodeEditorIdeObject's F11 v2 workspace
-    # and RuntimeShell::arrangeLayout still use the v1 path. That rewire is the
-    # next block; until it lands these four TUs compile and are unit-tested but
-    # not reachable at runtime, which is stated rather than hidden.
+    # Consumers: NodeEditorIdeObject's Layout Designer (REQ-SW-PL-059, F6) and
+    # its v2 ui save/load path are wired. RuntimeShell::arrangeWorkspaces still
+    # uses only the v1 path — rewiring the runtime host to build v2 layouts via
+    # LayoutEngine is the next block, stated rather than hidden.
     LayoutTree.cpp
     LayoutTree.h
     LayoutEngine.cpp
