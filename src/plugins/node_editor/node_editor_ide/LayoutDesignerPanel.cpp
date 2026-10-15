@@ -222,31 +222,48 @@ void LayoutDesignerPanel::buildUi()
     });
 }
 
-QToolBar* LayoutDesignerPanel::buildToolbar()
+QWidget* LayoutDesignerPanel::buildToolbar()
 {
-    auto* bar = new QToolBar(this);
-    bar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    // Two stacked rows on purpose: a QToolBar does not wrap, and at the IDE's
+    // default width (1024px) a single row overflows — which silently hides the
+    // last actions ("Save Layout", "Exit") behind the "»" extension button,
+    // where users never find them. Splitting into a containers row and an
+    // actions row keeps everything visible.
+    auto* container = new QWidget(this);
+    auto* rows = new QVBoxLayout(container);
+    rows->setContentsMargins(0, 0, 0, 0);
+    rows->setSpacing(0);
 
-    auto add = [bar](const QString& text, const std::function<void()>& fn) {
+    auto makeBar = [container, rows]() {
+        auto* bar = new QToolBar(container);
+        bar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        bar->setMovable(false);
+        rows->addWidget(bar);
+        return bar;
+    };
+    auto addTo = [](QToolBar* bar, const QString& text, const std::function<void()>& fn) {
         QAction* action = bar->addAction(text);
         QObject::connect(action, &QAction::triggered, bar, [fn]() { fn(); });
         return action;
     };
 
-    auto addSep = [bar]() { bar->addSeparator(); };
+    // Row 1 — build the layout: containers + docks.
+    QToolBar* structure = makeBar();
+    addTo(structure, tr("Split H"),
+          [this]() { addSplit(FlowUi::LayoutNode::Orientation::Horizontal); });
+    addTo(structure, tr("Split V"),
+          [this]() { addSplit(FlowUi::LayoutNode::Orientation::Vertical); });
+    addTo(structure, tr("Grid 2×2"), [this]() { addGrid(); });
+    addTo(structure, tr("Tab"), [this]() { addTab(); });
+    structure->addSeparator();
+    addTo(structure, tr("Dock ◀"), [this]() { addDock(FlowUi::DockLayout::Area::Left); });
+    addTo(structure, tr("Dock ▶"), [this]() { addDock(FlowUi::DockLayout::Area::Right); });
+    addTo(structure, tr("Dock ▲"), [this]() { addDock(FlowUi::DockLayout::Area::Top); });
+    addTo(structure, tr("Dock ▼"), [this]() { addDock(FlowUi::DockLayout::Area::Bottom); });
 
-    add(tr("Split H"), [this]() { addSplit(FlowUi::LayoutNode::Orientation::Horizontal); });
-    add(tr("Split V"), [this]() { addSplit(FlowUi::LayoutNode::Orientation::Vertical); });
-    add(tr("Grid 2×2"), [this]() { addGrid(); });
-    add(tr("Tab"), [this]() { addTab(); });
-    addSep();
-    add(tr("Dock ◀"), [this]() { addDock(FlowUi::DockLayout::Area::Left); });
-    add(tr("Dock ▶"), [this]() { addDock(FlowUi::DockLayout::Area::Right); });
-    add(tr("Dock ▲"), [this]() { addDock(FlowUi::DockLayout::Area::Top); });
-    add(tr("Dock ▼"), [this]() { addDock(FlowUi::DockLayout::Area::Bottom); });
-    addSep();
-
-    m_workspaceCombo = new QComboBox(bar);
+    // Row 2 — workspace, slot actions, save/exit (always visible).
+    QToolBar* actions = makeBar();
+    m_workspaceCombo = new QComboBox(actions);
     m_workspaceCombo->setToolTip(tr("Active workspace"));
     connect(m_workspaceCombo, qOverload<int>(&QComboBox::currentIndexChanged), this,
             [this](int index) {
@@ -256,21 +273,19 @@ QToolBar* LayoutDesignerPanel::buildToolbar()
                 rebuildStructure();
                 rebuildPreview();
             });
-    bar->addWidget(m_workspaceCombo);
-    add(tr("+WS"), [this]() { addWorkspace(); });
-    add(tr("−WS"), [this]() { removeWorkspace(); });
-    addSep();
+    actions->addWidget(m_workspaceCombo);
+    addTo(actions, tr("+WS"), [this]() { addWorkspace(); });
+    addTo(actions, tr("−WS"), [this]() { removeWorkspace(); });
+    actions->addSeparator();
+    addTo(actions, tr("Clear Slot"), [this]() { removeSelected(); });
+    addTo(actions, tr("Capture"), [this]() { captureCurrent(); });
+    addTo(actions, tr("Undo"), [this]() { undo(); });
+    addTo(actions, tr("Redo"), [this]() { redo(); });
+    actions->addSeparator();
+    addTo(actions, tr("Save Layout"), [this]() { Q_EMIT saveRequested(); });
+    addTo(actions, tr("Exit"), [this]() { Q_EMIT closed(); });
 
-    add(tr("Clear Slot"), [this]() { removeSelected(); });
-    add(tr("Capture"), [this]() { captureCurrent(); });
-    add(tr("Undo"), [this]() { undo(); });
-    add(tr("Redo"), [this]() { redo(); });
-    addSep();
-
-    add(tr("Save Layout"), [this]() { Q_EMIT saveRequested(); });
-    add(tr("Exit"), [this]() { Q_EMIT closed(); });
-
-    return bar;
+    return container;
 }
 
 // ── model helpers ───────────────────────────────────────────────────────────

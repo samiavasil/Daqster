@@ -96,7 +96,7 @@ protected:
 private:
     // ── construction ────────────────────────────────────────────────────────
     void buildUi();
-    QToolBar* buildToolbar();
+    QWidget* buildToolbar();
 
     // ── model helpers ───────────────────────────────────────────────────────
     FlowUi::WorkspaceLayout& currentWorkspace();
