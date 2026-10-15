@@ -98,14 +98,9 @@ void collectNodeIds(const LayoutNode &node, QList<int> &out)
         if (node.nodeId != QtNodes::InvalidNodeId)
             out.append(node.nodeId);
         break;
-    case LayoutNode::Type::Grid:
-        for (const auto &cell : node.cells) {
-            if (cell.has_value())
-                out.append(static_cast<int>(*cell));
-        }
-        break;
     case LayoutNode::Type::Split:
     case LayoutNode::Type::Tab:
+    case LayoutNode::Type::Grid:
         for (const LayoutNode &child : node.children)
             collectNodeIds(child, out);
         break;
@@ -456,9 +451,9 @@ void TestFlowFixtures::video4viewsGridFixtureBuildsItsDeclaredGrid()
     QCOMPARE(ws.root.type, LayoutNode::Type::Grid);
     QCOMPARE(ws.root.rows, 2);
     QCOMPARE(ws.root.cols, 2);
-    QCOMPARE(ws.root.cells.size(), std::size_t(4));
-    for (const auto &cell : ws.root.cells)
-        QVERIFY(cell.has_value());
+    QCOMPARE(ws.root.children.size(), std::size_t(4));
+    for (const auto &cell : ws.root.children)
+        QVERIFY(!cell.isEmptyPanel());
 
     // One dock holding the source node, pinned right — the grid itself holds
     // only the four VideoOutput nodes.
@@ -466,9 +461,9 @@ void TestFlowFixtures::video4viewsGridFixtureBuildsItsDeclaredGrid()
     QCOMPARE(ws.docks.front().area, FlowUi::DockLayout::Area::Right);
     const int dockNode = static_cast<int>(ws.docks.front().node);
     QVERIFY(dockNode != static_cast<int>(QtNodes::InvalidNodeId));
-    for (const auto &cell : ws.root.cells) {
-        QVERIFY(cell.has_value());
-        QVERIFY2(static_cast<int>(*cell) != dockNode,
+    for (const auto &cell : ws.root.children) {
+        QVERIFY(!cell.isEmptyPanel());
+        QVERIFY2(static_cast<int>(cell.nodeId) != dockNode,
                  "the dock node must not also occupy a grid cell — deembedNodeWidget "
                  "re-parents the widget, so the cell would end up holding a dead pointer");
     }

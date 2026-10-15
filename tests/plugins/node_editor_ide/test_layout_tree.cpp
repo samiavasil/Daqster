@@ -1,5 +1,8 @@
 #include <QtTest>
 
+#include <QJsonArray>
+#include <QJsonValue>
+
 #include "LayoutTree.h"
 #include "test_layout_tree.h"
 
@@ -24,14 +27,6 @@ bool nodesEqual(const FlowUi::LayoutNode& a, const FlowUi::LayoutNode& b)
         return false;
     if (a.sizes != b.sizes)
         return false;
-    if (a.cells.size() != b.cells.size())
-        return false;
-    for (size_t i = 0; i < a.cells.size(); ++i) {
-        if (a.cells[i].has_value() != b.cells[i].has_value())
-            return false;
-        if (a.cells[i].has_value() && *a.cells[i] != *b.cells[i])
-            return false;
-    }
     if (a.children.size() != b.children.size())
         return false;
     for (size_t i = 0; i < a.children.size(); ++i) {
@@ -98,7 +93,12 @@ FlowUi::LayoutSection makeGridSection()
     grid.type = FlowUi::LayoutNode::Type::Grid;
     grid.rows = 2;
     grid.cols = 2;
-    grid.cells = {1u, 2u, 3u, 4u};
+    for (QtNodes::NodeId id = 1; id <= 4; ++id) {
+        FlowUi::LayoutNode cell;
+        cell.type = FlowUi::LayoutNode::Type::Panel;
+        cell.nodeId = id;
+        grid.children.push_back(cell);
+    }
     ws.root = grid;
 
     FlowUi::DockLayout dock;
@@ -217,7 +217,12 @@ FlowUi::LayoutSection makeComboSection()
     grid.type = FlowUi::LayoutNode::Type::Grid;
     grid.rows = 2;
     grid.cols = 1;
-    grid.cells = {3u, 4u};
+    for (QtNodes::NodeId id = 3; id <= 4; ++id) {
+        FlowUi::LayoutNode cell;
+        cell.type = FlowUi::LayoutNode::Type::Panel;
+        cell.nodeId = id;
+        grid.children.push_back(cell);
+    }
     tab.children.push_back(grid);
 
     split.children.push_back(tab);
@@ -299,7 +304,7 @@ void TestLayoutTree::missingFieldsUseDefaults()
     QCOMPARE(grid.type, FlowUi::LayoutNode::Type::Grid);
     QCOMPARE(grid.rows, 0);
     QCOMPARE(grid.cols, 0);
-    QVERIFY(grid.cells.empty());
+    QVERIFY(grid.children.empty());
 
     // A panel with no node key → InvalidNodeId.
     const FlowUi::LayoutNode panel =
@@ -311,6 +316,71 @@ void TestLayoutTree::missingFieldsUseDefaults()
     const FlowUi::DockLayout dock = FlowUi::DockLayout::fromJson(QJsonObject{});
     QCOMPARE(dock.area, FlowUi::DockLayout::Area::Right);
     QCOMPARE(dock.floating, false);
+}
+
+// Backwards compatibility: before grids could nest, a grid stored its cells as
+// a flat "cells": [{node:N}|null] array. Those files must still load, with each
+// entry wrapped into a Panel child.
+void TestLayoutTree::legacyGridCellsParse()
+{
+    const QJsonObject gridJson{
+        {QStringLiteral("type"), QStringLiteral("grid")},
+        {QStringLiteral("rows"), 2},
+        {QStringLiteral("cols"), 2},
+        {QStringLiteral("cells"),
+         QJsonArray{
+             QJsonObject{{QStringLiteral("node"), 1}},
+             QJsonObject{{QStringLiteral("node"), 2}},
+             QJsonValue::Null,
+             QJsonObject{{QStringLiteral("node"), 4}},
+         }},
+    };
+    const FlowUi::LayoutNode grid = FlowUi::LayoutNode::fromJson(gridJson);
+    QCOMPARE(grid.type, FlowUi::LayoutNode::Type::Grid);
+    QCOMPARE(static_cast<int>(grid.children.size()), 4);
+    QCOMPARE(grid.children[0].nodeId, QtNodes::NodeId(1));
+    QVERIFY(grid.children[2].isEmptyPanel());
+}
+
+// A grid cell may hold a container (split/tab/grid) — the whole tree round-trips.
+void TestLayoutTree::nestedGridRoundTrip()
+{
+    FlowUi::LayoutSection section;
+    section.version = 2;
+
+    FlowUi::WorkspaceLayout ws;
+    ws.id = 0;
+
+    FlowUi::LayoutNode grid;
+    grid.type = FlowUi::LayoutNode::Type::Grid;
+    grid.rows = 1;
+    grid.cols = 2;
+
+    FlowUi::LayoutNode panel;
+    panel.type = FlowUi::LayoutNode::Type::Panel;
+    panel.nodeId = 7;
+    grid.children.push_back(panel);
+
+    FlowUi::LayoutNode nested;
+    nested.type = FlowUi::LayoutNode::Type::Split;
+    nested.orientation = FlowUi::LayoutNode::Orientation::Vertical;
+    FlowUi::LayoutNode a;
+    a.type = FlowUi::LayoutNode::Type::Panel;
+    a.nodeId = 8;
+    FlowUi::LayoutNode b;
+    b.type = FlowUi::LayoutNode::Type::Panel;
+    b.nodeId = 9;
+    nested.children.push_back(a);
+    nested.children.push_back(b);
+    grid.children.push_back(nested);
+
+    ws.root = grid;
+    section.workspaces.push_back(ws);
+
+    const FlowUi::LayoutSection parsed = FlowUi::LayoutSection::fromJson(section.toJson());
+    QVERIFY(sectionsEqual(section, parsed));
+    QCOMPARE(parsed.workspaces.front().root.children[1].type,
+             FlowUi::LayoutNode::Type::Split);
 }
 
 void TestLayoutTree::versionThreeParsesEmpty()

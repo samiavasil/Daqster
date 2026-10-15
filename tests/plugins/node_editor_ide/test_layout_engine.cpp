@@ -42,14 +42,6 @@ bool nodesEqual(const FlowUi::LayoutNode& a, const FlowUi::LayoutNode& b)
         return false;
     if (a.sizes != b.sizes)
         return false;
-    if (a.cells.size() != b.cells.size())
-        return false;
-    for (size_t i = 0; i < a.cells.size(); ++i) {
-        if (a.cells[i].has_value() != b.cells[i].has_value())
-            return false;
-        if (a.cells[i].has_value() && *a.cells[i] != *b.cells[i])
-            return false;
-    }
     if (a.children.size() != b.children.size())
         return false;
     for (size_t i = 0; i < a.children.size(); ++i) {
@@ -69,7 +61,12 @@ FlowUi::WorkspaceLayout makeGridWorkspace()
     grid.type = FlowUi::LayoutNode::Type::Grid;
     grid.rows = 2;
     grid.cols = 2;
-    grid.cells = {1u, 2u, 3u, 4u};
+    for (QtNodes::NodeId id = 1; id <= 4; ++id) {
+        FlowUi::LayoutNode cell;
+        cell.type = FlowUi::LayoutNode::Type::Panel;
+        cell.nodeId = id;
+        grid.children.push_back(cell);
+    }
     ws.root = grid;
 
     FlowUi::DockLayout dock;
@@ -94,7 +91,12 @@ void TestLayoutEngine::gridBuildsCentralWidget()
     grid.type = FlowUi::LayoutNode::Type::Grid;
     grid.rows = 2;
     grid.cols = 2;
-    grid.cells = {1u, 2u, 3u, 4u};
+    for (QtNodes::NodeId id = 1; id <= 4; ++id) {
+        FlowUi::LayoutNode cell;
+        cell.type = FlowUi::LayoutNode::Type::Panel;
+        cell.nodeId = id;
+        grid.children.push_back(cell);
+    }
     ws.root = grid;
 
     QMainWindow* window = FlowUi::LayoutEngine::buildWorkspace(ws, dummyProvider());
@@ -153,7 +155,7 @@ void TestLayoutEngine::placeholdersFillEmptyCells()
     grid.type = FlowUi::LayoutNode::Type::Grid;
     grid.rows = 2;
     grid.cols = 2;
-    grid.cells.assign(4, std::nullopt);
+    grid.children.assign(4, FlowUi::LayoutNode::emptyPanel());
     ws.root = grid;
 
     // Runtime default: empty cells contribute no widget.
@@ -174,9 +176,9 @@ void TestLayoutEngine::placeholdersFillEmptyCells()
     // Round-trip: placeholders are not mistaken for assigned nodes.
     const FlowUi::WorkspaceLayout captured = FlowUi::LayoutEngine::captureWorkspace(designer);
     QCOMPARE(captured.root.type, FlowUi::LayoutNode::Type::Grid);
-    QCOMPARE(static_cast<int>(captured.root.cells.size()), 4);
-    for (const auto& cell : captured.root.cells)
-        QVERIFY(!cell.has_value());
+    QCOMPARE(static_cast<int>(captured.root.children.size()), 4);
+    for (const auto& cell : captured.root.children)
+        QVERIFY(cell.isEmptyPanel());
     delete designer;
 }
 
@@ -350,7 +352,12 @@ void TestLayoutEngine::missingNodeSkipsCell()
     grid.type = FlowUi::LayoutNode::Type::Grid;
     grid.rows = 1;
     grid.cols = 2;
-    grid.cells = {1u, 2u};
+    for (QtNodes::NodeId id = 1; id <= 2; ++id) {
+        FlowUi::LayoutNode cell;
+        cell.type = FlowUi::LayoutNode::Type::Panel;
+        cell.nodeId = id;
+        grid.children.push_back(cell);
+    }
     ws.root = grid;
 
     // Provider cannot supply node 2 → its cell is skipped.

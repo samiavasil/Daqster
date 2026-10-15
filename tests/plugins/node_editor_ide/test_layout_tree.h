@@ -19,6 +19,8 @@ private slots:
     void nodesMapRoundTrip();
     void unknownTypeFallsBackToPanel();
     void missingFieldsUseDefaults();
+    void legacyGridCellsParse();
+    void nestedGridRoundTrip();
     void versionThreeParsesEmpty();
     void versionOneParsesEmpty();
 };

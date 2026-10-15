@@ -13,6 +13,7 @@ class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
 class QMainWindow;
+class QSpinBox;
 class QToolBar;
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -32,8 +33,14 @@ class QVBoxLayout;
  * m_section is the single source of truth. Every mutation pushes an undo
  * snapshot, rebuilds the structure tree and rebuilds the live preview.
  *
+ * Container buttons act on the item SELECTED in the Structure tree (or the
+ * workspace root when nothing is selected), which is what enables nesting:
+ * select an empty pane/cell, press "Grid", and the grid is built in that slot.
+ * "Delete" removes the selected component; widgets it held simply detach
+ * (they belong to the graph, not the layout).
+ *
  * Widget map:
- *   - toolbar                → create split/grid/tab/dock, capture, save, undo
+ *   - toolbar                → create split/grid/tab/dock, delete, capture, save, undo
  *   - "Available Widgets"    → drag source (one entry per widget node)
  *   - "Structure" tree       → drop target (workspace/containers/grid cells/tabs/docks)
  *   - "Preview"              → live WYSIWYG built by LayoutEngine
@@ -61,8 +68,10 @@ public:
     void refresh();
 
     // ── Programmatic commands (also used by the toolbar) ────────────────────
+    // Containers are inserted into the currently selected slot, or over the
+    // workspace root when nothing is selected.
     void addSplit(FlowUi::LayoutNode::Orientation orientation);
-    void addGrid();
+    void addGrid(int rows = 2, int cols = 2);
     void addTab();
     void addDock(FlowUi::DockLayout::Area area);
     void captureCurrent();
@@ -70,6 +79,16 @@ public:
     void redo();
     void addWorkspace();
     void removeWorkspace();
+
+    /// Delete the selected layout component (container or panel) — or a dock —
+    /// from the tree. Widgets placed inside are merely detached: they belong to
+    /// the graph, so they reappear in "Available Widgets" rather than vanish.
+    void deleteComponent();
+
+    /// Select the Structure item at `path` (a chain of child indices from the
+    /// workspace root; empty = root) and return true when found. Lets tests and
+    /// scripts drive the selection that the toolbar acts on.
+    bool selectNodeByPath(const QVector<int>& path);
 
     /// Number of drop targets currently offered by the Structure tree.
     int slotCount() const { return m_assigners.size(); }
@@ -106,12 +125,20 @@ private:
 
     // ── tree building ───────────────────────────────────────────────────────
     void rebuildStructure();
-    void populateNode(QTreeWidgetItem* parent, FlowUi::LayoutNode& node);
+    void populateNode(QTreeWidgetItem* parent,
+                      FlowUi::LayoutNode& node,
+                      const QVector<int>& path);
     void populateDocks(QTreeWidgetItem* parent, FlowUi::WorkspaceLayout& ws);
     QTreeWidgetItem* addAssignableItem(QTreeWidgetItem* parent,
                                        const QString& label,
                                        std::function<void(QtNodes::NodeId)> assign,
                                        QtNodes::NodeId current);
+
+    /// The LayoutNode the toolbar currently targets (selected tree item, or
+    /// null → callers fall back to the workspace root).
+    FlowUi::LayoutNode* selectedNode();
+    /// Insert `container` at the selection (see class docs for the rules).
+    void insertContainer(FlowUi::LayoutNode container);
 
     // ── preview ─────────────────────────────────────────────────────────────
     void rebuildPreview();
@@ -144,4 +171,6 @@ private:
     QVBoxLayout* m_previewLayout = nullptr;
     QMainWindow* m_preview = nullptr;
     QComboBox* m_workspaceCombo = nullptr;
+    QSpinBox* m_gridRows = nullptr;
+    QSpinBox* m_gridCols = nullptr;
 };

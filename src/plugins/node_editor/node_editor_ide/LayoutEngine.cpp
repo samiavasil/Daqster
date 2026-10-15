@@ -186,26 +186,18 @@ QWidget* buildGrid(const LayoutNode& node,
         const int row = index / node.cols;
         const int col = index % node.cols;
 
-        if (index >= static_cast<int>(node.cells.size()) || !node.cells[index].has_value()) {
-            // Empty cell — leave unused at runtime, show a placeholder in the
-            // designer so the grid structure is visible.
-            if (options.placeholders)
-                layout->addWidget(makePlaceholder(QObject::tr("empty")), row, col);
-            continue;
-        }
+        const LayoutNode* child = index < static_cast<int>(node.children.size())
+            ? &node.children[index]
+            : nullptr;
 
-        QWidget* widget = provider ? provider(*node.cells[index]) : nullptr;
-        if (!widget) {
-            if (options.placeholders)
-                layout->addWidget(
-                    makePlaceholder(QObject::tr("node #%1 (no widget)").arg(*node.cells[index])),
-                    row, col);
-            continue; // provider could not supply the node — skip cell
-        }
-
-        tagWidget(widget, "panel");
-        widget->setProperty(kNodeId, static_cast<uint>(*node.cells[index]));
-        layout->addWidget(widget, row, col);
+        // buildNode() already renders an "empty" placeholder for an unassigned
+        // Panel and a "node #N (no widget)" placeholder for a Panel whose
+        // provider returned nothing, so a single call covers all cases.
+        QWidget* widget = child ? buildNode(*child, provider, options) : nullptr;
+        if (!widget && options.placeholders)
+            widget = makePlaceholder(QObject::tr("empty"));
+        if (widget)
+            layout->addWidget(widget, row, col);
     }
     return container;
 }
@@ -282,11 +274,10 @@ LayoutNode captureNode(QWidget* widget)
             for (int index = 0; index < cellCount; ++index) {
                 QLayoutItem* item = layout->itemAtPosition(index / node.cols, index % node.cols);
                 QWidget* cellWidget = item ? item->widget() : nullptr;
-                if (cellWidget && cellWidget->property(kNodeId).isValid())
-                    node.cells.push_back(
-                        static_cast<QtNodes::NodeId>(cellWidget->property(kNodeId).toUInt()));
-                else
-                    node.cells.push_back(std::nullopt);
+                // Capture each cell as a LayoutNode. A cell holding a nested
+                // container is captured recursively; an empty cell or a
+                // designer placeholder (untagged) comes back as an empty Panel.
+                node.children.push_back(captureNode(cellWidget));
             }
         }
     } else if (type == QLatin1String("tab")) {

@@ -14,9 +14,13 @@ private slots:
     void emptySectionGetsOneWorkspace();
     void setSectionRoundTrips();
     void addGridCreatesEmpty2x2();
+    void addGridRespectsRequestedSize();
     void assignSlotFillsGridCell();
     void addDockAddsDockSlot();
     void addSplitWrapsExistingRoot();
+    void nestedContainerTargetsSelectedSlot();
+    void deleteRemovesComponentAndDetachesNode();
+    void deleteCollapsesEmptySplitRoot();
     void undoRestoresPreviousSection();
     void addAndRemoveWorkspace();
     void nodeMimeRoundTripsNodeId();

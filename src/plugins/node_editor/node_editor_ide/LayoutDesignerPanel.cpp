@@ -14,10 +14,12 @@
 #include <QMenuBar>
 #include <QMimeData>
 #include <QSignalBlocker>
+#include <QSpinBox>
 #include <QSplitter>
 #include <QToolBar>
 #include <QTreeWidget>
 #include <QVBoxLayout>
+#include <QVariantList>
 
 #include <algorithm>
 
@@ -28,6 +30,9 @@ namespace {
 
 const char* const kNodeMime = "application/x-daqster-node-id";
 const int kAssignRole = Qt::UserRole + 1;
+// Tree item data roles used by the toolbar to target the selected component:
+const int kPathRole = Qt::UserRole + 2; // QVariantList of child indices from root
+const int kDockRole = Qt::UserRole + 3; // int index into WorkspaceLayout::docks
 
 /// QListWidget whose drag payload is the node id (our own mime type).
 class NodeListWidget : public QListWidget
@@ -75,6 +80,102 @@ QString areaLabel(FlowUi::DockLayout::Area area)
 bool isUnassigned(NodeId id)
 {
     return id == InvalidNodeId;
+}
+
+QVariantList pathToList(const QVector<int>& path)
+{
+    QVariantList list;
+    list.reserve(path.size());
+    for (int index : path)
+        list.append(index);
+    return list;
+}
+
+QVector<int> pathFromList(const QVariantList& list)
+{
+    QVector<int> path;
+    path.reserve(list.size());
+    for (const QVariant& value : list)
+        path.append(value.toInt());
+    return path;
+}
+
+/// Resolve `path` (child indices from `root`) to a node, or null when it runs
+/// off the tree. An empty path is `root` itself.
+FlowUi::LayoutNode* nodeAtPath(FlowUi::LayoutNode& root, const QVector<int>& path)
+{
+    FlowUi::LayoutNode* node = &root;
+    for (int index : path) {
+        if (index < 0 || index >= static_cast<int>(node->children.size()))
+            return nullptr;
+        node = &node->children[index];
+    }
+    return node;
+}
+
+/// Keep a container usable: a split always has at least two panes (a one-sided
+/// split is meaningless), a tab at least one page, and a grid exactly rows*cols
+/// cells.
+void ensureSlot(FlowUi::LayoutNode& node)
+{
+    using FlowUi::LayoutNode;
+    switch (node.type) {
+    case LayoutNode::Type::Split:
+        while (node.children.size() < 2)
+            node.children.push_back(LayoutNode::emptyPanel());
+        break;
+    case LayoutNode::Type::Tab:
+        if (node.children.empty())
+            node.children.push_back(LayoutNode::emptyPanel());
+        break;
+    case LayoutNode::Type::Grid: {
+        const int count = std::max(1, node.rows * node.cols);
+        node.children.resize(static_cast<std::size_t>(count), LayoutNode::emptyPanel());
+        break;
+    }
+    case LayoutNode::Type::Panel:
+        break;
+    }
+}
+
+/// Move an existing leaf into a freshly built container's first slot.
+void attachFirst(FlowUi::LayoutNode& node, const FlowUi::LayoutNode& leaf)
+{
+    using FlowUi::LayoutNode;
+    switch (node.type) {
+    case LayoutNode::Type::Split:
+    case LayoutNode::Type::Tab:
+        node.children.push_back(leaf);
+        node.children.push_back(LayoutNode::emptyPanel());
+        break;
+    case LayoutNode::Type::Grid: {
+        const int count = std::max(1, node.rows * node.cols);
+        node.children.assign(static_cast<std::size_t>(count), LayoutNode::emptyPanel());
+        node.children[0] = leaf;
+        break;
+    }
+    case LayoutNode::Type::Panel:
+        break;
+    }
+}
+
+/// Remove `target` from `parent`'s subtree by pointer identity. A grid cell is
+/// reset to an empty panel (the grid keeps its dimensions); a split/tab child is
+/// erased. Returns true when found.
+bool removeNodeFrom(FlowUi::LayoutNode& parent, const FlowUi::LayoutNode* target)
+{
+    for (std::size_t i = 0; i < parent.children.size(); ++i) {
+        if (&parent.children[i] == target) {
+            if (parent.type == FlowUi::LayoutNode::Type::Grid)
+                parent.children[i] = FlowUi::LayoutNode::emptyPanel();
+            else
+                parent.children.erase(parent.children.begin() + static_cast<long>(i));
+            return true;
+        }
+        if (removeNodeFrom(parent.children[i], target))
+            return true;
+    }
+    return false;
 }
 
 /// Detaches every node widget built into `root` so deleting the preview does
@@ -241,25 +342,56 @@ QWidget* LayoutDesignerPanel::buildToolbar()
         rows->addWidget(bar);
         return bar;
     };
-    auto addTo = [](QToolBar* bar, const QString& text, const std::function<void()>& fn) {
+    auto addTo = [](QToolBar* bar, const QString& text, const std::function<void()>& fn,
+                    const QString& tip = QString()) {
         QAction* action = bar->addAction(text);
+        if (!tip.isEmpty())
+            action->setToolTip(tip);
         QObject::connect(action, &QAction::triggered, bar, [fn]() { fn(); });
         return action;
     };
 
     // Row 1 — build the layout: containers + docks.
+    // Container buttons act on the Structure-tree selection (or the workspace
+    // root when nothing is selected) — that is how nesting works.
     QToolBar* structure = makeBar();
     addTo(structure, tr("Split H"),
-          [this]() { addSplit(FlowUi::LayoutNode::Orientation::Horizontal); });
+          [this]() { addSplit(FlowUi::LayoutNode::Orientation::Horizontal); },
+          tr("Split the selected pane (or the workspace root) into left | right"));
     addTo(structure, tr("Split V"),
-          [this]() { addSplit(FlowUi::LayoutNode::Orientation::Vertical); });
-    addTo(structure, tr("Grid 2×2"), [this]() { addGrid(); });
-    addTo(structure, tr("Tab"), [this]() { addTab(); });
+          [this]() { addSplit(FlowUi::LayoutNode::Orientation::Vertical); },
+          tr("Split the selected pane (or the workspace root) into top / bottom"));
+    addTo(structure, tr("Tab"), [this]() { addTab(); },
+          tr("Turn the selected pane (or the workspace root) into a tab group"));
+
+    m_gridRows = new QSpinBox(structure);
+    m_gridRows->setRange(1, 8);
+    m_gridRows->setValue(2);
+    m_gridRows->setToolTip(tr("Grid rows"));
+    m_gridCols = new QSpinBox(structure);
+    m_gridCols->setRange(1, 8);
+    m_gridCols->setValue(2);
+    m_gridCols->setToolTip(tr("Grid columns"));
+    addTo(structure, tr("Grid"),
+          [this]() { addGrid(m_gridRows->value(), m_gridCols->value()); },
+          tr("Replace the selected pane with an R×C grid (e.g. 2×3 for six displays)"));
+    structure->addWidget(m_gridRows);
+    structure->addWidget(new QLabel(tr("×"), structure));
+    structure->addWidget(m_gridCols);
+
     structure->addSeparator();
-    addTo(structure, tr("Dock ◀"), [this]() { addDock(FlowUi::DockLayout::Area::Left); });
-    addTo(structure, tr("Dock ▶"), [this]() { addDock(FlowUi::DockLayout::Area::Right); });
-    addTo(structure, tr("Dock ▲"), [this]() { addDock(FlowUi::DockLayout::Area::Top); });
-    addTo(structure, tr("Dock ▼"), [this]() { addDock(FlowUi::DockLayout::Area::Bottom); });
+    addTo(structure, tr("Dock ◀"), [this]() { addDock(FlowUi::DockLayout::Area::Left); },
+          tr("Add a left side strip (dock); drag a widget onto it in the tree"));
+    addTo(structure, tr("Dock ▶"), [this]() { addDock(FlowUi::DockLayout::Area::Right); },
+          tr("Add a right side strip (dock); drag a widget onto it in the tree"));
+    addTo(structure, tr("Dock ▲"), [this]() { addDock(FlowUi::DockLayout::Area::Top); },
+          tr("Add a top side strip (dock)"));
+    addTo(structure, tr("Dock ▼"), [this]() { addDock(FlowUi::DockLayout::Area::Bottom); },
+          tr("Add a bottom side strip (dock)"));
+
+    structure->addSeparator();
+    addTo(structure, tr("Delete"), [this]() { deleteComponent(); },
+          tr("Delete the selected component — its widgets detach and return to Available"));
 
     // Row 2 — workspace, slot actions, save/exit (always visible).
     QToolBar* actions = makeBar();
@@ -274,16 +406,19 @@ QWidget* LayoutDesignerPanel::buildToolbar()
                 rebuildPreview();
             });
     actions->addWidget(m_workspaceCombo);
-    addTo(actions, tr("+WS"), [this]() { addWorkspace(); });
-    addTo(actions, tr("−WS"), [this]() { removeWorkspace(); });
+    addTo(actions, tr("+WS"), [this]() { addWorkspace(); }, tr("Add workspace"));
+    addTo(actions, tr("−WS"), [this]() { removeWorkspace(); }, tr("Remove workspace"));
     actions->addSeparator();
-    addTo(actions, tr("Clear Slot"), [this]() { removeSelected(); });
-    addTo(actions, tr("Capture"), [this]() { captureCurrent(); });
+    addTo(actions, tr("Clear Slot"), [this]() { removeSelected(); },
+          tr("Unassign the widget from the selected slot (the slot stays)"));
+    addTo(actions, tr("Capture"), [this]() { captureCurrent(); },
+          tr("Copy the current preview (including splitter sizes) back into the model"));
     addTo(actions, tr("Undo"), [this]() { undo(); });
     addTo(actions, tr("Redo"), [this]() { redo(); });
     actions->addSeparator();
-    addTo(actions, tr("Save Layout"), [this]() { Q_EMIT saveRequested(); });
-    addTo(actions, tr("Exit"), [this]() { Q_EMIT closed(); });
+    addTo(actions, tr("Save Layout"), [this]() { Q_EMIT saveRequested(); },
+          tr("Write the layout as the flow's ui section (version 2)"));
+    addTo(actions, tr("Exit"), [this]() { Q_EMIT closed(); }, tr("Close the Layout Designer"));
 
     return container;
 }
@@ -347,8 +482,10 @@ void LayoutDesignerPanel::rebuildStructure()
                                        {tr("Workspace: %1")
                                             .arg(ws.name.isEmpty() ? QString::number(ws.id) : ws.name)});
     wsItem->setExpanded(true);
+    // Selecting the workspace targets the root (empty path).
+    wsItem->setData(0, kPathRole, pathToList({}));
 
-    populateNode(wsItem, ws.root);
+    populateNode(wsItem, ws.root, {});
     populateDocks(wsItem, ws);
 
     m_structure->expandAll();
@@ -377,7 +514,9 @@ QTreeWidgetItem* LayoutDesignerPanel::addAssignableItem(QTreeWidgetItem* parent,
     return item;
 }
 
-void LayoutDesignerPanel::populateNode(QTreeWidgetItem* parent, FlowUi::LayoutNode& node)
+void LayoutDesignerPanel::populateNode(QTreeWidgetItem* parent,
+                                       FlowUi::LayoutNode& node,
+                                       const QVector<int>& path)
 {
     switch (node.type) {
     case FlowUi::LayoutNode::Type::Panel: {
@@ -385,8 +524,10 @@ void LayoutDesignerPanel::populateNode(QTreeWidgetItem* parent, FlowUi::LayoutNo
         const QString label = empty
             ? tr("Panel (empty)")
             : tr("Panel: %1 (#%2)").arg(node.title.isEmpty() ? tr("node") : node.title).arg(node.nodeId);
-        addAssignableItem(parent, label,
-                          [&node](NodeId id) { node.nodeId = id; }, node.nodeId);
+        QTreeWidgetItem* item = addAssignableItem(parent, label,
+                                                  [&node](NodeId id) { node.nodeId = id; },
+                                                  node.nodeId);
+        item->setData(0, kPathRole, pathToList(path));
         break;
     }
     case FlowUi::LayoutNode::Type::Split: {
@@ -395,37 +536,48 @@ void LayoutDesignerPanel::populateNode(QTreeWidgetItem* parent, FlowUi::LayoutNo
             : tr("Split (horizontal)");
         auto* item = new QTreeWidgetItem(parent, {label});
         item->setExpanded(true);
-        for (FlowUi::LayoutNode& child : node.children)
-            populateNode(item, child);
+        item->setData(0, kPathRole, pathToList(path));
+        for (int i = 0; i < static_cast<int>(node.children.size()); ++i) {
+            QVector<int> childPath = path;
+            childPath.append(i);
+            populateNode(item, node.children[i], childPath);
+        }
         break;
     }
     case FlowUi::LayoutNode::Type::Grid: {
         auto* item = new QTreeWidgetItem(
             parent, {tr("Grid %1×%2").arg(node.rows).arg(node.cols)});
         item->setExpanded(true);
+        item->setData(0, kPathRole, pathToList(path));
 
-        const int cellCount = node.rows * node.cols;
+        const int cellCount = std::max(0, node.rows * node.cols);
+        if (static_cast<int>(node.children.size()) < cellCount)
+            node.children.resize(static_cast<std::size_t>(cellCount),
+                                 FlowUi::LayoutNode::emptyPanel());
+
         for (int index = 0; index < cellCount; ++index) {
             const int row = index / node.cols;
             const int col = index % node.cols;
-            const NodeId current =
-                (index < static_cast<int>(node.cells.size()) && node.cells[index].has_value())
-                    ? *node.cells[index]
-                    : InvalidNodeId;
-            const QString label = isUnassigned(current)
-                ? tr("Cell %1,%2 (empty)").arg(row + 1).arg(col + 1)
-                : tr("Cell %1,%2: node #%3").arg(row + 1).arg(col + 1).arg(current);
+            const QString prefix = tr("Cell %1,%2").arg(row + 1).arg(col + 1);
 
-            addAssignableItem(item, label,
-                              [&node, index](NodeId id) {
-                                  if (index >= static_cast<int>(node.cells.size()))
-                                      node.cells.resize(index + 1, std::nullopt);
-                                  if (isUnassigned(id))
-                                      node.cells[index] = std::nullopt;
-                                  else
-                                      node.cells[index] = id;
-                              },
-                              current);
+            QVector<int> childPath = path;
+            childPath.append(index);
+            FlowUi::LayoutNode& child = node.children[index];
+
+            if (child.type == FlowUi::LayoutNode::Type::Panel) {
+                const bool empty = isUnassigned(child.nodeId);
+                const QString label = empty ? tr("%1 (empty)").arg(prefix)
+                                            : tr("%1: node #%2").arg(prefix).arg(child.nodeId);
+                QTreeWidgetItem* cell = addAssignableItem(
+                    item, label, [&child](NodeId id) { child.nodeId = id; }, child.nodeId);
+                cell->setData(0, kPathRole, pathToList(childPath));
+            } else {
+                // A nested container in this cell — recurse so it stays editable.
+                auto* cell = new QTreeWidgetItem(item, {prefix});
+                cell->setExpanded(true);
+                cell->setData(0, kPathRole, pathToList(childPath));
+                populateNode(cell, child, childPath);
+            }
         }
         break;
     }
@@ -433,8 +585,12 @@ void LayoutDesignerPanel::populateNode(QTreeWidgetItem* parent, FlowUi::LayoutNo
         auto* item = new QTreeWidgetItem(
             parent, {tr("Tab (%1 pages)").arg(node.children.size())});
         item->setExpanded(true);
-        for (FlowUi::LayoutNode& child : node.children)
-            populateNode(item, child);
+        item->setData(0, kPathRole, pathToList(path));
+        for (int i = 0; i < static_cast<int>(node.children.size()); ++i) {
+            QVector<int> childPath = path;
+            childPath.append(i);
+            populateNode(item, node.children[i], childPath);
+        }
         break;
     }
     }
@@ -445,7 +601,8 @@ void LayoutDesignerPanel::populateDocks(QTreeWidgetItem* parent, FlowUi::Workspa
     auto* docksItem = new QTreeWidgetItem(parent, {tr("Docks")});
     docksItem->setExpanded(true);
 
-    for (FlowUi::DockLayout& dock : ws.docks) {
+    for (int index = 0; index < static_cast<int>(ws.docks.size()); ++index) {
+        FlowUi::DockLayout& dock = ws.docks[index];
         const bool empty = isUnassigned(dock.node);
         const QString label = empty
             ? tr("Dock %1 (empty)").arg(areaLabel(dock.area))
@@ -453,8 +610,10 @@ void LayoutDesignerPanel::populateDocks(QTreeWidgetItem* parent, FlowUi::Workspa
                   .arg(areaLabel(dock.area))
                   .arg(dock.title.isEmpty() ? tr("node") : dock.title)
                   .arg(dock.node);
-        addAssignableItem(docksItem, label,
-                          [&dock](NodeId id) { dock.node = id; }, dock.node);
+        QTreeWidgetItem* item = addAssignableItem(docksItem, label,
+                                                  [&dock](NodeId id) { dock.node = id; },
+                                                  dock.node);
+        item->setData(0, kDockRole, index);
     }
 }
 
@@ -503,58 +662,67 @@ void LayoutDesignerPanel::clearPreview()
 
 void LayoutDesignerPanel::addSplit(FlowUi::LayoutNode::Orientation orientation)
 {
-    applyMutation([this, orientation]() {
-        FlowUi::WorkspaceLayout& ws = currentWorkspace();
-
-        FlowUi::LayoutNode split;
-        split.type = FlowUi::LayoutNode::Type::Split;
-        split.orientation = orientation;
-
-        const bool rootEmpty = ws.root.type == FlowUi::LayoutNode::Type::Panel
-            && isUnassigned(ws.root.nodeId);
-        if (!rootEmpty)
-            split.children.push_back(ws.root);
-
-        FlowUi::LayoutNode empty;
-        empty.type = FlowUi::LayoutNode::Type::Panel;
-        split.children.push_back(empty);
-        if (split.children.size() > 1)
-            split.sizes.assign(split.children.size(), 100);
-
-        ws.root = split;
-    });
+    FlowUi::LayoutNode split;
+    split.type = FlowUi::LayoutNode::Type::Split;
+    split.orientation = orientation;
+    insertContainer(std::move(split));
 }
 
-void LayoutDesignerPanel::addGrid()
+void LayoutDesignerPanel::addGrid(int rows, int cols)
 {
-    applyMutation([this]() {
-        FlowUi::LayoutNode grid;
-        grid.type = FlowUi::LayoutNode::Type::Grid;
-        grid.rows = 2;
-        grid.cols = 2;
-        grid.cells.assign(4, std::nullopt);
-        currentWorkspace().root = grid;
-    });
+    FlowUi::LayoutNode grid;
+    grid.type = FlowUi::LayoutNode::Type::Grid;
+    grid.rows = std::max(1, rows);
+    grid.cols = std::max(1, cols);
+    insertContainer(std::move(grid));
 }
 
 void LayoutDesignerPanel::addTab()
 {
-    applyMutation([this]() {
+    FlowUi::LayoutNode tab;
+    tab.type = FlowUi::LayoutNode::Type::Tab;
+    insertContainer(std::move(tab));
+}
+
+void LayoutDesignerPanel::insertContainer(FlowUi::LayoutNode container)
+{
+    applyMutation([this, container = std::move(container)]() {
         FlowUi::WorkspaceLayout& ws = currentWorkspace();
+        FlowUi::LayoutNode* target = selectedNode();
+        if (!target)
+            target = &ws.root;
 
-        FlowUi::LayoutNode tab;
-        tab.type = FlowUi::LayoutNode::Type::Tab;
+        // Leaf (Panel): replace it. An assigned node is preserved by moving it
+        // into the new container's first slot.
+        if (target->isPanel()) {
+            FlowUi::LayoutNode built = container;
+            if (!isUnassigned(target->nodeId))
+                attachFirst(built, *target);
+            else
+                ensureSlot(built);
+            *target = std::move(built);
+            return;
+        }
 
-        const bool rootEmpty = ws.root.type == FlowUi::LayoutNode::Type::Panel
-            && isUnassigned(ws.root.nodeId);
-        if (!rootEmpty)
-            tab.children.push_back(ws.root);
+        // Grid: fill the first free cell (a grid keeps its dimensions).
+        if (target->type == FlowUi::LayoutNode::Type::Grid) {
+            for (FlowUi::LayoutNode& child : target->children) {
+                if (child.isEmptyPanel()) {
+                    FlowUi::LayoutNode built = container;
+                    ensureSlot(built);
+                    child = std::move(built);
+                    return;
+                }
+            }
+            return; // no free cell — nothing to do
+        }
 
-        FlowUi::LayoutNode empty;
-        empty.type = FlowUi::LayoutNode::Type::Panel;
-        tab.children.push_back(empty);
-
-        ws.root = tab;
+        // Split / Tab: append the new container as a pane/page.
+        FlowUi::LayoutNode built = container;
+        ensureSlot(built);
+        target->children.push_back(std::move(built));
+        if (target->type == FlowUi::LayoutNode::Type::Split)
+            target->sizes.assign(target->children.size(), 100);
     });
 }
 
@@ -599,6 +767,95 @@ void LayoutDesignerPanel::removeSelected()
 
     const std::function<void(NodeId)> assign = m_assigners[index];
     applyMutation([assign]() { assign(InvalidNodeId); });
+}
+
+FlowUi::LayoutNode* LayoutDesignerPanel::selectedNode()
+{
+    if (!m_structure)
+        return nullptr;
+
+    const QList<QTreeWidgetItem*> selected = m_structure->selectedItems();
+    if (selected.isEmpty())
+        return nullptr;
+
+    const QVariant data = selected.first()->data(0, kPathRole);
+    if (!data.isValid())
+        return nullptr;
+
+    return nodeAtPath(currentWorkspace().root, pathFromList(data.toList()));
+}
+
+void LayoutDesignerPanel::deleteComponent()
+{
+    if (!m_structure)
+        return;
+
+    const QList<QTreeWidgetItem*> selected = m_structure->selectedItems();
+    if (selected.isEmpty())
+        return;
+
+    QTreeWidgetItem* item = selected.first();
+
+    // A dock is removed from the workspace's docks list.
+    const QVariant dockData = item->data(0, kDockRole);
+    if (dockData.isValid()) {
+        const int index = dockData.toInt();
+        applyMutation([this, index]() {
+            FlowUi::WorkspaceLayout& ws = currentWorkspace();
+            if (index >= 0 && index < static_cast<int>(ws.docks.size()))
+                ws.docks.erase(ws.docks.begin() + index);
+        });
+        return;
+    }
+
+    FlowUi::LayoutNode* target = selectedNode();
+    if (!target)
+        return;
+
+    // Deleting a component only removes it from the layout: the widgets it held
+    // stay in the graph and reappear in "Available Widgets".
+    applyMutation([this, target]() {
+        FlowUi::WorkspaceLayout& ws = currentWorkspace();
+        if (target == &ws.root) {
+            ws.root = FlowUi::LayoutNode::emptyPanel();
+            return;
+        }
+        removeNodeFrom(ws.root, target);
+        // Never leave an empty split/tab as the root — collapse it.
+        if ((ws.root.type == FlowUi::LayoutNode::Type::Split
+             || ws.root.type == FlowUi::LayoutNode::Type::Tab)
+            && ws.root.children.empty()) {
+            ws.root = FlowUi::LayoutNode::emptyPanel();
+        }
+    });
+}
+
+bool LayoutDesignerPanel::selectNodeByPath(const QVector<int>& path)
+{
+    if (!m_structure)
+        return false;
+
+    const QVariantList wanted = pathToList(path);
+    std::function<QTreeWidgetItem*(QTreeWidgetItem*)> find =
+        [&find, &wanted](QTreeWidgetItem* item) -> QTreeWidgetItem* {
+        const QVariant data = item->data(0, kPathRole);
+        if (data.isValid() && data.toList() == wanted)
+            return item;
+        for (int i = 0; i < item->childCount(); ++i) {
+            if (QTreeWidgetItem* found = find(item->child(i)))
+                return found;
+        }
+        return nullptr;
+    };
+
+    for (int i = 0; i < m_structure->topLevelItemCount(); ++i) {
+        if (QTreeWidgetItem* item = find(m_structure->topLevelItem(i))) {
+            m_structure->setCurrentItem(item);
+            item->setSelected(true);
+            return true;
+        }
+    }
+    return false;
 }
 
 void LayoutDesignerPanel::addWorkspace()

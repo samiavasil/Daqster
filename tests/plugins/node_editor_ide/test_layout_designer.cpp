@@ -20,7 +20,12 @@ FlowUi::LayoutSection makeGridSection()
     ws.root.type = FlowUi::LayoutNode::Type::Grid;
     ws.root.rows = 2;
     ws.root.cols = 2;
-    ws.root.cells = {NodeId(1), NodeId(2), std::nullopt, NodeId(4)};
+    for (const NodeId id : {NodeId(1), NodeId(2), InvalidNodeId, NodeId(4)}) {
+        FlowUi::LayoutNode cell;
+        cell.type = FlowUi::LayoutNode::Type::Panel;
+        cell.nodeId = id;
+        ws.root.children.push_back(cell);
+    }
 
     FlowUi::DockLayout dock;
     dock.node = NodeId(9);
@@ -63,13 +68,14 @@ void TestLayoutDesigner::addGridCreatesEmpty2x2()
 
     panel.addGrid();
 
-    const FlowUi::LayoutNode& root = panel.layoutSection().workspaces.front().root;
+    const FlowUi::LayoutSection out = panel.layoutSection();
+    const FlowUi::LayoutNode& root = out.workspaces.front().root;
     QCOMPARE(root.type, FlowUi::LayoutNode::Type::Grid);
     QCOMPARE(root.rows, 2);
     QCOMPARE(root.cols, 2);
-    QCOMPARE(static_cast<int>(root.cells.size()), 4);
-    for (const auto& cell : root.cells)
-        QVERIFY(!cell.has_value());
+    QCOMPARE(static_cast<int>(root.children.size()), 4);
+    for (const auto& cell : root.children)
+        QVERIFY(cell.isEmptyPanel());
 
     // One drop target per grid cell.
     QCOMPARE(panel.slotCount(), 4);
@@ -83,12 +89,116 @@ void TestLayoutDesigner::assignSlotFillsGridCell()
 
     panel.assignSlot(2, NodeId(42));
 
-    const FlowUi::LayoutNode& root = panel.layoutSection().workspaces.front().root;
-    QVERIFY(root.cells.size() >= 3);
-    QVERIFY(root.cells[2].has_value());
-    QCOMPARE(*root.cells[2], NodeId(42));
+    const FlowUi::LayoutSection out = panel.layoutSection();
+    const FlowUi::LayoutNode& root = out.workspaces.front().root;
+    QVERIFY(root.children.size() >= 3);
+    QCOMPARE(root.children[2].nodeId, NodeId(42));
     // Other cells untouched.
-    QVERIFY(!root.cells[0].has_value());
+    QVERIFY(root.children[0].isEmptyPanel());
+}
+
+void TestLayoutDesigner::addGridRespectsRequestedSize()
+{
+    LayoutDesignerPanel panel;
+    panel.setLayoutSection(FlowUi::LayoutSection{});
+
+    panel.addGrid(2, 3);
+
+    const FlowUi::LayoutSection out = panel.layoutSection();
+    const FlowUi::LayoutNode& root = out.workspaces.front().root;
+    QCOMPARE(root.type, FlowUi::LayoutNode::Type::Grid);
+    QCOMPARE(root.rows, 2);
+    QCOMPARE(root.cols, 3);
+    QCOMPARE(static_cast<int>(root.children.size()), 6);
+    // One drop target per cell.
+    QCOMPARE(panel.slotCount(), 6);
+}
+
+// Container buttons act on the item selected in the Structure tree, which is
+// what makes nesting possible: select an empty pane, then press "Grid".
+void TestLayoutDesigner::nestedContainerTargetsSelectedSlot()
+{
+    LayoutDesignerPanel panel;
+    panel.setLayoutSection(FlowUi::LayoutSection{});
+
+    // Split the root into two panes: path {0} and {1}.
+    panel.addSplit(FlowUi::LayoutNode::Orientation::Horizontal);
+
+    // Select the second pane and build a 2x3 grid inside it.
+    QVERIFY(panel.selectNodeByPath({1}));
+    panel.addGrid(2, 3);
+
+    const FlowUi::LayoutSection out = panel.layoutSection();
+    const FlowUi::LayoutNode& root = out.workspaces.front().root;
+    QCOMPARE(root.type, FlowUi::LayoutNode::Type::Split);
+    QCOMPARE(static_cast<int>(root.children.size()), 2);
+    QCOMPARE(root.children[0].type, FlowUi::LayoutNode::Type::Panel);
+    QCOMPARE(root.children[1].type, FlowUi::LayoutNode::Type::Grid);
+    QCOMPARE(root.children[1].rows, 2);
+    QCOMPARE(root.children[1].cols, 3);
+    QCOMPARE(static_cast<int>(root.children[1].children.size()), 6);
+}
+
+// Deleting a component removes it from the layout; its widget (owned by the
+// graph) is detached, i.e. simply no longer referenced.
+void TestLayoutDesigner::deleteRemovesComponentAndDetachesNode()
+{
+    FlowUi::LayoutSection section;
+    FlowUi::WorkspaceLayout ws;
+    ws.id = 0;
+    ws.root.type = FlowUi::LayoutNode::Type::Split;
+    ws.root.orientation = FlowUi::LayoutNode::Orientation::Horizontal;
+    FlowUi::LayoutNode a;
+    a.type = FlowUi::LayoutNode::Type::Panel;
+    a.nodeId = 5;
+    FlowUi::LayoutNode b;
+    b.type = FlowUi::LayoutNode::Type::Panel;
+    b.nodeId = 6;
+    ws.root.children.push_back(a);
+    ws.root.children.push_back(b);
+    section.workspaces.push_back(ws);
+
+    LayoutDesignerPanel panel;
+    panel.setLayoutSection(section);
+
+    QVERIFY(panel.selectNodeByPath({0}));
+    panel.deleteComponent();
+
+    const FlowUi::LayoutSection out = panel.layoutSection();
+    const FlowUi::LayoutNode& root = out.workspaces.front().root;
+    QCOMPARE(root.type, FlowUi::LayoutNode::Type::Split);
+    QCOMPARE(static_cast<int>(root.children.size()), 1);
+    // Node 5 is gone from the layout; node 6 stays.
+    QCOMPARE(root.children[0].nodeId, NodeId(6));
+
+    // And the whole thing is undoable.
+    panel.undo();
+    const FlowUi::LayoutSection restored = panel.layoutSection();
+    QCOMPARE(static_cast<int>(restored.workspaces.front().root.children.size()), 2);
+}
+
+// Deleting the last pane of a split root collapses it back to an empty panel
+// instead of leaving a degenerate one-sided split.
+void TestLayoutDesigner::deleteCollapsesEmptySplitRoot()
+{
+    FlowUi::LayoutSection section;
+    FlowUi::WorkspaceLayout ws;
+    ws.id = 0;
+    ws.root.type = FlowUi::LayoutNode::Type::Split;
+    FlowUi::LayoutNode only;
+    only.type = FlowUi::LayoutNode::Type::Panel;
+    ws.root.children.push_back(only);
+    section.workspaces.push_back(ws);
+
+    LayoutDesignerPanel panel;
+    panel.setLayoutSection(section);
+
+    QVERIFY(panel.selectNodeByPath({0}));
+    panel.deleteComponent();
+
+    const FlowUi::LayoutSection out = panel.layoutSection();
+    QCOMPARE(out.workspaces.front().root.type, FlowUi::LayoutNode::Type::Panel);
+    QCOMPARE(out.workspaces.front().root.nodeId, InvalidNodeId);
 }
 
 void TestLayoutDesigner::addDockAddsDockSlot()
@@ -100,7 +210,7 @@ void TestLayoutDesigner::addDockAddsDockSlot()
     QCOMPARE(panel.slotCount(), 1);
     panel.addDock(FlowUi::DockLayout::Area::Left);
 
-    const FlowUi::WorkspaceLayout& ws = panel.layoutSection().workspaces.front();
+    const FlowUi::WorkspaceLayout ws = panel.layoutSection().workspaces.front();
     QCOMPARE(static_cast<int>(ws.docks.size()), 1);
     QCOMPARE(ws.docks.front().area, FlowUi::DockLayout::Area::Left);
     QCOMPARE(panel.slotCount(), 2);
@@ -121,7 +231,8 @@ void TestLayoutDesigner::addSplitWrapsExistingRoot()
     panel.setLayoutSection(section);
     panel.addSplit(FlowUi::LayoutNode::Orientation::Horizontal);
 
-    const FlowUi::LayoutNode& root = panel.layoutSection().workspaces.front().root;
+    const FlowUi::LayoutSection out = panel.layoutSection();
+    const FlowUi::LayoutNode& root = out.workspaces.front().root;
     QCOMPARE(root.type, FlowUi::LayoutNode::Type::Split);
     QCOMPARE(root.orientation, FlowUi::LayoutNode::Orientation::Horizontal);
     QCOMPARE(static_cast<int>(root.children.size()), 2);
