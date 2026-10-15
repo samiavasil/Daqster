@@ -82,6 +82,78 @@
 - `FlowUi::UiSection::fromJson()`: не-числови node ключове → skip; `version > 1` → целият `ui` блок се игнорира.
 - При липсващ `geometry` за деembed-нат нод — използват се стойности по подразбиране (0,0,0x0).
 
+### 2.3 `ui` версия 2 — Layout tree (REQ-SW-PL-053, REQ-SW-PL-059)
+
+`version: 2` заменя свободното MDI подреждане с **декларативно layout дърво** на
+всеки workspace (създава се с визуалния Layout Designer в IDE-то — `F6`).
+Дървото се билдва от `FlowUi::LayoutEngine` (`buildWorkspace()`), а обратно се
+чете с `captureWorkspace()` (round-trip, включително splitter размери).
+
+```json
+"ui": {
+  "version": 2,
+  "workspaces": [
+    {
+      "id": 0,
+      "name": "Main",
+      "root": {
+        "type": "grid", "rows": 2, "cols": 3,
+        "children": [
+          { "type": "panel", "node": 1 },
+          { "type": "panel", "node": 2 },
+          { "type": "panel", "node": 3 },
+          { "type": "panel", "node": 4 },
+          { "type": "panel", "node": 5 },
+          { "type": "panel", "node": 6 }
+        ]
+      },
+      "docks": [
+        { "node": 0, "title": "Source Config", "area": "right",
+          "geometry": { "x": 0, "y": 0, "w": 320, "h": 600, "maximized": false } }
+      ]
+    }
+  ],
+  "nodes": { "0": { "autoStart": true }, "1": {} }
+}
+```
+
+**LayoutNode** — рекурсивен; `children` е **унифициран** за всички контейнери,
+което позволява произволно влагане (grid в split, tab в grid клетка, …):
+
+| `type` | Полета | `children` |
+|---|---|---|
+| `panel` | `node` (QtNodes id), `title` | няма (листо) |
+| `split` | `orientation` (`horizontal`/`vertical`), `sizes` | пейновете (всеки — LayoutNode) |
+| `grid` | `rows`, `cols` | клетките **row-major**, точно `rows*cols`; празна клетка = празен `panel` |
+| `tab` | `currentIndex` | страниците (всяка — LayoutNode) |
+
+**`docks`** (array of `DockLayout`) — страничните ленти (`QDockWidget`), извън
+централното дърво:
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `node` | int | QtNodes id, чийто widget се доква в лентата |
+| `title` | string | Заглавие на dock-а |
+| `area` | string | `left` / `right` / `top` / `bottom` (default `right`) |
+| `floating` | bool | Плаващ ли е dock-ът |
+| `geometry` | object | Ако е floating |
+
+**Backward compatibility:** по-стари файлове пазеха grid като плосък масив
+`"cells": [{ "node": N } | null]`. `LayoutNode::fromJson()` ги разчита и обвива
+всяка клетка в `panel` child, така че legacy `.flow` файлове продължават да се
+зареждат. Новият writer винаги пише `children`.
+
+**Поведение:**
+- Runtime строи само **първия** workspace на v2 (multi-workspace v2 е резервирано).
+- Нодове, създадени впоследствие (напр. през REST) не се появяват автоматично в
+  layout-а — той е фиксиран списък от референции.
+- Node-ове, реферирани от layout-а, но чиито widget липсва, просто не заемат
+  място (runtime); в Designer-а се показва placeholder.
+- Визуален редактор: Layout Designer Mode (`F6`) — drag & drop от „Available
+  Widgets" върху слотове, контейнер бутоните (`Split`/`Grid`/`Tab`/`Dock`)
+  действат върху **селектирания** възел (или root-а), `Delete` маха компонент
+  (widget-ите му се detach-ват обратно в „Available Widgets"), `Undo`/`Redo`.
+
 ## 3. `autoStart` семантика
 
 - **Файлово-ниво поле** в `ui.nodes[<id>].autoStart` (default `false`).
