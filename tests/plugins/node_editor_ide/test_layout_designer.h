@@ -24,4 +24,5 @@ private slots:
     void undoRestoresPreviousSection();
     void addAndRemoveWorkspace();
     void nodeMimeRoundTripsNodeId();
+    void splitterRebuildWithTwoWidgetsKeepsPreview();
 };

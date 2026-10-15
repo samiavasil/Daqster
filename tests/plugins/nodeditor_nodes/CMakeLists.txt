@@ -677,3 +677,32 @@ add_test(NAME demo_nodeditor_core_widgets_free
                  "-DCORE_SOURCES=${_CORE_SOURCES}"
                  "-DCORE_EXPECTED_SOURCES=${_CORE_EXPECTED_SOURCES}"
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/check_core_widgets_free.cmake)
+
+# ── nodeWidgetDialogParent() embedded-widget dialog parenting ────────────────
+#
+# A node widget embedded by QGraphicsProxyWidget is an offscreen top-level
+# window; a modal dialog parented to it grabs input but is never shown, so the
+# app looks frozen (the VideoFileSource "Add video" button did this). The helper
+# must resolve a real parent. Pure QtWidgets logic, but needs QApplication and
+# the offscreen platform plugin. Header-only code under test lives in the GUI
+# plugin's root, so that directory is the include path.
+add_executable(demo_nodeditor_nodewidget_tests
+    test_node_widget_dialogs.cpp
+    test_node_widget_dialogs.h
+)
+
+target_include_directories(demo_nodeditor_nodewidget_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui
+)
+
+target_link_libraries(demo_nodeditor_nodewidget_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+)
+
+add_test(NAME demo_nodeditor_nodewidget_tests
+         COMMAND demo_nodeditor_nodewidget_tests)
+set_tests_properties(demo_nodeditor_nodewidget_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

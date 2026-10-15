@@ -2,6 +2,9 @@
 
 #include "LayoutDesignerPanel.h"
 
+#include <QHash>
+#include <QWidget>
+
 #include <QtNodes/Definitions>
 
 using QtNodes::InvalidNodeId;
@@ -274,6 +277,47 @@ void TestLayoutDesigner::addAndRemoveWorkspace()
 // Regression (2026-10-15): the drag source wrote the node id with QDataStream
 // but the drop target read it back with QByteArray::toUInt() (decimal parse),
 // so every drop decoded as node 0. Both sides now share encode/decodeNodeMime.
+// Regression (REQ-SW-PL-059): a splitter with a widget in each pane used to
+// segfault on the second drop. LayoutDesignerPanel::clearPreview() releases the
+// graph-owned widgets before deleting the preview, but LayoutDesignerPanel's
+// releaseNodeWidgets() reparented widgets out of a QSplitter while still
+// iterating a findChildren() snapshot: reparenting out of a splitter makes Qt
+// destroy a QSplitterHandle (an untagged child), and the next snapshot entry —
+// the freed handle — was dereferenced via ->property(). Both pane assignments
+// exercise the clearPreview()/rebuildPreview() cycle on real widgets.
+void TestLayoutDesigner::splitterRebuildWithTwoWidgetsKeepsPreview()
+{
+    QHash<NodeId, QWidget*> cache;
+    QList<QWidget*> owned;
+
+    LayoutDesignerPanel panel;
+    panel.setProvider([&cache, &owned](NodeId id) -> QWidget* {
+        if (auto it = cache.constFind(id); it != cache.constEnd())
+            return it.value();
+        auto* w = new QWidget;
+        w->setWindowTitle(QStringLiteral("node-%1").arg(id));
+        cache.insert(id, w);
+        owned.push_back(w);
+        return w;
+    });
+
+    panel.setLayoutSection(FlowUi::LayoutSection{});
+    panel.addSplit(FlowUi::LayoutNode::Orientation::Horizontal);
+    QCOMPARE(panel.slotCount(), 2);
+
+    panel.assignSlot(0, NodeId(1));
+    panel.assignSlot(1, NodeId(2));
+
+    const FlowUi::LayoutNode& root = panel.layoutSection().workspaces.front().root;
+    QCOMPARE(root.type, FlowUi::LayoutNode::Type::Split);
+    QCOMPARE(static_cast<int>(root.children.size()), 2);
+    QCOMPARE(root.children[0].nodeId, NodeId(1));
+    QCOMPARE(root.children[1].nodeId, NodeId(2));
+
+    panel.setProvider(nullptr);
+    qDeleteAll(owned);
+}
+
 void TestLayoutDesigner::nodeMimeRoundTripsNodeId()
 {
     for (const NodeId id : {NodeId(0), NodeId(1), NodeId(42), NodeId(65535), NodeId(16777216)}) {

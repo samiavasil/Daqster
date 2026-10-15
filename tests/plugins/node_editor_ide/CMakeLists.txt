@@ -27,6 +27,7 @@ set(TEST_SOURCES
     test_layout_designer.cpp test_layout_designer.h
     test_flow_fixtures.cpp test_flow_fixtures.h
     test_widget_provider_fallback.cpp test_widget_provider_fallback.h
+    test_widget_embed.cpp test_widget_embed.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutTree.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutEngine.cpp
