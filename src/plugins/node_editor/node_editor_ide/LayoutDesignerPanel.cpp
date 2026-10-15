@@ -185,14 +185,24 @@ void releaseNodeWidgets(QWidget* root)
     if (!root)
         return;
 
+    // Two passes: collect the graph-owned widgets FIRST, then reparent them.
+    // Reparenting a widget out of a QSplitter makes Qt destroy a QSplitterHandle
+    // (a plain child QWidget that carries no layoutNodeId), so a findChildren()
+    // snapshot taken before the reparent would still hold a dangling handle
+    // pointer — dereferencing it in the same loop segfaults. Collecting first
+    // means the only pointers ever dereferenced are the live, tagged widgets.
+    QList<QWidget*> owned;
     if (root->property("layoutNodeId").isValid())
-        root->setParent(nullptr);
+        owned.push_back(root);
 
     const QList<QWidget*> children = root->findChildren<QWidget*>();
     for (QWidget* widget : children) {
         if (widget->property("layoutNodeId").isValid())
-            widget->setParent(nullptr);
+            owned.push_back(widget);
     }
+
+    for (QWidget* widget : owned)
+        widget->setParent(nullptr);
 }
 
 } // namespace
