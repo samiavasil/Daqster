@@ -1,4 +1,5 @@
 #include "FileRecordWidget.h"
+#include "NodeWidgetDialogs.h"
 
 #include <QFileDialog>
 #include <QHBoxLayout>
@@ -73,7 +74,7 @@ void FileRecordWidget::onStartStopClicked()
 void FileRecordWidget::onBrowseClicked()
 {
     const QString path = QFileDialog::getSaveFileName(
-        this, tr("Save Sampled Data"), QString(),
+        Daqster::nodeWidgetDialogParent(this), tr("Save Sampled Data"), QString(),
         tr("Sampled Data (*.sdf);;All Files (*)"));
     if (!path.isEmpty())
         m_pathEdit->setText(path);

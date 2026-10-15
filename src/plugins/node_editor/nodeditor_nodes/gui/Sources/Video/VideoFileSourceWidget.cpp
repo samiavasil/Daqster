@@ -1,4 +1,5 @@
 #include "VideoFileSourceWidget.h"
+#include "NodeWidgetDialogs.h"
 
 #include <QtCore/QSignalBlocker>
 #include <QtCore/QDir>
@@ -49,7 +50,7 @@ VideoFileSourceWidget::VideoFileSourceWidget(QWidget* parent)
 
     connect(browseButton, &QPushButton::clicked, this, [this]() {
         const QString filePath = QFileDialog::getOpenFileName(
-            this,
+            Daqster::nodeWidgetDialogParent(this),
             tr("Select video file"),
             QString(),
             tr("Video files (*.mp4 *.avi *.mkv *.mov *.webm *.m4v *.mpg *.mpeg);;All files (*)"));

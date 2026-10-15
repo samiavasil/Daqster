@@ -1,4 +1,5 @@
 #include "FilePlaybackWidget.h"
+#include "NodeWidgetDialogs.h"
 
 #include <QFileDialog>
 #include <QHBoxLayout>
@@ -73,7 +74,7 @@ void FilePlaybackWidget::onPlayStopClicked()
 void FilePlaybackWidget::onBrowseClicked()
 {
     const QString path = QFileDialog::getOpenFileName(
-        this, tr("Open Sampled Data"), QString(),
+        Daqster::nodeWidgetDialogParent(this), tr("Open Sampled Data"), QString(),
         tr("Sampled Data (*.sdf);;All Files (*)"));
     if (!path.isEmpty())
         m_pathEdit->setText(path);
