@@ -713,6 +713,12 @@ bool LayoutDesignerPanel::eventFilter(QObject* watched, QEvent* event)
 
             const NodeId id = LayoutDesignerPanel::decodeNodeMime(
                 dropEvent->mimeData()->data(QLatin1String(kNodeMime)));
+            if (id == InvalidNodeId) {
+                // Corrupt/unknown payload — accept the drop but change nothing
+                // rather than clearing the target slot.
+                dropEvent->acceptProposedAction();
+                return true;
+            }
 
             QTreeWidgetItem* item = m_structure->itemAt(dropPosition(dropEvent));
             while (item) {
