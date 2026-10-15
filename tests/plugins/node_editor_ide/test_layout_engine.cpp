@@ -318,6 +318,56 @@ void TestLayoutEngine::dockFloatsWhenFloating()
     delete window;
 }
 
+void TestLayoutEngine::deembeddedWidgetBecomesCleanChild()
+{
+    // Regression: in the v2 runtime the video widgets' effect dropdowns opened
+    // far from the mouse and their buttons were not clickable. Cause: the graph
+    // deembeds a node widget by floating it as a top-level window (its own
+    // QWindow); if the window flags are stripped while it is still parentless,
+    // Qt skips the window-to-child cleanup on reparent and mapToGlobal() keeps
+    // using the stale QWindow. The provider therefore hands the widget over
+    // still deembedded and LayoutEngine clears the flags after the reparent.
+    FlowUi::WorkspaceLayout ws;
+    ws.id = 0;
+    FlowUi::LayoutNode panel;
+    panel.type = FlowUi::LayoutNode::Type::Panel;
+    panel.nodeId = 7;
+    ws.root = panel;
+
+    QWidget* nodeWidget = nullptr;
+    QMainWindow* window = FlowUi::LayoutEngine::buildWorkspace(
+        ws, [&nodeWidget](QtNodes::NodeId) -> QWidget* {
+            auto* widget = new QWidget();
+            // Mimic NodeGraphicsObject::setWidgetEmbedded(false): float as a
+            // top-level window, which creates the widget's own QWindow.
+            widget->setParent(nullptr, Qt::Window | Qt::WindowStaysOnTopHint);
+            widget->resize(120, 80);
+            widget->showNormal();
+            nodeWidget = widget;
+            return widget;
+        });
+    QVERIFY(window != nullptr);
+    QVERIFY(nodeWidget != nullptr);
+
+    window->resize(400, 300);
+    window->move(150, 120);
+    window->show();
+    QCoreApplication::processEvents();
+
+    // The stale QWindow is gone: the widget is a plain child of the layout tree.
+    QVERIFY(!nodeWidget->isWindow());
+    QVERIFY(nodeWidget->windowHandle() == nullptr);
+    QVERIFY(!(nodeWidget->windowFlags() & Qt::WindowStaysOnTopHint));
+
+    // mapToGlobal() tracks the real parent chain instead of a stale window.
+    QWidget* parent = nodeWidget->parentWidget();
+    QVERIFY(parent != nullptr);
+    QCOMPARE(nodeWidget->mapToGlobal(QPoint(0, 0)),
+             parent->mapToGlobal(nodeWidget->pos()));
+
+    delete window;
+}
+
 void TestLayoutEngine::captureRoundTrips()
 {
     const FlowUi::WorkspaceLayout ws = makeGridWorkspace();

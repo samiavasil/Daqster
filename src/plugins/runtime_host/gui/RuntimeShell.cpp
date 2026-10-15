@@ -585,6 +585,12 @@ void RuntimeShell::arrangeLayoutV2()
 
     const FlowUi::WorkspaceLayout& ws = m_layoutSectionV2.workspaces.front();
 
+    // Note: the provider must NOT touch the widget's window flags here. The
+    // widget is still a parentless top-level window at this point; stripping
+    // Qt::Window now would make Qt skip the window-to-child cleanup when the
+    // engine reparents it, leaving a stale QWindow behind that breaks
+    // mapToGlobal (popups open far from the mouse, clicks miss). LayoutEngine
+    // clears the flags after the reparent instead.
     auto provider = [this](QtNodes::NodeId nodeId) -> QWidget* {
         if (nodeId == QtNodes::InvalidNodeId)
             return nullptr;
@@ -600,12 +606,7 @@ void RuntimeShell::arrangeLayoutV2()
         if (node->isWidgetEmbedded())
             node->setWidgetEmbedded(false);
 
-        QWidget* widget = m_editorWidget->nodeWidget(nodeId);
-        if (widget) {
-            widget->setWindowFlag(Qt::Window, false);
-            clearWindowFlags(widget);
-        }
-        return widget;
+        return m_editorWidget->nodeWidget(nodeId);
     };
 
     if (!FlowUi::LayoutEngine::buildInto(m_mainWindow, ws, provider)) {

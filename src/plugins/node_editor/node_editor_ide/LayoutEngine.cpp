@@ -319,15 +319,25 @@ bool LayoutEngine::buildInto(QMainWindow* window,
     window->setProperty(kWorkspaceId, workspace.id);
     window->setProperty(kWorkspaceName, workspace.name);
 
+    // Track the widgets handed over by the provider so their leftover window
+    // state can be cleaned up once the engine has reparented them (below).
+    QList<QWidget*> adopted;
+    auto trackProvider = [&provider, &adopted](QtNodes::NodeId nodeId) -> QWidget* {
+        QWidget* widget = provider ? provider(nodeId) : nullptr;
+        if (widget != nullptr && !adopted.contains(widget))
+            adopted.append(widget);
+        return widget;
+    };
+
     bool built = false;
 
-    if (QWidget* central = buildNode(workspace.root, provider, options)) {
+    if (QWidget* central = buildNode(workspace.root, trackProvider, options)) {
         window->setCentralWidget(central);
         built = true;
     }
 
     for (const DockLayout& dockLayout : workspace.docks) {
-        QWidget* widget = provider ? provider(dockLayout.node) : nullptr;
+        QWidget* widget = trackProvider(dockLayout.node);
         if (!widget)
             continue;
 
@@ -353,6 +363,19 @@ bool LayoutEngine::buildInto(QMainWindow* window,
                                     dockLayout.geometry.w, dockLayout.geometry.h));
         }
         built = true;
+    }
+
+    // Node widgets are handed over deembedded: their graph floats them as
+    // top-level windows (NodeGraphicsObject::setWidgetEmbedded(false)), which
+    // gives each its own QWindow. The engine has just reparented them into
+    // `window`, so the leftover window flags can be dropped now. Clearing them
+    // while the widget was still parentless made Qt skip the window-to-child
+    // cleanup, leaving a stale QWindow behind: mapToGlobal() then kept using
+    // that stale window, so popups opened far from the mouse and clicks /
+    // hit-tests missed their target.
+    for (QWidget* widget : adopted) {
+        if (widget->windowFlags() & (Qt::Window | Qt::WindowStaysOnTopHint))
+            widget->setWindowFlags(Qt::Widget);
     }
 
     return built;

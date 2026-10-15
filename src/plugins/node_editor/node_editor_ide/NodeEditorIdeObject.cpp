@@ -155,12 +155,12 @@ bool NodeEditorIdeObject::Initialize()
     m_designer->setProvider([this](QtNodes::NodeId nodeId) -> QWidget* {
         if (!m_Widget)
             return nullptr;
-        QWidget* widget = m_Widget->nodeWidget(nodeId);
-        // The engine reparents the widget into its container; drop the
-        // top-level flag set when the node was deembedded.
-        if (widget && (widget->windowFlags() & Qt::Window))
-            widget->setWindowFlag(Qt::Window, false);
-        return widget;
+        // Handed over still deembedded (a hidden top-level window): the engine
+        // reparents it into its container and LayoutEngine drops the leftover
+        // window flags afterwards. Stripping them here - while the widget is
+        // still parentless - would leave a stale QWindow behind and break
+        // mapToGlobal (popups would open far from the mouse).
+        return m_Widget->nodeWidget(nodeId);
     });
     connect(m_designer, &LayoutDesignerPanel::saveRequested,
             this, &NodeEditorIdeObject::saveLayoutFromDesigner);
@@ -467,10 +467,8 @@ void NodeEditorIdeObject::deembedAllWidgets()
         node->setWidgetEmbedded(false);
 
         QWidget* w = m_Widget->nodeWidget(nodeId);
-        if (w != nullptr) {
-            w->hide();
-            w->setWindowFlag(Qt::Window, false);
-        }
+        if (w != nullptr)
+            w->hide(); // keep the top-level flags until the engine reparents it
     }
 }
 

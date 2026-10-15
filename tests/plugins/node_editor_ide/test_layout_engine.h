@@ -19,6 +19,7 @@ private slots:
     void tabRestoresCurrent();
     void dockBuildsInRightArea();
     void dockFloatsWhenFloating();
+    void deembeddedWidgetBecomesCleanChild();
     void captureRoundTrips();
     void missingNodeSkipsCell();
 };
