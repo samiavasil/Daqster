@@ -3,6 +3,7 @@
     "MetaData": {
         "Name": "RequirementsManager",
         "Type": "APPLICATION_PLUGIN",
+        "PluginType": "gui",
         "Version": "@DAQSTER_VERSION@",
         "Description": "Requirements Viewer/Editor tool for Markdown-based traceable requirements."
     }

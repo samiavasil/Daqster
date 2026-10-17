@@ -8,6 +8,8 @@
 #include <QCryptographicHash>
 #include <QFile>
 #include <QPluginLoader>
+#include <QJsonObject>
+#include <QJsonValue>
 
 namespace Daqster {
 
@@ -83,6 +85,34 @@ bool PluginDiscovery::isCandidatePluginFile(const QString& filePath)
     }
 
     return false;
+}
+
+QString PluginDiscovery::pluginType(const QString& filePath)
+{
+    // metaData() reads the JSON Qt embeds in the binary; it does NOT load the
+    // library, so a plugin can be classified before it (and its dependencies)
+    // ever enter the process (REQ-SW-PL-073).
+    const QJsonObject metaData = QPluginLoader(filePath).metaData();
+    if (metaData.isEmpty()) {
+        return QString();
+    }
+
+    // Walk down through "MetaData" keys. Qt always wraps the file content once;
+    // some plugins (runtime hosts, application plugins) nest their own
+    // "MetaData" again, node plugins keep it flat.
+    QJsonObject node = metaData;
+    for (int depth = 0; depth < 4; ++depth) {
+        const QString type = node.value(QStringLiteral("PluginType")).toString();
+        if (!type.isEmpty()) {
+            return type;
+        }
+        const QJsonObject next = node.value(QStringLiteral("MetaData")).toObject();
+        if (next.isEmpty()) {
+            break;
+        }
+        node = next;
+    }
+    return QString();
 }
 
 bool PluginDiscovery::isInSearchPath(const QString& filePath) const

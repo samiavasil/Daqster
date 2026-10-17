@@ -55,6 +55,26 @@ public:
     static bool isCandidatePluginFile(const QString& filePath);
 
     /**
+     * @brief Read a plugin's declared PluginType from its metadata WITHOUT
+     *        loading it (REQ-SW-PL-073).
+     *
+     * Uses QPluginLoader::metaData(), which parses the JSON that Qt embeds in
+     * the binary and does NOT dlopen() the library. This is what lets the plugin
+     * manager decide whether a plugin belongs to the current runtime mode before
+     * paying the cost (and dragging in the dependencies) of loading it.
+     *
+     * The metadata layout is inconsistent across plugins: Qt wraps the file
+     * content under "MetaData", and some plugins nest their own "MetaData" one
+     * level deeper (runtime hosts / application plugins) while others keep it
+     * flat. The lookup therefore walks down through "MetaData" until it finds a
+     * "PluginType" string.
+     *
+     * @return The declared PluginType (e.g. "gui", "headless"), or an empty
+     *         string when the plugin declares none (treated as "any mode").
+     */
+    static QString pluginType(const QString& filePath);
+
+    /**
      * @brief Check if a file is in one of the search paths
      * @param filePath Path to check
      * @return true if file is in a search path

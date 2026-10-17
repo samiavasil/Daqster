@@ -6,6 +6,7 @@
   "License": "GPL-3.0",
   "Type": "Application",
   "TypeName": "GUI Nodes",
+  "PluginType": "NodeGui",
   "Hash": "",
   "Location": "",
   "Enabled": true,

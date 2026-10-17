@@ -276,6 +276,19 @@ void QPluginManager::SearchForPlugins ()
     const QSet<QString> loadedHashes(registered.begin(), registered.end());
     QMap<QString, QString> discovered = m_discovery->discoverPlugins(loadedHashes);
     for (auto it = discovered.constBegin(); it != discovered.constEnd(); ++it) {
+        // Mode gating (REQ-SW-PL-073): a headless process has no widgets, so a
+        // plugin that exists only to supply them must not be loaded — otherwise
+        // it drags the whole QtWidgets stack in for nothing. pluginType() reads
+        // the embedded metadata WITHOUT loading the library, so the decision is
+        // made before the .so (and QtWidgets) ever enters the process.
+        if (m_runtimeMode == Daqster::RuntimeMode::Headless
+            && (PluginDiscovery::pluginType(it.value()).compare(
+                    QStringLiteral("gui"), Qt::CaseInsensitive) == 0
+                || PluginDiscovery::pluginType(it.value()).compare(
+                    QStringLiteral("NodeGui"), Qt::CaseInsensitive) == 0)) {
+            qCDebug(lcFramework) << "Skipping GUI-only plugin in headless mode:" << it.value();
+            continue;
+        }
         if (LoadPluginInterfaceObject(it.value(), it.key())) {
             Changed = true;
         } else {
@@ -293,6 +306,18 @@ void QPluginManager::SearchForPlugins ()
     if (Changed) {
         emit PluginsListChangeDetected();
     }
+}
+
+
+void QPluginManager::SetRuntimeMode(Daqster::RuntimeMode mode)
+{
+    m_runtimeMode = mode;
+}
+
+
+Daqster::RuntimeMode QPluginManager::GetRuntimeMode() const
+{
+    return m_runtimeMode;
 }
 
 

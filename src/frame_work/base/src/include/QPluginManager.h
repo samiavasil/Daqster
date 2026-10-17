@@ -78,6 +78,21 @@ public:
    */
   void SearchForPlugins ();
 
+  /**
+   * @brief Restrict plugin loading to a runtime mode (REQ-SW-PL-073).
+   *
+   * In Headless mode, plugins that declare `PluginType: "gui"` in their
+   * metadata are NOT loaded: they exist only to supply widgets and would
+   * otherwise drag the whole QtWidgets stack into a display-less process.
+   * Plugins that declare no PluginType are loaded in every mode.
+   *
+   * Must be called before SearchForPlugins(). Defaults to GUI (load all).
+   */
+  void SetRuntimeMode(Daqster::RuntimeMode mode);
+
+  /// @brief Current runtime mode used to gate plugin loading (REQ-SW-PL-073).
+  Daqster::RuntimeMode GetRuntimeMode() const;
+
 
   /**
    * Add directory to plugin search path
@@ -157,6 +172,10 @@ protected:
   std::unique_ptr<PluginDiscovery> m_discovery;
   std::unique_ptr<PluginRegistry> m_registry;
   std::unique_ptr<PluginPersistence> m_persistence;
+
+  // Runtime mode used to gate plugin loading (REQ-SW-PL-073). GUI by default so
+  // existing callers keep loading every plugin.
+  Daqster::RuntimeMode m_runtimeMode = Daqster::RuntimeMode::Gui;
 };
 
 

@@ -21,9 +21,12 @@ works in both modes.
 > The runner binary no longer links QtWidgets: `NodeRunner` creates its
 > application object through a dlopen()ed launcher (REQ-SW-PL-072) —
 > `DaqsterLauncherHeadless` (a `QGuiApplication`) for headless,
-> `DaqsterLauncherGui` (a `QApplication`) for GUI. The widget stack can still
-> enter a headless process through GUI plugins loaded by `QPluginManager`
-> (plugin gating is tracked separately).
+> `DaqsterLauncherGui` (a `QApplication`) for GUI — and the plugin manager no
+> longer loads GUI-only plugins in headless (plugin mode gating, REQ-SW-PL-073).
+> On **Qt6** the headless process is then genuinely widget-free. On **Qt5**
+> `libQt5Widgets` still appears, but only via Qt5's gstreamer `mediaservice`
+> plugins pulled in by `Qt5Multimedia` (see *QtWidgets in the headless run*) —
+> no widget is created and no GUI plugin is loaded.
 
 ## Repository layout (actual)
 
@@ -300,12 +303,34 @@ hardware-GL detection (`VideoGLContextManager::hasHardwareGL`) needs a
 `QGuiApplication` instance, so all GPU/GL optimisations stay available in
 headless mode. Both launchers set `Qt::AA_ShareOpenGLContexts`.
 
-`libNodeditorNodesCore` does not link QtWidgets either. The widget stack still
-enters a headless process only because `QPluginManager::SearchForPlugins()`
-loads **every** discovered plugin, and the GUI ones (`RuntimeHostGuiPlugin`,
-`NodeditorNodesGui`, `NodeEditorIde`, `RequirementsManager`, `QtCoinTrader`) link
-QtWidgets. Keeping those out of a headless run is *plugin gating* — a separate
-concern from the launcher, tracked with REQ-SW-PL-056 AC5.
+`libNodeditorNodesCorePlugin` does not link QtWidgets either. The plugin manager
+no longer loads GUI-only plugins in headless: **plugin mode gating**
+(REQ-SW-PL-073). A plugin declares its mode in `PluginType`:
+
+| `PluginType` | Plugins | headless |
+|---|---|---|
+| `gui` | `RuntimeHostGuiPlugin`, `NodeEditorIDE`, `RequirementsManager`, `QtCoinTrader` | skipped |
+| `NodeGui` | `NodeditorNodesGui`, `AiStudioPluginGui` | skipped |
+| `headless` | `RuntimeHostHeadlessPlugin` | loaded |
+| *(absent)* | `NodeditorNodesCorePlugin`, `AiStudioPluginCore` | loaded |
+
+`QPluginManager::SearchForPlugins()` reads `PluginType` through
+`PluginDiscovery::pluginType()` — i.e. `QPluginLoader::metaData()`, which parses
+the embedded JSON **without** `dlopen` — and skips `gui`/`NodeGui` plugins when
+the mode is `Headless`, passed from `AppBootstrap::initializePlugins(mode)`.
+A headless run therefore loads only the core/headless plugins (verified:
+`RuntimeHostHeadlessPlugin`, `NodeditorNodesCorePlugin`, `libQtNodesCore`).
+
+- **Qt6** — genuinely widget-free: no `libQt6Widgets` in the process.
+- **Qt5** — `libQt5Widgets` still appears, but **not** from any plugin we load.
+  `NodeditorNodesCorePlugin` links `Qt5Multimedia` (the `CameraSource`,
+  `VideoFileSource`, `StreamSource` and mic nodes), and Qt5's `Qt5Multimedia`
+  eagerly loads the gstreamer `mediaservice` plugins
+  (`libgstcamerabin.so`, `libgstmediaplayer.so`, …), every one of which
+  hard-links `libQt5MultimediaWidgets` → `libQt5Widgets`. That is a Qt5
+  framework coupling, not a Daqster bug; Qt6's `Qt6Multimedia` (ffmpeg backend)
+  has no such dependency. In both cases no widget is constructed and no GUI
+  plugin is loaded.
 
 ## Plugin object lifetime
 

@@ -102,7 +102,11 @@ public:
     // ── Plugin + host lifecycle ────────────────────────────────────────────
 
     /// QPluginManager::Initialize() followed by SearchForPlugins().
-    bool initializePlugins();
+    ///
+    /// @p mode gates plugin loading (REQ-SW-PL-073): in Headless, plugins that
+    /// declare `PluginType: "gui"` are not loaded, so the widget stack never
+    /// enters a headless process. Defaults to Gui (load everything).
+    bool initializePlugins(RuntimeMode mode = RuntimeMode::Gui);
 
     /// Installs the platform ShutdownHandler and wires it to quit the app.
     void installShutdownHandler();

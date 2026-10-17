@@ -43,6 +43,26 @@ launcher (REQ-SW-PL-072): `DaqsterLauncherHeadless` (`QGuiApplication`, без
 QtWidgets) при `--headless`, `DaqsterLauncherGui` (`QApplication`) иначе. Така
 `NodeRunner` не линква QtWidgets, а GPU/GL оптимизациите работят и в двата режима.
 
+## Plugin mode gating (кой плъгин в кой режим)
+
+За да не влезе widget-стекът в headless процеса през плъгините, всеки GUI-само
+плъгин декларира `PluginType` в метаданните си, а `QPluginManager` го спазва:
+
+| `PluginType` | Плъгини | headless |
+|---|---|---|
+| `gui` | `RuntimeHostGuiPlugin`, `NodeEditorIDE`, `RequirementsManager`, `QtCoinTrader` | пропуска се |
+| `NodeGui` | `NodeditorNodesGui`, `AiStudioPluginGui` | пропуска се |
+| `headless` | `RuntimeHostHeadlessPlugin` | зарежда се |
+| *(липсва)* | `NodeditorNodesCorePlugin`, `AiStudioPluginCore` | зарежда се |
+
+`PluginDiscovery::pluginType()` чете стойността през `QPluginLoader::metaData()`
+(**без** `dlopen`), така че решението се взема, преди плъгинът да влезе в процеса.
+На **Qt6** `--headless` вече е напълно без `libQt6Widgets`. На **Qt5**
+`libQt5Widgets` пак се появява, но само защото `NodeditorNodesCorePlugin` линква
+`Qt5Multimedia`, чиито gstreamer `mediaservice` плъгини hard-link-ват
+`Qt5MultimediaWidgets` — Qt5 ограничение, не наш дефект (виж
+[Core/GUI Split](../core-gui-split.md)).
+
 ## Споделен AppBootstrap
 
 Runner-специфичната логика в `main.cpp` е минимална — само application type,
@@ -52,7 +72,9 @@ Runner-специфичната логика в `main.cpp` е минимална
 - `detectHeadless(argc, argv)` + `preparePlatform(...)` — избор на platform plugin.
 - `addStandardOptions()` — `--version`, `--rest-*`, ... (общи за всички runner-и).
 - `processArguments()`, `installShutdownHandler()`.
-- `initializePlugins()` — зарежда плъгините през `QPluginManager`.
+- `initializePlugins(mode)` — зарежда плъгините през `QPluginManager` и подава
+  режима, за да пропусне GUI-само плъгините headless (**plugin mode gating**,
+  REQ-SW-PL-073).
 - `resolveRuntimeHost(mode)` — намира `IRuntimeHost` за `Headless`/`Gui`.
 - `prepareHost(host)` — свързва optional-ната control plane; ако е поискана, но
   неподдържана → **fail loudly**.

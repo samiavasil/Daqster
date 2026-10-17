@@ -1,1 +1,1 @@
-{"Version": "@DAQSTER_VERSION@"}
+{"Version": "@DAQSTER_VERSION@", "PluginType": "gui"}

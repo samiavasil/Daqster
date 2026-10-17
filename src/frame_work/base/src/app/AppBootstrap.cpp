@@ -152,9 +152,12 @@ void AppBootstrap::applyStandardOptionValues()
 
 // ── Plugin + host lifecycle ─────────────────────────────────────────────────
 
-bool AppBootstrap::initializePlugins()
+bool AppBootstrap::initializePlugins(RuntimeMode mode)
 {
     QPluginManager* pluginManager = QPluginManager::instance();
+    // Tell the manager which mode we run in before it loads anything: headless
+    // never loads GUI-only plugins (REQ-SW-PL-073).
+    pluginManager->SetRuntimeMode(mode);
     if (!pluginManager->Initialize()) {
         qCCritical(lcApp) << "QPluginManager initialization failed";
         return false;

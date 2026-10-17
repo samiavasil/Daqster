@@ -170,11 +170,14 @@ int main(int argc, char *argv[])
     // ── Shutdown handling + plugins ────────────────────────────────────────
     boot.installShutdownHandler();
 
-    if (!boot.initializePlugins())
-        return 1;
-
     const Daqster::RuntimeMode mode = headlessMode ? Daqster::RuntimeMode::Headless
                                                    : Daqster::RuntimeMode::Gui;
+
+    // The mode reaches the plugin manager so it skips GUI-only plugins in
+    // headless (REQ-SW-PL-073) — they would otherwise pull QtWidgets in.
+    if (!boot.initializePlugins(mode))
+        return 1;
+
     qCInfo(lcApp) << "Runtime mode:" << (headlessMode ? "headless" : "GUI")
                   << "loading flow" << flowPath;
 

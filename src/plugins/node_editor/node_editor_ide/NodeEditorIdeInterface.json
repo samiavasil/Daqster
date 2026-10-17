@@ -3,6 +3,7 @@
     "MetaData": {
         "Name": "NodeEditorIDE",
         "Type": "APPLICATION_PLUGIN",
+        "PluginType": "gui",
         "Version": "0.3.2",
         "Description": "Node editor IDE with built-in nodes and plugin-based node discovery."
     }
