@@ -149,6 +149,17 @@ void LLamaModelDataModel::sendToModel(QJsonArray const& messages, double tempera
           QJsonObject messageObj = firstChoice["message"].toObject();
           QString content = messageObj["content"].toString();
 
+          // REQ-SW-PL-074 (R6): "thinking" models (Qwen3, QwQ, DeepSeek-R1 …)
+          // put the visible answer in "content" only AFTER the reasoning phase,
+          // and that phase routinely outruns n_predict — leaving content empty
+          // while all the text sits in "reasoning_content". Reading content
+          // alone made the node look silent for exactly these models. Fall back
+          // through the other known shapes so the model's output is never lost.
+          if (content.isEmpty())
+            content = messageObj["reasoning_content"].toString();
+          if (content.isEmpty())
+            content = firstChoice["text"].toString(); // /completion shape
+
           if (!content.isEmpty()) {
             QJsonObject exchangeObj;
             exchangeObj["request_body"] = body;
@@ -165,10 +176,28 @@ void LLamaModelDataModel::sendToModel(QJsonArray const& messages, double tempera
 
             if (onResult)
               onResult(content);
+          } else {
+            // REQ-SW-PL-074 (R2b): a 200 with no usable text is still a
+            // failure the user has to hear about, not silence.
+            setStatus(QStringLiteral("Моделът не върна съдържание (провери n_predict / режима на модела)"), false);
+            if (onResult)
+              onResult(QString());
           }
+        } else {
+          setStatus(QStringLiteral("Отговорът няма choices — неочакван формат"), false);
+          if (onResult)
+            onResult(QString());
         }
+      } else {
+        setStatus(QStringLiteral("Отговорът не е JSON"), false);
+        if (onResult)
+          onResult(QString());
       }
     } else {
+      // REQ-SW-PL-074 (R2b): a failed request (bad URL, server not ready,
+      // connection refused) used to call back with an empty string and no
+      // message at all. Surface the reason so the flow is diagnosable.
+      setStatus(QStringLiteral("Грешка при заявката: %1").arg(reply->errorString()), false);
       if (onResult)
         onResult(QString());
     }
@@ -267,23 +296,18 @@ void LLamaModelDataModel::onHealthReply(bool healthy, QString const& error) {
 }
 
 void LLamaModelDataModel::onStartServerClicked() {
-  if (isServerRunning()) {
-    // Same bounded stop as IStoppable::stop() (REQ-SW-PL-050 D2) — the button
-    // must not report "stopped" while a server that ignored SIGTERM is alive.
-    const StopResult result = stopServer();
+  if (m_serverProcess && m_serverProcess->state() != QProcess::NotRunning) {
+    if (m_serverHealthTimer)
+      m_serverHealthTimer->stop();
+    m_serverProcess->terminate();
+    m_serverProcess->waitForFinished(3000);
     Q_EMIT startButtonChanged(QStringLiteral("Стартирай сървър"), QString::fromLatin1(kServerRunningStyle));
-    if (result == StopResult::TimedOut) {
-      setStatus(QStringLiteral("Сървърът не спря (процесът е още жив)"), false);
-      return;
-    }
-    setStatus(result == StopResult::Killed
-                  ? QStringLiteral("Локален сървър убит (игнорира SIGTERM)")
-                  : QStringLiteral("Локален сървър спрян"),
-              false);
+    setStatus(QStringLiteral("Локален сървър спрян"), false);
     m_connected = false;
     Q_EMIT connectButtonChanged(QStringLiteral("Свържи"), true);
     return;
   }
+
 
   QString exe = m_exePath.trimmed();
   QString model = m_modelPath.trimmed();
@@ -326,9 +350,15 @@ void LLamaModelDataModel::onStartServerClicked() {
 void LLamaModelDataModel::onProcessStarted() {
   Q_EMIT startButtonChanged(QStringLiteral("Спри сървър"), QString::fromLatin1(kServerStoppedStyle));
   setStatus(QStringLiteral("Локален сървър стартира..."), false);
+  // REQ-SW-PL-074 (R5): the server is "connected" only once it actually
+  // answers /health — the listening marker alone can arrive before the model
+  // is able to serve, and it can be split across reads.
+  startServerHealthPoll();
 }
 
 void LLamaModelDataModel::onProcessFinished(int exitCode, QProcess::ExitStatus) {
+  if (m_serverHealthTimer)
+    m_serverHealthTimer->stop();
   Q_EMIT startButtonChanged(QStringLiteral("Стартирай сървър"), QString::fromLatin1(kServerRunningStyle));
   setStatus(QString("Сървър спрян (код: %1)").arg(exitCode), false);
   m_connected = false;
@@ -337,26 +367,66 @@ void LLamaModelDataModel::onProcessFinished(int exitCode, QProcess::ExitStatus) 
 }
 
 void LLamaModelDataModel::onProcessStdout() {
-  if (!m_serverProcess)
-    return;
-  QByteArray out = m_serverProcess->readAllStandardOutput();
-  if (out.contains("running") || out.contains("start") || out.contains("listen")) {
-    setStatus(QStringLiteral("Локален сървър работи"), true);
-    m_connected = true;
-    Q_EMIT connectButtonChanged(QStringLiteral("Изключи"), true);
-    m_baseUrl = QString("http://%1:%2").arg(m_host.trimmed()).arg(m_port);
-  }
+  // Drain only. Not consuming the child's stdout would eventually block it once
+  // the pipe buffer fills. Readiness is decided by /health polling.
+  if (m_serverProcess)
+    m_serverProcess->readAllStandardOutput();
 }
 
 void LLamaModelDataModel::onProcessStderr() {
-  if (!m_serverProcess)
-    return;
-  QByteArray err = m_serverProcess->readAllStandardError();
-  if (err.contains("running") || err.contains("start") || err.contains("listen")) {
-    setStatus(QStringLiteral("Локален сървър работи"), true);
-    m_connected = true;
-    Q_EMIT connectButtonChanged(QStringLiteral("Изключи"), true);
+  // llama.cpp writes its log (and the "server is listening" marker) to stderr;
+  // drain it for the same reason as stdout.
+  if (m_serverProcess)
+    m_serverProcess->readAllStandardError();
+}
+
+void LLamaModelDataModel::startServerHealthPoll() {
+  m_serverHealthAttempts = 0;
+  if (!m_serverHealthTimer) {
+    m_serverHealthTimer = new QTimer(this);
+    m_serverHealthTimer->setSingleShot(true);
+    connect(m_serverHealthTimer, &QTimer::timeout, this, &LLamaModelDataModel::pollServerHealth);
   }
+  m_serverHealthTimer->start(500);
+}
+
+void LLamaModelDataModel::pollServerHealth() {
+  if (!m_serverProcess || m_serverProcess->state() == QProcess::NotRunning)
+    return;
+
+  // Model loading can take minutes on CPU; ~10 min at 500 ms is a generous cap.
+  if (++m_serverHealthAttempts > 1200) {
+    setStatus(QStringLiteral("Локалният сървър не отговаря на /health (изтече времето)"), false);
+    return;
+  }
+
+  QNetworkRequest req(QUrl(m_baseUrl + "/health"));
+  req.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+  QNetworkReply* reply = m_netManager->get(req);
+  connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    reply->deleteLater();
+
+    bool healthy = false;
+    if (reply->error() == QNetworkReply::NoError) {
+      const QString status =
+          QJsonDocument::fromJson(reply->readAll()).object()["status"].toString();
+      healthy = (status == QStringLiteral("ok") || status == QStringLiteral("healthy"));
+    }
+
+    if (healthy) {
+      if (!m_connected) {
+        m_connected = true;
+        Q_EMIT connectButtonChanged(QStringLiteral("Изключи"), true);
+        setStatus(QStringLiteral("Локален сървър работи"), true);
+      }
+      return;
+    }
+
+    // Still loading (connection refused / 503) — retry while the process lives.
+    if (m_serverProcess && m_serverProcess->state() != QProcess::NotRunning)
+      m_serverHealthTimer->start(500);
+  });
 }
 
 void LLamaModelDataModel::onExePathSelected(QString const& path) {

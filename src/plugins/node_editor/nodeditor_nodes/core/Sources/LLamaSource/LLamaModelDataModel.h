@@ -5,6 +5,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QPointer>
 #include <QtCore/QProcess>
+#include <QtCore/QTimer>
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
 #include <QJsonArray>
@@ -137,6 +138,11 @@ private:
   void checkHealth();
   void onHealthReply(bool healthy, QString const& error);
 
+  // REQ-SW-PL-074 (R5): readiness of a locally-spawned server is decided by
+  // polling /health, not by sniffing its log output.
+  void startServerHealthPoll();
+  void pollServerHealth();
+
   // Stateless send - accepts messages[] array directly
   void sendToModel(QJsonArray const& messages, double temperature, int nPredict,
                    std::function<void(QString)> onResult = nullptr);
@@ -170,6 +176,9 @@ private:
   /// Owns the locally spawned `llama-server` (REQ-SW-PL-050 D2): terminate →
   /// 3 s → kill → 1 s, never unbounded. Always ours, so no setOwned(false).
   Daqster::ProcessOwner m_serverOwner;
+  /// Single-shot retry timer for the local-server /health poll.
+  QTimer* m_serverHealthTimer = nullptr;
+  int m_serverHealthAttempts = 0;
 
   // Data ports
   std::shared_ptr<TextData> m_outputText;

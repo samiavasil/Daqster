@@ -42,17 +42,29 @@ void ConsoleDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex const
         if (doc.isObject()) {
             QJsonObject obj = doc.object();
 
-            // Extract the content of response.message
+            // Extract the content of response.message. REQ-SW-PL-074 (R6): a
+            // "thinking" model (Qwen3, QwQ, DeepSeek-R1 …) returns an empty
+            // content with the text in reasoning_content, so fall back to that
+            // (and the /completion "text" shape) rather than showing nothing.
+            auto pickContent = [](QJsonObject const& msg) -> QString {
+                QString c = msg["content"].toString();
+                if (c.isEmpty())
+                    c = msg["reasoning_content"].toString();
+                return c;
+            };
+
             QString content;
             if (obj.contains("response")) {
                 QJsonObject resp = obj["response"].toObject();
                 QJsonArray choices = resp["choices"].toArray();
                 if (!choices.isEmpty()) {
-                    QJsonObject msg = choices.at(0).toObject()["message"].toObject();
-                    content = msg["content"].toString();
+                    QJsonObject choice = choices.at(0).toObject();
+                    content = pickContent(choice["message"].toObject());
+                    if (content.isEmpty())
+                        content = choice["text"].toString(); // /completion shape
                 }
             } else if (obj.contains("message")) {
-                content = obj["message"].toObject()["content"].toString();
+                content = pickContent(obj["message"].toObject());
             } else if (obj.contains("content")) {
                 content = obj["content"].toString();
             }
