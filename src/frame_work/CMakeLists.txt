@@ -304,3 +304,8 @@ if(DAQSTER_BUILD_GUI)
 
     message(STATUS "Created library: FrameworkGui (QtWidgets)")
 endif()
+
+# ── Application-object launchers (REQ-SW-PL-072) ─────────────────────────────
+# The application object is the only remaining QtWidgets user; it is created by
+# small dlopen()ed launcher libraries so NodeRunner itself stays widget-free.
+add_subdirectory(launcher)

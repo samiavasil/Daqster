@@ -30,7 +30,7 @@
 - Workspace = QDockWidget обвиващ QMdiArea; plugin GUIs = QMdiSubWindow (sdrgui/gui/workspace.h:29, channelgui.h:36)
 - Configuration persistence: версионирани per-widget blobs; settings отделно от geometry (sdrbase/settings/configuration.h:25)
 - Custom geometry blob {x,y,w,h,maximized} — QWidget::saveGeometry е ненадежден за MDI (sdrgui/gui/mdiutils.cpp)
-- Core/GUI split: същият PluginInterface, GUI factory-тата връщат nullptr headless; два бинарника (sdrangel/sdrangelsrv)
+- Core/GUI split: същият PluginInterface, GUI factory-тата връщат nullptr headless. *(Забележка: Daqster НЕ копира дву-бинарната схема sdrangel/sdrangelsrv — остава един `NodeRunner` с `dlopen`-нат app-object launcher, REQ-SW-PL-072.)*
 - Message/MessageQueue за между-нишкова комуникация (sdrbase/util/message.h)
 - Auto-stack на sub-windows при добавяне (workspace.cpp eventFilter)
 - ДА НЕ копираме: бинарни blobs (qCompress+base64), FSM sprawl в MainWindow, singleton MainWindow, magic-number geometry fixes, QSettings като единствен storage
@@ -118,9 +118,10 @@
 **4.5 Headless исполнение**
 
 - ~~**DaqsterHeadless** executable~~ → **реализирано като `NodeRunner --headless`**
-  (един dual-mode бинарник, REQ-SW-PL-053), линкващ само `FrameworkCore`
+  (един dual-mode бинарник, REQ-SW-PL-053), линкващ само `FrameworkCore` + QtCore
 - **CLI:** `NodeRunner --headless --run <flow.flow>` (GUI: `NodeRunner --run <flow.flow>`)
-- **HeadlessEngine:** QCoreApplication event loop, loads .flow via FlowLoader, instantiates core models, connects via DataFlowGraphModel, auto-starts via IStartable, stops via IStoppable on shutdown
+- **App-обект:** `dlopen`-нат launcher (REQ-SW-PL-072) — `DaqsterLauncherHeadless` (`QGuiApplication`, GL работи) в headless, `DaqsterLauncherGui` (`QApplication`) в GUI
+- **HeadlessEngine:** QGuiApplication event loop, loads .flow via FlowLoader, instantiates core models, connects via DataFlowGraphModel, auto-starts via IStartable, stops via IStoppable on shutdown
 - **FlowLoader:** Tolerant loading (skips unregistered node types, logs warning), parses UI section for autoStart
 
 **Verification (коректни команди за текущия код):**
@@ -134,9 +135,11 @@
 ./build_qt5/bin/NodeRunner --headless --run tests/data/number_graph.flow \
     --log-console-enabled 1 --log-level Info 2>&1 | grep RuntimeHostGuiPlugin
 
-# ld проверката НЕ е валиден критерий за AC 2: QApplication (Qt5: в QtWidgets)
-# остава необходим за headless, затова Qt5Widgets е верен дори днес.
-# Ак 2 е блокиран — причините са документирани в REQ-файла на REQ-SW-PL-051.
+# `ldd build_qt5/bin/NodeRunner` вече НЕ показва libQt5Widgets: NodeRunner линква
+# само FrameworkCore + QtCore, а app-обектът идва от dlopen-нат launcher
+# (REQ-SW-PL-072). Забележка: GUI плъгините, които QPluginManager зарежда, все
+# още докарват QtWidgets в процеса — филтрирането им (plugin gating) е отделна
+# задача по REQ-SW-PL-056 AC5.
 ```
 
 - (Опционално) REST API за remote control — документирано като разширение

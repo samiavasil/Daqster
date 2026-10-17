@@ -30,16 +30,18 @@ NodeRunner --headless --run scene.flow --rest-port 18080 --rest-token <token>
 | `--rest-web-root <dir>` | Директория с web конзолата (по подразбиране вградена) |
 | `--version` | Версия (от `daqster_version.h`) |
 
-> `--headless` се парсва **преди** `QApplication`, защото platform plugin-ът се чете
-> при конструкция — затова bootstrap-ът го чете от суровия `argv`, а не през
-> `QCommandLineParser`.
+> `--headless` се парсва **преди** app-обектът (който идва от `dlopen`-натия
+> launcher), защото platform plugin-ът се чете при конструкция — затова bootstrap-ът
+> го чете от суровия `argv`, а не през `QCommandLineParser`.
 
 ## Защо е двоен режим
 
 След core/gui split-а (REQ-SW-PL-051) **нито един нод модел не конструира widget на
-headless пътя**, затова един и същ `.flow` върви и в двата режима. Дългосрочната
-цел (goal B, REQ-SW-PL-056 AC5) е отделен headless binary; `NodeRunner` покрива и
-двете засега.
+headless пътя**, затова един и същ `.flow` върви и в двата режима. Остава **един
+бинарник** `NodeRunner`, който избира app-обекта по режим чрез малък `dlopen`-нат
+launcher (REQ-SW-PL-072): `DaqsterLauncherHeadless` (`QGuiApplication`, без
+QtWidgets) при `--headless`, `DaqsterLauncherGui` (`QApplication`) иначе. Така
+`NodeRunner` не линква QtWidgets, а GPU/GL оптимизациите работят и в двата режима.
 
 ## Споделен AppBootstrap
 

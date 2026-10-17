@@ -16,16 +16,28 @@
  * The shared startup choreography (platform selection, logging, ShutdownHandler,
  * plugin init, host resolution, control-plane wiring, teardown) now lives in
  * Daqster::AppBootstrap (FrameworkCore, widget-free) — see REQ-SW-PL-048. This
- * file only keeps the runner-specific bits: application type, name/version,
- * the --headless/--run options and the flow path validation.
+ * file only keeps the runner-specific bits: the --headless/--run options and
+ * the flow path validation.
  *
- * The application type follows the mode (REQ-SW-PL-056): GUI mode builds a
- * QApplication, headless mode a QGuiApplication. After the core/gui split
- * (REQ-SW-PL-051) no node model constructs widgets on the headless path, so
- * QGuiApplication would be sufficient there — but this single dual-mode binary
- * still uses QApplication for both modes (in Qt5 QApplication itself lives in
- * QtWidgets), and Qt::Widgets stays on the link line for the GUI branch. The
- * long-term goal (goal B) is a separate headless binary; see REQ-SW-PL-056 AC5.
+ * ── Application object: dlopen()ed launcher (REQ-SW-PL-072) ────────────────
+ * Qt's application object is the one thing that must differ between GUI
+ * (QApplication, QtWidgets) and headless (QGuiApplication, no QtWidgets). To
+ * keep NodeRunner itself free of QtWidgets, the object is created by a small
+ * launcher library loaded at runtime:
+ *
+ *   --headless -> DaqsterLauncherHeadless : QGuiApplication (Qt::Gui only)
+ *   GUI mode   -> DaqsterLauncherGui      : QApplication    (QtWidgets)
+ *
+ * Both launchers create a QGuiApplication-based object and set
+ * Qt::AA_ShareOpenGLContexts, so every GPU/GL optimisation works identically in
+ * both modes (the pipeline's hardware-GL detection requires a QGuiApplication
+ * instance). The module set is therefore a runtime decision, not a link-time one.
+ *
+ * Note: NodeRunner and the headless launcher do not link QtWidgets, so the
+ * runner starts without the widget stack. QPluginManager still loads the
+ * remaining plugins afterwards and some of these (GUI runtime host, GUI node
+ * widgets, …) do link QtWidgets; keeping those out of a headless run is a
+ * separate concern (plugin gating) that the launcher cannot decide.
  *
  * See Daqster::IRuntimeHost (src/plugins/common/capabilities/IRuntimeHost.h).
  */
@@ -35,11 +47,52 @@
 #include <LogCategories.h>
 #include <daqster_version.h>
 
-#include <QApplication>
 #include <QCommandLineOption>
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QLibrary>
+#include <QStandardPaths>
 #include <QStringList>
+
+#include <memory>
+
+namespace {
+
+/// Signature of the launcher entry point (DaqsterAppLauncher.h), declared here
+/// by hand so NodeRunner needs no header from the launcher library.
+using CreateApplicationFn = QCoreApplication* (*)(int, char**);
+
+/// @brief Directories to search for the launcher library, most specific first.
+///
+/// The launcher sits next to the executable in the build tree (bin/) and in
+/// ../lib after installation. A bare library name would NOT find it: glibc
+/// honours DT_RUNPATH only when resolving an object's own DT_NEEDED entries,
+/// never for dlopen(), so the RUNPATH that lets NodeRunner find its linked
+/// libraries does not apply here. Resolve an absolute candidate from the
+/// executable's directory instead (QLibrary adds the platform prefix/suffix).
+QStringList launcherSearchDirs(const QString& programPath)
+{
+    QString exePath = programPath;
+    const bool hasSeparator = exePath.contains(QLatin1Char('/'))
+                              || exePath.contains(QLatin1Char('\\'));
+    if (exePath.isEmpty()) {
+        return {};
+    } else if (!QFileInfo(exePath).isAbsolute() && !hasSeparator) {
+        // Bare command name (found via PATH).
+        exePath = QStandardPaths::findExecutable(exePath);
+        if (exePath.isEmpty())
+            return {};
+    }
+    // Absolute, or relative to the current directory ("build_qt5/bin/NodeRunner").
+    const QDir exeDir = QFileInfo(exePath).absoluteDir();
+    return QStringList()
+        << exeDir.absolutePath()
+        << QDir(exeDir.absoluteFilePath(QStringLiteral("../lib"))).absolutePath();
+}
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
@@ -49,13 +102,43 @@ int main(int argc, char *argv[])
     const bool headlessMode = Daqster::AppBootstrap::detectHeadless(argc, argv);
     Daqster::AppBootstrap::preparePlatform(headlessMode);
 
-    QGuiApplication::setAttribute(Qt::AA_ShareOpenGLContexts, true);
-    QApplication app(argc, argv);
+    // ── Application object through the dlopen()ed launcher ──────────────────
+    // The launcher library (Widgets-free for headless, QtWidgets for GUI) lives
+    // next to the executable (bin/ in the build tree, lib/ once installed).
+    // DT_RUNPATH is not consulted for dlopen(), so the search is done explicitly
+    // from argv[0] (see launcherSearchDirs).
+    const QString launcherName = headlessMode
+        ? QStringLiteral(DAQSTER_LAUNCHER_HEADLESS_NAME)
+        : QStringLiteral(DAQSTER_LAUNCHER_GUI_NAME);
+
+    QLibrary launcher;
+    for (const QString& dir : launcherSearchDirs(QString::fromLocal8Bit(argv[0]))) {
+        launcher.setFileName(QDir(dir).absoluteFilePath(launcherName));
+        if (launcher.load())
+            break;
+    }
+    if (!launcher.isLoaded())
+        launcher.setFileName(launcherName); // last resort: loader search path
+
+    const auto createApplication = reinterpret_cast<CreateApplicationFn>(
+        launcher.resolve("daqster_create_application"));
+    if (!createApplication) {
+        qCCritical(lcApp) << "Cannot load application launcher" << launcherName
+                          << ":" << launcher.errorString();
+        return 1;
+    }
+
+    std::unique_ptr<QCoreApplication> app(createApplication(argc, argv));
+    if (!app) {
+        qCCritical(lcApp) << "Application launcher" << launcherName
+                          << "failed to create the application object";
+        return 1;
+    }
     QCoreApplication::setApplicationName(DAQSTER_RUNNER_TARGET_NAME);
     QCoreApplication::setApplicationVersion(DAQSTER_VERSION_STRING);
 
     Daqster::AppBootstrap boot(
-        app, "NodeRunner - Run a .flow scene, headless or with a visible runtime UI");
+        *app, "NodeRunner - Run a .flow scene, headless or with a visible runtime UI");
 
     // ── Command line: shared options + runner-specific ones ────────────────
     boot.addStandardOptions();

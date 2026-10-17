@@ -18,10 +18,12 @@ works in both modes.
 > **Status:** the model split is done for 28 of 30 distinct node types
 > (2 outstanding: `VideoOutput`, `AudioDisplayObsolete` — see
 > `DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-051-core-gui-separation-headless.md`).
-> A binary that links *no* QtWidgets is **not** achieved yet — `NodeRunner` still
-> needs `QApplication`, and the core plugin still compiles a few QtWidgets
-> translation units for `AudioDisplayObsolete`. The same document records the
-> blocker.
+> The runner binary no longer links QtWidgets: `NodeRunner` creates its
+> application object through a dlopen()ed launcher (REQ-SW-PL-072) —
+> `DaqsterLauncherHeadless` (a `QGuiApplication`) for headless,
+> `DaqsterLauncherGui` (a `QApplication`) for GUI. The widget stack can still
+> enter a headless process through GUI plugins loaded by `QPluginManager`
+> (plugin gating is tracked separately).
 
 ## Repository layout (actual)
 
@@ -284,17 +286,26 @@ Ownership between creation and shutdown is still well-defined:
 (`CreatePluginObject(..., nullptr)`), because a cached `IWidgetProvider` pointer
 in `ChatGraphModel` outlived them and every later call hit a dangling vtable.
 
-### What headless does not yet give you
+### QtWidgets in the headless run
 
-`ldd build_qt5/bin/NodeRunner | grep -E "Qt5Widgets|Qt5Gui"` is **not** empty
-today. Two reasons, both tracked in the REQ file:
+The runner itself is free of QtWidgets: `ldd build_qt5/bin/NodeRunner` no longer
+lists `libQt5Widgets`. `NodeRunner` links `FrameworkCore` + QtCore only, and the
+application object is created by a dlopen()ed launcher (REQ-SW-PL-072):
 
-1. `NodeRunner` uses `QApplication` (Qt5: part of `QtWidgets`) because QtNodes
-   and `QTimer` need an event loop object. Switching the headless path to
-   `QCoreApplication` is a separate change.
-2. `nodeditor_nodes/core/CMakeLists.txt` still compiles seven QtWidgets
-   translation units out of `node_editor_ide/NodeSupport` because
-   `AudioDisplayModelObsolete` inherits a widget-building display model.
+- `DaqsterLauncherHeadless` — `QGuiApplication` (links Qt::Gui, no QtWidgets)
+- `DaqsterLauncherGui` — `QApplication` (links QtWidgets)
+
+`QGuiApplication` (not `QCoreApplication`) is deliberate: the video pipeline's
+hardware-GL detection (`VideoGLContextManager::hasHardwareGL`) needs a
+`QGuiApplication` instance, so all GPU/GL optimisations stay available in
+headless mode. Both launchers set `Qt::AA_ShareOpenGLContexts`.
+
+`libNodeditorNodesCore` does not link QtWidgets either. The widget stack still
+enters a headless process only because `QPluginManager::SearchForPlugins()`
+loads **every** discovered plugin, and the GUI ones (`RuntimeHostGuiPlugin`,
+`NodeditorNodesGui`, `NodeEditorIde`, `RequirementsManager`, `QtCoinTrader`) link
+QtWidgets. Keeping those out of a headless run is *plugin gating* — a separate
+concern from the launcher, tracked with REQ-SW-PL-056 AC5.
 
 ## Plugin object lifetime
 
@@ -316,8 +327,8 @@ before changing the lifetime rules:
 
 ```bash
 # Regression suite
-cd build_qt5 && ctest    # 11/11
-cd build_qt6 && ctest    # 11/11
+cd build_qt5 && ctest    # 20/20
+cd build_qt6 && ctest    # 20/20
 
 # Headless run of a real flow
 ./build_qt5/bin/NodeRunner --headless --run tests/data/video_effect_chain.flow
@@ -366,7 +377,8 @@ Unit tests for the split itself are deferred under the standing
 
 ## References
 
-- SDRangel: `sdrangel` (GUI) vs `sdrangelsrv` (headless)
+- SDRangel: `sdrangel` (GUI) vs `sdrangelsrv` (headless) — *reference only; Daqster
+  uses one binary + a dlopen()ed app-object launcher (REQ-SW-PL-072), not two.*
 - Runtime mode phases: `docs/Architecture/runtime-mode-architecture.md` (§4.4)
 - Plugin pattern: `DevelopmentProcess/AGENT-PROCESS.md`
 - REQ-SW-PL-053 — the IDE split (`RuntimeHostHeadlessPlugin` + `RuntimeHostGuiPlugin`)
