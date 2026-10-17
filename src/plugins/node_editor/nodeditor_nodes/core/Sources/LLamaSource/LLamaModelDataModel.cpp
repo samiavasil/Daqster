@@ -109,16 +109,17 @@ void LLamaModelDataModel::onLocalChatSend(QString const& text, QJsonArray const&
 // ---------------------------------------------------------------------------
 void LLamaModelDataModel::sendToModel(QJsonArray const& messages, double temperature, int nPredict,
                                       std::function<void(QString)> onResult) {
-  if (!m_connected && !m_serverProcess) {    if (onResult)
-      onResult(QString());
-    return;
-  }
-
+  // REQ-SW-PL-074 (R2): no connection means the request cannot be served. Say
+  // so instead of returning silently — that silence is what made the Конзола ↔
+  // LlamaModel flow look like it "does nothing".
   if (!m_connected) {
+    setStatus(QStringLiteral("Няма връзка със сървъра — свържи се или стартирай локален сървър"),
+              false);
     if (onResult)
       onResult(QString());
     return;
   }
+
 
   m_processingInput = true;
 
@@ -156,8 +157,11 @@ void LLamaModelDataModel::sendToModel(QJsonArray const& messages, double tempera
             m_outputText = std::make_shared<TextData>(fullOutput);
             Q_EMIT dataUpdated(0);
 
-            // Add the exchange JSON to the local JSON tree
-            Q_EMIT chatResponseReceived(content, exchangeObj);
+            // REQ-SW-PL-074 (R3/R4): the exchange goes to the JSON tree only.
+            // A chat bubble is added exclusively by the caller of a LOCAL chat
+            // send (via the onResult callback below), so a port-driven request
+            // from Конзола no longer lands in this node's own chat session.
+            Q_EMIT exchangeAppended(exchangeObj);
 
             if (onResult)
               onResult(content);

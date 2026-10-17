@@ -59,6 +59,7 @@ QWidget* LLamaModelWidget::createServerTab() {
 
     auto* exeLayout = new QHBoxLayout();
     m_exePath = new QLineEdit();
+    m_exePath->setObjectName(QStringLiteral("exePathEdit"));
     m_exePath->setPlaceholderText(tr("Път до llama.cpp (./server)"));
     m_browseExeBtn = new QPushButton("...");
     m_browseExeBtn->setMaximumWidth(30);
@@ -68,6 +69,7 @@ QWidget* LLamaModelWidget::createServerTab() {
 
     auto* modelLayout = new QHBoxLayout();
     m_modelPath = new QLineEdit();
+    m_modelPath->setObjectName(QStringLiteral("modelPathEdit"));
     m_modelPath->setPlaceholderText(tr("Път до модел (.gguf)"));
     m_browseModelBtn = new QPushButton("...");
     m_browseModelBtn->setMaximumWidth(30);
@@ -86,6 +88,7 @@ QWidget* LLamaModelWidget::createServerTab() {
     localLayout->addRow("", m_useGpuCheck);
 
     m_startBtn = new QPushButton(tr("Стартирай сървър"));
+    m_startBtn->setObjectName(QStringLiteral("startServerButton"));
     m_startBtn->setStyleSheet("QPushButton { color: white; background-color: #4CAF50; }");
     localLayout->addRow("", m_startBtn);
 
@@ -117,6 +120,18 @@ QWidget* LLamaModelWidget::createServerTab() {
     // the "..." browse buttons.
     connect(m_exePath, &QLineEdit::textChanged, this, &LLamaModelWidget::exePathSelected);
     connect(m_modelPath, &QLineEdit::textChanged, this, &LLamaModelWidget::modelPathSelected);
+
+    // REQ-SW-PL-074 (R1): the start button's enabled state has to follow the
+    // paths whatever filled them — the "..." dialog, typing/pasting, or
+    // load()/setExePath()/setModelPath(). Before this, the button was only
+    // re-evaluated from setExePath()/setModelPath(), so once the factory
+    // hydrated the widget with empty paths it stayed disabled forever.
+    connect(m_exePath, &QLineEdit::textChanged, this, &LLamaModelWidget::updateStartButtonEnabled);
+    connect(m_modelPath, &QLineEdit::textChanged, this, &LLamaModelWidget::updateStartButtonEnabled);
+
+    // Initial state: both paths are empty here → disabled. Mirrors what the
+    // factory does when it hydrates the widget from the core model.
+    updateStartButtonEnabled();
 
     return w;
 }
@@ -198,6 +213,12 @@ void LLamaModelWidget::addChatResponse(QString const& content, QJsonObject const
     if (!rawJson.isEmpty())
         m_chatWidget->appendJsonToTree(rawJson, false);
     m_chatWidget->addResponse(content);
+}
+
+void LLamaModelWidget::appendExchange(QJsonObject const& exchange) {
+    if (m_chatWidget == nullptr || exchange.isEmpty())
+        return;
+    m_chatWidget->appendJsonToTree(exchange, false);
 }
 
 void LLamaModelWidget::setHost(QString const& host) {

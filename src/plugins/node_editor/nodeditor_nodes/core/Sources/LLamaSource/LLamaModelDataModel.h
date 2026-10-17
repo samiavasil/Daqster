@@ -116,7 +116,14 @@ signals:
   void connectButtonChanged(QString const& text, bool enabled);
   /// Start/stop server button label + stylesheet.
   void startButtonChanged(QString const& text, QString const& styleSheet);
-  /// Raw debug request/response exchange, appended to the JSON tree.
+  /// Raw request/response exchange, appended to the Chat tab's JSON tree.
+  ///
+  /// REQ-SW-PL-074 (R3/R4): this fires for EVERY reply, regardless of where the
+  /// request came from. It must NOT add a chat bubble — a request arriving on
+  /// the port (from the Конзола node) is not the local chat's conversation.
+  void exchangeAppended(QJsonObject const& exchange);
+  /// Local-chat reply only (Chat tab): adds the assistant bubble. Emitted from
+  /// onLocalChatSend()'s callback, never for a port-driven request.
   void chatResponseReceived(QString const& content, QJsonObject const& rawJson);
   void debugResponseReceived(QString const& result);
 

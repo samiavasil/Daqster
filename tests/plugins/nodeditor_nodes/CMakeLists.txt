@@ -1036,3 +1036,78 @@ add_test(NAME demo_nodeditor_nodewidget_tests
          COMMAND demo_nodeditor_nodewidget_tests)
 set_tests_properties(demo_nodeditor_nodewidget_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# ── Конзола ↔ LlamaModel protocol + start-button regression (REQ-SW-PL-074) ──
+#
+# Two targets, because the two halves live on different sides of the
+# REQ-SW-PL-051 core/gui split:
+#
+#   demo_nodeditor_llmwidget_tests  — GUI: LLamaModelWidget's start-button
+#       enable logic (AC 1). The widget is pure QtWidgets, so QApplication +
+#       the offscreen platform plugin is all it needs; the .cpp is compiled in
+#       rather than linked from the GUI plugin .so.
+#
+#   demo_nodeditor_llmprotocol_tests — core: the wire contract between
+#       ConsoleDataModel and LLamaModelDataModel (AC 2-4). Both are
+#       widget-free models; no HTTP server is started, so QCoreApplication
+#       suffices (QTEST_GUILESS_MAIN).
+set(LLM_WIDGET_TEST_SOURCES
+    test_llamamodel_widget.cpp
+    test_llamamodel_widget.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui/Sources/LLamaSource/LLamaModelWidget.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui/Sources/LLamaSource/ChatBaseWidget.cpp
+)
+
+add_executable(demo_nodeditor_llmwidget_tests ${LLM_WIDGET_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_llmwidget_tests PRIVATE
+    # NodeWidgetDialogs.h lives in the GUI plugin's root.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui/Sources/LLamaSource
+)
+
+target_link_libraries(demo_nodeditor_llmwidget_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+)
+
+add_test(NAME demo_nodeditor_llmwidget_tests
+         COMMAND demo_nodeditor_llmwidget_tests)
+set_tests_properties(demo_nodeditor_llmwidget_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+set(LLM_PROTOCOL_TEST_SOURCES
+    test_llama_console_protocol.cpp
+    test_llama_console_protocol.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/LLamaSource/ConsoleDataModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/LLamaSource/LLamaModelDataModel.cpp
+)
+
+add_executable(demo_nodeditor_llmprotocol_tests ${LLM_PROTOCOL_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_llmprotocol_tests PRIVATE
+    # shared/IStoppable.h + shared/IStartable.h live under the core plugin root
+    # (the include is "shared/IStoppable.h", so CORE is the base, not its parent).
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/LLamaSource
+    # NodeDataTypes/TextData.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DEMO_CORE_EXPORT_INCLUDE_DIR}
+)
+target_compile_definitions(demo_nodeditor_llmprotocol_tests PRIVATE ${DEMO_CORE_EXPORT_DEFINITIONS})
+
+target_link_libraries(demo_nodeditor_llmprotocol_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    # LLamaModelDataModel owns a QNetworkAccessManager + a QProcess.
+    Qt${QT_VERSION_MAJOR}::Network
+    QtNodes
+    FrameworkCore
+)
+
+add_test(NAME demo_nodeditor_llmprotocol_tests
+         COMMAND demo_nodeditor_llmprotocol_tests)

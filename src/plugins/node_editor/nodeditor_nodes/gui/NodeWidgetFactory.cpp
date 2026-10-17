@@ -718,6 +718,10 @@ void registerDefaultWidgetCreators(NodeWidgetFactory* factory)
                          widget, &LLamaModelWidget::setDebugResponse);
         QObject::connect(m, &LLamaModelDataModel::chatResponseReceived,
                          widget, &LLamaModelWidget::addChatResponse);
+        // REQ-SW-PL-074 (R3/R4): every reply appends to the Chat tab's JSON
+        // tree, but only a local chat send adds a chat bubble.
+        QObject::connect(m, &LLamaModelDataModel::exchangeAppended,
+                         widget, &LLamaModelWidget::appendExchange);
         return widget;
     });
 }

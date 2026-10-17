@@ -36,6 +36,9 @@ public slots:
     void setDebugResponse(QString const& result);
     /// A chat response arrived — routed to the ChatBaseWidget.
     void addChatResponse(QString const& content, QJsonObject const& rawJson);
+    /// Raw request/response exchange (any origin) — appended to the JSON tree
+    /// only. REQ-SW-PL-074 (R3/R4).
+    void appendExchange(QJsonObject const& exchange);
 
     // ── Initial render, driven by the core model's state ────────────────
     void setHost(QString const& host);
