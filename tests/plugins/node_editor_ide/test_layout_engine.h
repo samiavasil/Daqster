@@ -13,10 +13,13 @@ class TestLayoutEngine : public QObject
 
 private slots:
     void gridBuildsCentralWidget();
+    void buildIntoReplacesExistingCentralWidget();
+    void placeholdersFillEmptyCells();
     void splitRestoresSizes();
     void tabRestoresCurrent();
     void dockBuildsInRightArea();
     void dockFloatsWhenFloating();
+    void deembeddedWidgetBecomesCleanChild();
     void captureRoundTrips();
     void missingNodeSkipsCell();
 };

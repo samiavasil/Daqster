@@ -88,14 +88,10 @@ QJsonObject LayoutNode::toJson() const
     case Type::Grid: {
         json[QStringLiteral("rows")] = rows;
         json[QStringLiteral("cols")] = cols;
-        QJsonArray cellsJson;
-        for (const auto& cell : cells) {
-            if (cell.has_value())
-                cellsJson.append(QJsonObject{{QStringLiteral("node"), static_cast<double>(*cell)}});
-            else
-                cellsJson.append(QJsonValue::Null);
-        }
-        json[QStringLiteral("cells")] = cellsJson;
+        QJsonArray childrenJson;
+        for (const LayoutNode& child : children)
+            childrenJson.append(child.toJson());
+        json[QStringLiteral("children")] = childrenJson;
         break;
     }
     case Type::Tab: {
@@ -137,17 +133,27 @@ LayoutNode LayoutNode::fromJson(const QJsonObject& json)
     case Type::Grid: {
         node.rows = json[QStringLiteral("rows")].toInt(0);
         node.cols = json[QStringLiteral("cols")].toInt(0);
-        const QJsonArray cellsJson = json[QStringLiteral("cells")].toArray();
-        for (const QJsonValue& value : cellsJson) {
-            if (value.isNull()) {
-                node.cells.push_back(std::nullopt);
-            } else {
-                const QJsonObject cellJson = value.toObject();
-                const int cellNode = cellJson[QStringLiteral("node")].toInt(-1);
-                if (cellNode >= 0)
-                    node.cells.push_back(static_cast<QtNodes::NodeId>(cellNode));
-                else
-                    node.cells.push_back(std::nullopt);
+
+        const QJsonArray childrenJson = json[QStringLiteral("children")].toArray();
+        if (!childrenJson.isEmpty()) {
+            // Current format: each cell is a LayoutNode (a Panel or a nested
+            // container), so grids nest like splits/tabs.
+            for (const QJsonValue& value : childrenJson)
+                node.children.push_back(LayoutNode::fromJson(value.toObject()));
+        } else {
+            // Legacy format (pre-nesting): "cells" is a flat array of
+            // { "node": N } | null. Wrap each entry into a Panel child so old
+            // .flow files keep loading.
+            const QJsonArray cellsJson = json[QStringLiteral("cells")].toArray();
+            for (const QJsonValue& value : cellsJson) {
+                LayoutNode cell; // empty Panel by default
+                if (!value.isNull()) {
+                    const int cellNode =
+                        value.toObject()[QStringLiteral("node")].toInt(-1);
+                    if (cellNode >= 0)
+                        cell.nodeId = static_cast<QtNodes::NodeId>(cellNode);
+                }
+                node.children.push_back(cell);
             }
         }
         break;

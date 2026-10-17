@@ -61,6 +61,14 @@ if(NODE_EDITOR_LIB_ENABLED)
     set(LIB_SOURCES
         FlowUiSection.h
         FlowUiSection.cpp
+        # Schema-v2 layout model (LayoutTree, QtCore-only) + widget builder
+        # (LayoutEngine, QtWidgets). Moved here from the NodeEditorIde plugin so
+        # BOTH consumers can link them: NodeEditorIdeObject (Layout Designer,
+        # REQ-SW-PL-059) and RuntimeShell (v2 runtime layout, REQ-SW-PL-053).
+        LayoutTree.h
+        LayoutTree.cpp
+        LayoutEngine.h
+        LayoutEngine.cpp
         # Editor canvas (REQ-SW-PL-053): RuntimeShell in RuntimeHostGuiPlugin
         # drives a NodeEditorWidget to obtain the registry, the scene and the
         # graph model, so these belong in the shared library rather than in the
@@ -173,24 +181,15 @@ set(IDE_SOURCES
     NodeEditorIdeInterface.h
     NodeEditorIdeObject.cpp
     NodeEditorIdeObject.h
-    # Workspace layout engine (REQ-SW-PL-053 Phase 2a): schema-v2 layout tree
-    # data model + widget builder/capturer. Ported verbatim from consolidate.
+    # Workspace layout engine (REQ-SW-PL-053 Phase 2a) now lives in the shared
+    # NodeEditorLibrary so RuntimeShell can build v2 layouts too — see
+    # LIB_SOURCES. This plugin links NodeEditorLibrary and gets the symbols.
     #
-    # LayoutTree is QtCore-only (data model + JSON) but it lives here rather than
-    # in a core plugin on purpose: it reuses FlowUi::Geometry / FlowUi::NodeUi
-    # from the v1 section model in this plugin, and nothing outside node_editor_ide
-    # parses a "ui" section. LayoutEngine is QtWidgets (QMainWindow, QSplitter,
-    # QTabWidget, QDockWidget) — node_editor_ide is a GUI-side plugin, so this is
-    # the correct side of the core/gui line.
-    #
-    # The consumers are NOT wired up yet — NodeEditorIdeObject's F11 v2 workspace
-    # and RuntimeShell::arrangeLayout still use the v1 path. That rewire is the
-    # next block; until it lands these four TUs compile and are unit-tested but
-    # not reachable at runtime, which is stated rather than hidden.
-    LayoutTree.cpp
-    LayoutTree.h
-    LayoutEngine.cpp
-    LayoutEngine.h
+    # Visual layout designer (REQ-SW-PL-059): edits a v2 LayoutSection with the
+    # mouse (structure tree + live LayoutEngine preview) instead of hand-editing
+    # the .flow "ui" JSON.
+    LayoutDesignerPanel.cpp
+    LayoutDesignerPanel.h
 )
 
 create_plugin(NodeEditorIde

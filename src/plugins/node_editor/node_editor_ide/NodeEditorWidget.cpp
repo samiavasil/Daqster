@@ -59,7 +59,8 @@ QWidget* NodeEditorWidget::nodeWidget(QtNodes::NodeId nodeId) const
 
     // nodeData() is the virtual hook ChatGraphModel uses to serve widgets from
     // the IWidgetProvider, so this call works through the base-class pointer.
-    return m_graphModel->nodeData(nodeId, QtNodes::NodeRole::Widget).value<QWidget*>();
+    return QtNodes::widgetFromRoleData(
+        m_graphModel->nodeData(nodeId, QtNodes::NodeRole::Widget));
 }
 
 void NodeEditorWidget::stopAllNodes()

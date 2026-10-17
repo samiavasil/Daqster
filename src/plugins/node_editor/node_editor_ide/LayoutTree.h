@@ -36,13 +36,19 @@ struct LayoutNode
 
     // split
     Orientation orientation = Orientation::Horizontal;
-    std::vector<LayoutNode> children;
     std::vector<int> sizes;
+
+    // Recursive children, uniform across containers:
+    //   - Split: the panes (any container or panel)
+    //   - Tab:   the pages (any container or panel)
+    //   - Grid:  the cells, row-major, kept at exactly rows*cols entries
+    //            (an empty cell is an empty Panel). Storing containers here is
+    //            what makes nesting uniform — a grid cell can hold a split/tab.
+    std::vector<LayoutNode> children;
 
     // grid
     int rows = 0;
     int cols = 0;
-    std::vector<std::optional<QtNodes::NodeId>> cells; // row-major; nullopt = empty cell
 
     // tab
     int currentIndex = 0;
@@ -53,6 +59,20 @@ struct LayoutNode
 
     QJsonObject toJson() const;
     static LayoutNode fromJson(const QJsonObject& json);
+
+    /// A Panel node with no node assigned (the neutral "empty slot" leaf).
+    static LayoutNode emptyPanel()
+    {
+        LayoutNode node;
+        node.type = Type::Panel;
+        return node;
+    }
+
+    bool isPanel() const { return type == Type::Panel; }
+    bool isEmptyPanel() const
+    {
+        return type == Type::Panel && nodeId == QtNodes::InvalidNodeId;
+    }
 };
 
 struct DockLayout

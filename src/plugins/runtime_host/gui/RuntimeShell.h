@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FlowUiSection.h"
+#include "LayoutTree.h"
 #include "NodeEditorWidget.h"
 #include "QBasePluginObject.h"
 #include <QtNodes/Definitions>
@@ -121,7 +122,17 @@ private:
                         QString* errorMessage);
 
     void arrangeWorkspaces(const FlowUi::UiSection& ui);
-    void autoStartNodes(const FlowUi::UiSection& ui);
+
+    /// REQ-SW-PL-053/REQ-SW-PL-059: builds a schema-v2 layout section into the
+    /// runtime main window (central container + docks) via
+    /// FlowUi::LayoutEngine::buildInto, deembedding each referenced node on
+    /// demand. Used instead of arrangeWorkspaces() when the flow's "ui" section
+    /// is version >= 2.
+    void arrangeLayoutV2();
+
+    /// Starts every node flagged autoStart in the loaded "ui" section
+    /// (populated by applySceneJson for both v1 and v2 sections).
+    void autoStartNodes();
 
     /// Deembed a single freshly created node into its workspace MDI area
     /// (REQ-SW-PL-063: REST-created nodes must appear like GUI-created ones).
@@ -158,6 +169,11 @@ private:
     /// Full UI section of the loaded scene (geometry/workspace/deembed state),
     /// kept so `flowJson()` can round-trip the layout, mirroring HeadlessEngine.
     FlowUi::UiSection m_uiSection;
+
+    /// Schema-v2 layout section (REQ-SW-PL-053/REQ-SW-PL-059), kept when the
+    /// flow's "ui" is version >= 2. Mutually exclusive with m_uiSection.
+    FlowUi::LayoutSection m_layoutSectionV2;
+    bool m_hasLayoutV2 = false;
 
     // Node lifecycle as seen by the control plane.
     QHash<QtNodes::NodeId, bool> m_runningNodes;

@@ -42,14 +42,6 @@ bool nodesEqual(const FlowUi::LayoutNode& a, const FlowUi::LayoutNode& b)
         return false;
     if (a.sizes != b.sizes)
         return false;
-    if (a.cells.size() != b.cells.size())
-        return false;
-    for (size_t i = 0; i < a.cells.size(); ++i) {
-        if (a.cells[i].has_value() != b.cells[i].has_value())
-            return false;
-        if (a.cells[i].has_value() && *a.cells[i] != *b.cells[i])
-            return false;
-    }
     if (a.children.size() != b.children.size())
         return false;
     for (size_t i = 0; i < a.children.size(); ++i) {
@@ -69,7 +61,12 @@ FlowUi::WorkspaceLayout makeGridWorkspace()
     grid.type = FlowUi::LayoutNode::Type::Grid;
     grid.rows = 2;
     grid.cols = 2;
-    grid.cells = {1u, 2u, 3u, 4u};
+    for (QtNodes::NodeId id = 1; id <= 4; ++id) {
+        FlowUi::LayoutNode cell;
+        cell.type = FlowUi::LayoutNode::Type::Panel;
+        cell.nodeId = id;
+        grid.children.push_back(cell);
+    }
     ws.root = grid;
 
     FlowUi::DockLayout dock;
@@ -94,7 +91,12 @@ void TestLayoutEngine::gridBuildsCentralWidget()
     grid.type = FlowUi::LayoutNode::Type::Grid;
     grid.rows = 2;
     grid.cols = 2;
-    grid.cells = {1u, 2u, 3u, 4u};
+    for (QtNodes::NodeId id = 1; id <= 4; ++id) {
+        FlowUi::LayoutNode cell;
+        cell.type = FlowUi::LayoutNode::Type::Panel;
+        cell.nodeId = id;
+        grid.children.push_back(cell);
+    }
     ws.root = grid;
 
     QMainWindow* window = FlowUi::LayoutEngine::buildWorkspace(ws, dummyProvider());
@@ -117,6 +119,67 @@ void TestLayoutEngine::gridBuildsCentralWidget()
         QCOMPARE(cell->property("layoutNodeId").toUInt(), static_cast<uint>(index + 1));
     }
     delete window;
+}
+
+// REQ-SW-PL-053/REQ-SW-PL-059: RuntimeShell applies a v2 layout to its existing
+// runtime window via buildInto() instead of creating a second QMainWindow.
+void TestLayoutEngine::buildIntoReplacesExistingCentralWidget()
+{
+    QMainWindow host;
+    QWidget* oldCentral = new QWidget(&host);
+    host.setCentralWidget(oldCentral);
+
+    const FlowUi::WorkspaceLayout ws = makeGridWorkspace();
+    const bool built = FlowUi::LayoutEngine::buildInto(&host, ws, dummyProvider());
+    QVERIFY(built);
+
+    QWidget* central = host.centralWidget();
+    QVERIFY(central != nullptr);
+    QVERIFY(central != oldCentral);
+    QCOMPARE(central->property("layoutNodeType").toString(), QStringLiteral("grid"));
+
+    // The dock declared by the workspace is attached to the host window.
+    QCOMPARE(host.findChildren<QDockWidget*>().size(), 1);
+    QCOMPARE(host.property("layoutWorkspaceId").toInt(), 0);
+}
+
+// REQ-SW-PL-059: the Layout Designer preview must show EMPTY slots (dashed
+// placeholders) so the structure is visible before widgets are dropped in,
+// while runtime keeps empty slots invisible. captureWorkspace() must still read
+// placeholders back as empty cells.
+void TestLayoutEngine::placeholdersFillEmptyCells()
+{
+    FlowUi::WorkspaceLayout ws;
+    ws.id = 0;
+    FlowUi::LayoutNode grid;
+    grid.type = FlowUi::LayoutNode::Type::Grid;
+    grid.rows = 2;
+    grid.cols = 2;
+    grid.children.assign(4, FlowUi::LayoutNode::emptyPanel());
+    ws.root = grid;
+
+    // Runtime default: empty cells contribute no widget.
+    QMainWindow* runtime = FlowUi::LayoutEngine::buildWorkspace(ws, dummyProvider());
+    auto* runtimeGrid = qobject_cast<QGridLayout*>(runtime->centralWidget()->layout());
+    QVERIFY(runtimeGrid != nullptr);
+    QCOMPARE(runtimeGrid->count(), 0);
+    delete runtime;
+
+    // Designer: one placeholder per empty cell.
+    FlowUi::LayoutEngine::BuildOptions options;
+    options.placeholders = true;
+    QMainWindow* designer = FlowUi::LayoutEngine::buildWorkspace(ws, dummyProvider(), options);
+    auto* designerGrid = qobject_cast<QGridLayout*>(designer->centralWidget()->layout());
+    QVERIFY(designerGrid != nullptr);
+    QCOMPARE(designerGrid->count(), 4);
+
+    // Round-trip: placeholders are not mistaken for assigned nodes.
+    const FlowUi::WorkspaceLayout captured = FlowUi::LayoutEngine::captureWorkspace(designer);
+    QCOMPARE(captured.root.type, FlowUi::LayoutNode::Type::Grid);
+    QCOMPARE(static_cast<int>(captured.root.children.size()), 4);
+    for (const auto& cell : captured.root.children)
+        QVERIFY(cell.isEmptyPanel());
+    delete designer;
 }
 
 void TestLayoutEngine::splitRestoresSizes()
@@ -255,6 +318,56 @@ void TestLayoutEngine::dockFloatsWhenFloating()
     delete window;
 }
 
+void TestLayoutEngine::deembeddedWidgetBecomesCleanChild()
+{
+    // Regression: in the v2 runtime the video widgets' effect dropdowns opened
+    // far from the mouse and their buttons were not clickable. Cause: the graph
+    // deembeds a node widget by floating it as a top-level window (its own
+    // QWindow); if the window flags are stripped while it is still parentless,
+    // Qt skips the window-to-child cleanup on reparent and mapToGlobal() keeps
+    // using the stale QWindow. The provider therefore hands the widget over
+    // still deembedded and LayoutEngine clears the flags after the reparent.
+    FlowUi::WorkspaceLayout ws;
+    ws.id = 0;
+    FlowUi::LayoutNode panel;
+    panel.type = FlowUi::LayoutNode::Type::Panel;
+    panel.nodeId = 7;
+    ws.root = panel;
+
+    QWidget* nodeWidget = nullptr;
+    QMainWindow* window = FlowUi::LayoutEngine::buildWorkspace(
+        ws, [&nodeWidget](QtNodes::NodeId) -> QWidget* {
+            auto* widget = new QWidget();
+            // Mimic NodeGraphicsObject::setWidgetEmbedded(false): float as a
+            // top-level window, which creates the widget's own QWindow.
+            widget->setParent(nullptr, Qt::Window | Qt::WindowStaysOnTopHint);
+            widget->resize(120, 80);
+            widget->showNormal();
+            nodeWidget = widget;
+            return widget;
+        });
+    QVERIFY(window != nullptr);
+    QVERIFY(nodeWidget != nullptr);
+
+    window->resize(400, 300);
+    window->move(150, 120);
+    window->show();
+    QCoreApplication::processEvents();
+
+    // The stale QWindow is gone: the widget is a plain child of the layout tree.
+    QVERIFY(!nodeWidget->isWindow());
+    QVERIFY(nodeWidget->windowHandle() == nullptr);
+    QVERIFY(!(nodeWidget->windowFlags() & Qt::WindowStaysOnTopHint));
+
+    // mapToGlobal() tracks the real parent chain instead of a stale window.
+    QWidget* parent = nodeWidget->parentWidget();
+    QVERIFY(parent != nullptr);
+    QCOMPARE(nodeWidget->mapToGlobal(QPoint(0, 0)),
+             parent->mapToGlobal(nodeWidget->pos()));
+
+    delete window;
+}
+
 void TestLayoutEngine::captureRoundTrips()
 {
     const FlowUi::WorkspaceLayout ws = makeGridWorkspace();
@@ -289,7 +402,12 @@ void TestLayoutEngine::missingNodeSkipsCell()
     grid.type = FlowUi::LayoutNode::Type::Grid;
     grid.rows = 1;
     grid.cols = 2;
-    grid.cells = {1u, 2u};
+    for (QtNodes::NodeId id = 1; id <= 2; ++id) {
+        FlowUi::LayoutNode cell;
+        cell.type = FlowUi::LayoutNode::Type::Panel;
+        cell.nodeId = id;
+        grid.children.push_back(cell);
+    }
     ws.root = grid;
 
     // Provider cannot supply node 2 → its cell is skipped.

@@ -1,5 +1,6 @@
 #include "NodeEditorIdeObject.h"
 #include "NodeEditorWidget.h"
+#include "LayoutDesignerPanel.h"
 #include "QPluginManager.h"
 #include "QPluginManagerGui.h"
 #include "capabilities/INodeProvider.h"
@@ -135,9 +136,41 @@ bool NodeEditorIdeObject::Initialize()
         loadSceneTolerant();
     });
 
+    // ── Layout Designer (REQ-SW-PL-059): F6 visual layout editor ───────────
+    m_designerAction = fileMenu->addAction(tr("Layout Designer"));
+    m_designerAction->setShortcut(Qt::Key_F6);
+    m_designerAction->setCheckable(true);
+    connect(m_designerAction, &QAction::toggled, this, [this](bool enabled) {
+        setLayoutDesignerMode(enabled);
+    });
+
     l->addWidget(m_Widget);
     l->setContentsMargins(0, 0, 0, 0);
     l->setSpacing(0);
+
+    // The designer panel lives next to the canvas; only one of the two is
+    // visible at a time (see setLayoutDesignerMode).
+    m_designer = new LayoutDesignerPanel(mainWidget);
+    m_designer->setVisible(false);
+    m_designer->setProvider([this](QtNodes::NodeId nodeId) -> QWidget* {
+        if (!m_Widget)
+            return nullptr;
+        // Handed over still deembedded (a hidden top-level window): the engine
+        // reparents it into its container and LayoutEngine drops the leftover
+        // window flags afterwards. Stripping them here - while the widget is
+        // still parentless - would leave a stale QWindow behind and break
+        // mapToGlobal (popups would open far from the mouse).
+        return m_Widget->nodeWidget(nodeId);
+    });
+    connect(m_designer, &LayoutDesignerPanel::saveRequested,
+            this, &NodeEditorIdeObject::saveLayoutFromDesigner);
+    connect(m_designer, &LayoutDesignerPanel::closed, this, [this]() {
+        if (m_designerAction)
+            m_designerAction->setChecked(false);
+        else
+            setLayoutDesignerMode(false);
+    });
+    l->addWidget(m_designer);
 
     m_Win->resize(1024, 768);
     m_Win->show();
@@ -269,6 +302,8 @@ void NodeEditorIdeObject::MainWinDestroyed(QObject* obj)
 {
     m_Win = nullptr;
     m_Widget = nullptr;
+    m_designer = nullptr;
+    m_designerAction = nullptr;
     deleteLater();
     if (nullptr == obj)
         DEBUG << "Strange::!!!";
@@ -373,6 +408,122 @@ void NodeEditorIdeObject::togglePresentationMode()
     }
 }
 
+// ── Layout Designer (REQ-SW-PL-059) ─────────────────────────────────────────
+// F6 toggles a visual editor for the schema-v2 "ui" section. It works on a
+// FlowUi::LayoutSection (split/grid/tab/panel + docks), renders it live with
+// LayoutEngine::buildWorkspace() and serializes it back on save.
+void NodeEditorIdeObject::setLayoutDesignerMode(bool enabled)
+{
+    if (!m_designer || !m_Widget || !m_Win)
+        return;
+    if (enabled == m_designerMode)
+        return;
+
+    if (enabled) {
+        // The engine reparents node widgets into the preview, so they must be
+        // detached from the canvas first (same two-step deembed as F11).
+        deembedAllWidgets();
+
+        if (m_hasLayoutV2)
+            m_designer->setLayoutSection(m_layoutSectionV2);
+        else {
+            FlowUi::LayoutSection section;
+            section.version = 2;
+            m_designer->setLayoutSection(section);
+        }
+        m_designer->setAvailableNodes(collectAvailableNodes());
+
+        m_Widget->hide();
+        m_designer->show();
+        m_designer->refresh();
+
+        qCInfo(lcNodeEditor) << "Layout designer: ON";
+    } else {
+        // Keep what the user designed so the next save writes version 2.
+        m_layoutSectionV2 = m_designer->layoutSection();
+        m_layoutSectionV2.version = 2;
+        m_hasLayoutV2 = true;
+
+        m_designer->hide();
+        m_Widget->show();
+        reembedAllWidgets();
+
+        qCInfo(lcNodeEditor) << "Layout designer: OFF (v2 section kept)";
+    }
+
+    m_designerMode = enabled;
+}
+
+void NodeEditorIdeObject::deembedAllWidgets()
+{
+    if (!m_Widget || !m_Widget->scene())
+        return;
+
+    for (const QtNodes::NodeId nodeId : m_Widget->graphModel()->allNodeIds()) {
+        QtNodes::NodeGraphicsObject* node = m_Widget->scene()->nodeGraphicsObject(nodeId);
+        if (node == nullptr || !node->hasWidget() || !node->isWidgetEmbedded())
+            continue;
+
+        node->setWidgetEmbedded(false);
+
+        QWidget* w = m_Widget->nodeWidget(nodeId);
+        if (w != nullptr)
+            w->hide(); // keep the top-level flags until the engine reparents it
+    }
+}
+
+void NodeEditorIdeObject::reembedAllWidgets()
+{
+    if (!m_Widget || !m_Widget->scene())
+        return;
+
+    for (const QtNodes::NodeId nodeId : m_Widget->graphModel()->allNodeIds()) {
+        QtNodes::NodeGraphicsObject* node = m_Widget->scene()->nodeGraphicsObject(nodeId);
+        if (node == nullptr || !node->hasWidget() || node->isWidgetEmbedded())
+            continue;
+
+        QWidget* w = m_Widget->nodeWidget(nodeId);
+        if (w != nullptr)
+            w->hide();
+
+        node->setWidgetEmbedded(true);
+    }
+}
+
+QVector<QPair<QtNodes::NodeId, QString>> NodeEditorIdeObject::collectAvailableNodes() const
+{
+    QVector<QPair<QtNodes::NodeId, QString>> nodes;
+    if (m_Widget == nullptr || m_Widget->scene() == nullptr)
+        return nodes;
+
+    for (const QtNodes::NodeId nodeId : m_Widget->graphModel()->allNodeIds()) {
+        QtNodes::NodeGraphicsObject* node = m_Widget->scene()->nodeGraphicsObject(nodeId);
+        if (node == nullptr || !node->hasWidget())
+            continue;
+
+        auto* model =
+            m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
+        QString label = model != nullptr ? model->caption() : QString();
+        if (label.isEmpty())
+            label = tr("Node");
+        nodes.append({nodeId, tr("%1 (#%2)").arg(label).arg(nodeId)});
+    }
+    return nodes;
+}
+
+void NodeEditorIdeObject::saveLayoutFromDesigner()
+{
+    if (m_designer == nullptr)
+        return;
+
+    m_layoutSectionV2 = m_designer->layoutSection();
+    m_layoutSectionV2.version = 2;
+    m_hasLayoutV2 = true;
+
+    if (saveSceneToFile())
+        qCInfo(lcNodeEditor) << "Layout designer: layout saved as ui version 2";
+}
+
 // ── Tolerant scene load (REQ-SW-PL-037) ─────────────────────────────────────
 // QtNodes' DataFlowGraphModel::loadNode() throws std::logic_error when a saved
 // scene references a model type that is not registered in the current
@@ -416,10 +567,23 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
 
     QJsonObject sceneJson = sceneDocument.object();
 
-    // Extract the "ui" section (REQ-SW-PL-049) BEFORE the node-cleaning loop:
-    // it is not part of the graph model JSON and must not be passed to load().
-    // Missing "ui" (old flow) → empty section → current behavior.
-    const FlowUi::UiSection uiSection = FlowUi::UiSection::fromJson(sceneJson["ui"].toObject());
+    // Extract the "ui" section (REQ-SW-PL-049 / v2 REQ-SW-PL-059) BEFORE the
+    // node-cleaning loop: it is not part of the graph model JSON and must not be
+    // passed to load(). Missing "ui" (old flow) → empty section → current
+    // behavior. version>=2 dispatches to the recursive LayoutSection model, v1
+    // keeps the flat UiSection path.
+    const QJsonObject uiJson = sceneJson["ui"].toObject();
+    const int uiVersion = uiJson["version"].toInt(1);
+
+    FlowUi::UiSection uiSection;
+    FlowUi::LayoutSection layoutV2;
+    bool hasV2 = false;
+    if (uiVersion >= 2) {
+        layoutV2 = FlowUi::LayoutSection::fromJson(uiJson);
+        hasV2 = !layoutV2.workspaces.empty();
+    } else {
+        uiSection = FlowUi::UiSection::fromJson(uiJson);
+    }
     sceneJson.remove("ui");
 
     const QJsonArray nodesJsonArray = sceneJson["nodes"].toArray();
@@ -468,7 +632,19 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
     }
 
     // Restore the runtime UI layout captured in the "ui" section (REQ-SW-PL-049).
-    applyUiSection(uiSection);
+    // v2 sections are stored for the Layout Designer (REQ-SW-PL-059); the v1
+    // path keeps its deembed/geometry restore.
+    if (hasV2) {
+        m_layoutSectionV2 = layoutV2;
+        m_hasLayoutV2 = true;
+        if (m_designer != nullptr)
+            m_designer->setLayoutSection(layoutV2);
+        qCInfo(lcNodeEditor) << "loadSceneFromFile: ui version 2 section loaded ("
+                             << layoutV2.workspaces.size() << "workspaces)";
+    } else {
+        m_hasLayoutV2 = false;
+        applyUiSection(uiSection);
+    }
 
     const int loadedNodeCount = static_cast<int>(m_Widget->graphModel()->allNodeIds().size());
     const int loadedConnCount = static_cast<int>(
@@ -542,7 +718,13 @@ bool NodeEditorIdeObject::saveSceneToFile()
         sceneJson["groups"] = groupsJsonArray;
     }
 
-    sceneJson["ui"] = captureUiSection().toJson();
+    if (m_hasLayoutV2) {
+        // Layout Designer output (REQ-SW-PL-059): recursive schema-v2 section.
+        m_layoutSectionV2.version = 2;
+        sceneJson["ui"] = m_layoutSectionV2.toJson();
+    } else {
+        sceneJson["ui"] = captureUiSection().toJson();
+    }
 
     file.write(QJsonDocument(sceneJson).toJson(QJsonDocument::Indented));
     qCInfo(lcNodeEditor) << "saveSceneToFile: saved" << fileName;

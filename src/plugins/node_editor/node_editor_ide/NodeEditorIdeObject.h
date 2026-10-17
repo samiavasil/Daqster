@@ -1,14 +1,19 @@
 #pragma once
 
 #include "FlowUiSection.h"
+#include "LayoutTree.h"
 #include "QBasePluginObject.h"
 #include <QtNodes/Definitions>
 
 #include <QEvent>
 #include <QList>
+#include <QPair>
+#include <QVector>
 #include <vector>
 
+class LayoutDesignerPanel;
 class NodeEditorWidget;
+class QAction;
 class QMainWindow;
 class QWidget;
 namespace Daqster {
@@ -109,8 +114,35 @@ private:
     /// are skipped).
     void applyUiSection(const FlowUi::UiSection& ui);
 
+    // ── Layout Designer (REQ-SW-PL-059) ────────────────────────────────────
+    /// Toggles the visual layout designer (F6): hides the canvas and shows the
+    /// designer panel, or captures the designed section and returns to canvas.
+    void setLayoutDesignerMode(bool enabled);
+
+    /// Deembeds every node widget so the layout engine can reparent it into the
+    /// designer preview, or re-embeds them when returning to the canvas.
+    void deembedAllWidgets();
+    void reembedAllWidgets();
+
+    /// Nodes that have a widget (offered in the designer's Available list).
+    QVector<QPair<QtNodes::NodeId, QString>> collectAvailableNodes() const;
+
+    /// Persists the section currently held by the designer and saves the scene.
+    void saveLayoutFromDesigner();
+
     QMainWindow* m_Win;
     NodeEditorWidget* m_Widget;
+
+    /// Visual layout designer (REQ-SW-PL-059). Created in Initialize(), shown
+    /// only in designer mode.
+    LayoutDesignerPanel* m_designer = nullptr;
+    bool m_designerMode = false;
+    QAction* m_designerAction = nullptr;
+
+    /// Schema-v2 layout section (REQ-SW-PL-053 Phase 2a / REQ-SW-PL-059): kept
+    /// when a .flow carries a version>=2 "ui" section or after the designer runs.
+    FlowUi::LayoutSection m_layoutSectionV2;
+    bool m_hasLayoutV2 = false;
 
     /// Workspace layout captured at save time (REQ-SW-PL-049). Empty until a
     /// .flow with a "ui" section is loaded or a save captures the default.

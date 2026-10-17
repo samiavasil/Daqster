@@ -1,5 +1,6 @@
 #include "LLamaModelWidget.h"
 #include "ChatBaseWidget.h"
+#include "NodeWidgetDialogs.h"
 
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QHBoxLayout>
@@ -95,14 +96,16 @@ QWidget* LLamaModelWidget::createServerTab() {
     connect(m_startBtn, &QPushButton::clicked, this, &LLamaModelWidget::startServerClicked);
 
     connect(m_browseExeBtn, &QPushButton::clicked, this, [this]() {
-        QString path = QFileDialog::getOpenFileName(this, tr("Изберете llama.cpp сървър"));
+        QString path = QFileDialog::getOpenFileName(Daqster::nodeWidgetDialogParent(this),
+                                                    tr("Изберете llama.cpp сървър"));
         if (!path.isEmpty()) {
             m_exePath->setText(path);
             Q_EMIT exePathSelected(path);
         }
     });
     connect(m_browseModelBtn, &QPushButton::clicked, this, [this]() {
-        QString path = QFileDialog::getOpenFileName(this, tr("Изберете модел (.gguf)"),
+        QString path = QFileDialog::getOpenFileName(Daqster::nodeWidgetDialogParent(this),
+                                                    tr("Изберете модел (.gguf)"),
                                                     QString(), tr("GGUF файлове (*.gguf)"));
         if (!path.isEmpty()) {
             m_modelPath->setText(path);

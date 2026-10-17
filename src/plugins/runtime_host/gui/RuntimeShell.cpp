@@ -1,4 +1,6 @@
 #include "RuntimeShell.h"
+#include "LayoutEngine.h"
+#include "LayoutTree.h"
 #include "NodeEditorWidget.h"
 #include "QPluginManager.h"
 #include "capabilities/INodeProvider.h"
@@ -153,11 +155,15 @@ bool RuntimeShell::RunRuntime(const QString& flowPath)
         return false;
     }
 
-    // 5. Arrange deembedded widgets in MDI workspaces
-    arrangeWorkspaces(m_uiSection);
+    // 5. Arrange deembedded widgets: schema-v2 layout via LayoutEngine
+    // (REQ-SW-PL-053/REQ-SW-PL-059) or the legacy v1 MDI workspaces.
+    if (m_hasLayoutV2)
+        arrangeLayoutV2();
+    else
+        arrangeWorkspaces(m_uiSection);
 
     // 6. Auto-start nodes
-    autoStartNodes(m_uiSection);
+    autoStartNodes();
 
     // Show the runtime window
     m_mainWindow->setWindowTitle(tr("Daqster Runtime — %1").arg(QFileInfo(flowPath).fileName()));
@@ -340,9 +346,23 @@ bool RuntimeShell::applySceneJson(QJsonObject sceneJson,
         return false;
     }
 
-    // Extract the "ui" section (REQ-SW-PL-049) BEFORE the node-cleaning loop:
-    // it is not part of the graph model JSON and must not be passed to load().
-    const FlowUi::UiSection uiSection = FlowUi::UiSection::fromJson(sceneJson["ui"].toObject());
+    // Extract the "ui" section (REQ-SW-PL-049; v2 REQ-SW-PL-053) BEFORE the
+    // node-cleaning loop: it is not part of the graph model JSON and must not be
+    // passed to load(). Missing "ui" (old flow) → empty section → defaults.
+    // version >= 2 dispatches to the recursive LayoutSection model; v1 keeps the
+    // flat UiSection path.
+    const QJsonObject uiJson = sceneJson["ui"].toObject();
+    const int uiVersion = uiJson["version"].toInt(1);
+
+    FlowUi::UiSection uiSection;
+    FlowUi::LayoutSection layoutV2;
+    bool hasV2 = false;
+    if (uiVersion >= 2) {
+        layoutV2 = FlowUi::LayoutSection::fromJson(uiJson);
+        hasV2 = !layoutV2.workspaces.empty();
+    } else {
+        uiSection = FlowUi::UiSection::fromJson(uiJson);
+    }
     sceneJson.remove("ui");
 
     const QJsonArray nodesJsonArray = sceneJson["nodes"].toArray();
@@ -393,11 +413,21 @@ bool RuntimeShell::applySceneJson(QJsonObject sceneJson,
     }
 
     // Store the full UI section plus the derived autoStart flags for later use.
-    m_uiSection = uiSection;
-    m_workspaces = uiSection.workspaces;
+    // v2 keeps the layout section; autoStart comes from its `nodes` map.
+    m_hasLayoutV2 = hasV2;
     m_autoStartNodes.clear();
-    for (auto it = uiSection.nodes.constBegin(); it != uiSection.nodes.constEnd(); ++it) {
-        m_autoStartNodes.insert(it.key(), it.value().autoStart);
+    if (hasV2) {
+        m_layoutSectionV2 = layoutV2;
+        m_uiSection = FlowUi::UiSection{};
+        m_workspaces.clear();
+        for (auto it = layoutV2.nodes.constBegin(); it != layoutV2.nodes.constEnd(); ++it)
+            m_autoStartNodes.insert(it.key(), it.value().autoStart);
+    } else {
+        m_layoutSectionV2 = FlowUi::LayoutSection{};
+        m_uiSection = uiSection;
+        m_workspaces = uiSection.workspaces;
+        for (auto it = uiSection.nodes.constBegin(); it != uiSection.nodes.constEnd(); ++it)
+            m_autoStartNodes.insert(it.key(), it.value().autoStart);
     }
 
     // A fresh graph means nothing is running yet.
@@ -525,16 +555,79 @@ void RuntimeShell::arrangeWorkspaces(const FlowUi::UiSection& ui)
     }
 }
 
-void RuntimeShell::autoStartNodes(const FlowUi::UiSection& ui)
+// REQ-SW-PL-053/REQ-SW-PL-059: build a schema-v2 layout into the runtime window.
+// The engine sets the central container and adds docks; panel/cell/dock widgets
+// are obtained from the graph's IWidgetProvider, deembedding each node on demand
+// (the canvas is hidden, so a node not referenced by the layout simply stays
+// embedded and invisible).
+void RuntimeShell::arrangeLayoutV2()
+{
+    if (!m_mainWindow || !m_editorWidget || !m_editorWidget->scene())
+        return;
+
+    if (m_layoutSectionV2.workspaces.empty()) {
+        // Fall back to the legacy path (which builds a default empty workspace)
+        // rather than leaving the window blank.
+        arrangeWorkspaces(m_uiSection);
+        return;
+    }
+
+    if (m_layoutSectionV2.workspaces.size() > 1) {
+        qCWarning(lcNodeEditor)
+            << "RuntimeShell: v2 section declares" << m_layoutSectionV2.workspaces.size()
+            << "workspaces; building the first (multi-workspace runtime layout is not wired yet)";
+    }
+
+    // The canvas (NodeEditorWidget) is parented to the initial central widget,
+    // which LayoutEngine::buildInto() replaces — detach it first so it survives.
+    m_editorWidget->setParent(m_mainWindow);
+    m_editorWidget->hide();
+
+    const FlowUi::WorkspaceLayout& ws = m_layoutSectionV2.workspaces.front();
+
+    // Note: the provider must NOT touch the widget's window flags here. The
+    // widget is still a parentless top-level window at this point; stripping
+    // Qt::Window now would make Qt skip the window-to-child cleanup when the
+    // engine reparents it, leaving a stale QWindow behind that breaks
+    // mapToGlobal (popups open far from the mouse, clicks miss). LayoutEngine
+    // clears the flags after the reparent instead.
+    auto provider = [this](QtNodes::NodeId nodeId) -> QWidget* {
+        if (nodeId == QtNodes::InvalidNodeId)
+            return nullptr;
+        if (!m_editorWidget->graphModel()->nodeExists(nodeId))
+            return nullptr;
+
+        QtNodes::NodeGraphicsObject* node =
+            m_editorWidget->scene()->nodeGraphicsObject(nodeId);
+        if (node == nullptr || !node->hasWidget())
+            return nullptr;
+
+        // Deembed so the engine can reparent the widget into its container.
+        if (node->isWidgetEmbedded())
+            node->setWidgetEmbedded(false);
+
+        return m_editorWidget->nodeWidget(nodeId);
+    };
+
+    if (!FlowUi::LayoutEngine::buildInto(m_mainWindow, ws, provider)) {
+        qCWarning(lcNodeEditor)
+            << "RuntimeShell: v2 layout produced no widgets; falling back to v1 workspaces";
+        arrangeWorkspaces(m_uiSection);
+        return;
+    }
+
+    qCInfo(lcNodeEditor) << "RuntimeShell: v2 layout built (workspace" << ws.id << ")";
+}
+
+void RuntimeShell::autoStartNodes()
 {
     if (!m_editorWidget || !m_editorWidget->graphModel())
         return;
 
-    for (auto it = ui.nodes.constBegin(); it != ui.nodes.constEnd(); ++it) {
+    for (auto it = m_autoStartNodes.constBegin(); it != m_autoStartNodes.constEnd(); ++it) {
         const QtNodes::NodeId nodeId = it.key();
-        const FlowUi::NodeUi& nui = it.value();
 
-        if (!nui.autoStart)
+        if (!it.value())
             continue;
 
         // Tolerant load guard
@@ -801,7 +894,10 @@ QJsonObject RuntimeShell::flowJson() const
     if (auto* graph = graphModel())
         flow = graph->save(); // { "nodes": [...], "connections": [...] }
 
-    flow.insert(QStringLiteral("ui"), m_uiSection.toJson());
+    if (m_hasLayoutV2)
+        flow.insert(QStringLiteral("ui"), m_layoutSectionV2.toJson());
+    else
+        flow.insert(QStringLiteral("ui"), m_uiSection.toJson());
     return flow;
 }
 
@@ -1150,9 +1246,12 @@ bool RuntimeShell::reloadFlow(const QJsonObject& flow, QString* errorMessage)
         return false;
     }
 
-    // Rebuild the MDI layout and re-run autoStart against the new UI section.
-    arrangeWorkspaces(m_uiSection);
-    autoStartNodes(m_uiSection);
+    // Rebuild the layout and re-run autoStart against the new UI section.
+    if (m_hasLayoutV2)
+        arrangeLayoutV2();
+    else
+        arrangeWorkspaces(m_uiSection);
+    autoStartNodes();
 
     if (!skippedTypes.isEmpty())
         qCWarning(lcNodeEditor) << "reloadFlow: skipped unregistered node types:"

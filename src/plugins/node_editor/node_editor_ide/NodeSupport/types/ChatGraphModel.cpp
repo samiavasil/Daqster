@@ -88,7 +88,7 @@ QVariant ChatGraphModel::nodeData(QtNodes::NodeId nodeId, QtNodes::NodeRole role
     if (role == QtNodes::NodeRole::Widget) {
         QWidget* widget = nodeWidget(nodeId);
         if (widget)
-            return QVariant::fromValue(widget);
+            return QtNodes::widgetRoleData(widget);
         return QVariant(); // No widget
     }
     return QtNodes::DataFlowGraphModel::nodeData(nodeId, role);
