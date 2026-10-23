@@ -43,14 +43,35 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     // Config file setup — use writable location for AppImage compatibility.
     // Qt5 and Qt6 must use separate config files to avoid corruption when
     // both run simultaneously on the same machine.
+    // ALSO: use a build-specific config file name to isolate persistency
+    // between different builds (e.g. daqster vs DaqsterAiStudio) that share
+    // the same user config directory. The build identity is derived from the
+    // application directory path.
     QString resolvedConfig;
-    if (ConfigFile.isEmpty() || ConfigFile == "daqster.ini") {
+    QString envConfigFile = qgetenv("DAQSTER_CONFIG_FILE");
+    if (!envConfigFile.isEmpty()) {
+        resolvedConfig = envConfigFile;
+    } else if (ConfigFile.isEmpty() || ConfigFile == "daqster.ini") {
         QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
         QDir().mkpath(configDir);
+        
+        // Derive build-specific suffix from application directory
+        QString appDir = QDir(qApp->applicationDirPath()).absolutePath();
+        QString buildSuffix;
+        if (appDir.contains("DaqsterAiStudio", Qt::CaseInsensitive)) {
+            buildSuffix = "DaqsterAiStudio";
+        } else if (appDir.contains("/daqster/", Qt::CaseInsensitive) || appDir.endsWith("/daqster", Qt::CaseInsensitive)) {
+            buildSuffix = "daqster";
+        } else {
+            // Fallback: use last directory name as identifier
+            buildSuffix = QDir(appDir).dirName();
+            buildSuffix.remove(QRegularExpression("[^a-zA-Z0-9]"));
+        }
+        
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        resolvedConfig = configDir + "/daqster_qt6.ini";
+        resolvedConfig = configDir + "/daqster_qt6_" + buildSuffix + ".ini";
 #else
-        resolvedConfig = configDir + "/daqster_qt5.ini";
+        resolvedConfig = configDir + "/daqster_qt5_" + buildSuffix + ".ini";
 #endif
     } else {
         resolvedConfig = ConfigFile;
