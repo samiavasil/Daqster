@@ -59,7 +59,25 @@ void ApplicationsManager::setupProcessEnvironment(QProcess* process,
     Q_UNUSED(name);
     Q_UNUSED(arguments);
     
+    // Start from system environment but preserve Qt-related variables from the
+    // current process (which may have been modified via qputenv for theming, etc.)
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    
+    // Preserve Qt environment variables from current process that affect appearance/behavior
+    static const char* const qtEnvVars[] = {
+        "QT_QPA_PLATFORMTHEME", "QT_STYLE_OVERRIDE", "QT_QPA_PLATFORM",
+        "QT_AUTO_SCREEN_SCALE_FACTOR", "QT_SCALE_FACTOR", "QT_FONT_DPI",
+        "QT_SCREEN_SCALE_FACTORS", "QT_QPA_PLATFORMTHEME", "QT_WAYLAND_DISABLE_WINDOWDECORATION",
+        "QT_LOGGING_RULES", "QT_MESSAGE_PATTERN",
+        nullptr
+    };
+    for (int i = 0; qtEnvVars[i]; ++i) {
+        QByteArray val = qgetenv(qtEnvVars[i]);
+        if (!val.isEmpty()) {
+            env.insert(qtEnvVars[i], QString::fromUtf8(val));
+        }
+    }
+    
     QString basePath = qApp->applicationDirPath();
     
     qCDebug(lcApp) << "Current working directory:" << QDir::currentPath();
