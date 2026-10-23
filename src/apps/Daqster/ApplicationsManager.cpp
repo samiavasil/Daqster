@@ -6,6 +6,8 @@
 #include <QProcessEnvironment>
 #include <QFileInfo>
 #include <QApplication>
+#include <QSettings>
+#include <QStandardPaths>
 
 
 ApplicationsManager::ApplicationsManager() 
@@ -76,6 +78,38 @@ void ApplicationsManager::setupProcessEnvironment(QProcess* process,
         if (!val.isEmpty()) {
             env.insert(qtEnvVars[i], QString::fromUtf8(val));
         }
+    }
+    
+    // Also pass the current theme setting explicitly so child process gets same look
+    // (QSettings scope may differ due to forced XDG_CONFIG_HOME)
+    QSettings appSettings("Daqster", "Daqster");
+    QString theme = appSettings.value("Theme/Style", "default").toString();
+    qCDebug(lcApp) << "setupProcessEnvironment: read theme from QSettings:" << theme;
+    if (!theme.isEmpty() && theme != "default") {
+        env.insert("DAQSTER_THEME", theme);
+        qCDebug(lcApp) << "setupProcessEnvironment: set DAQSTER_THEME=" << theme;
+    }
+    
+    // Use a unique config file per child process (based on --instance-id) to avoid
+    // sharing persistency with parent or other builds. The instance-id is passed
+    // as an argument (added by QProcessManager::StartProcess).
+    QString instanceId;
+    if (!arguments.isEmpty()) {
+        int idx = arguments.indexOf("--instance-id");
+        if (idx >= 0 && idx + 1 < arguments.size()) {
+            instanceId = arguments[idx + 1];
+        }
+    }
+    if (!instanceId.isEmpty()) {
+        QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+        QDir().mkpath(configDir);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        QString configFile = configDir + "/daqster_qt6_" + instanceId + ".ini";
+#else
+        QString configFile = configDir + "/daqster_qt5_" + instanceId + ".ini";
+#endif
+        env.insert("DAQSTER_CONFIG_FILE", configFile);
+        qCDebug(lcApp) << "setupProcessEnvironment: set DAQSTER_CONFIG_FILE=" << configFile;
     }
     
     QString basePath = qApp->applicationDirPath();
