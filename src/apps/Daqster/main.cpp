@@ -83,25 +83,14 @@ int main(int argc, char *argv[]) {
   // Parses the shared --log-* / --instance-id options and applies them.
   boot.processArguments();
 
-  // Load theme if configured (from QSettings or DAQSTER_THEME env var passed by parent toolbar)
+  // Load theme if configured
   QSettings appSettings("Daqster", "Daqster");
   QString theme = appSettings.value("Theme/Style", "default").toString();
-  QString envTheme = qgetenv("DAQSTER_THEME");
-  if (!envTheme.isEmpty()) {
-      theme = envTheme;
-      qCDebug(lcApp) << "Theme from DAQSTER_THEME env:" << theme;
-  } else {
-      qCDebug(lcApp) << "Theme from QSettings:" << theme;
-  }
   if (theme == "dark") {
-      qCDebug(lcApp) << "Loading dark stylesheet";
       QFile styleFile(":/toolbar/icons/StyleFile");
       if (styleFile.open(QFile::ReadOnly | QFile::Text)) {
           a.setStyleSheet(styleFile.readAll());
           styleFile.close();
-          qCDebug(lcApp) << "Dark stylesheet applied";
-      } else {
-          qCDebug(lcApp) << "Failed to open StyleFile resource";
       }
   }
 

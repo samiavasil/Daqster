@@ -43,12 +43,8 @@ QPluginManager::QPluginManager (const QString &ConfigFile ) {
     // Config file setup — use writable location for AppImage compatibility.
     // Qt5 and Qt6 must use separate config files to avoid corruption when
     // both run simultaneously on the same machine.
-    // Also support DAQSTER_CONFIG_FILE env var for per-instance config (e.g. child processes).
     QString resolvedConfig;
-    QString envConfigFile = qgetenv("DAQSTER_CONFIG_FILE");
-    if (!envConfigFile.isEmpty()) {
-        resolvedConfig = envConfigFile;
-    } else if (ConfigFile.isEmpty() || ConfigFile == "daqster.ini") {
+    if (ConfigFile.isEmpty() || ConfigFile == "daqster.ini") {
         QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
         QDir().mkpath(configDir);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
