@@ -44,4 +44,11 @@ private slots:
     // model. A rebuild of a populated model must return and keep the card
     // count stable across repeated rebuilds.
     void widget_rebuildCards_terminatesAndIsStable();
+
+    // The embedded node body is sized from the widget's height(), and a
+    // QScrollArea reports a hint that ignores its content (152x21). Without an
+    // explicit sizeHint() the whole display collapsed to the header row
+    // (~252x100) and the cards - 364x211 each - were clipped to a ~54 px
+    // viewport, so Displays/DAQ nodes looked like they had no GUI at all.
+    void widget_sizeHintFitsPlotCards();
 };

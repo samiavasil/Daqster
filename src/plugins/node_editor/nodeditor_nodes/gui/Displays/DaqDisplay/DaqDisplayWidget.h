@@ -61,6 +61,18 @@ signals:
     void cardChannelChanged(int index, int channelIndex);
     void ringSecondsChanged(double seconds);
 
+public:
+    /// Size of the embedded node body (REQ-SW-PL-025 defect).
+    ///
+    /// A QScrollArea reports a hint that ignores its content (152x21), so the
+    /// default hint of this widget is just the header row (~252x100). The
+    /// node then sized itself from that and the plot cards - each 364x211 -
+    /// were clipped to a ~54 px scroll viewport: the node looked like it had
+    /// no GUI at all. Reserve room for the header plus two fully visible
+    /// cards; further cards (and longer plots) scroll.
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
+
 private:
     struct CardWidgets
     {

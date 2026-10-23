@@ -477,4 +477,35 @@ void DaqDisplayNodeTest::widget_rebuildCards_terminatesAndIsStable()
     QCOMPARE(cardCountInWidget(), 3);
 }
 
+// ── sizeHint() must reserve room for the plot cards ────────────────────────
+//
+// NodeGraphicsObject sizes the whole node from the embedded widget's height(),
+// so the widget's sizeHint() is what decides whether the cards are visible.
+void DaqDisplayNodeTest::widget_sizeHintFitsPlotCards()
+{
+    DaqDisplayNode node;
+    DaqDisplayWidget widget(&node);
+
+    // One card needs 364x211: the chart view's 360x180 minimum plus the card
+    // header and container margins. Any smaller hint clips the card away.
+    const QSize hint = widget.sizeHint();
+    QVERIFY2(hint.width() >= 364,
+             qPrintable(QStringLiteral("sizeHint width %1 < card width 364")
+                            .arg(hint.width())));
+    QVERIFY2(hint.height() >= 2 * 211,
+             qPrintable(QStringLiteral("sizeHint height %1 < two cards (422)")
+                            .arg(hint.height())));
+
+    // Cards beyond the reserved pair scroll, so adding them must not change the
+    // reserved size - the node would otherwise have to resize while data flows.
+    node.addPlotCard(QStringLiteral("One"), PT::TimeDomain, 0, DM::Normalized, true);
+    node.addPlotCard(QStringLiteral("Two"), PT::FrequencySpectrum, 0, DM::Normalized, true);
+    widget.rebuildCards();
+    QCOMPARE(widget.sizeHint(), hint);
+
+    // The minimum still keeps a single card usable when a layout shrinks it.
+    QVERIFY(widget.minimumSizeHint().height() >= 211);
+    QVERIFY(widget.minimumSizeHint().width() >= 364);
+}
+
 QTEST_MAIN(DaqDisplayNodeTest)

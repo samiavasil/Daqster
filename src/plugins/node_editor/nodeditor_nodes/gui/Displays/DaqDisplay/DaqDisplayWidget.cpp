@@ -15,6 +15,32 @@
 
 using Card = DaqDisplayNode::PlotCard;
 
+namespace {
+
+// Layout budget of one plot card, derived from buildCard(): the chart view has
+// a 360x180 minimum, the card header adds ~26 px and the container margins 4 px.
+// The embedded widget reserves room for TWO fully visible cards; more cards (and
+// taller plots) are reached through the scroll area.
+constexpr int kCardWidth = 364;
+constexpr int kCardHeight = 211;
+constexpr int kHeaderHeight = 32;
+constexpr int kVisibleCards = 2;
+// card + container margins (2+2) + vertical scrollbar (14) + root margins (2+2)
+constexpr int kWidgetWidth = kCardWidth + 22;
+constexpr int kChromeHeight = kHeaderHeight + 6;
+
+} // namespace
+
+QSize DaqDisplayWidget::sizeHint() const
+{
+    return QSize(kWidgetWidth, kChromeHeight + kVisibleCards * kCardHeight);
+}
+
+QSize DaqDisplayWidget::minimumSizeHint() const
+{
+    return QSize(kWidgetWidth, kChromeHeight + kCardHeight);
+}
+
 DaqDisplayWidget::DaqDisplayWidget(DaqDisplayNode* model, QWidget* parent)
     : QWidget(parent)
     , m_model(model)
