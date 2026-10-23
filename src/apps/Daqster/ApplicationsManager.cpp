@@ -85,9 +85,17 @@ void ApplicationsManager::setupProcessEnvironment(QProcess* process,
     bool isDaqsterAppImage = !appImageEnv.isEmpty() && appImageEnv.contains("Daqster");
     qCDebug(lcApp) << "APPIMAGE env var:" << appImageEnv;
     
+    // The Daqster framework libraries and plugins are in the application directory (bin/),
+    // not in lib/. The RUNPATH of the executable includes bin/, but when we override
+    // LD_LIBRARY_PATH we must include bin/ first, otherwise plugin loading fails
+    // because dependencies (libFrameworkGui, libNodeEditorLibrary, etc.) are in bin/.
+    const QString binPath = QDir(basePath).absolutePath();
+    const QString libPath = QDir(basePath + "/../lib").absolutePath();
+    const QString ldLibraryPath = binPath + ":" + libPath + ":" + env.value("LD_LIBRARY_PATH");
+    
     if (isDaqsterAppImage) {
       // AppImage structure
-      env.insert("LD_LIBRARY_PATH", QDir(basePath + "/../lib").absolutePath() + ":" + env.value("LD_LIBRARY_PATH"));
+      env.insert("LD_LIBRARY_PATH", ldLibraryPath);
       env.insert("QML2_IMPORT_PATH", QDir(basePath + "/../lib/qml").absolutePath() + ":" + env.value("QML2_IMPORT_PATH"));
       env.insert("QT_PLUGIN_PATH", QDir(basePath + "/../lib/plugins").absolutePath() + ":" + env.value("QT_PLUGIN_PATH"));
       env.insert("QT_QPA_PLATFORM_PLUGIN_PATH", QDir(basePath + "/../lib/plugins/platforms").absolutePath());
@@ -95,7 +103,7 @@ void ApplicationsManager::setupProcessEnvironment(QProcess* process,
       env.insert("DAQSTER_PLUGIN_PATH", QDir(basePath + "/../lib/daqster/plugins").absolutePath() + ":" + QDir::homePath() + "/.local/share/daqster/plugins");
     } else {
       // Regular build structure
-      env.insert("LD_LIBRARY_PATH", basePath + "/../lib:" + env.value("LD_LIBRARY_PATH"));
+      env.insert("LD_LIBRARY_PATH", ldLibraryPath);
       env.insert("QML2_IMPORT_PATH", basePath + "/../lib/qml:" + env.value("QML2_IMPORT_PATH"));
       env.insert("QT_PLUGIN_PATH", basePath + "/../lib/plugins:" + env.value("QT_PLUGIN_PATH"));
       env.insert("QT_QPA_PLATFORM_PLUGIN_PATH", basePath + "/../lib/plugins/platforms");
