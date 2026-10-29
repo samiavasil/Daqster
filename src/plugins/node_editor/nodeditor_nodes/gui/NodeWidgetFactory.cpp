@@ -14,6 +14,7 @@
 #include <Processing/Video/VideoEffectNode.h>
 #include <Sinks/Video/VideoOutputNode.h>
 #include <Sinks/Audio/AudioOutputNode.h>
+#include <Sinks/Audio/AudioSinkNode.h>
 #include <Sources/LLamaSource/ConsoleDataModel.h>
 #include <Sources/Video/CameraSourceNode.h>
 #include <Sources/Video/VideoFileSourceNode.h>
@@ -84,6 +85,7 @@
 #include "Processing/Video/VideoEffectWidget.h"
 #include "Sinks/Video/VideoOutputUi.h"
 #include "Sinks/Audio/AudioOutputWidget.h"
+#include "Sinks/Audio/AudioSinkWidget.h"
 
 // Core engines (from core plugin)
 #include <Sources/SystemMonitor/SystemMonitorEngine.h>
@@ -215,6 +217,18 @@ void registerDefaultWidgetCreators(NodeWidgetFactory* factory)
                          widget, &AudioOutputWidget::setStatus);
         QObject::connect(m, &AudioOutputNode::configChanged,
                          widget, &AudioOutputWidget::reloadFromModel);
+        return widget;
+    });
+
+    // AudioSink (REQ-SW-PL-077): the WAV recorder moved here from the private
+    // AI plugin. Its widget edits outputPath / playbackEnabled / volume through
+    // the model and re-reads them on configChanged (a .flow load, a REST POST).
+    factory->registerWidgetCreator("AudioSinkNode", [](QtNodes::NodeDelegateModel* model) -> QWidget* {
+        auto* m = safeCast<AudioSinkNode>(model, "AudioSinkNode");
+        if (!m) return nullptr;
+        auto* widget = new AudioSinkWidget(m);
+        QObject::connect(m, &AudioSinkNode::configChanged,
+                         widget, &AudioSinkWidget::reloadFromModel);
         return widget;
     });
 

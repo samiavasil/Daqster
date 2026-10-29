@@ -383,5 +383,3 @@ void TestVideoFrameConsolidation::acquireHandlesResolutionChange()
 }
 
 QTEST_MAIN(TestVideoFrameConsolidation)
-
-#include "test_video_frame_consolidation.moc"

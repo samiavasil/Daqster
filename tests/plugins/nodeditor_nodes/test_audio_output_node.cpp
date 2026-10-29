@@ -337,5 +337,3 @@ void TestAudioOutputNode::nullInputChangesNothing()
 }
 
 QTEST_GUILESS_MAIN(TestAudioOutputNode)
-
-#include "test_audio_output_node.moc"
