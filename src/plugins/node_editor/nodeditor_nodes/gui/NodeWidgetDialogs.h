@@ -41,7 +41,13 @@ inline QWidget* nodeWidgetDialogParent(QWidget* widget)
     if (QWidget* active = QApplication::activeWindow())
         return active;
 
-    return widget->window();
+    // No active window anywhere: return nullptr, NOT widget->window(). For an
+    // embedded widget the latter *is* the offscreen proxy window, i.e. exactly
+    // the parent that makes the dialog invisible and unclosable. A parentless
+    // dialog is still application-modal, but it is a real top-level window the
+    // compositor knows about: visible, focused and clickable. Never handing out
+    // the proxy window is worth losing transient-for-parent behaviour.
+    return nullptr;
 }
 
 } // namespace Daqster
