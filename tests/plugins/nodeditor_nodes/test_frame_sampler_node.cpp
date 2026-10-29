@@ -536,5 +536,3 @@ void TestFrameSamplerNode::loadToleratesGarbage()
 }
 
 QTEST_GUILESS_MAIN(TestFrameSamplerNode)
-
-#include "test_frame_sampler_node.moc"

@@ -178,5 +178,3 @@ void TestAudioOutputWidget::statusLabelFollowsTheModel()
 }
 
 QTEST_MAIN(TestAudioOutputWidget)
-
-#include "test_audio_output_widget.moc"

@@ -21,6 +21,7 @@
 #include "Sinks/NetworkSink/NetworkSinkModel.h"
 #include "Sinks/FileRecord/FileRecordModel.h"
 #include "Sinks/Audio/AudioOutputNode.h"
+#include "Sinks/Audio/AudioSinkNode.h"
 #include "Sources/GpuMonitor/GpuMonitorModel.h"
 #include "Sources/JackDetect/JackDetectModel.h"
 #include "Sources/Pcap/PcapModel.h"
@@ -115,6 +116,9 @@ void NodeditorNodesCoreObject::registerNodes(QtNodes::NodeDelegateModelRegistry&
 
     // Audio output (REQ-SW-PL-076): one persistent sink, no widget in core
     registry.registerModel<AudioOutputNode>("Sinks/Audio");
+    // Audio sink / WAV recorder (REQ-SW-PL-077, moved out of the AI plugin).
+    // name() is still "AudioSinkNode" — that string is the .flow key.
+    registry.registerModel<AudioSinkNode>("Sinks/Audio");
 
     // Displays
     registry.registerModel<DaqDisplayNode>("Displays/DAQ");
@@ -195,6 +199,9 @@ void NodeditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateModelR
 
     // Audio output (REQ-SW-PL-076): one persistent sink, no widget in core
     registry.registerModel<AudioOutputNode>("Sinks/Audio");
+    // Audio sink / WAV recorder (REQ-SW-PL-077, moved out of the AI plugin).
+    // name() is still "AudioSinkNode" — that string is the .flow key.
+    registry.registerModel<AudioSinkNode>("Sinks/Audio");
 
     // ── Displays (REQ-SW-PL-056 AC4) ─────────────────────────────────────
     // Headless runs the flow; these render nothing, because no widget

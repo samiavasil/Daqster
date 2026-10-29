@@ -72,6 +72,10 @@ set(GUI_WIDGETS
     # the engine's status line.
     Sinks/Audio/AudioOutputWidget.h
     Sinks/Audio/AudioOutputWidget.cpp
+    # REQ-SW-PL-077: the WAV recorder widget (path + deprecated playback +
+    # volume) for the AudioSinkNode that moved here from the AI plugin.
+    Sinks/Audio/AudioSinkWidget.h
+    Sinks/Audio/AudioSinkWidget.cpp
       Displays/NumberDisplay/NumberDisplayWidget.h
       Displays/NumberDisplay/NumberDisplayWidget.cpp
     Operators/ModuloWidget.h

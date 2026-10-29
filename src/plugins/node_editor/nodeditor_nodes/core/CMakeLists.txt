@@ -229,18 +229,24 @@ set(NETWORK_NODES
     shared/IStartable.h
 )
 
-# ── Audio Sink (REQ-SW-PL-076) ──────────────────────────────────────
+# ── Audio Sink (REQ-SW-PL-076, REQ-SW-PL-077) ────────────────────────
 # The node model is a thin controller; AudioPlaybackEngine owns the one
 # long-lived QAudioSink/QAudioOutput, the chosen format and the backpressure.
 # AudioFormatBridge.h and shared/AudioResample.h are header-only and pure —
 # they are listed so they are visible in the IDE and counted by
 # check_core_widgets_free (no QtWidgets anywhere in this family).
+#
+# AudioSinkNode (WAV recorder) lives here too since REQ-SW-PL-077: it is not an
+# AI node — it only needs SampledData, QFile and (for the deprecated
+# playbackEnabled key) the same AudioPlaybackEngine.
 set(AUDIO_SINK_NODES
     Sinks/Audio/AudioFormatBridge.h
     Sinks/Audio/AudioPlaybackEngine.h
     Sinks/Audio/AudioPlaybackEngine.cpp
     Sinks/Audio/AudioOutputNode.h
     Sinks/Audio/AudioOutputNode.cpp
+    Sinks/Audio/AudioSinkNode.h
+    Sinks/Audio/AudioSinkNode.cpp
     shared/AudioResample.h
 )
 
