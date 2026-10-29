@@ -13,6 +13,7 @@
 #include <Processing/Video/CustomShaderNode.h>
 #include <Processing/Video/VideoEffectNode.h>
 #include <Sinks/Video/VideoOutputNode.h>
+#include <Sinks/Audio/AudioOutputNode.h>
 #include <Sources/LLamaSource/ConsoleDataModel.h>
 #include <Sources/Video/CameraSourceNode.h>
 #include <Sources/Video/VideoFileSourceNode.h>
@@ -82,6 +83,7 @@
 #include "Processing/Video/CustomShaderWidget.h"
 #include "Processing/Video/VideoEffectWidget.h"
 #include "Sinks/Video/VideoOutputUi.h"
+#include "Sinks/Audio/AudioOutputWidget.h"
 
 // Core engines (from core plugin)
 #include <Sources/SystemMonitor/SystemMonitorEngine.h>
@@ -196,6 +198,23 @@ void registerDefaultWidgetCreators(NodeWidgetFactory* factory)
         QObject::connect(widget, &FileRecordWidget::stopRequested, m, &FileRecordModel::onStopRequested);
         QObject::connect(widget, &FileRecordWidget::pathChanged, m, &FileRecordModel::onPathChanged);
         QObject::connect(m, &FileRecordModel::statusChanged, widget, &FileRecordWidget::setStatus);
+        return widget;
+    });
+
+    // AudioOutput (REQ-SW-PL-076): the model in _core owns the one persistent
+    // QAudioSink/QAudioOutput and returns nullptr from embeddedWidget(); this
+    // creator builds the widget and hands it the model, because every field it
+    // shows is persisted through AudioOutputNode::setConfig() (device by stable
+    // AudioCompat::deviceId(), volume, bufferMs, enabled) and the status line
+    // comes from the engine, not from the widget.
+    factory->registerWidgetCreator("AudioOutput", [](QtNodes::NodeDelegateModel* model) -> QWidget* {
+        auto* m = safeCast<AudioOutputNode>(model, "AudioOutput");
+        if (!m) return nullptr;
+        auto* widget = new AudioOutputWidget(m);
+        QObject::connect(m, &AudioOutputNode::statusChanged,
+                         widget, &AudioOutputWidget::setStatus);
+        QObject::connect(m, &AudioOutputNode::configChanged,
+                         widget, &AudioOutputWidget::reloadFromModel);
         return widget;
     });
 

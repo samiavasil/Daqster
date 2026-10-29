@@ -69,6 +69,10 @@ nodeditor_nodes/
 │       ├── NetworkSourceModel.{h,cpp}    # Source node model (UDP/TCP listener, MSSD framing)
 │       └── NetworkSourceWidget.{h,cpp}   # Config UI (protocol, port, sampleRate, channels)
 ├── Sinks/
+│   ├── Audio/                            # Audio Output sink (REQ-SW-PL-076)
+│   │   ├── AudioOutputNode.{h,cpp}       # Sink node model (thin controller: config + save/load)
+│   │   ├── AudioPlaybackEngine.{h,cpp}   # ONE long-lived QAudioSink/QAudioOutput, backpressure
+│   │   └── AudioFormatBridge.h           # SampledData descriptor → QAudioFormat + conversion
 │   ├── FileRecord/                       # File Record sink (REQ-SW-PL-043)
 │   │   ├── FileRecordModel.{h,cpp}       # Sink node model (writes raw bytes + JSON sidecar)
 │   │   └── FileRecordWidget.{h,cpp}      # Config UI (file path, Start/Stop, bytes written)
@@ -117,7 +121,7 @@ NodeditorNodesCoreObject → QBasePluginObject
 NodeditorNodesCoreObject → INodeProvider
   └── registerNodes(registry) / registerNodesHeadless(registry)
         // Едно и също множество и в двата режима — всички модели са widget-free
-        // (NodeditorNodesCoreObject.cpp; 27 безусловни + 6 условни = до 33)
+        // (NodeditorNodesCoreObject.cpp; 28 безусловни + 6 условни = до 34)
         // Built-in (преместени от node_editor_ide)
         registry.registerModel<NumberSourceDataModel>("Sources/General")
         registry.registerModel<NumberDisplayDataModel>("Displays/General")
@@ -132,6 +136,8 @@ NodeditorNodesCoreObject → INodeProvider
         registry.registerModel<AudioSourceDataModelObsolete>("Obsolete")
         // Sinks / Processing — video
         registry.registerModel<VideoOutputNode>("Sinks/Video")
+        // Sinks — audio
+        registry.registerModel<AudioOutputNode>("Sinks/Audio")        // един persistent sink (REQ-SW-PL-076)
         registry.registerModel<VideoEffectNode>("Processing/Video")   // един нод с комбо (REQ-SW-PL-028 AC 4)
         registry.registerModel<CustomShaderNode>("Processing/Video")  // runtime GLSL (REQ-SW-PL-029)
         registry.registerModel<FrameSamplerNode>("Processing/Video")
@@ -186,6 +192,7 @@ NodeditorNodesCoreObject → INodeProvider
 |-----|-----------|----------|
 | FileRecordModel | Sinks/File | **File Record sink нод** (REQ-SW-PL-043) — консумира `SampledData`, записва raw bytes във `*.sdf` + JSON sidecar `*.sdf.json`; Start/Stop запис, статус bytes written; cross-platform |
 | NetworkSinkModel | Sinks/Network | **Network Sink нод** (REQ-SW-PL-044) — консумира `SampledData`, сериализира raw bytes в MSSD frame, изпраща по UDP/TCP; Start/Stop, статус bytes sent; cross-platform |
+| AudioOutputNode | Sinks/Audio | **Audio Output нод** (REQ-SW-PL-076) — консумира `SampledData` и го свири на избраното изходно устройство с **един** дългоживеещ `QAudioSink` (Qt6) / `QAudioOutput` (Qt5). Устройство по стабилен `deviceId`, `isFormatSupported()` преди писане, при отказ → `preferredFormat()` + ресемплинг/микс/прекодиране (`AudioFormatBridge.h`); backpressure през `bytesFree()` с ограничена опашка (`bufferMs`, 20–2000 ms) и drop+лог. Без устройство → no-op със статус. GUI: combo по `deviceId()`, volume, `bufferMs`, `enabled`, статус (английски текстове) |
 
 ### Displays
 | Нод | Категория | Описание |

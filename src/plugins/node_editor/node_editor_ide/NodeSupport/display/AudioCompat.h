@@ -6,6 +6,7 @@
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QtMultimedia/QAudioDevice>
+#include <QtMultimedia/QAudioSink>
 #include <QtMultimedia/QAudioSource>
 #include <QtMultimedia/QMediaDevices>
 #include <QSet>
@@ -16,6 +17,7 @@ using QAudioDeviceInfo = QAudioDevice;
 #else
 #include <QtMultimedia/QAudioDeviceInfo>
 #include <QtMultimedia/QAudioInput>
+#include <QtMultimedia/QAudioOutput>
 #include <QStringList>
 #endif
 
@@ -24,6 +26,7 @@ namespace AudioCompat {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 
 using AudioInput = QAudioSource;
+using AudioOutput = QAudioSink;
 using Mode = QAudioDevice::Mode;
 static constexpr Mode AudioInputMode = QAudioDevice::Input;
 static constexpr Mode AudioOutputMode = QAudioDevice::Output;
@@ -53,6 +56,44 @@ inline QList<QAudioDeviceInfo> availableDevices(Mode mode)
 inline QAudioDeviceInfo defaultInputDevice()
 {
     return QMediaDevices::defaultAudioInput();
+}
+
+/// Default playback device. Null when the system has no audio output.
+inline QAudioDeviceInfo defaultOutputDevice()
+{
+    return QMediaDevices::defaultAudioOutput();
+}
+
+/**
+ * @brief Stable identifier of a device, safe to persist in a config.
+ *
+ * Configs store this string, never a device index — the index depends on the
+ * enumeration order and shifts between sessions (USB headset plugged in).
+ */
+inline QString deviceId(const QAudioDeviceInfo &device)
+{
+    return QString::fromUtf8(device.id());
+}
+
+/**
+ * @brief Resolve a persisted id back to a device.
+ *
+ * @param id Value previously returned by deviceId()
+ * @return The matching device; the default output device when @p id is empty;
+ *         a null device when nothing matches (caller reports it, never
+ *         silently plays into the void)
+ */
+inline QAudioDeviceInfo deviceFromId(const QString &id)
+{
+    if (id.isEmpty())
+        return defaultOutputDevice();
+
+    const QList<QAudioDeviceInfo> outputs = availableDevices(AudioOutputMode);
+    for (const QAudioDeviceInfo &device : outputs) {
+        if (deviceId(device) == id)
+            return device;
+    }
+    return QAudioDeviceInfo();
 }
 
 inline bool isNull(const QAudioDeviceInfo &device)
@@ -217,6 +258,7 @@ inline QList<Endian> supportedByteOrders(const QAudioDeviceInfo &)
 #else
 
 using AudioInput = QAudioInput;
+using AudioOutput = QAudioOutput;
 using Mode = QAudio::Mode;
 static constexpr Mode AudioInputMode = QAudio::AudioInput;
 static constexpr Mode AudioOutputMode = QAudio::AudioOutput;
@@ -243,6 +285,44 @@ inline QList<QAudioDeviceInfo> availableDevices(Mode mode)
 inline QAudioDeviceInfo defaultInputDevice()
 {
     return QAudioDeviceInfo::defaultInputDevice();
+}
+
+/// Default playback device. Null when the system has no audio output.
+inline QAudioDeviceInfo defaultOutputDevice()
+{
+    return QAudioDeviceInfo::defaultOutputDevice();
+}
+
+/**
+ * @brief Stable identifier of a device, safe to persist in a config.
+ *
+ * Qt5 has no opaque device id, so the (human) device name is the identity —
+ * documented trade-off: two identically named devices are indistinguishable on
+ * this Qt version.
+ */
+inline QString deviceId(const QAudioDeviceInfo &device)
+{
+    return device.deviceName();
+}
+
+/**
+ * @brief Resolve a persisted id back to a device.
+ *
+ * @param id Value previously returned by deviceId()
+ * @return The matching device; the default output device when @p id is empty;
+ *         a null device when nothing matches
+ */
+inline QAudioDeviceInfo deviceFromId(const QString &id)
+{
+    if (id.isEmpty())
+        return defaultOutputDevice();
+
+    const QList<QAudioDeviceInfo> outputs = availableDevices(AudioOutputMode);
+    for (const QAudioDeviceInfo &device : outputs) {
+        if (deviceId(device) == id)
+            return device;
+    }
+    return QAudioDeviceInfo();
 }
 
 inline bool isNull(const QAudioDeviceInfo &device)

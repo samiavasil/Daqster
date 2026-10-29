@@ -20,6 +20,7 @@
 #include "Sources/NetworkSource/NetworkSourceModel.h"
 #include "Sinks/NetworkSink/NetworkSinkModel.h"
 #include "Sinks/FileRecord/FileRecordModel.h"
+#include "Sinks/Audio/AudioOutputNode.h"
 #include "Sources/GpuMonitor/GpuMonitorModel.h"
 #include "Sources/JackDetect/JackDetectModel.h"
 #include "Sources/Pcap/PcapModel.h"
@@ -112,6 +113,9 @@ void NodeditorNodesCoreObject::registerNodes(QtNodes::NodeDelegateModelRegistry&
     registry.registerModel<NetworkSourceModel>("Sources/Network");
     registry.registerModel<NetworkSinkModel>("Sinks/Network");
 
+    // Audio output (REQ-SW-PL-076): one persistent sink, no widget in core
+    registry.registerModel<AudioOutputNode>("Sinks/Audio");
+
     // Displays
     registry.registerModel<DaqDisplayNode>("Displays/DAQ");
     // Migrated from old plugin: generic/obsolete displays
@@ -188,6 +192,9 @@ void NodeditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateModelR
     // Network
     registry.registerModel<NetworkSourceModel>("Sources/Network");
     registry.registerModel<NetworkSinkModel>("Sinks/Network");
+
+    // Audio output (REQ-SW-PL-076): one persistent sink, no widget in core
+    registry.registerModel<AudioOutputNode>("Sinks/Audio");
 
     // ── Displays (REQ-SW-PL-056 AC4) ─────────────────────────────────────
     // Headless runs the flow; these render nothing, because no widget

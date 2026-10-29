@@ -275,6 +275,104 @@ add_test(NAME demo_nodeditor_videooutput_tests
 set_tests_properties(demo_nodeditor_videooutput_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# ── AudioOutputNode behavioural tests (REQ-SW-PL-076) ────────────────────────
+#
+# QTEST_GUILESS_MAIN (QCoreApplication): the model is widget-free
+# (embeddedWidget() is nullptr, REQ-SW-PL-051) and QAudioSink/QAudioOutput need
+# no QApplication — only a Qt event loop, which the test provides.
+#
+# The test must pass on a box with NO sound card: the no-device path is driven
+# with a deviceId that cannot resolve, and the device path is asserted only
+# when AudioCompat actually returns a device. Both halves matter — a no-op that
+# crashes and a sink created per block both "work" on screen.
+#
+# AudioOutputNode.cpp + AudioPlaybackEngine.cpp are compiled directly into the
+# binary (same pattern as demo_nodeditor_videooutput_tests) instead of linking
+# the plugin .so. FrameworkCore is linked because AudioCompat is a framework
+# utility and lcDemoNodes (used by the engine) is defined in
+# base/src/logging/LogCategories.cpp.
+set(AUDIO_OUTPUT_TEST_SOURCES
+    test_audio_output_node.cpp
+    test_audio_output_node.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sinks/Audio/AudioOutputNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sinks/Audio/AudioPlaybackEngine.cpp
+)
+
+add_executable(demo_nodeditor_audiooutput_tests ${AUDIO_OUTPUT_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_audiooutput_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sinks/Audio
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/shared
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+    ${DEMO_CORE_EXPORT_INCLUDE_DIR}
+)
+target_compile_definitions(demo_nodeditor_audiooutput_tests PRIVATE ${DEMO_CORE_EXPORT_DEFINITIONS})
+
+target_link_libraries(demo_nodeditor_audiooutput_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    # QAudioFormat / QAudioSink / QAudioDevice (AudioCompat).
+    Qt${QT_VERSION_MAJOR}::Multimedia
+    QtNodes
+    FrameworkCore
+)
+
+add_test(NAME demo_nodeditor_audiooutput_tests
+         COMMAND demo_nodeditor_audiooutput_tests)
+
+# ── AudioOutputWidget GUI tests (REQ-SW-PL-076, AC6) ─────────────────────────
+#
+# QTEST_MAIN (QApplication) + QT_QPA_PLATFORM=offscreen: the widget is real
+# QtWidgets code. The model and the engine are compiled in as in the headless
+# suite above, plus the GUI plugin's widget — the test binary plays the role of
+# NodeWidgetFactory, which cannot be linked without the whole plugin host.
+#
+# The node is configured with an id that does not resolve, so no device is
+# opened during the GUI tests and the no-device path stays exercised on CI.
+set(AUDIO_WIDGET_TEST_SOURCES
+    test_audio_output_widget.cpp
+    test_audio_output_widget.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sinks/Audio/AudioOutputNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sinks/Audio/AudioPlaybackEngine.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui/Sinks/Audio/AudioOutputWidget.cpp
+)
+
+add_executable(demo_nodeditor_audiowidget_tests ${AUDIO_WIDGET_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_audiowidget_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sinks/Audio
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/shared
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/gui/Sinks/Audio
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+    ${DEMO_CORE_EXPORT_INCLUDE_DIR}
+)
+target_compile_definitions(demo_nodeditor_audiowidget_tests PRIVATE ${DEMO_CORE_EXPORT_DEFINITIONS})
+
+target_link_libraries(demo_nodeditor_audiowidget_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Multimedia
+    QtNodes
+    FrameworkCore
+)
+
+add_test(NAME demo_nodeditor_audiowidget_tests
+         COMMAND demo_nodeditor_audiowidget_tests)
+set_tests_properties(demo_nodeditor_audiowidget_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # ── VideoEffectNode CPU-path tests (REQ-SW-PL-039) ───────────────────────────
 #
 # QTEST_MAIN provides QApplication; the binary runs headless via the offscreen
