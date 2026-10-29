@@ -229,6 +229,21 @@ set(NETWORK_NODES
     shared/IStartable.h
 )
 
+# ── Audio Sink (REQ-SW-PL-076) ──────────────────────────────────────
+# The node model is a thin controller; AudioPlaybackEngine owns the one
+# long-lived QAudioSink/QAudioOutput, the chosen format and the backpressure.
+# AudioFormatBridge.h and shared/AudioResample.h are header-only and pure —
+# they are listed so they are visible in the IDE and counted by
+# check_core_widgets_free (no QtWidgets anywhere in this family).
+set(AUDIO_SINK_NODES
+    Sinks/Audio/AudioFormatBridge.h
+    Sinks/Audio/AudioPlaybackEngine.h
+    Sinks/Audio/AudioPlaybackEngine.cpp
+    Sinks/Audio/AudioOutputNode.h
+    Sinks/Audio/AudioOutputNode.cpp
+    shared/AudioResample.h
+)
+
 # ── Optional NVML GPU Monitor source ────────────────────────────────
 # Always compiled — see the note on the optional node families above.
 set(GPU_MONITOR_SOURCES
@@ -392,6 +407,7 @@ create_plugin(NodeditorNodesCore
         ${GAMEPAD_SOURCES}
         ${FILE_IO_NODES}
         ${NETWORK_NODES}
+        ${AUDIO_SINK_NODES}
         ${GPU_MONITOR_SOURCES}
         ${JACK_DETECT_SOURCES}
         ${PCAP_SOURCES}

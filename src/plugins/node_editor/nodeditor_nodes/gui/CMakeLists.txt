@@ -67,6 +67,11 @@ set(GUI_WIDGETS
     Sources/JackDetect/JackDetectWidget.cpp
     Sources/Pcap/PcapWidget.h
     Sources/Pcap/PcapWidget.cpp
+    # REQ-SW-PL-076: the Audio Output widget. The model stays in
+    # nodeditor_nodes/core (widget-free); this one edits its Config and shows
+    # the engine's status line.
+    Sinks/Audio/AudioOutputWidget.h
+    Sinks/Audio/AudioOutputWidget.cpp
       Displays/NumberDisplay/NumberDisplayWidget.h
       Displays/NumberDisplay/NumberDisplayWidget.cpp
     Operators/ModuloWidget.h
