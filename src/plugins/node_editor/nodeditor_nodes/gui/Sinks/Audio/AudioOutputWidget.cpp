@@ -74,9 +74,9 @@ void AudioOutputWidget::buildUi()
     m_bufferBox->setSingleStep(kBufferStepMs);
     m_bufferBox->setSuffix(QStringLiteral(" ms"));
     m_bufferBox->setKeyboardTracking(false);
-    m_bufferBox->setToolTip(tr("Sink buffer — also the bound of the block queue: "
-                               "a stalled device drops blocks instead of "
-                               "growing a buffer"));
+    m_bufferBox->setToolTip(tr("Device buffer in milliseconds. Not a limit on a "
+                               "block: audio that does not fit is queued and fed "
+                               "in chunks"));
     form->addRow(tr("Buffer"), m_bufferBox);
 
     m_enabledBox = new QCheckBox(tr("Enabled"), page);
