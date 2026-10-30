@@ -39,20 +39,38 @@ class QIODevice;
  *      same resolver yields the provisional format the queue is converted to;
  *   2. `AudioFormatBridge::convert()` — one block into that format;
  *   3. the converted block is appended to a **queue bounded by time**
- *      (`maxQueuedMs`, default 2000 ms — not by the device buffer and not by
- *      the block size). A TTS sentence arrives as ONE block of ~2 s; it used to
- *      be dropped whenever `bytesFree() < size`, i.e. always with
- *      `bufferMs: 200` and even at the 2000 ms maximum. Now it is accepted and
- *      handed to the device in chunks of whatever `bytesFree()` allows.
+ *      (`maxQueuedMs`, default 3000 ms — not by the device buffer and not by
+ *      the block size). A TTS sentence arrives as ONE block of 2.4–2.6 s
+ *      (measured); it used to be dropped whenever `bytesFree() < size`, i.e.
+ *      always with `bufferMs: 200`, and the time bound then dropped it again
+ *      because one sentence was longer than the 2000 ms default. Now it is
+ *      accepted and handed to the device in chunks of whatever `bytesFree()`
+ *      allows.
  *
  * Draining happens on `push()`, on the sink's `stateChanged` and on a 20 ms
  * timer that runs only while the queue is non-empty **and** a device exists
  * (it is stopped when the queue empties — nothing spins forever).
  *
- * `blocksDropped()` is now only the queue bound: when the queued audio would
- * exceed `maxQueuedMs` the OLDEST block is dropped (throttled log). `bufferMs`
- * stays what it always was — the size of the device buffer the sink is created
- * with — and is not a limit of a block.
+ * `maxQueuedMs` guards against **accumulation**, not against one sentence:
+ *   - a queue holding only the block that was just appended never drops it,
+ *     however long it is, up to the hard per-block cap `kHardBlockCapMs`
+ *     (10 s). A longer block is trimmed to the cap and reported in the log —
+ *     silence would hide a runaway source, a trimmed tail is audible as the
+ *     defect it is;
+ *   - with two or more queued blocks, `queueMs() > maxQueuedMs` drops the
+ *     OLDEST block (throttled log) — the producer is faster than the device,
+ *     which is exactly what the bound is for.
+ *
+ * `bufferMs` stays what it always was — the size of the device buffer the sink
+ * is created with — and is not a limit of a block.
+ *
+ * Device resolution is CACHED (`m_device`, `m_deviceResolvedForId`): on Qt5
+ * one `QAudioDeviceInfo::availableDevices()` call costs 2.4–2.8 s on a machine
+ * with 71 ALSA devices, and the status/pump path used to resolve the device up
+ * to four times per block plus once per 20 ms tick (313 s for the audio output
+ * test suite, 0.7 s on Qt6). Enumeration now happens only when the configured
+ * id changes, when the node is (re)started after the process memo went stale,
+ * or when the sink itself reports an error.
  *
  * Headless / no sound card (AC5): `defaultOutputDevice()` is null or the output
  * list is empty → nothing is opened; blocks are still accepted into the bounded
@@ -68,10 +86,16 @@ class AudioPlaybackEngine : public QObject
 
 public:
     /// Default of `maxQueuedMs` — how much audio may wait for the device.
-    static constexpr int kDefaultMaxQueuedMs = 2000;
+    /// Measured English TTS sentence: 2.4–2.6 s (236 800 / 249 600 B @ 24 kHz
+    /// mono f32), so the old 2000 ms default dropped every real sentence.
+    static constexpr int kDefaultMaxQueuedMs = 3000;
     /// Bounds of `maxQueuedMs` (the queue bound is time, see push()).
-    static constexpr int kMinMaxQueuedMs = 200;
+    static constexpr int kMinMaxQueuedMs = 500;
     static constexpr int kMaxMaxQueuedMs = 10000;
+    /// Hard cap on ONE block, independent of `maxQueuedMs`: one sentence must
+    /// never be dropped for being long, but a runaway source must not make the
+    /// queue unbounded either. A longer block is trimmed to the cap and logged.
+    static constexpr int kHardBlockCapMs = 10000;
 
     explicit AudioPlaybackEngine(QObject *parent = nullptr);
     ~AudioPlaybackEngine() override;
@@ -90,9 +114,11 @@ public:
      * @param bufferMs   Sink buffer in milliseconds, clamped to [20, 2000].
      *                   The device buffer only — never a limit on a block.
      * @param enabled    false = disabled: no sink, blocks are skipped
-     * @param maxQueuedMs Playback queue bound in milliseconds, clamped to
-     *                   [200, 10000]; audio over this bound is dropped
-     *                   oldest-first (one TTS sentence is one block)
+     * @param maxQueuedMs Queue bound in milliseconds, clamped to
+     *                   [500, 10000]; with more than one queued block, audio
+     *                   over this bound is dropped oldest-first. A single
+     *                   block is never dropped for being long (one TTS
+     *                   sentence is one block)
      */
     void setConfig(const QString &deviceId, double volume, int bufferMs, bool enabled,
                    int maxQueuedMs = kDefaultMaxQueuedMs);
@@ -131,7 +157,8 @@ public:
     // ── Diagnostics (tests, status line) ───────────────────────────────────
     /// Blocks accepted into the queue (not necessarily finished playing).
     quint64 blocksPlayed() const { return m_blocksPlayed; }
-    /// Blocks discarded because the queue was over `maxQueuedMs` (oldest first).
+    /// Blocks discarded because the queue was over `maxQueuedMs` while more
+    /// than one block was waiting (oldest first).
     quint64 blocksDropped() const { return m_blocksDropped; }
     /// Blocks that could not even be converted or queued (disabled, bad format).
     quint64 blocksSkipped() const { return m_blocksSkipped; }
@@ -139,6 +166,12 @@ public:
     /// "one sink for many blocks", so re-creation is observable here rather
     /// than only through a stutter in the sound.
     quint64 sinksCreated() const { return m_sinksCreated; }
+    /// How many times the configured device was actually resolved (i.e. the
+    /// device list was enumerated). The hot path must never change this: on Qt5
+    /// one resolution costs 2.4–2.8 s with 71 ALSA devices.
+    quint64 deviceResolutions() const { return m_deviceResolutions; }
+    /// True when the configured device resolves to a real output device.
+    /// Served from the cache — the device list is never enumerated here.
     bool deviceAvailable() const;
 
     /// Converted PCM bytes still waiting for the device (not yet written).
@@ -160,8 +193,8 @@ private:
         double durationMs = 0.0; ///< full block duration, for the queue bound
     };
 
-    /// Build the sink for @p descriptor on @p device. Sets the status on failure
-    /// (never a silent no-op) and returns false.
+    /// Build the sink for @p descriptor on the resolved device. Sets the status
+    /// on failure (never a silent no-op) and returns false.
     bool createSink(const SampledStreamDescriptor &descriptor);
 
     /// Stop and drop the sink (and the queue in the old format). Does not touch
@@ -199,7 +232,30 @@ private:
     /// Log a dropped block, rate-limited so a stalled device cannot flood the log.
     void logDrop(const QString &reason, qsizetype bytes);
 
-    QAudioDeviceInfo m_device;
+    /// Log a block trimmed by `kHardBlockCapMs`, rate-limited like logDrop().
+    void logTrim(double originalMs);
+
+    /// The configured device, resolved ONCE per `deviceId` (and re-resolved
+    /// only after invalidateDevice()/refreshDeviceList()). Never enumerates on
+    /// its own beyond the process-wide memo — see the class comment.
+    const QAudioDeviceInfo &resolvedDevice() const;
+
+    /// Drop the engine's cached resolution. Cheap: the next resolve normally
+    /// hits the process-wide memo (used when a node is (re)started).
+    void invalidateDevice();
+
+    /// Drop the cached resolution AND the process-wide memo — the device list
+    /// itself is suspect (the sink reported an error, a device may have been
+    /// plugged in or pulled out).
+    void refreshDeviceList();
+
+    /// Cached device; `m_deviceResolvedForId` records which id it belongs to.
+    mutable QAudioDeviceInfo m_device;
+    mutable QString m_deviceResolvedForId;
+    mutable bool m_deviceIsResolved = false;
+    /// Counts real resolutions (device-list enumerations) for the regression
+    /// test that pins the Qt5 hot-path fix — not reset by start().
+    mutable quint64 m_deviceResolutions = 0;
 
     QString m_deviceId;
     double m_volume = 1.0;
@@ -223,7 +279,9 @@ private:
     bool m_running = false;
     QString m_status;
 
-    /// Blocks waiting for the device, oldest first. Bounded by `maxQueuedMs`.
+    /// Blocks waiting for the device, oldest first. Bounded by `maxQueuedMs`
+    /// when two or more blocks wait; a single block is bounded by
+    /// `kHardBlockCapMs` only.
     QVector<QueuedBlock> m_queue;
     /// Format every queued block is encoded in (invalid while the queue is empty).
     QAudioFormat m_queueFormat;
@@ -244,6 +302,7 @@ private:
     quint64 m_blocksSkipped = 0;
     quint64 m_sinksCreated = 0;
     quint64 m_dropLogCount = 0;
+    quint64 m_trimLogCount = 0;
 };
 
 #endif // AUDIOPLAYBACKENGINE_H

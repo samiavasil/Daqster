@@ -5,6 +5,9 @@
 
 #include <QAudioFormat>
 #include <QElapsedTimer>
+#include <QHash>
+#include <QMutex>
+#include <QMutexLocker>
 #include <QScopedValueRollback>
 
 #include <algorithm>
@@ -16,12 +19,13 @@ namespace {
 constexpr int kMinBufferMs = 20;
 constexpr int kMaxBufferMs = 2000;
 
-/// Bounds of the playback queue (`maxQueuedMs`), the actual backpressure limit.
-/// A TTS sentence arrives as one block of up to ~2 s, so the lower bound has to
-/// be able to hold a sentence, not a 20 ms frame. Declared on the class (the
-/// node model clamps and describes the same range).
+/// Bounds of the playback queue (`maxQueuedMs`), the accumulation limit.
+/// A TTS sentence arrives as one block of 2.4–2.6 s (measured), so the default
+/// has to hold a sentence with reserve and the lower bound must still hold one.
+/// Declared on the class (the node model clamps and describes the same range).
 constexpr int kMinMaxQueuedMs = AudioPlaybackEngine::kMinMaxQueuedMs;
 constexpr int kMaxMaxQueuedMs = AudioPlaybackEngine::kMaxMaxQueuedMs;
+constexpr int kHardBlockCapMs = AudioPlaybackEngine::kHardBlockCapMs;
 
 /// How often the queue is offered to the device while it drains. 20 ms is well
 /// below the smallest device buffer (20 ms) so the sink never underruns because
@@ -31,6 +35,64 @@ constexpr int kPumpIntervalMs = 20;
 /// Minimum interval between two attempts to open a sink that failed. Without it
 /// an unusable format would retry (and log) once per block, i.e. ~100×/s.
 constexpr qint64 kCreateRetryMs = 1000;
+
+/// How long a device resolution may stay in the process-wide memo before it is
+/// re-checked. Qt5 resolves an id by enumerating every output device and one
+/// enumeration costs 2.4–2.8 s on a machine with 71 ALSA devices, so the memo
+/// must survive far longer than a single block — but a headset plugged in
+/// mid-run still has to be noticed without restarting the application.
+constexpr qint64 kDeviceMemoMs = 30000;
+
+/// One memoised `AudioCompat::deviceFromId()` result.
+struct DeviceMemoEntry {
+    QAudioDeviceInfo device;
+    QElapsedTimer resolvedAt;
+};
+
+/// Guards the memo: the engine lives on the graph thread, but several engines
+/// (nodes, tests, a preview widget) resolve the same ids in one process.
+QMutex &deviceMemoMutex()
+{
+    static QMutex mutex;
+    return mutex;
+}
+
+QHash<QString, DeviceMemoEntry> &deviceMemo()
+{
+    static QHash<QString, DeviceMemoEntry> memo;
+    return memo;
+}
+
+/// `AudioCompat::deviceFromId()` through the process-wide memo.
+///
+/// Why this exists (measured, REQ-SW-PL-076): on Qt5 every resolution is a
+/// `QAudioDeviceInfo::availableDevices()` call — 2.4–2.8 s with 71 ALSA
+/// devices. The engine used to resolve on every status refresh, every pump tick
+/// and up to four times per block, which made `audiooutput_tests` take 313 s on
+/// Qt5 against 0.7 s on Qt6.
+QAudioDeviceInfo resolveDeviceMemoised(const QString &id)
+{
+    const QMutexLocker locker(&deviceMemoMutex());
+    QHash<QString, DeviceMemoEntry> &memo = deviceMemo();
+
+    const auto it = memo.constFind(id);
+    if (it != memo.constEnd() && it->resolvedAt.isValid()
+        && it->resolvedAt.elapsed() < kDeviceMemoMs)
+        return it->device;
+
+    DeviceMemoEntry entry;
+    entry.device = AudioCompat::deviceFromId(id);
+    entry.resolvedAt.start();
+    memo.insert(id, entry);
+    return entry.device;
+}
+
+/// Drop every memoised resolution — the device list itself is suspect.
+void clearDeviceMemo()
+{
+    const QMutexLocker locker(&deviceMemoMutex());
+    deviceMemo().clear();
+}
 
 /// Layout label for the status line ("mono" / "stereo" / "N ch").
 QString layoutLabel(int channels)
@@ -70,6 +132,19 @@ double pcmDurationMs(qsizetype bytes, const QAudioFormat &format)
         return 0.0;
     return double(bytes / bytesPerFrame) * 1000.0 / double(format.sampleRate());
 }
+
+/// Frame-aligned byte count for @p ms of audio at @p format, 0 for an unusable
+/// format. Used by the hard per-block cap, so a trimmed block still ends on a
+/// frame boundary and plays cleanly.
+qsizetype pcmBytesForMs(int ms, const QAudioFormat &format)
+{
+    const int bytesPerFrame =
+        format.channelCount() * AudioFormatBridge::bytesPerSample(format);
+    if (bytesPerFrame <= 0 || format.sampleRate() <= 0 || ms <= 0)
+        return 0;
+    const qint64 frames = qint64(format.sampleRate()) * ms / 1000;
+    return qsizetype(frames * bytesPerFrame);
+}
 } // namespace
 
 AudioPlaybackEngine::AudioPlaybackEngine(QObject *parent)
@@ -101,8 +176,10 @@ void AudioPlaybackEngine::setConfig(const QString &deviceId, double volume, int 
     m_volume = qBound(0.0, volume, 1.0);
     m_enabled = enabled;
 
+    // Only the id is stored here: the device is resolved lazily through the
+    // cache (AC6 — a changed device is honoured by the next sink creation).
     if (deviceChanged)
-        m_device = AudioCompat::deviceFromId(m_deviceId);
+        invalidateDevice();
 
     if (!m_enabled) {
         destroySink();
@@ -154,12 +231,15 @@ void AudioPlaybackEngine::start()
         return;
     }
 
-    m_device = AudioCompat::deviceFromId(m_deviceId);
+    // A restart is the user asking for playback: re-check the device list (or
+    // at least the memo entry) instead of trusting a resolution made an hour
+    // ago — the memo keeps this at zero enumerations while it is fresh.
+    invalidateDevice();
 
     // Eager open ONLY when the input format is already known. A graph that has
     // not delivered a block yet opens the device on its first block instead —
     // start() must not invent a format the device may reject.
-    if (!AudioCompat::isNull(m_device)
+    if (!AudioCompat::isNull(resolvedDevice())
         && m_lastDescriptor.sampleRate > 0.0 && !m_lastDescriptor.channels.isEmpty())
         createSink(m_lastDescriptor);
 
@@ -187,16 +267,40 @@ bool AudioPlaybackEngine::isPlaying() const
 
 bool AudioPlaybackEngine::deviceAvailable() const
 {
-    // Resolved on demand: the default output device may appear after start()
-    // (a headless run that gains a device, a USB headset plugged in mid-run).
-    return !AudioCompat::isNull(AudioCompat::deviceFromId(m_deviceId));
+    // Served from the cache: a status refresh must never enumerate devices.
+    // The cache is re-checked when the id changes, on start() and after a sink
+    // error (refreshDeviceList()), which covers a device appearing or vanishing.
+    return !AudioCompat::isNull(resolvedDevice());
+}
+
+const QAudioDeviceInfo &AudioPlaybackEngine::resolvedDevice() const
+{
+    if (m_deviceIsResolved && m_deviceResolvedForId == m_deviceId)
+        return m_device;
+
+    m_device = resolveDeviceMemoised(m_deviceId);
+    m_deviceResolvedForId = m_deviceId;
+    m_deviceIsResolved = true;
+    ++m_deviceResolutions;
+    return m_device;
+}
+
+void AudioPlaybackEngine::invalidateDevice()
+{
+    m_device = QAudioDeviceInfo();
+    m_deviceResolvedForId.clear();
+    m_deviceIsResolved = false;
+}
+
+void AudioPlaybackEngine::refreshDeviceList()
+{
+    invalidateDevice();
+    clearDeviceMemo();
 }
 
 QString AudioPlaybackEngine::deviceLabel() const
 {
-    const QAudioDeviceInfo device = AudioCompat::isNull(m_device)
-        ? AudioCompat::deviceFromId(m_deviceId)
-        : m_device;
+    const QAudioDeviceInfo &device = resolvedDevice();
     return AudioCompat::isNull(device) ? QString() : AudioCompat::deviceName(device);
 }
 
@@ -249,12 +353,30 @@ void AudioPlaybackEngine::push(const SampledData &data)
     QueuedBlock block;
     block.pcm = pcm;
     block.durationMs = pcmDurationMs(pcm.size(), targetFormat);
+
+    // Hard cap on ONE block. Silence on a runaway source is worse than a cut
+    // tail: the block is accepted up to kHardBlockCapMs (frame-aligned) and the
+    // trim is reported — never silent, never unbounded memory.
+    if (block.durationMs > double(kHardBlockCapMs)) {
+        const qsizetype keep = pcmBytesForMs(kHardBlockCapMs, targetFormat);
+        if (keep > 0 && keep < block.pcm.size()) {
+            const double originalMs = block.durationMs;
+            block.pcm.truncate(keep);
+            block.durationMs = pcmDurationMs(block.pcm.size(), targetFormat);
+            logTrim(originalMs);
+        }
+    }
+
     m_queue.append(block);
 
-    // Backpressure lives HERE, and it is a TIME bound, not a block-size check:
-    // when the queued audio would exceed maxQueuedMs the OLDEST block goes. A
-    // 2 s TTS sentence in a 200 ms device buffer is the normal case now.
-    while (!m_queue.isEmpty() && queueMs() > m_maxQueuedMs) {
+    // Backpressure lives HERE, and it bounds ACCUMULATION, never one sentence:
+    //  - with a single queued block (the one just appended) nothing is dropped,
+    //    however long it is — a 2.4–2.6 s TTS sentence under the old 2000 ms
+    //    default was dropped while it was alone in the queue, i.e. every
+    //    English reply was silence and the sink was never even opened;
+    //  - once a second block waits, `queueMs() > maxQueuedMs` means the
+    //    producer is faster than the device: the OLDEST block goes.
+    while (m_queue.size() > 1 && queueMs() > m_maxQueuedMs) {
         const QueuedBlock oldest = m_queue.takeFirst();
         ++m_blocksDropped;
         logDrop(QStringLiteral("queue over maxQueuedMs"),
@@ -294,11 +416,8 @@ QAudioFormat AudioPlaybackEngine::provisionalFormat(
 {
     // A null device makes resolveFormat() return the descriptor's own format —
     // exactly what we want while no device exists: queue it, play it when one
-    // appears. Nothing is opened here.
-    const QAudioDeviceInfo device = AudioCompat::isNull(m_device)
-        ? AudioCompat::deviceFromId(m_deviceId)
-        : m_device;
-    return AudioFormatBridge::resolveFormat(descriptor, device).format;
+    // appears. Nothing is opened here, and the device comes from the cache.
+    return AudioFormatBridge::resolveFormat(descriptor, resolvedDevice()).format;
 }
 
 void AudioPlaybackEngine::pump()
@@ -321,7 +440,10 @@ void AudioPlaybackEngine::pump()
             return;
         }
         m_createThrottle.start();
-        m_device = AudioCompat::deviceFromId(m_deviceId);
+        // Cheap re-resolve (memo hit unless it went stale): a device that was
+        // missing or replaced is picked up on the next attempt without an
+        // enumeration on this path.
+        invalidateDevice();
         if (!createSink(m_lastDescriptor)) {
             updatePumpTimer();
             return;   // the queued block survives — the bound keeps memory finite
@@ -404,7 +526,7 @@ void AudioPlaybackEngine::clearQueue()
 bool AudioPlaybackEngine::createSink(const SampledStreamDescriptor &descriptor)
 {
     const AudioFormatBridge::PlaybackFormat resolved =
-        AudioFormatBridge::resolveFormat(descriptor, m_device);
+        AudioFormatBridge::resolveFormat(descriptor, resolvedDevice());
 
     // "no silent failure" (AC4): an unusable format becomes a status, not a
     // playback that quietly does nothing.
@@ -417,7 +539,7 @@ bool AudioPlaybackEngine::createSink(const SampledStreamDescriptor &descriptor)
     }
 
     auto sink = std::unique_ptr<AudioCompat::AudioOutput>(
-        new AudioCompat::AudioOutput(m_device, resolved.format));
+        new AudioCompat::AudioOutput(resolvedDevice(), resolved.format));
     sink->setVolume(m_volume);
 
     const int bytesPerSecond = resolved.format.sampleRate()
@@ -487,6 +609,10 @@ void AudioPlaybackEngine::onSinkStateChanged(QAudio::State state)
 {
     if (state == QAudio::StoppedState && m_sink != nullptr
         && m_sink->error() != QAudio::NoError) {
+        // The one place where the device list is suspect: the sink died, so the
+        // device may have been pulled out (or a headset was plugged in). This
+        // is the only path that pays for a real re-enumeration.
+        refreshDeviceList();
         reportError(audioErrorText(m_sink->error()));
         return;
     }
@@ -562,5 +688,21 @@ void AudioPlaybackEngine::logDrop(const QString &reason, qsizetype bytes)
                    .arg(reason)
                    .arg(bytes)
                    .arg(m_blocksDropped);
+    }
+}
+
+void AudioPlaybackEngine::logTrim(double originalMs)
+{
+    ++m_trimLogCount;
+    // Same throttling as logDrop(): a source that only emits 20 s blocks is a
+    // defect worth seeing once per run, not a line per block.
+    if (m_trimLogCount == 1 || (m_trimLogCount % 100) == 0) {
+        qCWarning(lcDemoNodes).noquote()
+            << QStringLiteral("AudioPlaybackEngine: block of %1 ms exceeds the hard "
+                              "%2 ms per-block cap — the tail was cut (%3 trimmed in "
+                              "total)")
+                   .arg(originalMs, 0, 'f', 0)
+                   .arg(kHardBlockCapMs)
+                   .arg(m_trimLogCount);
     }
 }
