@@ -71,7 +71,7 @@ nodeditor_nodes/
 ├── Sinks/
 │   ├── Audio/                            # Audio Output sink (REQ-SW-PL-076)
 │   │   ├── AudioOutputNode.{h,cpp}       # Sink node model (thin controller: config + save/load)
-│   │   ├── AudioPlaybackEngine.{h,cpp}   # ONE long-lived QAudioSink/QAudioOutput, backpressure
+│   │   ├── AudioPlaybackEngine.{h,cpp}   # ONE long-lived QAudioSink/QAudioOutput, time-bounded queue
 │   │   └── AudioFormatBridge.h           # SampledData descriptor → QAudioFormat + conversion
 │   ├── FileRecord/                       # File Record sink (REQ-SW-PL-043)
 │   │   ├── FileRecordModel.{h,cpp}       # Sink node model (writes raw bytes + JSON sidecar)
@@ -192,7 +192,7 @@ NodeditorNodesCoreObject → INodeProvider
 |-----|-----------|----------|
 | FileRecordModel | Sinks/File | **File Record sink нод** (REQ-SW-PL-043) — консумира `SampledData`, записва raw bytes във `*.sdf` + JSON sidecar `*.sdf.json`; Start/Stop запис, статус bytes written; cross-platform |
 | NetworkSinkModel | Sinks/Network | **Network Sink нод** (REQ-SW-PL-044) — консумира `SampledData`, сериализира raw bytes в MSSD frame, изпраща по UDP/TCP; Start/Stop, статус bytes sent; cross-platform |
-| AudioOutputNode | Sinks/Audio | **Audio Output нод** (REQ-SW-PL-076) — консумира `SampledData` и го свири на избраното изходно устройство с **един** дългоживеещ `QAudioSink` (Qt6) / `QAudioOutput` (Qt5). Устройство по стабилен `deviceId`, `isFormatSupported()` преди писане, при отказ → `preferredFormat()` + ресемплинг/микс/прекодиране (`AudioFormatBridge.h`); backpressure през `bytesFree()` с ограничена опашка (`bufferMs`, 20–2000 ms) и drop+лог. Без устройство → no-op със статус. GUI: combo по `deviceId()`, volume, `bufferMs`, `enabled`, статус (английски текстове) |
+| AudioOutputNode | Sinks/Audio | **Audio Output нод** (REQ-SW-PL-076) — консумира `SampledData` и го свири на избраното изходно устройство с **един** дългоживеещ `QAudioSink` (Qt6) / `QAudioOutput` (Qt5). Устройство по стабилен `deviceId`, `isFormatSupported()` преди писане, при отказ → `preferredFormat()` + ресемплинг/микс/прекодиране (`AudioFormatBridge.h`); опашка, ограничена по **време** (`maxQueuedMs`, дефолт 3000 ms, 500–10000): един блок не се дропи заради дължината си (едно изречение от TTS е един блок от 2.4–2.6 s; твърд таван 10 s на блок), дропи се най-старото само при реално натрупване; `bufferMs` (20–2000 ms) е само размерът на device буфера. Устройството се резолвва **веднъж** и се кешира (Qt5 изброява 71 ALSA устройства за 2.4–2.8 s). Без устройство → no-op със статус. GUI: combo по `deviceId()`, volume, `bufferMs`, `enabled`, статус (английски текстове) |
 
 ### Displays
 | Нод | Категория | Описание |

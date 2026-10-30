@@ -58,8 +58,10 @@ public:
         double volume = 1.0;   ///< linear, 0..1
         int bufferMs = 200;    ///< sink (device) buffer, 20..2000 ms
         bool enabled = true;   ///< false = no sink, blocks are skipped
-        /// Playback queue bound, 200..10000 ms: audio may wait this long for
-        /// the device. NOT a limit on a block — one TTS sentence is one block.
+        /// Queue bound, 500..10000 ms: how much audio may wait for the device
+        /// when more than one block is waiting. NOT a limit on a block — one
+        /// TTS sentence is one block (measured 2.4–2.6 s), and a single queued
+        /// block is never dropped for being long (hard cap: 10 s per block).
         int maxQueuedMs = AudioPlaybackEngine::kDefaultMaxQueuedMs;
     };
 

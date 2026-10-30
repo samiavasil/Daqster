@@ -61,9 +61,12 @@ private slots:
     void nullInputChangesNothing();
 
     // Queue semantics: a block is never limited by the device buffer.
+    void deviceIsResolvedOnceAndCached();
     void blocksBeforeStartAreQueuedNotLost();
     void largeBlockIsQueuedNotDropped();
     void blockOverQueueBoundDropsOldest();
+    void singleSentenceUnderTheOldBoundIsNotDropped();
+    void blockOverHardCapIsTrimmedNotSilent();
     void queueStaysBoundedByTime();
     void stopClearsTheQueue();
 };

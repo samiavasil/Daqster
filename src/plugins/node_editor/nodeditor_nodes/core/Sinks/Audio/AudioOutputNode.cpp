@@ -131,10 +131,11 @@ QJsonObject AudioOutputNode::configSchema() const
         {QStringLiteral("maximum"), kMaxMaxQueuedMs},
         {QStringLiteral("default"), AudioPlaybackEngine::kDefaultMaxQueuedMs},
         {QStringLiteral("description"),
-         QStringLiteral("Playback queue bound in milliseconds — audio may wait "
-                        "this long for the device; over it the OLDEST block is "
-                        "dropped. One TTS sentence is one block, so this must "
-                        "hold a sentence, not a 20 ms frame")}});
+         QStringLiteral("Queue bound in milliseconds (500..10000) — with more "
+                        "than one block waiting, the OLDEST is dropped over this "
+                        "bound. A single block is never dropped for being long: "
+                        "one TTS sentence is one block (2.4-2.6 s measured), and "
+                        "the hard per-block cap is 10 s")}});
 
     properties.insert(QStringLiteral("enabled"), QJsonObject{
         {QStringLiteral("type"), QStringLiteral("boolean")},
