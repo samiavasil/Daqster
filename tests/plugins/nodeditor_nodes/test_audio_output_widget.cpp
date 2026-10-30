@@ -3,11 +3,16 @@
 #include "Sinks/Audio/AudioOutputNode.h"
 #include "Sinks/Audio/AudioOutputWidget.h"
 
+#include "NodeDataTypes/SampledData.h"
+
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QComboBox>
 #include <QtWidgets/QDoubleSpinBox>
 #include <QtWidgets/QLabel>
+#include <QtWidgets/QPushButton>
 #include <QtWidgets/QSpinBox>
+
+#include <memory>
 
 namespace {
 
@@ -16,6 +21,21 @@ namespace {
 QString missingDeviceId()
 {
     return QStringLiteral("no-such-output-device/REQ-SW-PL-076");
+}
+
+/// One 10 ms block of silence (48 frames @ 48 kHz, mono int16) — enough to make
+/// the node arm itself, small enough that it never matters for the queue bound.
+std::shared_ptr<SampledData> sampleBlock()
+{
+    SampledStreamDescriptor descriptor;
+    descriptor.sampleRate = 48000.0;
+    descriptor.domain = QStringLiteral("audio");
+    StreamChannelDescriptor channel;
+    channel.name = QStringLiteral("Mono");
+    channel.sampleType = SampleType::INT16;
+    descriptor.channels.append(channel);
+
+    return std::make_shared<SampledData>(QByteArray(480 * 2, '\0'), descriptor);
 }
 
 AudioOutputNode::Config makeConfig()
@@ -175,6 +195,67 @@ void TestAudioOutputWidget::statusLabelFollowsTheModel()
     node.start();
     QCOMPARE(status->text(), QStringLiteral("no output device"));
     QVERIFY(widget.findChild<QComboBox*>(QStringLiteral("deviceId"))->currentText().contains(QStringLiteral("unavailable")));
+}
+
+void TestAudioOutputWidget::startStopButtonArmsAndDisarmsTheEngine()
+{
+    AudioOutputNode node;
+    node.setConfig(makeConfig());
+
+    AudioOutputWidget widget(&node);
+    auto* play = widget.findChild<QPushButton*>(QStringLiteral("playback"));
+    QVERIFY(play);
+    auto* enabled = widget.findChild<QCheckBox*>(QStringLiteral("enabled"));
+
+    // Fresh node: stopped, and the button offers the only thing that helps.
+    QVERIFY(!node.engine()->isRunning());
+    QCOMPARE(play->text(), QStringLiteral("Start"));
+
+    play->click();
+    QVERIFY(node.engine()->isRunning());
+    QCOMPARE(play->text(), QStringLiteral("Stop"));
+    // The device id does not resolve here, so the status explains that instead
+    // of pretending to play — the widget must show the model's text verbatim.
+    QCOMPARE(widget.findChild<QLabel*>(QStringLiteral("status"))->text(),
+             node.statusText());
+
+    play->click();
+    QVERIFY(!node.engine()->isRunning());
+    QCOMPARE(play->text(), QStringLiteral("Start"));
+
+    // Disabled: arming a node that skips every block would only mislead, so
+    // the button greys out with the other controls.
+    enabled->setChecked(false);
+    QVERIFY(!play->isEnabled());
+    enabled->setChecked(true);
+    QVERIFY(play->isEnabled());
+}
+
+void TestAudioOutputWidget::autoArmFlipsTheButtonToStop()
+{
+    // The whole point of the auto-arm: the IDE calls no start(), so a block has
+    // to arm playback. The button must then read "Stop" (the state), not "Start"
+    // — otherwise the widget lies about a node that is already armed.
+    AudioOutputNode node;
+    node.setConfig(makeConfig());
+
+    AudioOutputWidget widget(&node);
+    auto* play = widget.findChild<QPushButton*>(QStringLiteral("playback"));
+    QVERIFY(play);
+    QCOMPARE(play->text(), QStringLiteral("Start"));
+
+    node.setInData(sampleBlock(), 0);
+
+    QVERIFY(node.engine()->isRunning());
+    QCOMPARE(play->text(), QStringLiteral("Stop"));
+    // This id never resolves, so the honest status is "no output device" —
+    // armed and ready to play as soon as one exists.
+    QCOMPARE(widget.findChild<QLabel*>(QStringLiteral("status"))->text(),
+             node.statusText());
+    QVERIFY(node.statusText().contains(QStringLiteral("no output device")));
+
+    node.stop();
+    QCOMPARE(play->text(), QStringLiteral("Start"));
 }
 
 QTEST_MAIN(TestAudioOutputWidget)

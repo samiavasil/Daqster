@@ -33,4 +33,11 @@ private slots:
     void loadRefillsTheControls();
     void unknownPersistedDeviceStaysSelectable();
     void statusLabelFollowsTheModel();
+    /// The explicit path: the button calls `start()`/`stop()` and its label
+    /// follows the engine. Needed for the opposite direction — silencing a node
+    /// whose upstream keeps producing (the IDE starts no node by itself).
+    void startStopButtonArmsAndDisarmsTheEngine();
+    /// The normal path: the first block arms playback and the button must show
+    /// that ("Stop"), even though nobody clicked it (REQ-SW-PL-076 fix).
+    void autoArmFlipsTheButtonToStop();
 };

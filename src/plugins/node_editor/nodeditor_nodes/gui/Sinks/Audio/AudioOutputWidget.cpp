@@ -9,6 +9,7 @@
 #include <QtWidgets/QDoubleSpinBox>
 #include <QtWidgets/QFormLayout>
 #include <QtWidgets/QLabel>
+#include <QtWidgets/QPushButton>
 #include <QtWidgets/QSpinBox>
 #include <QtWidgets/QToolBox>
 #include <QtWidgets/QVBoxLayout>
@@ -85,6 +86,21 @@ void AudioOutputWidget::buildUi()
                                 "are skipped"));
     form->addRow(QString(), m_enabledBox);
 
+    // Start/Stop — SECONDARY control (REQ-SW-PL-076). Playback arms itself on
+    // the first block (the IDE never calls start() for an IStartable node), so
+    // the button is not the way to get sound: it is the escape hatch that makes
+    // an explicit stop possible, and its label always says what a click will do.
+    // The label follows `AudioPlaybackEngine::isRunning()`, never its own idea
+    // of the state — a node armed by a block must show "Stop", not "Start".
+    m_playButton = new QPushButton(tr("Start"), page);
+    m_playButton->setObjectName(QStringLiteral("playback"));
+    m_playButton->setCheckable(false);   // the label already shows the state
+    m_playButton->setFlat(true);         // secondary: not the primary action
+    m_playButton->setToolTip(tr("Stop playback. Stopping is explicit: incoming "
+                                "audio is queued and does not re-arm on its own — "
+                                "press Start to resume"));
+    form->addRow(QString(), m_playButton);
+
     m_statusLabel = new QLabel(page);
     m_statusLabel->setObjectName(QStringLiteral("status"));
     m_statusLabel->setWordWrap(true);
@@ -107,6 +123,8 @@ void AudioOutputWidget::buildUi()
         updateControlStates();
         applyToModel();
     });
+    connect(m_playButton, &QPushButton::clicked,
+            this, &AudioOutputWidget::togglePlayback);
 
     // The other direction: `load()` (a `.flow` opened, a REST config POST)
     // changed the model → the fields are re-filled.
@@ -114,6 +132,11 @@ void AudioOutputWidget::buildUi()
             this, &AudioOutputWidget::reloadFromModel);
     connect(m_model, &AudioOutputNode::statusChanged,
             this, &AudioOutputWidget::setStatus);
+    // Start/stop can happen without the status text changing (an error status
+    // stays "error: …" across an arm), so the button follows the engine state
+    // directly instead of piggy-backing on a repaint.
+    connect(m_model->engine(), &AudioPlaybackEngine::runningChanged,
+            this, &AudioOutputWidget::updatePlaybackButton);
 }
 
 void AudioOutputWidget::setDevices(const QStringList& descriptions,
@@ -183,6 +206,38 @@ void AudioOutputWidget::setStatus(const QString& status)
                                      ? QStringLiteral("green")
                                      : QStringLiteral("gray"));
     m_statusLabel->setStyleSheet(QStringLiteral("color: %1;").arg(color));
+
+    // Every start/stop/config change ends in a status refresh — the button
+    // follows the model instead of keeping its own idea of the state.
+    updatePlaybackButton();
+}
+
+void AudioOutputWidget::togglePlayback()
+{
+    if (!m_model)
+        return;
+
+    if (m_model->engine()->isRunning())
+        m_model->stop();
+    else
+        m_model->start();
+
+    // Not every start() changes the status text (a running node with an
+    // unchanged status emits nothing), so the label is synced explicitly.
+    updatePlaybackButton();
+    setStatus(m_model->statusText());
+}
+
+void AudioOutputWidget::updatePlaybackButton()
+{
+    if (!m_playButton || !m_model)
+        return;
+
+    const bool running = m_model->engine()->isRunning();
+    m_playButton->setText(running ? tr("Stop") : tr("Start"));
+    // A disabled node skips every block, so arming it would only produce a
+    // misleading "ready": the checkbox is the switch that has to come first.
+    m_playButton->setEnabled(m_enabledBox->isChecked());
 }
 
 void AudioOutputWidget::applyToModel()
@@ -205,4 +260,6 @@ void AudioOutputWidget::updateControlStates()
     m_deviceCombo->setEnabled(active);
     m_volumeBox->setEnabled(active);
     m_bufferBox->setEnabled(active);
+    if (m_playButton)
+        m_playButton->setEnabled(active);
 }

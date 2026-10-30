@@ -54,12 +54,15 @@ class QIODevice;
  * `maxQueuedMs` guards against **accumulation**, not against one sentence:
  *   - a queue holding only the block that was just appended never drops it,
  *     however long it is, up to the hard per-block cap `kHardBlockCapMs`
- *     (10 s). A longer block is trimmed to the cap and reported in the log —
+ *     (20 s). A longer block is trimmed to the cap and reported in the log —
  *     silence would hide a runaway source, a trimmed tail is audible as the
  *     defect it is;
  *   - with two or more queued blocks, `queueMs() > maxQueuedMs` drops the
  *     OLDEST block (throttled log) — the producer is faster than the device,
- *     which is exactly what the bound is for.
+ *     which is exactly what the bound is for. **A partially written block is
+ *     never dropped**: cutting a block whose head already went to the device
+ *     is an audible jump inside a sentence. The next block gives up its place
+ *     instead, and a lone (partially written) block is never dropped at all.
  *
  * `bufferMs` stays what it always was — the size of the device buffer the sink
  * is created with — and is not a limit of a block.
@@ -76,6 +79,23 @@ class QIODevice;
  * list is empty → nothing is opened; blocks are still accepted into the bounded
  * queue (so audio that arrives before the device/start is not lost) and the
  * status says why. Nothing throws and nothing blocks.
+ *
+ * **Playback arms itself** (REQ-SW-PL-076, defect seen in a real run): the IDE
+ * never calls `start()` for an `IStartable` node, so a sink that waited for an
+ * explicit start was mute no matter what the `.flow` contained — and that is
+ * what forced a Start button into the widget. `AudioOutputNode::setInData()`
+ * now arms the engine on the first block it receives, the rule `AudioSinkNode`
+ * has always followed. An explicit `stop()` is still respected: it sets
+ * `userStopped()`, which suppresses auto-arm until the next explicit `start()`
+ * — Stop means "stop and stay stopped", not "start by hand".
+ *
+ * Blocks accepted while the node is **explicitly stopped** are queued, not
+ * dropped, so a stopped sink is never mistaken for "no data": the first such
+ * block logs one `qCWarning` (`AudioOutput was stopped explicitly — N block(s)
+ * queued, nothing plays until start()`), every one of them increments
+ * `blocksQueuedWhileStopped()` (reset by `start()`), and the status line says
+ * `stopped · audio is queued, start to play`. Never one line per block: a live
+ * source delivers ~100 blocks/s.
  *
  * Contains no `QWidget`: the widget lives in `nodeditor_nodes/gui`
  * (`check_core_widgets_free`).
@@ -95,7 +115,14 @@ public:
     /// Hard cap on ONE block, independent of `maxQueuedMs`: one sentence must
     /// never be dropped for being long, but a runaway source must not make the
     /// queue unbounded either. A longer block is trimmed to the cap and logged.
-    static constexpr int kHardBlockCapMs = 10000;
+    ///
+    /// **Why 20 s** (was 10 s, REQ-SW-PL-076 defect): a VAD segment arrives as
+    /// ONE block and `VadNode`'s default `maxSpeechMs` is 15 000 ms, so the old
+    /// 10 s cap cut the tail of every long utterance — audible, and at the same
+    /// time invisible in the status. 20 s sits above the VAD ceiling with 5 s of
+    /// reserve (a segment can be emitted a silence window late) and still only
+    /// fires on a runaway source: it is ~8× a measured TTS sentence (2.4–2.6 s).
+    static constexpr int kHardBlockCapMs = 20000;
 
     explicit AudioPlaybackEngine(QObject *parent = nullptr);
     ~AudioPlaybackEngine() override;
@@ -126,10 +153,13 @@ public:
     /// Arm playback. Opens the device only when the input format is already
     /// known (a block was seen before); otherwise the first block does it.
     /// Audio queued while the node was stopped is played now.
+    /// This is the one call that clears `userStopped()`: after an explicit
+    /// `stop()` only an explicit start (or the node's Start button) re-arms.
     void start();
 
     /// Stop playback, destroy the sink and clear the queue. Idempotent
-    /// (REQ-SW-PL-050).
+    /// (REQ-SW-PL-050). Marks the stop as **explicit** (`userStopped()`): the
+    /// node's auto-arm then leaves the engine alone until the next `start()`.
     void stop();
 
     /// True while the sink is actually consuming audio (ActiveState).
@@ -137,6 +167,11 @@ public:
 
     /// True between `start()` and `stop()`.
     bool isRunning() const { return m_running; }
+
+    /// True after an explicit `stop()` and before the next `start()`: the
+    /// auto-arm in `AudioOutputNode::setInData()` is skipped, so "Stop" means
+    /// "stop and stay stopped". Cleared by `start()`.
+    bool userStopped() const { return m_userStopped; }
 
     /// Human-readable state for the node widget ("playing · …", "no output
     /// device", "error: …"). Never empty.
@@ -162,6 +197,12 @@ public:
     quint64 blocksDropped() const { return m_blocksDropped; }
     /// Blocks that could not even be converted or queued (disabled, bad format).
     quint64 blocksSkipped() const { return m_blocksSkipped; }
+    /// Blocks accepted while the node was **not started** (queued, nothing
+    /// written) — a subset of `blocksPlayed()`. A stopped node used to be
+    /// indistinguishable from "no data" in headless; the counter and the
+    /// one-off warning in `push()` make the difference visible
+    /// (REQ-SW-PL-076).
+    quint64 blocksQueuedWhileStopped() const { return m_blocksQueuedWhileStopped; }
     /// How many times a sink was actually opened. The node's whole point is
     /// "one sink for many blocks", so re-creation is observable here rather
     /// than only through a stutter in the sound.
@@ -184,6 +225,11 @@ public:
 signals:
     /// Emitted only when the text actually changes.
     void statusChanged(const QString &status);
+    /// Emitted when `isRunning()` changes — start()/stop(), including the
+    /// automatic arming from the first block. A widget cannot infer this from
+    /// `statusChanged()`: the status text also carries errors, and a stopped
+    /// engine with an error keeps the same text when it starts.
+    void runningChanged(bool running);
 
 private:
     /// One converted block waiting for (the rest of) its turn at the device.
@@ -277,6 +323,10 @@ private:
     QString m_error;
 
     bool m_running = false;
+    /// Set by `stop()`, cleared by `start()`: the difference between "nothing
+    /// started me yet" (auto-arm may do it) and "the user stopped me" (only an
+    /// explicit start() may resume).
+    bool m_userStopped = false;
     QString m_status;
 
     /// Blocks waiting for the device, oldest first. Bounded by `maxQueuedMs`
@@ -300,6 +350,14 @@ private:
     quint64 m_blocksPlayed = 0;
     quint64 m_blocksDropped = 0;
     quint64 m_blocksSkipped = 0;
+    /// Blocks accepted while `m_running` was false (queued, not played).
+    /// Counted separately from `m_blocksPlayed` so "nothing plays because the
+    /// node was never started" has a number in the diagnostics.
+    quint64 m_blocksQueuedWhileStopped = 0;
+    /// True once the "not started" warning was logged for the current stop
+    /// period — a stopped node receives ~100 blocks/s and must not flood the
+    /// log with one line per block.
+    bool m_stoppedWarningLogged = false;
     quint64 m_sinksCreated = 0;
     quint64 m_dropLogCount = 0;
     quint64 m_trimLogCount = 0;

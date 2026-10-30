@@ -135,7 +135,8 @@ QJsonObject AudioOutputNode::configSchema() const
                         "than one block waiting, the OLDEST is dropped over this "
                         "bound. A single block is never dropped for being long: "
                         "one TTS sentence is one block (2.4-2.6 s measured), and "
-                        "the hard per-block cap is 10 s")}});
+                        "the hard per-block cap is 20 s, above the 15 s VAD "
+                        "segment ceiling")}});
 
     properties.insert(QStringLiteral("enabled"), QJsonObject{
         {QStringLiteral("type"), QStringLiteral("boolean")},
@@ -184,6 +185,16 @@ void AudioOutputNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
         return;   // nullptr / foreign data: nothing to play. The sink survives —
                   // tearing it down on a transient gap is exactly the click the
                   // persistent sink is meant to avoid.
+
+    // Auto-arm (REQ-SW-PL-076): a block is the only thing that opens the
+    // device. Historically the node waited for start() and the IDE never calls
+    // it for an IStartable node, so a graph opened in the editor was mute and
+    // that is what forced a Start button into the widget. The first block now
+    // arms playback — the same rule AudioSinkNode::play() has always followed.
+    // An explicit stop() is respected: it sets userStopped() and only an
+    // explicit start() (the widget's Start button, IStartable) clears it.
+    if (m_config.enabled && !m_engine.isRunning() && !m_engine.userStopped())
+        m_engine.start();
 
     m_engine.push(*sampled);
 }

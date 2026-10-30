@@ -414,15 +414,105 @@ void TestAudioOutputNode::deviceIsResolvedOnceAndCached()
     QCOMPARE(node.engine()->blocksPlayed(), quint64(5));
 }
 
+void TestAudioOutputNode::firstBlockAutoArmsPlayback()
+{
+    // The IDE never calls start() for an IStartable node, so the node waited
+    // forever and a graph opened in the editor was mute — that is the defect the
+    // auto-arm fixes. A block is the only thing that opens the device, exactly
+    // as in AudioSinkNode::play().
+    AudioOutputNode node;   // default device: "" (system default)
+    QVERIFY(!node.engine()->isRunning());
+    QVERIFY(!node.engine()->userStopped());
+
+    node.setInData(makeBlock(), 0);
+
+    // Armed by the block itself, nothing was queued "while stopped".
+    QVERIFY(node.engine()->isRunning());
+    QCOMPARE(node.engine()->blocksQueuedWhileStopped(), quint64(0));
+    QCOMPARE(node.engine()->blocksPlayed(), quint64(1));
+    QVERIFY(!node.statusText().isEmpty());
+
+    if (!node.engine()->deviceAvailable()) {
+        // No sound card (CI, headless): the engine is armed, the block waits in
+        // the queue and the status says why — never a crash, never a throw.
+        QCOMPARE(node.engine()->sinksCreated(), quint64(0));
+        QVERIFY(node.engine()->bytesQueued() > 0);
+        QSKIP("no audio output device on this machine — armed, queue-only path checked");
+    }
+
+    // A real device: the first block opens the one long-lived sink.
+    QCOMPARE(node.engine()->sinksCreated(), quint64(1));
+    QTRY_VERIFY_WITH_TIMEOUT(node.engine()->bytesQueued() < 960, 5000);
+
+    // …and the second block must not re-arm (no second sink, no counter reset).
+    node.setInData(makeBlock(), 0);
+    QCOMPARE(node.engine()->sinksCreated(), quint64(1));
+    QCOMPARE(node.engine()->blocksPlayed(), quint64(2));
+
+    node.stop();
+}
+
+void TestAudioOutputNode::explicitStopIsNotUndoneByAutoArm()
+{
+    // "Stop" means "stop and stay stopped": the button is not "start by hand",
+    // it is the way to silence a node whose upstream keeps producing.
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.deviceId = missingDeviceId();
+    node.setConfig(config);
+
+    node.start();
+    QVERIFY(node.engine()->isRunning());
+    node.stop();
+    QVERIFY(!node.engine()->isRunning());
+    QVERIFY(node.engine()->userStopped());
+
+    // A block after an explicit stop is queued, NOT re-armed — and it is
+    // visible as such instead of vanishing into a silent sink.
+    node.setInData(makeSentenceBlock(), 0);
+    QVERIFY(!node.engine()->isRunning());
+    QCOMPARE(node.engine()->blocksQueuedWhileStopped(), quint64(1));
+    QCOMPARE(node.engine()->queueMs(), 1900);
+    QVERIFY2(node.statusText().contains(QStringLiteral("queued")),
+             qPrintable(node.statusText()));
+
+    // Only an explicit start re-arms, and it does not throw the queue away.
+    node.start();
+    QVERIFY(node.engine()->isRunning());
+    QVERIFY(!node.engine()->userStopped());
+    QCOMPARE(node.engine()->blocksQueuedWhileStopped(), quint64(0));
+    QVERIFY(node.engine()->bytesQueued() > 0);
+}
+
+void TestAudioOutputNode::disabledNodeDoesNotAutoArm()
+{
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.enabled = false;
+    node.setConfig(config);
+
+    node.setInData(makeSentenceBlock(), 0);
+
+    // Disabled means "no device, blocks are skipped" — arming it would only
+    // produce a "ready" status for a node that plays nothing.
+    QVERIFY(!node.engine()->isRunning());
+    QCOMPARE(node.engine()->blocksSkipped(), quint64(1));
+    QCOMPARE(node.engine()->blocksQueuedWhileStopped(), quint64(0));
+    QCOMPARE(node.engine()->sinksCreated(), quint64(0));
+}
+
 void TestAudioOutputNode::blocksBeforeStartAreQueuedNotLost()
 {
     // A block that arrives before the graph is started used to be dropped on
     // the floor (`!m_running` → return) — exactly what a TTS sentence that
-    // arrives a millisecond early used to be.
+    // arrives a millisecond early used to be. The node arms itself now, but an
+    // explicitly stopped node still queues instead of losing the block.
     AudioOutputNode node;
     AudioOutputNode::Config config;
     config.deviceId = missingDeviceId();   // deterministic: never opens a device
     node.setConfig(config);
+    node.start();
+    node.stop();   // explicit: auto-arm must stay out of the way
 
     node.setInData(makeSentenceBlock(), 0);
 
@@ -431,10 +521,20 @@ void TestAudioOutputNode::blocksBeforeStartAreQueuedNotLost()
     QVERIFY(node.engine()->bytesQueued() > 0);
     QCOMPARE(node.engine()->queueMs(), 1900);
 
+    // "Stopped" is visible, not silent: the block is counted, the status says
+    // audio is waiting, and the log got exactly one warning for the first block
+    // — a live source delivers ~100 blocks/s, so a line per block would flood
+    // the log and stay unreadable.
+    QCOMPARE(node.engine()->blocksQueuedWhileStopped(), quint64(1));
+    QVERIFY2(node.statusText().contains(QStringLiteral("queued")),
+             qPrintable(node.statusText()));
+
     // start() must not throw the queue away: it is played once a device exists.
     node.start();
     QVERIFY(node.engine()->bytesQueued() > 0);
     QCOMPARE(node.engine()->sinksCreated(), quint64(0));
+    // …and the "stopped" segment is closed: the counter is per start().
+    QCOMPARE(node.engine()->blocksQueuedWhileStopped(), quint64(0));
 }
 
 void TestAudioOutputNode::largeBlockIsQueuedNotDropped()
@@ -522,11 +622,11 @@ void TestAudioOutputNode::singleSentenceUnderTheOldBoundIsNotDropped()
     QCOMPARE(node.engine()->bytesQueued(), qsizetype(249600));
 }
 
-void TestAudioOutputNode::blockOverHardCapIsTrimmedNotSilent()
+void TestAudioOutputNode::vadSegmentLengthIsNotTrimmed()
 {
-    // The single-block exemption must not become an unbounded queue: one block
-    // is capped at kHardBlockCapMs (10 s), and the trim is visible in the log
-    // (not in status — the audio still plays).
+    // A VAD segment arrives as ONE block and VadNode's default `maxSpeechMs` is
+    // 15 s. The cap used to be 10 s, so a 12 s utterance was cut — audible, and
+    // nothing in the status said so. The cap now sits above the VAD ceiling.
     AudioOutputNode node;
     AudioOutputNode::Config config;
     config.deviceId = missingDeviceId();
@@ -538,8 +638,67 @@ void TestAudioOutputNode::blockOverHardCapIsTrimmedNotSilent()
 
     QCOMPARE(node.engine()->blocksPlayed(), quint64(1));
     QCOMPARE(node.engine()->blocksDropped(), quint64(0));
-    QCOMPARE(node.engine()->queueMs(), 10000);
-    QCOMPARE(node.engine()->bytesQueued(), qsizetype(24000 * 10 * 4));
+    QCOMPARE(node.engine()->queueMs(), 12000);              // whole segment kept
+    QCOMPARE(node.engine()->bytesQueued(), qsizetype(24000 * 12 * 4));
+}
+
+void TestAudioOutputNode::blockOverHardCapIsTrimmedNotSilent()
+{
+    // The single-block exemption must not become an unbounded queue: one block
+    // is capped at kHardBlockCapMs (20 s), and the trim is visible in the log
+    // (not in status — the audio still plays).
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.deviceId = missingDeviceId();
+    config.maxQueuedMs = 3000;             // the default, far below the block
+    node.setConfig(config);
+    node.start();
+
+    node.setInData(makeFloatBlock(24000 * 25, 24000.0), 0);   // 25 s, 2 400 000 B
+
+    QCOMPARE(node.engine()->blocksPlayed(), quint64(1));
+    QCOMPARE(node.engine()->blocksDropped(), quint64(0));
+    QCOMPARE(node.engine()->queueMs(), 20000);
+    QCOMPARE(node.engine()->bytesQueued(), qsizetype(24000 * 20 * 4));
+}
+
+void TestAudioOutputNode::partiallyPlayedBlockIsNotDropped()
+{
+    // Drop-oldest must never cut a block whose head already reached the device:
+    // that is an audible jump inside a sentence. Needs a real sink, because
+    // "partially written" only exists when something was written.
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.bufferMs = 20;        // small device buffer: the head cannot be swallowed
+    config.maxQueuedMs = 500;    // 10 s block is far over the bound
+    node.setConfig(config);
+    node.start();
+
+    if (!node.engine()->deviceAvailable()
+        || !node.engine()->isRunning()) {
+        QSKIP("no audio output device on this machine — nothing is ever written");
+    }
+
+    const qsizetype headBytes = qsizetype(24000 * 10 * 4);   // 10 s @ 24 kHz f32
+    node.setInData(makeFloatBlock(24000 * 10, 24000.0), 0);
+    QCOMPARE(node.engine()->blocksDropped(), quint64(0));
+
+    // Wait until the device has actually taken part of the head.
+    QTRY_VERIFY_WITH_TIMEOUT(node.engine()->bytesQueued() < headBytes, 5000);
+    QVERIFY(node.engine()->bytesQueued() > 0);
+
+    // A second block puts the queue over the bound. The head is already audible,
+    // so the SECOND block gives up its place instead of the first.
+    node.setInData(makeFloatBlock(7200, 24000.0), 0);   // 300 ms
+    QCOMPARE(node.engine()->blocksDropped(), quint64(1));
+
+    // What survives is still the long, partially played head — not the 300 ms
+    // newcomer — so the listener hears the sentence to its end.
+    QVERIFY2(node.engine()->queueMs() > 5000,
+             qPrintable(QString::number(node.engine()->queueMs())));
+    QVERIFY(node.engine()->bytesQueued() > (headBytes / 2));
+
+    node.stop();
 }
 
 void TestAudioOutputNode::queueStaysBoundedByTime()
