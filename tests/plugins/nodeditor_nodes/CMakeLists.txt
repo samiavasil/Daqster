@@ -352,8 +352,40 @@ target_link_libraries(demo_nodeditor_fileplayback_tests PRIVATE
 add_test(NAME demo_nodeditor_fileplayback_tests
          COMMAND demo_nodeditor_fileplayback_tests)
 
-# ── AudioOutputNode behavioural tests (REQ-SW-PL-076) ────────────────────────
+# ── Capture buffer sizing (REQ-SW-PL-076) ────────────────────────────────────
 #
+# Header-only arithmetic (AudioCaptureBuffer::bytesFor) — no audio device and no
+# QAudioSource is touched, so the suite runs on CI without a sound card.
+#
+# The defect it guards: MicCaptureWorker asked for a fixed 1000-byte capture
+# buffer. On Qt5 that is a period (1000 B every ~5 ms = real time); on Qt6 it is
+# the number of bytes the backend reads PER SERVER PERIOD, so the same request
+# delivered one 1000 B block every 21.3 ms — 24 % of real time at 48 kHz mono
+# f32 (measured). Everything downstream starved: AudioOutput got 5 ms of audio
+# per 21 ms, its 200 ms device buffer never filled and the sound stuttered.
+add_executable(demo_nodeditor_audiocapturebuffer_tests
+    test_audio_capture_buffer.cpp
+    test_audio_capture_buffer.h
+)
+
+target_include_directories(demo_nodeditor_audiocapturebuffer_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/AudioSource
+)
+
+target_link_libraries(demo_nodeditor_audiocapturebuffer_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Multimedia
+    # AudioCompat.h (the Qt5/Qt6 sample-type helpers) arrives through
+    # FrameworkCore's PUBLIC include directories, not a local path.
+    FrameworkCore
+)
+
+add_test(NAME demo_nodeditor_audiocapturebuffer_tests
+         COMMAND demo_nodeditor_audiocapturebuffer_tests)
+
+# ── AudioOutputNode behavioural tests (REQ-SW-PL-076) ────────────────────────
 # QTEST_GUILESS_MAIN (QCoreApplication): the model is widget-free
 # (embeddedWidget() is nullptr, REQ-SW-PL-051) and QAudioSink/QAudioOutput need
 # no QApplication — only a Qt event loop, which the test provides.

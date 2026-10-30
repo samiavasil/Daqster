@@ -57,6 +57,27 @@ class QIODevice;
  * timer that runs only while the queue is non-empty **and** a device exists
  * (it is stopped when the queue empties — nothing spins forever).
  *
+ * Status (REQ-SW-PL-076, measured defect): `playing` means **sound**, not
+ * `ActiveState`. On Qt6 a healthy push-mode sink holds roughly one backend
+ * period (a PipeWire quantum, 21.3 ms), so it drops to `IdleState` between the
+ * writes of a live stream while the block just queued is still on its way out.
+ * Deriving the status from `state()` alone made an audibly playing graph report
+ * `ready` — the same line the widget shows. `playing` is now "the device is
+ * active **or** something is still queued"; `ready` is "nothing queued and the
+ * device is inactive", i.e. there is really nothing left to play.
+ *
+ * **Why the sink looked permanently hungry on Qt6 (2026-10-30, measured):** the
+ * engine was fed 1000 bytes every 21 ms by `MicCaptureWorker` — 5.2 ms of audio
+ * per 21.3 ms, i.e. 24 % of real time — so its 200 ms device buffer never
+ * filled, the status said `ready` and the underrun counter ran into hundreds.
+ * The cause was on the capture side: `QAudioSource::setBufferSize(1000)` is a
+ * *read size per server period* on Qt6 (on Qt5 it is a period), so the backend
+ * pulled a quarter of the audio. Fixed in `AudioCaptureBuffer.h`; the sink was
+ * never the defect and no sink-side buffering could have compensated for a
+ * quarter of the audio. After the fix: 99.9 % filled RMS envelope, 0 dropouts
+ * ≥ 20 ms, 2 drains in 8.6 s (source jitter, not starvation) against 68.7 %
+ * filled, 11 dropouts and 208 drains before it.
+ *
  * `maxQueuedMs` guards against **accumulation**, not against one sentence:
  *   - a queue holding only the block that was just appended never drops it,
  *     however long it is, up to the hard per-block cap `kHardBlockCapMs`
@@ -209,6 +230,10 @@ public:
     /// StoppedState, so before AC10 the status showed a healthy "playing" line
     /// while the sound clicked. Reset per run, like the other counters, and
     /// also shown in `statusText()`.
+    ///
+    /// A live stream must stay near zero: 208 in 4.5 s was the Qt6 starvation
+    /// (a quarter of real time reaching the sink), 2 in 8.6 s is source jitter
+    /// with the capture side fixed.
     quint64 underruns() const { return m_underruns; }
     /// Blocks accepted while the node was **not started** (queued, nothing
     /// written) — a subset of `blocksPlayed()`. A stopped node used to be

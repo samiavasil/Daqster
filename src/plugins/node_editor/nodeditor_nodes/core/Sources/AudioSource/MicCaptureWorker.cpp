@@ -1,9 +1,11 @@
 #include "MicCaptureWorker.h"
 
+#include "AudioCaptureBuffer.h"
 #include "LogCategories.h"
 
 #include <QMutex>
 
+#include <climits>
 #include <cstring>
 
 /**
@@ -104,7 +106,12 @@ void MicCaptureWorker::startCapture()
     m_captureDevice->clear();
 
     m_audioSource = std::make_unique<AudioCompat::AudioInput>(m_device, m_format);
-    m_audioSource->setBufferSize(1000);
+    // Format-bounded, not a fixed byte budget: on Qt6 the backend reads at most
+    // this many bytes per server period, so a 1000-byte request delivered 24 %
+    // of real time and starved everything downstream (see AudioCaptureBuffer.h).
+    const qint64 captureBufferBytes = AudioCaptureBuffer::bytesFor(m_format);
+    if (captureBufferBytes > 0)
+        m_audioSource->setBufferSize(int(qMin<qint64>(captureBufferBytes, INT_MAX)));
 
     connect(m_captureDevice, &QIODevice::readyRead,
             this, &MicCaptureWorker::onReadyRead, Qt::UniqueConnection);

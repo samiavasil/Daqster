@@ -82,4 +82,7 @@ private slots:
     void stopClearsTheQueue();
     // The device ran dry (AC10): visible instead of a healthy-looking status.
     void deviceUnderrunIsCountedAndVisible();
+    // Step 3 of the Qt6 starvation fix: a sink between bursts is still playing
+    // while audio is queued — "ready" only when there is really nothing left.
+    void queuedAudioReportsPlayingEvenWhileTheSinkIdles();
 };
