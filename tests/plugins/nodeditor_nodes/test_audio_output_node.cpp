@@ -43,6 +43,29 @@ std::shared_ptr<SampledData> makeBlock()
     return std::make_shared<SampledData>(pcm, descriptor);
 }
 
+/// One block of @p frames silence at @p rate, mono FLOAT32. 45 600 frames at
+/// 24 kHz is the 1.9 s block `TtsNode` emits for a spoken sentence — the block
+/// whose size used to be compared against `bytesFree()`.
+std::shared_ptr<SampledData> makeFloatBlock(int frames, double rate)
+{
+    SampledStreamDescriptor descriptor;
+    descriptor.sampleRate = rate;
+    descriptor.domain = QStringLiteral("audio");
+    StreamChannelDescriptor channel;
+    channel.name = QStringLiteral("Mono");
+    channel.sampleType = SampleType::FLOAT32;
+    descriptor.channels.append(channel);
+
+    QByteArray pcm(frames * 4, '\0');
+    return std::make_shared<SampledData>(pcm, descriptor);
+}
+
+/// 1.9 s of silence at 24 kHz, mono float32 — one TTS sentence as one block.
+std::shared_ptr<SampledData> makeSentenceBlock()
+{
+    return makeFloatBlock(45600, 24000.0);
+}
+
 QStringList sortedKeys(const QJsonObject &object)
 {
     QStringList keys = object.keys();
@@ -90,7 +113,7 @@ void TestAudioOutputNode::portsAndDataTypeAreSampledData()
 
 // ── Persistence (AC3) ─────────────────────────────────────────────────────────
 
-void TestAudioOutputNode::saveLoadRoundTripsAllFourFields()
+void TestAudioOutputNode::saveLoadRoundTripsAllFields()
 {
     AudioOutputNode source;
     AudioOutputNode::Config config;
@@ -98,6 +121,7 @@ void TestAudioOutputNode::saveLoadRoundTripsAllFourFields()
     config.volume = 0.35;
     config.bufferMs = 240;
     config.enabled = false;
+    config.maxQueuedMs = 3200;
     source.setConfig(config);
 
     const QJsonObject saved = source.save();
@@ -105,6 +129,7 @@ void TestAudioOutputNode::saveLoadRoundTripsAllFourFields()
     QCOMPARE(saved.value(QStringLiteral("volume")).toDouble(), config.volume);
     QCOMPARE(saved.value(QStringLiteral("bufferMs")).toInt(), config.bufferMs);
     QCOMPARE(saved.value(QStringLiteral("enabled")).toBool(), config.enabled);
+    QCOMPARE(saved.value(QStringLiteral("maxQueuedMs")).toInt(), config.maxQueuedMs);
 
     AudioOutputNode restored;
     restored.load(saved);
@@ -113,6 +138,7 @@ void TestAudioOutputNode::saveLoadRoundTripsAllFourFields()
     QCOMPARE(restored.config().volume, config.volume);
     QCOMPARE(restored.config().bufferMs, config.bufferMs);
     QCOMPARE(restored.config().enabled, config.enabled);
+    QCOMPARE(restored.config().maxQueuedMs, config.maxQueuedMs);
 }
 
 void TestAudioOutputNode::saveCarriesModelName()
@@ -148,6 +174,15 @@ void TestAudioOutputNode::configSchemaDescribesExactlyWhatSaveEmits()
                  .value(QStringLiteral("minimum")).toInt(), 20);
     QCOMPARE(properties.value(QStringLiteral("bufferMs")).toObject()
                  .value(QStringLiteral("maximum")).toInt(), 2000);
+
+    // The queue bound is the real backpressure limit and must be describable:
+    // one TTS sentence is one block, so the minimum has to hold a sentence.
+    QCOMPARE(properties.value(QStringLiteral("maxQueuedMs")).toObject()
+                 .value(QStringLiteral("minimum")).toInt(), 200);
+    QCOMPARE(properties.value(QStringLiteral("maxQueuedMs")).toObject()
+                 .value(QStringLiteral("maximum")).toInt(), 10000);
+    QCOMPARE(properties.value(QStringLiteral("maxQueuedMs")).toObject()
+                 .value(QStringLiteral("default")).toInt(), 2000);
 }
 
 void TestAudioOutputNode::volumeAndBufferAreClamped()
@@ -157,15 +192,19 @@ void TestAudioOutputNode::volumeAndBufferAreClamped()
     AudioOutputNode::Config config;
     config.volume = 2.5;
     config.bufferMs = 5000;
+    config.maxQueuedMs = 60000;
     node.setConfig(config);
     QCOMPARE(node.config().volume, 1.0);
     QCOMPARE(node.config().bufferMs, 2000);
+    QCOMPARE(node.config().maxQueuedMs, 10000);
 
     config.volume = -3.0;
     config.bufferMs = 1;
+    config.maxQueuedMs = 1;
     node.setConfig(config);
     QCOMPARE(node.config().volume, 0.0);
     QCOMPARE(node.config().bufferMs, 20);
+    QCOMPARE(node.config().maxQueuedMs, 200);
 }
 
 void TestAudioOutputNode::loadClampsOutOfRangeValues()
@@ -178,12 +217,14 @@ void TestAudioOutputNode::loadClampsOutOfRangeValues()
     json[QStringLiteral("volume")] = 7.5;
     json[QStringLiteral("bufferMs")] = 9000;
     json[QStringLiteral("enabled")] = true;
+    json[QStringLiteral("maxQueuedMs")] = -5;
 
     AudioOutputNode node;
     node.load(json);
 
     QCOMPARE(node.config().volume, 1.0);
     QCOMPARE(node.config().bufferMs, 2000);
+    QCOMPARE(node.config().maxQueuedMs, 200);
     QCOMPARE(node.save().value(QStringLiteral("volume")).toDouble(), 1.0);
     QCOMPARE(node.save().value(QStringLiteral("bufferMs")).toInt(), 2000);
 }
@@ -218,7 +259,7 @@ void TestAudioOutputNode::statusChangesAreForwarded()
 
 // ── No output device (AC5) ────────────────────────────────────────────────────
 
-void TestAudioOutputNode::unknownDeviceIsANoOp()
+void TestAudioOutputNode::unknownDeviceQueuesBlocksAndOpensNothing()
 {
     AudioOutputNode node;
     AudioOutputNode::Config config;
@@ -234,10 +275,15 @@ void TestAudioOutputNode::unknownDeviceIsANoOp()
     for (int i = 0; i < 3; ++i)
         node.setInData(makeBlock(), 0);
 
-    QCOMPARE(node.engine()->blocksSkipped(), quint64(3));
-    QCOMPARE(node.engine()->blocksPlayed(), quint64(0));
+    // Blocks are ACCEPTED while no device exists (a device may appear later —
+    // a USB headset, a headless run that gains a sink) and wait in the bounded
+    // queue. Nothing is opened, nothing is dropped, nothing blocks.
+    QCOMPARE(node.engine()->blocksPlayed(), quint64(3));
     QCOMPARE(node.engine()->blocksDropped(), quint64(0));
+    QCOMPARE(node.engine()->blocksSkipped(), quint64(0));
     QCOMPARE(node.engine()->sinksCreated(), quint64(0));
+    QVERIFY(node.engine()->bytesQueued() > 0);
+    QCOMPARE(node.engine()->queueMs(), 30);
 }
 
 void TestAudioOutputNode::noDeviceStatusExplainsWhy()
@@ -288,11 +334,12 @@ void TestAudioOutputNode::manyBlocksUseAtMostOneSink()
 
     const bool hasDevice = node.engine()->deviceAvailable();
     if (!hasDevice) {
-        // Documented no-device path: nothing is opened, blocks are counted.
+        // Documented no-device path: nothing is opened, blocks are queued.
         for (int i = 0; i < 3; ++i)
             node.setInData(makeBlock(), 0);
         QCOMPARE(node.engine()->sinksCreated(), quint64(0));
-        QCOMPARE(node.engine()->blocksSkipped(), quint64(3));
+        QCOMPARE(node.engine()->blocksPlayed(), quint64(3));
+        QVERIFY(node.engine()->bytesQueued() > 0);
         QSKIP("no audio output device on this machine — no-device path checked");
     }
 
@@ -334,6 +381,123 @@ void TestAudioOutputNode::nullInputChangesNothing()
     QCOMPARE(node.engine()->blocksSkipped(), skipped);
     QCOMPARE(node.engine()->blocksDropped(), dropped);
     QCOMPARE(node.engine()->sinksCreated(), sinks);
+}
+
+// ── Queue semantics: the block size is not the limit ─────────────────────────
+
+void TestAudioOutputNode::blocksBeforeStartAreQueuedNotLost()
+{
+    // A block that arrives before the graph is started used to be dropped on
+    // the floor (`!m_running` → return) — exactly what a TTS sentence that
+    // arrives a millisecond early used to be.
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.deviceId = missingDeviceId();   // deterministic: never opens a device
+    node.setConfig(config);
+
+    node.setInData(makeSentenceBlock(), 0);
+
+    QCOMPARE(node.engine()->sinksCreated(), quint64(0));
+    QCOMPARE(node.engine()->blocksSkipped(), quint64(0));
+    QVERIFY(node.engine()->bytesQueued() > 0);
+    QCOMPARE(node.engine()->queueMs(), 1900);
+
+    // start() must not throw the queue away: it is played once a device exists.
+    node.start();
+    QVERIFY(node.engine()->bytesQueued() > 0);
+    QCOMPARE(node.engine()->sinksCreated(), quint64(0));
+}
+
+void TestAudioOutputNode::largeBlockIsQueuedNotDropped()
+{
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.bufferMs = 200;       // ~38 KB device buffer against a ~183 KB block
+    config.maxQueuedMs = 2000;   // holds one sentence
+    node.setConfig(config);
+    node.start();
+
+    // One TTS sentence as ONE block. The old code compared its size with
+    // bytesFree() and dropped it — every sentence was silent at bufferMs 200,
+    // and everything over 2 s was silent even at the 2000 ms maximum.
+    node.setInData(makeSentenceBlock(), 0);
+
+    QCOMPARE(node.engine()->blocksDropped(), quint64(0));
+    QCOMPARE(node.engine()->blocksPlayed(), quint64(1));
+
+    if (!node.engine()->deviceAvailable()) {
+        QCOMPARE(node.engine()->sinksCreated(), quint64(0));
+        QCOMPARE(node.engine()->queueMs(), 1900);
+        QVERIFY(node.engine()->bytesQueued() > 0);
+        QSKIP("no audio output device on this machine — queue-only path checked");
+    }
+
+    // The device buffer is a fraction of the block: the rest has to drain in
+    // chunks instead of being dropped.
+    const qsizetype queued = node.engine()->bytesQueued();
+    QVERIFY(queued > 0);
+    QTRY_VERIFY_WITH_TIMEOUT(node.engine()->bytesQueued() < queued, 5000);
+    QCOMPARE(node.engine()->blocksDropped(), quint64(0));
+
+    node.stop();
+}
+
+void TestAudioOutputNode::blockOverQueueBoundDropsOldest()
+{
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.deviceId = missingDeviceId();   // the bound is a queue property only
+    config.bufferMs = 200;
+    config.maxQueuedMs = 200;              // 1.9 s block far over the bound
+    node.setConfig(config);
+    node.start();
+
+    node.setInData(makeSentenceBlock(), 0);
+
+    // Over the bound the OLDEST block goes — and here it is also the only one.
+    QCOMPARE(node.engine()->blocksDropped(), quint64(1));
+    QCOMPARE(node.engine()->bytesQueued(), qsizetype(0));
+    QCOMPARE(node.engine()->queueMs(), 0);
+}
+
+void TestAudioOutputNode::queueStaysBoundedByTime()
+{
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.deviceId = missingDeviceId();
+    config.maxQueuedMs = 500;
+    node.setConfig(config);
+    node.start();
+
+    // Ten 300 ms blocks into a 500 ms queue: accepted one by one, the oldest is
+    // dropped as the bound is crossed, so memory cannot grow with the stream.
+    for (int i = 0; i < 10; ++i)
+        node.setInData(makeFloatBlock(7200, 24000.0), 0);
+
+    QCOMPARE(node.engine()->blocksPlayed(), quint64(10));
+    QVERIFY(node.engine()->blocksDropped() > 0);
+    QVERIFY(node.engine()->queueMs() <= config.maxQueuedMs);
+    // 10 blocks would be 288 000 bytes at the source format; the bound is what
+    // is still waiting, not the sum of everything ever pushed.
+    QVERIFY(node.engine()->bytesQueued() <= 28800 * 2);
+}
+
+void TestAudioOutputNode::stopClearsTheQueue()
+{
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.deviceId = missingDeviceId();
+    node.setConfig(config);
+    node.start();
+    node.setInData(makeSentenceBlock(), 0);
+    QVERIFY(node.engine()->bytesQueued() > 0);
+
+    // REQ-SW-PL-050: stop() closes the sink and the queue dies with it — a
+    // later start() must not play audio from a previous run into the device.
+    node.stop();
+    QCOMPARE(node.engine()->bytesQueued(), qsizetype(0));
+    QCOMPARE(node.engine()->queueMs(), 0);
+    QVERIFY(!node.engine()->isPlaying());
 }
 
 QTEST_GUILESS_MAIN(TestAudioOutputNode)

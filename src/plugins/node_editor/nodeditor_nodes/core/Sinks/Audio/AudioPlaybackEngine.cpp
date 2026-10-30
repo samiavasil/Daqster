@@ -5,13 +5,28 @@
 
 #include <QAudioFormat>
 #include <QElapsedTimer>
+#include <QScopedValueRollback>
+
+#include <algorithm>
+#include <cmath>
 
 namespace {
-/// Queue bound. The sink's own buffer is the queue — `bufferMs` is clamped to
-/// this range, so a stalled device can hold at most ~2 s of audio and the graph
-/// never sees an unbounded buffer or a blocking write.
+/// Bounds of the device buffer (`bufferMs`). It is only the size of the buffer
+/// the sink is created with — never a limit on how large a block may be.
 constexpr int kMinBufferMs = 20;
 constexpr int kMaxBufferMs = 2000;
+
+/// Bounds of the playback queue (`maxQueuedMs`), the actual backpressure limit.
+/// A TTS sentence arrives as one block of up to ~2 s, so the lower bound has to
+/// be able to hold a sentence, not a 20 ms frame. Declared on the class (the
+/// node model clamps and describes the same range).
+constexpr int kMinMaxQueuedMs = AudioPlaybackEngine::kMinMaxQueuedMs;
+constexpr int kMaxMaxQueuedMs = AudioPlaybackEngine::kMaxMaxQueuedMs;
+
+/// How often the queue is offered to the device while it drains. 20 ms is well
+/// below the smallest device buffer (20 ms) so the sink never underruns because
+/// of the timer, and the timer is stopped as soon as the queue is empty.
+constexpr int kPumpIntervalMs = 20;
 
 /// Minimum interval between two attempts to open a sink that failed. Without it
 /// an unusable format would retry (and log) once per block, i.e. ~100×/s.
@@ -45,12 +60,24 @@ QString audioErrorText(QAudio::Error error)
     }
     return QStringLiteral("unknown error (%1)").arg(static_cast<int>(error));
 }
+
+/// Duration of @p pcm in milliseconds at @p format, 0 for an unusable format.
+double pcmDurationMs(qsizetype bytes, const QAudioFormat &format)
+{
+    const int bytesPerFrame =
+        format.channelCount() * AudioFormatBridge::bytesPerSample(format);
+    if (bytesPerFrame <= 0 || format.sampleRate() <= 0)
+        return 0.0;
+    return double(bytes / bytesPerFrame) * 1000.0 / double(format.sampleRate());
+}
 } // namespace
 
 AudioPlaybackEngine::AudioPlaybackEngine(QObject *parent)
     : QObject(parent)
 {
     m_status = QStringLiteral("stopped");
+    m_pumpTimer.setInterval(kPumpIntervalMs);
+    connect(&m_pumpTimer, &QTimer::timeout, this, &AudioPlaybackEngine::pump);
 }
 
 AudioPlaybackEngine::~AudioPlaybackEngine()
@@ -59,7 +86,8 @@ AudioPlaybackEngine::~AudioPlaybackEngine()
     destroySink();
 }
 
-void AudioPlaybackEngine::setConfig(const QString &deviceId, double volume, int bufferMs, bool enabled)
+void AudioPlaybackEngine::setConfig(const QString &deviceId, double volume, int bufferMs,
+                                    bool enabled, int maxQueuedMs)
 {
     const int clampedBufferMs = qBound(kMinBufferMs, bufferMs, kMaxBufferMs);
     const bool deviceChanged = (deviceId != m_deviceId);
@@ -69,6 +97,7 @@ void AudioPlaybackEngine::setConfig(const QString &deviceId, double volume, int 
 
     m_deviceId = deviceId;
     m_bufferMs = clampedBufferMs;
+    m_maxQueuedMs = qBound(kMinMaxQueuedMs, maxQueuedMs, kMaxMaxQueuedMs);
     m_volume = qBound(0.0, volume, 1.0);
     m_enabled = enabled;
 
@@ -82,10 +111,13 @@ void AudioPlaybackEngine::setConfig(const QString &deviceId, double volume, int 
         return;
     }
 
-    if (needsRecreate)
+    if (needsRecreate) {
+        // The queue is in the OLD format/device: it is dropped with the sink
+        // instead of being pushed into a device it was not converted for.
         destroySink();
-    else if (m_sink)
+    } else if (m_sink) {
         m_sink->setVolume(m_volume);   // live setting — no restart needed
+    }
 
     // A config change is the user's attempt to get rid of the previous error.
     m_error.clear();
@@ -97,6 +129,7 @@ void AudioPlaybackEngine::setConfig(const QString &deviceId, double volume, int 
         && m_lastDescriptor.sampleRate > 0.0 && !m_lastDescriptor.channels.isEmpty())
         createSink(m_lastDescriptor);
 
+    pump();
     refreshStatus();
 }
 
@@ -130,14 +163,20 @@ void AudioPlaybackEngine::start()
         && m_lastDescriptor.sampleRate > 0.0 && !m_lastDescriptor.channels.isEmpty())
         createSink(m_lastDescriptor);
 
+    // Blocks that arrived while the node was not started were queued instead of
+    // dropped: play them now that a device may be opened.
+    pump();
     refreshStatus();
 }
 
 void AudioPlaybackEngine::stop()
 {
     m_running = false;
+    // destroySink() also clears the queue (PCM in the old format).
     destroySink();
+    clearQueue();
     m_error.clear();
+    updatePumpTimer();
     refreshStatus();
 }
 
@@ -164,43 +203,31 @@ QString AudioPlaybackEngine::deviceLabel() const
 void AudioPlaybackEngine::push(const SampledData &data)
 {
     // Remember the input format even while stopped: remembering opens nothing
-    // (AC7) and lets start() open the device eagerly instead of on the first block.
+    // (AC7) and lets start()/pump() open the device eagerly.
     m_lastDescriptor = data.descriptor();
 
-    if (!m_enabled || !m_running)
-        return;                     // graph is only being edited — no device
-
-    if (!deviceAvailable()) {
+    if (!m_enabled) {
         ++m_blocksSkipped;
         refreshStatus();
         return;
     }
 
-    if (m_sink == nullptr) {
-        // Throttled retry: a format the device cannot open must not attempt (and
-        // log a warning) once per block. Config changes restart the throttle.
-        if (m_createThrottle.isValid() && m_createThrottle.elapsed() < kCreateRetryMs) {
-            ++m_blocksSkipped;
-            return;
-        }
-        m_createThrottle.start();
-        m_device = AudioCompat::deviceFromId(m_deviceId);
-        if (!createSink(m_lastDescriptor)) {
-            ++m_blocksSkipped;
-            return;
-        }
-    }
-
-    if (m_ioDevice == nullptr) {
+    // The queue is single-format: while the sink is open that is the sink's
+    // format, before that the format the sink WOULD open with (resolved
+    // without touching the device). A block is never refused because it is
+    // larger than the device buffer — only the queue bound matters.
+    const QAudioFormat targetFormat =
+        (m_sink != nullptr) ? m_format : provisionalFormat(m_lastDescriptor);
+    if (!targetFormat.isValid()) {
         ++m_blocksSkipped;
-        reportError(QStringLiteral("sink without a writable QIODevice"));
+        reportError(QStringLiteral("unsupported audio format"));
         return;
     }
 
     // Ask-then-convert (AC4): the sink was opened with the device's format, so
     // this resamples / mixes / re-encodes as needed. Never silent on failure.
     QString error;
-    const QByteArray pcm = AudioFormatBridge::convert(data, m_format, &error);
+    const QByteArray pcm = AudioFormatBridge::convert(data, targetFormat, &error);
     if (pcm.isEmpty()) {
         ++m_blocksSkipped;
         reportError(error.isEmpty() ? QStringLiteral("the block cannot be converted")
@@ -208,28 +235,170 @@ void AudioPlaybackEngine::push(const SampledData &data)
         return;
     }
 
-    // Backpressure: never block the graph and never grow a queue. The sink's
-    // buffer is the queue (bufferMs), so a full buffer means drop, not wait.
-    const qint64 free = static_cast<qint64>(m_sink->bytesFree());
-    if (free < pcm.size()) {
+    if (!m_queue.isEmpty() && m_queueFormat != targetFormat) {
+        // The output format changed under the queued audio (a device appeared
+        // or was replaced). Playing old-format PCM into the new sink would be
+        // garbage, so the queue is dropped explicitly — never silently.
+        qCInfo(lcDemoNodes).noquote()
+            << QStringLiteral("AudioPlaybackEngine: queued audio cleared — "
+                              "output format changed");
+        clearQueue();
+    }
+    m_queueFormat = targetFormat;
+
+    QueuedBlock block;
+    block.pcm = pcm;
+    block.durationMs = pcmDurationMs(pcm.size(), targetFormat);
+    m_queue.append(block);
+
+    // Backpressure lives HERE, and it is a TIME bound, not a block-size check:
+    // when the queued audio would exceed maxQueuedMs the OLDEST block goes. A
+    // 2 s TTS sentence in a 200 ms device buffer is the normal case now.
+    while (!m_queue.isEmpty() && queueMs() > m_maxQueuedMs) {
+        const QueuedBlock oldest = m_queue.takeFirst();
         ++m_blocksDropped;
-        logDrop(QStringLiteral("queue full"), pcm.size());
-        return;
+        logDrop(QStringLiteral("queue over maxQueuedMs"),
+                oldest.pcm.size() - oldest.written);
     }
 
-    const qint64 written = static_cast<qint64>(m_ioDevice->write(pcm));
-    if (written < 0) {
-        ++m_blocksSkipped;
-        reportError(audioErrorText(m_sink->error()));
-        return;
-    }
-    if (written < pcm.size()) {
-        ++m_blocksDropped;
-        logDrop(QStringLiteral("partial write"), pcm.size() - written);
-    }
-
+    // Accepted into the queue — whether it is written now or by the next pump.
     ++m_blocksPlayed;
+
+    pump();
     refreshStatus();
+}
+
+qsizetype AudioPlaybackEngine::bytesQueued() const
+{
+    qsizetype bytes = 0;
+    for (const QueuedBlock &block : m_queue)
+        bytes += block.pcm.size() - block.written;
+    return bytes;
+}
+
+int AudioPlaybackEngine::queueMs() const
+{
+    double ms = 0.0;
+    for (const QueuedBlock &block : m_queue) {
+        const qsizetype total = block.pcm.size();
+        const qsizetype remaining = total - block.written;
+        if (total <= 0 || remaining <= 0)
+            continue;
+        ms += block.durationMs * double(remaining) / double(total);
+    }
+    return int(std::lround(ms));
+}
+
+QAudioFormat AudioPlaybackEngine::provisionalFormat(
+    const SampledStreamDescriptor &descriptor) const
+{
+    // A null device makes resolveFormat() return the descriptor's own format —
+    // exactly what we want while no device exists: queue it, play it when one
+    // appears. Nothing is opened here.
+    const QAudioDeviceInfo device = AudioCompat::isNull(m_device)
+        ? AudioCompat::deviceFromId(m_deviceId)
+        : m_device;
+    return AudioFormatBridge::resolveFormat(descriptor, device).format;
+}
+
+void AudioPlaybackEngine::pump()
+{
+    if (m_pumping)
+        return;   // re-entered from a synchronous stateChanged during write()
+    const QScopedValueRollback<bool> guard(m_pumping, true);
+
+    if (!m_enabled || !m_running || m_queue.isEmpty()) {
+        updatePumpTimer();
+        return;
+    }
+
+    if (m_sink == nullptr) {
+        // Throttled retry: a format the device cannot open must not attempt (and
+        // log a warning) once per block. Config changes restart the throttle.
+        if (!deviceAvailable()
+            || (m_createThrottle.isValid() && m_createThrottle.elapsed() < kCreateRetryMs)) {
+            updatePumpTimer();
+            return;
+        }
+        m_createThrottle.start();
+        m_device = AudioCompat::deviceFromId(m_deviceId);
+        if (!createSink(m_lastDescriptor)) {
+            updatePumpTimer();
+            return;   // the queued block survives — the bound keeps memory finite
+        }
+    }
+
+    if (m_ioDevice == nullptr) {
+        updatePumpTimer();
+        return;
+    }
+
+    writeQueued();
+    updatePumpTimer();
+    refreshStatus();
+}
+
+bool AudioPlaybackEngine::writeQueued()
+{
+    if (m_sink == nullptr || m_ioDevice == nullptr)
+        return !m_queue.isEmpty();
+
+    const int frameBytes =
+        m_format.channelCount() * AudioFormatBridge::bytesPerSample(m_format);
+
+    while (!m_queue.isEmpty()) {
+        QueuedBlock &head = m_queue.first();
+        const qsizetype remaining = head.pcm.size() - head.written;
+        if (remaining <= 0) {
+            m_queue.removeFirst();
+            continue;
+        }
+
+        const qint64 free = static_cast<qint64>(m_sink->bytesFree());
+        if (free <= 0)
+            return true;   // device buffer full — the pump timer comes back
+
+        // Write at most what fits RIGHT NOW: the block size is irrelevant, the
+        // device buffer is the only thing that decides a chunk.
+        qint64 chunk = std::min<qint64>(free, static_cast<qint64>(remaining));
+        if (frameBytes > 0)
+            chunk -= chunk % frameBytes;
+        if (chunk <= 0)
+            return true;
+
+        const qint64 written =
+            static_cast<qint64>(m_ioDevice->write(head.pcm.constData() + head.written, chunk));
+        if (written < 0) {
+            reportError(audioErrorText(m_sink->error()));
+            return true;   // keep the data: a retry may succeed after a state change
+        }
+        if (written == 0)
+            return true;   // no space yet, not an error
+
+        head.written += written;
+        if (head.written >= head.pcm.size())
+            m_queue.removeFirst();
+        else
+            return true;   // the device buffer is full again
+    }
+
+    return false;
+}
+
+void AudioPlaybackEngine::updatePumpTimer()
+{
+    const bool needed = m_enabled && m_running && !m_queue.isEmpty()
+                        && (m_ioDevice != nullptr || deviceAvailable());
+    if (needed && !m_pumpTimer.isActive())
+        m_pumpTimer.start();
+    else if (!needed && m_pumpTimer.isActive())
+        m_pumpTimer.stop();   // never spin on an empty queue / absent device
+}
+
+void AudioPlaybackEngine::clearQueue()
+{
+    m_queue.clear();
+    m_queueFormat = QAudioFormat();
 }
 
 bool AudioPlaybackEngine::createSink(const SampledStreamDescriptor &descriptor)
@@ -279,6 +448,16 @@ bool AudioPlaybackEngine::createSink(const SampledStreamDescriptor &descriptor)
     m_error.clear();
     ++m_sinksCreated;
 
+    // PCM queued before the device opened is in `m_queueFormat`. If the device
+    // picked another format, that audio belongs to a different output and is
+    // dropped instead of being played as noise.
+    if (!m_queue.isEmpty() && m_queueFormat != m_format) {
+        qCInfo(lcDemoNodes).noquote()
+            << QStringLiteral("AudioPlaybackEngine: queued audio cleared — "
+                              "output format changed on sink open");
+        clearQueue();
+    }
+
     qCInfo(lcDemoNodes).noquote()
         << QStringLiteral("AudioPlaybackEngine: sink opened — %1 (%2)")
                .arg(streamDescription(), m_formatReason);
@@ -298,6 +477,10 @@ void AudioPlaybackEngine::destroySink()
     m_format = QAudioFormat();
     m_converted = false;
     m_formatReason.clear();
+    // The queue was converted for the sink that just died: never hand it to a
+    // new device, which may (and usually does) have another format.
+    clearQueue();
+    updatePumpTimer();
 }
 
 void AudioPlaybackEngine::onSinkStateChanged(QAudio::State state)
@@ -307,6 +490,9 @@ void AudioPlaybackEngine::onSinkStateChanged(QAudio::State state)
         reportError(audioErrorText(m_sink->error()));
         return;
     }
+    // Idle/Active means the device buffer just drained or reopened: feed the
+    // queue now instead of waiting for the next 20 ms tick.
+    pump();
     refreshStatus();
 }
 

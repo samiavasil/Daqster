@@ -5,9 +5,12 @@
 #include "NodeDataTypes/SampledData.h"
 
 #include <QAudioFormat>
+#include <QByteArray>
 #include <QElapsedTimer>
 #include <QObject>
 #include <QString>
+#include <QTimer>
+#include <QVector>
 
 #include <memory>
 
@@ -19,7 +22,8 @@ class QIODevice;
  *
  * The node model is a thin controller (the `LlamaGenerateModel` → `LlamaEngine`
  * pattern): `AudioOutputNode` only keeps the config, `save()`/`load()` and the
- * port wiring; this engine keeps the device, the format and the sink.
+ * port wiring; this engine keeps the device, the format, the sink and the
+ * playback queue.
  *
  * One sink for the whole life of the node — never one per block:
  *   - created lazily, on the first block that actually has to be played
@@ -28,19 +32,32 @@ class QIODevice;
  *   - destroyed by `stop()` and re-created when the device, the buffer size or
  *     the input format changes (only for a real reason).
  *
- * Block path (`push()`):
+ * Block path (`push()`) — the block size is NEVER the limit:
  *   1. `AudioFormatBridge::resolveFormat()` — ask the device whether it accepts
  *      the descriptor's format; on rejection fall back to `preferredFormat()`
- *      and resample/convert (AC4, never silent);
- *   2. `AudioFormatBridge::convert()` — one block into the sink's format;
- *   3. backpressure — `bytesFree()` is checked before every write, so a slow or
- *      blocked device drops blocks instead of growing an unbounded buffer or
- *      blocking the graph. The queue is bounded by the sink's own buffer
- *      (`bufferMs`, max 2000 ms).
+ *      and resample/convert (AC4, never silent). While no sink is open yet the
+ *      same resolver yields the provisional format the queue is converted to;
+ *   2. `AudioFormatBridge::convert()` — one block into that format;
+ *   3. the converted block is appended to a **queue bounded by time**
+ *      (`maxQueuedMs`, default 2000 ms — not by the device buffer and not by
+ *      the block size). A TTS sentence arrives as ONE block of ~2 s; it used to
+ *      be dropped whenever `bytesFree() < size`, i.e. always with
+ *      `bufferMs: 200` and even at the 2000 ms maximum. Now it is accepted and
+ *      handed to the device in chunks of whatever `bytesFree()` allows.
+ *
+ * Draining happens on `push()`, on the sink's `stateChanged` and on a 20 ms
+ * timer that runs only while the queue is non-empty **and** a device exists
+ * (it is stopped when the queue empties — nothing spins forever).
+ *
+ * `blocksDropped()` is now only the queue bound: when the queued audio would
+ * exceed `maxQueuedMs` the OLDEST block is dropped (throttled log). `bufferMs`
+ * stays what it always was — the size of the device buffer the sink is created
+ * with — and is not a limit of a block.
  *
  * Headless / no sound card (AC5): `defaultOutputDevice()` is null or the output
- * list is empty → blocks are counted and the status says so. Nothing throws,
- * nothing blocks, no device is opened.
+ * list is empty → nothing is opened; blocks are still accepted into the bounded
+ * queue (so audio that arrives before the device/start is not lost) and the
+ * status says why. Nothing throws and nothing blocks.
  *
  * Contains no `QWidget`: the widget lives in `nodeditor_nodes/gui`
  * (`check_core_widgets_free`).
@@ -50,6 +67,12 @@ class AudioPlaybackEngine : public QObject
     Q_OBJECT
 
 public:
+    /// Default of `maxQueuedMs` — how much audio may wait for the device.
+    static constexpr int kDefaultMaxQueuedMs = 2000;
+    /// Bounds of `maxQueuedMs` (the queue bound is time, see push()).
+    static constexpr int kMinMaxQueuedMs = 200;
+    static constexpr int kMaxMaxQueuedMs = 10000;
+
     explicit AudioPlaybackEngine(QObject *parent = nullptr);
     ~AudioPlaybackEngine() override;
 
@@ -58,21 +81,29 @@ public:
      *
      * Volume is applied to the live sink immediately. A device or buffer-size
      * change destroys the sink so the next block re-creates it with the new
-     * settings (the block that triggered the change is not lost — it is the one
-     * that causes the re-creation). Disabling stops and destroys the sink.
+     * settings — and clears the queue: PCM converted for the old device must
+     * not be pushed into a new one with another format (documented, not silent).
+     * Disabling stops and destroys the sink.
      *
-     * @param deviceId Persisted `AudioCompat::deviceId()`; empty = system default
-     * @param volume   Linear volume, clamped to [0, 1]
-     * @param bufferMs Sink buffer in milliseconds, clamped to [20, 2000]
-     * @param enabled  false = disabled: no sink, blocks are skipped
+     * @param deviceId   Persisted `AudioCompat::deviceId()`; empty = system default
+     * @param volume     Linear volume, clamped to [0, 1]
+     * @param bufferMs   Sink buffer in milliseconds, clamped to [20, 2000].
+     *                   The device buffer only — never a limit on a block.
+     * @param enabled    false = disabled: no sink, blocks are skipped
+     * @param maxQueuedMs Playback queue bound in milliseconds, clamped to
+     *                   [200, 10000]; audio over this bound is dropped
+     *                   oldest-first (one TTS sentence is one block)
      */
-    void setConfig(const QString &deviceId, double volume, int bufferMs, bool enabled);
+    void setConfig(const QString &deviceId, double volume, int bufferMs, bool enabled,
+                   int maxQueuedMs = kDefaultMaxQueuedMs);
 
     /// Arm playback. Opens the device only when the input format is already
     /// known (a block was seen before); otherwise the first block does it.
+    /// Audio queued while the node was stopped is played now.
     void start();
 
-    /// Stop playback and destroy the sink. Idempotent (REQ-SW-PL-050).
+    /// Stop playback, destroy the sink and clear the queue. Idempotent
+    /// (REQ-SW-PL-050).
     void stop();
 
     /// True while the sink is actually consuming audio (ActiveState).
@@ -91,12 +122,18 @@ public:
     /// Format the sink is open with, or an invalid format when no sink exists.
     QAudioFormat format() const { return m_format; }
 
-    /// Play one block. Non-blocking: never grows a queue and never throws.
+    /// Queue one block. Non-blocking and never throws: the block is converted
+    /// and appended to the time-bounded queue, then as much as the device
+    /// accepts right now is written. A block larger than the device buffer is
+    /// the normal case (one TTS sentence), not an error.
     void push(const SampledData &data);
 
     // ── Diagnostics (tests, status line) ───────────────────────────────────
+    /// Blocks accepted into the queue (not necessarily finished playing).
     quint64 blocksPlayed() const { return m_blocksPlayed; }
+    /// Blocks discarded because the queue was over `maxQueuedMs` (oldest first).
     quint64 blocksDropped() const { return m_blocksDropped; }
+    /// Blocks that could not even be converted or queued (disabled, bad format).
     quint64 blocksSkipped() const { return m_blocksSkipped; }
     /// How many times a sink was actually opened. The node's whole point is
     /// "one sink for many blocks", so re-creation is observable here rather
@@ -104,22 +141,54 @@ public:
     quint64 sinksCreated() const { return m_sinksCreated; }
     bool deviceAvailable() const;
 
+    /// Converted PCM bytes still waiting for the device (not yet written).
+    qsizetype bytesQueued() const;
+
+    /// How much audio is still waiting for the device, in milliseconds
+    /// (partially written blocks count with their remaining share).
+    int queueMs() const;
+
 signals:
     /// Emitted only when the text actually changes.
     void statusChanged(const QString &status);
 
 private:
+    /// One converted block waiting for (the rest of) its turn at the device.
+    struct QueuedBlock {
+        QByteArray pcm;        ///< PCM in the current sink/queue format
+        qsizetype written = 0; ///< bytes already handed to the device
+        double durationMs = 0.0; ///< full block duration, for the queue bound
+    };
+
     /// Build the sink for @p descriptor on @p device. Sets the status on failure
     /// (never a silent no-op) and returns false.
     bool createSink(const SampledStreamDescriptor &descriptor);
 
-    /// Stop and drop the sink. Does not touch `m_running`.
+    /// Stop and drop the sink (and the queue in the old format). Does not touch
+    /// `m_running`.
     void destroySink();
+
+    /// Drop everything still waiting for the device.
+    void clearQueue();
+
+    /// Feed as much of the queue to the device as `bytesFree()` allows. Opens
+    /// the sink (throttled) when it is missing.
+    void pump();
+
+    /// Write queued PCM in chunks. @return true while data is still waiting.
+    bool writeQueued();
+
+    /// Run the 20 ms pump timer only while there is something to drain.
+    void updatePumpTimer();
+
+    /// Format the queue is converted to while no sink is open yet: what
+    /// `createSink()` would pick. Never opens anything.
+    QAudioFormat provisionalFormat(const SampledStreamDescriptor &descriptor) const;
 
     /// Recompute the status text, emit when it changed.
     void refreshStatus();
 
-    /// Full error status: "грешка: <what>".
+    /// Full error status: "error: <what>".
     void reportError(const QString &what);
 
     void onSinkStateChanged(QAudio::State state);
@@ -135,6 +204,7 @@ private:
     QString m_deviceId;
     double m_volume = 1.0;
     int m_bufferMs = 200;
+    int m_maxQueuedMs = kDefaultMaxQueuedMs;
     bool m_enabled = true;
 
     std::unique_ptr<AudioCompat::AudioOutput> m_sink;
@@ -152,6 +222,15 @@ private:
 
     bool m_running = false;
     QString m_status;
+
+    /// Blocks waiting for the device, oldest first. Bounded by `maxQueuedMs`.
+    QVector<QueuedBlock> m_queue;
+    /// Format every queued block is encoded in (invalid while the queue is empty).
+    QAudioFormat m_queueFormat;
+    /// Guards against re-entrant pumping from a synchronous `stateChanged`.
+    bool m_pumping = false;
+    /// Drains the queue while the device buffer frees up. Stopped when empty.
+    QTimer m_pumpTimer;
 
     /// Format of the last block seen, even while stopped (AC7: remembering it
     /// opens nothing). `start()` uses it to open the device eagerly.

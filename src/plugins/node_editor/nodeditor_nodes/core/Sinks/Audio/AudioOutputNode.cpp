@@ -8,10 +8,12 @@ using QtNodes::PortIndex;
 using QtNodes::PortType;
 
 namespace {
-/// Mirrors AudioPlaybackEngine's clamp — load() must not persist a buffer size
-/// the engine would silently change (round-trip, AC3).
+/// Mirrors AudioPlaybackEngine's clamps — load() must not persist a buffer size
+/// or queue bound the engine would silently change (round-trip, AC3).
 constexpr int kMinBufferMs = 20;
 constexpr int kMaxBufferMs = 2000;
+constexpr int kMinMaxQueuedMs = AudioPlaybackEngine::kMinMaxQueuedMs;
+constexpr int kMaxMaxQueuedMs = AudioPlaybackEngine::kMaxMaxQueuedMs;
 } // namespace
 
 AudioOutputNode::AudioOutputNode()
@@ -22,7 +24,7 @@ AudioOutputNode::AudioOutputNode()
             this, &AudioOutputNode::statusChanged);
 
     m_engine.setConfig(m_config.deviceId, m_config.volume,
-                       m_config.bufferMs, m_config.enabled);
+                       m_config.bufferMs, m_config.enabled, m_config.maxQueuedMs);
 }
 
 AudioOutputNode::~AudioOutputNode()
@@ -52,11 +54,13 @@ void AudioOutputNode::setConfig(const Config &config)
     m_config = config;
     m_config.volume = qBound(0.0, m_config.volume, 1.0);
     m_config.bufferMs = qBound(kMinBufferMs, m_config.bufferMs, kMaxBufferMs);
+    m_config.maxQueuedMs = qBound(kMinMaxQueuedMs, m_config.maxQueuedMs,
+                                  kMaxMaxQueuedMs);
 
     // The engine decides what the change costs: volume is live, a device or
-    // buffer-size change re-creates the sink and reopens it at once.
+    // buffer-size change re-creates the sink (and clears the queue) at once.
     m_engine.setConfig(m_config.deviceId, m_config.volume,
-                       m_config.bufferMs, m_config.enabled);
+                       m_config.bufferMs, m_config.enabled, m_config.maxQueuedMs);
 }
 
 QJsonObject AudioOutputNode::save() const
@@ -69,6 +73,7 @@ QJsonObject AudioOutputNode::save() const
     modelJson[QStringLiteral("volume")] = m_config.volume;
     modelJson[QStringLiteral("bufferMs")] = m_config.bufferMs;
     modelJson[QStringLiteral("enabled")] = m_config.enabled;
+    modelJson[QStringLiteral("maxQueuedMs")] = m_config.maxQueuedMs;
     return modelJson;
 }
 
@@ -79,6 +84,8 @@ void AudioOutputNode::load(QJsonObject const &p)
     config.volume = p.value(QStringLiteral("volume")).toDouble(config.volume);
     config.bufferMs = p.value(QStringLiteral("bufferMs")).toInt(config.bufferMs);
     config.enabled = p.value(QStringLiteral("enabled")).toBool(config.enabled);
+    config.maxQueuedMs =
+        p.value(QStringLiteral("maxQueuedMs")).toInt(config.maxQueuedMs);
 
     // A hand-edited file (or an older one) must not smuggle an out-of-range
     // volume/buffer size past the engine's clamp and into save().
@@ -115,8 +122,19 @@ QJsonObject AudioOutputNode::configSchema() const
         {QStringLiteral("maximum"), kMaxBufferMs},
         {QStringLiteral("default"), 200},
         {QStringLiteral("description"),
-         QStringLiteral("Sink buffer in milliseconds — also the queue bound "
-                        "for dropped blocks")}});
+         QStringLiteral("Device buffer in milliseconds (20..2000). The buffer "
+                        "size only — a block larger than it is queued, not dropped")}});
+
+    properties.insert(QStringLiteral("maxQueuedMs"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("integer")},
+        {QStringLiteral("minimum"), kMinMaxQueuedMs},
+        {QStringLiteral("maximum"), kMaxMaxQueuedMs},
+        {QStringLiteral("default"), AudioPlaybackEngine::kDefaultMaxQueuedMs},
+        {QStringLiteral("description"),
+         QStringLiteral("Playback queue bound in milliseconds — audio may wait "
+                        "this long for the device; over it the OLDEST block is "
+                        "dropped. One TTS sentence is one block, so this must "
+                        "hold a sentence, not a 20 ms frame")}});
 
     properties.insert(QStringLiteral("enabled"), QJsonObject{
         {QStringLiteral("type"), QStringLiteral("boolean")},

@@ -26,8 +26,10 @@
  * 1 input port ("sample", `SampledData().type()` — the same derived type as
  * every other audio node, never a hardcoded descriptor), 0 output ports. Each
  * block is handed to the engine, which converts it to the device's format and
- * writes it. `nullptr` (edge removed, source silent) is ignored on purpose:
- * dropping the device would click, and the sink refills on the next block.
+ * appends it to the playback queue — a block is never refused for being larger
+ * than the device buffer (one TTS sentence is one block of ~2 s). `nullptr`
+ * (edge removed, source silent) is ignored on purpose: dropping the device
+ * would click, and the sink refills on the next block.
  *
  * Lifecycle (`IStartable`/`IStoppable`, REQ-SW-PL-050):
  *   - `start()` arms playback; the engine opens the device (eagerly when the
@@ -54,8 +56,11 @@ public:
     struct Config {
         QString deviceId;      ///< empty = system default output device
         double volume = 1.0;   ///< linear, 0..1
-        int bufferMs = 200;    ///< sink buffer, 20..2000 ms
+        int bufferMs = 200;    ///< sink (device) buffer, 20..2000 ms
         bool enabled = true;   ///< false = no sink, blocks are skipped
+        /// Playback queue bound, 200..10000 ms: audio may wait this long for
+        /// the device. NOT a limit on a block — one TTS sentence is one block.
+        int maxQueuedMs = AudioPlaybackEngine::kDefaultMaxQueuedMs;
     };
 
     AudioOutputNode();
@@ -106,7 +111,8 @@ public:
     const Config &config() const { return m_config; }
 
     /// Apply and persist a new configuration. Volume is applied live; a device
-    /// or buffer-size change re-creates the sink (the next block is not lost).
+    /// or buffer-size change re-creates the sink and clears the queue (PCM
+    /// converted for the old output must not go to a new one).
     void setConfig(const Config &config);
 
     /// Engine status for the widget ("playing · …", "no output device").
