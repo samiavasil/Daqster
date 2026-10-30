@@ -884,3 +884,35 @@ void TestAudioOutputNode::deviceUnderrunIsCountedAndVisible()
     // status line — the counter is per run, like the other diagnostics.
     QVERIFY(!node.statusText().contains(QStringLiteral("underrun(s)")));
 }
+
+void TestAudioOutputNode::queuedAudioReportsPlayingEvenWhileTheSinkIdles()
+{
+    // Measured on Qt6 (REQ-SW-PL-076, Qt6 starvation fix): a live push-mode sink
+    // holds roughly ONE server period of audio (a PipeWire quantum, 21.3 ms),
+    // so it drops to IdleState between the writes of a healthy stream while the
+    // block that was just queued is still waiting. The status used to be
+    // derived from `state() == ActiveState` alone, which made an audibly playing
+    // graph report "ready". "Ready" now means: nothing queued AND an inactive
+    // device — the only honest reading of "there is nothing to play".
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.bufferMs = 20;        // small device buffer: the device fills instantly
+    node.setConfig(config);
+    node.start();
+
+    if (!node.engine()->deviceAvailable() || !node.engine()->isRunning())
+        QSKIP("no audio output device on this machine — nothing to keep fed");
+
+    // 1.9 s in one block against a 20 ms device buffer: whatever the device does
+    // with the head of the block, the rest is still queued — and queue means
+    // sound on its way, i.e. "playing".
+    node.setInData(makeSentenceBlock(), 0);
+    QVERIFY(node.engine()->bytesQueued() > 0);
+    QVERIFY2(node.statusText().startsWith(QStringLiteral("playing")),
+             qPrintable(node.statusText()));
+
+    node.stop();
+    // Nothing queued and no device: "ready" — or "stopped", never "playing".
+    QVERIFY2(!node.statusText().startsWith(QStringLiteral("playing")),
+             qPrintable(node.statusText()));
+}

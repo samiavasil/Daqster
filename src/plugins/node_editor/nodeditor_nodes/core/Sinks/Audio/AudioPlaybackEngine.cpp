@@ -732,10 +732,19 @@ void AudioPlaybackEngine::refreshStatus()
     } else if (!deviceAvailable()) {
         status = QStringLiteral("no output device");
     } else if (m_sink != nullptr) {
+        // "playing" is about SOUND, not about the enum: on Qt6 the sink drops to
+        // IdleState between the writes of a live stream (measured: a 4 KB block
+        // per PipeWire period leaves the device with ~one period of audio, so a
+        // 43 ms gap in the source is enough for a momentary drain) while the
+        // audio that was just queued is still on its way out. Showing "ready"
+        // there is exactly the lie this line used to tell — a graph that is
+        // audibly playing reported itself as idle. Only an empty queue AND an
+        // inactive device means there is really nothing to play.
+        const bool audioFlowing = m_sink->state() == QAudio::ActiveState
+                                  || !m_queue.isEmpty();
         status = QStringLiteral("%1 · %2")
-                     .arg(m_sink->state() == QAudio::ActiveState
-                              ? QStringLiteral("playing")
-                              : QStringLiteral("ready"),
+                     .arg(audioFlowing ? QStringLiteral("playing")
+                                       : QStringLiteral("ready"),
                           streamDescription());
         // Only when it happened: a healthy stream must not grow a "0 underrun(s)"
         // suffix. The count is a hint that blocks are not keeping up, not an error.
