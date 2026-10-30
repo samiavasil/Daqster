@@ -305,6 +305,53 @@ target_link_libraries(demo_nodeditor_audioresample_tests PRIVATE
 add_test(NAME demo_nodeditor_audioresample_tests
          COMMAND demo_nodeditor_audioresample_tests)
 
+# ── File Playback pacing tests (REQ-SW-PL-076) ──────────────────────────────
+#
+# QTEST_GUILESS_MAIN (QCoreApplication): the source node is widget-free and only
+# reads a file — no audio device is opened, so the suite runs on CI without a
+# sound card.
+#
+# The defect: startPlayback() divided the chunk size in BYTES by the sample rate
+# in FRAMES/s, so a FLOAT32 stream (4 B/sample) got an interval 4x longer than
+# its audio (92 ms for 23 ms) — the file played 4x too slowly and the sink
+# underran on every block. `modelTimerUsesRealTimeInterval` asserts the QTimer
+# interval the model really starts with, so it fails on that formula.
+#
+# FilePlaybackModel.cpp is compiled directly into the binary (same pattern as
+# demo_nodeditor_audiooutput_tests); FrameworkCore is linked because
+# `lcDemoNodes` lives in base/src/logging/LogCategories.cpp.
+set(FILE_PLAYBACK_TEST_SOURCES
+    test_file_playback_timing.cpp
+    test_file_playback_timing.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/FilePlayback/FilePlaybackModel.cpp
+)
+
+add_executable(demo_nodeditor_fileplayback_tests ${FILE_PLAYBACK_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_fileplayback_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/shared
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/FilePlayback
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
+    ${DEMO_CORE_EXPORT_INCLUDE_DIR}
+)
+target_compile_definitions(demo_nodeditor_fileplayback_tests PRIVATE ${DEMO_CORE_EXPORT_DEFINITIONS})
+
+target_link_libraries(demo_nodeditor_fileplayback_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    QtNodes
+    FrameworkCore
+)
+
+add_test(NAME demo_nodeditor_fileplayback_tests
+         COMMAND demo_nodeditor_fileplayback_tests)
+
 # ── AudioOutputNode behavioural tests (REQ-SW-PL-076) ────────────────────────
 #
 # QTEST_GUILESS_MAIN (QCoreApplication): the model is widget-free

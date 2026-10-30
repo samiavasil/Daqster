@@ -20,8 +20,12 @@
  * Thin NodeDelegateModel controller: 1 output port (SampledData "sample").
  * On Play it reads the `*.sdf` raw bytes + the `*.sdf.json` sidecar
  * (SampledStreamDescriptor), then emits the data in chunks on a QTimer whose
- * interval = chunkSize / sampleRate (real-time tempo). At the end of the file
- * playback auto-stops.
+ * interval is the real-time duration of one chunk:
+ * `frames = chunkBytes / bytesPerFrame()` → `intervalMs = frames * 1000 / sampleRate`.
+ * The chunk size is a BYTE budget, not a frame count, and it is rounded down to
+ * whole frames; deriving the interval from bytes instead (the original defect)
+ * made FLOAT32 streams tick 4x too slowly (REQ-SW-PL-076).
+ * At the end of the file playback auto-stops.
  *
  * Connection-count gating (model of SystemMonitorModel/PlutoSdrModel): the
  * timer runs only while the user pressed Play AND at least one output
@@ -92,7 +96,13 @@ private:
     QString m_filePath;
     qint64 m_fileSize = 0;
     qint64 m_position = 0;
+    /// Timer chunk budget in BYTES (QFile::read() counts bytes). The bytes
+    /// actually read per tick are rounded down to whole frames
+    /// (FilePlaybackTiming::chunkBytesFor) and stored in m_chunkBytes.
     qint64 m_chunkSize = 4096;
+    /// Frame-aligned byte count of one chunk, resolved from m_chunkSize and
+    /// the loaded descriptor on every startPlayback().
+    qint64 m_chunkBytes = 0;
     std::shared_ptr<SampledData> m_output;
     SampledStreamDescriptor m_descriptor;
     int m_connectionCount = 0;

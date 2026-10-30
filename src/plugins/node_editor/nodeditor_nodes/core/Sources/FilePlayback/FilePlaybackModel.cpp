@@ -1,5 +1,8 @@
 #include "FilePlaybackModel.h"
 
+#include "FilePlaybackTiming.h"
+#include "LogCategories.h"
+
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -223,9 +226,25 @@ void FilePlaybackModel::startPlayback()
     if (!loadFile())
         return;
 
-    int intervalMs = static_cast<int>((m_chunkSize / m_descriptor.sampleRate) * 1000.0);
-    if (intervalMs < 1)
-        intervalMs = 1;
+    // m_chunkSize is a BYTE budget (QFile::read() counts bytes). Chunks are cut
+    // on whole frames so a frame is never split across two blocks, and the
+    // timer interval comes from the FRAME count — sampleRate is frames/s, so
+    // bytes/sampleRate made a FLOAT32 stream tick 4x slower than its audio
+    // (REQ-SW-PL-076).
+    m_chunkBytes = FilePlaybackTiming::chunkBytesFor(m_descriptor, m_chunkSize);
+    const int intervalMs = FilePlaybackTiming::chunkIntervalMs(m_descriptor, m_chunkBytes);
+    if (m_chunkBytes <= 0 || intervalMs <= 0) {
+        const QString reason =
+            tr("invalid stream layout for %1 (sampleRate=%2 Hz, bytesPerFrame=%3, chunk budget=%4 B)")
+                .arg(m_filePath)
+                .arg(m_descriptor.sampleRate)
+                .arg(m_descriptor.bytesPerFrame())
+                .arg(m_chunkSize);
+        qCWarning(lcDemoNodes).noquote() << "FilePlaybackModel: playback not started:" << reason;
+        emit statusChanged(tr("Playback not started: %1").arg(reason));
+        m_file.close();
+        return;
+    }
 
     m_timer->start(intervalMs);
     m_playing = true;
@@ -250,11 +269,23 @@ void FilePlaybackModel::onTimerTick()
     if (!m_playing)
         return;
 
-    QByteArray chunk = m_file.read(m_chunkSize);
+    QByteArray chunk = m_file.read(m_chunkBytes);
     if (chunk.isEmpty()) {
         // End of file - auto-stop
         stopPlayback();
         return;
+    }
+
+    // A file whose size is not a whole number of frames leaves a partial frame
+    // in the last chunk — never hand that to consumers as if it were audio.
+    const int bytesPerFrame = m_descriptor.bytesPerFrame();
+    if (bytesPerFrame > 0) {
+        const qint64 frames = chunk.size() / bytesPerFrame;
+        chunk.truncate(static_cast<int>(frames * bytesPerFrame));
+        if (chunk.isEmpty()) {
+            stopPlayback();
+            return;
+        }
     }
 
     m_output = std::make_shared<SampledData>(chunk, m_descriptor);
