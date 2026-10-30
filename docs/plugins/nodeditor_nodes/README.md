@@ -192,7 +192,7 @@ NodeditorNodesCoreObject → INodeProvider
 |-----|-----------|----------|
 | FileRecordModel | Sinks/File | **File Record sink нод** (REQ-SW-PL-043) — консумира `SampledData`, записва raw bytes във `*.sdf` + JSON sidecar `*.sdf.json`; Start/Stop запис, статус bytes written; cross-platform |
 | NetworkSinkModel | Sinks/Network | **Network Sink нод** (REQ-SW-PL-044) — консумира `SampledData`, сериализира raw bytes в MSSD frame, изпраща по UDP/TCP; Start/Stop, статус bytes sent; cross-platform |
-| AudioOutputNode | Sinks/Audio | **Audio Output нод** (REQ-SW-PL-076) — консумира `SampledData` и го свири на избраното изходно устройство с **един** дългоживеещ `QAudioSink` (Qt6) / `QAudioOutput` (Qt5). Устройство по стабилен `deviceId`, `isFormatSupported()` преди писане, при отказ → `preferredFormat()` + ресемплинг/микс/прекодиране (`AudioFormatBridge.h`); опашка, ограничена по **време** (`maxQueuedMs`, дефолт 3000 ms, 500–10000): един блок не се дропи заради дължината си (едно изречение от TTS е един блок от 2.4–2.6 s; твърд таван **20 s** на блок — над VAD тавана от 15 s, за да не се реже VAD сегмент), дропи се най-старото само при реално натрупване и **никога блок, от който вече е изписано към устройството** (иначе се чува скок посред изречение — дропи се следващият); `bufferMs` (20–2000 ms) е само размерът на device буфера. Устройството се резолвва **веднъж** и се кешира (Qt5 изброява 71 ALSA устройства за 2.4–2.8 s). **Автоарм**: първият блок сам стартира playback (`setInData()` → `start()`), както `AudioSinkNode`; IDE-то не вика `start()` за `IStartable` нодове, затова ръчен старт не се изисква. Изричният `stop()` е „спри и не се вдигай сам" (`userStopped()`), а блоковете след него се трупат в опашката с едно `qCWarning` (`AudioOutput was stopped explicitly — N block(s) queued…`), брояч `blocksQueuedWhileStopped()` и статус `stopped · audio is queued, start to play`. Без устройство → no-op със статус. GUI: combo по `deviceId()`, volume, `bufferMs`, `enabled`, статус (английски текстове), плюс **вторичен** Start/Stop бутон (етикетът следва `isRunning()`, така че автоармнатият нод показва „Stop") |
+| AudioOutputNode | Sinks/Audio | **Audio Output нод** (REQ-SW-PL-076) — консумира `SampledData` и го свири на избраното изходно устройство с **един** дългоживеещ `QAudioSink` (Qt6) / `QAudioOutput` (Qt5). Устройство по стабилен `deviceId`, `isFormatSupported()` преди писане; форматът се договаря в три стъпки — форматът на източника, после **същата честота** с друг encoding (F32/S16/S32, без ресемплинг), и само при отказ на честотата → `preferredFormat()` + ресемплинг/микс/прекодиране (`AudioFormatBridge.h`); ресемплингът помни фаза/последен семпъл/брояч между блоковете (`AudioResample::RateConverter`, вж. секцията по-долу); underrun се брои и се вижда в статуса; опашка, ограничена по **време** (`maxQueuedMs`, дефолт 3000 ms, 500–10000): един блок не се дропи заради дължината си (едно изречение от TTS е един блок от 2.4–2.6 s; твърд таван **20 s** на блок — над VAD тавана от 15 s, за да не се реже VAD сегмент), дропи се най-старото само при реално натрупване и **никога блок, от който вече е изписано към устройството** (иначе се чува скок посред изречение — дропи се следващият); `bufferMs` (20–2000 ms) е само размерът на device буфера. Устройството се резолвва **веднъж** и се кешира (Qt5 изброява 71 ALSA устройства за 2.4–2.8 s). **Автоарм**: първият блок сам стартира playback (`setInData()` → `start()`), както `AudioSinkNode`; IDE-то не вика `start()` за `IStartable` нодове, затова ръчен старт не се изисква. Изричният `stop()` е „спри и не се вдигай сам" (`userStopped()`), а блоковете след него се трупат в опашката с едно `qCWarning` (`AudioOutput was stopped explicitly — N block(s) queued…`), брояч `blocksQueuedWhileStopped()` и статус `stopped · audio is queued, start to play`. Без устройство → no-op със статус. GUI: combo по `deviceId()`, volume, `bufferMs`, `enabled`, статус (английски текстове), плюс **вторичен** Start/Stop бутон (етикетът следва `isRunning()`, така че автоармнатият нод показва „Stop") |
 
 ### Displays
 | Нод | Категория | Описание |
@@ -423,6 +423,62 @@ edges-ите към AudioDisplay/Mux/Demux отпадат (type mismatch). Ст�
 `"AudioDisplay"`/`"MuxNode"`/`"DemuxNode"` (QDevIO свят, alias към `_obsolete`
 версиите по REQ-SW-PL-023) работят с `AudioSourceObsolete`. Новите графи
 свързват `AudioSource` → DAQ Display (SampledData поток).
+
+## AudioOutput — как се избира форматът (REQ-SW-PL-076)
+
+`AudioOutput` (`Sinks/Audio`) отваря **един** дългоживеещ sink за целия живот на
+нода. Форматът се договаря с устройството **преди** да се конвертира каквото и да
+е, в този ред (`AudioFormatBridge::resolveFormat()`):
+
+1. **Форматът на източника** (честота + канали + sample encoding от
+   дескриптора на входа) — `converted=false`, никаква конверсия.
+2. **Същата честота и канали, друг encoding**: F32 → S16 → S32 (само тези трите,
+   защото `convert()`/`encode()` произвеждат точно тях). Тук няма ресемплинг —
+   само прекодиране, `status()` показва `converted`.
+3. **`preferredFormat()` на устройството** — единственият път, който сменя
+   честотата и значи ресемплинг.
+
+Стъпка 2 съществува, за да не се ресемплира изобщо, когато устройството приема
+честотата на източника: sink на честотата на източника няма граници между
+блоковете, които да счупи, а ресемплерът е мястото, където се раждаха артефактите
+(вж. по-долу). Логът при отваряне казва кой вариант е приет, напр.:
+
+```
+AudioPlaybackEngine: sink opened — <device> · 44100 Hz mono (device accepts the source format at 44100 Hz F32)
+AudioPlaybackEngine: sink opened — <device> · 44100 Hz stereo (device accepts 44100 Hz S16 at the source rate — re-encoded, no resampling)
+AudioPlaybackEngine: sink opened — <device> · 48000 Hz stereo · converted (device rejected 44100 Hz / 1 ch / 32 bit → using preferred 48000 Hz / 2 ch)
+```
+
+### Ресемплингът помни състояние (AC9)
+
+Когато все пак се ресемплира (44100 → 48000, ratio 1.0884), `convert()` ползва
+`AudioResample::RateConverter` — **собственост на `AudioPlaybackEngine`**, тоест
+един за целия sink, не един на блок. Пази по три числа **на канал**:
+
+| Поле | Какво пази |
+|---|---|
+| `srcPos` | дробната фаза на следващия изходен семпъл (в координати на текущия блок; `(-1, 0)` в началото, защото следващият изход лежи между последния семпъл на предишния блок и първия на текущия) |
+| `lastIn` | последният входен семпъл от предишния блок — ляв съсед на интерполацията през границата |
+| `accum` | колко изходни семпъла вече са издадени, за да не се закръгля дължината независимо на всеки блок |
+
+Преди това ресемплерът беше **чиста функция на блок**: `srcPos = i / ratio` от 0
+за всеки блок и `outCount = llround(size * ratio)` на блок. При микрофон (блокове
+~5.7 ms → 172 граници/s) това дава фазов скок на всяка граница = гъгнене/тракане,
+а при TTS (едно изречение = един блок, ratio 2.0) е невидимо, защото 2.0 е цяло
+число и блоковата решетка съвпада. Сега 300 блока по 256 семпла дават **същите**
+семпли като един блок от 76 800 (`demo_nodeditor_audioresample_tests`).
+
+Състоянието се **нулира** при: създаване/унищожаване на sink, изчистване на
+опашката (смяна на изходния формат), смяна на `sampleRate`/канали в дескриптора —
+иначе фазата би отговаряла на изхвърлено аудио.
+
+### Underrun е видим (AC10)
+
+Push-mode sink-ът съобщава «изчерпах се» по два различни начина: Qt5 — като
+`QAudio::UnderrunError`, Qt6 (ffmpeg backend) — като `IdleState` + `NoError`.
+И двете се броят (`underruns()`, по преход, не по нотификация) и се показват в
+статуса (`playing · <dev> · 48000 Hz mono · 3 underrun(s)`), а логът е throttled
+(първият и всеки 100-тен) — иначе dry устройство пише по ред на всеки блок.
 
 ## PlutoSDR RX DAQ нод (REQ-SW-PL-040)
 

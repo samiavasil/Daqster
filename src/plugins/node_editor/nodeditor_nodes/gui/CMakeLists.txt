@@ -156,6 +156,9 @@ create_plugin(NodeditorNodesGui
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+        # core/shared: AudioResample.h (AudioPlaybackEngine holds the streaming
+        # resampler, so the widget that includes its header needs it too).
+        ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/shared
         ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/AudioSource
         ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video
         ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sinks/Video

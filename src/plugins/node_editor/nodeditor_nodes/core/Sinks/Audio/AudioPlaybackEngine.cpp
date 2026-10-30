@@ -230,6 +230,9 @@ void AudioPlaybackEngine::start()
     m_blocksQueuedWhileStopped = 0;
     m_stoppedWarningLogged = false;
     m_dropLogCount = 0;
+    m_underruns = 0;
+    m_underrunLogCount = 0;
+    m_lastSinkError = QAudio::NoError;
 
     // The engine is armed — whoever armed it (the node's auto-arm or a click on
     // Start). The widget needs this even when the status text does not change.
@@ -347,17 +350,9 @@ void AudioPlaybackEngine::push(const SampledData &data)
         return;
     }
 
-    // Ask-then-convert (AC4): the sink was opened with the device's format, so
-    // this resamples / mixes / re-encodes as needed. Never silent on failure.
-    QString error;
-    const QByteArray pcm = AudioFormatBridge::convert(data, targetFormat, &error);
-    if (pcm.isEmpty()) {
-        ++m_blocksSkipped;
-        reportError(error.isEmpty() ? QStringLiteral("the block cannot be converted")
-                                    : error);
-        return;
-    }
-
+    // Checked BEFORE the conversion: the resampler's carried phase describes the
+    // audio already in the queue, so it must be dropped in the same breath as
+    // the queue itself — never after another block has been converted with it.
     if (!m_queue.isEmpty() && m_queueFormat != targetFormat) {
         // The output format changed under the queued audio (a device appeared
         // or was replaced). Playing old-format PCM into the new sink would be
@@ -368,6 +363,21 @@ void AudioPlaybackEngine::push(const SampledData &data)
         clearQueue();
     }
     m_queueFormat = targetFormat;
+
+    // Ask-then-convert (AC4): the sink was opened with the device's format, so
+    // this resamples / mixes / re-encodes as needed. Never silent on failure.
+    // The converter is the engine's own: it continues the phase of the previous
+    // block, which is the difference between seamless audio and a click at every
+    // block boundary (AC9).
+    QString error;
+    const QByteArray pcm =
+        AudioFormatBridge::convert(data, targetFormat, &m_rateConverter, &error);
+    if (pcm.isEmpty()) {
+        ++m_blocksSkipped;
+        reportError(error.isEmpty() ? QStringLiteral("the block cannot be converted")
+                                    : error);
+        return;
+    }
 
     // Stopped is NOT "no data", but it is no longer the normal state either:
     // the node arms playback on the first block, so `m_running == false` here
@@ -542,6 +552,7 @@ bool AudioPlaybackEngine::writeQueued()
             return true;   // no space yet, not an error
 
         head.written += written;
+        m_sinkReceivedData = true;   // the drain detector needs to know we fed it
         if (head.written >= head.pcm.size())
             m_queue.removeFirst();
         else
@@ -565,6 +576,13 @@ void AudioPlaybackEngine::clearQueue()
 {
     m_queue.clear();
     m_queueFormat = QAudioFormat();
+    // The resampler's phase describes the audio that was just dropped.
+    resetConversionState();
+}
+
+void AudioPlaybackEngine::resetConversionState()
+{
+    m_rateConverter.reset();
 }
 
 bool AudioPlaybackEngine::createSink(const SampledStreamDescriptor &descriptor)
@@ -612,7 +630,13 @@ bool AudioPlaybackEngine::createSink(const SampledStreamDescriptor &descriptor)
     m_converted = resolved.converted;
     m_formatReason = resolved.reason;
     m_error.clear();
+    m_lastSinkError = QAudio::NoError;
+    m_sinkReceivedData = false;
     ++m_sinksCreated;
+
+    // A new sink starts a new stream: the phase of the resampler belongs to the
+    // device that just died (AC9).
+    resetConversionState();
 
     // PCM queued before the device opened is in `m_queueFormat`. If the device
     // picked another format, that audio belongs to a different output and is
@@ -643,6 +667,8 @@ void AudioPlaybackEngine::destroySink()
     m_format = QAudioFormat();
     m_converted = false;
     m_formatReason.clear();
+    m_lastSinkError = QAudio::NoError;
+    m_sinkReceivedData = false;
     // The queue was converted for the sink that just died: never hand it to a
     // new device, which may (and usually does) have another format.
     clearQueue();
@@ -651,14 +677,35 @@ void AudioPlaybackEngine::destroySink()
 
 void AudioPlaybackEngine::onSinkStateChanged(QAudio::State state)
 {
-    if (state == QAudio::StoppedState && m_sink != nullptr
-        && m_sink->error() != QAudio::NoError) {
-        // The one place where the device list is suspect: the sink died, so the
-        // device may have been pulled out (or a headset was plugged in). This
-        // is the only path that pays for a real re-enumeration.
-        refreshDeviceList();
-        reportError(audioErrorText(m_sink->error()));
-        return;
+    if (m_sink != nullptr) {
+        const QAudio::Error error = m_sink->error();
+        // A drain is not the only thing the device reports, and the two backends
+        // spell it differently: Qt5 latches `UnderrunError`, the Qt6 sink comes
+        // back with `IdleState` + `NoError`. Both mean the same thing here — the
+        // device played everything it had and went silent — and the old code
+        // looked only at StoppedState, so neither was reported: the status said
+        // "playing" while the sound broke up (AC10).
+        //
+        // Counted on the transition, never per notification: a device that stays
+        // dry would otherwise add thousands.
+        const bool latchedUnderrun = (error == QAudio::UnderrunError
+                                      && m_lastSinkError != QAudio::UnderrunError);
+        const bool drained = (state == QAudio::IdleState && error != QAudio::UnderrunError
+                              && m_sinkReceivedData);
+        if (latchedUnderrun || drained) {
+            ++m_underruns;
+            logUnderrun();
+        }
+        m_lastSinkError = error;
+
+        if (state == QAudio::StoppedState && error != QAudio::NoError) {
+            // The one place where the device list is suspect: the sink died, so
+            // the device may have been pulled out (or a headset was plugged in).
+            // This is the only path that pays for a real re-enumeration.
+            refreshDeviceList();
+            reportError(audioErrorText(error));
+            return;
+        }
     }
     // Idle/Active means the device buffer just drained or reopened: feed the
     // queue now instead of waiting for the next 20 ms tick.
@@ -690,6 +737,10 @@ void AudioPlaybackEngine::refreshStatus()
                               ? QStringLiteral("playing")
                               : QStringLiteral("ready"),
                           streamDescription());
+        // Only when it happened: a healthy stream must not grow a "0 underrun(s)"
+        // suffix. The count is a hint that blocks are not keeping up, not an error.
+        if (m_underruns > 0)
+            status += QStringLiteral(" · %1 underrun(s)").arg(m_underruns);
     } else {
         // Running, device present, but no block has arrived yet: the format is
         // still unknown, so there is nothing to describe.
@@ -754,5 +805,21 @@ void AudioPlaybackEngine::logTrim(double originalMs)
                    .arg(originalMs, 0, 'f', 0)
                    .arg(kHardBlockCapMs)
                    .arg(m_trimLogCount);
+    }
+}
+
+void AudioPlaybackEngine::logUnderrun()
+{
+    ++m_underrunLogCount;
+    // Same throttling as logDrop(): a device that stays dry reports an underrun
+    // on every state change (~100 per second with live blocks), so only the
+    // first one and every hundredth reach the log. The counter in the status
+    // line shows that the situation continues.
+    if (m_underrunLogCount == 1 || (m_underrunLogCount % 100) == 0) {
+        qCWarning(lcDemoNodes).noquote()
+            << QStringLiteral("AudioPlaybackEngine: device underrun — the sink ran dry "
+                              "(%1 underrun(s) in total, %2 ms queued)")
+                   .arg(m_underruns)
+                   .arg(queueMs());
     }
 }
