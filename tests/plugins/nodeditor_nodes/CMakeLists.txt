@@ -275,6 +275,36 @@ add_test(NAME demo_nodeditor_videooutput_tests
 set_tests_properties(demo_nodeditor_videooutput_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+# ── Audio resampler continuity tests (REQ-SW-PL-076, AC9) ────────────────────
+#
+# QtCore only (QTEST_GUILESS_MAIN): AudioResample.h depends on QVector and
+# nothing else, so the continuity invariants run on CI without a sound card.
+#
+# The defect: the resampler used to be a pure per-block function (`srcPos =
+# i / ratio` from 0 for every block), so a live microphone stream at 44.1 kHz
+# played on a 48 kHz device was resampled with a phase restart 172 times per
+# second — a click at every block boundary. Ratio 2.0 (TTS) hid it.
+#
+# The tests must FAIL on the stateless implementation: 300 blocks of 256
+# samples do not match one block of 76 800 samples and the boundary jump is
+# ~1.6x the largest jump inside a block.
+add_executable(demo_nodeditor_audioresample_tests
+    test_audio_resample.cpp
+    test_audio_resample.h
+)
+
+target_include_directories(demo_nodeditor_audioresample_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/shared
+)
+
+target_link_libraries(demo_nodeditor_audioresample_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+)
+
+add_test(NAME demo_nodeditor_audioresample_tests
+         COMMAND demo_nodeditor_audioresample_tests)
+
 # ── AudioOutputNode behavioural tests (REQ-SW-PL-076) ────────────────────────
 #
 # QTEST_GUILESS_MAIN (QCoreApplication): the model is widget-free

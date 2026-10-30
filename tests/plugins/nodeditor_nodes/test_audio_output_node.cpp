@@ -2,6 +2,7 @@
 
 #include "AudioCompat.h"
 #include "NodeDataTypes/SampledData.h"
+#include "Sinks/Audio/AudioFormatBridge.h"
 #include "Sinks/Audio/AudioOutputNode.h"
 #include "Sinks/Audio/AudioPlaybackEngine.h"
 
@@ -9,6 +10,9 @@
 #include <QJsonObject>
 #include <QSignalSpy>
 
+#include <algorithm>
+#include <cmath>
+#include <cstring>
 #include <memory>
 
 using QtNodes::NodeData;
@@ -256,6 +260,112 @@ void TestAudioOutputNode::statusChangesAreForwarded()
     const QString status = node.statusText();
     QVERIFY(status.startsWith(QStringLiteral("no output device")));
     QCOMPARE(spy.last().at(0).toString(), status);
+}
+
+void TestAudioOutputNode::encodingLadderBuildsEveryCandidate()
+{
+    // resolveFormat() tries the SOURCE RATE with another encoding before falling
+    // back to preferredFormat()+resampling (AC9): a sink on the source clock has
+    // no block boundary to get wrong. That ladder only works if each candidate is
+    // really the requested encoding — on Qt5 codec/byteOrder/sampleSize/
+    // sampleType are derived from each other, so building the format in the
+    // wrong order silently hands back the previous encoding.
+    const QAudioFormat f32 =
+        AudioFormatBridge::formatWithEncoding(44100, 2, AudioCompat::Float, 32);
+    QVERIFY(f32.isValid());
+    QCOMPARE(f32.sampleRate(), 44100);
+    QCOMPARE(f32.channelCount(), 2);
+    QCOMPARE(AudioFormatBridge::encodingLabel(f32), QStringLiteral("F32"));
+    QCOMPARE(AudioFormatBridge::bytesPerSample(f32), 4);
+
+    const QAudioFormat s16 =
+        AudioFormatBridge::formatWithEncoding(44100, 2, AudioCompat::SignedInt, 16);
+    QVERIFY(s16.isValid());
+    QCOMPARE(AudioFormatBridge::encodingLabel(s16), QStringLiteral("S16"));
+    QCOMPARE(AudioFormatBridge::bytesPerSample(s16), 2);
+
+    const QAudioFormat s32 =
+        AudioFormatBridge::formatWithEncoding(44100, 2, AudioCompat::SignedInt, 32);
+    QVERIFY(s32.isValid());
+    QCOMPARE(AudioFormatBridge::encodingLabel(s32), QStringLiteral("S32"));
+    QCOMPARE(AudioFormatBridge::bytesPerSample(s32), 4);
+
+    // The rate and the channel count are the point of the ladder: they are kept.
+    QCOMPARE(s16.sampleRate(), f32.sampleRate());
+    QCOMPARE(s16.channelCount(), f32.channelCount());
+
+    // An unusable description builds nothing instead of a half-configured format.
+    QVERIFY(!AudioFormatBridge::formatWithEncoding(0, 2, AudioCompat::Float, 32).isValid());
+    QVERIFY(!AudioFormatBridge::formatWithEncoding(44100, 0, AudioCompat::Float, 32).isValid());
+    QVERIFY(!AudioFormatBridge::formatWithEncoding(44100, 2, AudioCompat::Unknown, 32).isValid());
+}
+
+void TestAudioOutputNode::conversionCarriesThePhaseAcrossBlocks()
+{
+    // The engine hands ITS converter to every block. Converted block-by-block
+    // with carried state, two blocks must produce what one block of the joined
+    // input produces — the stateless path cannot, because every block restarts
+    // the phase at 0 (172 clicks/s on a live microphone).
+    constexpr double sourceRate = 44100.0;
+    const QAudioFormat target =
+        AudioFormatBridge::formatWithEncoding(48000, 1, AudioCompat::Float, 32);
+
+    SampledStreamDescriptor descriptor;
+    descriptor.sampleRate = sourceRate;
+    descriptor.domain = QStringLiteral("audio");
+    StreamChannelDescriptor channel;
+    channel.name = QStringLiteral("Mono");
+    channel.sampleType = SampleType::FLOAT32;
+    descriptor.channels.append(channel);
+
+    constexpr int frames = 4410;                 // 100 ms
+    constexpr int split = 1024;
+    QByteArray pcm(frames * 4, Qt::Uninitialized);
+    for (int i = 0; i < frames; ++i) {
+        const float value = float(0.4 * std::sin(2.0 * 3.14159265358979323846 * 997.0
+                                                 * double(i) / sourceRate));
+        std::memcpy(pcm.data() + i * 4, &value, 4);
+    }
+    QByteArray head = pcm.left(split * 4);
+
+    QString error;
+    AudioResample::RateConverter converter(sourceRate, target.sampleRate());
+    const QByteArray firstHalf = AudioFormatBridge::convert(SampledData(head, descriptor),
+                                                            target, &converter, &error);
+    const QByteArray secondHalf =
+        AudioFormatBridge::convert(SampledData(pcm.mid(split * 4), descriptor), target,
+                                   &converter, &error);
+    QVERIFY2(!firstHalf.isEmpty() && !secondHalf.isEmpty(), qPrintable(error));
+
+    // The reference: the same signal as ONE block, i.e. one uninterrupted phase.
+    const QByteArray joined =
+        AudioFormatBridge::convert(SampledData(pcm, descriptor), target, nullptr, &error);
+    QVERIFY2(!joined.isEmpty(), qPrintable(error));
+
+    const QByteArray byBlocks = firstHalf + secondHalf;
+    QCOMPARE(byBlocks.size(), joined.size());
+    QCOMPARE(byBlocks.size() % 4, qsizetype(0));
+
+    double maxDifference = 0.0;
+    for (qsizetype offset = 0; offset + 4 <= byBlocks.size(); offset += 4) {
+        float a = 0.0f;
+        float b = 0.0f;
+        std::memcpy(&a, byBlocks.constData() + offset, 4);
+        std::memcpy(&b, joined.constData() + offset, 4);
+        maxDifference = std::max(maxDifference, std::abs(double(a) - double(b)));
+    }
+    QVERIFY2(maxDifference <= 1e-6,
+             qPrintable(QStringLiteral("block-by-block conversion differs from the joined "
+                                       "block by %1 — the phase is not carried")
+                            .arg(maxDifference, 0, 'g', 6)));
+
+    // A stateless caller cannot match it: that difference IS the boundary phase.
+    const QByteArray stateless =
+        AudioFormatBridge::convert(SampledData(head, descriptor), target, &error)
+        + AudioFormatBridge::convert(SampledData(pcm.mid(split * 4), descriptor), target,
+                                     &error);
+    QCOMPARE(stateless.size(), joined.size());
+    QVERIFY(stateless != joined);
 }
 
 // ── No output device (AC5) ────────────────────────────────────────────────────
@@ -742,3 +852,35 @@ void TestAudioOutputNode::stopClearsTheQueue()
 }
 
 QTEST_GUILESS_MAIN(TestAudioOutputNode)
+
+void TestAudioOutputNode::deviceUnderrunIsCountedAndVisible()
+{
+    // In push mode the device reports a drain as IdleState + UnderrunError, NOT
+    // StoppedState. The engine used to look at the error only when the state was
+    // StoppedState, so a device that ran dry was reported as a healthy
+    // "playing · …" status while the sound broke up (AC10).
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.bufferMs = 20;        // small device buffer: it drains quickly
+    node.setConfig(config);
+    node.start();
+
+    if (!node.engine()->deviceAvailable() || !node.engine()->isRunning())
+        QSKIP("no audio output device on this machine — nothing runs dry");
+
+    // One short block and then silence from the producer: the device plays it
+    // and runs dry, which is exactly what the counter has to show.
+    node.setInData(makeBlock(), 0);
+    QTRY_VERIFY_WITH_TIMEOUT(node.engine()->underruns() > 0, 5000);
+    QVERIFY2(node.statusText().contains(QStringLiteral("underrun(s)")),
+             qPrintable(node.statusText()));
+    // Counted on the transition only: the latched error must not add one per
+    // state change, or a dry device would report thousands.
+    QVERIFY2(node.engine()->underruns() < 100,
+             qPrintable(QString::number(node.engine()->underruns())));
+
+    node.stop();
+    // A stopped engine must not report underruns from the previous run in the
+    // status line — the counter is per run, like the other diagnostics.
+    QVERIFY(!node.statusText().contains(QStringLiteral("underrun(s)")));
+}

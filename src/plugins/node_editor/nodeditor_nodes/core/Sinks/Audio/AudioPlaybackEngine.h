@@ -2,6 +2,7 @@
 #define AUDIOPLAYBACKENGINE_H
 
 #include "AudioCompat.h"
+#include "AudioResample.h"
 #include "NodeDataTypes/SampledData.h"
 
 #include <QAudioFormat>
@@ -34,10 +35,15 @@ class QIODevice;
  *
  * Block path (`push()`) — the block size is NEVER the limit:
  *   1. `AudioFormatBridge::resolveFormat()` — ask the device whether it accepts
- *      the descriptor's format; on rejection fall back to `preferredFormat()`
- *      and resample/convert (AC4, never silent). While no sink is open yet the
- *      same resolver yields the provisional format the queue is converted to;
- *   2. `AudioFormatBridge::convert()` — one block into that format;
+ *      the descriptor's format; then try the SAME rate and channels with
+ *      another encoding (F32/S16/S32), which needs no resampling at all; only
+ *      if the device refuses the rate as well fall back to `preferredFormat()`
+ *      + resampling (AC4, never silent). While no sink is open yet the same
+ *      resolver yields the provisional format the queue is converted to;
+ *   2. `AudioFormatBridge::convert()` — one block into that format, resampled
+ *      through this engine's `RateConverter` (state carried ACROSS blocks: a
+ *      stateless per-block resampler clicks at every block boundary, see the
+ *      class comment of `AudioResample::RateConverter`);
  *   3. the converted block is appended to a **queue bounded by time**
  *      (`maxQueuedMs`, default 3000 ms — not by the device buffer and not by
  *      the block size). A TTS sentence arrives as ONE block of 2.4–2.6 s
@@ -197,6 +203,13 @@ public:
     quint64 blocksDropped() const { return m_blocksDropped; }
     /// Blocks that could not even be converted or queued (disabled, bad format).
     quint64 blocksSkipped() const { return m_blocksSkipped; }
+    /// Device underruns seen since the last `start()` — the sink ran dry after
+    /// having played data. Qt5 latches `QAudio::UnderrunError` for it, the Qt6
+    /// sink reports `IdleState` + `NoError`; in push mode neither is
+    /// StoppedState, so before AC10 the status showed a healthy "playing" line
+    /// while the sound clicked. Reset per run, like the other counters, and
+    /// also shown in `statusText()`.
+    quint64 underruns() const { return m_underruns; }
     /// Blocks accepted while the node was **not started** (queued, nothing
     /// written) — a subset of `blocksPlayed()`. A stopped node used to be
     /// indistinguishable from "no data" in headless; the counter and the
@@ -281,6 +294,17 @@ private:
     /// Log a block trimmed by `kHardBlockCapMs`, rate-limited like logDrop().
     void logTrim(double originalMs);
 
+    /// Log a device underrun, rate-limited like logDrop() (a device that stays
+    /// dry reports one on every state change, i.e. ~100×/s).
+    void logUnderrun();
+
+    /// Reset everything that describes the audio already handed to the device:
+    /// the resampler phase and the queue format. Called whenever that audio is
+    /// discarded (sink re-created, output format changed) — a carried phase
+    /// would belong to sound nobody will hear, and the next block would be
+    /// offset by up to one input sample (REQ-SW-PL-076 AC9).
+    void resetConversionState();
+
     /// The configured device, resolved ONCE per `deviceId` (and re-resolved
     /// only after invalidateDevice()/refreshDeviceList()). Never enumerates on
     /// its own beyond the process-wide memo — see the class comment.
@@ -323,6 +347,11 @@ private:
     QString m_error;
 
     bool m_running = false;
+    /// Streaming resampler state (phase, last sample and accumulated count, per
+    /// channel). Owned here because the sink is: a block boundary must continue
+    /// the previous block's phase, and that phase must be dropped when the audio
+    /// it refers to is dropped (`resetConversionState()`).
+    AudioResample::RateConverter m_rateConverter;
     /// Set by `stop()`, cleared by `start()`: the difference between "nothing
     /// started me yet" (auto-arm may do it) and "the user stopped me" (only an
     /// explicit start() may resume).
@@ -361,6 +390,16 @@ private:
     quint64 m_sinksCreated = 0;
     quint64 m_dropLogCount = 0;
     quint64 m_trimLogCount = 0;
+    /// Device underruns since the last `start()`, and the throttling counter for
+    /// their log line. `m_lastSinkError` keeps a dry device from being counted
+    /// once per state change while the same `UnderrunError` is still latched.
+    quint64 m_underruns = 0;
+    quint64 m_underrunLogCount = 0;
+    QAudio::Error m_lastSinkError = QAudio::NoError;
+    /// True once audio was actually written to the CURRENT sink. A drain is only
+    /// a drain if the device had something to play — the IdleState a sink emits
+    /// right after `start()` is not an underrun.
+    bool m_sinkReceivedData = false;
 };
 
 #endif // AUDIOPLAYBACKENGINE_H

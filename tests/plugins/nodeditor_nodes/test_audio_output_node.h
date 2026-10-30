@@ -53,6 +53,9 @@ private slots:
     // Format bridge / status plumbing.
     void statusIsNeverEmpty();
     void statusChangesAreForwarded();
+    // The encoding ladder behind AC4/AC9 (rate kept, encoding negotiated).
+    void encodingLadderBuildsEveryCandidate();
+    void conversionCarriesThePhaseAcrossBlocks();
 
     // No output device (AC5) — the path every headless run takes.
     void unknownDeviceQueuesBlocksAndOpensNothing();
@@ -77,4 +80,6 @@ private slots:
     void partiallyPlayedBlockIsNotDropped();
     void queueStaysBoundedByTime();
     void stopClearsTheQueue();
+    // The device ran dry (AC10): visible instead of a healthy-looking status.
+    void deviceUnderrunIsCountedAndVisible();
 };

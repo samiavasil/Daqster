@@ -26,15 +26,18 @@
  *  - descriptor → `QAudioFormat` (rate / channels / sample type), with the
  *    Qt5 (`setSampleType`/`setSampleSize`) vs Qt6 (`setSampleFormat`) difference
  *    handled through `AudioCompat`;
- *  - pick the format the device actually accepts (requested, else
- *    `preferredFormat()` — the "no silent failure" half of AC4);
- *  - convert one block: rate (linear interpolation, `AudioResample`), channel
- *    count (downmix / duplicate) and sample encoding (float/interger).
+ *  - pick the format the device actually accepts: the source format, else the
+ *    source RATE with another encoding (F32/S16/S32 — no resampling at all),
+ *    else `preferredFormat()` (the "no silent failure" half of AC4);
+ *  - convert one block: rate (linear interpolation through a stateful
+ *    `AudioResample::RateConverter`, so block boundaries are seamless), channel
+ *    count (downmix / duplicate) and sample encoding (float/integer).
  *
  * Everything here is header-only, QtWidgets-free and pure — unit-testable
- * without an audio device. All output is little-endian; the Qt5 side of
- * `AudioCompat` is asked for `LittleEndian` explicitly and Qt6 formats are
- * host-endian (little-endian on the supported platforms).
+ * without an audio device (only `resolveFormat()` needs a real one). All output
+ * is little-endian; the Qt5 side of `AudioCompat` is asked for `LittleEndian`
+ * explicitly and Qt6 formats are host-endian (little-endian on the supported
+ * platforms).
  */
 namespace AudioFormatBridge {
 
@@ -117,12 +120,71 @@ struct PlaybackFormat {
     bool isValid() const { return format.isValid(); }
 };
 
+/// Short label of a format's sample encoding, for the logs ("F32", "S16", …).
+inline QString encodingLabel(const QAudioFormat &format)
+{
+    const int bits = AudioCompat::sampleSize(format);
+    switch (AudioCompat::sampleType(format)) {
+    case AudioCompat::Float:      return QStringLiteral("F%1").arg(bits);
+    case AudioCompat::SignedInt:  return QStringLiteral("S%1").arg(bits);
+    case AudioCompat::UnSignedInt:return QStringLiteral("U%1").arg(bits);
+    default:                      return QStringLiteral("unknown");
+    }
+}
+
+/**
+ * @brief Build a format with another sample encoding, keeping rate + channels.
+ *
+ * Assembled fresh instead of copying the source format: on Qt6
+ * `setSampleSize()`/`setSampleType()` derive the encoding from each other, so
+ * mutating a copy in the wrong order yields the old encoding again.
+ *
+ * @param rate     Sample rate in Hz (> 0)
+ * @param channels Channel count (> 0)
+ * @param type     Qt sample type
+ * @param bits     Sample size in bits
+ * @return The format, or an invalid one for an unusable description
+ */
+inline QAudioFormat formatWithEncoding(int rate, int channels,
+                                       AudioCompat::SampleType type, int bits)
+{
+    if (rate <= 0 || channels <= 0 || bits <= 0 || type == AudioCompat::Unknown)
+        return QAudioFormat();
+
+    QAudioFormat format;
+    format.setSampleRate(rate);
+    format.setChannelCount(channels);
+    AudioCompat::setCodec(format, QStringLiteral("audio/pcm"));   // no-op on Qt6
+    AudioCompat::setByteOrder(format, AudioCompat::LittleEndian); // no-op on Qt6
+    AudioCompat::setSampleSize(format, bits);                     // order matters on Qt6
+    AudioCompat::setSampleType(format, type);
+    return format;
+}
+
+/**
+ * @brief One sample encoding a device may accept at the source rate.
+ *
+ * The ladder that `resolveFormat()` walks after the source format itself: F32,
+ * S16, S32 — the three encodings `convert()`/`encode()` can produce.
+ */
+struct EncodingCandidate {
+    AudioCompat::SampleType type;  ///< Qt sample type
+    int bits;                      ///< Sample size in bits
+};
+
 /**
  * @brief Choose the playback format for a device (AC4, never silent).
  *
- * Asks the device first (`isFormatSupported()`); on rejection falls back to
- * `preferredFormat()` and reports that conversion is needed. A null device
- * returns the descriptor's format untouched — the caller's headless no-op path.
+ * Asks the device first (`isFormatSupported()`) and only falls back to
+ * `preferredFormat()` — the one path that forces resampling — when the device
+ * refuses the rate itself. Between the two sits the ladder that does not need
+ * resampling: the **source rate and channel count** with another sample
+ * encoding (F32, S16, S32). A sink opened at the source rate cannot click at
+ * block boundaries at all, so a rate the device does accept is always worth a
+ * re-encode (REQ-SW-PL-076 AC9 — resampling was the source of the artefacts).
+ *
+ * A null device returns the descriptor's format untouched — the caller's
+ * headless no-op path.
  *
  * @param descriptor Stream descriptor of the incoming block
  * @param device     Output device (`defaultOutputDevice()` or a chosen one)
@@ -142,11 +204,45 @@ inline PlaybackFormat resolveFormat(const SampledStreamDescriptor &descriptor,
         result.reason = QStringLiteral("unsupported source format");
         return result;
     }
+
+    // 1. The source format itself: nothing is changed, nothing is resampled.
     if (AudioCompat::isFormatSupported(device, result.format)) {
-        result.reason = QStringLiteral("device accepts the source format");
+        result.reason = QStringLiteral("device accepts the source format at %1 Hz %2")
+                            .arg(result.format.sampleRate())
+                            .arg(encodingLabel(result.format));
         return result;
     }
 
+    // 2.-4. Same rate, same channels, another encoding: a re-encode only. This
+    //      keeps the device on the source clock, i.e. no resampler and no block
+    //      boundary to get wrong — the reason this step exists.
+    static const EncodingCandidate kEncodings[] = {
+        {AudioCompat::Float, 32},
+        {AudioCompat::SignedInt, 16},
+        {AudioCompat::SignedInt, 32},
+    };
+    const int sourceRate = result.format.sampleRate();
+    const int sourceChannels = result.format.channelCount();
+    for (const EncodingCandidate &candidate : kEncodings) {
+        if (AudioCompat::sampleType(result.format) == candidate.type
+            && AudioCompat::sampleSize(result.format) == candidate.bits)
+            continue;                         // already tried as the source format
+        const QAudioFormat format =
+            formatWithEncoding(sourceRate, sourceChannels, candidate.type, candidate.bits);
+        if (!format.isValid() || !AudioCompat::isFormatSupported(device, format))
+            continue;
+
+        result.converted = true;              // re-encoded, but NOT resampled
+        result.format = format;
+        result.reason =
+            QStringLiteral("device accepts %1 Hz %2 at the source rate — re-encoded, "
+                           "no resampling")
+                .arg(sourceRate)
+                .arg(encodingLabel(format));
+        return result;
+    }
+
+    // 5. The device refuses the source rate itself: preferredFormat() + resampling.
     const QAudioFormat preferred = AudioCompat::preferredFormat(device);
     if (!preferred.isValid()) {
         result.reason = QStringLiteral("device rejected the format and has no preferred format");
@@ -317,13 +413,18 @@ inline QByteArray encode(const QVector<QVector<float>> &channels, const QAudioFo
  * resamples when the rates differ, mixes to the target channel count and
  * encodes to the target sample type.
  *
- * @param data   Incoming block (any `SampleType`, any channel count)
- * @param format Target format returned by `resolveFormat()`
- * @param error  Optional; receives a description of the failure
+ * @param data      Incoming block (any `SampleType`, any channel count)
+ * @param format    Target format returned by `resolveFormat()`
+ * @param converter Streaming resampler to continue the phase with, or nullptr
+ *                  for a one-block (stateless) conversion. A live source must
+ *                  pass the owner's converter: a fresh phase per block clicks
+ *                  at every block boundary (REQ-SW-PL-076 AC9).
+ * @param error     Optional; receives a description of the failure
  * @return PCM bytes ready for `QAudioSink::start()::write()`, empty on failure
  */
 inline QByteArray convert(const SampledData &data,
                           const QAudioFormat &format,
+                          AudioResample::RateConverter *converter,
                           QString *error = nullptr)
 {
     // Structural check instead of QAudioFormat::isValid(): on Qt5 isValid()
@@ -351,8 +452,25 @@ inline QByteArray convert(const SampledData &data,
     const double sourceRate = data.sampleRate() > 0.0 ? data.sampleRate()
                                                       : double(format.sampleRate());
     const double targetRate = double(format.sampleRate());
-    if (sourceRate > 0.0 && targetRate > 0.0 && !qFuzzyCompare(sourceRate, targetRate))
-        channels = AudioResample::resampleChannels(channels, sourceRate, targetRate);
+    if (sourceRate > 0.0 && targetRate > 0.0 && !qFuzzyCompare(sourceRate, targetRate)) {
+        if (converter != nullptr) {
+            converter->configure(sourceRate, targetRate);
+            QVector<QVector<float>> resampled;
+            if (!converter->processChannels(channels, resampled)) {
+                if (error)
+                    *error = QStringLiteral("the block cannot be resampled");
+                return {};
+            }
+            channels = resampled;
+        } else {
+            channels = AudioResample::resampleChannels(channels, sourceRate, targetRate);
+            if (channels.isEmpty()) {
+                if (error)
+                    *error = QStringLiteral("the block cannot be resampled");
+                return {};
+            }
+        }
+    }
 
     const QVector<QVector<float>> mixed = mixChannels(channels, format.channelCount());
     const QByteArray pcm = encode(mixed, format);
@@ -360,6 +478,21 @@ inline QByteArray convert(const SampledData &data,
         *error = QStringLiteral("unsupported sample encoding (%1 bit)")
                      .arg(AudioCompat::sampleSize(format));
     return pcm;
+}
+
+/**
+ * @brief One-block conversion without carried state (tests, one-shot callers).
+ *
+ * @param data   Incoming block
+ * @param format Target format
+ * @param error  Optional; receives a description of the failure
+ * @return PCM bytes, empty on failure
+ */
+inline QByteArray convert(const SampledData &data,
+                          const QAudioFormat &format,
+                          QString *error = nullptr)
+{
+    return convert(data, format, nullptr, error);
 }
 
 } // namespace AudioFormatBridge
