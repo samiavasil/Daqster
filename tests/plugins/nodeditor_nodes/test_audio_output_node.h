@@ -17,9 +17,12 @@
  *  - **no device is a normal state** — headless runs and CI boxes have no sound
  *    card. The node must count blocks and say why, never crash and never block.
  *
- * No test here requires a real audio device: the no-device path is exercised
+ * No test here *requires* a real audio device: the no-device path is exercised
  * with a `deviceId` that cannot resolve (a fixed string), and the device path
  * is asserted only when `AudioCompat::deviceFromId("")` happens to be non-null.
+ * The two tests that can only exist on a real device (`firstBlockAutoArmsPlayback`
+ * after its no-device branch, `partiallyPlayedBlockIsNotDropped`) `QSKIP` on a
+ * box without a sound card instead of failing.
  *
  * The queue tests (`largeBlockIsQueuedNotDropped`, ...) exist because the node
  * used to drop a block whenever `bytesFree() < block size`: `TtsNode` emits a
@@ -62,11 +65,16 @@ private slots:
 
     // Queue semantics: a block is never limited by the device buffer.
     void deviceIsResolvedOnceAndCached();
+    void firstBlockAutoArmsPlayback();
+    void explicitStopIsNotUndoneByAutoArm();
+    void disabledNodeDoesNotAutoArm();
     void blocksBeforeStartAreQueuedNotLost();
     void largeBlockIsQueuedNotDropped();
     void blockOverQueueBoundDropsOldest();
     void singleSentenceUnderTheOldBoundIsNotDropped();
+    void vadSegmentLengthIsNotTrimmed();
     void blockOverHardCapIsTrimmedNotSilent();
+    void partiallyPlayedBlockIsNotDropped();
     void queueStaysBoundedByTime();
     void stopClearsTheQueue();
 };

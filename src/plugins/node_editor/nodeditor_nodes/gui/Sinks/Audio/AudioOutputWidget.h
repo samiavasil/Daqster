@@ -8,6 +8,7 @@ class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;
 class QLabel;
+class QPushButton;
 class QSpinBox;
 class QToolBox;
 
@@ -29,6 +30,18 @@ class AudioOutputNode;
  * reaches the fields through `configChanged`). Controls are blocked while
  * being filled — a value that came from the model is not a user edit and must
  * not be written back, which would loop through `applyToModel()`.
+ *
+ * **Start / Stop is a secondary control (REQ-SW-PL-076).** `AudioOutput` is an
+ * `IStartable` sink, and the first version of this widget needed a Start button
+ * because neither `HeadlessEngine`'s `autoStart` nor the IDE ever armed it in
+ * the editor (the IDE calls no `start()` for any node). The node now arms
+ * itself on the first block (`AudioOutputNode::setInData()`), so playback needs
+ * no click at all — the button exists for the opposite direction: an explicit
+ * `stop()`, which sets `AudioPlaybackEngine::userStopped()` and is the only way
+ * to silence the node while blocks keep arriving. Its label follows
+ * `AudioPlaybackEngine::isRunning()` (so an auto-armed node reads "Stop"), and
+ * a click only ever calls the model's `start()`/`stop()` — the same
+ * `IStartable`/`IStoppable` path the runtime uses.
  */
 class AudioOutputWidget : public QWidget
 {
@@ -59,6 +72,11 @@ public slots:
     /// Model → widget: status line text (from `AudioOutputNode::statusText()`).
     void setStatus(const QString& status);
 
+private slots:
+    /// Start/Stop depends on where the engine already is — the button is a
+    /// toggle over `IStartable`/`IStoppable`, never its own state machine.
+    void togglePlayback();
+
 private:
     void buildUi();
 
@@ -70,6 +88,11 @@ private:
     /// instead of letting a user tune a sink that will not be opened.
     void updateControlStates();
 
+    /// Button label ("Start"/"Stop") and enabled state follow the engine, so
+    /// the widget never claims to be running when the model is not. Called on
+    /// `runningChanged()` as well as on every status repaint.
+    void updatePlaybackButton();
+
     AudioOutputNode* m_model = nullptr;
 
     QToolBox* m_sections = nullptr;
@@ -77,5 +100,6 @@ private:
     QDoubleSpinBox* m_volumeBox = nullptr;
     QSpinBox* m_bufferBox = nullptr;
     QCheckBox* m_enabledBox = nullptr;
+    QPushButton* m_playButton = nullptr;
     QLabel* m_statusLabel = nullptr;
 };

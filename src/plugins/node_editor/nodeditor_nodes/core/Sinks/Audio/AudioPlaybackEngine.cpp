@@ -218,13 +218,22 @@ void AudioPlaybackEngine::start()
     }
 
     m_running = true;
+    // An explicit start is the only thing that undoes an explicit stop — the
+    // node's auto-arm must not resurrect a sink the user silenced on purpose.
+    m_userStopped = false;
     m_error.clear();
     m_createThrottle.invalidate();
     // Per-run diagnostics: a stop/play cycle reports its own segment.
     m_blocksPlayed = 0;
     m_blocksDropped = 0;
     m_blocksSkipped = 0;
+    m_blocksQueuedWhileStopped = 0;
+    m_stoppedWarningLogged = false;
     m_dropLogCount = 0;
+
+    // The engine is armed — whoever armed it (the node's auto-arm or a click on
+    // Start). The widget needs this even when the status text does not change.
+    Q_EMIT runningChanged(m_running);
 
     if (!m_enabled) {
         refreshStatus();
@@ -251,12 +260,22 @@ void AudioPlaybackEngine::start()
 
 void AudioPlaybackEngine::stop()
 {
+    const bool wasRunning = m_running;
+
     m_running = false;
+    // "Stop" means "stop and stay stopped": AudioOutputNode auto-arms on the
+    // first block, and only an explicit start() clears this flag again.
+    m_userStopped = true;
+    // A later stop must produce its own visibility report, not inherit the
+    // "already warned" flag of the previous stop period.
+    m_stoppedWarningLogged = false;
     // destroySink() also clears the queue (PCM in the old format).
     destroySink();
     clearQueue();
     m_error.clear();
     updatePumpTimer();
+    if (wasRunning)
+        Q_EMIT runningChanged(m_running);
     refreshStatus();
 }
 
@@ -350,6 +369,24 @@ void AudioPlaybackEngine::push(const SampledData &data)
     }
     m_queueFormat = targetFormat;
 
+    // Stopped is NOT "no data", but it is no longer the normal state either:
+    // the node arms playback on the first block, so `m_running == false` here
+    // means the node was **explicitly stopped** (or is disabled, which returned
+    // above). Such a block is queued and nothing plays, which in headless is
+    // indistinguishable from a silent graph — the .flow "looks fine" and stays
+    // mute. One warning per stop period (a live source delivers ~100 blocks/s,
+    // so a line per block would flood the log), plus a counter and a status hint.
+    if (!m_running) {
+        ++m_blocksQueuedWhileStopped;
+        if (!m_stoppedWarningLogged) {
+            m_stoppedWarningLogged = true;
+            qCWarning(lcDemoNodes).noquote()
+                << QStringLiteral("AudioOutput was stopped explicitly — %1 block(s) "
+                                  "queued, nothing plays until start()")
+                       .arg(m_blocksQueuedWhileStopped);
+        }
+    }
+
     QueuedBlock block;
     block.pcm = pcm;
     block.durationMs = pcmDurationMs(pcm.size(), targetFormat);
@@ -375,12 +412,19 @@ void AudioPlaybackEngine::push(const SampledData &data)
     //    default was dropped while it was alone in the queue, i.e. every
     //    English reply was silence and the sink was never even opened;
     //  - once a second block waits, `queueMs() > maxQueuedMs` means the
-    //    producer is faster than the device: the OLDEST block goes.
+    //    producer is faster than the device: the OLDEST block goes — unless its
+    //    head already reached the device. Cutting a partially played block is
+    //    an audible jump inside a sentence, so the SECOND block gives up its
+    //    place instead; if only the partially played block is left, the
+    //    single-block rule above applies and nothing is dropped.
     while (m_queue.size() > 1 && queueMs() > m_maxQueuedMs) {
-        const QueuedBlock oldest = m_queue.takeFirst();
+        const int dropIndex = m_queue.first().written > 0 ? 1 : 0;
+        const QueuedBlock dropped = m_queue.takeAt(dropIndex);
         ++m_blocksDropped;
-        logDrop(QStringLiteral("queue over maxQueuedMs"),
-                oldest.pcm.size() - oldest.written);
+        logDrop(dropIndex == 0 ? QStringLiteral("queue over maxQueuedMs")
+                                : QStringLiteral("queue over maxQueuedMs (head already "
+                                                 "partially played — kept to avoid a jump)"),
+                dropped.pcm.size() - dropped.written);
     }
 
     // Accepted into the queue — whether it is written now or by the next pump.
@@ -631,7 +675,13 @@ void AudioPlaybackEngine::refreshStatus()
     } else if (!m_error.isEmpty()) {
         status = QStringLiteral("error: %1").arg(m_error);
     } else if (!m_running) {
-        status = QStringLiteral("stopped");
+        // Never-started is a *state*, not silence (see push()). Deliberately
+        // WITHOUT the live count: the status repaints the widget, and a live
+        // source delivers ~100 blocks/s — the exact number is in the one-off
+        // warning and in `blocksQueuedWhileStopped()`.
+        status = m_blocksQueuedWhileStopped > 0
+                     ? QStringLiteral("stopped · audio is queued, start to play")
+                     : QStringLiteral("stopped");
     } else if (!deviceAvailable()) {
         status = QStringLiteral("no output device");
     } else if (m_sink != nullptr) {

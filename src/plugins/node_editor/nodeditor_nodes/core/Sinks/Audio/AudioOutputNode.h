@@ -32,10 +32,16 @@
  * would click, and the sink refills on the next block.
  *
  * Lifecycle (`IStartable`/`IStoppable`, REQ-SW-PL-050):
- *   - `start()` arms playback; the engine opens the device (eagerly when the
- *     input format is already known, otherwise on the first block);
- *   - `stop()` closes and destroys the sink, idempotently.
- *   - While the graph is only being edited, `setInData()` opens nothing.
+ *   - **the first block arms playback** (`setInData()`), because the IDE never
+ *     calls `start()` for an `IStartable` node — the exact rule
+ *     `AudioSinkNode::play()` follows. The engine then opens the device (eagerly
+ *     when the input format is already known, otherwise on that first block);
+ *   - `start()` is the explicit re-arm (the widget's button, `HeadlessEngine`'s
+ *     `ui.nodes[].autoStart`) and clears the "user stopped" flag;
+ *   - `stop()` closes and destroys the sink, idempotently, and marks the stop as
+ *     explicit: later blocks are queued but never re-arm on their own;
+ *   - while the graph is only being edited, `setInData()` opens nothing (no
+ *     block = no device).
  *
  * The GUI widget (`AudioOutputWidget`) lives in `nodeditor_nodes/gui` and is
  * attached through `NodeWidgetFactory`; `embeddedWidget()` always returns
@@ -61,7 +67,8 @@ public:
         /// Queue bound, 500..10000 ms: how much audio may wait for the device
         /// when more than one block is waiting. NOT a limit on a block — one
         /// TTS sentence is one block (measured 2.4–2.6 s), and a single queued
-        /// block is never dropped for being long (hard cap: 10 s per block).
+        /// block is never dropped for being long (hard cap: 20 s per block —
+        /// above the VAD segment ceiling of 15 s).
         int maxQueuedMs = AudioPlaybackEngine::kDefaultMaxQueuedMs;
     };
 
@@ -103,10 +110,12 @@ public:
     /// Always nullptr — the widget is supplied by the GUI plugin.
     QWidget *embeddedWidget() override { return nullptr; }
 
-    /// Arm playback (opens the device when the input format is known).
+    /// Arm playback (opens the device when the input format is known). This is
+    /// the explicit re-arm: it clears the engine's `userStopped()` flag.
     void start() override;
 
-    /// Close and destroy the sink. Idempotent (REQ-SW-PL-050).
+    /// Close and destroy the sink. Idempotent (REQ-SW-PL-050). The stop is
+    /// explicit — the next block is queued but does not auto-arm the engine.
     void stop() override;
 
     // ── Config (used by the GUI widget) ────────────────────────────────────
