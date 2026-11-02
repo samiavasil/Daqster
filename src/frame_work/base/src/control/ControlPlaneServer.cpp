@@ -486,6 +486,7 @@ QByteArray ControlPlaneServer::bundledIndexHtml() const
   <input id="token" placeholder="Bearer token (optional)">
   <button onclick="reconnect()">Connect</button>
   <button class="sec" onclick="saveFlow()">Save flow…</button>
+  <button class="sec" onclick="closeFlow()">Close flow</button>
   <a href="/api/docs">API docs (Swagger UI)</a>
 </header>
 <main>
@@ -784,6 +785,12 @@ function saveFlow() {
   if (!path) return;
   api("/api/flow/save", { method: "POST", body: JSON.stringify({ path: path }) })
     .then(r => logLine("save " + (r.ok ? "ok" : "failed: " + JSON.stringify(r.body))));
+}
+
+function closeFlow() {
+  if (!confirm("Close the scene? Every node will be stopped.")) return;
+  api("/api/flow/close", { method: "POST" })
+    .then(r => { logLine("close " + (r.ok ? "ok" : "failed: " + JSON.stringify(r.body))); refresh(); });
 }
 
 function connectSocket() {
@@ -1100,6 +1107,26 @@ QJsonObject ControlPlaneServer::buildOpenApiSpec() const
         p.insert(QStringLiteral("post"), post);
         p.insert(QStringLiteral("delete"), del);
         paths.insert(QStringLiteral("/api/connections"), p);
+    }
+
+    // /api/flow/close: stop every node, notify the plugins, free the graph.
+    {
+        QJsonObject post;
+        post.insert(QStringLiteral("tags"), QJsonArray{QStringLiteral("flow")});
+        post.insert(QStringLiteral("summary"), QStringLiteral("Close the current flow"));
+        post.insert(QStringLiteral("description"),
+                    QStringLiteral("Stops every node (sources first), notifies the plugins "
+                                   "through ISceneLifecycle and frees the graph. Idempotent: "
+                                   "closing an empty or already closed flow returns 200. "
+                                   "Model weights a plugin keeps warm stay loaded by design."));
+        post.insert(QStringLiteral("operationId"), QStringLiteral("closeFlow"));
+        QJsonObject postResponses;
+        postResponses.insert(QStringLiteral("200"), okResponse(QStringLiteral("Flow closed"), QStringLiteral("MutationResult")));
+        postResponses.insert(QStringLiteral("409"), jsonResponse(QStringLiteral("Close refused (no canvas)")));
+        post.insert(QStringLiteral("responses"), postResponses);
+        QJsonObject p;
+        p.insert(QStringLiteral("post"), post);
+        paths.insert(QStringLiteral("/api/flow/close"), p);
     }
 
     // /api/flow/save: write the current flow to disk.

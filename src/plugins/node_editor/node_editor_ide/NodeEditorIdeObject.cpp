@@ -22,10 +22,12 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include "SceneClose.h"
 #include <QMessageBox>
 #include <QSet>
 #include <QDir>
 #include <QKeyEvent>
+#include <QToolBar>
 
 #include <exception>
 
@@ -118,6 +120,10 @@ bool NodeEditorIdeObject::Initialize()
     // Build canvas AFTER all nodes are registered
     m_Widget->buildCanvas();
 
+    // "Unsaved changes" has to be an observation, not a guess (REQ-SW-PL-078
+    // AC1): the close prompt is only useful if it is right.
+    trackSceneDirtyState();
+
     // ── File menu (REQ-SW-PL-037): Save/Load scene ─────────────────────────
     // Save uses saveSceneToFile() (REQ-SW-PL-049): graph model JSON + groups +
     // the "ui" section (runtime layout). Load uses the tolerant path that
@@ -135,6 +141,26 @@ bool NodeEditorIdeObject::Initialize()
     connect(loadAction, &QAction::triggered, this, [this]() {
         loadSceneTolerant();
     });
+
+    // ── Close Scene (REQ-SW-PL-078) ────────────────────────────────────────
+    // The missing half of "Load Scene…": the IDE could open a scene but never
+    // let go of one. Ctrl+W on Linux/Windows (QKeySequence::Close), and the
+    // same action on a toolbar so the button is visible without a menu.
+    fileMenu->addSeparator();
+    m_closeSceneAction = fileMenu->addAction(tr("Close Scene"));
+    m_closeSceneAction->setShortcut(QKeySequence::Close);
+    m_closeSceneAction->setToolTip(
+        tr("Stop every node, release what the plugins hold and empty the canvas"));
+    connect(m_closeSceneAction, &QAction::triggered, this, [this]() {
+        closeScene();
+    });
+
+    QToolBar* sceneToolBar = m_Win->addToolBar(tr("Scene"));
+    sceneToolBar->setObjectName(QStringLiteral("sceneToolBar"));
+    sceneToolBar->setMovable(false);
+    sceneToolBar->addAction(saveAction);
+    sceneToolBar->addAction(loadAction);
+    sceneToolBar->addAction(m_closeSceneAction);
 
     // ── Layout Designer (REQ-SW-PL-059): F6 visual layout editor ───────────
     m_designerAction = fileMenu->addAction(tr("Layout Designer"));
@@ -342,6 +368,97 @@ bool NodeEditorIdeObject::eventFilter(QObject* watched, QEvent* event)
     }
 
     return QObject::eventFilter(watched, event);
+}
+
+// ── Close Scene (REQ-SW-PL-078) ──────────────────────────────────────────────
+// The IDE could open a scene but never close one: the only teardown was the
+// window's X, which took the whole editor with it. "Close Scene" releases the
+// scene and leaves the IDE running, ready for the next one.
+void NodeEditorIdeObject::trackSceneDirtyState()
+{
+    if (m_Widget == nullptr || m_Widget->graphModel() == nullptr)
+        return;
+
+    auto* graph = m_Widget->graphModel();
+    auto markDirty = [this]() { m_sceneDirty = true; };
+
+    // Every mutation that would be lost on close. Signals carry ids we do not
+    // need: the question is only "did anything change since the last save?".
+    connect(graph, &QtNodes::DataFlowGraphModel::nodeCreated,
+            this, [markDirty](QtNodes::NodeId) { markDirty(); });
+    connect(graph, &QtNodes::DataFlowGraphModel::nodeDeleted,
+            this, [markDirty](QtNodes::NodeId) { markDirty(); });
+    connect(graph, &QtNodes::DataFlowGraphModel::nodeUpdated,
+            this, [markDirty](QtNodes::NodeId) { markDirty(); });
+    connect(graph, &QtNodes::DataFlowGraphModel::nodePositionUpdated,
+            this, [markDirty](QtNodes::NodeId) { markDirty(); });
+    connect(graph, &QtNodes::DataFlowGraphModel::connectionCreated,
+            this, [markDirty](QtNodes::ConnectionId) { markDirty(); });
+    connect(graph, &QtNodes::DataFlowGraphModel::connectionDeleted,
+            this, [markDirty](QtNodes::ConnectionId) { markDirty(); });
+}
+
+bool NodeEditorIdeObject::closeCurrentScene(bool confirmDiscard)
+{
+    if (m_Widget == nullptr || m_Widget->graphModel() == nullptr
+        || m_Widget->scene() == nullptr) {
+        qCWarning(lcNodeEditor) << "closeScene: no canvas — nothing to close";
+        return false;
+    }
+
+    auto* graph = m_Widget->graphModel();
+    const int nodeCount = static_cast<int>(graph->allNodeIds().size());
+    if (nodeCount == 0) {
+        // Closing an empty scene (or closing twice) is a no-op, never an error
+        // and never a second plugin notification — a warm model must not be
+        // released by a close that changed nothing.
+        qCInfo(lcNodeEditor) << "closeScene: scene is already empty — no-op";
+        m_sceneDirty = false;
+        return true;
+    }
+
+    if (confirmDiscard && m_sceneDirty) {
+        const auto answer = QMessageBox::question(
+            m_Win, tr("Close Scene"), tr("Затвори без запазване?"),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (answer != QMessageBox::Yes) {
+            qCInfo(lcNodeEditor) << "closeScene: cancelled by the user (unsaved changes)";
+            return false;
+        }
+    }
+
+    // The layout designer holds its own preview of node widgets; leaving it on
+    // while the nodes disappear would keep dangling pointers on screen.
+    if (m_designerMode)
+        setLayoutDesignerMode(false);
+
+    qCInfo(lcNodeEditor) << "closeScene: closing" << nodeCount << "nodes";
+
+    // 1+2. Stop every node (sources first) and notify the plugins while the
+    //      models are still alive — the shared contract every host uses.
+    const Daqster::SceneCloseReport report = Daqster::stopSceneNodes(*graph);
+    const int notified = Daqster::notifySceneClosed();
+
+    // 3. Free the graph: clearScene() deletes the node models, which is only
+    //    safe now that each of them was stopped.
+    m_Widget->scene()->clearScene();
+
+    // 4. Forget everything that described the old scene.
+    m_autoStartNodes.clear();
+    m_workspaces.clear();
+    m_hasLayoutV2 = false;
+    m_layoutSectionV2 = FlowUi::LayoutSection{};
+    m_sceneDirty = false;
+
+    qCInfo(lcNodeEditor) << "closeScene: released" << report.stopped << "of" << report.nodes
+                         << "running nodes, plugins notified:" << notified
+                         << "— canvas is empty";
+    return true;
+}
+
+void NodeEditorIdeObject::closeScene()
+{
+    closeCurrentScene(/*confirmDiscard=*/true);
 }
 
 void NodeEditorIdeObject::togglePresentationMode()
@@ -624,7 +741,12 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
     }
 
     try {
-        m_Widget->scene()->clearScene();
+        // Replacing a scene is close-then-open (REQ-SW-PL-078): stop the
+        // outgoing nodes while their graph is still valid, let the plugins
+        // apply their close policy, and only then let clearScene() destroy the
+        // models. Without this a node's stop() was never called on
+        // "Load Scene…" — only the destructor ran.
+        closeCurrentScene(/*confirmDiscard=*/false);
         m_Widget->graphModel()->load(sceneJson);
     } catch (const std::exception& e) {
         qCWarning(lcNodeEditor) << "loadSceneFromFile: load failed:" << e.what();
@@ -663,6 +785,8 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
                                  .arg(skippedTypes.join(QLatin1Char('\n'))));
     }
 
+    // The freshly loaded scene is the new "saved" baseline, not a change.
+    m_sceneDirty = false;
     return true;
 }
 
@@ -727,6 +851,7 @@ bool NodeEditorIdeObject::saveSceneToFile()
     }
 
     file.write(QJsonDocument(sceneJson).toJson(QJsonDocument::Indented));
+    m_sceneDirty = false;
     qCInfo(lcNodeEditor) << "saveSceneToFile: saved" << fileName;
     return true;
 }

@@ -10,3 +10,7 @@ endif()
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/control)
     add_subdirectory(control)
 endif()
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/engine)
+    add_subdirectory(engine)
+endif()

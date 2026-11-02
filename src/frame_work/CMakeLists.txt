@@ -73,6 +73,10 @@ set(FRAMEWORK_CORE_SOURCES
     base/src/engine/HeadlessApp.h
     base/src/engine/HeadlessEngine.cpp
     base/src/engine/HeadlessEngine.h
+    # Scene close contract (REQ-SW-PL-078): one implementation of
+    # "stop every node, then tell the plugins" shared by every runtime host.
+    base/src/engine/SceneClose.cpp
+    base/src/engine/SceneClose.h
 
     # Shared widget-free application bootstrap (REQ-SW-PL-048)
     base/src/app/AppBootstrap.cpp

@@ -84,6 +84,7 @@ Node Editor-ът е изграден върху външната библиот�
 | Документ | Съдържание |
 |----------|-----------|
 | [nodes.md](nodes.md) | Каноничният каталог на нодовете + категориите (какво се регистрира) |
+| [scene-lifecycle.md](scene-lifecycle.md) | Затваряне на сцена: кой спира нодовете, кой освобождава какво и какво остава по дизайн |
 | [adr/](adr/README.md) | Architecture Decision Records (stream routing, generic numeric port, plugin separation) |
 | [../plugins/README.md](../plugins/README.md) | Plugin-подсистемата (QPluginInterface, discovery, capabilities) |
 | [../formats/flow-format.md](../formats/flow-format.md) | `.flow` JSON форматът (сцени/графове) |

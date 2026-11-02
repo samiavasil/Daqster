@@ -1,4 +1,5 @@
 #include "HeadlessEngine.h"
+#include "SceneClose.h"
 
 #include "ControlPlaneServer.h"
 #include "NodeSchemaBuilder.h"
@@ -111,6 +112,14 @@ bool HeadlessEngine::loadFlow(const QString& flowPath)
 
     qCInfo(lcNodeEditor) << "HeadlessEngine: loading flow:" << flowPath;
 
+    // Loading over a live scene is a close+open as well: stop the old nodes
+    // while their graph is still valid, then let plugins apply their close
+    // policy (REQ-SW-PL-078 / REQ-AI-021 close contract).
+    if (m_graphModel && !m_graphModel->allNodeIds().empty()) {
+        stopAllNodes();
+        Daqster::notifySceneClosed();
+    }
+
     // 1. Register nodes (headless-compatible only)
     if (!registerNodes()) {
         emit errorOccurred("Failed to register node types");
@@ -160,6 +169,9 @@ bool HeadlessEngine::reloadFlow(const QJsonObject& flow, QString* errorMessage)
 
     // The old scene must stop while its graph is still valid.
     stopAllNodes();
+    // ...and plugins get their one chance to release what outlives the nodes
+    // (model weights, warm servers) before the graph is replaced.
+    Daqster::notifySceneClosed();
 
     if (!buildGraphModel()) {
         if (errorMessage) *errorMessage = QStringLiteral("failed to rebuild graph model");
@@ -187,19 +199,61 @@ void HeadlessEngine::stopAllNodes()
 
     qCInfo(lcNodeEditor) << "HeadlessEngine: stopping all nodes";
 
-    for (const QtNodes::NodeId nodeId : m_graphModel->allNodeIds()) {
-        auto* model = m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
-        if (!model)
-            continue;
+    // Sources first (REQ-SW-PL-078): the shared contract owns the ordering, so
+    // the headless engine, the GUI runtime and the IDE cannot drift apart.
+    const SceneCloseReport report = stopSceneNodes(*m_graphModel);
+    announceStopped(report.stoppedIds);
 
-        auto* stoppable = dynamic_cast<Daqster::IStoppable*>(model);
-        if (stoppable) {
-            qCInfo(lcNodeEditor) << "HeadlessEngine: stopping node:" << model->caption() << "(id=" << nodeId << ")";
-            stoppable->stop();
-            m_runningNodes[nodeId] = false;
-            emit nodeStopped(nodeId);
-        }
+    if (!report.empty()) {
+        qCInfo(lcNodeEditor) << "HeadlessEngine: stopped" << report.stopped
+                             << "of" << report.nodes << "nodes";
     }
+}
+
+void HeadlessEngine::announceStopped(const QVector<QtNodes::NodeId>& nodeIds)
+{
+    // One place for "a node is no longer running", so the WebSocket stream
+    // cannot be right on one path (stopAllNodes) and wrong on the other (close).
+    for (const QtNodes::NodeId nodeId : nodeIds) {
+        m_runningNodes[nodeId] = false;
+        emit nodeStopped(nodeId);
+    }
+}
+
+bool HeadlessEngine::closeFlow(QString* errorMessage)
+{
+    Q_UNUSED(errorMessage)
+
+    if (!m_graphModel) {
+        qCInfo(lcNodeEditor) << "HeadlessEngine: close requested with no scene — nothing to do";
+        return true;
+    }
+
+    const int nodeCount = static_cast<int>(m_graphModel->allNodeIds().size());
+    if (nodeCount == 0) {
+        // Closing twice (or closing a scene that never had nodes) is a no-op,
+        // and it must NOT notify the plugins a second time: a warm model would
+        // be released on a second close that changed nothing.
+        qCInfo(lcNodeEditor) << "HeadlessEngine: scene is already empty — close is a no-op";
+        return true;
+    }
+
+    qCInfo(lcNodeEditor) << "HeadlessEngine: closing scene (" << nodeCount << "nodes)";
+
+    // Stop → notify → free, in one call. The order is the contract: a model
+    // must never be destroyed while running, and a plugin must see its nodes
+    // already released.
+    const SceneCloseReport report = closeSceneGraph(*m_graphModel);
+    announceStopped(report.stoppedIds);
+
+    m_autoStartNodes.clear();
+    m_runningNodes.clear();
+    m_uiSection = UiSection{};
+
+    qCInfo(lcNodeEditor) << "HeadlessEngine: scene closed — stopped" << report.stopped
+                         << "of" << report.nodes << "nodes, removed" << report.removed
+                         << "plugins notified:" << report.notifiedProviders;
+    return true;
 }
 
 bool HeadlessEngine::registerNodes()

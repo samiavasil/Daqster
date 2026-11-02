@@ -167,6 +167,17 @@ public:
         return true;
     }
 
+    bool closeFlow(QString* errorMessage) override
+    {
+        if (m_closeRefused) {
+            if (errorMessage)
+                *errorMessage = QStringLiteral("runtime canvas not ready");
+            return false;
+        }
+        ++m_closeCalls;
+        return true;
+    }
+
     QJsonObject nodeSchema(quint64 nodeId) const override
     {
         if (!m_configs.contains(nodeId))
@@ -192,6 +203,8 @@ public:
     int m_stopCalls = 0;
     bool m_rejectConnections = false;
     bool m_reloaded = false;
+    int m_closeCalls = 0;
+    bool m_closeRefused = false;
     QString m_savedPath;
     QString m_label;
     bool m_labelVisible = true;
@@ -444,6 +457,34 @@ private slots:
 
         const auto noPath = router.route("POST", QStringLiteral("/api/flow/save"), {});
         QCOMPARE(noPath.status, 400);
+    }
+
+    void closesFlow()
+    {
+        // REQ-SW-PL-078: the close half of the flow API. The route reports what
+        // happened instead of a bare `true`, and a host that cannot close must
+        // surface that as a failure — never as a silent success.
+        FakeController controller;
+        Daqster::ControlPlaneRouter router(&controller);
+
+        const auto ok = router.route("POST", QStringLiteral("/api/flow/close"), {});
+        QCOMPARE(ok.status, 200);
+        QCOMPARE(ok.body.value(QStringLiteral("closed")).toBool(), true);
+        QCOMPARE(controller.m_closeCalls, 1);
+
+        // Idempotent on the host side, so a second close is still 200.
+        QCOMPARE(router.route("POST", QStringLiteral("/api/flow/close"), {}).status, 200);
+        QCOMPARE(controller.m_closeCalls, 2);
+
+        controller.m_closeRefused = true;
+        const auto refused = router.route("POST", QStringLiteral("/api/flow/close"), {});
+        QCOMPARE(refused.status, 409);
+        QCOMPARE(refused.body.value(QStringLiteral("closed")).toBool(), false);
+        QCOMPARE(refused.body.value(QStringLiteral("error")).toString(),
+                 QStringLiteral("runtime canvas not ready"));
+
+        // The method is POST; the close is a mutation, not a query.
+        QCOMPARE(router.route("GET", QStringLiteral("/api/flow/close"), {}).status, 405);
     }
 
     void reloadFlowRejectsBadShape()

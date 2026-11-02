@@ -5,6 +5,7 @@
 #include "QPluginManager.h"
 #include "capabilities/INodeProvider.h"
 #include "capabilities/IWidgetProvider.h"
+#include "SceneClose.h"
 #include "debug.h"
 #include "LogCategories.h"
 #include "shared/IStartable.h"
@@ -287,6 +288,13 @@ bool RuntimeShell::loadFlow(const QString& fileName)
         qCWarning(lcNodeEditor) << "loadFlow: editor not initialized";
         emit errorOccurred(tr("editor not initialized"));
         return false;
+    }
+
+    // Loading over a live scene closes it first: nodes must be stopped while
+    // the graph is still valid, then plugins apply their close policy.
+    if (!m_editorWidget->graphModel()->allNodeIds().empty()) {
+        stopAllNodes();
+        Daqster::notifySceneClosed();
     }
 
     QFile file(fileName);
@@ -654,21 +662,56 @@ void RuntimeShell::stopAllNodes()
     if (!m_editorWidget || !m_editorWidget->graphModel())
         return;
 
-    for (const QtNodes::NodeId nodeId : m_editorWidget->graphModel()->allNodeIds()) {
-        auto* model = m_editorWidget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
-        if (!model)
-            continue;
+    // Sources first (REQ-SW-PL-078): the shared contract owns the order, so the
+    // GUI runtime, the headless engine and the IDE cannot drift apart.
+    const Daqster::SceneCloseReport report =
+        Daqster::stopSceneNodes(*m_editorWidget->graphModel());
 
-        auto* stoppable = dynamic_cast<Daqster::IStoppable*>(model);
-        if (stoppable) {
-            qCInfo(lcNodeEditor) << "Stopping node:" << model->caption() << "(id=" << nodeId << ")";
-            stoppable->stop();
-            if (m_runningNodes.value(nodeId, false)) {
-                m_runningNodes[nodeId] = false;
-                emit nodeStopped(nodeId);
-            }
+    for (const QtNodes::NodeId nodeId : report.stoppedIds) {
+        if (m_runningNodes.value(nodeId, false)) {
+            m_runningNodes[nodeId] = false;
+            emit nodeStopped(nodeId);
         }
     }
+
+    if (!report.empty()) {
+        qCInfo(lcNodeEditor) << "RuntimeShell: stopped" << report.stopped
+                             << "of" << report.nodes << "nodes";
+    }
+}
+
+bool RuntimeShell::closeFlow(QString* errorMessage)
+{
+    if (!graphModel() || !m_editorWidget || !m_editorWidget->scene()) {
+        // Unlike a headless engine, a GUI runtime with no canvas cannot have had
+        // a scene: say so instead of pretending the close happened.
+        if (errorMessage) *errorMessage = tr("runtime canvas not ready");
+        emit errorOccurred(tr("runtime canvas not ready"));
+        return false;
+    }
+
+    const int nodeCount = static_cast<int>(graphModel()->allNodeIds().size());
+    if (nodeCount == 0) {
+        qCInfo(lcNodeEditor) << "RuntimeShell: close requested with an empty scene — no-op";
+        return true;
+    }
+
+    qCInfo(lcNodeEditor) << "RuntimeShell: closing scene (" << nodeCount << "nodes)";
+
+    stopAllNodes();
+    const int notified = Daqster::notifySceneClosed();
+    m_editorWidget->scene()->clearScene();
+
+    // The MDI workspaces were built from the old scene; rebuild them empty so
+    // no sub-window points at a deleted node widget.
+    m_autoStartNodes.clear();
+    m_uiSection = FlowUi::UiSection{};
+    m_hasLayoutV2 = false;
+    arrangeWorkspaces(m_uiSection);
+
+    qCInfo(lcNodeEditor) << "RuntimeShell: scene closed — nodes removed:" << nodeCount
+                         << "plugins notified:" << notified;
+    return true;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1238,6 +1281,9 @@ bool RuntimeShell::reloadFlow(const QJsonObject& flow, QString* errorMessage)
     // Stop the old graph before it is replaced: clearScene() destroys the node
     // models, which must not be left running.
     stopAllNodes();
+    // Plugins that keep resources beyond their nodes (model weights, warm
+    // servers) apply their close policy now — before the models die.
+    Daqster::notifySceneClosed();
 
     QStringList skippedTypes;
     QString error;

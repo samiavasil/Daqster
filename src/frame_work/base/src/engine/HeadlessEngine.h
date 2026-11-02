@@ -105,6 +105,24 @@ public:
     QJsonObject typeSchema(const QString& type) const override;
     bool reloadFlow(const QJsonObject& flow, QString* errorMessage = nullptr) override;
 
+    /**
+     * @brief Close the scene: stop every node, notify the plugins, free the graph.
+     *
+     * `POST /api/flow/close` (REQ-SW-PL-078). The order is the whole contract:
+     * `IStoppable::stop()` on every node (sources first), then
+     * `ISceneLifecycle::onSceneClosed()` per plugin, and only then are the node
+     * models destroyed — a model must never be destroyed while running.
+     *
+     * Idempotent: closing a scene that was never opened, or closing twice, is a
+     * successful no-op. Model weights a plugin keeps warm by design survive
+     * (that is the plugin's close policy, not the host's decision).
+     *
+     * @param errorMessage Filled when the close could not complete (currently
+     *                     never — the method reports no-op through the log).
+     * @return true when the scene is closed (including the no-op case).
+     */
+    bool closeFlow(QString* errorMessage = nullptr) override;
+
 Q_SIGNALS:
     void flowLoaded(bool success);
     void nodeStarted(QtNodes::NodeId nodeId);
@@ -159,6 +177,9 @@ private:
     bool applySceneJson(QJsonObject sceneJson);
     bool parseUiSection(const QJsonObject& sceneJson);
     void autoStartNodes();
+    /// Marks @p nodeIds stopped and emits `nodeStopped()` for each (REQ-SW-PL-063
+    /// AC13: the control plane streams these events).
+    void announceStopped(const QVector<QtNodes::NodeId>& nodeIds);
     void connectNodes(const QJsonArray& connectionsJson);
     QtNodes::NodeDelegateModel* createNodeModel(const QString& modelName, const QJsonObject& nodeJson);
     QJsonObject serializeUiSection() const;

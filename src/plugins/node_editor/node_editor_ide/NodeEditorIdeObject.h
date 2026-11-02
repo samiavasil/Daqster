@@ -75,10 +75,30 @@ public slots:
     /// Hides GraphicsView + shows deembedded widgets; toggles back.
     void togglePresentationMode();
 
+    /// Close the scene (REQ-SW-PL-078, `File → Close Scene` / Ctrl+W).
+    ///
+    /// Asks before discarding unsaved changes, then stops every node (sources
+    /// first), notifies the plugins through `ISceneLifecycle::onSceneClosed()`
+    /// and empties the canvas. Nothing is left running and nothing is left in
+    /// the graph; model weights a plugin keeps warm survive by design.
+    void closeScene();
+
 protected slots:
     void nodeDoubleClicked(QtNodes::NodeId nodeId);
 
 private:
+    /// The close sequence behind `closeScene()` and behind "Load Scene…".
+    ///
+    /// @param confirmDiscard Ask the user before dropping unsaved changes
+    ///                       (`closeScene()`), or close silently (loading
+    ///                       another scene — the same teardown, no question).
+    /// @return true when the scene is closed (or was already empty).
+    bool closeCurrentScene(bool confirmDiscard);
+
+    /// Watches the graph model so "unsaved changes" is a fact, not a guess
+    /// (REQ-SW-PL-078 AC1). Every mutation sets the flag; load and save clear it.
+    void trackSceneDirtyState();
+
     /// REQ-SW-PL-051: hands ALL IWidgetProvider plugins to the editor widget
     /// (each GUI plugin serves widgets for its own core models) and watches
     /// their plugin objects, re-discovering if any of them dies.
@@ -138,6 +158,14 @@ private:
     LayoutDesignerPanel* m_designer = nullptr;
     bool m_designerMode = false;
     QAction* m_designerAction = nullptr;
+
+    /// `File → Close Scene` (REQ-SW-PL-078). Also on the toolbar, so the close
+    /// button the IDE was missing is visible without opening a menu.
+    QAction* m_closeSceneAction = nullptr;
+
+    /// True when the graph changed since the last load/save — decides whether
+    /// "Close Scene" asks before discarding (REQ-SW-PL-078 AC1).
+    bool m_sceneDirty = false;
 
     /// Schema-v2 layout section (REQ-SW-PL-053 Phase 2a / REQ-SW-PL-059): kept
     /// when a .flow carries a version>=2 "ui" section or after the designer runs.

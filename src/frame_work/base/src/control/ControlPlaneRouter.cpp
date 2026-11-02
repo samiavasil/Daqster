@@ -232,6 +232,21 @@ ControlPlaneRouter::Result ControlPlaneRouter::route(const QByteArray& method,
         return methodNotAllowed();
     }
 
+    if (path == QLatin1String("/api/flow/close")) {
+        if (method != "POST") return methodNotAllowed();
+
+        // REQ-SW-PL-078: the close half of every other flow endpoint. Stops the
+        // nodes (sources first), notifies the plugins and frees the graph; the
+        // reply reports what was released instead of a bare `true`.
+        QString error;
+        const bool closed = m_controller->closeFlow(&error);
+        QJsonObject out;
+        out.insert(QStringLiteral("closed"), closed);
+        if (!closed && !error.isEmpty())
+            out.insert(QStringLiteral("error"), error);
+        return makeResult(closed ? 200 : 409, out);
+    }
+
     if (path == QLatin1String("/api/flow/save")) {
         if (method != "POST") return methodNotAllowed();
         const QString filePath = body.value(QStringLiteral("path")).toString();

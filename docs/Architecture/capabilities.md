@@ -18,6 +18,7 @@ Capability интерфейсите са **header-only** договори в
 | [`IRuntimeHost`](#iruntimehost) | Runtime host плъгин (headless/GUI) + optional control plane | `QPluginManager::runtimeHosts()` |
 | [`IStartable`](#istartable--istoppable) | Нодове с потребителско „Start" действие | `dynamic_cast` |
 | [`IStoppable`](#istartable--istoppable) | Нодове с фонова работа (threads/timers), идемпотентен `stop()` | `dynamic_cast` |
+| [`ISceneLifecycle`](#iscenelifecycle) | Плъгин: „сцената е спряна, приложи политиката си за теглата" | `dynamic_cast` върху `INodeProvider` |
 
 > **Защо два начина за discovery?** Само `INodeProvider` и `IRuntimeHost` са Qt
 > plugin interfaces (с `Q_DECLARE_INTERFACE` + IID). Останалите са plain интерфейси,
@@ -92,6 +93,29 @@ widget-free и живее в core-а, затова работи и headless. П�
   е `IStartable`).
 - **`IStoppable`** — имплементира се от нодове с фонова работа (threads, timers,
   процеси); `stop()` трябва да е **идемпотентен** (безопасно многократно викане).
+
+## ISceneLifecycle
+
+`src/plugins/common/capabilities/ISceneLifecycle.h` — **optional** hook за
+затваряне на сцена. Имплементира се от plugin object-а до `INodeProvider`
+(двата интерфейса са независими: доставчик без hook просто се пропуска).
+
+```cpp
+class ISceneLifecycle {
+public:
+    virtual void onSceneClosed() = 0;
+};
+```
+
+Host-ът вика `onSceneClosed()` **след** като всеки нод е получил
+`IStoppable::stop()` и **преди** моделите да бъдат унищожени. Тогава плъгинът
+вижда „нула живи контексти, още живи обекти" — единственият момент, в който може
+да реши какво да прави с ресурсите, които нарочно преживяват нодовете (кеширани
+тегла, топъл сървър). Hook-ът е идемпотентен: затварянето може да се извика
+повече от веднъж.
+
+Целият договор (ред на спиране, какво остава по дизайн, REST-ът):
+[node_editor/scene-lifecycle.md](node_editor/scene-lifecycle.md).
 
 ## Node Data Types
 

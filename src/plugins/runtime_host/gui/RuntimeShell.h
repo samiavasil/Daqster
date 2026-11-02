@@ -89,6 +89,7 @@ public:
     QJsonObject nodeSchema(quint64 nodeId) const override;
     QJsonObject typeSchema(const QString& type) const override;
     bool reloadFlow(const QJsonObject& flow, QString* errorMessage = nullptr) override;
+    bool closeFlow(QString* errorMessage = nullptr) override;
 
 Q_SIGNALS:
     void nodeStarted(QtNodes::NodeId nodeId);

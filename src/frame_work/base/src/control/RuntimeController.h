@@ -116,6 +116,17 @@ public:
     /// fills @p errorMessage with a human-readable reason.
     virtual bool reloadFlow(const QJsonObject& flow, QString* errorMessage = nullptr) = 0;
 
+    /// Close the live scene (`POST /api/flow/close`, REQ-SW-PL-078): stop every
+    /// node (sources first, `IStoppable::stop()`), notify the plugins
+    /// (`ISceneLifecycle::onSceneClosed()`) and free the graph. Destroys no
+    /// plugin-owned resources beyond what the plugin's close policy allows —
+    /// warm model weights may survive by design.
+    ///
+    /// Idempotent: no scene, or an already closed scene, is a successful no-op.
+    /// Returns false with @p errorMessage only when the host cannot close at all
+    /// (e.g. its canvas was never built).
+    virtual bool closeFlow(QString* errorMessage = nullptr) = 0;
+
     /// JSON Schema (Draft 7) for a node instance's config, enriched when the
     /// model implements Daqster::INodeConfigSchema (REQ-SW-PL-063 AC10);
     /// best-effort derived from `save()` otherwise.
