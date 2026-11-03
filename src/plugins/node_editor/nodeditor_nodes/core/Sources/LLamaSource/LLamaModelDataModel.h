@@ -3,10 +3,13 @@
 #include "nodeditor_nodes_core_export.h"
 
 #include <QtCore/QObject>
+#include <QtCore/QPointer>
 #include <QtCore/QProcess>
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
 #include <QJsonArray>
+
+#include <Threading/ProcessOwner.h>
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -53,8 +56,8 @@ public:
 
   /// Outcome of a stop attempt on the locally spawned server (REQ-SW-PL-050 D2).
   ///
-  /// Mirrors `Daqster::ProcessOwner::StopResult` so this class can be moved
-  /// onto ProcessOwner in the next step without changing any caller.
+  /// Mirrors `Daqster::ProcessOwner::StopResult`; the owner does the work and
+  /// this name keeps every caller (and the lifecycle test) unchanged.
   enum class StopResult {
     NotRunning, ///< nothing spawned, or the server exited by itself
     Stopped,    ///< exited within 3 s of terminate()
@@ -156,7 +159,10 @@ private:
   bool m_healthPending = false;
 
   // Local server
-  QProcess* m_serverProcess = nullptr;
+  QPointer<QProcess> m_serverProcess;   ///< borrowed from m_serverOwner
+  /// Owns the locally spawned `llama-server` (REQ-SW-PL-050 D2): terminate →
+  /// 3 s → kill → 1 s, never unbounded. Always ours, so no setOwned(false).
+  Daqster::ProcessOwner m_serverOwner;
 
   // Data ports
   std::shared_ptr<TextData> m_outputText;

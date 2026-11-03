@@ -86,6 +86,16 @@ public:
     /// True while the owned process is running.
     bool isRunning() const;
 
+    /// The process this owner holds, or nullptr when it holds none.
+    ///
+    /// Borrowed: connect signals to it, read its streams, ask for its state —
+    /// never delete it. The owner deletes a process it started (via its own
+    /// `finished → deleteLater`); an adopted process keeps its creator's
+    /// lifetime. The accessor exists because the owner is not a QObject and
+    /// cannot be the receiver of `finished`/`started`/`readyRead` — every real
+    /// user (whisper-server, piper, llama-server) needs those signals.
+    QProcess *process() const { return m_process.data(); }
+
     /// OS process id of the owned process, 0 when it is not running.
     qint64 processId() const;
 

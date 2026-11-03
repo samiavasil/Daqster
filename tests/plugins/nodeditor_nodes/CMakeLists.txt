@@ -904,8 +904,10 @@ set(LIFECYCLE_TEST_SOURCES
     # ThreadOwner (header-only, REQ-SW-PL-050) emits into the "daqster.threading"
     # category, defined in exactly one TU (DaqsterCommonLibrary compiles it).
     # The models are compiled into this binary instead of linked from the
-    # plugin, so the definition comes along too.
+    # plugin, so the definition comes along too. ProcessOwner is the .cpp half
+    # of the same primitive (LLamaModelDataModel uses it for llama-server).
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ThreadingLog.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ProcessOwner.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
 )
 
