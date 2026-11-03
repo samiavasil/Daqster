@@ -16,6 +16,7 @@ class QPluginInterface;
 class QBasePluginObject;
 class INodeProvider;
 class IWidgetProvider;
+class IStatusBarProvider;
 
 /**
  * @brief Handles runtime plugin registration and instance management.
@@ -172,6 +173,27 @@ public:
      * @return List of IRuntimeHost pointers (lazily instantiating plugins)
      */
     QList<Daqster::IRuntimeHost*> runtimeHosts(Daqster::RuntimeMode mode);
+
+    /**
+     * @brief Find all plugin objects implementing the IStatusBarProvider
+     *        capability (REQ-SW-PL-079).
+     *
+     * A plugin uses it to put its global state (warm model weights, VRAM held,
+     * a background job) into the host's status bar instead of leaving the user
+     * with `nvidia-smi` as the only window into it. Probed with dynamic_cast
+     * for the same reason as nodeProviders() — IStatusBarProvider is a
+     * non-QObject interface.
+     *
+     * Unlike nodeProviders(), the returned objects ARE initialized: the row's
+     * text reports the live state of whatever the plugin builds in
+     * Initialize() (a model runtime, a registry), so probing without
+     * initializing would report the state of a half-built plugin. This is the
+     * same trade widgetProviders() makes, and it is why this call belongs to a
+     * GUI host and not to a headless probe.
+     *
+     * @return List of IStatusBarProvider pointers (lazily instantiating plugins)
+     */
+    QList<Daqster::IStatusBarProvider*> statusBarProviders();
 
     // ── Additional methods for full QPluginManager delegation ─────
 

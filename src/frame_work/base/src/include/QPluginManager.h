@@ -24,6 +24,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include "PluginDescription.h"
 #include <capabilities/INodeProvider.h>
 #include <capabilities/IRuntimeHost.h>  // RuntimeMode (by value in the API)
+#include <capabilities/IStatusBarProvider.h>
 #include <capabilities/IWidgetProvider.h>
 #include <QObject>
 #include <QList>
@@ -141,6 +142,17 @@ public:
    * @param mode Runtime mode to look for
    */
   QList<Daqster::IRuntimeHost*> runtimeHosts(Daqster::RuntimeMode mode);
+
+  /**
+   * @brief Return all plugin objects that want a line in the host's status bar
+   *        (IStatusBarProvider, REQ-SW-PL-079).
+   *
+   * Lets a plugin surface global state that no node represents (warm model
+   * weights, VRAM held, a background job) so the user does not have to read it
+   * out of `nvidia-smi`. The returned objects are initialized — their row
+   * reports live state of what the plugin built in Initialize().
+   */
+  QList<Daqster::IStatusBarProvider*> statusBarProviders();
 
 public slots:
   void EnableDisablePlugin( const QString& Hash, bool Enable );

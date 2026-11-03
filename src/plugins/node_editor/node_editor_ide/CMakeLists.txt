@@ -190,6 +190,12 @@ set(IDE_SOURCES
     # the .flow "ui" JSON.
     LayoutDesignerPanel.cpp
     LayoutDesignerPanel.h
+    # Status bar rows + plugin menu (REQ-SW-PL-079): renders every
+    # IStatusBarProvider (a plugin's global state — warm weights, VRAM) and
+    # lists its actions under Tools → Plugins. QtWidgets only, no framework
+    # dependency beyond the capability header.
+    StatusBarController.cpp
+    StatusBarController.h
 )
 
 create_plugin(NodeEditorIde

@@ -11,6 +11,7 @@
 - [node_editor/README.md](./node_editor/README.md) - Node Editor подсистема (QtNodes, IDE, нодове, ADR-и)
 - [rest-api-remote-control.md](./rest-api-remote-control.md) - REST + WebSocket контролна плоскост
 - [capabilities.md](./capabilities.md) - capability интерфейси (договори host ↔ plugin)
+- [plugins-status-bar.md](./plugins-status-bar.md) - статус бар на плъгините (`IStatusBarProvider`) — глобално състояние, което не е на нод
 - [threading.md](./threading.md) - нишки и живот на процесите (ThreadOwner / ProcessOwner / CancelToken) — авторитетът, налаган от статична проверка
 - [node_editor/scene-lifecycle.md](./node_editor/scene-lifecycle.md) - затваряне на сцена (Close Scene, освобождаване на ресурси)
 - [runtime-mode-architecture.md](./runtime-mode-architecture.md) - (исторически) runtime режими
@@ -129,6 +130,7 @@ Daqster/
 - **APPLICATION_PLUGIN** — самостоятелни приложения (QtCoinTrader, RequirementsManager)
 - **Node Provider** — `INodeProvider` доставчик на нодове (nodeditor_nodes `core`)
 - **Widget Provider** — `IWidgetProvider` (node_editor_ide, nodeditor_nodes `gui`)
+- **Status Bar Provider** — `IStatusBarProvider`: глобално състояние на плъгина (кеширани тегла, VRAM, фонова задача) в статус бара на IDE-то
 - **Runtime Host** — `IRuntimeHost` (runtime_host `headless`/`gui`)
 
 Всеки плъгин може да има **`core`** (headless, widget-free) и **`gui`** (QtWidgets)
@@ -163,6 +165,7 @@ Header-only интерфейси (договори host ↔ plugin), достъ�
 
 - **INodeProvider.h** — доставка на `NodeDelegateModel` типове към node editor-а
 - **IWidgetProvider.h** — доставка на `QWidget`-и (конфигурация/дисплей) за GUI режим
+- **IStatusBarProvider.h** — ред в статус бара на IDE-то + действия в меню за състоянието, което плъгинът държи извън нодовете ([plugins-status-bar](plugins-status-bar.md))
 - **INodeConfigSchema.h** — widget-free описание на конфигурацията на нод (и в headless)
 - **IRuntimeHost.h** — договор за runtime host плъгините
 - **IStartable.h / IStoppable.h** — стартиране/спиране на нодове (напр. `Start`/`Stop` в GUI)

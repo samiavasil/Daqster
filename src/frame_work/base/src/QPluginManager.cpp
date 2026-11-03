@@ -516,4 +516,9 @@ QList<Daqster::IRuntimeHost*> QPluginManager::runtimeHosts(RuntimeMode mode)
     return m_registry->runtimeHosts(mode);
 }
 
+QList<Daqster::IStatusBarProvider*> QPluginManager::statusBarProviders()
+{
+    return m_registry->statusBarProviders();
+}
+
 }//End of Daqster namespace

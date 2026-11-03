@@ -4,6 +4,7 @@
 #include "LogCategories.h"
 #include <capabilities/INodeProvider.h>
 #include <capabilities/IRuntimeHost.h>
+#include <capabilities/IStatusBarProvider.h>
 #include <capabilities/IWidgetProvider.h>
 
 namespace Daqster {
@@ -282,6 +283,28 @@ QList<Daqster::IRuntimeHost*> PluginRegistry::runtimeHosts(Daqster::RuntimeMode 
                 ensureInitialized(obj);
                 obj->setProperty("_daqster_hash", it.key());
                 result.append(host);
+            }
+        }
+    }
+
+    return result;
+}
+
+QList<Daqster::IStatusBarProvider*> PluginRegistry::statusBarProviders()
+{
+    QList<Daqster::IStatusBarProvider*> result;
+
+    for (auto it = m_pluginMap.constBegin(); it != m_pluginMap.constEnd(); ++it) {
+        // IStatusBarProvider is a non-QObject interface, so dynamic_cast is the
+        // correct probe (same reasoning as nodeProviders()).
+        for (QBasePluginObject* obj : capabilityInstances(it.value(), it.key())) {
+            if (auto* provider = dynamic_cast<Daqster::IStatusBarProvider*>(obj)) {
+                // An uninitialized plugin has no runtime to report on: its
+                // statusText() would describe a half-built object. Same trade
+                // widgetProviders() makes — see the header.
+                ensureInitialized(obj);
+                obj->setProperty("_daqster_hash", it.key());
+                result.append(provider);
             }
         }
     }

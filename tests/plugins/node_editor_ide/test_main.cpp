@@ -7,6 +7,7 @@
 #include "test_flow_fixtures.h"
 #include "test_widget_provider_fallback.h"
 #include "test_widget_embed.h"
+#include "test_status_bar.h"
 
 // Shared main for the node_editor_ide layout tests. LayoutEngine builds real
 // widgets (QSplitter/QGridLayout/QTabWidget/QDockWidget), so the binary runs
@@ -41,6 +42,10 @@ int main(int argc, char *argv[])
     {
         TestWidgetEmbed widgetEmbed;
         status |= QTest::qExec(&widgetEmbed, argc, argv);
+    }
+    {
+        TestStatusBar statusBar;
+        status |= QTest::qExec(&statusBar, argc, argv);
     }
     return status;
 }

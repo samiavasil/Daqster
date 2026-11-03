@@ -38,5 +38,6 @@ docs/plugins/
 ## Свързана документация
 
 - [Architecture/plugins](../Architecture/plugins/README.md) — plugin подсистемата (QPluginInterface, INodeProvider, PluginManager)
+- [Architecture/plugins-status-bar](../Architecture/plugins-status-bar.md) — как плъгинът показва глобалното си състояние в статус бара на IDE-то (`IStatusBarProvider`: ред + действия в `Tools → Plugins`)
 - [PluginDevelopment](../Architecture/plugins/PluginDevelopment.md) — стъпки за създаване на нов плъгин
 - [Индекс](../index.md) — главна навигационна страница

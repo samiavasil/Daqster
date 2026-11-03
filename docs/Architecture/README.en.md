@@ -11,6 +11,7 @@ Parent: [Documentation Index](../index.en.md)
 - [node_editor/README.md](./node_editor/README.md) - the node editor subsystem (QtNodes, IDE, nodes, ADRs)
 - [rest-api-remote-control.md](./rest-api-remote-control.md) - REST + WebSocket control plane
 - [capabilities.md](./capabilities.md) - capability interfaces (host ↔ plugin contracts)
+- [plugins-status-bar.md](./plugins-status-bar.md) - plugin status bar (`IStatusBarProvider`): global plugin state that belongs to no node
 - [runtime-mode-architecture.md](./runtime-mode-architecture.md) - (historical) runtime modes
 - [apps/README.md](./apps/README.md) - applications subsystem
 - [framework/README.md](./framework/README.md) - framework subsystem

@@ -8,11 +8,13 @@
 #include <QEvent>
 #include <QList>
 #include <QPair>
+#include <QPointer>
 #include <QVector>
 #include <vector>
 
 class LayoutDesignerPanel;
 class NodeEditorWidget;
+class StatusBarController;
 class QAction;
 class QMainWindow;
 class QWidget;
@@ -104,6 +106,11 @@ private:
     /// their plugin objects, re-discovering if any of them dies.
     void adoptWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers);
 
+    /// REQ-SW-PL-079: hands ALL IStatusBarProvider plugins to the status bar
+    /// controller. Called on start and whenever a plugin is loaded/unloaded,
+    /// so a provider that appears later still gets its row.
+    void adoptStatusBarProviders();
+
     /// Dev driver (DAQSTER_AUTOSTART_VIDEO=1): builds a video source ->
     /// VideoOutput graph, connects it, starts playback from DAQSTER_VIDEO_FILE /
     /// DAQSTER_STREAM_URL and enables the "Perf" checkbox — no GUI interaction
@@ -152,6 +159,11 @@ private:
 
     QMainWindow* m_Win;
     NodeEditorWidget* m_Widget;
+
+    /// Status bar rows + plugin menu (REQ-SW-PL-079). Parented to `this`, so it
+    /// survives the window; its own widget handles are QPointers and go null
+    /// with the window, which turns every later refresh into a no-op.
+    QPointer<StatusBarController> m_statusBar;
 
     /// Visual layout designer (REQ-SW-PL-059). Created in Initialize(), shown
     /// only in designer mode.

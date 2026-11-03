@@ -14,3 +14,7 @@ endif()
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/engine)
     add_subdirectory(engine)
 endif()
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/registry)
+    add_subdirectory(registry)
+endif()

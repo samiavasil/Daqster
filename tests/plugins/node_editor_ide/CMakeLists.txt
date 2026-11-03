@@ -28,9 +28,13 @@ set(TEST_SOURCES
     test_flow_fixtures.cpp test_flow_fixtures.h
     test_widget_provider_fallback.cpp test_widget_provider_fallback.h
     test_widget_embed.cpp test_widget_embed.h
+    # REQ-SW-PL-079: status-bar rows + plugin menu (IStatusBarProvider).
+    test_status_bar.cpp test_status_bar.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutTree.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutEngine.cpp
+    # Status bar controller (REQ-SW-PL-079): renders providers, owns the menu.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/StatusBarController.cpp
     # Visual layout designer (REQ-SW-PL-059): panel commands + serialization.
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutDesignerPanel.cpp
     # REQ-SW-PL-051: multi-IWidgetProvider fallback in the node editor

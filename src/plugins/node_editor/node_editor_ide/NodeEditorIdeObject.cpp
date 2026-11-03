@@ -1,9 +1,11 @@
 #include "NodeEditorIdeObject.h"
 #include "NodeEditorWidget.h"
 #include "LayoutDesignerPanel.h"
+#include "StatusBarController.h"
 #include "QPluginManager.h"
 #include "QPluginManagerGui.h"
 #include "capabilities/INodeProvider.h"
+#include "capabilities/IStatusBarProvider.h"
 #include "capabilities/IWidgetProvider.h"
 #include "debug.h"
 #include "LogCategories.h"
@@ -14,6 +16,7 @@
 #include <QPushButton>
 #include <QMenu>
 #include <QMenuBar>
+#include <QStatusBar>
 #include <QAction>
 #include <QCheckBox>
 #include <QJsonObject>
@@ -174,6 +177,32 @@ bool NodeEditorIdeObject::Initialize()
     l->setContentsMargins(0, 0, 0, 0);
     l->setSpacing(0);
 
+    // ── Status bar + plugin menu (REQ-SW-PL-079) ───────────────────────────
+    // A plugin's global state (warm model weights, VRAM held, a background
+    // job) belongs to no node, so no node widget can show it — until now the
+    // only window into it was nvidia-smi. Each IStatusBarProvider gets one
+    // permanent label here (permanent = a transient message never hides it)
+    // and its actions in Tools → Plugins. The controller owns that submenu.
+    QMenu* toolsMenu = m_Win->menuBar()->addMenu(tr("&Tools"));
+    QMenu* pluginsMenu = toolsMenu->addMenu(tr("&Plugins"));
+    pluginsMenu->menuAction()->setVisible(false);   // until a provider offers an action
+
+    if (m_statusBar)
+        delete m_statusBar.data();
+    m_statusBar = new StatusBarController(m_Win->statusBar(), pluginsMenu, this);
+    // A provider object went away (plugin unload/reload): re-discover so its
+    // row comes back if the plugin is still there.
+    connect(m_statusBar.data(), &StatusBarController::providerDied,
+            this, &NodeEditorIdeObject::discoverAndRegisterExternalNodes);
+    m_statusBar->startAutoRefresh();
+    adoptStatusBarProviders();
+
+    const QStringList statusRowIds =
+        m_statusBar ? m_statusBar->statusIds() : QStringList();
+    qCInfo(lcNodeEditor) << "Status bar ready:" << statusRowIds.size()
+                         << "IStatusBarProvider row(s):"
+                         << statusRowIds.join(QStringLiteral(", "));
+
     // The designer panel lives next to the canvas; only one of the two is
     // visible at a time (see setLayoutDesignerMode).
     m_designer = new LayoutDesignerPanel(mainWidget);
@@ -270,6 +299,20 @@ void NodeEditorIdeObject::discoverAndRegisterExternalNodes()
     // in any order). Pass all of them to the editor widget so split models
     // get their widgets.
     adoptWidgetProviders(pm->widgetProviders());
+
+    // REQ-SW-PL-079: plugins may load after the window is up; their status row
+    // appears with them (and disappears when they are unloaded).
+    adoptStatusBarProviders();
+}
+
+void NodeEditorIdeObject::adoptStatusBarProviders()
+{
+    if (!m_statusBar)
+        return;
+
+    Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
+    m_statusBar->setProviders(pm ? pm->statusBarProviders()
+                                 : QList<Daqster::IStatusBarProvider*>());
 }
 
 void NodeEditorIdeObject::adoptWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers)
@@ -456,6 +499,12 @@ bool NodeEditorIdeObject::closeCurrentScene(bool confirmDiscard)
     qCInfo(lcNodeEditor) << "closeScene: released" << report.stopped << "of" << report.nodes
                          << "running nodes, plugins notified:" << notified
                          << "— canvas is empty";
+
+    // The closed scene may have held resources the status row reports (warm
+    // weights, live contexts). Do not wait up to the 2 s tick to tell the user.
+    if (m_statusBar)
+        m_statusBar->refresh();
+
     return true;
 }
 
@@ -790,6 +839,12 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
 
     // The freshly loaded scene is the new "saved" baseline, not a change.
     m_sceneDirty = false;
+
+    // A scene may have touched a plugin's global state (a model loaded, a
+    // server started) — the status row has to reflect it now, not in 2 s.
+    if (m_statusBar)
+        m_statusBar->refresh();
+
     return true;
 }
 

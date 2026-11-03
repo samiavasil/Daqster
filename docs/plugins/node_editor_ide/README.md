@@ -8,6 +8,7 @@
 - Вградени числови нодове (Source, Display, Modulo, ArithmeticLogic)
 - Споделена библиотека (`NodeEditorLibrary.so`) за display, connectors, threading
 - Динамично откриване на външни INodeProvider плъгини
+- Статус бар с ред на всеки `IStatusBarProvider` плъгин + неговите действия в `Tools → Plugins` ([REQ-SW-PL-079](../../Architecture/plugins-status-bar.md))
 - QtNodes canvas с поддръжка на кръгови връзки
 
 **Локация:** `src/plugins/node_editor/node_editor_ide/`

@@ -14,6 +14,7 @@ Capability интерфейсите са **header-only** договори в
 |-----------|------|-----------|
 | [`INodeProvider`](#inodeprovider) | Доставя `NodeDelegateModel` типове към node editor-а | `QPluginManager::instances(INodeProvider_IID)` |
 | [`IWidgetProvider`](#iwidgetprovider) | Доставя `QWidget`-а на нод, чийто модел е в widget-free core плъгин | `dynamic_cast` през `PluginRegistry` |
+| [`IStatusBarProvider`](#istatusbarprovider) | Плъгинът показва глобалното си състояние в статус бара + действия в меню | `QPluginManager::statusBarProviders()` |
 | [`INodeConfigSchema`](#inodeconfigschema) | Widget-free JSON Schema фрагмент за конфигурацията на нод | `dynamic_cast` върху модел инстанцията |
 | [`IRuntimeHost`](#iruntimehost) | Runtime host плъгин (headless/GUI) + optional control plane | `QPluginManager::runtimeHosts()` |
 | [`IStartable`](#istartable--istoppable) | Нодове с потребителско „Start" действие | `dynamic_cast` |
@@ -53,6 +54,34 @@ virtual QWidget* widgetFor(QtNodes::NodeDelegateModel* model) = 0;  // nullptr =
 
 Така `NodeditorNodesCore` връща `nullptr` от `embeddedWidget()` и остава без
 QtWidgets, а `NodeditorNodesGui` държи всички widget-и.
+
+## IStatusBarProvider
+
+Плъгинът държи състояние, което **не е на нито един нод** — кеширани тегла,
+заета VRAM, топъл сървър, фонова задача. Никой node widget не може да го
+покаже, защото то е на плъгина. Capability-то дава на плъгина ред в статус бара
+на хоста плюс действия в меню (REQ-SW-PL-079):
+
+```cpp
+virtual QString statusId() const = 0;        // "ai-studio.models", уникален
+virtual QString statusText() const = 0;      // кратък ред; празен = скрит ред
+virtual QString statusTooltip() const = 0;   // подробности (може многоредов)
+virtual int statusOrder() const { return 100; }
+struct Action { QString id; QString text; QString tooltip; };
+virtual QList<Action> statusActions() const { return {}; }
+virtual void triggerStatusAction(const QString& id) = 0;
+```
+
+Интерфейсът е plain (non-`QObject`) и **без QtWidgets** — widget-ите прави
+хостът. Открива се с `dynamic_cast` през
+`QPluginManager::statusBarProviders()`/`PluginRegistry::statusBarProviders()` и
+се връща **инициализиран** (редът показва живото състояние на онова, което
+`Initialize()` е построил). IDE-то рендира по един permanent `QLabel` на
+провайдър (подредени по `statusOrder()`), а действията — в `Tools → Plugins`.
+
+`statusText()` се вика **на всеки 2 s** — трябва да е евтин (кеширано число).
+Как се добавя провайдър, кога се обновява и какво не бива:
+[plugins-status-bar.md](plugins-status-bar.md).
 
 ## INodeConfigSchema
 
