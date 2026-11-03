@@ -994,6 +994,20 @@ add_test(NAME demo_nodeditor_core_widgets_free
                  "-DCORE_EXPECTED_SOURCES=${_CORE_EXPECTED_SOURCES}"
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/check_core_widgets_free.cmake)
 
+# ── bare thread/process guard (REQ-SW-PL-050) ────────────────────────────────
+#
+# Static analysis, same kind as the widgets-free guard above: the invariant is
+# "outside src/plugins/common/Threading/ nothing creates a QThread or a
+# QProcess by hand" (docs/Architecture/threading.md). No C++ test can observe
+# that — a new `new QThread` compiles, links and passes every runtime test,
+# while quietly re-introducing the unaudited shutdown path the primitives
+# replaced. `cmake -P` needs no toolchain and works on Windows without a POSIX
+# shell.
+add_test(NAME demo_nodeditor_no_bare_threads
+         COMMAND ${CMAKE_COMMAND}
+                 "-DPLUGINS_DIR=${DAQSTER_SOURCE_DIR}/src/plugins"
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/check_no_bare_threads.cmake)
+
 # ── nodeWidgetDialogParent() embedded-widget dialog parenting ────────────────
 #
 # A node widget embedded by QGraphicsProxyWidget is an offscreen top-level

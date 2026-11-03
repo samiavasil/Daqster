@@ -11,6 +11,7 @@
 - [node_editor/README.md](./node_editor/README.md) - Node Editor подсистема (QtNodes, IDE, нодове, ADR-и)
 - [rest-api-remote-control.md](./rest-api-remote-control.md) - REST + WebSocket контролна плоскост
 - [capabilities.md](./capabilities.md) - capability интерфейси (договори host ↔ plugin)
+- [threading.md](./threading.md) - нишки и живот на процесите (ThreadOwner / ProcessOwner / CancelToken) — авторитетът, налаган от статична проверка
 - [node_editor/scene-lifecycle.md](./node_editor/scene-lifecycle.md) - затваряне на сцена (Close Scene, освобождаване на ресурси)
 - [runtime-mode-architecture.md](./runtime-mode-architecture.md) - (исторически) runtime режими
 - [apps/README.md](./apps/README.md) - application подсистема
