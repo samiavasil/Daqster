@@ -150,7 +150,8 @@ SceneCloseReport stopSceneNodes(QtNodes::DataFlowGraphModel& graph)
     return report;
 }
 
-int notifySceneClosed(const std::vector<INodeProvider*>& providers)
+int notifySceneClosed(const std::vector<INodeProvider*>& providers,
+                      SceneCloseReason reason)
 {
     int notified = 0;
     for (INodeProvider* provider : providers) {
@@ -159,14 +160,17 @@ int notifySceneClosed(const std::vector<INodeProvider*>& providers)
         auto* lifecycle = dynamic_cast<ISceneLifecycle*>(provider);
         if (lifecycle == nullptr)
             continue;   // the hook is optional
-        qCInfo(lcNodeEditor) << "SceneClose: scene closed — notifying plugin";
-        lifecycle->onSceneClosed();
+        qCInfo(lcNodeEditor) << "SceneClose: scene closed — notifying plugin"
+                             << (reason == SceneCloseReason::ExplicitClose
+                                     ? "explicit-close"
+                                     : "replace");
+        lifecycle->onSceneClosed(reason);
         ++notified;
     }
     return notified;
 }
 
-int notifySceneClosed()
+int notifySceneClosed(SceneCloseReason reason)
 {
     QPluginManager* pluginManager = QPluginManager::instance();
     if (pluginManager == nullptr)
@@ -177,49 +181,57 @@ int notifySceneClosed()
     providers.reserve(static_cast<size_t>(discovered.size()));
     for (INodeProvider* provider : discovered)
         providers.push_back(provider);
-    return notifySceneClosed(providers);
+    return notifySceneClosed(providers, reason);
 }
 
-SceneCloseReport stopAndNotifySceneClosed(QtNodes::DataFlowGraphModel* graph)
+SceneCloseReport stopAndNotifySceneClosed(QtNodes::DataFlowGraphModel* graph,
+                                          SceneCloseReason reason)
 {
     SceneCloseReport report;
+    report.reason = reason;
     if (graph == nullptr)
         return report;
 
     report = stopSceneNodes(*graph);
+    report.reason = reason;
     if (report.empty())
         return report;   // nothing was open: no plugin needs a close notification
 
-    report.notifiedProviders = notifySceneClosed();
+    report.notifiedProviders = notifySceneClosed(reason);
     return report;
 }
 
 SceneCloseReport stopAndNotifySceneClosed(QtNodes::DataFlowGraphModel* graph,
-                                         const std::vector<INodeProvider*>& providers)
+                                          const std::vector<INodeProvider*>& providers,
+                                          SceneCloseReason reason)
 {
     SceneCloseReport report;
+    report.reason = reason;
     if (graph == nullptr)
         return report;
 
     report = stopSceneNodes(*graph);
+    report.reason = reason;
     if (report.empty())
         return report;
 
-    report.notifiedProviders = notifySceneClosed(providers);
+    report.notifiedProviders = notifySceneClosed(providers, reason);
     return report;
 }
 
-SceneCloseReport closeSceneGraph(QtNodes::DataFlowGraphModel& graph)
+SceneCloseReport closeSceneGraph(QtNodes::DataFlowGraphModel& graph,
+                                 SceneCloseReason reason)
 {
-    SceneCloseReport report = stopAndNotifySceneClosed(&graph);
+    SceneCloseReport report = stopAndNotifySceneClosed(&graph, reason);
     report.removed = clearGraphNodes(graph);
     return report;
 }
 
 SceneCloseReport closeSceneGraph(QtNodes::DataFlowGraphModel& graph,
-                                 const std::vector<INodeProvider*>& providers)
+                                 const std::vector<INodeProvider*>& providers,
+                                 SceneCloseReason reason)
 {
-    SceneCloseReport report = stopAndNotifySceneClosed(&graph, providers);
+    SceneCloseReport report = stopAndNotifySceneClosed(&graph, providers, reason);
     report.removed = clearGraphNodes(graph);
     return report;
 }

@@ -2,6 +2,8 @@
 
 #include "framework_core_export.h"
 
+#include "capabilities/ISceneLifecycle.h"   // SceneCloseReason (REQ-SW-PL-078)
+
 #include <QStringList>
 #include <QVector>
 
@@ -38,6 +40,9 @@ struct SceneCloseReport {
     int removed = 0;
     /// Plugins that received `ISceneLifecycle::onSceneClosed()`.
     int notifiedProviders = 0;
+    /// Why the close ran — what the plugins were told (and what they based a
+    /// release/keep-warm decision on).
+    SceneCloseReason reason = SceneCloseReason::Replace;
     /// Node ids in the exact order they were stopped.
     QVector<QtNodes::NodeId> stoppedIds;
     /// `<caption> (id=<n>)` per stopped node, in stop order.
@@ -88,17 +93,26 @@ FRAMEWORK_CORE_EXPORT SceneCloseReport stopSceneNodes(QtNodes::DataFlowGraphMode
  * optional). Must run **after** `stopSceneNodes()` and **before** the models
  * are destroyed, so a plugin still sees its nodes' already-released state.
  *
+ * @p reason says *why* the scene is going away; what the plugin keeps is its
+ * own policy (a configured policy — env var, setting, UI — wins over the
+ * reason). Callers that have no opinion get `Replace` — the pre-reason
+ * behaviour — so an existing host keeps working unchanged.
+ *
  * @param providers Node providers, typically `QPluginManager::nodeProviders()`.
+ * @param reason Why the scene is going away.
  * @return How many providers were notified.
  */
 FRAMEWORK_CORE_EXPORT int
-notifySceneClosed(const std::vector<INodeProvider*>& providers);
+notifySceneClosed(const std::vector<INodeProvider*>& providers,
+                  SceneCloseReason reason = SceneCloseReason::Replace);
 
 /**
  * @brief `notifySceneClosed()` against the process-wide plugin manager.
+ * @param reason Why the scene is going away (`Replace` by default — see above).
  * @return How many providers were notified (0 when no manager exists).
  */
-FRAMEWORK_CORE_EXPORT int notifySceneClosed();
+FRAMEWORK_CORE_EXPORT int
+notifySceneClosed(SceneCloseReason reason = SceneCloseReason::Replace);
 
 /**
  * @brief The full host-side close contract: stop, then notify plugins.
@@ -117,20 +131,27 @@ FRAMEWORK_CORE_EXPORT int notifySceneClosed();
  * special-case a scene that was never opened.
  *
  * @param graph The live graph, or nullptr.
+ * @param reason Why the scene is going away. The default is `Replace`, because
+ *               this function doubles as the "stop the old scene" half of a
+ *               hot-reload; an explicit close uses `closeSceneGraph()`, whose
+ *               default is `ExplicitClose`.
  * @return What was stopped and how many plugins were notified.
  */
 FRAMEWORK_CORE_EXPORT SceneCloseReport
-stopAndNotifySceneClosed(QtNodes::DataFlowGraphModel* graph);
+stopAndNotifySceneClosed(QtNodes::DataFlowGraphModel* graph,
+                         SceneCloseReason reason = SceneCloseReason::Replace);
 
 /**
  * @brief Same as `stopAndNotifySceneClosed()` with an explicit provider list.
  * @param graph The live graph, or nullptr.
  * @param providers Providers to notify (tests pass fakes here).
+ * @param reason Why the scene is going away.
  * @return What was stopped and how many plugins were notified.
  */
 FRAMEWORK_CORE_EXPORT SceneCloseReport
 stopAndNotifySceneClosed(QtNodes::DataFlowGraphModel* graph,
-                         const std::vector<INodeProvider*>& providers);
+                         const std::vector<INodeProvider*>& providers,
+                         SceneCloseReason reason = SceneCloseReason::Replace);
 
 /**
  * @brief Delete every node of @p graph (widget-free `clearScene()`).
@@ -160,11 +181,20 @@ FRAMEWORK_CORE_EXPORT int clearGraphNodes(QtNodes::DataFlowGraphModel& graph);
  * @param graph The live graph.
  * @param providers Providers to notify; the plugin-manager overload is used when
  *                  the caller has no explicit list.
+ * @param reason Why the scene is going away. Defaults to `ExplicitClose` because
+ *               this call *is* a close (Ctrl+W, `POST /api/flow/close`), and a
+ *               plugin should be told the truth; whether it gives memory back
+ *               is its own policy — the reason never implies a release. A
+ *               hot-reload uses `stopAndNotifySceneClosed()`, which defaults to
+ *               `Replace`.
  * @return What was stopped, notified and removed.
  */
-FRAMEWORK_CORE_EXPORT SceneCloseReport closeSceneGraph(QtNodes::DataFlowGraphModel& graph);
 FRAMEWORK_CORE_EXPORT SceneCloseReport
 closeSceneGraph(QtNodes::DataFlowGraphModel& graph,
-                const std::vector<INodeProvider*>& providers);
+                SceneCloseReason reason = SceneCloseReason::ExplicitClose);
+FRAMEWORK_CORE_EXPORT SceneCloseReport
+closeSceneGraph(QtNodes::DataFlowGraphModel& graph,
+                const std::vector<INodeProvider*>& providers,
+                SceneCloseReason reason = SceneCloseReason::ExplicitClose);
 
 } // namespace Daqster

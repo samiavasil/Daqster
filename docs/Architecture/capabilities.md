@@ -104,6 +104,12 @@ widget-free и живее в core-а, затова работи и headless. П�
 class ISceneLifecycle {
 public:
     virtual void onSceneClosed() = 0;
+    // Информация, не заповед: Replace (hot-reload) или ExplicitClose (Ctrl+W).
+    virtual void onSceneClosed(Daqster::SceneCloseReason reason)
+    {
+        static_cast<void>(reason);
+        onSceneClosed();          // старият hook продължава да работи
+    }
 };
 ```
 
@@ -113,6 +119,11 @@ Host-ът вика `onSceneClosed()` **след** като всеки нод е 
 да реши какво да прави с ресурсите, които нарочно преживяват нодовете (кеширани
 тегла, топъл сървър). Hook-ът е идемпотентен: затварянето може да се извика
 повече от веднъж.
+
+`SceneCloseReason` (`Replace` / `ExplicitClose`) казва **защо** сцената изчезва,
+но не налага политика: хостът казва *защо*, плъгинът решава *какво остава*, а
+изричната му настройка печели пред причината. Затова двата слота са отделни —
+стар плъгин (само `onSceneClosed()`) получава hook-а си непроменен.
 
 Целият договор (ред на спиране, какво остава по дизайн, REST-ът):
 [node_editor/scene-lifecycle.md](node_editor/scene-lifecycle.md).

@@ -117,7 +117,9 @@ bool HeadlessEngine::loadFlow(const QString& flowPath)
     // policy (REQ-SW-PL-078 / REQ-AI-021 close contract).
     if (m_graphModel && !m_graphModel->allNodeIds().empty()) {
         stopAllNodes();
-        Daqster::notifySceneClosed();
+        // Loading over a live scene is a Replace, not a close: the same models
+        // are likely needed again, so plugins keep them warm (REQ-SW-PL-078).
+        Daqster::notifySceneClosed(Daqster::SceneCloseReason::Replace);
     }
 
     // 1. Register nodes (headless-compatible only)
@@ -169,9 +171,10 @@ bool HeadlessEngine::reloadFlow(const QJsonObject& flow, QString* errorMessage)
 
     // The old scene must stop while its graph is still valid.
     stopAllNodes();
-    // ...and plugins get their one chance to release what outlives the nodes
-    // (model weights, warm servers) before the graph is replaced.
-    Daqster::notifySceneClosed();
+    // ...and plugins get their one chance to handle what outlives the nodes
+    // (model weights, warm servers) before the graph is replaced. A hot-reload
+    // is a Replace: keep the weights warm, the next POST /api/flow wants them.
+    Daqster::notifySceneClosed(Daqster::SceneCloseReason::Replace);
 
     if (!buildGraphModel()) {
         if (errorMessage) *errorMessage = QStringLiteral("failed to rebuild graph model");
@@ -243,7 +246,11 @@ bool HeadlessEngine::closeFlow(QString* errorMessage)
     // Stop → notify → free, in one call. The order is the contract: a model
     // must never be destroyed while running, and a plugin must see its nodes
     // already released.
-    const SceneCloseReport report = closeSceneGraph(*m_graphModel);
+    // An explicit close (POST /api/flow/close) is not a replace: the caller
+    // asked for the scene to be gone, and the plugin is told so. Whether it
+    // releases its caches is its own (configurable) policy, not ours.
+    const SceneCloseReport report =
+        closeSceneGraph(*m_graphModel, Daqster::SceneCloseReason::ExplicitClose);
     announceStopped(report.stoppedIds);
 
     m_autoStartNodes.clear();

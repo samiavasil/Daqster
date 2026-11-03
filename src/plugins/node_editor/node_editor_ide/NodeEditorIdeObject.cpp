@@ -437,7 +437,10 @@ bool NodeEditorIdeObject::closeCurrentScene(bool confirmDiscard)
     // 1+2. Stop every node (sources first) and notify the plugins while the
     //      models are still alive — the shared contract every host uses.
     const Daqster::SceneCloseReport report = Daqster::stopSceneNodes(*graph);
-    const int notified = Daqster::notifySceneClosed();
+    // File → Close Scene is the one close the user asked for: plugins are told
+    // *why* the scene goes away. What they keep resident is their own policy —
+    // the reason is a hint, not a release order (REQ-SW-PL-078).
+    const int notified = Daqster::notifySceneClosed(Daqster::SceneCloseReason::ExplicitClose);
 
     // 3. Free the graph: clearScene() deletes the node models, which is only
     //    safe now that each of them was stopped.

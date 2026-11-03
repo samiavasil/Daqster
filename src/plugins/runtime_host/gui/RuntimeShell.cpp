@@ -294,7 +294,9 @@ bool RuntimeShell::loadFlow(const QString& fileName)
     // the graph is still valid, then plugins apply their close policy.
     if (!m_editorWidget->graphModel()->allNodeIds().empty()) {
         stopAllNodes();
-        Daqster::notifySceneClosed();
+        // Replace, not close: the models are likely needed by the scene that is
+        // about to be loaded (REQ-SW-PL-078).
+        Daqster::notifySceneClosed(Daqster::SceneCloseReason::Replace);
     }
 
     QFile file(fileName);
@@ -699,7 +701,9 @@ bool RuntimeShell::closeFlow(QString* errorMessage)
     qCInfo(lcNodeEditor) << "RuntimeShell: closing scene (" << nodeCount << "nodes)";
 
     stopAllNodes();
-    const int notified = Daqster::notifySceneClosed();
+    // ExplicitClose (Ctrl+W / close button / --close): the plugin is told the
+    // user closed the scene; its configured policy decides what stays warm.
+    const int notified = Daqster::notifySceneClosed(Daqster::SceneCloseReason::ExplicitClose);
     m_editorWidget->scene()->clearScene();
 
     // The MDI workspaces were built from the old scene; rebuild them empty so
@@ -1282,8 +1286,9 @@ bool RuntimeShell::reloadFlow(const QJsonObject& flow, QString* errorMessage)
     // models, which must not be left running.
     stopAllNodes();
     // Plugins that keep resources beyond their nodes (model weights, warm
-    // servers) apply their close policy now — before the models die.
-    Daqster::notifySceneClosed();
+    // servers) apply their close policy now — before the models die. A reload
+    // is a Replace: the weights stay warm for the new graph.
+    Daqster::notifySceneClosed(Daqster::SceneCloseReason::Replace);
 
     QStringList skippedTypes;
     QString error;

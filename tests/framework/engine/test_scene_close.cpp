@@ -13,6 +13,7 @@
 #include <QStringList>
 
 #include <memory>
+#include <optional>
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Scene close contract (REQ-SW-PL-078)
@@ -33,6 +34,9 @@ struct ScenarioLog
     int         contextCount = 0;   ///< "live contexts": ++ on start, -- on stop
     int         closeNotifications = 0;
     int         contextsSeenAtClose = -1;   ///< contextCount when the hook ran
+    /// What the host said when it notified — empty if the provider only
+    /// implements the legacy no-argument hook (which loses the reason).
+    std::optional<Daqster::SceneCloseReason> reason;
 };
 
 class FakeData : public QtNodes::NodeData
@@ -126,6 +130,33 @@ private:
     std::shared_ptr<ScenarioLog> m_log;
 };
 
+/// Provider that implements the reason-aware hook (REQ-SW-PL-078): an explicit
+/// close must be distinguishable from a replace, because the plugin's policy
+/// differs — release the weights, or keep them warm.
+class ReasonAwareProvider : public Daqster::INodeProvider,
+                            public Daqster::ISceneLifecycle
+{
+public:
+    explicit ReasonAwareProvider(std::shared_ptr<ScenarioLog> log)
+        : m_log(std::move(log))
+    {
+    }
+
+    void registerNodes(QtNodes::NodeDelegateModelRegistry&) const override {}
+    void registerNodesHeadless(QtNodes::NodeDelegateModelRegistry&) const override {}
+
+    void onSceneClosed() override { ++m_log->closeNotifications; }
+
+    void onSceneClosed(Daqster::SceneCloseReason reason) override
+    {
+        ++m_log->closeNotifications;
+        m_log->reason = reason;
+    }
+
+private:
+    std::shared_ptr<ScenarioLog> m_log;
+};
+
 /// Provider without the hook — it must simply be skipped.
 class PlainProvider : public Daqster::INodeProvider
 {
@@ -206,6 +237,19 @@ private slots:
 
     /// A cycle cannot be ordered but must still be stopped completely.
     void cycleIsStillFullyStopped();
+
+    // ── The reason the scene is going away (REQ-SW-PL-078) ───────────────
+
+    /// An explicit close tells the plugin it is a close — that is what makes
+    /// "release every model" possible without a second entry point.
+    void explicitCloseReasonReachesPlugin();
+
+    /// A hot-reload tells the plugin it is a replace — the weights stay warm.
+    void replaceReasonReachesPlugin();
+
+    /// A plugin that only knows the old no-argument hook is still notified, and
+    /// with a reason it can act on (the default forwards, it is never skipped).
+    void legacyProviderIsStillNotifiedWithReason();
 };
 
 void TestSceneClose::sceneCloseStopsNodesAndReleasesContexts()
@@ -332,6 +376,76 @@ void TestSceneClose::cycleIsStillFullyStopped()
     const Daqster::SceneCloseReport report = Daqster::stopSceneNodes(fixture.graph());
     QCOMPARE(report.stopped, 3);
     QCOMPARE(fixture.log()->contextCount, 0);
+}
+
+void TestSceneClose::explicitCloseReasonReachesPlugin()
+{
+    Fixture fixture;
+    fixture.addNode();
+
+    auto lifecycle = std::make_unique<ReasonAwareProvider>(fixture.log());
+    std::vector<Daqster::INodeProvider*> providers{lifecycle.get()};
+
+    // `closeSceneGraph()` is the close path; its default reason is ExplicitClose.
+    const Daqster::SceneCloseReport report =
+        Daqster::closeSceneGraph(fixture.graph(), providers);
+
+    QCOMPARE(report.notifiedProviders, 1);
+    QCOMPARE(report.reason, Daqster::SceneCloseReason::ExplicitClose);
+    QVERIFY(fixture.log()->reason.has_value());
+    QCOMPARE(*fixture.log()->reason, Daqster::SceneCloseReason::ExplicitClose);
+}
+
+void TestSceneClose::replaceReasonReachesPlugin()
+{
+    Fixture fixture;
+    fixture.addNode();
+
+    auto lifecycle = std::make_unique<ReasonAwareProvider>(fixture.log());
+    std::vector<Daqster::INodeProvider*> providers{lifecycle.get()};
+
+    // `stopAndNotifySceneClosed()` is the "old scene goes, new one comes" half
+    // of a hot-reload; its default reason is Replace.
+    const Daqster::SceneCloseReport report =
+        Daqster::stopAndNotifySceneClosed(&fixture.graph(), providers);
+
+    QCOMPARE(report.notifiedProviders, 1);
+    QCOMPARE(report.reason, Daqster::SceneCloseReason::Replace);
+    QVERIFY(fixture.log()->reason.has_value());
+    QCOMPARE(*fixture.log()->reason, Daqster::SceneCloseReason::Replace);
+
+    // ...and the explicit reason wins over the default when one is passed.
+    Fixture second;
+    second.addNode();
+    auto explicitProvider = std::make_unique<ReasonAwareProvider>(second.log());
+    std::vector<Daqster::INodeProvider*> explicitProviders{explicitProvider.get()};
+    Daqster::stopAndNotifySceneClosed(&second.graph(), explicitProviders,
+                                      Daqster::SceneCloseReason::ExplicitClose);
+    QVERIFY(second.log()->reason.has_value());
+    QCOMPARE(*second.log()->reason, Daqster::SceneCloseReason::ExplicitClose);
+}
+
+void TestSceneClose::legacyProviderIsStillNotifiedWithReason()
+{
+    // Compatibility: `FakeLifecycleProvider` implements only `onSceneClosed()`.
+    // The reason-aware virtual must forward to it instead of doing nothing —
+    // an old plugin that never heard of `SceneCloseReason` still gets its hook,
+    // and one compiled before the reason existed keeps its behaviour exactly.
+    Fixture fixture;
+    fixture.addNode();
+
+    auto legacy = std::make_unique<FakeLifecycleProvider>(fixture.log());
+    std::vector<Daqster::INodeProvider*> providers{legacy.get()};
+
+    const Daqster::SceneCloseReport report = Daqster::stopAndNotifySceneClosed(
+        &fixture.graph(), providers, Daqster::SceneCloseReason::ExplicitClose);
+
+    QCOMPARE(report.notifiedProviders, 1);
+    QCOMPARE(fixture.log()->closeNotifications, 1);
+    QCOMPARE(fixture.log()->contextsSeenAtClose, 0);
+    // The legacy hook cannot see the reason — that is exactly why the second
+    // method exists, and why it must not replace the first one.
+    QVERIFY(!fixture.log()->reason.has_value());
 }
 
 QTEST_GUILESS_MAIN(TestSceneClose)
