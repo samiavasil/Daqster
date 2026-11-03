@@ -11,6 +11,15 @@
 //
 // Rules:
 //
+//   * a child that has not exec'ed yet is **not ours to signal**. While
+//     `state() == Starting` the OS process exists (`processId()` is non-zero)
+//     but exec() has not replaced the image yet, so the fork still carries the
+//     *parent's* signal handlers. A SIGTERM there runs the parent's handler in
+//     the child — in a QtTest process that is `QFATAL "Received signal 15"` plus
+//     a core dump, not a polite shutdown. stop() therefore waits for `started`
+//     or `errorOccurred` first (bounded by kStartWaitMs) and sends **no**
+//     signal when the start failed. This is the owner's responsibility, never
+//     the node's;
 //   * `terminate()` → `waitForFinished(graceMs)` → `kill()` →
 //     `waitForFinished(killWaitMs)`. The caller always gets an answer, in
 //     bounded time; nothing blocks on a process that ignores the polite signal;
@@ -40,10 +49,10 @@ class ProcessOwner
 public:
     /// How a stop attempt ended.
     enum class StopResult {
-        NotRunning, ///< nothing owned (never started, exited by itself, or foreign)
+        NotRunning, ///< nothing owned (never started, failed to start, exited by itself, or foreign)
         Stopped,    ///< exited within the grace period after terminate()
         Killed,     ///< ignored terminate() and was killed
-        TimedOut    ///< survived both; still running (logged)
+        TimedOut    ///< survived both, or never got past Starting (logged, left attached)
     };
 
     ProcessOwner() = default;
@@ -76,11 +85,17 @@ public:
 
     /// Ask the process to exit, then kill it if it does not, in bounded time.
     ///
+    /// A process that is still `Starting` is waited for (see start(): a child
+    /// that has not exec'ed is not signalled). Only a process that really
+    /// started is terminated.
+    ///
     /// @param graceMs    How long terminate() gets before kill().
     /// @param killWaitMs How long the process gets to die after kill().
-    /// @return NotRunning when there is nothing to stop (idempotent),
+    /// @return NotRunning when there is nothing to stop (idempotent) or the
+    ///         start failed (no signal was sent),
     ///         Stopped on a clean exit, Killed when kill() was needed,
-    ///         TimedOut when it survived both (left attached, logged).
+    ///         TimedOut when it survived both, or when it was still `Starting`
+    ///         after the start deadline (left attached, logged).
     StopResult stop(int graceMs = 3000, int killWaitMs = 1000);
 
     /// True while the owned process is running.
