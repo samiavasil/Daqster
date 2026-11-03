@@ -337,7 +337,12 @@ void DaqDisplayNode::stop()
     if (m_refreshTimer)
         m_refreshTimer->stop();
 
-    m_shuttingDown = true; // worker tasks check before posting results
+    // D1 (REQ-SW-PL-050): cancel the token BEFORE draining the pool. cancel()
+    // only *waits* up to 500 ms for the running task — it cannot kill it — so a
+    // task can still be inside computePlotResult() when this node is destroyed.
+    // The token is what such a task checks first; it is captured by value, so
+    // the check stays valid after `this` is gone.
+    m_cancelToken->cancel();
 
     // Cancel queued/pending tasks for this key and wait for the running one
     // (≤ 500 ms) — replaces the old m_pool->clear() + waitForDone().
@@ -742,9 +747,11 @@ void DaqDisplayNode::onRefreshTick()
     const quint64 dataGeneration = m_dataGeneration;
     ComputePool::instance().submitLatest(
         m_poolKey,
-        [this, dataCopy, configs, ringSeconds, dataGeneration]() {
-            if (m_shuttingDown.load())
-                return;
+        // `token` is captured BY VALUE (shared_ptr) — the node's own member may
+        // be destroyed while this task is still running (REQ-SW-PL-050 D1).
+        [token = m_cancelToken, this, dataCopy, configs, ringSeconds, dataGeneration]() {
+            if (Daqster::isCancelled(token))
+                return; // the node is stopping/stopped — do not touch `this`
 
             // Ring append + decode + FFT + point build + min/max — ALL on this
             // worker thread (REQ-SW-PL-025 §3/§4, AC 6); m_ring is worker-owned.
@@ -752,7 +759,7 @@ void DaqDisplayNode::onRefreshTick()
                                                   ringSeconds, dataGeneration);
 
             // Do not post after shutdown has begun — the node may be gone.
-            if (m_shuttingDown.load())
+            if (Daqster::isCancelled(token))
                 return;
 
             QMetaObject::invokeMethod(m_bridge, "onComputeDone",

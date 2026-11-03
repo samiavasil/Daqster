@@ -67,6 +67,61 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
 `SceneCloseReport` носи `nodes/stopped/removed/notifiedProviders/stoppedIds` — за
 един log ред, за REST отговора и за тестовете, вместо всеки host да брои сам.
 
+## Два примитива за lifetime
+
+**Правило: нито един нод не пипа `QThread`/`QProcess` наготово.** Животът на
+нишка/процес минава през един от двата примитива в
+`src/plugins/common/Threading/`, защото „спиране" на нишка и „спиране" на процес
+са два различни договора:
+
+| | `ThreadOwner<Worker>` | `ProcessOwner` |
+|---|---|---|
+| какво притежава | `QThread` + worker `QObject` (moveToThread) | един `QProcess` |
+| как се спира | `quit()` → **join** с краен срок | `terminate()` → wait → `kill()` → wait |
+| какво връща `stop()` | `NotRunning` / `Stopped` / `TimedOut` | `NotRunning` / `Stopped` / `Killed` / `TimedOut` |
+| чужд/преизползван | — (винаги собствена нишка) | `setOwned(false)` / `adopt(p, false)` → **никога не се убива** |
+| къде е | `Threading/ThreadOwner.h` (header-only шаблон) | `Threading/ProcessOwner.{h,cpp}` (в `DaqsterCommonLibrary`) |
+
+Защо не един клас: нишката се **присъединява** (тя трябва да се върне от
+`run()`; `terminate()` е опасен и се използва само като последна мярка), а
+процесът се **моли да излезе** и има код на изход — `SIGTERM`/`WM_CLOSE` е
+молба, която може да бъде игнорирана, и единственото, което не може, е
+`SIGKILL`/`TerminateProcess`. Един общ клас би трябвало да има две
+несъвместими семантики на „спиране" и флаг „може ли да се убие", тоест двете
+разклонения пак щяха да са там — само че скрити.
+
+### Правилата, които примитивите налагат (и защо)
+
+- **`stop()` е идемпотентен.** Затварянето се вика и от „затвори сцената", и от
+  изхода на приложението; второто извикване връща `NotRunning`, не втори join.
+- **`ThreadOwner` вдига latch-а ПРЕДИ `quit()`.** `invoke()`/`alive()` минават
+  през един предикат (latch → после pointer), така че задача, пристигнала по
+  време на спирането, се **отказва**, вместо да се зашие в event loop-а на
+  умираща нишка. След успешен `stop()` worker-ът е `nullptr`.
+- **Join-ът има краен срок.** `quit()` → `wait(3000)`; ако не се прибере →
+  `terminate()` → `wait(500)` → `TimedOut` + `qCWarning`. Нишка, която оцелее и
+  след това, остава прикачена (разрушаването на работещ `QThread` вдига
+  `abort()`), а `stop()` пак връща — никога безкрайно чакане.
+- **Процесът се убива само ако е наш.** `setOwned(false)` (или `adopt(p,false)`
+  за преизползван сървър) кара `stop()` да **забрави** процеса, без да го
+  сигнализира — иначе затварянето на сцена би убило чужд топъл `whisper-server`.
+- **`finished` → `deleteLater`.** Процесът, който сме стартирали, се трие от
+  собствения си сигнал, тоест не остава висяща връзка към мъртъв обект.
+
+### Задачи в общ пул: `CancelToken`, не флаг в нода
+
+`ThreadOwner`/`ProcessOwner` притежават *собствена* нишка/процес. Задача, дадена
+на **споделен** пул (`ComputePool`, REQ-SW-PL-039), не се притежава от никого:
+`cancel(key)` само **чака** до 500 ms за работещата задача — не може да я убие.
+Затова проверката „още ли ме искат?" не бива да живее в нода, защото самата
+проверка е достъп до паметта, която може да е освободена.
+
+`Threading/CancelToken.h` дава `std::shared_ptr<CancelToken>`: нодът пази един,
+всяка задача взима **копие по стойност** и първото ѝ изречение е
+`if (Daqster::isCancelled(token)) return;`. Нодът вика `cancel()` **преди**
+`ComputePool::cancel(key)` — след това token-ът (и отговорът) е валиден, дори
+когато нодът вече не е.
+
 ## Кой какво освобождава (нодовата страна)
 
 | Ресурс | Притежател | Освобождава се в |
@@ -112,6 +167,24 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
 `stopThenUiAndDeviceCallsAreInert`, `audioSourceSurvivesFiveSceneCloses`): те
 скубят освободения блок с `0xAB`, за да не минава use-after-free-ът „на късмет".
 
+### Опасните `stop()` пътища (D1–D4)
+
+Примитивите описват **как** се спира; тези четири поправки премахват
+останалите места, на които `stop()` можеше да блокира завинаги или да пипне
+освободена памет:
+
+| # | Място | Преди | Сега |
+|---|---|---|---|
+| D1 | `DaqDisplayNode::stop()`, `VideoEffectNode::stop()` | работната задача проверяваше `m_shuttingDown` — тоест **член на нода**, който `ComputePool::cancel()` (500 ms) може вече да е унищожил | задачата държи `CancelToken` **по стойност** и проверява него преди всяко пипане на `this`; `stop()` отменя token-а **преди** `cancel()` |
+| D2 | `LLamaModelDataModel::stopServer()` | `terminate()` + `waitForFinished(3000)`; сървър, който игнорира SIGTERM, оставаше жив, а нодът се унищожаваше | + `kill()` + `waitForFinished(1000)`; връща `NotRunning/Stopped/Killed/TimedOut` и логва при kill |
+| D3 | `PlutoSdrEngine::stop()` | `QThread::wait()` без срок — блокиран `iio_buffer_refill()` спираше затварянето завинаги | `wait(3000)`; при изтичане връща `TimedOut` и **не** вика `terminate()` (убиването на нишката вътре в libiio оставя драйвера в неопределено състояние); `close()` тогава не разрушава iio контекста |
+| D4 | `InferenceWorker::stop()` (частно) | `wait()` без срок — зареждане на модел, което не може да се отмени, блокираше изхода на процеса | `wait(5000)`; при изтичане логва и **откача** нишката (разрушаването на работещ `QThread` вдига `abort()`), а `start()` отказва втора |
+
+`PlutoSdrEngine` държеше работната нишка и като гол указател, а тя се триеше
+през `finished → deleteLater`: след като event loop-ът на главната нишка
+отработеше това, `stop()` викаше `wait()` върху освободен обект. Сега е
+`QPointer<QThread>`.
+
 ## Какво остава по дизайн
 
 Затварянето не е „освободи всичко". Остава:
@@ -120,7 +193,8 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
   многократно и студеният старт на 8B модел е 15–30 s; `idleUnloadMs` (5 min) ги
   връща, ако сцената не се отвори пак. Политиката е на плъгина
   (`runtime.closePolicy` / `DAQSTER_AI_CLOSE_POLICY`): `keepWarm` | `releaseAll`.
-- **`InferenceWorker` нишката** — услуга на процеса, не на сцената.
+- **`InferenceWorker` нишката** — услуга на процеса, не на сцената (и вече
+  спира с краен срок, D4).
 - **историята на чата** — runtime състояние, не ресурс.
 
 Тоест след `POST /api/flow/close` с `keepWarm` VRAM-ът **не** пада до базовата
@@ -145,3 +219,27 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
 - `stopOrderIsSourcesFirstNotInsertionOrder` — верига, строена от консуматора
   назад, се спира от източника напред;
 - `cycleIsStillFullyStopped` — цикъл не оставя работещ нод.
+
+Примитивите (`tests/plugins/common/`, binary `daqster_common_tests`):
+
+- `ThreadOwner`: `stopBeforeStartIsNoOp`, `invokeDeliversToWorker`,
+  `stopTwiceIsIdempotent`, `invokeAfterStopIsNoOp`,
+  `stopTimesOutAndTerminates` (worker блокира event loop-а си: `quit()` не се
+  чува, `stop()` трябва да прекрати нишката и да върне `TimedOut` до ~4 s);
+- `ProcessOwner`: `ownedProcessIsTerminated` (учтив път), `foreignProcessIsNotKilled`
+  (`adopt(p, false)` → процесът остава жив), `setOwnedFalseForbidsTheKill`,
+  `killFallbackOnStubbornProcess` (фалшив сървър с `trap '' TERM` → `Killed`),
+  `stopTwiceIsIdempotent`. Фикстурата е POSIX (`QSKIP` на Windows) и чака
+  **handshake файл**, а не фиксирано закъснение — иначе SIGTERM може да пристигне
+  преди `trap`-а и тестът „доказва" kill пътя с процес, който нищо не е игнорирал.
+
+Нодовите регресии (`tests/plugins/nodeditor_nodes/`):
+
+- D1: `displayComputeTaskChecksTokenBeforeTheNode` (след `delete node` и
+  задраскване на блока с `0xAB` token-ът още отговаря), `cancelledTaskGuardSurvivesTheNode`
+  (същото за `VideoEffectNode`);
+- D2: `llamaModelStopKillsStubbornServer` — реален `QProcess`, който игнорира
+  SIGTERM → `Killed` след ~3 s, `NotRunning` при повторение;
+- D1+сцена: `audioSourceAndDisplaySurviveFiveSceneCloses` — 5 × (AudioSource →
+  DaqDisplay, старт, `stopSceneNodes` източниците първи, изтриване на възлите
+  под задраскан heap).

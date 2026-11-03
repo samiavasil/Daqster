@@ -45,9 +45,15 @@
 #include <shared/IStoppable.h>
 
 #include <QElapsedTimer>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QTemporaryDir>
 #include <QThread>
 #include <type_traits>
 #include <typeinfo>
+
+#include <Threading/CancelToken.h>
 
 #include <QtNodes/DataFlowGraphModel>
 #include <QtNodes/NodeDelegateModelRegistry>
@@ -195,10 +201,46 @@ struct ClobberedHeap
     QVector<void *> blocks;
 };
 
+/// A fake `llama-server`: ignores SIGTERM, announces that the trap is installed
+/// by creating `ready.flag` in its working directory, then blocks on the stdin
+/// pipe forever. ONE process, no children, no busy loop — SIGKILL is the only
+/// way out, which is exactly the D2 path (REQ-SW-PL-050).
+QString writeStubbornServer(const QTemporaryDir &dir)
+{
+    const QString path = dir.filePath(QStringLiteral("stubborn-server.sh"));
+    QFile script(path);
+    if (!script.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return QString();
+    script.write("#!/bin/sh\n"
+                 "# Fake llama-server: ignores the polite signal (REQ-SW-PL-050 D2).\n"
+                 "# The real llama-server argument line (-m/--host/-c) is ignored.\n"
+                 "trap '' TERM\n"
+                 ": > ready.flag\n"
+                 "read line\n");
+    script.close();
+    QFile::setPermissions(path, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+    return path;
+}
+
+/// RAII around QDir::setCurrent(): LLamaModelDataModel::start() inherits the
+/// process working directory (it has no workDir parameter), and the fake server
+/// announces readiness by creating a file in it.
+struct ScopedWorkingDir
+{
+    explicit ScopedWorkingDir(const QString &dir)
+        : previous(QDir::currentPath())
+    {
+        QDir::setCurrent(dir);
+    }
+
+    ~ScopedWorkingDir() { QDir::setCurrent(previous); }
+
+    QString previous;
+};
+
 /// Two nodes, one output connection: the smallest graph whose deletion reaches
 /// AudioSourceDataModel::outputConnectionDeleted().
-struct AudioSourceGraph
-{
+struct AudioSourceGraph{
     AudioSourceGraph()
     {
         registry = std::make_shared<QtNodes::NodeDelegateModelRegistry>();
@@ -634,4 +676,126 @@ void TestThreadLifecycle::audioSourceSurvivesFiveSceneCloses()
         QVERIFY2(scene.graph->allNodeIds().empty(),
                  qPrintable(QStringLiteral("cycle %1: graph not empty after close").arg(cycle)));
     }
+}
+
+void TestThreadLifecycle::displayComputeTaskChecksTokenBeforeTheNode()
+{
+    // D1 (REQ-SW-PL-050). DaqDisplayNode submits plot computation to the shared
+    // ComputePool. ComputePool::cancel(key) only *waits* up to 500 ms for the
+    // running task — it cannot stop it — so the task can still be inside
+    // computePlotResult() when the node is destroyed, and its first statement
+    // used to be `if (m_shuttingDown.load()) return;` — a read through the very
+    // pointer that may already be dangling.
+    //
+    // Now the guard is Daqster::isCancelled(token), where `token` is captured by
+    // value: it survives the node. This asserts the exact sequence the worker
+    // relies on, on the real node.
+    auto *node = new DaqDisplayNode();
+    const Daqster::CancelTokenPtr token = node->computeToken();
+    QVERIFY(token != nullptr);
+    QVERIFY2(!Daqster::isCancelled(token), "a live node must let its tasks run");
+
+    node->stop();
+    QVERIFY2(Daqster::isCancelled(token),
+             "stop() must cancel the token its tasks hold, before draining the pool");
+
+    delete node;
+
+    // Scrub the heap block the node lived in with 0xAB: a task that checked the
+    // flag through `this` would now read garbage (the same trick the
+    // AudioSource use-after-free tests above use). The only thing the task still
+    // owns is the token, and it still answers correctly.
+    QVector<void *> blocks;
+    for (int i = 0; i < 32; ++i) {
+        void *block = ::operator new(sizeof(DaqDisplayNode));
+        std::memset(block, 0xAB, sizeof(DaqDisplayNode));
+        blocks.append(block);
+    }
+
+    QVERIFY(Daqster::isCancelled(token));
+
+    for (void *block : blocks)
+        ::operator delete(block);
+}
+
+void TestThreadLifecycle::audioSourceAndDisplaySurviveFiveSceneCloses()
+{
+    // Same 5× close as audioSourceSurvivesFiveSceneCloses(), with a display on
+    // the other end of the connection. The display is the harder half: it
+    // submits work to the shared ComputePool at 30 Hz, so closing the scene has
+    // to drain tasks that captured the node (REQ-SW-PL-050 D1), not just stop a
+    // QTimer.
+    for (int cycle = 0; cycle < 5; ++cycle) {
+        auto registry = std::make_shared<QtNodes::NodeDelegateModelRegistry>();
+        registry->registerModel<AudioSourceDataModel>();
+        registry->registerModel<DaqDisplayNode>();
+        QtNodes::DataFlowGraphModel graph(registry);
+
+        const QtNodes::NodeId source = graph.addNode(QStringLiteral("AudioSource"));
+        const QtNodes::NodeId display = graph.addNode(QStringLiteral("DaqDisplay"));
+        graph.addConnection({source, 0, display, 0});
+
+        auto *model = graph.delegateModel<AudioSourceDataModel>(source);
+        QVERIFY2(model != nullptr, qPrintable(QStringLiteral("cycle %1: no AudioSource").arg(cycle)));
+        model->start();
+        QThread::msleep(20);
+
+        // Both endpoints are IStoppable, and the helper stops them sources
+        // first: the AudioSource sees "no consumer" before the display stops.
+        const Daqster::SceneCloseReport report = Daqster::stopSceneNodes(graph);
+        QVERIFY2(report.stopped == 2,
+                 qPrintable(QStringLiteral("cycle %1: stopped %2 nodes, expected 2")
+                                .arg(cycle).arg(report.stopped)));
+
+        {
+            const ClobberedHeap scrubbed;
+            const auto ids = graph.allNodeIds(); // copy: deleteNode mutates the set
+            for (const QtNodes::NodeId id : ids)
+                graph.deleteNode(id);
+        }
+
+        QVERIFY2(graph.allNodeIds().empty(),
+                 qPrintable(QStringLiteral("cycle %1: graph not empty after close").arg(cycle)));
+    }
+}
+
+void TestThreadLifecycle::llamaModelStopKillsStubbornServer()
+{
+#ifdef Q_OS_WIN
+    QSKIP("POSIX fixture: the fake server is a #!/bin/sh script that ignores SIGTERM");
+#else
+    // D2 (REQ-SW-PL-050). stop() used to be terminate() + waitForFinished(3000)
+    // and nothing else: a server that ignored SIGTERM (a stuck model load, a
+    // request tail) stayed alive while the node was destroyed pointing at it.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    const QString server = writeStubbornServer(dir);
+    QVERIFY2(!server.isEmpty(), "could not write the fake server script");
+
+    const QString ready = dir.filePath(QStringLiteral("ready.flag"));
+    const ScopedWorkingDir scopedCwd(dir.path()); // the script writes ./ready.flag
+
+    LLamaModelDataModel model;
+    model.onExePathSelected(server);
+    model.onModelPathSelected(dir.filePath(QStringLiteral("model.gguf")));
+    model.start();
+
+    // Handshake, not a guessed delay: before `trap` runs the shell still has the
+    // default SIGTERM disposition and would die from the polite signal.
+    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(ready), 5000);
+    QVERIFY(model.isServerRunning());
+
+    QElapsedTimer timer;
+    timer.start();
+    QCOMPARE(model.stopServer(), LLamaModelDataModel::StopResult::Killed);
+    const qint64 elapsed = timer.elapsed();
+
+    QVERIFY2(elapsed >= 2900,
+             qPrintable(QStringLiteral("stopServer() returned after %1 ms — the 3 s grace "
+                                       "period was not respected").arg(elapsed)));
+    QVERIFY(!model.isServerRunning());
+    // Idempotent: nothing left to signal.
+    QCOMPARE(model.stopServer(), LLamaModelDataModel::StopResult::NotRunning);
+#endif
 }

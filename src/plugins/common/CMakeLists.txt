@@ -37,6 +37,12 @@ get_property(DAQSTER_COMMON_LIB_ENABLED GLOBAL PROPERTY COMPONENT_DaqsterCommonL
 if(DAQSTER_COMMON_LIB_ENABLED)
     add_library(DaqsterCommonLibrary SHARED
         GL/TexturePool.cpp
+        # ProcessOwner + the "daqster.threading" category (REQ-SW-PL-050).
+        # ThreadOwner.h is header-only on purpose (it is a template over the
+        # worker type); only what cannot be inline lives here, so every consumer
+        # shares ONE definition — same argument as TexturePool above.
+        Threading/ProcessOwner.cpp
+        Threading/ThreadingLog.cpp
     )
 
     # Windows: WINDOWS_EXPORT_ALL_SYMBOLS makes the linker export all symbols

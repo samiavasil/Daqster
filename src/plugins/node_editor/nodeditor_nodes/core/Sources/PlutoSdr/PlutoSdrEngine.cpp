@@ -11,6 +11,13 @@
 #include <iio.h>
 #endif
 
+namespace {
+/// How long stop() waits for the stream thread before giving up (REQ-SW-PL-050
+/// D3). Bounded on purpose: a blocked iio_buffer_refill() must not turn scene
+/// close into an unbounded wait.
+constexpr int kStreamJoinMs = 3000;
+} // namespace
+
 PlutoSdrEngine::PlutoSdrEngine(QObject *parent)
     : QObject(parent)
 {
@@ -104,7 +111,16 @@ bool PlutoSdrEngine::open()
 
 void PlutoSdrEngine::close()
 {
-    stop();
+    if (stop() == StopResult::TimedOut) {
+        // The stream thread is (almost certainly) inside iio_buffer_refill() on
+        // m_buffer, so m_buffer and m_context must stay valid for it. Leaking
+        // the handle is the lesser evil: destroying it under a live thread is
+        // undefined behaviour inside libiio.
+        qCWarning(lcDemoNodes)
+            << "PlutoSdrEngine: closing without destroying the iio context — "
+               "the stream thread is still running";
+        return;
+    }
 
 #ifdef HAVE_LIBIIO
     if (m_context) {
@@ -161,10 +177,10 @@ void PlutoSdrEngine::start()
 #endif
 }
 
-void PlutoSdrEngine::stop()
+PlutoSdrEngine::StopResult PlutoSdrEngine::stop()
 {
     if (!m_running.load() && !m_worker)
-        return;
+        return StopResult::NotRunning;
 
     m_running.store(false);
 
@@ -176,7 +192,20 @@ void PlutoSdrEngine::stop()
 #endif
 
     if (m_worker) {
-        m_worker->wait();
+        // D3 (REQ-SW-PL-050): the join is bounded. libiio's refill can stay
+        // blocked inside the kernel driver, and an unbounded wait() then hangs
+        // scene close (or the process) with no way out.
+        if (!m_worker->wait(kStreamJoinMs)) {
+            // terminate() deliberately NOT used: the thread is inside
+            // iio_buffer_refill()/iio_buffer_start() on m_buffer, and killing
+            // it there leaves libiio's state undefined. Report and leave the
+            // thread + buffer + context attached so nothing is destroyed under
+            // a running thread; a later stop() can try again.
+            qCWarning(lcDemoNodes) << "PlutoSdrEngine: stream thread did not stop within"
+                                   << kStreamJoinMs
+                                   << "ms — leaving it attached (terminate() is unsafe with libiio)";
+            return StopResult::TimedOut;
+        }
         m_worker = nullptr;
     }
 
@@ -192,6 +221,7 @@ void PlutoSdrEngine::stop()
 #endif
 
     emit statusChanged(QStringLiteral("stopped"));
+    return StopResult::Stopped;
 }
 
 // ── Worker loop (runs on the stream thread) ─────────────────────────────────

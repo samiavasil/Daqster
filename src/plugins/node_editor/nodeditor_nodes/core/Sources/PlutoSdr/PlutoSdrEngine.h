@@ -5,6 +5,7 @@
 
 #include <QByteArray>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QThread>
 
@@ -53,7 +54,18 @@ public:
     bool open();                              // create context + find devices
     void close();
     void start();                             // enable channels + buffer + worker thread
-    void stop();                              // atomic flag + iio_buffer_cancel + join
+
+    /// How a stop attempt ended (REQ-SW-PL-050 D3).
+    enum class StopResult {
+        NotRunning, ///< nothing streaming
+        Stopped,    ///< the stream thread was joined
+        TimedOut    ///< it did not return within the join deadline (logged)
+    };
+
+    /// Atomic flag + iio_buffer_cancel + **bounded** join. Never waits forever:
+    /// terminate() is not used because the worker is almost certainly inside
+    /// iio_buffer_refill() on a buffer this method would then destroy.
+    StopResult stop();
 
     bool isStreaming() const { return m_running.load(); }
 
@@ -81,7 +93,10 @@ private:
     double m_gainDb = 30.0;
 
     std::atomic<bool> m_running{false};
-    QThread *m_worker = nullptr;
+    /// QPointer, not a raw pointer: the thread deletes itself via
+    /// finished → deleteLater, so a raw member would dangle as soon as the
+    /// event loop turns after the stream thread ended on its own.
+    QPointer<QThread> m_worker;
     double m_activeSampleRateHz = 0.0; // rate actually applied at start()
 
 #ifdef HAVE_LIBIIO

@@ -28,6 +28,10 @@ private slots:
     /// per-key counters (completed/submitted/skipped + fps).
     void cpuPath_metricLabel_refreshed();
 
+    /// REQ-SW-PL-050 (D1): the guard a submitted CPU task checks first is the
+    /// cancel token, not a node member — so a task that outlives the node can
+    /// still decide correctly without touching it.
+    void cancelledTaskGuardSurvivesTheNode();
     /// m_totalFrames counts every valid setInData() call.
     void cpuPath_totalFrames_incremented();
 };

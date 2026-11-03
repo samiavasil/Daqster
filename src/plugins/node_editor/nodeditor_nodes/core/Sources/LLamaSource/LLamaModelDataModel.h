@@ -51,6 +51,20 @@ public:
   /// times (REQ-SW-PL-050).
   void stop() override;
 
+  /// Outcome of a stop attempt on the locally spawned server (REQ-SW-PL-050 D2).
+  ///
+  /// Mirrors `Daqster::ProcessOwner::StopResult` so this class can be moved
+  /// onto ProcessOwner in the next step without changing any caller.
+  enum class StopResult {
+    NotRunning, ///< nothing spawned, or the server exited by itself
+    Stopped,    ///< exited within 3 s of terminate()
+    Killed,     ///< ignored terminate() and was killed (logged)
+    TimedOut    ///< survived kill() too (logged); the process is still alive
+  };
+
+  /// The same stop, with the outcome — stop() is the IStoppable form of this.
+  StopResult stopServer();
+
   /// Start the local server process programmatically (runtime autoStart, REQ-SW-PL-048).
   void start() override;
 
@@ -71,6 +85,9 @@ public:
   QString debugPath() const { return m_debugPath; }
   QString debugBody() const { return m_debugBody; }
   bool connected() const { return m_connected; }
+  /// True while the locally spawned server process is alive (REQ-SW-PL-050 D2).
+  /// Exposed so the close-path test can wait for the process to actually start.
+  bool isServerRunning() const;
   /// Persisted chat state mirrored from the widget (sessions, prompt, ...).
   QJsonObject chatConfig() const { return m_chatConfig; }
 

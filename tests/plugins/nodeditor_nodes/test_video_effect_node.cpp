@@ -111,4 +111,30 @@ void VideoEffectNodeTest::cpuPath_totalFrames_incremented()
     QCOMPARE(node.m_totalFrames, quint64(2));
 }
 
+// ── Cancellation token (REQ-SW-PL-050 D1) ────────────────────────────────────
+//
+// The CPU task used to guard itself with `if (m_shuttingDown.load()) return;` —
+// a read through `this`, which is exactly what may already be freed when the
+// task is still running 500 ms after stop(). The guard is now
+// Daqster::isCancelled(token) with the token captured BY VALUE, so this asserts
+// the handle the worker keeps still answers after the node is gone.
+void VideoEffectNodeTest::cancelledTaskGuardSurvivesTheNode()
+{
+    auto *node = new VideoEffectNode;
+    const Daqster::CancelTokenPtr token = node->computeToken();
+    QVERIFY(token != nullptr);
+    QVERIFY2(!Daqster::isCancelled(token), "a live node must let its tasks run");
+
+    node->stop();
+    QVERIFY2(Daqster::isCancelled(token),
+             "stop() must cancel the token BEFORE draining the pool, so a running "
+             "task bails out instead of reading the node");
+
+    delete node;
+
+    // Whatever the freed node's bytes become, the task's own copy still says
+    // "cancelled" — that is the whole point of capturing it by value.
+    QVERIFY(Daqster::isCancelled(token));
+}
+
 QTEST_MAIN(VideoEffectNodeTest)

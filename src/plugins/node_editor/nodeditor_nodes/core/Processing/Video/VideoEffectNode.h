@@ -7,6 +7,7 @@
 #include "VideoEffectOps.h"
 #include "capabilities/INodeConfigSchema.h"
 #include "shared/IStoppable.h"
+#include "Threading/CancelToken.h"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -160,6 +161,11 @@ public slots:
     /// safe to call multiple times (REQ-SW-PL-050).
     void stop() override;
 
+    /// The token every submitted CPU task captures BY VALUE (REQ-SW-PL-050 D1).
+    /// stop() cancels it *before* draining the pool, so a task that is still
+    /// running returns without touching a destroyed node.
+    Daqster::CancelTokenPtr computeToken() const { return m_cancelToken; }
+
 private slots:
     /// GUI-thread result delivery for the CPU path (Qt::QueuedConnection from
     /// the ComputePool worker). Sets m_output and emits dataUpdated(0).
@@ -195,7 +201,10 @@ private:
     std::shared_ptr<VideoFrameData> m_output;
 
     // ── ComputePool CPU path (REQ-SW-PL-039) ────────────────────────────────
-    std::atomic<bool> m_shuttingDown{false};
+    /// Cancelled by stop() BEFORE ComputePool::cancel() (REQ-SW-PL-050 D1): a
+    /// task that outlives the 500 ms drain holds a copy and returns without
+    /// touching `this`.
+    Daqster::CancelTokenPtr m_cancelToken = std::make_shared<Daqster::CancelToken>();
     QByteArray m_poolKey;               // per-node key into the shared pool
     quint64 m_totalFrames = 0;          // all valid setInData calls
     QTimer *m_perfTimer = nullptr;      // 5 s [PERF] effect console line

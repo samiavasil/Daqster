@@ -1,5 +1,7 @@
 #include "LLamaModelDataModel.h"
 
+#include "LogCategories.h"
+
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
 #include <QtCore/QJsonArray>
@@ -28,12 +30,41 @@ LLamaModelDataModel::~LLamaModelDataModel() {
 }
 
 void LLamaModelDataModel::stop() {
-  // Idempotent: terminate()/waitForFinished() on a NotRunning process is a
-  // no-op.
-  if (m_serverProcess && m_serverProcess->state() != QProcess::NotRunning) {
-    m_serverProcess->terminate();
-    m_serverProcess->waitForFinished(3000);
-  }
+  (void)stopServer();
+}
+
+LLamaModelDataModel::StopResult LLamaModelDataModel::stopServer() {
+  // Idempotent: a missing or already-dead process needs no signal and no wait.
+  if (!isServerRunning())
+    return StopResult::NotRunning;
+
+  // 1. Ask politely (SIGTERM / WM_CLOSE) and give it a bounded moment. A
+  //    llama-server flushing a response or unloading weights takes a second
+  //    or two, so killing straight away would truncate its log.
+  m_serverProcess->terminate();
+  if (m_serverProcess->waitForFinished(3000))
+    return StopResult::Stopped;
+
+  // 2. It refused (REQ-SW-PL-050 D2). Before this the 3 s wait was the end of
+  //    the story: stop() returned while the server kept running and serving,
+  //    and the node was destroyed pointing at a live process it no longer
+  //    owned. kill() is the only signal that cannot be ignored.
+  qCWarning(lcDemoNodes).noquote()
+      << QStringLiteral("LLamaModelDataModel: local server ignored terminate() for 3 s "
+                        "(pid %1) — killing it")
+             .arg(m_serverProcess->processId());
+  m_serverProcess->kill();
+  if (m_serverProcess->waitForFinished(1000))
+    return StopResult::Killed;
+
+  // 3. Uninterruptible (stuck model load on a hung mount / driver). Report it:
+  //    the caller must know the process is still alive instead of assuming the
+  //    scene is closed.
+  qCWarning(lcDemoNodes).noquote()
+      << QStringLiteral("LLamaModelDataModel: local server still running 1 s after kill() "
+                        "(pid %1) — giving up")
+             .arg(m_serverProcess->processId());
+  return StopResult::TimedOut;
 }
 
 /// Start the local server process programmatically (runtime autoStart, REQ-SW-PL-048).
@@ -42,6 +73,10 @@ void LLamaModelDataModel::start() {
   if (m_serverProcess && m_serverProcess->state() != QProcess::NotRunning)
     return;
   onStartServerClicked();
+}
+
+bool LLamaModelDataModel::isServerRunning() const {
+  return m_serverProcess && m_serverProcess->state() != QProcess::NotRunning;
 }
 
 unsigned int LLamaModelDataModel::nPorts(PortType portType) const {
@@ -241,10 +276,18 @@ void LLamaModelDataModel::onHealthReply(bool healthy, QString const& error) {
 
 void LLamaModelDataModel::onStartServerClicked() {
   if (m_serverProcess && m_serverProcess->state() != QProcess::NotRunning) {
-    m_serverProcess->terminate();
-    m_serverProcess->waitForFinished(3000);
+    // Same bounded stop as IStoppable::stop() (REQ-SW-PL-050 D2) — the button
+    // must not report "stopped" while a server that ignored SIGTERM is alive.
+    const StopResult result = stopServer();
     Q_EMIT startButtonChanged(QStringLiteral("Стартирай сървър"), QString::fromLatin1(kServerRunningStyle));
-    setStatus(QStringLiteral("Локален сървър спрян"), false);
+    if (result == StopResult::TimedOut) {
+      setStatus(QStringLiteral("Сървърът не спря (процесът е още жив)"), false);
+      return;
+    }
+    setStatus(result == StopResult::Killed
+                  ? QStringLiteral("Локален сървър убит (игнорира SIGTERM)")
+                  : QStringLiteral("Локален сървър спрян"),
+              false);
     m_connected = false;
     Q_EMIT connectButtonChanged(QStringLiteral("Свържи"), true);
     return;

@@ -5,6 +5,8 @@
 
 #include "NodeDataTypes/SampledData.h"
 
+#include "Threading/CancelToken.h"
+
 #include "shared/IStoppable.h"
 
 #include <QtNodes/NodeDelegateModel>
@@ -148,6 +150,11 @@ public:
     /// Stop the refresh timer and cancel queued compute tasks. Idempotent —
     /// safe to call multiple times (REQ-SW-PL-050).
     void stop() override;
+
+    /// The token every submitted compute task captures BY VALUE (REQ-SW-PL-050
+    /// D1). stop() cancels it *before* draining the pool, so a task that is
+    /// still running returns without touching a destroyed node.
+    Daqster::CancelTokenPtr computeToken() const { return m_cancelToken; }
 
     /// The node BODY (boundary, caption, ports) does not depend on data —
     /// widget content self-repaints via Qt. The validation border self-repaints
@@ -295,7 +302,11 @@ private:
     QTimer *m_refreshTimer = nullptr;   // ~30 Hz refresh throttle (REQ-SW-PL-023 §5)
     DaqDisplayResultBridge *m_bridge = nullptr;
     QByteArray m_poolKey;               // per-node key into the shared ComputePool
-    std::atomic<bool> m_shuttingDown{false};
+    /// Cancelled by stop() BEFORE ComputePool::cancel(): a task that outlives
+    /// the 500 ms drain holds a copy and returns without touching `this`
+    /// (REQ-SW-PL-050 D1). Replaces the old m_shuttingDown atomic, which the
+    /// worker could only read through the very pointer that may be dangling.
+    Daqster::CancelTokenPtr m_cancelToken = std::make_shared<Daqster::CancelToken>();
     bool m_dataDirty = false;
 
     std::shared_ptr<const SampledData> m_lastData;

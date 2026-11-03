@@ -50,7 +50,12 @@ void VideoEffectNode::stop()
 {
     // Idempotent: setting the flag + cancelling an already-cancelled key is
     // safe to repeat.
-    m_shuttingDown = true; // worker tasks check before posting results
+    //
+    // D1 (REQ-SW-PL-050): the token goes first. ComputePool::cancel() only waits
+    // up to 500 ms for the running task; it does not kill it. A task that is
+    // still inside applyCpu() when the node is destroyed checks this token
+    // (captured by value) and returns without touching `this`.
+    m_cancelToken->cancel();
 
     // Cancel queued/pending CPU tasks for this key and wait for the running
     // one (≤ 500 ms) so no worker touches `this` after destruction.
@@ -276,11 +281,19 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
     const EffectSpec specCopy = spec;
     const EffectParams paramsCopy = m_params;
 
+    // A stopped node must not revive its pool key: the submitting task would
+    // return on the (already cancelled) token, but ComputePool::cancel() has
+    // drained the key and a new submission re-arms it (REQ-SW-PL-050 D1).
+    if (Daqster::isCancelled(m_cancelToken))
+        return;
+
     ComputePool::instance().submitLatest(
         m_poolKey,
-        [this, specCopy, paramsCopy, frameCopy, preReadback]() {
-            if (m_shuttingDown.load())
-                return;
+        // `token` is captured BY VALUE (shared_ptr) — the node may be destroyed
+        // while this task is still running (REQ-SW-PL-050 D1).
+        [token = m_cancelToken, this, specCopy, paramsCopy, frameCopy, preReadback]() {
+            if (Daqster::isCancelled(token))
+                return; // the node is stopping/stopped — do not touch `this`
 
             // Convert the worker's OWN frame copy (never the shared
             // VideoFrameData) — or use the GUI-thread pre-readback QImage.
@@ -294,7 +307,7 @@ void VideoEffectNode::setInData(std::shared_ptr<NodeData> data, PortIndex portIn
             const QImage transformed = applyCpu(source, specCopy, paramsCopy);
 
             // Do not post after shutdown has begun — the node may be gone.
-            if (m_shuttingDown.load())
+            if (Daqster::isCancelled(token))
                 return;
             if (transformed.isNull())
                 return;
@@ -418,7 +431,7 @@ QImage VideoEffectNode::applyCpu(const QImage &source, const EffectSpec &spec,
 void VideoEffectNode::onCpuResult(QImage result)
 {
     // GUI thread (Qt::QueuedConnection from the pool worker).
-    if (m_shuttingDown.load())
+    if (Daqster::isCancelled(m_cancelToken))
         return;
     if (result.isNull())
         return;
