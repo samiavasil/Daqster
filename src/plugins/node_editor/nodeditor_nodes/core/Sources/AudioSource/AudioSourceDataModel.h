@@ -8,6 +8,7 @@
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
 
+#include <QtCore/QPointer>
 #include <QtCore/QThread>
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/internal/Definitions.hpp>
@@ -73,6 +74,11 @@ public:
 
     /// Stop the capture thread cleanly. Idempotent — safe to call multiple
     /// times (REQ-SW-PL-050).
+    ///
+    /// After it returns the worker is gone and nothing may reach it again
+    /// (REQ-SW-PL-078): the scene close stops the nodes first and only then
+    /// deletes the connections, so outputConnectionDeleted() → setCaptureEnabled()
+    /// runs *after* this and must not touch a freed worker.
     void stop() override;
 
     /// Start capture programmatically (runtime autoStart, REQ-SW-PL-048).
@@ -105,8 +111,21 @@ private slots:
 private:
     void setCaptureEnabled(bool enabled);
 
+    /// True while the capture worker is alive **and** the model has not been
+    /// stopped — the single predicate every worker-bound call checks before
+    /// queueing anything to the other thread.
+    bool workerReachable() const;
+
     QThread *m_thread = nullptr;
-    MicCaptureWorker *m_worker = nullptr; // moveToThread'ed into m_thread; freed via QThread::finished → deleteLater
+    /// moveToThread'ed into m_thread; freed via QThread::finished → deleteLater.
+    /// A QPointer, not a raw pointer: the worker is destroyed on the worker
+    /// thread, so a raw pointer would dangle here and every later queued call
+    /// (see setCaptureEnabled) would be a use-after-free (REQ-SW-PL-078).
+    QPointer<MicCaptureWorker> m_worker;
+    /// Latched by stop(). After it, all worker-bound calls are no-ops — the
+    /// scene close deletes the connections after stopping the nodes, which is
+    /// exactly when outputConnectionDeleted() would otherwise reach the worker.
+    bool m_captureStopped = false;
     QAudioDeviceInfo m_DevInfo;
     QAudioFormat m_FormatAudio;
     std::shared_ptr<SampledData> m_lastData;

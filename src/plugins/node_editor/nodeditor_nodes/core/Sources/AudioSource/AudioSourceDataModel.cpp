@@ -45,18 +45,42 @@ AudioSourceDataModel::~AudioSourceDataModel()
 
 void AudioSourceDataModel::stop()
 {
-    // Idempotent: quit()/wait() on an already-stopped thread is a no-op.
+    // Idempotent (REQ-SW-PL-050): the first call joins the capture thread and
+    // drops the worker, later calls are no-ops. The flag is latched BEFORE the
+    // join on purpose — it closes the window between quit() and the worker's
+    // destruction, which is exactly where a queued setCaptureEnabled() would
+    // otherwise be posted to a worker that is being freed (REQ-SW-PL-078).
+    if (m_captureStopped)
+        return;
+    m_captureStopped = true;
+
     if (m_thread != nullptr) {
         m_thread->quit();
         m_thread->wait();
     }
+
+    // The worker is deleted by the QThread::finished → deleteLater connection
+    // before wait() returns (Qt flushes DeferredDelete events in the finishing
+    // thread), so the QPointer is usually already null here. Clearing it anyway
+    // is the contract: after stop() this model holds no worker at all, even if
+    // a future Qt leaves the deferred deletion pending on a finished thread.
+    m_worker = nullptr;
+}
+
+bool AudioSourceDataModel::workerReachable() const
+{
+    // A single predicate for every worker-bound call, so no call site can
+    // forget one of the two halves (stopped latch / destroyed worker).
+    return !m_captureStopped && m_thread != nullptr && !m_worker.isNull();
 }
 
 /// Start capture programmatically (runtime autoStart, REQ-SW-PL-048).
 /// Delegates to the same logic as onUiStart(ASDM_START).
 void AudioSourceDataModel::start()
 {
-    QMetaObject::invokeMethod(m_worker, "startCapture", Qt::QueuedConnection);
+    if (!workerReachable())
+        return;
+    QMetaObject::invokeMethod(m_worker.data(), "startCapture", Qt::QueuedConnection);
 }
 
 QJsonObject AudioSourceDataModel::save() const
@@ -116,12 +140,15 @@ void AudioSourceDataModel::outputConnectionDeleted(QtNodes::ConnectionId const &
 
 void AudioSourceDataModel::onUiStart(AudioStartStop start)
 {
+    if (!workerReachable())
+        return; // stopped: the capture thread is gone, nothing to command
+
     // Queued dispatch to the worker thread; capture itself runs there.
     if (start == ASDM_START
         || start == ASDM_RELOAD) {
-        QMetaObject::invokeMethod(m_worker, "startCapture", Qt::QueuedConnection);
+        QMetaObject::invokeMethod(m_worker.data(), "startCapture", Qt::QueuedConnection);
     } else {
-        QMetaObject::invokeMethod(m_worker, "stopCapture", Qt::QueuedConnection);
+        QMetaObject::invokeMethod(m_worker.data(), "stopCapture", Qt::QueuedConnection);
     }
 }
 
@@ -134,18 +161,27 @@ void AudioSourceDataModel::onAudioConnectionChanged(QAudioDeviceInfo devInfo,
     m_DevInfo = devInfo;
     m_FormatAudio = formatAudio;
 
+    if (!workerReachable())
+        return; // stopped: keep the selection, it is model state, not capture
+
     // The capture worker lives in m_thread; updateDevice is a plain slot so a
     // direct call from the GUI thread is safe (it only re-creates the QIODevice
     // wrapper) — this mirrors the old direct widget→worker connection.
-    QMetaObject::invokeMethod(m_worker, "updateDevice", Qt::QueuedConnection,
+    QMetaObject::invokeMethod(m_worker.data(), "updateDevice", Qt::QueuedConnection,
                               Q_ARG(QAudioDeviceInfo, devInfo),
                               Q_ARG(QAudioFormat, formatAudio));
 }
 
 void AudioSourceDataModel::setCaptureEnabled(bool enabled)
 {
+    // Reached from outputConnectionDeleted(), i.e. from the scene close AFTER
+    // stop() freed the worker (REQ-SW-PL-078): a queued invoke on the dangling
+    // pointer is the crash this guard exists for.
+    if (!workerReachable())
+        return;
+
     // Queued: the worker gates wrap+emit on this flag (PL-022 §4 pattern).
-    QMetaObject::invokeMethod(m_worker, "setCaptureEnabled", Qt::QueuedConnection,
+    QMetaObject::invokeMethod(m_worker.data(), "setCaptureEnabled", Qt::QueuedConnection,
                               Q_ARG(bool, enabled));
 }
 

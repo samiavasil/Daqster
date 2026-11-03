@@ -83,6 +83,35 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
 **Преизползван чужд `whisper-server` не се пипа** — той има свой собственик, а
 нодът само затваря връзката си.
 
+### След `stop()` нодът продължава да получава обръщения
+
+`stop()` не е краят на разговора: стъпка 3 трие връзките на възела **преди** да
+го унищожи, а `DataFlowGraphModel::deleteNode()` вика `outputConnectionDeleted()`
+на производителя за всяка изтрита връзка (`deleteConnection` →
+`sendConnectionDeletion`). За `AudioSource` това означаваше
+`setCaptureEnabled(false)` → `QMetaObject::invokeMethod` върху worker, който
+`stop()` вече е унищожил (`quit()` + `wait()`; `QThread::finished` →
+`deleteLater`): use-after-free при `File → Close Scene` (backtrace: кадри 2–7 —
+`setCaptureEnabled` → `outputConnectionDeleted` → `sendConnectionDeletion` →
+`deleteConnection` → `deleteNode` → `clearScene`).
+
+Затова нод, който държи helper обект в **друга нишка**, спазва три правила:
+
+- пази го с **`QPointer`** и проверява `if (!w) return;` преди **всяко**
+  `invokeMethod` (не само преди `setCaptureEnabled` — същото важи за
+  `startCapture`/`stopCapture`/`updateDevice`, тоест и за `start()`, и за
+  `onUiStart()`, и за `onAudioConnectionChanged()`);
+- `stop()` вдига **еднократен флаг** (`m_captureStopped`) и след него всички
+  worker-обръщения са no-op — дори pointer-ът да е още жив (QPointer става null
+  само при реално унищожаване, а deferred delete може да не е приключил);
+- флагът се вдига **преди** `quit()/wait()`, за да покрие и прозореца, в който
+  worker-ът е в процес на унищожаване; `stop()` е идемпотентен и не оставя
+  pointer към worker-а.
+
+Проверката е `test_thread_lifecycle.cpp` (`stopThenConnectionDeletedIsSafe`,
+`stopThenUiAndDeviceCallsAreInert`, `audioSourceSurvivesFiveSceneCloses`): те
+скубят освободения блок с `0xAB`, за да не минава use-after-free-ът „на късмет".
+
 ## Какво остава по дизайн
 
 Затварянето не е „освободи всичко". Остава:

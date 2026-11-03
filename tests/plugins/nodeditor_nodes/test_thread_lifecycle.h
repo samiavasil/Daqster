@@ -48,6 +48,13 @@ private slots:
 
     void startThenStopIsClean();
 
+    // REQ-SW-PL-078 — the scene close stops the nodes FIRST and only then lets
+    // the graph delete the connections. Whether that is safe depends on what a
+    // node does with a connection callback after its own stop().
+    void stopThenConnectionDeletedIsSafe();
+    void stopThenUiAndDeviceCallsAreInert();
+    void audioSourceSurvivesFiveSceneCloses();
+
     // The cast the app uses (HeadlessEngine.cpp:17 / NodeEditorWidget.cpp:5)
     // and the interface the models satisfy (…/shared/IStoppable.h) are two
     // separate definitions of the same class name. Asserted so the duplication

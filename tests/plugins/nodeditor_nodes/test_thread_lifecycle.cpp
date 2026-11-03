@@ -49,6 +49,14 @@
 #include <type_traits>
 #include <typeinfo>
 
+#include <QtNodes/DataFlowGraphModel>
+#include <QtNodes/NodeDelegateModelRegistry>
+
+#include "SceneClose.h" // FrameworkCore: the close helper every host calls
+
+#include <cstring>
+#include <memory>
+
 namespace {
 
 /// Every model in _core that inherits Daqster::IStoppable, and whether this
@@ -114,6 +122,107 @@ int expectedStartableModelCount()
 {
     return 4;
 }
+
+// ── AudioSource close-path fixtures (REQ-SW-PL-078) ──────────────────────────
+
+/// A one-input consumer: enough for DataFlowGraphModel::addConnection() to have
+/// a real peer for the AudioSource output. It is a graph node, not a widget, so
+/// it needs no Q_OBJECT.
+class SinkStub : public QtNodes::NodeDelegateModel
+{
+public:
+    QString caption() const override { return QStringLiteral("SinkStub"); }
+    bool captionVisible() const override { return false; }
+    QString name() const override { return QStringLiteral("SinkStub"); }
+
+    unsigned int nPorts(QtNodes::PortType portType) const override
+    {
+        return portType == QtNodes::PortType::In ? 1u : 0u;
+    }
+
+    QtNodes::NodeDataType dataType(QtNodes::PortType, QtNodes::PortIndex) const override
+    {
+        return SampledData().type();
+    }
+
+    std::shared_ptr<QtNodes::NodeData> outData(QtNodes::PortIndex) override
+    {
+        return nullptr;
+    }
+
+    void setInData(std::shared_ptr<QtNodes::NodeData> data, QtNodes::PortIndex) override
+    {
+        m_in = std::move(data);
+    }
+
+    QWidget *embeddedWidget() override { return nullptr; }
+
+private:
+    std::shared_ptr<QtNodes::NodeData> m_in;
+};
+
+/// Scrub every free heap block of the capture worker's size class with 0xAB.
+///
+/// A use-after-free usually *works*: the freed block keeps its vtable pointer
+/// until something reuses it, so the stale QMetaObject::invokeMethod() resolves
+/// a real method on an object that no longer exists and the suite stays green.
+/// Refilling the block makes the dangling call read 0xABAB… instead — which is
+/// what the field crash looked like (jump to an unmapped address from
+/// AudioSourceDataModel::setCaptureEnabled, backtrace frame 2).
+///
+/// The blocks stay allocated until the holder dies, so the statement that
+/// follows it is the one that observes the difference: crash or no-op.
+struct ClobberedHeap
+{
+    static constexpr int blockCount = 64;
+
+    explicit ClobberedHeap(std::size_t blockSize = sizeof(MicCaptureWorker))
+    {
+        blocks.reserve(blockCount);
+        for (int i = 0; i < blockCount; ++i) {
+            void *block = ::operator new(blockSize);
+            std::memset(block, 0xAB, blockSize);
+            blocks.append(block);
+        }
+    }
+
+    ~ClobberedHeap()
+    {
+        for (void *block : blocks)
+            ::operator delete(block);
+    }
+
+    QVector<void *> blocks;
+};
+
+/// Two nodes, one output connection: the smallest graph whose deletion reaches
+/// AudioSourceDataModel::outputConnectionDeleted().
+struct AudioSourceGraph
+{
+    AudioSourceGraph()
+    {
+        registry = std::make_shared<QtNodes::NodeDelegateModelRegistry>();
+        registry->registerModel<AudioSourceDataModel>();
+        registry->registerModel<SinkStub>();
+        graph = std::make_unique<QtNodes::DataFlowGraphModel>(registry);
+
+        source = graph->addNode(QStringLiteral("AudioSource"));
+        sink = graph->addNode(QStringLiteral("SinkStub"));
+        // outputConnectionCreated() → setCaptureEnabled(true): the model now
+        // believes a consumer is connected, exactly like an open scene.
+        graph->addConnection({source, 0, sink, 0});
+    }
+
+    AudioSourceDataModel *audioSource()
+    {
+        return graph->delegateModel<AudioSourceDataModel>(source);
+    }
+
+    std::shared_ptr<QtNodes::NodeDelegateModelRegistry> registry;
+    std::unique_ptr<QtNodes::DataFlowGraphModel> graph;
+    QtNodes::NodeId source = QtNodes::InvalidNodeId;
+    QtNodes::NodeId sink = QtNodes::InvalidNodeId;
+};
 
 } // namespace
 
@@ -409,5 +518,120 @@ void TestThreadLifecycle::startThenStopIsClean()
         startable->start();
         QThread::msleep(60);
         stoppable->stop();
+    }
+}
+
+// ── REQ-SW-PL-078: what a close hands to a node after its stop() ─────────────
+//
+// The close order is fixed (stop every node → notify plugins → delete the
+// graph). The graph deletion is NOT a passive teardown: DataFlowGraphModel
+// deletes each node's connections first, and every deleted connection calls
+// outputConnectionDeleted() on the producer. So a source node's connection
+// callback runs after its own stop() — for AudioSource that used to mean a
+// queued QMetaObject::invokeMethod() into a worker that stop() had already
+// destroyed (QThread::finished → deleteLater).
+//
+// Field backtrace (coredump, Close Scene):
+//   #2 AudioSourceDataModel::setCaptureEnabled(bool)
+//   #3 AudioSourceDataModel::outputConnectionDeleted(ConnectionId)
+//   #4 QtNodes::DataFlowGraphModel::sendConnectionDeletion
+//   #5 DataFlowGraphModel::deleteConnection
+//   #6 DataFlowGraphModel::deleteNode
+//   #7 QtNodes::BasicGraphicsScene::clearScene()
+
+void TestThreadLifecycle::stopThenConnectionDeletedIsSafe()
+{
+    AudioSourceGraph scene;
+    QVERIFY2(scene.source != QtNodes::InvalidNodeId, "AudioSource did not register");
+    QVERIFY2(scene.sink != QtNodes::InvalidNodeId, "SinkStub did not register");
+
+    AudioSourceDataModel *model = scene.audioSource();
+    QVERIFY(model != nullptr);
+
+    // A node that was running when the user closed the scene. start() queues
+    // startCapture() to the capture thread; stop() joins that thread, and the
+    // thread deletes the worker on its way out (QThread::finished → deleteLater).
+    model->start();
+    QThread::msleep(50);
+    model->stop();
+
+    // Now the graph deletes the node — and deletes its connection first, so
+    // outputConnectionDeleted() → setCaptureEnabled() runs with the worker gone.
+    const ClobberedHeap scrubbed;
+    scene.graph->deleteNode(scene.source); // before the fix: SEGV inside here
+    scene.graph->deleteNode(scene.sink);
+
+    QVERIFY2(scene.graph->allNodeIds().empty(), "the scene did not end up empty");
+}
+
+void TestThreadLifecycle::stopThenUiAndDeviceCallsAreInert()
+{
+    AudioSourceDataModel model;
+
+    model.start();
+    QThread::msleep(50);
+
+    const ClobberedHeap scrubbed;
+
+    QElapsedTimer timer;
+    timer.start();
+    model.stop();
+    model.stop(); // idempotent: no second join, no touch of the freed worker
+    QVERIFY2(timer.elapsed() < 5000,
+             qPrintable(QStringLiteral("second stop() took %1 ms — it is not a no-op")
+                            .arg(timer.elapsed())));
+
+    // Every remaining path that would queue work to the worker must be a no-op
+    // once the node is stopped. The widget can still emit them (the GUI plugin
+    // tears the widgets down after the models) and the graph does it on the way
+    // out; both are reached here directly.
+    model.onUiStart(ASDM_START);
+    model.onUiStart(ASDM_RELOAD);
+    model.onUiStart(ASDM_STOP);
+    model.onAudioConnectionChanged(*model.deviceInfo(), *model.audioFormat());
+    model.outputConnectionCreated({1, 0, 2, 0});
+    model.outputConnectionDeleted({1, 0, 2, 0});
+    model.start(); // must not resurrect a joined thread either
+
+    // Let any stray queued event run; a firing into freed memory would surface
+    // here instead of in the next test binary.
+    if (QCoreApplication::instance() != nullptr)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+    QVERIFY(true);
+}
+
+void TestThreadLifecycle::audioSourceSurvivesFiveSceneCloses()
+{
+    // One process, five open → run → close cycles. The field report is a SEGV
+    // on an arbitrary close, not always the first: the first one leaves the
+    // heap in a state where the stale worker's block may already be reused.
+    // Each cycle runs the same helper the IDE does (stop sources first), then
+    // empties the graph the way BasicGraphicsScene::clearScene() does.
+    for (int cycle = 0; cycle < 5; ++cycle) {
+        AudioSourceGraph scene;
+        AudioSourceDataModel *model = scene.audioSource();
+        QVERIFY2(model != nullptr, qPrintable(QStringLiteral("cycle %1: no AudioSource model").arg(cycle)));
+
+        model->start();
+        QThread::msleep(20);
+
+        const Daqster::SceneCloseReport report = Daqster::stopSceneNodes(*scene.graph);
+        QVERIFY2(report.nodes == 2,
+                 qPrintable(QStringLiteral("cycle %1: stopSceneNodes saw %2 nodes, expected 2")
+                                .arg(cycle).arg(report.nodes)));
+        QVERIFY2(report.stopped == 1,
+                 qPrintable(QStringLiteral("cycle %1: stopped %2 nodes, expected only the AudioSource")
+                                .arg(cycle).arg(report.stopped)));
+
+        {
+            const ClobberedHeap scrubbed;
+            // copy: deleteNode mutates the id set while we iterate it
+            const auto ids = scene.graph->allNodeIds();
+            for (const QtNodes::NodeId id : ids)
+                scene.graph->deleteNode(id); // before the fix: SEGV on the AudioSource
+        }
+
+        QVERIFY2(scene.graph->allNodeIds().empty(),
+                 qPrintable(QStringLiteral("cycle %1: graph not empty after close").arg(cycle)));
     }
 }

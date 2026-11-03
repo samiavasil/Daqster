@@ -19,6 +19,13 @@
 
 int main(int argc, char *argv[])
 {
+    // The application object is what makes this suite realistic, not a
+    // formality: QThread::finished → deleteLater (the pattern every capture
+    // worker uses) is delivered through the event dispatcher, so without an app
+    // instance a stopped worker is simply never destroyed and the REQ-SW-PL-078
+    // close-path tests would prove nothing about a model that still points at it.
+    QCoreApplication app(argc, argv);
+
     int status = 0;
 
     {
