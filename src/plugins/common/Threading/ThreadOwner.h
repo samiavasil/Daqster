@@ -116,21 +116,32 @@ public:
     /// survives even that is left attached (destroying a running QThread aborts
     /// the process) and `TimedOut` is returned.
     ///
+    /// `terminateOnTimeout == false` is for a worker whose thread must never be
+    /// killed: PlutoSDR's stream loop sits inside `iio_buffer_refill()` on a
+    /// libiio buffer that stop() is about to destroy, and terminating it there
+    /// leaves the driver in an undefined state (REQ-SW-PL-050 D3). The deadline
+    /// still applies — the caller gets `TimedOut` and the thread is left
+    /// attached, exactly like a terminate() that did not reap it.
+    ///
     /// @param deadlineMs Milliseconds to wait for the event loop to return.
     /// @param terminateMs Milliseconds to wait after terminate().
+    /// @param terminateOnTimeout Whether terminate() may be used when the
+    ///                           deadline expires. false = report and detach.
     /// @return NotRunning for an already-stopped owner (idempotent), Stopped on
     ///         a clean join, TimedOut when terminate() had to be used or when
     ///         the thread still would not die.
-    StopResult stop(int deadlineMs = 3000, int terminateMs = 500)
+    StopResult stop(int deadlineMs = 3000, int terminateMs = 500,
+                    bool terminateOnTimeout = true)
     {
-        if (!m_thread)
+        if (!m_thread) {
             return StopResult::NotRunning;
+        }
 
         // 1. Latch BEFORE quit(): a task arriving during the stop must be
         //    refused, not queued on a thread that is being torn down.
         m_stopping.store(true, std::memory_order_release);
 
-        QThread *thread = m_thread;
+        QThread *thread = m_thread.data();
         StopResult result = StopResult::Stopped;
 
         // 2. Ask the event loop to return. Harmless for a thread that never ran
@@ -138,6 +149,16 @@ public:
         thread->quit();
 
         if (!thread->wait(deadlineMs)) {
+            if (!terminateOnTimeout) {
+                qCWarning(lcThreading).noquote()
+                    << QStringLiteral("ThreadOwner<%1>: worker did not stop within %2 ms — "
+                                      "leaving it attached (terminate() disabled)")
+                           .arg(QString::fromLatin1(Worker::staticMetaObject.className()))
+                           .arg(deadlineMs);
+                // m_thread stays set: the caller keeps the resource the thread
+                // is still using, and a later stop() gets another chance.
+                return StopResult::TimedOut;
+            }
             qCWarning(lcThreading).noquote()
                 << QStringLiteral("ThreadOwner<%1>: worker did not stop within %2 ms — terminating")
                        .arg(QString::fromLatin1(Worker::staticMetaObject.className()))
@@ -159,7 +180,7 @@ public:
         // 3. The thread is joined. Drop the worker: its deleteLater() may never
         //    have been delivered (the event loop is gone), and QPointer tells us
         //    whether it still exists.
-        m_thread = nullptr;
+        m_thread.clear();
         if (Worker *worker = m_worker.data()) {
             delete worker;
         }
@@ -169,10 +190,34 @@ public:
         return result;
     }
 
+    /// Give up ownership of the running thread WITHOUT stopping it.
+    ///
+    /// For a worker that must not be killed: PlutoSDR's loop blocks inside
+    /// `iio_buffer_refill()` on a buffer stop() is about to destroy, and
+    /// terminating the thread there leaves the libiio driver in an undefined
+    /// state (REQ-SW-PL-050 D3). The thread keeps running, deletes its worker
+    /// through the usual `finished → deleteLater`, and deletes itself, so the
+    /// owner must not touch it — `~ThreadOwner()` becomes a no-op and a later
+    /// `stop()` reports NotRunning.
+    ///
+    /// The caller takes responsibility for the resources the thread still uses:
+    /// intentionally leak them, never destroy them under the live thread.
+    void detach()
+    {
+        if (!m_thread)
+            return;
+        QThread *thread = m_thread.data();
+        m_thread.clear();
+        m_worker.clear();
+        m_stopping.store(true, std::memory_order_release);
+        // The owner is no longer around to delete the thread object; the
+        // thread deletes itself when (if) its loop finally returns.
+        QObject::connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+    }
+
     /// True while the owned thread is running (including "stopping, not yet
     /// joined").
     bool isRunning() const { return m_thread && m_thread->isRunning(); }
-
     /// The live worker, or nullptr when the owner is stopping/stopped.
     ///
     /// Goes through the same predicate as invoke() on purpose: after the latch
@@ -204,7 +249,7 @@ private:
         return m_worker.data();
     }
 
-    QThread *m_thread = nullptr;      ///< owned; nullptr when not running
+    QPointer<QThread> m_thread;       ///< owned; null when not running
     QPointer<Worker> m_worker;        ///< nulled by deleteLater()/delete
     std::atomic<bool> m_stopping{true}; ///< latched before quit() and by ~
 };

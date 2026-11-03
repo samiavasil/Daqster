@@ -8,11 +8,12 @@
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
 
-#include <QtCore/QPointer>
-#include <QtCore/QThread>
+#include <Threading/ThreadOwner.h>
+
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/internal/Definitions.hpp>
 
+#include <functional>
 #include <memory>
 
 class AudioSourceDataModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
@@ -111,21 +112,22 @@ private slots:
 private:
     void setCaptureEnabled(bool enabled);
 
-    /// True while the capture worker is alive **and** the model has not been
-    /// stopped — the single predicate every worker-bound call checks before
-    /// queueing anything to the other thread.
-    bool workerReachable() const;
+    /// Queue a call on the capture thread through the owner.
+    ///
+    /// The owner raises its latch before it joins the thread, and `invoke()`
+    /// refuses work after that; the QPointer is captured **by value** so a
+    /// deferred call never dereferences a worker that stop() already dropped
+    /// (REQ-SW-PL-078 — the graph deletes connections after a node's stop()).
+    ///
+    /// @param call What to run on the worker thread.
+    /// @return false when the capture worker is stopping/stopped (the normal
+    ///         "the scene is closed" answer, not an error).
+    bool onCaptureThread(std::function<void(MicCaptureWorker *)> call);
 
-    QThread *m_thread = nullptr;
-    /// moveToThread'ed into m_thread; freed via QThread::finished → deleteLater.
-    /// A QPointer, not a raw pointer: the worker is destroyed on the worker
-    /// thread, so a raw pointer would dangle here and every later queued call
-    /// (see setCaptureEnabled) would be a use-after-free (REQ-SW-PL-078).
-    QPointer<MicCaptureWorker> m_worker;
-    /// Latched by stop(). After it, all worker-bound calls are no-ops — the
-    /// scene close deletes the connections after stopping the nodes, which is
-    /// exactly when outputConnectionDeleted() would otherwise reach the worker.
-    bool m_captureStopped = false;
+    /// Owns the capture thread and its worker (REQ-SW-PL-050). `alive()` is the
+    /// single predicate every worker-bound call checks; stop() is idempotent,
+    /// latches before quit() and joins with a deadline.
+    Daqster::ThreadOwner<MicCaptureWorker> m_capture;
     QAudioDeviceInfo m_DevInfo;
     QAudioFormat m_FormatAudio;
     std::shared_ptr<SampledData> m_lastData;

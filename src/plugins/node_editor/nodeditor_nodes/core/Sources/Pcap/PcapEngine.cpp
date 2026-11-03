@@ -1,6 +1,5 @@
 #include "PcapEngine.h"
 
-#include <QThread>
 #include <QTimer>
 
 #ifdef HAVE_PCAP
@@ -137,10 +136,15 @@ void PcapEngine::start()
     m_packetsDropped = 0;
     m_packetsIfDropped = 0;
 
-    m_thread = new QThread(this);
-    connect(m_thread, &QThread::started, this, &PcapEngine::runCapture);
-    connect(m_thread, &QThread::finished, m_thread, &QThread::deleteLater);
-    m_thread->start();
+    // A plain QObject context: runCapture() is a blocking pcap loop queued onto
+    // the owned thread, not an event-loop worker (REQ-SW-PL-050).
+    if (!m_stream.start([] { return new QObject(); })
+        || !m_stream.invoke([this] { runCapture(); })) {
+        m_running = false;
+        m_stream.stop(3000, 500);
+        emit errorOccurred(QStringLiteral("не мога да стартирам capture нишката"));
+        return;
+    }
 
     m_status = QStringLiteral("Capturing on %1...").arg(m_interface);
     emit statusChanged(m_status);
@@ -148,7 +152,7 @@ void PcapEngine::start()
 
 void PcapEngine::stop()
 {
-    if (!m_running)
+    if (!m_running && !m_stream.isRunning())
         return;
 
     m_running = false;
@@ -159,14 +163,10 @@ void PcapEngine::stop()
     }
 #endif
 
-    if (m_thread) {
-        m_thread->quit();
-        if (!m_thread->wait(3000)) {
-            m_thread->terminate();
-            m_thread->wait(1000);
-        }
-        m_thread = nullptr;
-    }
+    // Same deadlines as before (REQ-SW-PL-050): 3 s for the polite quit, then
+    // terminate() and 1 s — pcap_next_ex() honours pcap_breakloop, so the
+    // terminate is only the last resort.
+    m_stream.stop(3000, 1000);
 
     close();
 

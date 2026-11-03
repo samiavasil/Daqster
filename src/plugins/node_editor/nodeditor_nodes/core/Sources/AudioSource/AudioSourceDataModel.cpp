@@ -2,10 +2,15 @@
 #include "MicCaptureWorker.h"
 
 #include <QDebug>
-#include <QThread>
 #include "LogCategories.h"
 
 using QtNodes::NodeDataType;
+
+namespace {
+/// How long stop() waits for the capture thread (REQ-SW-PL-050). The worker
+/// only drains a device, so a bounded join is enough; ThreadOwner bounds it.
+constexpr int kCaptureJoinMs = 3000;
+} // namespace
 
 AudioSourceDataModel::AudioSourceDataModel()
 {
@@ -18,69 +23,52 @@ AudioSourceDataModel::AudioSourceDataModel()
     m_DevInfo = AudioCompat::defaultInputDevice();
     m_FormatAudio = AudioCompat::preferredFormat(m_DevInfo);
 
-    // Model-owned worker thread: ALL audio work happens there, the GUI thread
+    // Model-owned capture thread: ALL audio work happens there, the GUI thread
     // only keeps the latest shared_ptr and emits dataUpdated (hard requirement).
-    m_thread = new QThread(this);
-    m_thread->setObjectName(QStringLiteral("AudioSourceCaptureThread"));
-
-    m_worker = new MicCaptureWorker();
-    m_worker->moveToThread(m_thread);
-    // Worker freed on the worker thread when the thread finishes (Qt pattern).
-    connect(m_thread, &QThread::finished, m_worker, &QObject::deleteLater);
+    // ThreadOwner owns the thread, the moveToThread() and the worker's lifetime
+    // (REQ-SW-PL-050).
+    m_capture.start([] { return new MicCaptureWorker(); });
 
     // worker → model (queued): SampledData crosses the thread boundary by
     // shared_ptr only; no mutex — produced fully on the worker thread.
-    connect(m_worker, &MicCaptureWorker::samplesReady,
-            this, &AudioSourceDataModel::onSamplesReady);
-
-    m_thread->start();
+    if (MicCaptureWorker *worker = m_capture.alive()) {
+        connect(worker, &MicCaptureWorker::samplesReady,
+                this, &AudioSourceDataModel::onSamplesReady);
+    }
 }
 
 AudioSourceDataModel::~AudioSourceDataModel()
 {
-    // Single shutdown path: stop() quits + waits the capture thread
+    // Single shutdown path: stop() quits + joins the capture thread
     // (REQ-SW-PL-050).
     stop();
 }
 
 void AudioSourceDataModel::stop()
 {
-    // Idempotent (REQ-SW-PL-050): the first call joins the capture thread and
-    // drops the worker, later calls are no-ops. The flag is latched BEFORE the
-    // join on purpose — it closes the window between quit() and the worker's
-    // destruction, which is exactly where a queued setCaptureEnabled() would
+    // Idempotent (REQ-SW-PL-050): ThreadOwner raises its latch BEFORE quit(),
+    // joins with a deadline and drops the worker; a second call is NotRunning.
+    // The latch closes the window in which a queued setCaptureEnabled() would
     // otherwise be posted to a worker that is being freed (REQ-SW-PL-078).
-    if (m_captureStopped)
-        return;
-    m_captureStopped = true;
-
-    if (m_thread != nullptr) {
-        m_thread->quit();
-        m_thread->wait();
-    }
-
-    // The worker is deleted by the QThread::finished → deleteLater connection
-    // before wait() returns (Qt flushes DeferredDelete events in the finishing
-    // thread), so the QPointer is usually already null here. Clearing it anyway
-    // is the contract: after stop() this model holds no worker at all, even if
-    // a future Qt leaves the deferred deletion pending on a finished thread.
-    m_worker = nullptr;
+    m_capture.stop(kCaptureJoinMs);
 }
 
-bool AudioSourceDataModel::workerReachable() const
+bool AudioSourceDataModel::onCaptureThread(std::function<void(MicCaptureWorker *)> call)
 {
-    // A single predicate for every worker-bound call, so no call site can
-    // forget one of the two halves (stopped latch / destroyed worker).
-    return !m_captureStopped && m_thread != nullptr && !m_worker.isNull();
+    const QPointer<MicCaptureWorker> worker = m_capture.alive();
+    if (!worker)
+        return false;
+    return m_capture.invoke([worker, call = std::move(call)] {
+        if (worker)
+            call(worker.data());
+    });
 }
 
 /// Start capture programmatically (runtime autoStart, REQ-SW-PL-048).
 /// Delegates to the same logic as onUiStart(ASDM_START).
 void AudioSourceDataModel::start()
 {
-    if (!workerReachable())
-        return;
-    QMetaObject::invokeMethod(m_worker.data(), "startCapture", Qt::QueuedConnection);
+    onCaptureThread([](MicCaptureWorker *worker) { worker->startCapture(); });
 }
 
 QJsonObject AudioSourceDataModel::save() const
@@ -140,15 +128,13 @@ void AudioSourceDataModel::outputConnectionDeleted(QtNodes::ConnectionId const &
 
 void AudioSourceDataModel::onUiStart(AudioStartStop start)
 {
-    if (!workerReachable())
-        return; // stopped: the capture thread is gone, nothing to command
-
-    // Queued dispatch to the worker thread; capture itself runs there.
+    // Stopped: the capture thread is gone, nothing to command (ThreadOwner's
+    // latch makes invoke() refuse and returns false).
     if (start == ASDM_START
         || start == ASDM_RELOAD) {
-        QMetaObject::invokeMethod(m_worker.data(), "startCapture", Qt::QueuedConnection);
+        onCaptureThread([](MicCaptureWorker *worker) { worker->startCapture(); });
     } else {
-        QMetaObject::invokeMethod(m_worker.data(), "stopCapture", Qt::QueuedConnection);
+        onCaptureThread([](MicCaptureWorker *worker) { worker->stopCapture(); });
     }
 }
 
@@ -161,28 +147,23 @@ void AudioSourceDataModel::onAudioConnectionChanged(QAudioDeviceInfo devInfo,
     m_DevInfo = devInfo;
     m_FormatAudio = formatAudio;
 
-    if (!workerReachable())
-        return; // stopped: keep the selection, it is model state, not capture
-
-    // The capture worker lives in m_thread; updateDevice is a plain slot so a
-    // direct call from the GUI thread is safe (it only re-creates the QIODevice
-    // wrapper) — this mirrors the old direct widget→worker connection.
-    QMetaObject::invokeMethod(m_worker.data(), "updateDevice", Qt::QueuedConnection,
-                              Q_ARG(QAudioDeviceInfo, devInfo),
-                              Q_ARG(QAudioFormat, formatAudio));
+    // Stopped: keep the selection — it is model state, not capture.
+    // updateDevice re-creates the QIODevice wrapper, so it must run on the
+    // capture thread like every other worker-bound call.
+    onCaptureThread([devInfo, formatAudio](MicCaptureWorker *worker) {
+        worker->updateDevice(devInfo, formatAudio);
+    });
 }
 
 void AudioSourceDataModel::setCaptureEnabled(bool enabled)
 {
     // Reached from outputConnectionDeleted(), i.e. from the scene close AFTER
-    // stop() freed the worker (REQ-SW-PL-078): a queued invoke on the dangling
-    // pointer is the crash this guard exists for.
-    if (!workerReachable())
-        return;
-
-    // Queued: the worker gates wrap+emit on this flag (PL-022 §4 pattern).
-    QMetaObject::invokeMethod(m_worker.data(), "setCaptureEnabled", Qt::QueuedConnection,
-                              Q_ARG(bool, enabled));
+    // stop() freed the worker (REQ-SW-PL-078): onCaptureThread() checks the
+    // owner's latch/worker, so the call is a no-op instead of a queued invoke
+    // on a dangling pointer.
+    onCaptureThread([enabled](MicCaptureWorker *worker) {
+        worker->setCaptureEnabled(enabled);
+    });
 }
 
 void AudioSourceDataModel::onSamplesReady(std::shared_ptr<SampledData> data)

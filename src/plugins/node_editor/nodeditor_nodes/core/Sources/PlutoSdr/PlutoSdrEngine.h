@@ -5,9 +5,9 @@
 
 #include <QByteArray>
 #include <QObject>
-#include <QPointer>
 #include <QString>
-#include <QThread>
+
+#include <Threading/ThreadOwner.h>
 
 #include <atomic>
 
@@ -93,10 +93,16 @@ private:
     double m_gainDb = 30.0;
 
     std::atomic<bool> m_running{false};
-    /// QPointer, not a raw pointer: the thread deletes itself via
-    /// finished → deleteLater, so a raw member would dangle as soon as the
-    /// event loop turns after the stream thread ended on its own.
-    QPointer<QThread> m_worker;
+    /// Owns the stream thread (REQ-SW-PL-050). The worker is a plain QObject
+    /// context, not an event-loop worker: the loop is a blocking
+    /// `iio_buffer_refill()` and runs as a queued call on the owned thread.
+    /// `stop(..., terminateOnTimeout=false)` reports a stuck libiio call instead
+    /// of killing the thread; `detach()` then gives the thread up on purpose.
+    Daqster::ThreadOwner<QObject> m_stream;
+    /// Set when the stream thread could not be joined: the iio context, buffer
+    /// and thread are deliberately left alive (destroying them under a live
+    /// `iio_buffer_refill()` is undefined), so close() must not free them.
+    bool m_streamLeftAttached = false;
     double m_activeSampleRateHz = 0.0; // rate actually applied at start()
 
 #ifdef HAVE_LIBIIO

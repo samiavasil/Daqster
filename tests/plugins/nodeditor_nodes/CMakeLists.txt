@@ -682,6 +682,11 @@ set(MODEL_NAME_TEST_SOURCES
     # AudioSourceDataModel.
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Operators/ArithmeticLogic/ExprParser.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/AudioSource/MicCaptureWorker.cpp
+    # ThreadOwner (header-only, REQ-SW-PL-050) emits into the "daqster.threading"
+    # category, which is defined in exactly one translation unit — the same TU
+    # DaqsterCommonLibrary compiles. The models below are compiled into this
+    # binary instead of linked from the plugin, so the definition comes along.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ThreadingLog.cpp
     # REQ-SW-PL-056: Demux/Mux + their GenericQDevIo connector dependency
     # (header-only StreamChannelObsolete/QDevIOStreamConfigObsolete types);
     # GenericQDevIoConnectorObsolete's base ctor comes from
@@ -896,6 +901,11 @@ set(LIFECYCLE_TEST_SOURCES
     # reaches TexturePool, which E1 moved into the common GL library.
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/StreamUrlValidator.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ComputePool.cpp
+    # ThreadOwner (header-only, REQ-SW-PL-050) emits into the "daqster.threading"
+    # category, defined in exactly one TU (DaqsterCommonLibrary compiles it).
+    # The models are compiled into this binary instead of linked from the
+    # plugin, so the definition comes along too.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ThreadingLog.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
 )
 

@@ -3,28 +3,29 @@
 
 #include "nodeditor_nodes_core_export.h"
 
+#include "Threading/ThreadOwner.h"
+
 #include <QObject>
+#include <QMutex>
 #include <QString>
 #include <QVector>
-#include <QMutex>
 #include <QWaitCondition>
 
 #ifdef HAVE_PCAP
 #include <pcap/pcap.h>
 #endif
 
-class QThread;
-
 /**
  * @brief libpcap wrapper that captures packets in a worker thread.
  *
  * REQ-SW-PL-047: opens a network interface via libpcap, applies a BPF filter,
- * runs pcap_loop() in a dedicated QThread, and emits packetCaptured() for each
+ * runs the capture loop in a dedicated thread owned by a
+ * `Daqster::ThreadOwner` (REQ-SW-PL-050), and emits packetCaptured() for each
  * packet. All libpcap calls are guarded by #ifdef HAVE_PCAP — without libpcap
  * the class compiles as a no-op (open() returns false, start() emits nothing).
  *
- * The engine owns a QThread; start() begins capture, stop() calls
- * pcap_breakloop() and waits for the thread to finish. The caller (PcapModel)
+ * The engine owns the thread through the owner; start() begins capture, stop()
+ * calls pcap_breakloop() and joins it with a deadline. The caller (PcapModel)
  * owns the engine and is responsible for calling stop() on destruction.
  */
 class NODEDITOR_NODES_CORE_EXPORT PcapEngine : public QObject
@@ -98,7 +99,10 @@ private:
 #else
     void *m_handle = nullptr;
 #endif
-    QThread *m_thread = nullptr;
+    /// Owns the capture thread (REQ-SW-PL-050). `pcap_next_ex()` is a blocking
+    /// loop, so the worker is a plain QObject context and the loop runs as a
+    /// queued call on the owned thread; stop() breaks the loop and joins it.
+    Daqster::ThreadOwner<QObject> m_stream;
     QString m_interface;
     QString m_filter;
     int m_snaplen = 65535;
