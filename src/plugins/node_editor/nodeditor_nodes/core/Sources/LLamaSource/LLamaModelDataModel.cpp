@@ -296,18 +296,23 @@ void LLamaModelDataModel::onHealthReply(bool healthy, QString const& error) {
 }
 
 void LLamaModelDataModel::onStartServerClicked() {
-  if (m_serverProcess && m_serverProcess->state() != QProcess::NotRunning) {
-    if (m_serverHealthTimer)
-      m_serverHealthTimer->stop();
-    m_serverProcess->terminate();
-    m_serverProcess->waitForFinished(3000);
+  if (isServerRunning()) {
+    // Same bounded stop as IStoppable::stop() (REQ-SW-PL-050 D2) — the button
+    // must not report "stopped" while a server that ignored SIGTERM is alive.
+    const StopResult result = stopServer();
     Q_EMIT startButtonChanged(QStringLiteral("Стартирай сървър"), QString::fromLatin1(kServerRunningStyle));
-    setStatus(QStringLiteral("Локален сървър спрян"), false);
+    if (result == StopResult::TimedOut) {
+      setStatus(QStringLiteral("Сървърът не спря (процесът е още жив)"), false);
+      return;
+    }
+    setStatus(result == StopResult::Killed
+                  ? QStringLiteral("Локален сървър убит (игнорира SIGTERM)")
+                  : QStringLiteral("Локален сървър спрян"),
+              false);
     m_connected = false;
     Q_EMIT connectButtonChanged(QStringLiteral("Свържи"), true);
     return;
   }
-
 
   QString exe = m_exePath.trimmed();
   QString model = m_modelPath.trimmed();
@@ -331,6 +336,16 @@ void LLamaModelDataModel::onStartServerClicked() {
   if (m_useGpu) {
     args << "-ngl" << "99";
   }
+
+  // REQ-SW-PL-074 (R5): establish the base URL the moment the local server is
+  // launched. llama.cpp writes its readiness marker — "server is listening on
+  // http://host:port" — to STDERR (verified against the real server: 9 stderr
+  // hits, 0 on stdout), while the stdout handler was the only one setting
+  // m_baseUrl. The result was m_baseUrl == "" and every chat/console request
+  // POSTed to the relative URL "/v1/chat/completions", failed, and was dropped
+  // silently — the node looked like it "did not answer". host/port are fully
+  // known here, so the URL must not depend on which stream carries the marker.
+  m_baseUrl = QStringLiteral("http://%1:%2").arg(m_host.trimmed()).arg(m_port);
 
   if (!m_serverOwner.start(exe, args)) {
     setStatus(QStringLiteral("Локален сървър не можа да стартира"), false);

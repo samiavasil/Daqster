@@ -1083,6 +1083,15 @@ set(LLM_PROTOCOL_TEST_SOURCES
     test_llama_console_protocol.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/LLamaSource/ConsoleDataModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/LLamaSource/LLamaModelDataModel.cpp
+
+    # Transitive definitions LLamaModelDataModel references but does not
+    # implement: it drives llama-server through ProcessOwner (REQ-SW-PL-050),
+    # and ProcessOwner emits into the "daqster.threading" category, defined in
+    # exactly one TU (DaqsterCommonLibrary compiles it). The model is compiled
+    # into this binary instead of linked from the plugin, so both .cpp halves
+    # come along — same two files the lifecycle target above carries.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ThreadingLog.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ProcessOwner.cpp
 )
 
 add_executable(demo_nodeditor_llmprotocol_tests ${LLM_PROTOCOL_TEST_SOURCES})
