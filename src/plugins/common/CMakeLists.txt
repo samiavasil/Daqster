@@ -29,6 +29,7 @@ register_component(DaqsterCommonLibrary
     REQUIRES_LIBRARIES
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
+        Qt${QT_VERSION_MAJOR}::Network
         Qt${QT_VERSION_MAJOR}::OpenGL
 )
 
@@ -43,6 +44,10 @@ if(DAQSTER_COMMON_LIB_ENABLED)
         # shares ONE definition — same argument as TexturePool above.
         Threading/ProcessOwner.cpp
         Threading/ThreadingLog.cpp
+        # One supervisor for any local HTTP server — free port, start,
+        # `/health`, ownership file, bounded stop (REQ-SW-PL-081). It is a
+        # framework capability, not AI: it knows nothing about models.
+        Servers/LocalServerService.cpp
     )
 
     # Windows: WINDOWS_EXPORT_ALL_SYMBOLS makes the linker export all symbols
