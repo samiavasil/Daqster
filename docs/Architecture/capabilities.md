@@ -20,6 +20,7 @@ Capability интерфейсите са **header-only** договори в
 | [`IStartable`](#istartable--istoppable) | Нодове с потребителско „Start" действие | `dynamic_cast` |
 | [`IStoppable`](#istartable--istoppable) | Нодове с фонова работа (threads/timers), идемпотентен `stop()` | `dynamic_cast` |
 | [`ISceneLifecycle`](#iscenelifecycle) | Плъгин: „сцената е спряна, приложи политиката си за теглата" | `dynamic_cast` върху `INodeProvider` |
+| [`ISceneOpening`](#isceneopening) | Плъгин: „тази сцена не може да се отвори тук" — **преди** `load()` | `dynamic_cast` върху `INodeProvider` |
 
 > **Защо два начина за discovery?** Само `INodeProvider` и `IRuntimeHost` са Qt
 > plugin interfaces (с `Q_DECLARE_INTERFACE` + IID). Останалите са plain интерфейси,
@@ -156,6 +157,55 @@ Host-ът вика `onSceneClosed()` **след** като всеки нод е 
 
 Целият договор (ред на спиране, какво остава по дизайн, REST-ът):
 [node_editor/scene-lifecycle.md](node_editor/scene-lifecycle.md).
+
+## ISceneOpening
+
+`src/plugins/common/capabilities/ISceneOpening.h` — **optional** hook за
+**отваряне** на сцена (REQ-SW-PL-082). Огледалото на `ISceneLifecycle`, но за
+другия край: плъгинът казва дали сцената може да се отвори в **този** процес,
+преди хостът да е спрял и унищожил работещата.
+
+```cpp
+struct SceneOpenVerdict {                 // ISceneOpening.h:42
+    QStringList problems;                 // празен == приема; ВСИЧКИ, не първата
+    bool accepted() const { return problems.isEmpty(); }
+};
+class ISceneOpening {                     // ISceneOpening.h:92
+public:
+    virtual SceneOpenVerdict onSceneOpening(const QJsonObject& scene) = 0;  // :106
+};
+```
+
+Хостът пита **преди** `load()`: нодовете на новата сцена още не съществуват, а
+старите са точно както са били. Отказът е безплатен — нищо не е спряно, нищо не
+е унищожено, работещата сцена продължава да работи. Реализацията е една:
+`FrameworkCore::SceneOpen` (`src/frame_work/base/src/engine/SceneOpen.{h,cpp}`) —
+`checkSceneOpening()` (`SceneOpen.h:58`/`:70`), `SceneOpenReport` (`SceneOpen.h:27`)
+и `sceneOpeningMessage()` (`SceneOpen.h:82`).
+
+**Защо е отделен интерфейс, а не слот в `ISceneLifecycle`.** `ISceneLifecycle`
+не декларира `Q_DECLARE_INTERFACE` IID и версия (`capabilities/ISceneLifecycle.h`
+— нито един ред за IID), тоест няма договор за съвместимост: хостът знае само
+подредбата на vtable-а, срещу който плъгинът е компилиран. Нов virtual там значи
+плъгин, компилиран със стария header, да бъде викан през слот, който в неговия
+vtable не съществува — индиректен call в паметта след последния слот (класът
+дефекти INC-014; същата причина `INodeProvider.h` да остава непокътнат). Нов
+интерфейс, откриван с `dynamic_cast`, е невидим за плъгините без него: те просто
+не се питат. Затова и `DAQSTER_PLUGIN_INTERFACE_*` **не** се вдига
+(`src/frame_work/base/src/include/QPluginInterface.h:254-258`) — той е
+all-or-nothing и би счупил всеки несвързан плъгин.
+
+**Какво hook-ът не бива.** Не стартира процеси, нишки и не зарежда модели: вика
+се, докато потребителят чака, и преди каквото и да съществува. Отговаря от вече
+известното (настройки, наличие на файл, конфигурация на билда); истинската
+подготовка е в `start()` на нодовете. **И трябва да отговаря без `Initialize()`.**
+`PluginRegistry::nodeProviders()` умишлено **не** вика `ensureInitialized()`
+(`src/frame_work/base/src/registry/PluginRegistry.cpp:232-239`): инициализация
+тук би построила runtime host-ове (цял `RuntimeShell` с MDI, widget-и и OpenGL)
+само за да зададе един въпрос. Затова настройките се четат лениво.
+
+Кой пита и какво прави с отказа: [node_editor/scene-lifecycle.md](node_editor/scene-lifecycle.md)
+→ „Отварянето е договор".
 
 ## Node Data Types
 

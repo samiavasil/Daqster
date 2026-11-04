@@ -26,6 +26,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include "SceneClose.h"
+#include "SceneOpen.h"
 #include <QMessageBox>
 #include <QSet>
 #include <QDir>
@@ -790,6 +791,19 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
             cleanedConnections.append(connJson);
         }
         sceneJson["connections"] = cleanedConnections;
+    }
+
+    // REQ-SW-PL-082: ask the plugins before the outgoing scene is touched. A
+    // refusal must leave what is on screen exactly as it was — closeCurrentScene()
+    // below stops and destroys the current nodes, so the question comes first.
+    // The scene handed to the hook is the filtered one, i.e. what would actually
+    // be loaded.
+    const Daqster::SceneOpenReport openReport = Daqster::checkSceneOpening(sceneJson);
+    if (!openReport.accepted()) {
+        const QString message = Daqster::sceneOpeningMessage(openReport);
+        qCWarning(lcNodeEditor).noquote() << message;
+        QMessageBox::warning(m_Win, tr("Load Scene"), message);
+        return false;
     }
 
     try {

@@ -1,5 +1,6 @@
 #include "HeadlessEngine.h"
 #include "SceneClose.h"
+#include "SceneOpen.h"
 
 #include "ControlPlaneServer.h"
 #include "NodeSchemaBuilder.h"
@@ -112,9 +113,24 @@ bool HeadlessEngine::loadFlow(const QString& flowPath)
 
     qCInfo(lcNodeEditor) << "HeadlessEngine: loading flow:" << flowPath;
 
-    // Loading over a live scene is a close+open as well: stop the old nodes
-    // while their graph is still valid, then let plugins apply their close
-    // policy (REQ-SW-PL-078 / REQ-AI-021 close contract).
+    // 1. Read the file first. Nothing live is touched yet: an unreadable file
+    //    used to stop the outgoing scene and destroy its graph before the parse
+    //    was even attempted, so a typo in a path killed a running flow
+    //    (REQ-SW-PL-082).
+    QJsonObject sceneJson;
+    if (!parseFlowFile(flowPath, &sceneJson)) {
+        // Error already emitted by parseFlowFile
+        return false;
+    }
+
+    // 2. Ask the plugins before anything is torn down. A refusal here is free:
+    //    the old scene was never stopped and its graph is still intact.
+    if (!acceptSceneOrReport(sceneJson))
+        return false;
+
+    // 3. Now the outgoing scene goes away. Stop the old nodes while their graph
+    //    is still valid, then let plugins apply their close policy
+    //    (REQ-SW-PL-078 / REQ-AI-021 close contract).
     if (m_graphModel && !m_graphModel->allNodeIds().empty()) {
         stopAllNodes();
         // Loading over a live scene is a Replace, not a close: the same models
@@ -122,30 +138,31 @@ bool HeadlessEngine::loadFlow(const QString& flowPath)
         Daqster::notifySceneClosed(Daqster::SceneCloseReason::Replace);
     }
 
-    // 1. Register nodes (headless-compatible only)
+    // 4. Register nodes (headless-compatible only)
     if (!registerNodes()) {
         emit errorOccurred("Failed to register node types");
         return false;
     }
 
-    // 2. Build graph model
+    // 5. Build graph model (this destroys the old graph — after the parse and
+    //    the pre-open check, never before)
     if (!buildGraphModel()) {
         emit errorOccurred("Failed to build graph model");
         return false;
     }
 
-    // 3. Parse flow file
-    if (!parseFlowFile(flowPath)) {
-        // Error already emitted by parseFlowFile
+    // 6. Apply the already-parsed scene
+    if (!applySceneJson(sceneJson)) {
+        // Error already emitted by applySceneJson
         return false;
     }
 
-    // 4. Validate flow - fail fast on unsupported nodes
+    // 7. Validate flow - fail fast on unsupported nodes
     if (!validateFlow()) {
         return false;
     }
 
-    // 5. Auto-start nodes
+    // 8. Auto-start nodes
     autoStartNodes();
 
     emit flowLoaded(true);
@@ -155,6 +172,17 @@ bool HeadlessEngine::loadFlow(const QString& flowPath)
 
 bool HeadlessEngine::reloadFlow(const QJsonObject& flow, QString* errorMessage)
 {
+    // Ask before anything is stopped: a refused scene must leave the one that
+    // is running exactly as it was (REQ-SW-PL-082).
+    const SceneOpenReport openReport = checkSceneOpening(flow);
+    if (!openReport.accepted()) {
+        const QString message = sceneOpeningMessage(openReport);
+        qCCritical(lcNodeEditor).noquote() << message;
+        emit errorOccurred(message);
+        if (errorMessage) *errorMessage = message;
+        return false;
+    }
+
     if (!m_graphModel) {
         // Nothing live yet: bring the registry/graph up first.
         if (!registerNodes()) {
@@ -336,8 +364,14 @@ bool HeadlessEngine::validateFlow()
     return true;
 }
 
-bool HeadlessEngine::parseFlowFile(const QString& fileName)
+bool HeadlessEngine::parseFlowFile(const QString& fileName, QJsonObject* sceneJson)
 {
+    if (sceneJson == nullptr) {
+        qCCritical(lcNodeEditor) << "HeadlessEngine: parseFlowFile called without an output object";
+        emit errorOccurred("Internal error: no scene object to parse into");
+        return false;
+    }
+
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly)) {
         qCWarning(lcNodeEditor) << "HeadlessEngine: cannot open" << fileName;
@@ -355,7 +389,20 @@ bool HeadlessEngine::parseFlowFile(const QString& fileName)
         return false;
     }
 
-    return applySceneJson(sceneDocument.object());
+    *sceneJson = sceneDocument.object();
+    return true;
+}
+
+bool HeadlessEngine::acceptSceneOrReport(const QJsonObject& sceneJson)
+{
+    const SceneOpenReport report = checkSceneOpening(sceneJson);
+    if (report.accepted())
+        return true;
+
+    const QString message = sceneOpeningMessage(report);
+    qCCritical(lcNodeEditor).noquote() << message;
+    emit errorOccurred(message);
+    return false;
 }
 
 bool HeadlessEngine::applySceneJson(QJsonObject sceneJson)
@@ -408,6 +455,13 @@ bool HeadlessEngine::applySceneJson(QJsonObject sceneJson)
         }
         sceneJson["connections"] = cleanedConnections;
     }
+
+    // REQ-SW-PL-082: the last gate before the graph changes. The hosts check
+    // earlier too (so a refusal costs nothing), but this is the one place every
+    // path — loadFlow, reloadFlow and POST /api/flow — has to pass, so a plugin
+    // can never be asked for a verdict after its nodes were already built.
+    if (!acceptSceneOrReport(sceneJson))
+        return false;
 
     try {
         m_graphModel->load(sceneJson);

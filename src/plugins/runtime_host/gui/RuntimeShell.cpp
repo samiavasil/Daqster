@@ -6,6 +6,7 @@
 #include "capabilities/INodeProvider.h"
 #include "capabilities/IWidgetProvider.h"
 #include "SceneClose.h"
+#include "SceneOpen.h"
 #include "debug.h"
 #include "LogCategories.h"
 #include "shared/IStartable.h"
@@ -290,15 +291,9 @@ bool RuntimeShell::loadFlow(const QString& fileName)
         return false;
     }
 
-    // Loading over a live scene closes it first: nodes must be stopped while
-    // the graph is still valid, then plugins apply their close policy.
-    if (!m_editorWidget->graphModel()->allNodeIds().empty()) {
-        stopAllNodes();
-        // Replace, not close: the models are likely needed by the scene that is
-        // about to be loaded (REQ-SW-PL-078).
-        Daqster::notifySceneClosed(Daqster::SceneCloseReason::Replace);
-    }
-
+    // Read first (REQ-SW-PL-082): an unreadable file used to stop the running
+    // scene before the parse was attempted, so a bad path killed the flow that
+    // was already up.
     QFile file(fileName);
     if (!file.open(QIODevice::ReadOnly)) {
         qCWarning(lcNodeEditor) << "loadFlow: cannot open" << fileName;
@@ -320,9 +315,31 @@ bool RuntimeShell::loadFlow(const QString& fileName)
         return false;
     }
 
+    const QJsonObject sceneJson = sceneDocument.object();
+
+    // Ask the plugins before the outgoing scene is touched (REQ-SW-PL-082): a
+    // refusal leaves the running scene stopped-never, cleared-never.
+    const Daqster::SceneOpenReport openReport = Daqster::checkSceneOpening(sceneJson);
+    if (!openReport.accepted()) {
+        const QString message = Daqster::sceneOpeningMessage(openReport);
+        qCWarning(lcNodeEditor).noquote() << message;
+        emit errorOccurred(message);
+        QMessageBox::warning(m_mainWindow, tr("Runtime Mode"), message);
+        return false;
+    }
+
+    // Loading over a live scene closes it first: nodes must be stopped while
+    // the graph is still valid, then plugins apply their close policy.
+    if (!m_editorWidget->graphModel()->allNodeIds().empty()) {
+        stopAllNodes();
+        // Replace, not close: the models are likely needed by the scene that is
+        // about to be loaded (REQ-SW-PL-078).
+        Daqster::notifySceneClosed(Daqster::SceneCloseReason::Replace);
+    }
+
     QStringList skippedTypes;
     QString error;
-    if (!applySceneJson(sceneDocument.object(), &skippedTypes, &error)) {
+    if (!applySceneJson(sceneJson, &skippedTypes, &error)) {
         QMessageBox::critical(m_mainWindow, tr("Runtime Mode"),
                               tr("Failed to load flow: %1").arg(error));
         return false;
@@ -410,6 +427,18 @@ bool RuntimeShell::applySceneJson(QJsonObject sceneJson,
             cleanedConnections.append(connJson);
         }
         sceneJson["connections"] = cleanedConnections;
+    }
+
+    // REQ-SW-PL-082: the last gate before anything is cleared. loadFlow() and
+    // reloadFlow() ask earlier (so a refusal costs nothing), but every path that
+    // reaches clearScene() must have passed the check — including this one.
+    const Daqster::SceneOpenReport openReport = Daqster::checkSceneOpening(sceneJson);
+    if (!openReport.accepted()) {
+        const QString message = Daqster::sceneOpeningMessage(openReport);
+        qCWarning(lcNodeEditor).noquote() << message;
+        if (errorMessage) *errorMessage = message;
+        emit errorOccurred(message);
+        return false;
     }
 
     try {
@@ -1279,6 +1308,17 @@ bool RuntimeShell::reloadFlow(const QJsonObject& flow, QString* errorMessage)
     if (!graphModel()) {
         if (errorMessage) *errorMessage = tr("runtime canvas not ready");
         emit errorOccurred(tr("runtime canvas not ready"));
+        return false;
+    }
+
+    // Ask before the old graph is stopped (REQ-SW-PL-082): an invalid or refused
+    // reload must leave the running scene running.
+    const Daqster::SceneOpenReport openReport = Daqster::checkSceneOpening(flow);
+    if (!openReport.accepted()) {
+        const QString message = Daqster::sceneOpeningMessage(openReport);
+        qCWarning(lcNodeEditor).noquote() << message;
+        if (errorMessage) *errorMessage = message;
+        emit errorOccurred(message);
         return false;
     }
 

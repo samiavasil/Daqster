@@ -15,6 +15,8 @@
 повторно отваряне в един и същ процес.
 
 `REQ-SW-PL-078` въвежда затварянето като **договор**, а не като един ред.
+`REQ-SW-PL-082` прави същото за другата половина: отварянето пита плъгините
+**преди** да спре и унищожи работещата сцена (виж „Отварянето е договор" по-долу).
 
 ## Договорът
 
@@ -40,6 +42,47 @@
 - **стъпка 2 между тях** — плъгинът вижда нодовете си **вече спрени** (нула живи
   контексти), но още живи като обекти. Това е единственият момент, в който може
   да реши съдбата на теглата.
+
+## Отварянето е договор (REQ-SW-PL-082)
+
+Затварянето получи договор, но отварянето остана „просто `load()`" — и в двата
+non-IDE host-а редът беше **обратен**: `stopAllNodes()` + `notifySceneClosed()`
+се викаха **преди** файлът да е прочетен, а `buildGraphModel()` унищожаваше
+стария граф **преди** парсването. Тоест невалиден файл (сгрешен път, скъсан JSON,
+сцена, която не може да работи на тази машина) убиваше работещата сцена, без да
+зареди нищо. Сега редът е:
+
+```
+прочети → питай плъгините → (при отказ: нищо не се пипа) → спри старото → зареди новото
+```
+
+Пита се optional capability-то `ISceneOpening` (виж
+[capabilities.md](../capabilities.md) §ISceneOpening): `onSceneOpening(scene)`
+връща **всички** причини, поради които сцената не може да се отвори, а празен
+списък значи „приема". Хукът се вика, докато новата сцена още не съществува и
+старата е точно както е била — затова отказът не струва нищо.
+
+| Път | Къде се пита | Какво става при отказ | Код |
+|---|---|---|---|
+| `NodeRunner --headless`, `loadFlow()` | след четене и парсване, преди спирането | нищо: старият граф не е пипнат | `HeadlessEngine.cpp:121` (четене) → `:128` (питане) → `:135-138` (спиране) |
+| `POST /api/flow` (headless) | първото изречение на `reloadFlow()` | грешка в отговора, сцената работи | `HeadlessEngine.cpp:177` |
+| Последна врата преди `load()` | точно преди `m_graphModel->load()` | `load()` не се вика | `HeadlessEngine.cpp:463` |
+| `NodeRunner --run` (GUI), `loadFlow()` | след парсване, преди `stopAllNodes()` | нищо; `QMessageBox::warning` | `RuntimeShell.cpp:322` → `:334` (спиране) |
+| `POST /api/flow` (GUI runtime) | първото изречение на `reloadFlow()` | 400 с текста на проблема | `RuntimeShell.cpp:1316`; `ControlPlaneRouter.cpp:224-230` |
+| Последна врата преди `clearScene()` | преди `clearScene()` + `load()` | нищо не се чисти | `RuntimeShell.cpp:435` |
+| IDE `File → Load Scene…` | след филтрирането на непознатите типове, **преди** `closeCurrentScene()` | нищо; `QMessageBox::warning` със списъка | `NodeEditorIdeObject.cpp:801` (питане) → `:815` (затваряне) |
+
+Защо питане на две места: ранното питане е това, което прави отказа безплатен
+(старото още не е спряно), а късното е последната врата — то хваща и път, който
+не минава през ранното. И двете викат един и същ `checkSceneOpening()`, който по
+договор е чист въпрос, тоест вторият отговор е същият; при приемане нито едно от
+двете не пише в лога, за да не се дублира шум.
+
+Текстът на отказа се строи на едно място — `sceneOpeningMessage()`
+(`src/frame_work/base/src/engine/SceneOpen.cpp:54`), по модела на
+`unsupportedHeadlessMessage()` (`HeadlessEngine.cpp:56-71`) — и затова логът,
+message box-ът и REST тялото казват едно и също: всички проблеми, един под друг,
+плюс изречението, че нищо не е заредено.
 
 ## Причината за затварянето (`SceneCloseReason`)
 
@@ -68,9 +111,9 @@
 | Път | Какво прави | Код |
 |---|---|---|
 | IDE `File → Close Scene` (Ctrl+W, бутон в toolbar-а) | пита при нестартирани промени → `stopSceneNodes()` → `notifySceneClosed()` → `clearScene()` | `NodeEditorIdeObject::closeCurrentScene()` |
-| IDE `File → Load Scene…` | същото, без въпроса (сцената се подменя) | `NodeEditorIdeObject::loadSceneFromFile()` |
-| `NodeRunner --run` (GUI), смяна на сцена | `stopAllNodes()` → `notifySceneClosed()` → `clearScene()` | `RuntimeShell::loadFlow/reloadFlow/closeFlow` |
-| `NodeRunner --headless`, `POST /api/flow` | `stopAllNodes()` → `notifySceneClosed()` → нов `DataFlowGraphModel` | `HeadlessEngine::loadFlow/reloadFlow` |
+| IDE `File → Load Scene…` | пита `ISceneOpening` (отказ = нищо не се пипа) → същото, без въпроса (сцената се подменя) | `NodeEditorIdeObject::loadSceneFromFile()` |
+| `NodeRunner --run` (GUI), смяна на сцена | чете → пита `ISceneOpening` → `stopAllNodes()` → `notifySceneClosed()` → `clearScene()` | `RuntimeShell::loadFlow/reloadFlow/closeFlow` |
+| `NodeRunner --headless`, `POST /api/flow` | чете → пита `ISceneOpening` → `stopAllNodes()` → `notifySceneClosed()` → нов `DataFlowGraphModel` | `HeadlessEngine::loadFlow/reloadFlow` |
 | `POST /api/flow/close` | `closeSceneGraph()` = спиране + hook + изтриване на възлите | `HeadlessEngine::closeFlow`, `RuntimeShell::closeFlow` |
 | Изход от приложението | `stopAllNodes()` при `aboutToQuit` → `ISceneLifecycle` → `DeInitialize()` | `AppBootstrap.cpp` |
 
@@ -241,6 +284,28 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
 - `stopOrderIsSourcesFirstNotInsertionOrder` — верига, строена от консуматора
   назад, се спира от източника напред;
 - `cycleIsStillFullyStopped` — цикъл не оставя работещ нод.
+
+Отварянето (`tests/framework/engine/scene_open_tests`, fake providers, без
+плъгин и без модели на диска):
+
+- `providerWithoutHookIsSkipped` — доставчик без hook се пропуска и не се брои;
+- `oneProviderReportsAllProblems` — един отказ с три причини връща трите, не
+  първата;
+- `twoProvidersAreUnioned` — двама отказващи: обединението, в ред на доставчиците;
+- `acceptedSceneProducesNoProblems` — приемане = празен списък и празно
+  съобщение (хостът няма какво да покаже);
+- `noProvidersIsAcceptance` — никой не имплементира hook-а: сцената се отваря,
+  както преди hook-а да съществува;
+- `providersAskedIsCounted` — `providersAsked` брои питaните, не откритите
+  (null и без hook не се броят), а съобщението съдържа проблема и „Nothing was
+  loaded";
+- `hookReceivesTheScene` — hook-ът получава обекта, който би се заредил (вижда
+  нодовете), не празен обект.
+
+Ограничение (записано и в REQ-то): `HeadlessEngine::applySceneJson()` е private,
+а публичното repo не носи тестов плъгин — затова **редът** в хостовете
+(прочети → питай → спри → зареди) не се покрива от тест; тества се шевът
+(`checkSceneOpening()` + fake доставчици).
 
 Примитивите (`tests/plugins/common/`, binary `daqster_common_tests`):
 

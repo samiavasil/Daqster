@@ -172,7 +172,16 @@ private:
     bool registerNodes();
     bool validateFlow();
     bool buildGraphModel();
-    bool parseFlowFile(const QString& flowPath);
+    /// Read and parse @p flowPath into @p sceneJson — **without applying it**.
+    ///
+    /// Split from the application (REQ-SW-PL-082) so a host can refuse an
+    /// unreadable or refused scene before it stops the one that is running.
+    bool parseFlowFile(const QString& flowPath, QJsonObject* sceneJson);
+    /// Pre-open hook: true when the plugins accept @p sceneJson.
+    ///
+    /// On refusal it logs one critical record and emits `errorOccurred()` with
+    /// `sceneOpeningMessage()`, so every entry point reports it identically.
+    bool acceptSceneOrReport(const QJsonObject& sceneJson);
     /// Apply an already-parsed scene object (shared by loadFlow and reloadFlow).
     bool applySceneJson(QJsonObject sceneJson);
     bool parseUiSection(const QJsonObject& sceneJson);
