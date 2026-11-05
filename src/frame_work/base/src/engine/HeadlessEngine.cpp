@@ -123,10 +123,10 @@ bool HeadlessEngine::loadFlow(const QString& flowPath)
         return false;
     }
 
-    // 2. Ask the plugins before anything is torn down. A refusal here is free:
-    //    the old scene was never stopped and its graph is still intact.
-    if (!acceptSceneOrReport(sceneJson))
-        return false;
+    // 2. Load the scene. The plugin verdict is taken inside applySceneJson()
+    //    (after unregistered types are filtered out) and never blocks the load:
+    //    a scene with problems is loaded and left stopped (REQ-SW-PL-082).
+    m_lastSceneProblems = QJsonArray{};
 
     // 3. Now the outgoing scene goes away. Stop the old nodes while their graph
     //    is still valid, then let plugins apply their close policy
@@ -162,8 +162,16 @@ bool HeadlessEngine::loadFlow(const QString& flowPath)
         return false;
     }
 
-    // 8. Auto-start nodes
-    autoStartNodes();
+    // 8. Auto-start nodes — but only a scene the plugins had no objection to.
+    //    A problem does not cost the user the scene; it costs them the blind
+    //    start (REQ-SW-PL-082).
+    if (m_lastSceneProblems.isEmpty()) {
+        autoStartNodes();
+    } else {
+        qCWarning(lcNodeEditor) << "HeadlessEngine: сцената е заредена с"
+                                << m_lastSceneProblems.size()
+                                << "проблема — нодовете с autoStart НЕ се стартират";
+    }
 
     emit flowLoaded(true);
     qCInfo(lcNodeEditor) << "HeadlessEngine: flow loaded successfully";
@@ -172,16 +180,10 @@ bool HeadlessEngine::loadFlow(const QString& flowPath)
 
 bool HeadlessEngine::reloadFlow(const QJsonObject& flow, QString* errorMessage)
 {
-    // Ask before anything is stopped: a refused scene must leave the one that
-    // is running exactly as it was (REQ-SW-PL-082).
-    const SceneOpenReport openReport = checkSceneOpening(flow);
-    if (!openReport.accepted()) {
-        const QString message = sceneOpeningMessage(openReport);
-        qCCritical(lcNodeEditor).noquote() << message;
-        emit errorOccurred(message);
-        if (errorMessage) *errorMessage = message;
-        return false;
-    }
+    // REQ-SW-PL-082: no early refusal. The verdict is taken inside
+    // applySceneJson() and only decides whether the new scene is started; a
+    // malformed document is still the only thing that fails here.
+    m_lastSceneProblems = QJsonArray{};
 
     if (!m_graphModel) {
         // Nothing live yet: bring the registry/graph up first.
@@ -217,9 +219,12 @@ bool HeadlessEngine::reloadFlow(const QJsonObject& flow, QString* errorMessage)
         return false;
     }
 
-    autoStartNodes();
+    // Re-run autoStart against the new scene — unless the plugins objected.
+    if (m_lastSceneProblems.isEmpty())
+        autoStartNodes();
     emit flowLoaded(true);
-    qCInfo(lcNodeEditor) << "HeadlessEngine: hot-reload complete";
+    qCInfo(lcNodeEditor) << "HeadlessEngine: hot-reload complete"
+                         << "(проблеми:" << m_lastSceneProblems.size() << ")";
     return true;
 }
 
@@ -283,6 +288,7 @@ bool HeadlessEngine::closeFlow(QString* errorMessage)
 
     m_autoStartNodes.clear();
     m_runningNodes.clear();
+    m_lastSceneProblems = QJsonArray{};
     m_uiSection = UiSection{};
 
     qCInfo(lcNodeEditor) << "HeadlessEngine: scene closed — stopped" << report.stopped
@@ -393,15 +399,24 @@ bool HeadlessEngine::parseFlowFile(const QString& fileName, QJsonObject* sceneJs
     return true;
 }
 
-bool HeadlessEngine::acceptSceneOrReport(const QJsonObject& sceneJson)
+bool HeadlessEngine::recordSceneOpening(const QJsonObject& sceneJson)
 {
+    // REQ-SW-PL-082: a verdict is no longer a veto. The scene is loaded either
+    // way — a plugin's objection ("this model is not here", "the camera is
+    // busy") must not cost the user the scene they asked for; it only says the
+    // scene must not be started blind. The caller gates autoStart on the result.
     const SceneOpenReport report = checkSceneOpening(sceneJson);
+    m_lastSceneProblems = report.problemsJson();
     if (report.accepted())
         return true;
 
-    const QString message = sceneOpeningMessage(report);
-    qCCritical(lcNodeEditor).noquote() << message;
-    emit errorOccurred(message);
+    for (const SceneOpenProblem& problem : report.problems) {
+        qCWarning(lcNodeEditor).noquote()
+            << "HeadlessEngine: проблем при отваряне —" << problem.message
+            << "нод:" << problem.nodeName << QStringLiteral("(%1)").arg(problem.nodeId)
+            << "подсказка:" << problem.hint;
+    }
+    emit errorOccurred(sceneOpeningMessage(report));
     return false;
 }
 
@@ -456,12 +471,11 @@ bool HeadlessEngine::applySceneJson(QJsonObject sceneJson)
         sceneJson["connections"] = cleanedConnections;
     }
 
-    // REQ-SW-PL-082: the last gate before the graph changes. The hosts check
-    // earlier too (so a refusal costs nothing), but this is the one place every
-    // path — loadFlow, reloadFlow and POST /api/flow — has to pass, so a plugin
-    // can never be asked for a verdict after its nodes were already built.
-    if (!acceptSceneOrReport(sceneJson))
-        return false;
+    // REQ-SW-PL-082: the last gate before the graph changes. It no longer
+    // refuses — it records the verdict (and reports it), so a problem can only
+    // suppress the start, never the load. Every path — loadFlow, reloadFlow and
+    // POST /api/flow — passes here.
+    recordSceneOpening(sceneJson);
 
     try {
         m_graphModel->load(sceneJson);

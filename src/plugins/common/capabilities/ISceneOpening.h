@@ -74,11 +74,12 @@ struct SceneOpenVerdict
 /**
  * @brief Optional plugin-level hook for the **open** half of a scene lifecycle.
  *
- * The hosts ask this **before the graph is loaded** — before `load()`,
- * `clearScene()` and before the outgoing scene is stopped, so the nodes of the
- * new scene do not exist yet and the old ones are still exactly as they were.
- * A refusal therefore costs nothing: nothing was stopped, nothing was
- * destroyed, the running scene keeps running.
+ * The hosts ask this after the scene was read and (in the non-IDE hosts) before
+ * its nodes are started. **A verdict never blocks the load by itself**
+ * (REQ-SW-PL-082): a scene with problems is loaded, and only its `autoStart`
+ * nodes are left stopped — „зарежда, маркира, не стартира". The nodes of the
+ * new scene do not exist yet when this runs, so the hook answers from what it
+ * already knows, not from the graph.
  *
  * **Why this is a separate interface and not a slot on `ISceneLifecycle`.**
  * `ISceneLifecycle` declares no `Q_DECLARE_INTERFACE` IID and no version

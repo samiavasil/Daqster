@@ -53,41 +53,62 @@ non-IDE host-а редът беше **обратен**: `stopAllNodes()` + `noti
 зареди нищо. Сега редът е:
 
 ```
-прочети → питай плъгините → (при отказ: нищо не се пипа) → спри старото → зареди новото
+прочети → спри старото → зареди новото → питай плъгините → (при проблеми: не стартирай)
 ```
+
+Присъдата **не е вето**: `REQ-SW-PL-082` смени семантиката от „отказвам да
+заредя" на **„зарежда, маркира, не стартира"**. Сцена, за която плъгинът казва
+„този модел липсва на тази машина", се **зарежда** — потребителят вижда графа,
+който е поискал, и може да поправи пътя или да смени нода — но нодовете с
+`autoStart` остават **спрени**, защото стартирането е това, което би изгърмяло.
+Причината: отказът на зареждане беше по-скъп от проблема. Един липсващ файл
+връщаше човека към празен екран, а графът, който вижда, е и единственото място,
+на което може да поправи нещо.
 
 Пита се optional capability-то `ISceneOpening` (виж
 [capabilities.md](../capabilities.md) §ISceneOpening): `onSceneOpening(scene)`
-връща **всички** причини, поради които сцената не може да се отвори, а празен
-списък значи „приема". Причините са **структурирани** (`SceneOpenProblem`: id на
-нода, име, съобщение и подсказка), не низове — така хостът може да маркира
-визирания нод, а не само да покаже списък. Хукът се вика, докато новата сцена
-още не съществува и старата е точно както е била — затова отказът не струва
-нищо.
+връща **всички** причини, поради които сцената не може да се стартира, а празен
+списък значи „няма проблеми". Причините са **структурирани** (`SceneOpenProblem`:
+id на нода, име, съобщение и подсказка), не низове — така хостът може да маркира
+визирания нод, а не само да покаже списък.
 
-| Път | Къде се пита | Какво става при отказ | Код |
+| Път | Къде се пита | Какво става при проблеми | Код |
 |---|---|---|---|
-| `NodeRunner --headless`, `loadFlow()` | след четене и парсване, преди спирането | нищо: старият граф не е пипнат | `HeadlessEngine.cpp:121` (четене) → `:128` (питане) → `:135-138` (спиране) |
-| `POST /api/flow` (headless) | първото изречение на `reloadFlow()` | грешка в отговора, сцената работи | `HeadlessEngine.cpp:177` |
-| Последна врата преди `load()` | точно преди `m_graphModel->load()` | `load()` не се вика | `HeadlessEngine.cpp:463` |
-| `NodeRunner --run` (GUI), `loadFlow()` | след парсване, преди `stopAllNodes()` | нищо; `QMessageBox::warning` | `RuntimeShell.cpp:322` → `:334` (спиране) |
-| `POST /api/flow` (GUI runtime) | първото изречение на `reloadFlow()` | 400 с текста на проблема | `RuntimeShell.cpp:1316`; `ControlPlaneRouter.cpp:224-230` |
-| Последна врата преди `clearScene()` | преди `clearScene()` + `load()` | нищо не се чисти | `RuntimeShell.cpp:435` |
-| IDE `File → Load Scene…` | след филтрирането на непознатите типове, **преди** `closeCurrentScene()` | нищо; `QMessageBox::warning` със списъка | `NodeEditorIdeObject.cpp:801` (питане) → `:815` (затваряне) |
+| `NodeRunner --headless`, `loadFlow()` | последната врата, в `applySceneJson()` след филтрирането на непознатите типове | сцената се зарежда; `autoStartNodes()` се пропуска; `qCWarning` на проблем + `errorOccurred()` | `HeadlessEngine.cpp` `applySceneJson()` → `recordSceneOpening()`; `loadFlow()` стъпка 8 |
+| `POST /api/flow` (headless и GUI) | същото, през `reloadFlow()` | 200 `{"applied": true, "started": false, "problems": […]}` | `ControlPlaneRouter.cpp` (`POST /api/flow`); `lastSceneProblems()` |
+| `NodeRunner --run` (GUI), `loadFlow()` | `applySceneJson()` | сцената се зарежда; `RunRuntime()` не стартира `autoStart` нодовете | `RuntimeShell.cpp` `applySceneJson()` → `recordSceneOpening()`; `RunRuntime()` стъпка 6 |
+| `POST /api/flow` (GUI runtime) | `reloadFlow()` → `applySceneJson()` | същото тяло като headless (един и същ router) | `RuntimeShell.cpp:reloadFlow()` |
+| IDE `File → Load Scene…` | след филтрирането на непознатите типове, **преди** `closeCurrentScene()` | **още отказва** (`QMessageBox::warning` със списъка) — конвертирането на IDE-то е отделна задача | `NodeEditorIdeObject.cpp:801` → `:815` |
 
-Защо питане на две места: ранното питане е това, което прави отказа безплатен
-(старото още не е спряно), а късното е последната врата — то хваща и път, който
-не минава през ранното. И двете викат един и същ `checkSceneOpening()`, който по
-договор е чист въпрос, тоест вторият отговор е същият; при приемане нито едно от
-двете не пише в лога, за да не се дублира шум.
+Защо питане на едно място, а не две: при ветото ранното питане имаше смисъл
+(отказът не струваше нищо); при „зарежда, маркира, не стартира" всяко питане
+преди `load()` пита за сцена, която после се филтрира (непознатите типове
+отпадат), тоест отговорът може да е за нодове, които вече не съществуват.
+Затова пита единственото място, което вижда **филтрираната** сцена —
+`applySceneJson()` в двата host-а (и двете през `recordSceneOpening()`).
 
-Текстът на отказа се строи на едно място — `sceneOpeningMessage()`
+Хостът пази присъдата в `m_lastSceneProblems` и я дава навън през
+`RuntimeController::lastSceneProblems()` — така `POST /api/flow` казва и двете
+неща в един отговор, вместо да избира между „успя" и „не успя":
+
+```json
+{"applied": true, "started": false,
+ "problems": [{"nodeId": "3", "nodeName": "Chat",
+               "message": "моделът липсва", "hint": "изтеглете го"}]}
+```
+
+`400 {"applied": false, "error": …}` остава само за документ, който хостът не
+може да зареди изобщо (счупен JSON, невалидна структура). `started` е
+`problems.isEmpty()`, а не „стартира ли се нещо" — сцена без `autoStart` нодове
+също дава `started: true`.
+
+Текстът се строи на едно място — `sceneOpeningMessage()`
 (`src/frame_work/base/src/engine/SceneOpen.cpp`), по модела на
-`unsupportedHeadlessMessage()` (`HeadlessEngine.cpp:56-71`) — и затова логът,
-message box-ът и REST тялото казват едно и също: всички проблеми, един под друг,
-всеки с нода, който визира (`<nodeName> (<nodeId>): <message> — <hint>`, празните
-части се пропускат), плюс изречението, че нищо не е заредено. Който иска данни, а
-не текст, ползва `SceneOpenReport::problemsJson()`.
+`unsupportedHeadlessMessage()` (`HeadlessEngine.cpp`) — и затова логът и
+`errorOccurred()` казват едно и също: всички проблеми, един под друг, всеки с
+нода, който визира (`<nodeName> (<nodeId>): <message> — <hint>`, празните части
+се пропускат). Който иска данни, а не текст, ползва
+`SceneOpenReport::problemsJson()` / `lastSceneProblems()`.
 
 ## Причината за затварянето (`SceneCloseReason`)
 
@@ -117,8 +138,8 @@ message box-ът и REST тялото казват едно и също: вси�
 |---|---|---|
 | IDE `File → Close Scene` (Ctrl+W, бутон в toolbar-а) | пита при нестартирани промени → `stopSceneNodes()` → `notifySceneClosed()` → `clearScene()` | `NodeEditorIdeObject::closeCurrentScene()` |
 | IDE `File → Load Scene…` | пита `ISceneOpening` (отказ = нищо не се пипа) → същото, без въпроса (сцената се подменя) | `NodeEditorIdeObject::loadSceneFromFile()` |
-| `NodeRunner --run` (GUI), смяна на сцена | чете → пита `ISceneOpening` → `stopAllNodes()` → `notifySceneClosed()` → `clearScene()` | `RuntimeShell::loadFlow/reloadFlow/closeFlow` |
-| `NodeRunner --headless`, `POST /api/flow` | чете → пита `ISceneOpening` → `stopAllNodes()` → `notifySceneClosed()` → нов `DataFlowGraphModel` | `HeadlessEngine::loadFlow/reloadFlow` |
+| `NodeRunner --run` (GUI), смяна на сцена | чете → `stopAllNodes()` → `notifySceneClosed()` → `clearScene()` → зарежда → пита `ISceneOpening` (проблеми = без `autoStart`) | `RuntimeShell::loadFlow/reloadFlow/closeFlow` |
+| `NodeRunner --headless`, `POST /api/flow` | чете → `stopAllNodes()` → `notifySceneClosed()` → нов `DataFlowGraphModel` → зарежда → пита `ISceneOpening` (проблеми = без `autoStart`) | `HeadlessEngine::loadFlow/reloadFlow` |
 | `POST /api/flow/close` | `closeSceneGraph()` = спиране + hook + изтриване на възлите | `HeadlessEngine::closeFlow`, `RuntimeShell::closeFlow` |
 | Изход от приложението | `stopAllNodes()` при `aboutToQuit` → `ISceneLifecycle` → `DeInitialize()` | `AppBootstrap.cpp` |
 

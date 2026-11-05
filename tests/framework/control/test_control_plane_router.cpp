@@ -167,6 +167,10 @@ public:
         return true;
     }
 
+    /// REQ-SW-PL-082: a verdict no longer blocks the load — it is reported and
+    /// the scene is left stopped (`started: false` in `POST /api/flow`).
+    QJsonArray lastSceneProblems() const override { return m_sceneProblems; }
+
     bool closeFlow(QString* errorMessage) override
     {
         if (m_closeRefused) {
@@ -203,6 +207,7 @@ public:
     int m_stopCalls = 0;
     bool m_rejectConnections = false;
     bool m_reloaded = false;
+    QJsonArray m_sceneProblems;
     int m_closeCalls = 0;
     bool m_closeRefused = false;
     QString m_savedPath;
@@ -501,6 +506,50 @@ private slots:
         good.insert(QStringLiteral("nodes"), QJsonArray{});
         QCOMPARE(router.route("POST", QStringLiteral("/api/flow"), good).status, 200);
         QVERIFY(controller.m_reloaded);
+    }
+
+    /// REQ-SW-PL-082: a reported problem is not a failed load. The scene is up
+    /// (`applied: true`), it is just not started (`started: false`), and the
+    /// REST body carries the structured problems so a client can mark nodes.
+    void reloadFlowReportsProblemsWithoutStarting()
+    {
+        FakeController controller;
+        controller.m_sceneProblems = QJsonArray{
+            QJsonObject{{QStringLiteral("nodeId"), QStringLiteral("3")},
+                        {QStringLiteral("nodeName"), QStringLiteral("Chat")},
+                        {QStringLiteral("message"), QStringLiteral("моделът липсва")},
+                        {QStringLiteral("hint"), QStringLiteral("изтеглете го")}}};
+
+        Daqster::ControlPlaneRouter router(&controller);
+        QJsonObject flow;
+        flow.insert(QStringLiteral("nodes"), QJsonArray{});
+        flow.insert(QStringLiteral("connections"), QJsonArray{});
+
+        const auto r = router.route("POST", QStringLiteral("/api/flow"), flow);
+        QCOMPARE(r.status, 200);
+        QCOMPARE(r.body.value(QStringLiteral("applied")).toBool(), true);
+        QCOMPARE(r.body.value(QStringLiteral("started")).toBool(), false);
+        const QJsonArray problems = r.body.value(QStringLiteral("problems")).toArray();
+        QCOMPARE(problems.size(), 1);
+        QCOMPARE(problems.first().toObject().value(QStringLiteral("nodeName")).toString(),
+                 QStringLiteral("Chat"));
+        QVERIFY(r.body.value(QStringLiteral("error")).isUndefined());
+    }
+
+    /// The clean case stays a plain, backwards-compatible success: `applied`,
+    /// `started: true`, an empty problem list and no `error`.
+    void reloadFlowCleanSceneStarts()
+    {
+        FakeController controller;
+        Daqster::ControlPlaneRouter router(&controller);
+        QJsonObject flow;
+        flow.insert(QStringLiteral("nodes"), QJsonArray{});
+
+        const auto r = router.route("POST", QStringLiteral("/api/flow"), flow);
+        QCOMPARE(r.status, 200);
+        QCOMPARE(r.body.value(QStringLiteral("applied")).toBool(), true);
+        QCOMPARE(r.body.value(QStringLiteral("started")).toBool(), true);
+        QCOMPARE(r.body.value(QStringLiteral("problems")).toArray().size(), 0);
     }
 
     void invalidBodyRejectedForMutation()

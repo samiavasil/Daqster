@@ -164,8 +164,15 @@ bool RuntimeShell::RunRuntime(const QString& flowPath)
     else
         arrangeWorkspaces(m_uiSection);
 
-    // 6. Auto-start nodes
-    autoStartNodes();
+    // 6. Auto-start nodes — unless a plugin reported problems (REQ-SW-PL-082):
+    // the scene is shown, its autoStart nodes stay stopped.
+    if (m_lastSceneProblems.isEmpty()) {
+        autoStartNodes();
+    } else {
+        qCWarning(lcNodeEditor) << "Runtime mode: сцената е заредена с"
+                                << m_lastSceneProblems.size()
+                                << "проблема — autoStart не се стартира";
+    }
 
     // Show the runtime window
     m_mainWindow->setWindowTitle(tr("Daqster Runtime — %1").arg(QFileInfo(flowPath).fileName()));
@@ -317,16 +324,11 @@ bool RuntimeShell::loadFlow(const QString& fileName)
 
     const QJsonObject sceneJson = sceneDocument.object();
 
-    // Ask the plugins before the outgoing scene is touched (REQ-SW-PL-082): a
-    // refusal leaves the running scene stopped-never, cleared-never.
-    const Daqster::SceneOpenReport openReport = Daqster::checkSceneOpening(sceneJson);
-    if (!openReport.accepted()) {
-        const QString message = Daqster::sceneOpeningMessage(openReport);
-        qCWarning(lcNodeEditor).noquote() << message;
-        emit errorOccurred(message);
-        QMessageBox::warning(m_mainWindow, tr("Runtime Mode"), message);
-        return false;
-    }
+    // Ask the plugins about the scene, but do not let the verdict cost the user
+    // the scene: it is loaded either way, only its autoStart nodes are held
+    // back (see recordSceneOpening()).
+    m_lastSceneProblems = QJsonArray{};
+    recordSceneOpening(sceneJson);
 
     // Loading over a live scene closes it first: nodes must be stopped while
     // the graph is still valid, then plugins apply their close policy.
@@ -429,17 +431,10 @@ bool RuntimeShell::applySceneJson(QJsonObject sceneJson,
         sceneJson["connections"] = cleanedConnections;
     }
 
-    // REQ-SW-PL-082: the last gate before anything is cleared. loadFlow() and
-    // reloadFlow() ask earlier (so a refusal costs nothing), but every path that
-    // reaches clearScene() must have passed the check — including this one.
-    const Daqster::SceneOpenReport openReport = Daqster::checkSceneOpening(sceneJson);
-    if (!openReport.accepted()) {
-        const QString message = Daqster::sceneOpeningMessage(openReport);
-        qCWarning(lcNodeEditor).noquote() << message;
-        if (errorMessage) *errorMessage = message;
-        emit errorOccurred(message);
-        return false;
-    }
+    // REQ-SW-PL-082: the last gate before anything is cleared. It no longer
+    // refuses — it records the verdict (and reports it), so a problem can only
+    // suppress the start, never the load.
+    recordSceneOpening(sceneJson);
 
     try {
         m_editorWidget->scene()->clearScene();
@@ -740,6 +735,7 @@ bool RuntimeShell::closeFlow(QString* errorMessage)
     m_autoStartNodes.clear();
     m_uiSection = FlowUi::UiSection{};
     m_hasLayoutV2 = false;
+    m_lastSceneProblems = QJsonArray{};
     arrangeWorkspaces(m_uiSection);
 
     qCInfo(lcNodeEditor) << "RuntimeShell: scene closed — nodes removed:" << nodeCount
@@ -1311,16 +1307,10 @@ bool RuntimeShell::reloadFlow(const QJsonObject& flow, QString* errorMessage)
         return false;
     }
 
-    // Ask before the old graph is stopped (REQ-SW-PL-082): an invalid or refused
-    // reload must leave the running scene running.
-    const Daqster::SceneOpenReport openReport = Daqster::checkSceneOpening(flow);
-    if (!openReport.accepted()) {
-        const QString message = Daqster::sceneOpeningMessage(openReport);
-        qCWarning(lcNodeEditor).noquote() << message;
-        if (errorMessage) *errorMessage = message;
-        emit errorOccurred(message);
-        return false;
-    }
+    // REQ-SW-PL-082: no early refusal. applySceneJson() takes the verdict and
+    // records it; the scene is loaded regardless and only its autoStart nodes
+    // are held back. A malformed document is the only failure here.
+    m_lastSceneProblems = QJsonArray{};
 
     // Stop the old graph before it is replaced: clearScene() destroys the node
     // models, which must not be left running.
@@ -1337,20 +1327,43 @@ bool RuntimeShell::reloadFlow(const QJsonObject& flow, QString* errorMessage)
         return false;
     }
 
-    // Rebuild the layout and re-run autoStart against the new UI section.
+    // Rebuild the layout and re-run autoStart against the new UI section — the
+    // start is the only thing a plugin verdict can take away (REQ-SW-PL-082).
     if (m_hasLayoutV2)
         arrangeLayoutV2();
     else
         arrangeWorkspaces(m_uiSection);
-    autoStartNodes();
+    if (m_lastSceneProblems.isEmpty())
+        autoStartNodes();
 
     if (!skippedTypes.isEmpty())
         qCWarning(lcNodeEditor) << "reloadFlow: skipped unregistered node types:"
                                 << skippedTypes.join(QStringLiteral(", "));
 
     qCInfo(lcNodeEditor) << "RuntimeShell: flow reloaded via control plane, nodes="
-                         << graphModel()->allNodeIds().size();
+                         << graphModel()->allNodeIds().size()
+                         << "problems=" << m_lastSceneProblems.size();
     return true;
+}
+
+bool RuntimeShell::recordSceneOpening(const QJsonObject& sceneJson)
+{
+    // REQ-SW-PL-082: a verdict is no longer a veto. „Зарежда, маркира, не
+    // стартира" — the scene is loaded either way; the problems only decide
+    // whether its autoStart nodes run.
+    const Daqster::SceneOpenReport report = Daqster::checkSceneOpening(sceneJson);
+    m_lastSceneProblems = report.problemsJson();
+    if (report.accepted())
+        return true;
+
+    for (const Daqster::SceneOpenProblem& problem : report.problems) {
+        qCWarning(lcNodeEditor).noquote()
+            << "RuntimeShell: проблем при отваряне —" << problem.message
+            << "нод:" << problem.nodeName << QStringLiteral("(%1)").arg(problem.nodeId)
+            << "подсказка:" << problem.hint;
+    }
+    emit errorOccurred(Daqster::sceneOpeningMessage(report));
+    return false;
 }
 
 QMdiSubWindow* RuntimeShell::createSubWindow(QWidget* widget, const FlowUi::Geometry& geometry)

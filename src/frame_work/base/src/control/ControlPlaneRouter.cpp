@@ -223,11 +223,20 @@ ControlPlaneRouter::Result ControlPlaneRouter::route(const QByteArray& method,
 
             QString error;
             const bool applied = m_controller->reloadFlow(flow, &error);
-            QJsonObject out;
-            out.insert(QStringLiteral("applied"), applied);
             if (!applied)
-                out.insert(QStringLiteral("error"), error);
-            return makeResult(applied ? 200 : 400, out);
+                return errorResult(400, error.isEmpty()
+                                            ? QStringLiteral("cannot load flow")
+                                            : error);
+
+            // REQ-SW-PL-082: the scene loaded. A plugin verdict no longer
+            // blocks it — it only means its autoStart nodes were held back, so
+            // the reply says both things instead of pretending either.
+            const QJsonArray problems = m_controller->lastSceneProblems();
+            QJsonObject out;
+            out.insert(QStringLiteral("applied"), true);
+            out.insert(QStringLiteral("started"), problems.isEmpty());
+            out.insert(QStringLiteral("problems"), problems);
+            return makeResult(200, out);
         }
         return methodNotAllowed();
     }
