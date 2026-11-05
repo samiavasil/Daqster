@@ -23,9 +23,31 @@
 #pragma once
 
 #include <QJsonObject>
-#include <QStringList>
+#include <QString>
+#include <QVector>
 
 namespace Daqster {
+
+/**
+ * @brief One reason a scene cannot be opened, addressed to something the user
+ *        can see.
+ *
+ * A flat string cannot say *which* node is at fault, so a host could only print
+ * a list and let the user search the graph. The node id makes the problem
+ * actionable: the host can select, highlight or mark the node (REQ-SW-PL-082).
+ */
+struct SceneOpenProblem
+{
+    /// Id of the node in the scene (`nodes[].id`). May be empty when the problem
+    /// concerns the scene as a whole (a missing settings entry, say).
+    QString nodeId;
+    /// Model or title, for the human reading the message ("Chat", "Tts").
+    QString nodeName;
+    /// What is wrong, in the plugin's own words.
+    QString message;
+    /// What the person should do about it. May be empty.
+    QString hint;
+};
 
 /**
  * @brief What a plugin answered about a scene that is about to be opened.
@@ -43,7 +65,7 @@ struct SceneOpenVerdict
 {
     /// Empty == accepted. Every reason the scene cannot be opened, in the
     /// plugin's own words; the host renders and logs them verbatim.
-    QStringList problems;
+    QVector<SceneOpenProblem> problems;
 
     /// True when there is nothing to report (an empty answer is acceptance).
     bool accepted() const { return problems.isEmpty(); }

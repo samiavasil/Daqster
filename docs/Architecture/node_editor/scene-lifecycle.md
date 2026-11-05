@@ -59,8 +59,11 @@ non-IDE host-а редът беше **обратен**: `stopAllNodes()` + `noti
 Пита се optional capability-то `ISceneOpening` (виж
 [capabilities.md](../capabilities.md) §ISceneOpening): `onSceneOpening(scene)`
 връща **всички** причини, поради които сцената не може да се отвори, а празен
-списък значи „приема". Хукът се вика, докато новата сцена още не съществува и
-старата е точно както е била — затова отказът не струва нищо.
+списък значи „приема". Причините са **структурирани** (`SceneOpenProblem`: id на
+нода, име, съобщение и подсказка), не низове — така хостът може да маркира
+визирания нод, а не само да покаже списък. Хукът се вика, докато новата сцена
+още не съществува и старата е точно както е била — затова отказът не струва
+нищо.
 
 | Път | Къде се пита | Какво става при отказ | Код |
 |---|---|---|---|
@@ -79,10 +82,12 @@ non-IDE host-а редът беше **обратен**: `stopAllNodes()` + `noti
 двете не пише в лога, за да не се дублира шум.
 
 Текстът на отказа се строи на едно място — `sceneOpeningMessage()`
-(`src/frame_work/base/src/engine/SceneOpen.cpp:54`), по модела на
+(`src/frame_work/base/src/engine/SceneOpen.cpp`), по модела на
 `unsupportedHeadlessMessage()` (`HeadlessEngine.cpp:56-71`) — и затова логът,
 message box-ът и REST тялото казват едно и също: всички проблеми, един под друг,
-плюс изречението, че нищо не е заредено.
+всеки с нода, който визира (`<nodeName> (<nodeId>): <message> — <hint>`, празните
+части се пропускат), плюс изречението, че нищо не е заредено. Който иска данни, а
+не текст, ползва `SceneOpenReport::problemsJson()`.
 
 ## Причината за затварянето (`SceneCloseReason`)
 
@@ -290,8 +295,12 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
 
 - `providerWithoutHookIsSkipped` — доставчик без hook се пропуска и не се брои;
 - `oneProviderReportsAllProblems` — един отказ с три причини връща трите, не
-  първата;
+  първата, всяка с id, име, съобщение и подсказка;
 - `twoProvidersAreUnioned` — двама отказващи: обединението, в ред на доставчиците;
+- `problemsAreSerialised` — `problemsJson()` дава `nodeId`/`nodeName`/`message`/
+  `hint`, включително празен `nodeId` за проблем за цялата сцена;
+- `messageNamesNodeAndHint` — редът на съобщението адресира нода и подсказката,
+  а липсващата подсказка не оставя висящо тире;
 - `acceptedSceneProducesNoProblems` — приемане = празен списък и празно
   съобщение (хостът няма какво да покаже);
 - `noProvidersIsAcceptance` — никой не имплементира hook-а: сцената се отваря,

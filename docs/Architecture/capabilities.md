@@ -166,22 +166,34 @@ Host-ът вика `onSceneClosed()` **след** като всеки нод е 
 преди хостът да е спрял и унищожил работещата.
 
 ```cpp
-struct SceneOpenVerdict {                 // ISceneOpening.h:42
-    QStringList problems;                 // празен == приема; ВСИЧКИ, не първата
+struct SceneOpenProblem {                 // ISceneOpening.h:39
+    QString nodeId;                       // nodes[].id; може празен (проблем за цялата сцена)
+    QString nodeName;                     // модел/заглавие за човека
+    QString message;                      // какво не е наред
+    QString hint;                         // какво да направи човекът; може празен
+};
+struct SceneOpenVerdict {                 // ISceneOpening.h:64
+    QVector<SceneOpenProblem> problems;   // празен == приема; ВСИЧКИ, не първата
     bool accepted() const { return problems.isEmpty(); }
 };
-class ISceneOpening {                     // ISceneOpening.h:92
+class ISceneOpening {                     // ISceneOpening.h:114
 public:
-    virtual SceneOpenVerdict onSceneOpening(const QJsonObject& scene) = 0;  // :106
+    virtual SceneOpenVerdict onSceneOpening(const QJsonObject& scene) = 0;  // :128
 };
 ```
+
+Проблемите са **структурирани**, не низове: всеки носи id на нода (`nodes[].id`),
+име за човека, съобщение и подсказка, така че хостът да маркира визирания нод, а
+не само да отпечата списък. `SceneOpenReport::problemsJson()` дава същите полета
+(`nodeId`, `nodeName`, `message`, `hint`) за REST тяло, а
+`sceneOpeningMessage()` рендира по един ред на проблем.
 
 Хостът пита **преди** `load()`: нодовете на новата сцена още не съществуват, а
 старите са точно както са били. Отказът е безплатен — нищо не е спряно, нищо не
 е унищожено, работещата сцена продължава да работи. Реализацията е една:
 `FrameworkCore::SceneOpen` (`src/frame_work/base/src/engine/SceneOpen.{h,cpp}`) —
-`checkSceneOpening()` (`SceneOpen.h:58`/`:70`), `SceneOpenReport` (`SceneOpen.h:27`)
-и `sceneOpeningMessage()` (`SceneOpen.h:82`).
+`checkSceneOpening()` (`SceneOpen.h:64`/`:77`), `SceneOpenReport` (`SceneOpen.h:30`)
+(`problemsJson()` — `SceneOpen.h:43`) и `sceneOpeningMessage()` (`SceneOpen.h:94`).
 
 **Защо е отделен интерфейс, а не слот в `ISceneLifecycle`.** `ISceneLifecycle`
 не декларира `Q_DECLARE_INTERFACE` IID и версия (`capabilities/ISceneLifecycle.h`

@@ -2,9 +2,12 @@
 
 #include "framework_core_export.h"
 
+#include "capabilities/ISceneOpening.h"
+
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QString>
-#include <QStringList>
+#include <QVector>
 
 #include <vector>
 
@@ -30,10 +33,14 @@ struct SceneOpenReport {
     int providersAsked = 0;
     /// Every problem every asked provider reported, in provider order. Not
     /// truncated to the first: the user should see everything at once.
-    QStringList problems;
+    QVector<SceneOpenProblem> problems;
 
     /// True when the scene can be opened (also when nothing was asked).
     bool accepted() const { return problems.isEmpty(); }
+
+    /// The problems as JSON (`nodeId`, `nodeName`, `message`, `hint`), for a
+    /// REST error body or a host that marks the offending nodes.
+    QJsonArray problemsJson() const;
 };
 
 /**
@@ -76,9 +83,13 @@ FRAMEWORK_CORE_EXPORT SceneOpenReport checkSceneOpening(const QJsonObject& scene
  * show, so the user reads the same explanation wherever the load was refused —
  * the counterpart of `unsupportedHeadlessMessage()` in `HeadlessEngine.cpp`.
  *
+ * One line per problem: `"<nodeName> (<nodeId>): <message> — <hint>"`, with the
+ * parts that are empty left out (`"<nodeName>: <message>"` when there is no id,
+ * `"<message>"` when neither is known). A host that can mark nodes uses
+ * `SceneOpenReport::problemsJson()` instead of parsing this text.
+ *
  * @param report The result of `checkSceneOpening()`.
  * @return Empty when accepted; otherwise the problems, one per line.
  */
 FRAMEWORK_CORE_EXPORT QString sceneOpeningMessage(const SceneOpenReport& report);
-
 } // namespace Daqster
