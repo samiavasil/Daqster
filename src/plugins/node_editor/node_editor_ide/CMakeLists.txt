@@ -196,6 +196,10 @@ set(IDE_SOURCES
     # dependency beyond the capability header.
     StatusBarController.cpp
     StatusBarController.h
+    # Scene problems panel (REQ-SW-PL-082): lists what ISceneOpening reported
+    # for the loaded scene; double-click/Enter asks the host to select the node.
+    SceneProblemsPanel.cpp
+    SceneProblemsPanel.h
 )
 
 create_plugin(NodeEditorIde

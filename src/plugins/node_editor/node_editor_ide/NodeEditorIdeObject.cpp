@@ -1,6 +1,7 @@
 #include "NodeEditorIdeObject.h"
 #include "NodeEditorWidget.h"
 #include "LayoutDesignerPanel.h"
+#include "SceneProblemsPanel.h"
 #include "StatusBarController.h"
 #include "QPluginManager.h"
 #include "QPluginManagerGui.h"
@@ -30,6 +31,7 @@
 #include <QMessageBox>
 #include <QSet>
 #include <QDir>
+#include <QGraphicsView>
 #include <QKeyEvent>
 #include <QToolBar>
 
@@ -175,6 +177,17 @@ bool NodeEditorIdeObject::Initialize()
     });
 
     l->addWidget(m_Widget);
+
+    // ── Scene problems (REQ-SW-PL-082) ─────────────────────────────────────
+    // Under the canvas: the verdict of `ISceneOpening` for the scene that was
+    // just loaded. Collapsed until there is something to say, so a clean scene
+    // does not lose canvas height to an empty list.
+    m_problemsPanel = new SceneProblemsPanel(mainWidget);
+    m_problemsPanel->setVisible(false);
+    connect(m_problemsPanel, &SceneProblemsPanel::problemActivated,
+            this, &NodeEditorIdeObject::selectSceneNode);
+    l->addWidget(m_problemsPanel);
+
     l->setContentsMargins(0, 0, 0, 0);
     l->setSpacing(0);
 
@@ -374,6 +387,7 @@ void NodeEditorIdeObject::MainWinDestroyed(QObject* obj)
     m_Widget = nullptr;
     m_designer = nullptr;
     m_designerAction = nullptr;
+    m_problemsPanel = nullptr;
     deleteLater();
     if (nullptr == obj)
         DEBUG << "Strange::!!!";
@@ -496,6 +510,10 @@ bool NodeEditorIdeObject::closeCurrentScene(bool confirmDiscard)
     m_hasLayoutV2 = false;
     m_layoutSectionV2 = FlowUi::LayoutSection{};
     m_sceneDirty = false;
+
+    // The problems described nodes that no longer exist (REQ-SW-PL-082).
+    if (m_problemsPanel != nullptr)
+        m_problemsPanel->setProblems({});
 
     qCInfo(lcNodeEditor) << "closeScene: released" << report.stopped << "of" << report.nodes
                          << "running nodes, plugins notified:" << notified
@@ -793,18 +811,11 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
         sceneJson["connections"] = cleanedConnections;
     }
 
-    // REQ-SW-PL-082: ask the plugins before the outgoing scene is touched. A
-    // refusal must leave what is on screen exactly as it was — closeCurrentScene()
-    // below stops and destroys the current nodes, so the question comes first.
-    // The scene handed to the hook is the filtered one, i.e. what would actually
-    // be loaded.
-    const Daqster::SceneOpenReport openReport = Daqster::checkSceneOpening(sceneJson);
-    if (!openReport.accepted()) {
-        const QString message = Daqster::sceneOpeningMessage(openReport);
-        qCWarning(lcNodeEditor).noquote() << message;
-        QMessageBox::warning(m_Win, tr("Load Scene"), message);
-        return false;
-    }
+    // REQ-SW-PL-082: the verdict is applied *after* load() (see below) — "зарежда,
+    // маркира, не стартира". The IDE used to refuse here with a QMessageBox,
+    // which left the user on an empty canvas: the graph he asked for is exactly
+    // where the broken path is fixed. Asking before load() would also ask about
+    // nodes the filtering above has already dropped.
 
     try {
         // Replacing a scene is close-then-open (REQ-SW-PL-078): stop the
@@ -834,6 +845,11 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
         applyUiSection(uiSection);
     }
 
+    // REQ-SW-PL-082: the scene is loaded — now ask the plugins whether it can
+    // *run* here. The answer never closes what the user opened: offending nodes
+    // are marked, the panel lists every problem and nothing is started.
+    applySceneProblems(Daqster::checkSceneOpening(sceneJson).problems);
+
     const int loadedNodeCount = static_cast<int>(m_Widget->graphModel()->allNodeIds().size());
     const int loadedConnCount = static_cast<int>(
         sceneJson["connections"].toArray().size());
@@ -860,6 +876,75 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
         m_statusBar->refresh();
 
     return true;
+}
+
+// ── Scene problems in the IDE (REQ-SW-PL-082) ───────────────────────────────
+// "Зарежда, маркира, не стартира": the scene stays open for editing, the nodes
+// the verdict names carry a NodeValidationState::Error (the canvas paints it),
+// and the panel under the canvas lists every problem with a hint. There is
+// deliberately no modal dialog here — the user must be able to click the
+// problem, land on the node and fix it.
+void NodeEditorIdeObject::applySceneProblems(
+    const QVector<Daqster::SceneOpenProblem>& problems)
+{
+    if (m_problemsPanel != nullptr)
+        m_problemsPanel->setProblems(problems);
+
+    if (problems.isEmpty()) {
+        qCInfo(lcNodeEditor) << "loadSceneFromFile: scene opening produced no problems";
+        return;
+    }
+
+    for (const Daqster::SceneOpenProblem& problem : problems) {
+        const QString text = SceneProblemsPanel::textForProblem(problem);
+
+        if (problem.nodeId.isEmpty() || m_Widget == nullptr
+            || m_Widget->graphModel() == nullptr) {
+            qCWarning(lcNodeEditor).noquote()
+                << "scene problem (scene-wide):" << text;
+            continue;
+        }
+
+        auto* model = m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(
+            static_cast<QtNodes::NodeId>(problem.nodeId.toUInt()));
+        if (model != nullptr) {
+            model->setValidationState(
+                {QtNodes::NodeValidationState::State::Error, text});
+        } else {
+            qCWarning(lcNodeEditor) << "scene problem: no node" << problem.nodeId
+                                    << "in the loaded scene";
+        }
+
+        qCWarning(lcNodeEditor).noquote()
+            << "scene problem:" << problem.nodeId << text;
+    }
+}
+
+void NodeEditorIdeObject::selectSceneNode(const QString& nodeId)
+{
+    if (nodeId.isEmpty() || m_Widget == nullptr || m_Widget->scene() == nullptr)
+        return;
+
+    bool ok = false;
+    const QtNodes::NodeId id =
+        static_cast<QtNodes::NodeId>(nodeId.toUInt(&ok));
+    if (!ok) {
+        qCWarning(lcNodeEditor) << "selectSceneNode: not a node id:" << nodeId;
+        return;
+    }
+
+    auto* scene = m_Widget->scene();
+    auto* item = scene->nodeGraphicsObject(id);
+    if (item == nullptr) {
+        qCWarning(lcNodeEditor) << "selectSceneNode: node" << nodeId
+                                << "is not on the canvas";
+        return;
+    }
+
+    scene->clearSelection();
+    item->setSelected(true);
+    if (!scene->views().isEmpty())
+        scene->views().first()->centerOn(item);
 }
 
 // ── Save with "ui" section (REQ-SW-PL-049) ──────────────────────────────────

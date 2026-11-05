@@ -78,14 +78,43 @@ id на нода, име, съобщение и подсказка), не низ
 | `POST /api/flow` (headless и GUI) | същото, през `reloadFlow()` | 200 `{"applied": true, "started": false, "problems": […]}` | `ControlPlaneRouter.cpp` (`POST /api/flow`); `lastSceneProblems()` |
 | `NodeRunner --run` (GUI), `loadFlow()` | `applySceneJson()` | сцената се зарежда; `RunRuntime()` не стартира `autoStart` нодовете | `RuntimeShell.cpp` `applySceneJson()` → `recordSceneOpening()`; `RunRuntime()` стъпка 6 |
 | `POST /api/flow` (GUI runtime) | `reloadFlow()` → `applySceneJson()` | същото тяло като headless (един и същ router) | `RuntimeShell.cpp:reloadFlow()` |
-| IDE `File → Load Scene…` | след филтрирането на непознатите типове, **преди** `closeCurrentScene()` | **още отказва** (`QMessageBox::warning` със списъка) — конвертирането на IDE-то е отделна задача | `NodeEditorIdeObject.cpp:801` → `:815` |
+| IDE `File → Load Scene…` | **след** `load()`, върху заредената сцена | сцената се зарежда и остава за редактиране; всеки проблем маркира нода си (`NodeValidationState::Error`), панелът под канваса изрежда всички, по един `qCWarning` на проблем; **без** модален диалог; нищо не се стартира | `NodeEditorIdeObject.cpp:loadSceneFromFile()` → `applySceneProblems()`; `SceneProblemsPanel` |
 
 Защо питане на едно място, а не две: при ветото ранното питане имаше смисъл
 (отказът не струваше нищо); при „зарежда, маркира, не стартира" всяко питане
 преди `load()` пита за сцена, която после се филтрира (непознатите типове
 отпадат), тоест отговорът може да е за нодове, които вече не съществуват.
 Затова пита единственото място, което вижда **филтрираната** сцена —
-`applySceneJson()` в двата host-а (и двете през `recordSceneOpening()`).
+`applySceneJson()` в двата host-а (и двете през `recordSceneOpening()`), а в IDE-то
+— `loadSceneFromFile()` **след** `load()`.
+
+### IDE-то: маркирай, не отказвай (`SceneProblemsPanel`)
+
+IDE-то беше последният хост с вето: `File → Load Scene…` показваше
+`QMessageBox::warning` и **не зареждаше** нищо, тоест човекът оставаше на празен
+канвас — а графът е единственото място, на което липсващият път се поправя.
+Сега `loadSceneFromFile()` пита **след** успешния `load()` (нодовете трябва да
+съществуват, за да бъдат маркирани) и прави точно три неща:
+
+1. **маркира** — за всеки проблем с непразен `nodeId` нодът получава
+   `setValidationState({State::Error, message (+ " — " + hint)})`, което
+   `NodeGraphicsObject` рисува върху тялото на нода; проблем без `nodeId` (за
+   цялата сцена) само се логва;
+2. **изрежда** — `applySceneProblems()` пълни `SceneProblemsPanel` под канваса
+   (хедър `Проблеми в сцената (N)`, свит по подразбиране; двойно щракване или
+   Enter върху ред излъчва `problemActivated(nodeId)` и хостът селектира нода и
+   центрира изгледа върху него). Празен списък **скрива** панела — чистата сцена
+   не губи височина;
+3. **логва** — по един `qCWarning(lcNodeEditor)` на проблем, с id и текст.
+
+Модален диалог няма: сцената остава отворена и редактируема, а нищо не се
+стартира (`autoStart` е грижа на runtime host-овете, не на редактора). Затваряне
+на сцената изчиства и панела, защото проблемите описват нодове, които вече не
+съществуват.
+
+Текстът на реда е същият като в логовете —
+`SceneProblemsPanel::textForProblem()`: `<nodeName> (<nodeId>): <message> — <hint>`,
+празните части се пропускат.
 
 Хостът пази присъдата в `m_lastSceneProblems` и я дава навън през
 `RuntimeController::lastSceneProblems()` — така `POST /api/flow` казва и двете

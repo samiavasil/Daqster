@@ -3,6 +3,7 @@
 #include "FlowUiSection.h"
 #include "LayoutTree.h"
 #include "QBasePluginObject.h"
+#include "SceneOpen.h"
 #include <QtNodes/Definitions>
 
 #include <QEvent>
@@ -14,6 +15,7 @@
 
 class LayoutDesignerPanel;
 class NodeEditorWidget;
+class SceneProblemsPanel;
 class StatusBarController;
 class QAction;
 class QMainWindow;
@@ -88,6 +90,11 @@ public slots:
 protected slots:
     void nodeDoubleClicked(QtNodes::NodeId nodeId);
 
+    /// REQ-SW-PL-082: the user activated a row in the problems panel — select
+    /// the node it names and centre the view on it. Unknown/empty ids are a
+    /// logged no-op (the scene may have changed since the verdict).
+    void selectSceneNode(const QString& nodeId);
+
 private:
     /// The close sequence behind `closeScene()` and behind "Load Scene…".
     ///
@@ -110,6 +117,12 @@ private:
     /// controller. Called on start and whenever a plugin is loaded/unloaded,
     /// so a provider that appears later still gets its row.
     void adoptStatusBarProviders();
+
+    /// REQ-SW-PL-082: applies an `ISceneOpening` verdict to the *loaded* scene —
+    /// "зарежда, маркира, не стартира". Each problem with a node id marks that
+    /// node (`NodeValidationState::Error`) and is logged; the panel lists them
+    /// all. Nothing is refused, nothing is started, no modal dialog.
+    void applySceneProblems(const QVector<Daqster::SceneOpenProblem>& problems);
 
     /// Dev driver (DAQSTER_AUTOSTART_VIDEO=1): builds a video source ->
     /// VideoOutput graph, connects it, starts playback from DAQSTER_VIDEO_FILE /
@@ -170,6 +183,11 @@ private:
     LayoutDesignerPanel* m_designer = nullptr;
     bool m_designerMode = false;
     QAction* m_designerAction = nullptr;
+
+    /// Scene problems reported by `ISceneOpening` (REQ-SW-PL-082). Created in
+    /// Initialize() under the canvas, hidden until a scene reports something;
+    /// a row activation selects and centres the node it names.
+    SceneProblemsPanel* m_problemsPanel = nullptr;
 
     /// `File → Close Scene` (REQ-SW-PL-078). Also on the toolbar, so the close
     /// button the IDE was missing is visible without opening a menu.
