@@ -65,14 +65,25 @@ namespace Daqster {
  *
  * Every field is about the life of the process: `kind` is the name the
  * ownership record is recognised by between starts (e.g. `sd-server`), and
- * `arguments` must **not** contain `--host`/`--port` — the class appends them
- * so a caller cannot lose the port it will later ask `/health` on.
+ * `arguments` must **not** contain the host/port flags (`portFlags`) — the
+ * class appends them so a caller cannot lose the port it will later ask
+ * `/health` on. A spec that repeats them is rejected in `start()`.
  */
 struct DAQSTERCOMMON_EXPORT LocalServerSpec
 {
     QString     kind;        ///< `whisper-server` | `piper` | …
     QString     binary;      ///< absolute path to the executable
-    QStringList arguments;   ///< arguments without `--host`/`--port`
+    QStringList arguments;   ///< arguments without the host/port flags
+    /**
+     * @brief The two flags this server takes for host and port, in that order.
+     *
+     * First entry = host flag, second = port flag. The default fits the
+     * common `--host <h> --port <n>`; a server with different names sets its
+     * own pair (e.g. `sd-server`: `--listen-ip`, `--listen-port`). The list
+     * must be either empty (→ the defaults) or exactly two **different**
+     * non-empty entries; anything else is rejected by `start()`.
+     */
+    QStringList portFlags{ QStringLiteral("--host"), QStringLiteral("--port") };
     QString     host = QStringLiteral("127.0.0.1");
     int         preferredPort = 0;      ///< 0 = the first free port in the range
     int         portRangeStart = 18080; ///< start of the auto-selection range
@@ -192,6 +203,15 @@ Q_SIGNALS:
     void logLine(const QString& line);
 
 private:
+    /// The effective host flag (`portFlags[0]`, default `--host`).
+    QString hostFlag() const;
+    /// The effective port flag (`portFlags[1]`, default `--port`).
+    QString portFlag() const;
+    /// `portFlags` is empty or exactly two different non-empty entries; on a
+    /// defect `reason` receives the message and `false` is returned.
+    bool portFlagsAreValid(QString* reason) const;
+    /// The banned flags (host + port) that already sit in `arguments`.
+    QStringList repeatedPortFlags() const;
     /// Sweeps orphaned processes of the same kind inside our port range (logged).
     void sweepOrphans();
     /// Asks `healthPath` on the well-known port (non-blocking).

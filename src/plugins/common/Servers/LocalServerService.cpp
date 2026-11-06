@@ -219,11 +219,11 @@ bool matchesBinary(qint64 pid, const QString& binaryName)
     return false;
 }
 
-/// The value after `--port` in the process command line (0 when absent).
-int portArgument(qint64 pid)
+/// The value after `portFlag` in the process command line (0 when absent).
+int portArgument(qint64 pid, const QString& portFlag)
 {
     const QStringList args = readCmdline(pid);
-    const int index = args.indexOf(QStringLiteral("--port"));
+    const int index = args.indexOf(portFlag);
     return (index >= 0 && index + 1 < args.size()) ? args.at(index + 1).toInt() : 0;
 }
 
@@ -423,6 +423,52 @@ QString LocalServerService::lockFilePath()
     return ownershipLockFilePath();
 }
 
+QString LocalServerService::hostFlag() const
+{
+    return m_spec.portFlags.value(0, QStringLiteral("--host"));
+}
+
+QString LocalServerService::portFlag() const
+{
+    return m_spec.portFlags.value(1, QStringLiteral("--port"));
+}
+
+bool LocalServerService::portFlagsAreValid(QString* reason) const
+{
+    const QStringList& flags = m_spec.portFlags;
+    if (flags.isEmpty())
+        return true;   // the defaults
+
+    QString problem;
+    if (flags.size() != 2) {
+        problem = QStringLiteral("portFlags must be empty or exactly two entries "
+                                 "(host, port), got %1")
+                      .arg(flags.size());
+    } else if (flags.at(0).isEmpty() || flags.at(1).isEmpty()) {
+        problem = QStringLiteral("portFlags entries must not be empty");
+    } else if (flags.at(0) == flags.at(1)) {
+        problem = QStringLiteral("portFlags host and port flags are the same (\"%1\")")
+                      .arg(flags.at(0));
+    } else {
+        return true;
+    }
+
+    if (reason)
+        *reason = QStringLiteral("%1: %2").arg(m_spec.kind, problem);
+    return false;
+}
+
+QStringList LocalServerService::repeatedPortFlags() const
+{
+    QStringList repeated;
+    for (const QString& flag : { hostFlag(), portFlag(), QStringLiteral("--host"),
+                                 QStringLiteral("--port") }) {
+        if (m_spec.arguments.contains(flag) && !repeated.contains(flag))
+            repeated << flag;
+    }
+    return repeated;
+}
+
 void LocalServerService::start(const LocalServerSpec& spec, QString* error)
 {
     if (error)
@@ -458,6 +504,12 @@ void LocalServerService::start(const LocalServerSpec& spec, QString* error)
                      .arg(m_spec.kind)
                      .arg(m_spec.portRangeStart)
                      .arg(m_spec.portRangeEnd);
+    } else if (!portFlagsAreValid(&reason)) {
+        // `reason` is filled by the check itself (one message per defect).
+    } else if (const QStringList repeated = repeatedPortFlags(); !repeated.isEmpty()) {
+        reason = QStringLiteral("%1: the arguments already contain %2 — the class "
+                                "appends the host/port flags itself")
+                     .arg(m_spec.kind, repeated.join(QStringLiteral(", ")));
     }
     if (!reason.isEmpty()) {
         m_state     = State::Failed;
@@ -667,7 +719,7 @@ void LocalServerService::sweepOrphans()
         const qint64 pid = entry.toLongLong(&isPid);
         if (!isPid || !matchesBinary(pid, binaryName))
             continue;
-        const int port = portArgument(pid);
+        const int port = portArgument(pid, portFlag());
         if (port < m_spec.portRangeStart || port >= m_spec.portRangeEnd)
             continue;
         candidates.insert(pid);
@@ -848,8 +900,8 @@ void LocalServerService::launch(int firstPort)
     m_probePort = m_port;
 
     QStringList args = m_spec.arguments;
-    args << QStringLiteral("--host") << m_spec.host
-         << QStringLiteral("--port") << QString::number(m_port);
+    args << hostFlag() << m_spec.host
+         << portFlag() << QString::number(m_port);
 
     if (m_proc) {
         // An exited process may still live as an object (its

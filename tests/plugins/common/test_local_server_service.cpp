@@ -651,3 +651,106 @@ void TestLocalServerService::pickFreePortSkipsBusyPort()
     QCOMPARE(LocalServerService::pickFreePort(taken, taken), 0);
     busy.close();
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  9. Configurable host/port flags (REQ-SW-PL-081)
+// ═══════════════════════════════════════════════════════════════════════
+
+void TestLocalServerService::customPortFlagsAreUsed()
+{
+    if (stubBinary().isEmpty())
+        QSKIP("LOCAL_SERVER_STUB is not set (not built through CMake?)");
+    const int base = freePortBase(32);
+    QVERIFY2(base > 0, "no free port for the range — the environment is broken");
+
+    LocalServerService service;
+    QSignalSpy started(&service, &LocalServerService::started);
+    QSignalSpy failed(&service, &LocalServerService::failed);
+
+    LocalServerSpec spec = stubSpec(base);
+    // `sd-server` takes `--listen-ip`/`--listen-port` and exits on unknown
+    // arguments — the stub is equally strict, so this fails if `--host`/
+    // `--port` is passed.
+    spec.portFlags = QStringList{QStringLiteral("--listen-ip"),
+                                 QStringLiteral("--listen-port")};
+
+    QString error;
+    service.start(spec, &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+
+    QTRY_VERIFY_WITH_TIMEOUT(started.count() == 1, 20000);
+    QCOMPARE(failed.count(), 0);
+    QVERIFY(service.isReady());
+    QCOMPARE(service.port(), base);
+
+    service.stop();
+    QVERIFY(!service.isReady());
+}
+
+void TestLocalServerService::invalidPortFlagsAreRejected()
+{
+    if (stubBinary().isEmpty())
+        QSKIP("LOCAL_SERVER_STUB is not set (not built through CMake?)");
+    const int base = freePortBase(32);
+    QVERIFY2(base > 0, "no free port for the range");
+
+    const QList<QStringList> invalid = {
+        QStringList{QStringLiteral("--host")},                          // one entry
+        QStringList{QStringLiteral("--host"), QStringLiteral("--port"),
+                    QStringLiteral("--extra")},                         // three entries
+        QStringList{QStringLiteral("--same"), QStringLiteral("--same")},// equal values
+        QStringList{QString(), QString()},                              // empty values
+    };
+
+    for (const QStringList& flags : invalid) {
+        LocalServerService service;
+        QSignalSpy failed(&service, &LocalServerService::failed);
+
+        LocalServerSpec spec = stubSpec(base);
+        spec.portFlags = flags;
+        QString error;
+        service.start(spec, &error);
+
+        QVERIFY2(!error.isEmpty(),
+                 qPrintable(QStringLiteral("no error for portFlags %1")
+                                .arg(flags.join(QLatin1Char(' ')))));
+        QVERIFY2(error.contains(QStringLiteral("portFlags")), qPrintable(error));
+        QCOMPARE(service.state(), LocalServerService::State::Failed);
+        QCOMPARE(failed.count(), 1);
+        QVERIFY(!service.isReady());
+        QVERIFY(!service.isOwned());
+    }
+}
+
+void TestLocalServerService::defaultFlagsUnchanged()
+{
+    if (stubBinary().isEmpty())
+        QSKIP("LOCAL_SERVER_STUB is not set (not built through CMake?)");
+
+    const LocalServerSpec spec;
+    QCOMPARE(spec.portFlags, (QStringList{QStringLiteral("--host"),
+                                          QStringLiteral("--port")}));
+
+    // An explicit `--port` in the arguments would be appended a second time —
+    // rejected instead of silently handing the server two ports.
+    LocalServerService service;
+    QSignalSpy failed(&service, &LocalServerService::failed);
+    LocalServerSpec doubled = stubSpec(freePortBase(32));
+    doubled.arguments << QStringLiteral("--port") << QStringLiteral("1");
+    QString error;
+    service.start(doubled, &error);
+    QVERIFY2(!error.isEmpty(), "a repeated --port was accepted");
+    QVERIFY2(error.contains(QStringLiteral("--port")), qPrintable(error));
+    QCOMPARE(failed.count(), 1);
+
+    // …and the same for a custom pair that the caller passes itself.
+    LocalServerService custom;
+    LocalServerSpec customSpec = stubSpec(freePortBase(32));
+    customSpec.portFlags = QStringList{QStringLiteral("--listen-ip"),
+                                       QStringLiteral("--listen-port")};
+    customSpec.arguments << QStringLiteral("--listen-port") << QStringLiteral("1");
+    QString customError;
+    custom.start(customSpec, &customError);
+    QVERIFY2(customError.contains(QStringLiteral("--listen-port")),
+             qPrintable(customError));
+}

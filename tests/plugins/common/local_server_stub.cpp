@@ -7,14 +7,19 @@
 // ~110 lines of Qt Core without a single model line and answers
 // `200 {"status":"ok"}` on the given path.
 //
-// The arguments are the ones the class hands to every server (`--host`,
-// `--port`), plus three keys used by the tests only:
+// The arguments are the ones the class hands to every server (by default
+// `--host`, `--port`), plus three keys used by the tests only:
 //
 //   --path <path>           which path answers 200 (default /health)
 //   --exit-after-ms <N>     exits by itself after N ms ("the process died while running")
 //   --exit-after-health     exits right after the first 200
 //
-// Exit code 0 on a normal timer exit, 2/3 on bad arguments/port.
+// A server may also be started with other host/port flags (`--listen-ip`,
+// `--listen-port` — `LocalServerSpec::portFlags`); both spellings are accepted.
+// **Any other argument is an error** (exit 2): the test stub is as strict as a
+// real server such as `sd-server`, so a wrong flag pair cannot pass unnoticed.
+//
+// Exit code 0 on a normal timer exit, 2 on bad arguments, 3 on a taken port.
 
 #include <QCoreApplication>
 #include <QHostAddress>
@@ -49,16 +54,23 @@ int main(int argc, char* argv[])
     for (int i = 1; i < args.size(); ++i) {
         const QString& arg = args.at(i);
         const bool hasValue = (i + 1 < args.size());
-        if (arg == QLatin1String("--port") && hasValue)
+        if ((arg == QLatin1String("--port") || arg == QLatin1String("--listen-port"))
+            && hasValue) {
             port = args.at(++i).toInt();
-        else if (arg == QLatin1String("--host") && hasValue)
+        } else if ((arg == QLatin1String("--host")
+                    || arg == QLatin1String("--listen-ip")) && hasValue) {
             ++i;   // we listen on localhost only — the value is for real servers
-        else if (arg == QLatin1String("--path") && hasValue)
+        } else if (arg == QLatin1String("--path") && hasValue) {
             path = args.at(++i);
-        else if (arg == QLatin1String("--exit-after-ms") && hasValue)
+        } else if (arg == QLatin1String("--exit-after-ms") && hasValue) {
             exitAfterMs = args.at(++i).toInt();
-        else if (arg == QLatin1String("--exit-after-health"))
+        } else if (arg == QLatin1String("--exit-after-health")) {
             exitAfterHealth = true;
+        } else {
+            std::fprintf(stderr, "local_server_stub: unknown argument \"%s\"\n",
+                         qPrintable(arg));
+            return 2;
+        }
     }
 
     if (port <= 0) {

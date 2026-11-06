@@ -73,6 +73,16 @@ private slots:
     /// A taken port is skipped by the auto-selection.
     void pickFreePortSkipsBusyPort();
 
+    /// A server with its own flag names (`--listen-ip`/`--listen-port`): the
+    /// class passes those, never `--host`/`--port` (the stub is strict).
+    void customPortFlagsAreUsed();
+
+    /// `portFlags` with 1 / 3 entries or two equal values → a clear `failed`.
+    void invalidPortFlagsAreRejected();
+
+    /// The default pair is still `--host`/`--port`.
+    void defaultFlagsUnchanged();
+
 private:
     bool m_hadOwnershipFile = false;
     QByteArray m_ownershipBackup;
