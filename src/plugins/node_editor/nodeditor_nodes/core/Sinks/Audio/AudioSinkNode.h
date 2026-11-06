@@ -21,11 +21,11 @@ class QFile;
 /**
  * @brief Audio to 16-bit PCM WAV recorder (REQ-SW-PL-077).
  *
- * Moved out of the private AI Studio plugin: the node never used a single AI
- * type, only `SampledData`, `QFile` and (for the legacy `playbackEnabled`
- * field) the audio device. Every graph that wants the audio it just produced
- * on disk used to have to load the whole AI plugin for it; now it is a public
- * `Sinks/Audio` node next to `AudioOutputNode`.
+ * Moved out of a private plugin: the node never used a type beyond
+ * `SampledData`, `QFile` and (for the legacy `playbackEnabled` field) the audio
+ * device. Every graph that wants the audio it just produced on disk used to
+ * have to load that whole plugin for it; now it is a public `Sinks/Audio` node
+ * next to `AudioOutputNode`.
  *
  * Contract kept from the private node, on purpose:
  *   - `name()` is **still** `"AudioSinkNode"` — that string is the registration

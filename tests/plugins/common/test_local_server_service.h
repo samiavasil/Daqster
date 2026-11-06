@@ -8,8 +8,7 @@
 /// They guard the contract — the class' job is **the life of the process**, not
 /// the protocol. So there is not a single line here about models, VRAM or
 /// nodes; the "server" is `local_server_stub`, ~150 lines of Qt Core that
-/// answers `200 {"status":"ok"}` on the given path. No real `sd-server` /
-/// `llama-server`, no GPU, no weights.
+/// answers `200 {"status":"ok"}` on the given path. No GPU, no weights.
 ///
 /// What is guarded is exactly what broke when this code existed in three
 /// copies:

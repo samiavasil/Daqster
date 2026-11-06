@@ -5,7 +5,6 @@
 
 // Core models - include headers for static_cast
 #include <Sources/AudioSource/AudioSourceDataModel.h>
-#include <Sources/LLamaSource/LLamaModelDataModel.h>
 #include <Sources/Video/CameraSourceNode.h>
 #include <Sources/Video/StreamSourceNode.h>
 #include <Sources/Video/VideoFileSourceNode.h>
@@ -15,7 +14,6 @@
 #include <Sinks/Video/VideoOutputNode.h>
 #include <Sinks/Audio/AudioOutputNode.h>
 #include <Sinks/Audio/AudioSinkNode.h>
-#include <Sources/LLamaSource/ConsoleDataModel.h>
 #include <Sources/Video/CameraSourceNode.h>
 #include <Sources/Video/VideoFileSourceNode.h>
 #include <Sources/Video/StreamSourceNode.h>
@@ -44,8 +42,6 @@
 #include <Sources/Gamepad/GamepadModel.h>
 #include <Sources/AudioSource/AudioSourceDataModel.h>
 #include <Sources/AudioSource/AudioSourceDataModelObsolete.h>
-#include <Sources/LLamaSource/ConsoleDataModel.h>
-#include <Sources/LLamaSource/LLamaModelDataModel.h>
 #include <Routing/Demux/DemuxNodeObsolete.h>
 #include <Routing/Mux/MuxNodeObsolete.h>
 
@@ -74,9 +70,6 @@
 #include "Sources/NumberSourceWidget.h"
 #include "Sources/Gamepad/GamepadWidget.h"
 #include "Sources/AudioSource/AudioSourceDataModelUI.h"
-#include "Sources/LLamaSource/ConsoleWidget.h"
-#include "Sources/LLamaSource/ChatBaseWidget.h"
-#include "Sources/LLamaSource/LLamaModelWidget.h"
 #include "Sources/Video/CameraSourceWidget.h"
 #include "Sources/Video/StreamSourceWidget.h"
 #include "Sources/Video/VideoFileSourceWidget.h"
@@ -526,7 +519,7 @@ void registerDefaultWidgetCreators(NodeWidgetFactory* factory)
         return widget;
     });
 
-    // AudioSource, LLama, Gamepad - TODO: add widget creators when models are updated
+    // AudioSource, Gamepad - TODO: add widget creators when models are updated
     // These currently use embeddedWidget() from the model (old pattern)
 
     // Modulo
@@ -648,80 +641,6 @@ void registerDefaultWidgetCreators(NodeWidgetFactory* factory)
                          m, &AudioSourceDataModelObsolete::ChangeAudioConnection);
         QObject::connect(m, &AudioSourceDataModelObsolete::audioStateChanged,
                          widget, &AudioSourceDataModelUI::AudioStateChanged);
-        return widget;
-    });
-
-    // Console
-    factory->registerWidgetCreator("Console", [](QtNodes::NodeDelegateModel* model) -> QWidget* {
-        auto* m = safeCast<ConsoleDataModel>(model, "Console");
-        if (!m) return nullptr;
-        auto* widget = new ConsoleWidget();
-        // Push the persisted state loaded before the widget existed.
-        if (!m->chatConfig().isEmpty())
-            widget->findChild<ChatBaseWidget*>()->loadConfig(m->chatConfig());
-        QObject::connect(widget, &ConsoleWidget::sendRequested,
-                         m, &ConsoleDataModel::onSendClicked);
-        QObject::connect(widget, &ConsoleWidget::configChanged,
-                         m, &ConsoleDataModel::onChatConfigChanged);
-        // Model -> widget: a response arrived on the input port.
-        QObject::connect(m, &ConsoleDataModel::responseReceived,
-                         widget, &ConsoleWidget::addResponse);
-        return widget;
-    });
-
-    // LLamaModel
-    factory->registerWidgetCreator("LLamaModel", [](QtNodes::NodeDelegateModel* model) -> QWidget* {
-        auto* m = safeCast<LLamaModelDataModel>(model, "LLamaModel");
-        if (!m) return nullptr;
-        auto* widget = new LLamaModelWidget();
-
-        // ── Initial render from the model state (load() may have run first) ──
-        widget->setHost(m->host());
-        widget->setPort(m->port());
-        widget->setCtxSize(m->ctxSize());
-        widget->setUseGpu(m->useGpu());
-        widget->setExePath(m->exePath());
-        widget->setModelPath(m->modelPath());
-
-        auto* chat = widget->chatWidget();
-        if (!m->chatConfig().isEmpty())
-            chat->loadConfig(m->chatConfig());
-
-        // ── Widget -> model ──────────────────────────────────────────────
-        QObject::connect(widget, &LLamaModelWidget::connectClicked,
-                         m, &LLamaModelDataModel::onConnectClicked);
-        QObject::connect(widget, &LLamaModelWidget::startServerClicked,
-                         m, &LLamaModelDataModel::onStartServerClicked);
-        QObject::connect(widget, &LLamaModelWidget::debugSendClicked,
-                         m, &LLamaModelDataModel::onDebugSendClicked);
-        QObject::connect(chat, &ChatBaseWidget::sendRequested,
-                         m, &LLamaModelDataModel::onLocalChatSend);
-        QObject::connect(widget, &LLamaModelWidget::exePathSelected,
-                         m, &LLamaModelDataModel::onExePathSelected);
-        QObject::connect(widget, &LLamaModelWidget::modelPathSelected,
-                         m, &LLamaModelDataModel::onModelPathSelected);
-        QObject::connect(widget, &LLamaModelWidget::debugPathChanged,
-                         m, &LLamaModelDataModel::onDebugPathChanged);
-        QObject::connect(widget, &LLamaModelWidget::debugBodyChanged,
-                         m, &LLamaModelDataModel::onDebugBodyChanged);
-        QObject::connect(widget, &LLamaModelWidget::chatConfigChanged,
-                         m, &LLamaModelDataModel::onChatConfigChanged);
-
-        // ── Model -> widget ──────────────────────────────────────────────
-        QObject::connect(m, &LLamaModelDataModel::statusChanged,
-                         widget, &LLamaModelWidget::setStatus);
-        QObject::connect(m, &LLamaModelDataModel::connectButtonChanged,
-                         widget, &LLamaModelWidget::setConnectButton);
-        QObject::connect(m, &LLamaModelDataModel::startButtonChanged,
-                         widget, &LLamaModelWidget::setStartButton);
-        QObject::connect(m, &LLamaModelDataModel::debugResponseReceived,
-                         widget, &LLamaModelWidget::setDebugResponse);
-        QObject::connect(m, &LLamaModelDataModel::chatResponseReceived,
-                         widget, &LLamaModelWidget::addChatResponse);
-        // REQ-SW-PL-074 (R3/R4): every reply appends to the Chat tab's JSON
-        // tree, but only a local chat send adds a chat bubble.
-        QObject::connect(m, &LLamaModelDataModel::exchangeAppended,
-                         widget, &LLamaModelWidget::appendExchange);
         return widget;
     });
 }

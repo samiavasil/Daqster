@@ -329,7 +329,7 @@ bool recordProcessIsLive(qint64 pid, const QString& binaryName)
  * Must be called **under the start lock**: it writes the file when it removes a
  * stale record.
  *
- * @param kind       server kind (`sd-server`, `llama-server`, …)
+ * @param kind       server kind (`whisper-server`, `piper`, …)
  * @param binaryName file name of the executable the record must match
  * @return the first live record (empty, `live == false`, when there is none)
  */

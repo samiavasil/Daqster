@@ -7,8 +7,7 @@
 // The life of a local HTTP server is the same whoever the server is:
 // free port → launch → `GET /health` until ready → ownership file (so a second
 // scene can reuse the process) → bounded stop. Written twice before this class
-// existed (`AsrServerProcess` + `WhisperServerOwnership` for the warm
-// `whisper-server`, the public `LLamaModelDataModel` for `llama-server`), and a
+// existed (two client plugins, each supervising its own server process), and a
 // third copy was about to be written — so it is one class instead.
 //
 // The class knows **nothing** about models, inference, VRAM or nodes: it is
@@ -72,7 +71,7 @@ namespace Daqster {
  */
 struct DAQSTERCOMMON_EXPORT LocalServerSpec
 {
-    QString     kind;        ///< `llama-server` | `sd-server` | `whisper-server` | …
+    QString     kind;        ///< `whisper-server` | `piper` | …
     QString     binary;      ///< absolute path to the executable
     QStringList arguments;   ///< arguments without `--host`/`--port`
     QString     host = QStringLiteral("127.0.0.1");

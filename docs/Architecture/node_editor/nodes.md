@@ -32,7 +32,6 @@
 | `Sinks/Network` | `NetworkSinkModel` |
 | `Processing/Video` | `VideoEffectNode`, `CustomShaderNode`, `FrameSamplerNode` |
 | `Displays/DAQ` | `DaqDisplayNode`, `GenericDisplayNode`², `AudioDisplayModelObsolete`, `AudioDisplayAlias`² |
-| `AI/LLM` | `LLamaModelDataModel`, `ConsoleDataModel` |
 | `Routing` | `DemuxNodeObsolete`, `MuxNodeObsolete` (+ alias-и `DemuxNode`/`MuxNode`) |
 | `Obsolete` | `AudioSourceDataModelObsolete` |
 

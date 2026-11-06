@@ -50,7 +50,7 @@ Daqster/
 │   ├── apps/                     # Приложения
 │   │   ├── Daqster/              # Главното GUI приложение (ApplicationsManager, AppToolbar)
 │   │   └── NodeRunner/           # Двоен режим: GUI или `--headless` (споделен AppBootstrap)
-│   └── plugins/                  # ВСИЧКО график/AI живее тук
+│   └── plugins/                  # ВСИЧКИ плъгини живеят тук
 │       ├── external_libs/        # Git submodules (nodeeditor → QtNodesCore/QtNodes, qtrest_lib)
 │       ├── common/               # DaqsterCommonLibrary (target) + capability интерфейси
 │       │   ├── capabilities/     # INodeProvider, IWidgetProvider, INodeConfigSchema, IRuntimeHost, ...

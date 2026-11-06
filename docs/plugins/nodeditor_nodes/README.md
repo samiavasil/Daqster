@@ -4,7 +4,7 @@
 
 ## Преглед
 
-INodeProvider плъгин, който доставя Audio, Video, LLaMA, Display и Routing нодове към Node Editor IDE. Това е основният доставчик на нодове за Daqster node editor-а.
+INodeProvider плъгин, който доставя Audio, Video, Display и Routing нодове към Node Editor IDE. Това е основният доставчик на нодове за Daqster node editor-а.
 
 **Локация:** `src/plugins/node_editor/nodeditor_nodes/core/` и `src/plugins/node_editor/nodeditor_nodes/gui/`
 **Име на .so:** `libNodeditorNodesCorePlugin.so` (core) и `libNodeditorNodesGuiPlugin.so` (GUI) — REQ-SW-PL-051 раздели единия плъгин на два
@@ -35,10 +35,6 @@ nodeditor_nodes/
 │   │   ├── AudioSourceConfig.{h,cpp,ui}
 │   │   ├── AudioComboModel.{h,cpp}
 │   │   └── node_editor.qrc
-│   ├── LLamaSource/                      # LLaMA AI нодове
-│   │   ├── LLamaModelDataModel.{h,cpp}
-│   │   ├── ConsoleDataModel.{h,cpp}
-│   │   └── ChatBaseWidget.{h,cpp}
 │   └── Video/                            # Video нодове (VideoFrameData / "video-frame" flow)
 │       ├── VideoCompat.h                 # Qt5/Qt6 multimedia compatibility shim
 │       ├── CameraSourceNode.{h,cpp}
@@ -141,9 +137,6 @@ NodeditorNodesCoreObject → INodeProvider
         registry.registerModel<VideoEffectNode>("Processing/Video")   // един нод с комбо (REQ-SW-PL-028 AC 4)
         registry.registerModel<CustomShaderNode>("Processing/Video")  // runtime GLSL (REQ-SW-PL-029)
         registry.registerModel<FrameSamplerNode>("Processing/Video")
-        // AI
-        registry.registerModel<LLamaModelDataModel>("AI/LLM")
-        registry.registerModel<ConsoleDataModel>("AI/LLM")
         // Файл I/O
         registry.registerModel<FilePlaybackModel>("Sources/File")     // cross-platform (REQ-SW-PL-043)
         registry.registerModel<FileRecordModel>("Sinks/File")         // cross-platform (REQ-SW-PL-043)
@@ -209,12 +202,6 @@ NodeditorNodesCoreObject → INodeProvider
 | DemuxNodeObsolete | Routing | Старият QDevIO demultiplexer (rename-only, registered `DemuxNodeObsolete` + alias `DemuxNode`) |
 | MuxNodeObsolete | Routing | Старият QDevIO multiplexer (rename-only, registered `MuxNodeObsolete` + alias `MuxNode`) |
 
-### LLama
-| Нод | Категория | Описание |
-|-----|-----------|----------|
-| LLamaModelDataModel | AI/LLM | LLaMA модел — AI генерация на текст |
-| ConsoleDataModel | AI/LLM | Конзола за показване на AI отговори |
-
 ### Video
 | Нод | Категория | Описание |
 |-----|-----------|----------|
@@ -226,7 +213,7 @@ NodeditorNodesCoreObject → INodeProvider
 | CustomShaderNode | Processing/Video | GPU-only runtime GLSL нод — Shadertoy-style `mainImage` contract, GLSL редактор + compile + error log + uniform контроли, port 0 in/out `VideoFrameData`, изисква хардуерен GL (REQ-SW-PL-029) |
 | FrameSamplerNode | Processing/Video | Ресемплиране на `VideoFrameData` — всеки N-ти кадър или max FPS, zero-copy passthrough (REQ-SW-PL-030) |
 
-Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy); видео source-ите имат и port 1 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема `VideoFrameData` и го дисплейва през GPU (вж. „Qt6 in-scene toggle" по-долу; Qt5: detached GL blit прозорец при `DAQSTER_GL_BLIT=1`). **Единственият frame тип е `VideoFrameData`** — `ImageData` е премахнат (Фаза 3, REQ-SW-PL-032); CPU обработката ползва lazy `VideoFrameData::asImage()` кеша. Частният AI Studio plugin консумира `VideoFrameData` на входа на `FrameToTensorNode` (REQ-AI-007).
+Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy); видео source-ите имат и port 1 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема `VideoFrameData` и го дисплейва през GPU (вж. „Qt6 in-scene toggle" по-долу; Qt5: detached GL blit прозорец при `DAQSTER_GL_BLIT=1`). **Единственият frame тип е `VideoFrameData`** — `ImageData` е премахнат (Фаза 3, REQ-SW-PL-032); CPU обработката ползва lazy `VideoFrameData::asImage()` кеша.
 
 #### Qt6 in-scene GPU display toggle (REQ-SW-PL-021)
 
@@ -751,7 +738,7 @@ Plugin-ът изисква следните Qt модули и библиоте�
 - **Qt::Core, Qt::Gui** — основни Qt модули
 - **Qt::Charts** — за графична визуализация
 - **Qt::Multimedia** — за аудио и видео функционалност (AudioSource, Video нодове)
-- **Qt::Network** — за мрежова комуникация (LLaMA API, StreamSource)
+- **Qt::Network** — за мрежова комуникация (StreamSource, NetworkSource/Sink)
 - **Qt::OpenGL** — за rendering
 - **QtNodes** — node editor library
 - **NodeEditorLibrary** — споделена библиотека за node editor

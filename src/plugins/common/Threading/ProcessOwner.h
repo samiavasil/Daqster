@@ -108,7 +108,7 @@ public:
     /// `finished → deleteLater`); an adopted process keeps its creator's
     /// lifetime. The accessor exists because the owner is not a QObject and
     /// cannot be the receiver of `finished`/`started`/`readyRead` — every real
-    /// user (whisper-server, piper, llama-server) needs those signals.
+    /// user (whisper-server, piper) needs those signals.
     QProcess *process() const { return m_process.data(); }
 
     /// OS process id of the owned process, 0 when it is not running.

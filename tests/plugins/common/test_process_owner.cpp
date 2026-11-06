@@ -100,7 +100,7 @@ QString writeStubbornServer(const QTemporaryDir &dir)
     // `exec sleep` would NOT work: the shell resets ignored dispositions on
     // exec, so the exec'ed program dies on SIGTERM (measured).
     script.write("#!/bin/sh\n"
-                 "# Fake llama-server: ignores the polite signal (REQ-SW-PL-050 D2).\n"
+                 "# Fake server: ignores the polite signal (REQ-SW-PL-050 D2).\n"
                  "trap '' TERM\n"
                  ": > ready.flag\n"
                  "read line\n");

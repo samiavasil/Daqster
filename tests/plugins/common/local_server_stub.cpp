@@ -2,8 +2,8 @@
 //
 // Why a separate executable and not a shell script: `LocalServerService` spawns
 // a **process** and waits for readiness over `GET /health`, so the stub has to
-// really listen on a port. The tests must not need a real `sd-server` /
-// `llama-server` (gigabytes of weights, GPU, minutes to load) — this file is
+// really listen on a port. The tests must not need a real server (gigabytes
+// of weights, GPU, minutes to load) — this file is
 // ~110 lines of Qt Core without a single model line and answers
 // `200 {"status":"ok"}` on the given path.
 //

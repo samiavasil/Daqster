@@ -282,7 +282,7 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
 
 | Ресурс | Притежател | Освобождава се в |
 |---|---|---|
-| `ContextHandle` (KV, `n_ctx`) | нодът, който го е взел (`ChatNode`, LLM нодове) | `stop()`; деструкторът е втората защита |
+| `ContextHandle` (KV, `n_ctx`) | нодът, който го е взел | `stop()`; деструкторът е втората защита |
 | тегла (`ModelHandle`) | брокерът (`ModelRuntime`), не нодът | политиката при затваряне — вижте долу |
 | топъл `whisper-server` | `AsrNode` → `AsrAdapter` (само **собствен**) | `stop()` → `AsrAdapter::stop()` → `stopServer()` |
 | топъл `piper` | `TtsNode` → `TtsAdapter` | `stop()` → `killWarmProcess()` |
@@ -332,7 +332,6 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
 | # | Място | Преди | Сега |
 |---|---|---|---|
 | D1 | `DaqDisplayNode::stop()`, `VideoEffectNode::stop()` | работната задача проверяваше `m_shuttingDown` — тоест **член на нода**, който `ComputePool::cancel()` (500 ms) може вече да е унищожил | задачата държи `CancelToken` **по стойност** и проверява него преди всяко пипане на `this`; `stop()` отменя token-а **преди** `cancel()` |
-| D2 | `LLamaModelDataModel::stopServer()` | `terminate()` + `waitForFinished(3000)`; сървър, който игнорира SIGTERM, оставаше жив, а нодът се унищожаваше | + `kill()` + `waitForFinished(1000)`; връща `NotRunning/Stopped/Killed/TimedOut` и логва при kill |
 | D3 | `PlutoSdrEngine::stop()` | `QThread::wait()` без срок — блокиран `iio_buffer_refill()` спираше затварянето завинаги | `wait(3000)`; при изтичане връща `TimedOut` и **не** вика `terminate()` (убиването на нишката вътре в libiio оставя драйвера в неопределено състояние); `close()` тогава не разрушава iio контекста |
 | D4 | `InferenceWorker::stop()` (частно) | `wait()` без срок — зареждане на модел, което не може да се отмени, блокираше изхода на процеса | `wait(5000)`; при изтичане логва и **откача** нишката (разрушаването на работещ `QThread` вдига `abort()`), а `start()` отказва втора |
 

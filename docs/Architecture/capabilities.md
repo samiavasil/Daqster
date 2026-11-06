@@ -231,7 +231,7 @@ all-or-nothing и би счупил всеки несвързан плъгин.
 | `SampledStreamDescriptor` | Метаданни: sample rate, канали, типове, мерни единици |
 | `VideoFrameData` | Видео кадър (Qt6: zero-copy handle; Qt5: OWNED копие) + `VideoTextureHandle` |
 | `VideoTextureHandle` | Дръжка към GPU текстура (zero-copy видео път) |
-| `EmbeddingData` | Векторни embedding-и (AI) |
-| `TextData` | Текст (LLM prompts/отговори) |
+| `EmbeddingData` | Векторни embedding-и |
+| `TextData` | Текст |
 | `FloatData` | Скаларна float стойност |
 | `NumericType` | Типизирано числово (generic numeric port, ADR-002) |

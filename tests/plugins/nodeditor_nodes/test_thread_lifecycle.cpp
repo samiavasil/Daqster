@@ -27,7 +27,6 @@
 #include <Sources/AudioSource/AudioSourceDataModel.h>
 #include <Sources/FilePlayback/FilePlaybackModel.h>
 #include <Sources/Gamepad/GamepadModel.h>
-#include <Sources/LLamaSource/LLamaModelDataModel.h>
 #include <Sources/NetworkSource/NetworkSourceModel.h>
 #include <Sources/Video/CameraSourceNode.h>
 #include <Sources/Video/StreamSourceNode.h>
@@ -83,7 +82,6 @@ namespace {
 ///   JackDetect          an ALSA device        cast + idempotency + active
 ///   Pcap                an interface          cast + idempotency + active
 ///   AudioSource/mic     a capture device      cast + idempotency
-///   LLama               a llama.cpp binary    cast + idempotency
 ///   FilePlayback        a decodable file      cast + idempotency
 ///   FileRecord          a writable device     cast + idempotency
 ///   NetworkSource       a bound port          cast + idempotency
@@ -115,9 +113,9 @@ namespace {
 int expectedStoppableModelCount()
 {
 #ifdef HAVE_LIBIIO
-    return 16;
-#else
     return 15;
+#else
+    return 14;
 #endif
 }
 
@@ -201,43 +199,6 @@ struct ClobberedHeap
     QVector<void *> blocks;
 };
 
-/// A fake `llama-server`: ignores SIGTERM, announces that the trap is installed
-/// by creating `ready.flag` in its working directory, then blocks on the stdin
-/// pipe forever. ONE process, no children, no busy loop — SIGKILL is the only
-/// way out, which is exactly the D2 path (REQ-SW-PL-050).
-QString writeStubbornServer(const QTemporaryDir &dir)
-{
-    const QString path = dir.filePath(QStringLiteral("stubborn-server.sh"));
-    QFile script(path);
-    if (!script.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        return QString();
-    script.write("#!/bin/sh\n"
-                 "# Fake llama-server: ignores the polite signal (REQ-SW-PL-050 D2).\n"
-                 "# The real llama-server argument line (-m/--host/-c) is ignored.\n"
-                 "trap '' TERM\n"
-                 ": > ready.flag\n"
-                 "read line\n");
-    script.close();
-    QFile::setPermissions(path, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
-    return path;
-}
-
-/// RAII around QDir::setCurrent(): LLamaModelDataModel::start() inherits the
-/// process working directory (it has no workDir parameter), and the fake server
-/// announces readiness by creating a file in it.
-struct ScopedWorkingDir
-{
-    explicit ScopedWorkingDir(const QString &dir)
-        : previous(QDir::currentPath())
-    {
-        QDir::setCurrent(dir);
-    }
-
-    ~ScopedWorkingDir() { QDir::setCurrent(previous); }
-
-    QString previous;
-};
-
 /// Two nodes, one output connection: the smallest graph whose deletion reaches
 /// AudioSourceDataModel::outputConnectionDeleted().
 struct AudioSourceGraph{
@@ -281,8 +242,6 @@ QVector<TestThreadLifecycle::ModelEntry> TestThreadLifecycle::allStoppableModels
          [] { return std::make_unique<PcapModel>(); }},
         {QStringLiteral("AudioSource/mic"),
          [] { return std::make_unique<AudioSourceDataModel>(); }},
-        {QStringLiteral("LLama"),
-         [] { return std::make_unique<LLamaModelDataModel>(); }},
         {QStringLiteral("FilePlayback"),
          [] { return std::make_unique<FilePlaybackModel>(); }},
         {QStringLiteral("FileRecord"),
@@ -759,43 +718,3 @@ void TestThreadLifecycle::audioSourceAndDisplaySurviveFiveSceneCloses()
     }
 }
 
-void TestThreadLifecycle::llamaModelStopKillsStubbornServer()
-{
-#ifdef Q_OS_WIN
-    QSKIP("POSIX fixture: the fake server is a #!/bin/sh script that ignores SIGTERM");
-#else
-    // D2 (REQ-SW-PL-050). stop() used to be terminate() + waitForFinished(3000)
-    // and nothing else: a server that ignored SIGTERM (a stuck model load, a
-    // request tail) stayed alive while the node was destroyed pointing at it.
-    QTemporaryDir dir;
-    QVERIFY(dir.isValid());
-
-    const QString server = writeStubbornServer(dir);
-    QVERIFY2(!server.isEmpty(), "could not write the fake server script");
-
-    const QString ready = dir.filePath(QStringLiteral("ready.flag"));
-    const ScopedWorkingDir scopedCwd(dir.path()); // the script writes ./ready.flag
-
-    LLamaModelDataModel model;
-    model.onExePathSelected(server);
-    model.onModelPathSelected(dir.filePath(QStringLiteral("model.gguf")));
-    model.start();
-
-    // Handshake, not a guessed delay: before `trap` runs the shell still has the
-    // default SIGTERM disposition and would die from the polite signal.
-    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(ready), 5000);
-    QVERIFY(model.isServerRunning());
-
-    QElapsedTimer timer;
-    timer.start();
-    QCOMPARE(model.stopServer(), LLamaModelDataModel::StopResult::Killed);
-    const qint64 elapsed = timer.elapsed();
-
-    QVERIFY2(elapsed >= 2900,
-             qPrintable(QStringLiteral("stopServer() returned after %1 ms — the 3 s grace "
-                                       "period was not respected").arg(elapsed)));
-    QVERIFY(!model.isServerRunning());
-    // Idempotent: nothing left to signal.
-    QCOMPARE(model.stopServer(), LLamaModelDataModel::StopResult::NotRunning);
-#endif
-}

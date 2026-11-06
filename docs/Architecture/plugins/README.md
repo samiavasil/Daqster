@@ -11,7 +11,7 @@
 | Plugin | Локация | Тип | Описание |
 |--------|---------|-----|----------|
 | **Node Editor IDE** | `src/plugins/node_editor/node_editor_ide/` | APPLICATION_PLUGIN | IDE shell — `QMainWindow` + `NodeEditorWidget` (QtNodes canvas), открива `INodeProvider`-и; + `NodeSupport` (`libNodeEditorLibrary.so`) |
-| **Nodeditor Nodes** | `src/plugins/node_editor/nodeditor_nodes/{core,gui}/` | Node Provider (`core`) + Widget Provider (`gui`) | Доставя Audio/Video/DAQ/LLaMA/Display/Routing нодове; `core` е headless, `gui` държи widget-ите |
+| **Nodeditor Nodes** | `src/plugins/node_editor/nodeditor_nodes/{core,gui}/` | Node Provider (`core`) + Widget Provider (`gui`) | Доставя Audio/Video/DAQ/Display/Routing нодове; `core` е headless, `gui` държи widget-ите |
 | **Runtime Host Headless** | `src/plugins/runtime_host/headless/` | Runtime Host | `IRuntimeHost` — вдига граф без GUI (`HeadlessEngine`) |
 | **Runtime Host GUI** | `src/plugins/runtime_host/gui/` | Runtime Host | `IRuntimeHost` — вдига графа с прозорци (`RuntimeShell` + MDI) |
 | **QtCoinTrader** | `src/plugins/qt_coin_trader/` | APPLICATION_PLUGIN | Cryptocurrency trading plugin (QML UI) |
@@ -125,7 +125,7 @@ requirements viewer/editor. Изгледите са организирани в 
   **Error**.
 - **Верификация:** Qt5/Qt6 builds + offscreen smoke — приложение с
   RequirementsManager показва 35 merged requirements от двата repo-та
-  (`DaqsterAiStudio` + `daqster`). Unit тестове за новите пътища са
+  (частния и публичния). Unit тестове за новите пътища са
   **отложени по решение на потребителя** (съществуващите тестове продължават
   да се компилират; AC не са mark-нати като verified).
 

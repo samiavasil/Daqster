@@ -31,7 +31,6 @@
 | `number_graph.flow` | Built-in numeric нодове: `NumberSource` → `NumberResult`; параметри (`type`, `randomEnabled`, `interval`, `number`) | 2 | 1 |
 | `audio_graph.flow` | Аудио pipeline: `AudioSource` → `AudioDisplay` (alias key → SampledData display) | 2 | 1 |
 | `display_aliases.flow` | Display consolidation: `AudioSource` → 3 display-а (`DaqDisplay`, `GenericDisplay`, `AudioDisplay`) — и трите разрешават към DaqDisplayNode-базирани модели | 4 | 3 |
-| `llm_graph.flow` | LLM pipeline: `LLamaModel` → `Console`; параметри (`host`, `port`, `ctxSize`, `useGpu`) | 2 | 1 |
 | `empty_scene.flow` | Празна сцена (`nodes: []`, `connections: []`) — load не трябва да crash-ва и да дава празна сцена | 0 | 0 |
 | `missing_node.flow` | Нерегистриран нод тип (`BogusUnregisteredNode`) — толерантно зареждане: warn + skip, без crash | 3 (1 невалиден) | 3 (2 остават) |
 | `malformed.flow` | Невалиден/скъсан JSON (липсващи closing скоби) — load не трябва да crash-ва | — | — |
@@ -44,8 +43,6 @@
 - `NumberDisplayDataModel::name()` → `"NumberResult"` (НЕ `"NumberDisplay"`);
 - `AudioSourceDataModel::name()` → `"AudioSource"`;
 - `AudioDisplayAlias::name()` → `"AudioDisplay"` (alias на `DaqDisplayNode` — SampledData display);
-- `LLamaModelDataModel::name()` → `"LLamaModel"`;
-- `ConsoleDataModel::name()` → `"Console"`;
 - `VideoFileSourceNode::name()` → `"VideoFileSource"`;
 - `VideoEffectNode::name()` → `"VideoEffect"`;
 - `VideoOutputNode::name()` → `"VideoOutput"`.
@@ -90,7 +87,6 @@
 | `multi_effect_video.flow` | 4 | 3 | effect[0]=`brightness` (15), effect[1]=`contrast` (140) |
 | `number_graph.flow` | 2 | 1 | `type=double`, `number="42"` |
 | `audio_graph.flow` | 2 | 1 | — |
-| `llm_graph.flow` | 2 | 1 | `host=127.0.0.1`, `port=8080`, `ctxSize=2048` |
 | `empty_scene.flow` | 0 | 0 | — |
 | `missing_node.flow` | 2 (след skip) | 1 (след clean-up) | — |
 | `malformed.flow` | 0 (load отказан) | 0 | — |

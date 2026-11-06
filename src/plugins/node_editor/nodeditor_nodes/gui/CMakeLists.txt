@@ -82,12 +82,6 @@ set(GUI_WIDGETS
     Operators/ModuloWidget.cpp
     Operators/ArithmeticLogicWidget.h
     Operators/ArithmeticLogicWidget.cpp
-    Sources/LLamaSource/ChatBaseWidget.h
-    Sources/LLamaSource/ChatBaseWidget.cpp
-    Sources/LLamaSource/ConsoleWidget.h
-    Sources/LLamaSource/ConsoleWidget.cpp
-    Sources/LLamaSource/LLamaModelWidget.h
-    Sources/LLamaSource/LLamaModelWidget.cpp
     Displays/DaqDisplay/DaqDisplayWidget.h
     Displays/DaqDisplay/DaqDisplayWidget.cpp
     # REQ-SW-PL-056: the obsolete QDevIO display VIEW moved here from
@@ -177,7 +171,7 @@ create_plugin(NodeditorNodesGui
         ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/types
         ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/threading
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/AudioSource
-        ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
+
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video
         ${CMAKE_CURRENT_SOURCE_DIR}/Processing/Video
         ${CMAKE_CURRENT_SOURCE_DIR}/Sinks/Video

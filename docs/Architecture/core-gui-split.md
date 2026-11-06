@@ -310,9 +310,9 @@ no longer loads GUI-only plugins in headless: **plugin mode gating**
 | `PluginType` | Plugins | headless |
 |---|---|---|
 | `gui` | `RuntimeHostGuiPlugin`, `NodeEditorIDE`, `RequirementsManager`, `QtCoinTrader` | skipped |
-| `NodeGui` | `NodeditorNodesGui`, `AiStudioPluginGui` | skipped |
+| `NodeGui` | `NodeditorNodesGui` | skipped |
 | `headless` | `RuntimeHostHeadlessPlugin` | loaded |
-| *(absent)* | `NodeditorNodesCorePlugin`, `AiStudioPluginCore` | loaded |
+| *(absent)* | `NodeditorNodesCorePlugin` | loaded |
 
 `QPluginManager::SearchForPlugins()` reads `PluginType` through
 `PluginDiscovery::pluginType()` — i.e. `QPluginLoader::metaData()`, which parses

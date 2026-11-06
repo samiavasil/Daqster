@@ -6,7 +6,7 @@
 
 Тази област събира архитектурната документация на **Node Editor** — визуалния
 node-based редактор, с който се изграждат потоци от данни (audio / video / DAQ /
-LLM / routing). Тя е самостоятелна и се реферира от главната документация на
+routing). Тя е самостоятелна и се реферира от главната документация на
 проекта ([Architecture](../README.md), [Индекс](../../index.md)).
 
 ## Какво представлява
@@ -37,7 +37,7 @@ Node Editor-ът е изграден върху външната библиот�
 │  NodeEditorIde                 │   │  core → INodeProvider (модели)        │
 │  IDE shell: QMainWindow +      │   │  gui  → IWidgetProvider (widget-и)    │
 │  NodeEditorWidget              │   │                                       │
-│  – открива INodeProvider-и     │   │  доставя Audio/Video/DAQ/LLM/... нодове│
+│  – открива INodeProvider-и     │   │  доставя Audio/Video/DAQ/... нодове   │
 │  – НЕ регистрира свои нодове   │   │                                       │
 │  + NodeSupport                 │   └───────────────────────────────────────┘
 │    (libNodeEditorLibrary.so)   │
@@ -71,7 +71,7 @@ Node Editor-ът е изграден върху външната библиот�
    (`instances(INodeProvider_IID)`) и вика `registerNodes(registry)` върху всяка.
 3. **`NodeditorNodesCore`** регистрира моделите на нодовете (widget-free) под
    категории `Sources/*`, `Displays/*`, `Operators/*`, `Sinks/*`, `Processing/*`,
-   `AI/LLM`, `Routing` — пълният каталог е в [nodes.md](nodes.md).
+   `Routing` — пълният каталог е в [nodes.md](nodes.md).
 4. За да се покажат настройки/дисплеи, **`NodeditorNodesGui`** доставя widget-ите чрез
    `IWidgetProvider` (`NodeWidgetFactory`). В headless режим този плъгин не се зарежда
    и нодовете остават конфигурируеми само програмно (през `load()`/`save()`).

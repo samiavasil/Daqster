@@ -56,14 +56,6 @@ set(AUDIO_SOURCE_NODES
     Sources/AudioSource/AudioNodeQdevIoConnectorObsolete.cpp
 )
 
-# ── Sources: LLamaSource ────────────────────────────────────────────
-set(LLAMA_SOURCE_NODES
-    Sources/LLamaSource/LLamaModelDataModel.h
-    Sources/LLamaSource/LLamaModelDataModel.cpp
-    Sources/LLamaSource/ConsoleDataModel.h
-    Sources/LLamaSource/ConsoleDataModel.cpp
-)
-
 # ── Video nodes (core models only, no GUI widgets) ──────────────────
 set(VIDEO_NODES
     Sources/Video/VideoCompat.h
@@ -405,7 +397,7 @@ create_plugin(NodeditorNodesCore
     SOURCES
         ${PLUGIN_SOURCES}
         ${AUDIO_SOURCE_NODES}
-        ${LLAMA_SOURCE_NODES}
+        
         ${VIDEO_NODES}
         ${VIDEO_OPENCV_SOURCES}
         ${PLUTOSDR_SOURCES}
@@ -451,7 +443,7 @@ create_plugin(NodeditorNodesCore
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/AudioSource
-        ${CMAKE_CURRENT_SOURCE_DIR}/Sources/LLamaSource
+
         ${CMAKE_CURRENT_SOURCE_DIR}/Sources/Video
         ${CMAKE_CURRENT_SOURCE_DIR}/Sinks/Video
         ${CMAKE_CURRENT_SOURCE_DIR}/Processing/Video

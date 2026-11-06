@@ -113,7 +113,7 @@ Shared Qt Widgets GUI components for node-based editors, built and installed fro
 
 *   **`NodeEditorWidget`**:
     *   Main QWidget with `getInjectedRegistry()`, `buildCanvas()`, `setConnectionStyle()`.
-    *   Auto-injects all standard Daqster open-source nodes (Audio, Media, Graphs, AI, etc.).
+    *   Auto-injects all standard Daqster open-source nodes (Audio, Media, Graphs, etc.).
     *   Emits `nodeDoubleClicked` signal on node double-click.
 *   **`ChatGraphModel`**:
     *   Loop-enabled graph model with circular link support.
