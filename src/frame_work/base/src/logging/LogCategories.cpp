@@ -23,8 +23,6 @@ DAQSTER_LOGGING_CATEGORY(lcApp,          "daqster.app",                 "Daqster
 // ═══════════════════════════════════════════════════════════
 DAQSTER_LOGGING_CATEGORY(lcNodeEditor,   "daqster.plugin.nodeeditor",   "Node Editor IDE plugin")
 DAQSTER_LOGGING_CATEGORY(lcDemoNodes,    "daqster.plugin.demo",         "Demo nodes plugin")
-DAQSTER_LOGGING_CATEGORY(lcAiStudio,     "daqster.plugin.aistudio",     "AI Studio plugin")
-DAQSTER_LOGGING_CATEGORY(lcLlama,        "daqster.plugin.aistudio.llama","LlamaEngine (LLM inference)")
 DAQSTER_LOGGING_CATEGORY(lcCoinTrader,   "daqster.plugin.cointrader",   "Qt Coin Trader plugin")
 
 // ═══════════════════════════════════════════════════════════
