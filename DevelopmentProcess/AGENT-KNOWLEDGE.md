@@ -23,8 +23,8 @@
 |-----|--------------|---------|---------|
 | `TextData` | `"text"` / `"Text"` | `QString` | |
 | `EmbeddingData` | `"embedding"` / `"Embedding"` | `std::vector<float>` + `dim()` | **НЯМА consumer node** |
-| ~~`ImageData`~~ | ~~`"image"`~~ | ~~`QImage`~~ | **ПРЕМАХНАТ (2026-08-26)** — единственият frame тип е `VideoFrameData` |
-| `VideoFrameData` | `"video-frame"` / `"Video Frame"` | `QVideoFrame` | Native buffer (GPU/zero-copy display); **единственият frame тип** — lazy `QImage` кеш `asImage()` + lazy GL текстура кеш `asTexture()`/`fromTexture()`/`isGpuResident()` |
+| `ImageData` | `"image"` / `"Image"` | `QImage` + `Meta` (prompt/negativePrompt/seed/model/mimeType/elapsedMs) | REQ-SW-PL-080 — **единично изображение**, не видео кадър; `shared_ptr` пренос, `const QImage&` достъп, `isEmpty()`/`width()`/`height()` (от `QImage`, не в `Meta`); без QtWidgets/Multimedia |
+| `VideoFrameData` | `"video-frame"` / `"Video Frame"` | `QVideoFrame` | Native buffer (GPU/zero-copy display); **единственият поточен frame тип** — lazy `QImage` кеш `asImage()` + lazy GL текстура кеш `asTexture()`/`fromTexture()`/`isGpuResident()` |
 | `SampledData` | `"sample"` / `"Sample"` | `QByteArray` + `SampledStreamDescriptor` | DAQ/аудио семпли (REQ-SW-PL-022); `decodeToNormalized()`/`decodeToPhysical()` |
 | `FloatData` | `"float"` / `"Float"` | `float` | |
 | `NumericType` | RTTI-based | int/double | Built-in нодове |
