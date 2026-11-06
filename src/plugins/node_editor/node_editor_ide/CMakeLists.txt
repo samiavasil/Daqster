@@ -200,6 +200,10 @@ set(IDE_SOURCES
     # for the loaded scene; double-click/Enter asks the host to select the node.
     SceneProblemsPanel.cpp
     SceneProblemsPanel.h
+    # Live node validation errors (REQ-SW-PL-082): merge the open-time verdict
+    # with the graph's non-Valid states, de-duplicated by node + message.
+    NodeProblems.cpp
+    NodeProblems.h
 )
 
 create_plugin(NodeEditorIde

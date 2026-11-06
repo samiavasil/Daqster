@@ -9,6 +9,7 @@
 #include "test_widget_embed.h"
 #include "test_status_bar.h"
 #include "test_scene_problems_panel.h"
+#include "test_live_validation_problems.h"
 
 // Shared main for the node_editor_ide layout tests. LayoutEngine builds real
 // widgets (QSplitter/QGridLayout/QTabWidget/QDockWidget), so the binary runs
@@ -51,6 +52,10 @@ int main(int argc, char *argv[])
     {
         TestSceneProblemsPanel sceneProblemsPanel;
         status |= QTest::qExec(&sceneProblemsPanel, argc, argv);
+    }
+    {
+        TestLiveValidationProblems liveValidationProblems;
+        status |= QTest::qExec(&liveValidationProblems, argc, argv);
     }
     return status;
 }

@@ -2,6 +2,7 @@
 #include "NodeEditorWidget.h"
 #include "LayoutDesignerPanel.h"
 #include "SceneProblemsPanel.h"
+#include "NodeProblems.h"
 #include "StatusBarController.h"
 #include "QPluginManager.h"
 #include "QPluginManagerGui.h"
@@ -34,6 +35,7 @@
 #include <QGraphicsView>
 #include <QKeyEvent>
 #include <QToolBar>
+#include <QTimer>
 
 #include <exception>
 
@@ -125,6 +127,16 @@ bool NodeEditorIdeObject::Initialize()
 
     // Build canvas AFTER all nodes are registered
     m_Widget->buildCanvas();
+
+    // REQ-SW-PL-082: live node validation errors reach the panel through the
+    // graph's own signals. The timer only coalesces a burst (a display node
+    // emits nodeUpdated per frame) into one refresh per event-loop turn — it is
+    // not a poll and it is stopped on close.
+    m_problemRefreshTimer = new QTimer(this);
+    m_problemRefreshTimer->setSingleShot(true);
+    m_problemRefreshTimer->setInterval(0);
+    connect(m_problemRefreshTimer, &QTimer::timeout,
+            this, &NodeEditorIdeObject::refreshNodeProblems);
 
     // "Unsaved changes" has to be an observation, not a guess (REQ-SW-PL-078
     // AC1): the close prompt is only useful if it is right.
@@ -454,6 +466,25 @@ void NodeEditorIdeObject::trackSceneDirtyState()
             this, [markDirty](QtNodes::ConnectionId) { markDirty(); });
     connect(graph, &QtNodes::DataFlowGraphModel::connectionDeleted,
             this, [markDirty](QtNodes::ConnectionId) { markDirty(); });
+
+    // REQ-SW-PL-082: a node's validation state is part of what the user must
+    // read, and `setValidationState()` emits `requestNodeUpdate()` →
+    // `nodeUpdated`. Coalesced, so a node that updates every frame does not
+    // rebuild the list every frame.
+    const auto scheduleProblemsRefresh = [this](QtNodes::NodeId) {
+        if (m_problemRefreshTimer != nullptr && !m_problemRefreshTimer->isActive())
+            m_problemRefreshTimer->start();
+    };
+    connect(graph, &QtNodes::DataFlowGraphModel::nodeUpdated,
+            this, scheduleProblemsRefresh);
+    connect(graph, &QtNodes::DataFlowGraphModel::nodeCreated,
+            this, scheduleProblemsRefresh);
+    connect(graph, &QtNodes::DataFlowGraphModel::nodeDeleted,
+            this, scheduleProblemsRefresh);
+    connect(graph, &QtNodes::DataFlowGraphModel::modelReset, this, [this]() {
+        if (m_problemRefreshTimer != nullptr)
+            m_problemRefreshTimer->start();
+    });
 }
 
 bool NodeEditorIdeObject::closeCurrentScene(bool confirmDiscard)
@@ -512,6 +543,10 @@ bool NodeEditorIdeObject::closeCurrentScene(bool confirmDiscard)
     m_sceneDirty = false;
 
     // The problems described nodes that no longer exist (REQ-SW-PL-082).
+    if (m_problemRefreshTimer != nullptr)
+        m_problemRefreshTimer->stop();
+    m_sceneOpenProblems.clear();
+    m_lastPanelProblems.clear();
     if (m_problemsPanel != nullptr)
         m_problemsPanel->setProblems({});
 
@@ -830,6 +865,11 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
         return false;
     }
 
+    // REQ-SW-PL-082: the newly loaded nodes may arrive already non-Valid (a
+    // model that failed to prepare while loading). applySceneProblems() below
+    // re-merges the open-time verdict on top of this.
+    refreshNodeProblems();
+
     // Restore the runtime UI layout captured in the "ui" section (REQ-SW-PL-049).
     // v2 sections are stored for the Layout Designer (REQ-SW-PL-059); the v1
     // path keeps its deembed/geometry restore.
@@ -887,11 +927,12 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
 void NodeEditorIdeObject::applySceneProblems(
     const QVector<Daqster::SceneOpenProblem>& problems)
 {
-    if (m_problemsPanel != nullptr)
-        m_problemsPanel->setProblems(problems);
+    m_sceneOpenProblems = problems;
 
     if (problems.isEmpty()) {
         qCInfo(lcNodeEditor) << "loadSceneFromFile: scene opening produced no problems";
+        // Live validation errors the nodes carried in may still need a row.
+        refreshNodeProblems();
         return;
     }
 
@@ -917,6 +958,51 @@ void NodeEditorIdeObject::applySceneProblems(
 
         qCWarning(lcNodeEditor).noquote()
             << "scene problem:" << problem.nodeId << text;
+    }
+
+    // The marked nodes now report the same text through their validation
+    // state; merge() keeps one row per node+message.
+    refreshNodeProblems();
+}
+
+void NodeEditorIdeObject::refreshNodeProblems()
+{
+    if (m_problemsPanel == nullptr)
+        return;
+
+    QVector<NodeProblems::NodeState> nodeStates;
+    if (m_Widget != nullptr && m_Widget->graphModel() != nullptr) {
+        auto* graph = m_Widget->graphModel();
+        const auto ids = graph->allNodeIds();
+        nodeStates.reserve(ids.size());
+        for (const QtNodes::NodeId nodeId : ids) {
+            NodeProblems::NodeState nodeState;
+            nodeState.nodeId = nodeId;
+            nodeState.nodeName =
+                graph->nodeData(nodeId, QtNodes::NodeRole::Caption).toString();
+            if (nodeState.nodeName.isEmpty()) {
+                if (auto* model =
+                        graph->delegateModel<QtNodes::NodeDelegateModel>(nodeId)) {
+                    nodeState.nodeName = model->caption();
+                }
+            }
+            nodeState.state = graph->nodeData(nodeId, QtNodes::NodeRole::ValidationState)
+                                  .value<QtNodes::NodeValidationState>();
+            nodeStates.append(nodeState);
+        }
+    }
+
+    const QVector<Daqster::SceneOpenProblem> problems =
+        NodeProblems::merge(m_sceneOpenProblems, nodeStates);
+    if (NodeProblems::sameProblems(problems, m_lastPanelProblems))
+        return;
+
+    m_lastPanelProblems = problems;
+    m_problemsPanel->setProblems(problems);
+
+    if (!problems.isEmpty()) {
+        qCInfo(lcNodeEditor) << "problems panel:" << problems.size()
+                             << "problem(s), live node validation included";
     }
 }
 

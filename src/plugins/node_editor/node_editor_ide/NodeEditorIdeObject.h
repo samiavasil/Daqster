@@ -19,6 +19,7 @@ class SceneProblemsPanel;
 class StatusBarController;
 class QAction;
 class QMainWindow;
+class QTimer;
 class QWidget;
 namespace Daqster {
 class IWidgetProvider;
@@ -124,6 +125,18 @@ private:
     /// all. Nothing is refused, nothing is started, no modal dialog.
     void applySceneProblems(const QVector<Daqster::SceneOpenProblem>& problems);
 
+    /// REQ-SW-PL-082: re-reads every node's `NodeRole::ValidationState` and
+    /// shows the non-`Valid` ones in the problems panel, merged with the
+    /// open-time verdict stored by `applySceneProblems()`.
+    ///
+    /// The canvas paints a red node and puts the message in a tooltip only (the
+    /// affordance icon lives outside the node in the nodeeditor submodule), so
+    /// without this a node that turns red *after* load says nothing the user can
+    /// read. Called after `load()`, after the verdict is applied and on the
+    /// graph's `nodeUpdated` signal (coalesced through `m_problemRefreshTimer`);
+    /// it never polls.
+    void refreshNodeProblems();
+
     /// Dev driver (DAQSTER_AUTOSTART_VIDEO=1): builds a video source ->
     /// VideoOutput graph, connects it, starts playback from DAQSTER_VIDEO_FILE /
     /// DAQSTER_STREAM_URL and enables the "Perf" checkbox — no GUI interaction
@@ -188,6 +201,18 @@ private:
     /// Initialize() under the canvas, hidden until a scene reports something;
     /// a row activation selects and centres the node it names.
     SceneProblemsPanel* m_problemsPanel = nullptr;
+
+    /// What `ISceneOpening` reported for the current scene (REQ-SW-PL-082).
+    /// Kept so a live refresh cannot drop the open-time hints; cleared on close.
+    QVector<Daqster::SceneOpenProblem> m_sceneOpenProblems;
+
+    /// What the panel currently shows — a per-frame `nodeUpdated` from a
+    /// display node must not rebuild the list when nothing changed.
+    QVector<Daqster::SceneOpenProblem> m_lastPanelProblems;
+
+    /// Coalesces bursts of `nodeUpdated` into one `refreshNodeProblems()`
+    /// per event-loop turn (single-shot, 0 ms — not a poll).
+    QTimer* m_problemRefreshTimer = nullptr;
 
     /// `File → Close Scene` (REQ-SW-PL-078). Also on the toolbar, so the close
     /// button the IDE was missing is visible without opening a menu.
