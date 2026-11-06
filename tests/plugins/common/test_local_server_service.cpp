@@ -51,7 +51,10 @@ LocalServerSpec stubSpec(int base)
     LocalServerSpec spec;
     spec.kind             = QStringLiteral("stub-server");
     spec.binary           = stubBinary();
-    spec.arguments        = {QStringLiteral("--path"), QStringLiteral("/health")};
+    // Explicit QStringList: on Qt5 the brace list is ambiguous between the
+    // QList<QString> and QStringList assignment operators.
+    spec.arguments        = QStringList{QStringLiteral("--path"),
+                                        QStringLiteral("/health")};
     spec.portRangeStart   = base;
     spec.portRangeEnd     = base + 20;
     spec.healthIntervalMs = 50;
@@ -578,7 +581,7 @@ void TestLocalServerService::stopBeforeStartedIsNoOp()
     LocalServerService service;
     QSignalSpy started(&service, &LocalServerService::started);
     LocalServerSpec spec = stubSpec(base);
-    spec.arguments = {QStringLiteral("--path"), QStringLiteral("/other")};   // not /health
+    spec.arguments = QStringList{QStringLiteral("--path"), QStringLiteral("/other")};   // not /health
     service.start(spec);
 
     QTRY_VERIFY_WITH_TIMEOUT(service.isOwned(), 20000);   // the process is ours…
