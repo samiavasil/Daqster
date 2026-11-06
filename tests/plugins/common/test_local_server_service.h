@@ -33,13 +33,28 @@ class TestLocalServerService : public QObject
 private slots:
     /// The user's ownership file is saved and restored around each test.
     void init();
+    /// `init`/`cleanup` must not leave the lock behind either: a stale lock file
+    /// from a crashed run would make every start wait 10 s.
     void cleanup();
+
 
     /// Start the stub → `started(port)`, `isReady()`, `isOwned()`; `stop()` kills it.
     void startsStubAndBecomesReady();
 
     /// A second `start()` against a running server → reuse, **one** process.
     void secondStartReusesRunningServer();
+
+    /// Two starts of the same `kind` without waiting → **one** process (the lock).
+    void secondStartWithSameKindDoesNotLaunchSecondProcess();
+
+    /// A record with a dead pid is removed and replaced by the new process.
+    void staleRecordIsRemovedAndReplaced();
+
+    /// After `start()` the interprocess lock is free again.
+    void lockIsReleasedAfterStart();
+
+    /// `stop()` removes the record under the lock.
+    void stopRemovesRecordUnderLock();
 
     /// `stop()` of the reuser does not kill the foreign server.
     void stopLeavesReusedServerAlone();

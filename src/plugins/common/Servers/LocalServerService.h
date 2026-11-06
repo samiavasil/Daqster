@@ -26,6 +26,17 @@
 //     closes the connection and leaves the foreign process alone — it has its
 //     own owner.
 //
+// **One service, two processes (the start lock):** the ownership file says who
+// runs a `kind`, and "read it, find nothing, launch" is only safe when nobody
+// else does the same at the same time — otherwise two starts both read an empty
+// file and both launch a server. `start()` takes an **interprocess lock**
+// (`<GenericDataLocation>/Daqster/local-servers.lock`) around that decision,
+// re-reads the record inside it (a live pid means a starting/running server →
+// reuse) and releases it as soon as the record exists. The `/health` wait is
+// always outside the lock: it may take minutes, the decision takes milliseconds.
+// `stop()` and `sweepOrphans()` take the same lock briefly, because they write
+// the same file.
+//
 // **No blocking of the GUI thread:** not a single `waitForStarted()` /
 // `waitForFinished()` on the start path; readiness is `QTimer` +
 // `QNetworkAccessManager` (the same contract `AsrServerProcess` follows,
@@ -35,6 +46,7 @@
 #include "DaqsterCommonExport.h"
 
 #include <QElapsedTimer>
+#include <QLockFile>
 #include <QObject>
 #include <QPointer>
 #include <QString>
@@ -111,9 +123,14 @@ public:
      * @brief Starts the server asynchronously; no-op when already
      *        `Starting`/`Ready`.
      *
-     * The order is: sweep orphaned processes of the same kind → ask
-     * `healthPath` on the well-known port and **reuse** whoever answers →
-     * spawn our own process only when nobody answered.
+     * The order is: sweep orphaned processes of the same kind → take the
+     * interprocess start lock and re-read the ownership record (**a live record
+     * means a starting/running server → reuse**, a dead one is removed) → ask
+     * `healthPath` on the well-known port and reuse whoever answers → spawn our
+     * own process only when nobody answered.
+     *
+     * The lock is released as soon as the record for our process exists (or the
+     * decision is "reuse"), so the readiness wait never holds it.
      *
      * @param spec   what to run (remembered for `stop()`/`spec()`)
      * @param error  when given and the spec is unusable (missing binary,
@@ -163,6 +180,11 @@ public:
     /// (`<GenericDataLocation>/Daqster/local-servers.json`).
     static QString ownershipFilePath();
 
+    /// Path of the interprocess start lock
+    /// (`<GenericDataLocation>/Daqster/local-servers.lock`) — the same
+    /// directory as the ownership file, never a second one.
+    static QString lockFilePath();
+
 Q_SIGNALS:
     /// `healthPath` answered `200` — the server accepts requests.
     void started(int port);
@@ -176,6 +198,14 @@ private:
     void sweepOrphans();
     /// Asks `healthPath` on the well-known port (non-blocking).
     void probeExistingServer();
+    /// Arms a short re-probe: another process is launching this kind right now.
+    void scheduleProbeRetry();
+    /// Takes the interprocess start lock (`waitMs`; 0 = do not wait).
+    bool acquireStartLock(int waitMs, QString* error);
+    /// Releases the start lock when this instance holds it (idempotent).
+    void releaseStartLock();
+    /// Removes our records under the lock (real pid and nothing else).
+    void forgetRecords();
     /// Probe answer: 200/503 → reuse, anything else → our own start.
     void onProbeReply(QNetworkReply* reply);
     /// Adopts the server on `port` (foreign — `stop()` will not kill it).
@@ -216,8 +246,13 @@ private:
     QNetworkReply*         m_probeReply = nullptr;
     QNetworkReply*         m_healthReply = nullptr;
     QTimer                 m_healthTimer;        ///< poll of `healthPath`
+    QTimer                 m_probeRetryTimer;    ///< re-probe while a competitor launches
     QTimer                 m_readyDeadline;      ///< `readyTimeoutMs` ceiling
     QElapsedTimer          m_startedAt;          ///< for the log (how long we waited)
+
+    /// The interprocess lock around the ownership decision (see `start()`); held
+    /// only from "read the record" until the record for our process exists.
+    QLockFile m_startLock;
 };
 
 } // namespace Daqster

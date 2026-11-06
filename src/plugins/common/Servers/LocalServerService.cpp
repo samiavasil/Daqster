@@ -47,11 +47,21 @@ constexpr int kStderrTailLines  = 4;      ///< lines kept for the failure messag
 constexpr int kOwnerDepth       = 4;      ///< levels up to look for a live owner
 constexpr int kSweepGraceMs     = 500;    ///< grace when sweeping an orphan
 constexpr int kSweepPollMs      = 25;     ///< step of that wait
+constexpr int kStartLockWaitMs  = 10000;  ///< `start()` waits this long for the decision
+constexpr int kShortLockWaitMs  = 1000;   ///< `stop()`/`sweepOrphans()` — brief, never a stall
+constexpr int kProbeRetryMs     = 200;    ///< a competitor is launching — ask again
 
 QString dataDir()
 {
     return QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
            + QStringLiteral("/Daqster");
+}
+
+/// The interprocess lock that makes "read the record → decide → launch → record"
+/// one step between processes.
+QString ownershipLockFilePath()
+{
+    return dataDir() + QStringLiteral("/local-servers.lock");
 }
 
 QJsonArray readRecords()
@@ -278,6 +288,88 @@ bool terminatePid(qint64 pid, int graceMs)
 } // namespace
 #endif  // Q_OS_UNIX
 
+// ── The live record: "somebody is already starting or running this kind" ─────
+//
+// The ownership file is written when the OS hands out a pid, so a record means
+// "starting or running" and nothing else. Reading it is only trustworthy under
+// the start lock (see `LocalServerService::start()`): two starts that both read
+// an empty file both launch, and the second server takes the next port while the
+// first one holds its own.
+namespace {
+
+/// What the ownership file says about one `kind` (and whether it still holds).
+struct OwnershipRecord
+{
+    qint64 pid  = 0;
+    int    port = 0;
+    bool   live = false;   ///< a process with that pid runs **this** executable
+};
+
+/// Is the recorded process still the server (pids are recycled, `binary` is the
+/// only proof)? Without `/proc` the answer is "no" — the probe still reuses a
+/// server that answers `healthPath`, so nothing is lost but the early reuse.
+bool recordProcessIsLive(qint64 pid, const QString& binaryName)
+{
+#ifdef Q_OS_UNIX
+    return isAlive(pid) && matchesBinary(pid, binaryName);
+#else
+    Q_UNUSED(pid);
+    Q_UNUSED(binaryName);
+    return false;
+#endif
+}
+
+/**
+ * @brief The live record for `kind`; stale records are removed on the way.
+ *
+ * Stale = the pid is gone, or the process with that pid is a different
+ * executable. Such a record must be dropped, otherwise the next start keeps
+ * looking at a port nobody listens on.
+ *
+ * Must be called **under the start lock**: it writes the file when it removes a
+ * stale record.
+ *
+ * @param kind       server kind (`sd-server`, `llama-server`, …)
+ * @param binaryName file name of the executable the record must match
+ * @return the first live record (empty, `live == false`, when there is none)
+ */
+OwnershipRecord liveRecordFor(const QString& kind, const QString& binaryName)
+{
+    OwnershipRecord found;
+    QJsonArray kept;
+    bool removed = false;
+
+    for (const QJsonValue& value : readRecords()) {
+        const QJsonObject record = value.toObject();
+        if (record.value(QStringLiteral("kind")).toString() != kind) {
+            kept.append(value);
+            continue;
+        }
+        const qint64 pid = qint64(record.value(QStringLiteral("pid")).toDouble());
+        if (!recordProcessIsLive(pid, binaryName)) {
+            removed = true;   // dead pid or a recycled one — not our server
+            continue;
+        }
+        if (!found.live) {
+            found.pid  = pid;
+            found.port = record.value(QStringLiteral("port")).toInt();
+            found.live = found.port > 0;
+        }
+        kept.append(value);
+    }
+
+    if (removed) {
+        writeRecords(kept);
+        qCInfo(lcThreading).noquote()
+            << QStringLiteral("%1: stale ownership record removed (its process is "
+                              "gone) — the next start may launch")
+                   .arg(kind);
+    }
+    return found;
+}
+
+} // namespace
+
 // ═══════════════════════════════════════════════════════════════════════
 //  Life
 // ═══════════════════════════════════════════════════════════════════════
@@ -285,8 +377,16 @@ bool terminatePid(qint64 pid, int graceMs)
 LocalServerService::LocalServerService(QObject* parent)
     : QObject(parent)
     , m_net(new QNetworkAccessManager(this))
+    , m_startLock(ownershipLockFilePath())
 {
     connect(&m_healthTimer, &QTimer::timeout, this, &LocalServerService::pollHealth);
+
+    // Another process holds the start lock → it is launching this kind right
+    // now. Ask again shortly (never block: its fork/exec is what we wait for).
+    m_probeRetryTimer.setSingleShot(true);
+    m_probeRetryTimer.setInterval(kProbeRetryMs);
+    connect(&m_probeRetryTimer, &QTimer::timeout,
+            this, &LocalServerService::probeExistingServer);
 
     m_readyDeadline.setSingleShot(true);
     connect(&m_readyDeadline, &QTimer::timeout, this, [this] {
@@ -308,13 +408,19 @@ LocalServerService::~LocalServerService()
     resetRequests();
     if (m_owned && m_procOwner.isRunning()) {
         m_procOwner.stop(qMin(m_spec.stopGraceMs, 1000), qMin(m_spec.stopKillMs, 500));
-        forgetServer(m_pid);
+        forgetRecords();
     }
+    releaseStartLock();   // never leave a lock file behind a dying process
 }
 
 QString LocalServerService::ownershipFilePath()
 {
     return dataDir() + QStringLiteral("/local-servers.json");
+}
+
+QString LocalServerService::lockFilePath()
+{
+    return ownershipLockFilePath();
 }
 
 void LocalServerService::start(const LocalServerSpec& spec, QString* error)
@@ -367,7 +473,37 @@ void LocalServerService::start(const LocalServerSpec& spec, QString* error)
     // Orphans first (they hold the port and the memory), then the question "is
     // there a server already running that we can reuse". Our own process is
     // spawned only when both steps find nothing.
+    m_startedAt.start();
     sweepOrphans();
+
+    // The decision is **one step between processes** (REQ-SW-PL-081): two starts
+    // that both read an empty ownership file both launch a server, and the
+    // second one takes the next port while the first one holds its own. The lock
+    // is released as soon as we know the answer — the `/health` wait below never
+    // holds it.
+    QString lockReason;
+    if (!acquireStartLock(kStartLockWaitMs, &lockReason)) {
+        fail(lockReason);
+        return;
+    }
+    const OwnershipRecord record =
+        liveRecordFor(m_spec.kind, QFileInfo(m_spec.binary).fileName());
+    releaseStartLock();
+
+    if (record.live) {
+        // The record is written the moment the OS hands out a pid, so a live
+        // record means "starting or running" — somebody else already launched
+        // this kind and we must not launch a second process.
+        qCInfo(lcThreading).noquote()
+            << QStringLiteral("%1: recorded server pid %2 is alive on %3 — reusing "
+                              "it, no second process")
+                   .arg(m_spec.kind)
+                   .arg(record.pid)
+                   .arg(record.port);
+        adoptExistingServer(record.port, false);
+        return;
+    }
+
     probeExistingServer();
 }
 
@@ -389,6 +525,7 @@ void LocalServerService::stop()
         }
         m_owned = false;
         m_proc  = nullptr;
+        releaseStartLock();   // no launch of ours may keep the lock in flight
         return;
     }
 
@@ -409,10 +546,94 @@ void LocalServerService::stop()
                    .arg(m_spec.stopKillMs);
     }
 
-    forgetServer(m_pid);
-    m_pid   = 0;
+    forgetRecords();   // under the lock — the file is written by every process
     m_owned = false;
     m_proc  = nullptr;   // the owner deletes it with its own `finished`
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  The interprocess start lock
+// ═══════════════════════════════════════════════════════════════════════
+
+bool LocalServerService::acquireStartLock(int waitMs, QString* error)
+{
+    if (error)
+        error->clear();
+    if (m_startLock.isLocked())
+        return true;   // ours already (a launch is in flight)
+
+    if (!QDir().mkpath(dataDir())) {
+        const QString reason =
+            QStringLiteral("не може да се създаде директорията за ключалката \"%1\"")
+                .arg(dataDir());
+        if (error)
+            *error = reason;
+        qCWarning(lcThreading).noquote() << QStringLiteral("LocalServerService: %1").arg(reason);
+        return false;
+    }
+
+    if (m_startLock.tryLock(waitMs))
+        return true;
+
+    const QString reason =
+        QStringLiteral("не може да се вземе ключалката за услугата '%1' (%2 s)")
+            .arg(m_spec.kind)
+            .arg(waitMs / 1000);
+    if (error)
+        *error = reason;
+    qCWarning(lcThreading).noquote()
+        << QStringLiteral("LocalServerService: %1 — %2")
+               .arg(reason, m_startLock.error() == QLockFile::LockFailedError
+                                ? QStringLiteral("another process holds it")
+                                : QStringLiteral("the lock file is not writable"));
+    return false;
+}
+
+void LocalServerService::releaseStartLock()
+{
+    if (m_startLock.isLocked())
+        m_startLock.unlock();
+}
+
+void LocalServerService::forgetRecords()
+{
+    // Two processes must not rewrite the ownership file at the same time, so the
+    // removal happens under the same lock. Brief: when somebody else holds it the
+    // record stays behind and the next start drops it as stale (dead pid).
+    const bool held = acquireStartLock(kShortLockWaitMs, nullptr);
+    if (held) {
+        if (m_pid > 0)
+            forgetServer(m_pid);
+        releaseStartLock();
+    } else if (m_pid > 0) {
+        qCWarning(lcThreading).noquote()
+            << QStringLiteral("%1: could not take the ownership lock (%2 s) — the "
+                              "record for pid %3 stays and will be dropped as stale")
+                   .arg(m_spec.kind)
+                   .arg(kShortLockWaitMs / 1000)
+                   .arg(m_pid);
+    }
+    m_pid = 0;
+}
+
+void LocalServerService::scheduleProbeRetry()
+{
+    if (m_probeRetryTimer.isActive())
+        return;   // already armed
+
+    // Another process holds the start lock, i.e. it is launching this kind right
+    // now. Wait for its server instead of launching a second one — but not for
+    // ever: the readiness budget is the ceiling.
+    if (m_startedAt.isValid() && m_startedAt.elapsed() >= m_spec.readyTimeoutMs) {
+        fail(QStringLiteral("%1: another process is launching the same server, but "
+                            "port %2 did not answer %3 within %4 ms")
+                 .arg(m_spec.kind)
+                 .arg(m_probePort)
+                 .arg(m_spec.healthPath)
+                 .arg(m_spec.readyTimeoutMs));
+        return;
+    }
+    m_probeRetryTimer.start();
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -422,6 +643,19 @@ void LocalServerService::stop()
 void LocalServerService::sweepOrphans()
 {
 #ifdef Q_OS_UNIX
+    // The sweep writes the ownership file (it forgets what it stopped), so it
+    // takes the same lock as `start()`/`stop()` — briefly, because it only has
+    // to beat another process to the file, not to wait for a server.
+    const bool lockedByUs = m_startLock.isLocked();
+    if (!lockedByUs && !acquireStartLock(kShortLockWaitMs, nullptr)) {
+        qCWarning(lcThreading).noquote()
+            << QStringLiteral("%1: could not take the ownership lock (%2 s) — "
+                              "skipping the orphan sweep")
+                   .arg(m_spec.kind)
+                   .arg(kShortLockWaitMs / 1000);
+        return;
+    }
+
     const QString binaryName = QFileInfo(m_spec.binary).fileName();
     QSet<qint64> candidates;
 
@@ -542,8 +776,10 @@ void LocalServerService::adoptExistingServer(int port, bool ready)
                     ready ? QStringLiteral("ready") : QStringLiteral("still starting"));
 
     if (!ready) {
-        // 503: foreign, but not accepting yet — we wait for readiness the same
+        // 503 — or a record whose process lives but has not answered yet: the
+        // server is there but not accepting, so we wait for readiness the same
         // way we would wait for our own process.
+        m_state = State::Starting;
         beginHealthPolling();
         return;
     }
@@ -572,6 +808,31 @@ QUrl LocalServerService::baseUrl() const
 
 void LocalServerService::launch(int firstPort)
 {
+    // The lock is taken **before** the question "did another process start this
+    // kind while we were probing?" and released when the record for our process
+    // exists (`started`) — that is the whole window, milliseconds. 0 ms of wait:
+    // a competitor holding it is launching right now, and blocking the GUI thread
+    // for its fork/exec would gain nothing; we ask `/health` again shortly.
+    if (!m_startLock.isLocked()) {
+        if (!acquireStartLock(0, nullptr)) {
+            scheduleProbeRetry();
+            return;
+        }
+        const OwnershipRecord record =
+            liveRecordFor(m_spec.kind, QFileInfo(m_spec.binary).fileName());
+        if (record.live) {
+            releaseStartLock();
+            qCInfo(lcThreading).noquote()
+                << QStringLiteral("%1: another start recorded pid %2 on %3 — reusing "
+                                  "it instead of launching")
+                       .arg(m_spec.kind)
+                       .arg(record.pid)
+                       .arg(record.port);
+            adoptExistingServer(record.port, false);
+            return;
+        }
+    }
+
     // Auto-selection continues from the given port: on a retry (lost race for
     // the port) that is the next one, not the same taken port.
     m_port = m_spec.preferredPort > 0
@@ -614,13 +875,23 @@ void LocalServerService::launch(int firstPort)
             this, &LocalServerService::drainOutput);
     connect(m_proc, &QProcess::readyReadStandardError,
             this, &LocalServerService::drainOutput);
+    // A failed exec never emits `started`, so the record will never exist —
+    // release the lock here, otherwise it would stay until the deadline.
+    connect(m_proc, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        if (error == QProcess::FailedToStart)
+            releaseStartLock();
+    });
     // The record is written as soon as the OS hands out a pid: after a parent
     // crash it is the only thing by which the next start recognises the orphan.
+    // It is also the point where the start lock is no longer needed.
     connect(m_proc, &QProcess::started, this, [this] {
-        if (!m_proc)
+        if (!m_proc) {
+            releaseStartLock();   // `stop()` in the meantime — nothing to record
             return;
+        }
         m_pid = qint64(m_proc->processId());
         rememberServer(m_pid, m_spec, m_port);
+        releaseStartLock();
     });
 
     m_state = State::Starting;
@@ -719,8 +990,7 @@ void LocalServerService::onProcessFinished(int exitCode, bool crashed)
 {
     // The process is gone → the record no longer describes a live process, and
     // the borrowed pointer must not point at an object the owner will delete.
-    forgetServer(m_pid);
-    m_pid   = 0;
+    forgetRecords();
     m_owned = false;
     m_proc  = nullptr;
 
@@ -770,8 +1040,7 @@ void LocalServerService::fail(const QString& reason)
         m_procOwner.stop(qMax(0, m_spec.stopGraceMs), qMax(0, m_spec.stopKillMs));
         m_proc = nullptr;
     }
-    forgetServer(m_pid);
-    m_pid   = 0;
+    forgetRecords();
     m_owned = false;
 
     qCWarning(lcThreading).noquote()
@@ -782,6 +1051,7 @@ void LocalServerService::fail(const QString& reason)
 void LocalServerService::resetRequests()
 {
     m_healthTimer.stop();
+    m_probeRetryTimer.stop();
     m_readyDeadline.stop();
 
     for (QNetworkReply* reply : {m_probeReply, m_healthReply}) {

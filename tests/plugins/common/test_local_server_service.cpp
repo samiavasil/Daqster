@@ -7,6 +7,10 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHostAddress>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QLockFile>
 #include <QSignalSpy>
 #include <QTcpServer>
 #include <QTemporaryDir>
@@ -96,10 +100,55 @@ int stubProcessCount()
 
 } // namespace
 
+namespace {
+
+/// The ownership records as they are on disk right now.
+QJsonArray readOwnershipRecords()
+{
+    QFile file(LocalServerService::ownershipFilePath());
+    if (!file.open(QIODevice::ReadOnly))
+        return {};
+    return QJsonDocument::fromJson(file.readAll())
+        .object().value(QStringLiteral("servers")).toArray();
+}
+
+/// Writes one record (what a crashed/older process would have left behind).
+void writeOwnershipRecord(const QString& kind, qint64 pid, const QString& binary, int port)
+{
+    QJsonObject record;
+    record.insert(QStringLiteral("kind"), kind);
+    record.insert(QStringLiteral("pid"), double(pid));
+    record.insert(QStringLiteral("binary"), binary);
+    record.insert(QStringLiteral("port"), port);
+
+    QJsonObject root;
+    root.insert(QStringLiteral("servers"), QJsonArray{record});
+
+    QFile file(LocalServerService::ownershipFilePath());
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return;
+    file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+    file.close();
+}
+
+/// The record for `kind` (empty object when there is none).
+QJsonObject recordForKind(const QString& kind)
+{
+    for (const QJsonValue& value : readOwnershipRecords()) {
+        if (value.toObject().value(QStringLiteral("kind")).toString() == kind)
+            return value.toObject();
+    }
+    return {};
+}
+
+/// A pid nobody can have (above `pid_max` on Linux, dead everywhere else).
+constexpr qint64 kDeadPid = 999999999;
+
+} // namespace
+
 // ═══════════════════════════════════════════════════════════════════════
 //  Isolation: the ownership file is left as it was found
 // ═══════════════════════════════════════════════════════════════════════
-
 void TestLocalServerService::init()
 {
     QFile file(LocalServerService::ownershipFilePath());
@@ -110,6 +159,8 @@ void TestLocalServerService::init()
     // The test starts from a clean state: a stale record from a previous run
     // must not move the probe to a foreign port.
     QFile::remove(LocalServerService::ownershipFilePath());
+    // …and a lock file left by a crashed run would make every start wait 10 s.
+    QFile::remove(LocalServerService::lockFilePath());
 }
 
 void TestLocalServerService::cleanup()
@@ -221,9 +272,163 @@ void TestLocalServerService::secondStartReusesRunningServer()
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  3. `stop()` does not kill a foreign (reused) server
+//  2b. Two starts of the same kind at the same time: the lock, not luck
 // ═══════════════════════════════════════════════════════════════════════
 
+void TestLocalServerService::secondStartWithSameKindDoesNotLaunchSecondProcess()
+{
+    if (stubBinary().isEmpty())
+        QSKIP("LOCAL_SERVER_STUB is not set (not built through CMake?)");
+    const int base = freePortBase(32);
+    QVERIFY2(base > 0, "no free port for the range");
+
+    // The race the lock exists for: both instances ask at the same moment, both
+    // find no ownership record and both would launch a server — one on `base`,
+    // the next on `base + 1`.
+    LocalServerService first;
+    LocalServerService second;
+    QSignalSpy failedFirst(&first, &LocalServerService::failed);
+    QSignalSpy failedSecond(&second, &LocalServerService::failed);
+
+    first.start(stubSpec(base));
+    second.start(stubSpec(base));
+
+    QTRY_VERIFY_WITH_TIMEOUT(first.isReady(), 20000);
+    QTRY_VERIFY_WITH_TIMEOUT(second.isReady(), 20000);
+    QCOMPARE(failedFirst.count(), 0);
+    QCOMPARE(failedSecond.count(), 0);
+
+    // Exactly one of them owns a process; the other one reuses it on its port.
+    QVERIFY2(first.isOwned() != second.isOwned(),
+             "one start must own the process and the other one must reuse it");
+    QVERIFY2(first.isReused() != second.isReused(), "exactly one reuses");
+    QCOMPARE(first.port(), second.port());
+    QCOMPARE(first.port(), base);
+
+    // The proof: one process, not two.
+    if (stubProcessCount() >= 0) {
+        const int count = stubProcessCount();
+        qInfo().noquote() << QStringLiteral("stub processes after two starts: %1").arg(count);
+        QCOMPARE(count, 1);
+    }
+
+    first.stop();
+    second.stop();
+    if (stubProcessCount() >= 0)
+        QTRY_COMPARE(stubProcessCount(), 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  2c. A record with a dead pid: removed, replaced, one process
+// ═══════════════════════════════════════════════════════════════════════
+
+void TestLocalServerService::staleRecordIsRemovedAndReplaced()
+{
+    if (stubBinary().isEmpty())
+        QSKIP("LOCAL_SERVER_STUB is not set (not built through CMake?)");
+    const int base = freePortBase(32);
+    QVERIFY2(base > 0, "no free port for the range");
+
+    // What a crash leaves behind: a record for a process that no longer exists.
+    // Reading it as "a server is starting" would make the start wait forever.
+    writeOwnershipRecord(QStringLiteral("stub-server"), kDeadPid, stubBinary(), base);
+    QVERIFY(!recordForKind(QStringLiteral("stub-server")).isEmpty());
+
+    LocalServerService service;
+    QSignalSpy started(&service, &LocalServerService::started);
+    QSignalSpy failed(&service, &LocalServerService::failed);
+
+    service.start(stubSpec(base));
+    QTRY_VERIFY_WITH_TIMEOUT(started.count() == 1, 20000);
+    QCOMPARE(failed.count(), 0);
+    QVERIFY(service.isOwned());
+    QVERIFY2(!service.isReused(), "a dead pid must not be reused");
+
+    // The stale record is gone and the record now names the live process.
+    const QJsonObject record = recordForKind(QStringLiteral("stub-server"));
+    QVERIFY2(!record.isEmpty(), "the new process must be recorded");
+    const qint64 pid = qint64(record.value(QStringLiteral("pid")).toDouble());
+    QVERIFY2(pid != kDeadPid, "the stale record was not replaced");
+    QVERIFY2(pid > 0, "the record has no pid");
+    QCOMPARE(record.value(QStringLiteral("port")).toInt(), service.port());
+    if (stubProcessCount() >= 0)
+        QCOMPARE(stubProcessCount(), 1);
+
+    service.stop();
+    if (stubProcessCount() >= 0)
+        QTRY_COMPARE(stubProcessCount(), 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  2d. The lock is not left behind
+// ═══════════════════════════════════════════════════════════════════════
+
+void TestLocalServerService::lockIsReleasedAfterStart()
+{
+    if (stubBinary().isEmpty())
+        QSKIP("LOCAL_SERVER_STUB is not set (not built through CMake?)");
+    const int base = freePortBase(32);
+    QVERIFY2(base > 0, "no free port for the range");
+
+    // The lock lives next to the ownership file — one directory, one location.
+    QCOMPARE(QFileInfo(LocalServerService::lockFilePath()).absolutePath(),
+             QFileInfo(LocalServerService::ownershipFilePath()).absolutePath());
+
+    LocalServerService service;
+    service.start(stubSpec(base));
+    QTRY_VERIFY_WITH_TIMEOUT(service.isReady(), 20000);
+
+    // A second process (here: a second QLockFile) can take it immediately —
+    // holding it through the `/health` wait would block every other start.
+    {
+        QLockFile probe(LocalServerService::lockFilePath());
+        QVERIFY2(probe.tryLock(2000),
+                 "the start lock is still held after the server became ready");
+        probe.unlock();
+    }
+
+    service.stop();
+    {
+        QLockFile probe(LocalServerService::lockFilePath());
+        QVERIFY2(probe.tryLock(2000), "the start lock is still held after stop()");
+        probe.unlock();
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  2e. `stop()` removes the record under the lock
+// ═══════════════════════════════════════════════════════════════════════
+
+void TestLocalServerService::stopRemovesRecordUnderLock()
+{
+    if (stubBinary().isEmpty())
+        QSKIP("LOCAL_SERVER_STUB is not set (not built through CMake?)");
+    const int base = freePortBase(32);
+    QVERIFY2(base > 0, "no free port for the range");
+
+    LocalServerService service;
+    service.start(stubSpec(base));
+    QTRY_VERIFY_WITH_TIMEOUT(service.isReady(), 20000);
+    QVERIFY2(!recordForKind(QStringLiteral("stub-server")).isEmpty(),
+             "a running server must be recorded");
+
+    service.stop();
+
+    // The record is gone (so the next start launches instead of reusing a dead
+    // pid), and the lock is free — the removal happened under it, briefly.
+    QVERIFY2(recordForKind(QStringLiteral("stub-server")).isEmpty(),
+             "stop() left the ownership record behind");
+    QLockFile probe(LocalServerService::lockFilePath());
+    QVERIFY2(probe.tryLock(2000), "stop() left the start lock held");
+    probe.unlock();
+
+    if (stubProcessCount() >= 0)
+        QTRY_COMPARE(stubProcessCount(), 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  3. `stop()` does not kill a foreign (reused) server
+// ═══════════════════════════════════════════════════════════════════════
 void TestLocalServerService::stopLeavesReusedServerAlone()
 {
     if (stubBinary().isEmpty())
