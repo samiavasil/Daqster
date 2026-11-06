@@ -130,7 +130,7 @@ bool HeadlessEngine::loadFlow(const QString& flowPath)
 
     // 3. Now the outgoing scene goes away. Stop the old nodes while their graph
     //    is still valid, then let plugins apply their close policy
-    //    (REQ-SW-PL-078 / REQ-AI-021 close contract).
+    //    (REQ-SW-PL-078 close contract).
     if (m_graphModel && !m_graphModel->allNodeIds().empty()) {
         stopAllNodes();
         // Loading over a live scene is a Replace, not a close: the same models

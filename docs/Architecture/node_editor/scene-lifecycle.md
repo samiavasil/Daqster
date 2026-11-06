@@ -260,7 +260,7 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
   `abort()`), а `stop()` пак връща — никога безкрайно чакане.
 - **Процесът се убива само ако е наш.** `setOwned(false)` (или `adopt(p,false)`
   за преизползван сървър) кара `stop()` да **забрави** процеса, без да го
-  сигнализира — иначе затварянето на сцена би убило чужд топъл `whisper-server`.
+  сигнализира — иначе затварянето на сцена би убило чужд топъл процес.
 - **`finished` → `deleteLater`.** Процесът, който сме стартирали, се трие от
   собствения си сигнал, тоест не остава висяща връзка към мъртъв обект.
 
@@ -282,16 +282,13 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
 
 | Ресурс | Притежател | Освобождава се в |
 |---|---|---|
-| `ContextHandle` (KV, `n_ctx`) | нодът, който го е взел | `stop()`; деструкторът е втората защита |
-| тегла (`ModelHandle`) | брокерът (`ModelRuntime`), не нодът | политиката при затваряне — вижте долу |
-| топъл `whisper-server` | `AsrNode` → `AsrAdapter` (само **собствен**) | `stop()` → `AsrAdapter::stop()` → `stopServer()` |
-| топъл `piper` | `TtsNode` → `TtsAdapter` | `stop()` → `killWarmProcess()` |
-| `llama-mtmd-cli` | `VlmNode` → `VlmAdapter` | `stop()` → `VlmAdapter::stop()` (гаси и retire()-натите процеси) |
-| `llama-tts` (на заявка) | `TtsAdapter` | `stop()`/деструктор |
+| зает ресурс на нода (контекст, връзка) | нодът, който го е взел | `stop()`; деструкторът е втората защита |
+| споделен ресурс зад брокер | брокерът, не нодът | политиката при затваряне — вижте долу |
+| топъл външен процес | нодът, само ако е **собствен** | `stop()` → адаптерът гаси процеса |
 | `AudioOutput` sink | публичен `AudioOutputNode` | `stop()` → `AudioPlaybackEngine::stop()` |
 | `AudioSource` capture | публичен `AudioSourceDataModel` | `stop()` → `quit()` + `wait()` |
 
-**Преизползван чужд `whisper-server` не се пипа** — той има свой собственик, а
+**Преизползван чужд топъл процес не се пипа** — той има свой собственик, а
 нодът само затваря връзката си.
 
 ### След `stop()` нодът продължава да получава обръщения
@@ -419,8 +416,6 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
 - D1: `displayComputeTaskChecksTokenBeforeTheNode` (след `delete node` и
   задраскване на блока с `0xAB` token-ът още отговаря), `cancelledTaskGuardSurvivesTheNode`
   (същото за `VideoEffectNode`);
-- D2: `llamaModelStopKillsStubbornServer` — реален `QProcess`, който игнорира
-  SIGTERM → `Killed` след ~3 s, `NotRunning` при повторение;
 - D1+сцена: `audioSourceAndDisplaySurviveFiveSceneCloses` — 5 × (AudioSource →
   DaqDisplay, старт, `stopSceneNodes` източниците първи, изтриване на възлите
   под задраскан heap).

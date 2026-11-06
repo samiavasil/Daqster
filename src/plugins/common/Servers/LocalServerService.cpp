@@ -902,7 +902,7 @@ void LocalServerService::launch(int firstPort)
     qCInfo(lcThreading).noquote()
         << QStringLiteral("%1: starting %2 (%3)")
                .arg(m_spec.kind, m_spec.binary, baseUrl().toString());
-    beginHealthPolling();   // no waitFor* — REQ-AI-017
+    beginHealthPolling();   // readiness is polled — never a blocking wait
 }
 
 // ═══════════════════════════════════════════════════════════════════════

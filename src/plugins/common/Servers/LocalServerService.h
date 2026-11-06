@@ -38,9 +38,8 @@
 //
 // **No blocking of the GUI thread:** not a single `waitForStarted()` /
 // `waitForFinished()` on the start path; readiness is `QTimer` +
-// `QNetworkAccessManager` (the same contract `AsrServerProcess` follows,
-// REQ-AI-017). The only bounded waits are in `stop()`/`fail()` — there
-// `Daqster::ProcessOwner` requires them (REQ-SW-PL-050).
+// `QNetworkAccessManager`, never a blocking wait. The only bounded waits are in
+// `stop()`/`fail()` — there `Daqster::ProcessOwner` requires them (REQ-SW-PL-050).
 
 #include "DaqsterCommonExport.h"
 

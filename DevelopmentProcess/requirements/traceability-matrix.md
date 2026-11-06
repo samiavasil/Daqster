@@ -69,7 +69,7 @@
 | `REQ-SW-BLD-002` | Unit Test Infrastructure | DONE | — | `REQ-SW-BLD-001` | `4825bfe`, `a26b603`, `17ed818` | `src/plugins/tests/`, `tests/plugins/requirements_manager/` | Qt5/Qt6 builds, 53 теста (requirements manager suite) |
 | `REQ-SW-PL-011` | Requirements Search Engine | DONE | `REQ-SW-PL-001` | `REQ-SW-PL-002` | `21d4315` (feat), `dff234a` (test) | `src/plugins/requirements_manager/` (RequirementsSearchEngine, RequirementsWidget, HelpDialog) | Qt5/Qt6 builds + `requirements_manager_tests` **87/87** (TestSearchEngine 19 slots: fulltext, field prefixes, relation search, normalized text) + offscreen smoke (search narrows tree/graph/matrix; `status:DONE`; repo filter + search combined) |
 | `REQ-SW-PL-012` | Multi-Repository Requirements View (Merge) | DONE | `REQ-SW-PL-001` | `REQ-SW-PL-002`, `REQ-SW-PL-006`, `REQ-SW-PL-010` | `c3d4e5c` (feat), `0429ea8` (test), `9d90fff` (fix: exporter CSV header — Repo column) | `src/plugins/requirements_manager/` (RequirementsParser, RequirementsWidget, RequirementsValidator, RequirementsModel, DependencyGraphData, TraceabilityMatrixModel, MatrixExporter) | Qt5/Qt6 builds + `requirements_manager_tests` **87/87** (TestMerge 6 slots + validator 4 slots: duplicate ID across repos, cross-repo parent, hint mismatch) + offscreen smoke (35 merged requirements, both roots) |
-## Plugin Framework (за справка — пълен trace в DaqsterAiStudio)
+## Plugin Framework
 
 | REQ ID | Заглавие | Статус | Коммит(и) |
 |--------|----------|--------|-----------|

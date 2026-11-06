@@ -74,8 +74,7 @@ src/plugins/<plugin>/
   `embeddedWidget()`.
 - `gui/` holds the widgets and the `IWidgetProvider`; it links `core/`, never the
   other way round.
-- The interface/object classes stay at the plugin root, like
-  `plugins/ai_studio_plugin/` in the private repo.
+- The interface/object classes stay at the plugin root.
 - This applies to **node-provider** plugins: the two halves are the *layers*
   `core/` (models) and `gui/` (widgets).
 - A plugin **family** with two variants lives under one family directory —
