@@ -44,7 +44,8 @@ struct SceneOpenReport {
 };
 
 /**
- * @brief Ask every provider that implements `ISceneOpening` about @p scene.
+ * @brief Ask every provider that implements `ISceneOpening` about @p scene,
+ *        telling them where the scene came from.
  *
  * Must run **before** `load()` — before the outgoing scene is stopped and
  * before its graph is destroyed — so a refusal leaves a running scene intact.
@@ -56,6 +57,45 @@ struct SceneOpenReport {
  * the same scene must give the same answer — hosts do exactly that, because
  * `loadFlow()` checks before tearing anything down and `applySceneJson()` checks
  * again right before `load()`.
+ *
+ * The two-argument virtual is **always** called; a provider that only
+ * implemented the single-argument one receives the scene through the default
+ * implementation, so older plugins answer exactly as before.
+ *
+ * @param scene The scene object as it would be handed to `load()`.
+ * @param scenePath Path of the `.flow` file the scene was read from, or an
+ *                  empty string when it does not come from a file (an in-memory
+ *                  `reloadFlow(QJsonObject)`, a REST body). Plugins use it to
+ *                  find a `project.json` next to the scene.
+ * @param providers Node providers, typically `QPluginManager::nodeProviders()`.
+ * @return How many were asked and everything they reported.
+ */
+FRAMEWORK_CORE_EXPORT SceneOpenReport
+checkSceneOpening(const QJsonObject& scene, const QString& scenePath,
+                  const std::vector<INodeProvider*>& providers);
+
+/**
+ * @brief `checkSceneOpening()` against the process-wide plugin manager,
+ *        carrying the scene's file path.
+ *
+ * The hosts use this overload; it is the same probe `notifySceneClosed()` uses,
+ * so "who is asked" cannot differ between the close and the open half.
+ *
+ * @param scene The scene object as it would be handed to `load()`.
+ * @param scenePath Path of the `.flow` file the scene was read from, or empty
+ *                  for an in-memory scene.
+ * @return How many were asked and everything they reported (empty report when
+ *         no plugin manager exists).
+ */
+FRAMEWORK_CORE_EXPORT SceneOpenReport checkSceneOpening(const QJsonObject& scene,
+                                                       const QString& scenePath);
+
+/**
+ * @brief Ask every provider that implements `ISceneOpening` about @p scene.
+ *
+ * Kept for hosts and plugins that have no path to pass (the graph editor's
+ * in-memory operations, tests); it calls the path-carrying overload with an
+ * empty path, which is the documented "scene is not a file" signal.
  *
  * @param scene The scene object as it would be handed to `load()`.
  * @param providers Node providers, typically `QPluginManager::nodeProviders()`.

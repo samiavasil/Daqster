@@ -151,8 +151,10 @@ bool HeadlessEngine::loadFlow(const QString& flowPath)
         return false;
     }
 
-    // 6. Apply the already-parsed scene
-    if (!applySceneJson(sceneJson)) {
+    // 6. Apply the already-parsed scene. The file path travels with it: a
+    //    plugin validating the scene may need the files next to it
+    //    (REQ-SW-PL-082).
+    if (!applySceneJson(sceneJson, flowPath)) {
         // Error already emitted by applySceneJson
         return false;
     }
@@ -399,13 +401,14 @@ bool HeadlessEngine::parseFlowFile(const QString& fileName, QJsonObject* sceneJs
     return true;
 }
 
-bool HeadlessEngine::recordSceneOpening(const QJsonObject& sceneJson)
+bool HeadlessEngine::recordSceneOpening(const QJsonObject& sceneJson,
+                                       const QString& scenePath)
 {
     // REQ-SW-PL-082: a verdict is no longer a veto. The scene is loaded either
     // way — a plugin's objection ("this model is not here", "the camera is
     // busy") must not cost the user the scene they asked for; it only says the
     // scene must not be started blind. The caller gates autoStart on the result.
-    const SceneOpenReport report = checkSceneOpening(sceneJson);
+    const SceneOpenReport report = checkSceneOpening(sceneJson, scenePath);
     m_lastSceneProblems = report.problemsJson();
     if (report.accepted())
         return true;
@@ -420,7 +423,7 @@ bool HeadlessEngine::recordSceneOpening(const QJsonObject& sceneJson)
     return false;
 }
 
-bool HeadlessEngine::applySceneJson(QJsonObject sceneJson)
+bool HeadlessEngine::applySceneJson(QJsonObject sceneJson, const QString& scenePath)
 {
     // The scene is a fresh live graph; clear any state from a previous scene.
     m_uiSection = UiSection{};
@@ -475,7 +478,7 @@ bool HeadlessEngine::applySceneJson(QJsonObject sceneJson)
     // refuses — it records the verdict (and reports it), so a problem can only
     // suppress the start, never the load. Every path — loadFlow, reloadFlow and
     // POST /api/flow — passes here.
-    recordSceneOpening(sceneJson);
+    recordSceneOpening(sceneJson, scenePath);
 
     try {
         m_graphModel->load(sceneJson);

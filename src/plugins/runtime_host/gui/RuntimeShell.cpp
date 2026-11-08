@@ -328,7 +328,7 @@ bool RuntimeShell::loadFlow(const QString& fileName)
     // the scene: it is loaded either way, only its autoStart nodes are held
     // back (see recordSceneOpening()).
     m_lastSceneProblems = QJsonArray{};
-    recordSceneOpening(sceneJson);
+    recordSceneOpening(sceneJson, fileName);
 
     // Loading over a live scene closes it first: nodes must be stopped while
     // the graph is still valid, then plugins apply their close policy.
@@ -341,7 +341,7 @@ bool RuntimeShell::loadFlow(const QString& fileName)
 
     QStringList skippedTypes;
     QString error;
-    if (!applySceneJson(sceneJson, &skippedTypes, &error)) {
+    if (!applySceneJson(sceneJson, fileName, &skippedTypes, &error)) {
         QMessageBox::critical(m_mainWindow, tr("Runtime Mode"),
                               tr("Failed to load flow: %1").arg(error));
         return false;
@@ -365,6 +365,7 @@ bool RuntimeShell::loadFlow(const QString& fileName)
 }
 
 bool RuntimeShell::applySceneJson(QJsonObject sceneJson,
+                                  const QString& scenePath,
                                   QStringList* skippedTypes,
                                   QString* errorMessage)
 {
@@ -434,7 +435,7 @@ bool RuntimeShell::applySceneJson(QJsonObject sceneJson,
     // REQ-SW-PL-082: the last gate before anything is cleared. It no longer
     // refuses — it records the verdict (and reports it), so a problem can only
     // suppress the start, never the load.
-    recordSceneOpening(sceneJson);
+    recordSceneOpening(sceneJson, scenePath);
 
     try {
         m_editorWidget->scene()->clearScene();
@@ -1322,7 +1323,9 @@ bool RuntimeShell::reloadFlow(const QJsonObject& flow, QString* errorMessage)
 
     QStringList skippedTypes;
     QString error;
-    if (!applySceneJson(flow, &skippedTypes, &error)) {
+    // A hot-reload arrives as JSON: there is no file to name, so the hook gets
+    // an empty path (REQ-SW-PL-082).
+    if (!applySceneJson(flow, QString(), &skippedTypes, &error)) {
         if (errorMessage) *errorMessage = error;
         return false;
     }
@@ -1346,12 +1349,13 @@ bool RuntimeShell::reloadFlow(const QJsonObject& flow, QString* errorMessage)
     return true;
 }
 
-bool RuntimeShell::recordSceneOpening(const QJsonObject& sceneJson)
+bool RuntimeShell::recordSceneOpening(const QJsonObject& sceneJson,
+                                      const QString& scenePath)
 {
     // REQ-SW-PL-082: a verdict is no longer a veto. „Зарежда, маркира, не
     // стартира" — the scene is loaded either way; the problems only decide
     // whether its autoStart nodes run.
-    const Daqster::SceneOpenReport report = Daqster::checkSceneOpening(sceneJson);
+    const Daqster::SceneOpenReport report = Daqster::checkSceneOpening(sceneJson, scenePath);
     m_lastSceneProblems = report.problemsJson();
     if (report.accepted())
         return true;

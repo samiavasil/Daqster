@@ -193,9 +193,13 @@ private:
     /// suppresses `autoStartNodes()` („зарежда, маркира, не стартира").
     ///
     /// @return true when the scene may be started (no problems reported).
-    bool recordSceneOpening(const QJsonObject& sceneJson);
+    /// @param scenePath File the scene came from, or empty for an in-memory
+    ///                  flow — handed to the plugins so they can find a
+    ///                  `project.json` next to it (REQ-SW-PL-082).
+    bool recordSceneOpening(const QJsonObject& sceneJson, const QString& scenePath);
     /// Apply an already-parsed scene object (shared by loadFlow and reloadFlow).
-    bool applySceneJson(QJsonObject sceneJson);
+    /// @param scenePath File the scene came from, or empty when it has none.
+    bool applySceneJson(QJsonObject sceneJson, const QString& scenePath = QString());
     bool parseUiSection(const QJsonObject& sceneJson);
     void autoStartNodes();
     /// Marks @p nodeIds stopped and emits `nodeStopped()` for each (REQ-SW-PL-063

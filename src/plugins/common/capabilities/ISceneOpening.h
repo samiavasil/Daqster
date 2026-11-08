@@ -127,6 +127,33 @@ public:
      * @return Acceptance, or every reason it cannot be opened.
      */
     virtual SceneOpenVerdict onSceneOpening(const QJsonObject& scene) = 0;
+
+    /**
+     * @brief Same question, plus the path the scene was read from.
+     *
+     * A plugin often needs a file *next to* the scene — a `project.json` with
+     * the per-project model paths, an include directory, a relative asset
+     * folder — and the JSON alone cannot say where it sits. Hosts hand the path
+     * they already have when the scene came from a file; the path is **empty**
+     * for an in-memory flow (`reloadFlow(QJsonObject)`, a REST `POST /api/flow`
+     * body), so a plugin must treat empty as "unknown", never as "cwd".
+     *
+     * The default forwards to the single-argument method, so a plugin built
+     * against the older header keeps working unchanged (this is why the new
+     * parameter arrives as an overload and not as a changed signature: the
+     * interface has no `Q_DECLARE_INTERFACE` IID, so every existing vtable must
+     * stay layout-compatible — see the class comment above).
+     *
+     * @param scene The scene object, as in the single-argument overload.
+     * @param scenePath Path of the `.flow` file the scene was read from, or an
+     *                  empty string for an in-memory scene.
+     * @return Acceptance, or every reason it cannot be opened.
+     */
+    virtual SceneOpenVerdict onSceneOpening(const QJsonObject& scene, const QString& scenePath)
+    {
+        Q_UNUSED(scenePath);
+        return onSceneOpening(scene);
+    }
 };
 
 } // namespace Daqster

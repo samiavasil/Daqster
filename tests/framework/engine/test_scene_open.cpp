@@ -33,6 +33,9 @@ struct ProviderLog
 {
     int calls = 0;
     std::optional<QJsonObject> seenScene;
+    /// Path handed to the two-argument overload; empty means "no file", which is
+    /// what an in-memory scene must produce (REQ-SW-PL-082).
+    std::optional<QString> seenPath;
 };
 
 /// Provider that implements the optional open hook and answers with a fixed
@@ -64,6 +67,42 @@ public:
 
 private:
     QVector<Daqster::SceneOpenProblem> m_problems;
+    std::shared_ptr<ProviderLog> m_log;
+};
+
+/// Provider that overrides the **path-carrying** overload — the shape a plugin
+/// uses when it needs a `project.json` next to the scene.
+class FakePathAwareProvider : public Daqster::INodeProvider,
+                              public Daqster::ISceneOpening
+{
+public:
+    explicit FakePathAwareProvider(std::shared_ptr<ProviderLog> log)
+        : m_log(std::move(log))
+    {
+    }
+
+    void registerNodes(QtNodes::NodeDelegateModelRegistry&) const override {}
+    void registerNodesHeadless(QtNodes::NodeDelegateModelRegistry&) const override {}
+
+    // The single-argument form is pure virtual, so a path-aware plugin still
+    // has to provide it; hosts are expected to call the two-argument one.
+    Daqster::SceneOpenVerdict onSceneOpening(const QJsonObject&) override
+    {
+        return {};
+    }
+
+    Daqster::SceneOpenVerdict onSceneOpening(const QJsonObject& scene,
+                                             const QString& scenePath) override
+    {
+        if (m_log) {
+            ++m_log->calls;
+            m_log->seenScene = scene;
+            m_log->seenPath = scenePath;
+        }
+        return {};
+    }
+
+private:
     std::shared_ptr<ProviderLog> m_log;
 };
 
@@ -135,6 +174,18 @@ private slots:
     /// The hook receives the scene that would be loaded (the seam is handed the
     /// object, not a reconstructed summary of it).
     void hookReceivesTheScene();
+
+    /// A plugin that overrides the path-carrying overload really gets the file
+    /// the scene came from — that is how it finds a `project.json` next to it.
+    void scenePathReachesTheHook();
+
+    /// A plugin built against the single-argument interface is not broken: the
+    /// default implementation forwards, and the scene still arrives.
+    void oldProviderStillWorks();
+
+    /// An in-memory scene has no file: the hook gets an empty path, never a
+    /// fabricated one.
+    void emptyPathIsAllowed();
 
     /// `problemsJson()` exposes id + name + message + hint so a host can mark
     /// the offending node instead of parsing prose.
@@ -228,7 +279,8 @@ void TestSceneOpen::noProvidersIsAcceptance()
 {
     // No plugin at all, and a provider list that contains nothing usable: both
     // are acceptance — the hook must never turn "nobody asked" into a refusal.
-    const Daqster::SceneOpenReport none = Daqster::checkSceneOpening(scene(), {});
+    const Daqster::SceneOpenReport none =
+        Daqster::checkSceneOpening(scene(), std::vector<Daqster::INodeProvider*>{});
     QVERIFY(none.accepted());
     QCOMPARE(none.providersAsked, 0);
 
@@ -331,6 +383,56 @@ void TestSceneOpen::hookReceivesTheScene()
     // The hook decides on the scene that would be loaded, so it must see its
     // nodes — not an empty object.
     QCOMPARE(log->seenScene->value("nodes").toArray().size(), 2);
+}
+
+void TestSceneOpen::scenePathReachesTheHook()
+{
+    auto log = std::make_shared<ProviderLog>();
+    FakePathAwareProvider provider(log);
+    std::vector<Daqster::INodeProvider*> providers{&provider};
+
+    const QString path = QStringLiteral("/scenes/demo/project.flow");
+    Daqster::checkSceneOpening(scene(), path, providers);
+
+    QCOMPARE(log->calls, 1);
+    QCOMPARE(log->seenPath.value_or(QStringLiteral("<none>")), path);
+    QVERIFY(log->seenScene.has_value());
+    QCOMPARE(log->seenScene->value("nodes").toArray().size(), 2);
+}
+
+void TestSceneOpen::oldProviderStillWorks()
+{
+    // FakeOpeningProvider implements only `onSceneOpening(scene)` — the old
+    // interface. The default of the new overload must forward to it.
+    auto log = std::make_shared<ProviderLog>();
+    FakeOpeningProvider accepting({}, log);
+    std::vector<Daqster::INodeProvider*> providers{&accepting};
+
+    const Daqster::SceneOpenReport report =
+        Daqster::checkSceneOpening(scene(), QStringLiteral("/scenes/old.flow"), providers);
+
+    QVERIFY(report.accepted());
+    QCOMPARE(report.providersAsked, 1);
+    QCOMPARE(log->calls, 1);
+    QVERIFY(log->seenScene.has_value());
+    // The legacy provider never sees a path: the default swallowed it and
+    // answered from the scene alone.
+    QVERIFY(!log->seenPath.has_value());
+}
+
+void TestSceneOpen::emptyPathIsAllowed()
+{
+    auto log = std::make_shared<ProviderLog>();
+    FakePathAwareProvider provider(log);
+    std::vector<Daqster::INodeProvider*> providers{&provider};
+
+    // The legacy overload (no path) is still the one an in-memory caller uses.
+    const Daqster::SceneOpenReport report = Daqster::checkSceneOpening(scene(), providers);
+
+    QVERIFY(report.accepted());
+    QCOMPARE(log->calls, 1);
+    QVERIFY(log->seenPath.has_value());
+    QVERIFY(log->seenPath->isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TestSceneOpen)

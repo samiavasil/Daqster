@@ -40,7 +40,7 @@ QString problemLine(const SceneOpenProblem& problem)
 
 } // namespace
 
-SceneOpenReport checkSceneOpening(const QJsonObject& scene,
+SceneOpenReport checkSceneOpening(const QJsonObject& scene, const QString& scenePath,
                                   const std::vector<INodeProvider*>& providers)
 {
     SceneOpenReport report;
@@ -52,7 +52,10 @@ SceneOpenReport checkSceneOpening(const QJsonObject& scene,
             continue;   // the hook is optional
 
         ++report.providersAsked;
-        const SceneOpenVerdict verdict = opening->onSceneOpening(scene);
+        // The 2-arg virtual is always called: for a plugin that only knows the
+        // 1-arg form, ISceneOpening's default implementation forwards to it, so
+        // old plugins behave exactly as they did (REQ-SW-PL-082).
+        const SceneOpenVerdict verdict = opening->onSceneOpening(scene, scenePath);
         if (verdict.accepted())
             continue;   // acceptance is silent: hosts ask twice on the happy path
 
@@ -66,7 +69,13 @@ SceneOpenReport checkSceneOpening(const QJsonObject& scene,
     return report;
 }
 
-SceneOpenReport checkSceneOpening(const QJsonObject& scene)
+SceneOpenReport checkSceneOpening(const QJsonObject& scene,
+                                  const std::vector<INodeProvider*>& providers)
+{
+    return checkSceneOpening(scene, QString(), providers);
+}
+
+SceneOpenReport checkSceneOpening(const QJsonObject& scene, const QString& scenePath)
 {
     QPluginManager* pluginManager = QPluginManager::instance();
     if (pluginManager == nullptr)
@@ -77,7 +86,12 @@ SceneOpenReport checkSceneOpening(const QJsonObject& scene)
     providers.reserve(static_cast<size_t>(discovered.size()));
     for (INodeProvider* provider : discovered)
         providers.push_back(provider);
-    return checkSceneOpening(scene, providers);
+    return checkSceneOpening(scene, scenePath, providers);
+}
+
+SceneOpenReport checkSceneOpening(const QJsonObject& scene)
+{
+    return checkSceneOpening(scene, QString());
 }
 
 QJsonArray SceneOpenReport::problemsJson() const

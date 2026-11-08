@@ -214,11 +214,22 @@ struct SceneOpenVerdict {                 // ISceneOpening.h:64
     QVector<SceneOpenProblem> problems;   // празен == приема; ВСИЧКИ, не първата
     bool accepted() const { return problems.isEmpty(); }
 };
-class ISceneOpening {                     // ISceneOpening.h:114
+class ISceneOpening {                     // ISceneOpening.h:115
 public:
-    virtual SceneOpenVerdict onSceneOpening(const QJsonObject& scene) = 0;  // :128
+    virtual SceneOpenVerdict onSceneOpening(const QJsonObject& scene) = 0;  // :129
+    // нов default: знае и от кой файл идва сцената (REQ-SW-PL-082)
+    virtual SceneOpenVerdict onSceneOpening(const QJsonObject& scene,
+                                            const QString& scenePath);      // :152
 };
 ```
+
+`scenePath` е пътят на `.flow` файла, от който сцената е прочетена, или **празен**
+низ, когато сцената е само в паметта (`reloadFlow(QJsonObject)`, REST тяло на
+`POST /api/flow`) — плъгинът го ползва, за да намери `project.json` до сцената,
+и трябва да тълкува празния низ като „неизвестен", не като текущата директория.
+Default-имплементацията препраща към едноаргументната, така че плъгин, компилиран
+срещу стария header, продължава да работи без промяна (vtable-ът на интерфейса
+не се пипа).
 
 Проблемите са **структурирани**, не низове: всеки носи id на нода (`nodes[].id`),
 име за човека, съобщение и подсказка, така че хостът да маркира визирания нод, а
@@ -231,7 +242,7 @@ public:
 проблеми се зарежда, а само нодовете ѝ с `autoStart` остават спрени
 („зарежда, маркира, не стартира" — `REQ-SW-PL-082`). Реализацията е една:
 `FrameworkCore::SceneOpen` (`src/frame_work/base/src/engine/SceneOpen.{h,cpp}`) —
-`checkSceneOpening()` (`SceneOpen.h:64`/`:77`), `SceneOpenReport` (`SceneOpen.h:30`)
+`checkSceneOpening()` (`SceneOpen.h:74`/`:90` — с път; `:105`/`:117` — без, с празен път), `SceneOpenReport` (`SceneOpen.h:30`)
 (`problemsJson()` — `SceneOpen.h:43`) и `sceneOpeningMessage()` (`SceneOpen.h:94`).
 
 **Защо е отделен интерфейс, а не слот в `ISceneLifecycle`.** `ISceneLifecycle`

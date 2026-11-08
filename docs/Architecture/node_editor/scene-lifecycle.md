@@ -68,17 +68,22 @@ non-IDE host-а редът беше **обратен**: `stopAllNodes()` + `noti
 Пита се optional capability-то `ISceneOpening` (виж
 [capabilities.md](../capabilities.md) §ISceneOpening): `onSceneOpening(scene)`
 връща **всички** причини, поради които сцената не може да се стартира, а празен
-списък значи „няма проблеми". Причините са **структурирани** (`SceneOpenProblem`:
+списък значи „няма проблеми". Хостът вика **двуаргументния** вариант
+`onSceneOpening(scene, scenePath)` и подава пътя, който вече има: `.flow`
+файлът при `loadFlow()`, а **празен** низ при `reloadFlow(QJsonObject)` /
+`POST /api/flow` (сцена без файл). Плъгин, който не знае за пътя, не губи нищо —
+default-имплементацията препраща към едноаргументния и отговаря както преди
+(REQ-SW-PL-082). Причините са **структурирани** (`SceneOpenProblem`:
 id на нода, име, съобщение и подсказка), не низове — така хостът може да маркира
 визирания нод, а не само да покаже списък.
 
 | Път | Къде се пита | Какво става при проблеми | Код |
 |---|---|---|---|
-| `NodeRunner --headless`, `loadFlow()` | последната врата, в `applySceneJson()` след филтрирането на непознатите типове | сцената се зарежда; `autoStartNodes()` се пропуска; `qCWarning` на проблем + `errorOccurred()` | `HeadlessEngine.cpp` `applySceneJson()` → `recordSceneOpening()`; `loadFlow()` стъпка 8 |
-| `POST /api/flow` (headless и GUI) | същото, през `reloadFlow()` | 200 `{"applied": true, "started": false, "problems": […]}` | `ControlPlaneRouter.cpp` (`POST /api/flow`); `lastSceneProblems()` |
+| `NodeRunner --headless`, `loadFlow()` | последната врата, в `applySceneJson()` след филтрирането на непознатите типове; пътят на файла стига до hook-а | сцената се зарежда; `autoStartNodes()` се пропуска; `qCWarning` на проблем + `errorOccurred()` | `HeadlessEngine.cpp` `applySceneJson()` → `recordSceneOpening()`; `loadFlow()` стъпка 8 |
+| `POST /api/flow` (headless и GUI) | същото, през `reloadFlow()` — тялото е JSON, тоест пътят е празен | 200 `{"applied": true, "started": false, "problems": […]}` | `ControlPlaneRouter.cpp` (`POST /api/flow`); `lastSceneProblems()` |
 | `NodeRunner --run` (GUI), `loadFlow()` | `applySceneJson()` | сцената се зарежда; `RunRuntime()` не стартира `autoStart` нодовете | `RuntimeShell.cpp` `applySceneJson()` → `recordSceneOpening()`; `RunRuntime()` стъпка 6 |
 | `POST /api/flow` (GUI runtime) | `reloadFlow()` → `applySceneJson()` | същото тяло като headless (един и същ router) | `RuntimeShell.cpp:reloadFlow()` |
-| IDE `File → Load Scene…` | **след** `load()`, върху заредената сцена | сцената се зарежда и остава за редактиране; всеки проблем маркира нода си (`NodeValidationState::Error`), панелът под канваса изрежда всички, по един `qCWarning` на проблем; **без** модален диалог; нищо не се стартира | `NodeEditorIdeObject.cpp:loadSceneFromFile()` → `applySceneProblems()`; `SceneProblemsPanel` |
+| IDE `File → Load Scene…` | **след** `load()`, върху заредената сцена, с пътя от `loadSceneFromFile(fileName)` | сцената се зарежда и остава за редактиране; всеки проблем маркира нода си (`NodeValidationState::Error`), панелът под канваса изрежда всички, по един `qCWarning` на проблем; **без** модален диалог; нищо не се стартира | `NodeEditorIdeObject.cpp:loadSceneFromFile()` → `applySceneProblems()`; `SceneProblemsPanel` |
 
 Защо питане на едно място, а не две: при ветото ранното питане имаше смисъл
 (отказът не струваше нищо); при „зарежда, маркира, не стартира" всяко питане

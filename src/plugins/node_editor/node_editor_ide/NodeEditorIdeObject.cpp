@@ -915,8 +915,10 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
 
     // REQ-SW-PL-082: the scene is loaded — now ask the plugins whether it can
     // *run* here. The answer never closes what the user opened: offending nodes
-    // are marked, the panel lists every problem and nothing is started.
-    applySceneProblems(Daqster::checkSceneOpening(sceneJson).problems);
+    // are marked, the panel lists every problem and nothing is started. The
+    // file path travels with the scene so a plugin can find the files next to
+    // it (`project.json`, relative assets).
+    applySceneProblems(Daqster::checkSceneOpening(sceneJson, fileName).problems);
 
     const int loadedNodeCount = static_cast<int>(m_Widget->graphModel()->allNodeIds().size());
     const int loadedConnCount = static_cast<int>(

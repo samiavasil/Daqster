@@ -122,7 +122,10 @@ private:
     /// Apply an already-parsed scene object (shared by loadFlow and reloadFlow).
     /// Extracts the "ui" section, drops unregistered node types, then rebuilds
     /// the graph. Never shows a dialog; the caller decides on user feedback.
+    /// @param scenePath File the scene came from, or empty when it has none
+    ///                  (the hot-reload path arrives as JSON) — REQ-SW-PL-082.
     bool applySceneJson(QJsonObject sceneJson,
+                        const QString& scenePath,
                         QStringList* skippedTypes,
                         QString* errorMessage);
 
@@ -134,7 +137,9 @@ private:
     /// `autoStartNodes()` („зарежда, маркира, не стартира").
     ///
     /// @return true when the scene may be started (no problems reported).
-    bool recordSceneOpening(const QJsonObject& sceneJson);
+    /// @param scenePath File the scene came from, or empty for an in-memory
+    ///                  scene; handed to the plugins unchanged (REQ-SW-PL-082).
+    bool recordSceneOpening(const QJsonObject& sceneJson, const QString& scenePath);
 
     void arrangeWorkspaces(const FlowUi::UiSection& ui);
 
