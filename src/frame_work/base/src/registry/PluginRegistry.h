@@ -17,6 +17,7 @@ class QBasePluginObject;
 class INodeProvider;
 class IWidgetProvider;
 class IStatusBarProvider;
+class IMenuProvider;
 
 /**
  * @brief Handles runtime plugin registration and instance management.
@@ -194,6 +195,24 @@ public:
      * @return List of IStatusBarProvider pointers (lazily instantiating plugins)
      */
     QList<Daqster::IStatusBarProvider*> statusBarProviders();
+
+    /**
+     * @brief Find all plugin objects implementing the IMenuProvider capability
+     *        (REQ-SW-PL-084).
+     *
+     * A plugin uses it to contribute actions to the host's menus without the
+     * host naming the plugin (`Tools → AI Setup`). Probed with dynamic_cast for
+     * the same reason as nodeProviders() — IMenuProvider is a non-QObject
+     * interface.
+     *
+     * Like statusBarProviders(), the returned objects ARE initialized: an
+     * action's target (a configured tool, a runtime object) is built in
+     * Initialize(), so probing a half-built plugin would list actions that
+     * cannot work.
+     *
+     * @return List of IMenuProvider pointers (lazily instantiating plugins)
+     */
+    QList<Daqster::IMenuProvider*> menuProviders();
 
     // ── Additional methods for full QPluginManager delegation ─────
 

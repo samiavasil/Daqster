@@ -4,10 +4,12 @@
 #include "SceneProblemsPanel.h"
 #include "NodeProblems.h"
 #include "StatusBarController.h"
+#include "PluginMenuController.h"
 #include "QPluginManager.h"
 #include "QPluginManagerGui.h"
 #include "capabilities/INodeProvider.h"
 #include "capabilities/IStatusBarProvider.h"
+#include "capabilities/IMenuProvider.h"
 #include "capabilities/IWidgetProvider.h"
 #include "debug.h"
 #include "LogCategories.h"
@@ -229,6 +231,12 @@ bool NodeEditorIdeObject::Initialize()
                          << "IStatusBarProvider row(s):"
                          << statusRowIds.join(QStringLiteral(", "));
 
+    // ── Plugin menu actions (REQ-SW-PL-084) ────────────────────────────────
+    // The menus above exist, so a plugin can put its entry where it belongs
+    // (Tools → AI Setup) without the IDE knowing the plugin: it implements
+    // IMenuProvider, the controller adds the QAction and calls back by id.
+    installPluginMenuActions();
+
     // The designer panel lives next to the canvas; only one of the two is
     // visible at a time (see setLayoutDesignerMode).
     m_designer = new LayoutDesignerPanel(mainWidget);
@@ -329,6 +337,10 @@ void NodeEditorIdeObject::discoverAndRegisterExternalNodes()
     // REQ-SW-PL-079: plugins may load after the window is up; their status row
     // appears with them (and disappears when they are unloaded).
     adoptStatusBarProviders();
+
+    // REQ-SW-PL-084: the same for menu actions — a plugin loaded after the
+    // menus were built still gets its entry (setProviders() is idempotent).
+    installPluginMenuActions();
 }
 
 void NodeEditorIdeObject::adoptStatusBarProviders()
@@ -339,6 +351,22 @@ void NodeEditorIdeObject::adoptStatusBarProviders()
     Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
     m_statusBar->setProviders(pm ? pm->statusBarProviders()
                                  : QList<Daqster::IStatusBarProvider*>());
+}
+
+void NodeEditorIdeObject::installPluginMenuActions()
+{
+    if (!m_Win || !m_Win->menuBar())
+        return;
+
+    if (!m_pluginMenu)
+        m_pluginMenu = new PluginMenuController(m_Win->menuBar(), this);
+
+    Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
+    m_pluginMenu->setProviders(pm ? pm->menuProviders()
+                                  : QList<Daqster::IMenuProvider*>());
+
+    qCInfo(lcNodeEditor) << "Plugin menu ready:" << m_pluginMenu->actionCount()
+                         << "action(s) from IMenuProvider plugin(s)";
 }
 
 void NodeEditorIdeObject::adoptWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers)

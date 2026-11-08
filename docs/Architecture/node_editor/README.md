@@ -46,6 +46,7 @@ Node Editor-ът е изграден върху външната библиот�
             └──────────────┬────────────────────────┘
                            │
      src/plugins/common/capabilities/  (INodeProvider, IWidgetProvider,
+                                        IStatusBarProvider, IMenuProvider,
                                         INodeConfigSchema, IStartable/IStoppable)
 ```
 
@@ -56,7 +57,7 @@ Node Editor-ът е изграден върху външната библиот�
 | **Node Editor IDE** | `src/plugins/node_editor/node_editor_ide/` | `libNodeEditorIde.so` | IDE shell плъгин (`NodeEditorIde`): `QMainWindow` + `NodeEditorWidget`; **открива** външни `INodeProvider` плъгини |
 | **NodeSupport** | `src/plugins/node_editor/node_editor_ide/NodeSupport/` | `libNodeEditorLibrary.so` | Споделена поддръжка: типове, конектори, дисплей модели, decoders, threading |
 | **Nodeditor Nodes** | `src/plugins/node_editor/nodeditor_nodes/{core,gui}/` | `libNodeditorNodesCorePlugin.so` + `libNodeditorNodesGuiPlugin.so` | Основният **доставчик на нодове** — `core` (модели, `INodeProvider`), `gui` (widget-и, `IWidgetProvider`) |
-| **Capabilities** | `src/plugins/common/capabilities/` | header-only интерфейси | Договорите между хоста и плъгините: `INodeProvider`, `IWidgetProvider`, `INodeConfigSchema`, `IStartable`/`IStoppable`, `IRuntimeHost` |
+| **Capabilities** | `src/plugins/common/capabilities/` | header-only интерфейси | Договорите между хоста и плъгините: `INodeProvider`, `IWidgetProvider`, `IStatusBarProvider`, `IMenuProvider`, `INodeConfigSchema`, `IStartable`/`IStoppable`, `IRuntimeHost`; действията от `IMenuProvider` се инсталират от `PluginMenuController` |
 
 > **Забележка (REQ-SW-PL-060/061):** plugin директориите са `snake_case`, C++
 > класовете/CMake target-ите са `PascalCase`. `node_editor_ide` + `nodeditor_nodes`

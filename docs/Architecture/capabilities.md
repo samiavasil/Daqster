@@ -15,6 +15,7 @@ Capability интерфейсите са **header-only** договори в
 | [`INodeProvider`](#inodeprovider) | Доставя `NodeDelegateModel` типове към node editor-а | `QPluginManager::instances(INodeProvider_IID)` |
 | [`IWidgetProvider`](#iwidgetprovider) | Доставя `QWidget`-а на нод, чийто модел е в widget-free core плъгин | `dynamic_cast` през `PluginRegistry` |
 | [`IStatusBarProvider`](#istatusbarprovider) | Плъгинът показва глобалното си състояние в статус бара + действия в меню | `QPluginManager::statusBarProviders()` |
+| [`IMenuProvider`](#imenuprovider) | Плъгинът добавя действия на произволно място в менюто на хоста (`Tools → AI Setup`) | `QPluginManager::menuProviders()` |
 | [`INodeConfigSchema`](#inodeconfigschema) | Widget-free JSON Schema фрагмент за конфигурацията на нод | `dynamic_cast` върху модел инстанцията |
 | [`IRuntimeHost`](#iruntimehost) | Runtime host плъгин (headless/GUI) + optional control plane | `QPluginManager::runtimeHosts()` |
 | [`IStartable`](#istartable--istoppable) | Нодове с потребителско „Start" действие | `dynamic_cast` |
@@ -84,8 +85,45 @@ virtual void triggerStatusAction(const QString& id) = 0;
 Как се добавя провайдър, кога се обновява и какво не бива:
 [plugins-status-bar.md](plugins-status-bar.md).
 
-## INodeConfigSchema
+## IMenuProvider
 
+Плъгинът добавя **действия на точното им място** в менюто на хоста, без хостът
+да знае за плъгина (REQ-SW-PL-084). `IStatusBarProvider` стига, докато
+единственото меню на плъгина е `Tools → Plugins`; „`Tools → AI Setup`" е
+действие на Tools, не ред в статус бара.
+
+```cpp
+struct PluginMenuAction {
+    QString menuPath;   // "Tools", "Tools/Plugins" — "/" = подменю
+    QString text;       // текст на действието (преведен от плъгина)
+    QString id;         // идентификатор, който провайдърът разпознава
+    bool    enabled = true;
+};
+class IMenuProvider {
+public:
+    virtual QVector<PluginMenuAction> menuActions() const = 0;
+    virtual void triggerMenuAction(const QString& id) = 0;
+};
+```
+
+Интерфейсът е plain (non-`QObject`) и **без QtWidgets** — `QAction`/`QMenu`
+прави хостът. Открива се с `dynamic_cast` през
+`QPluginManager::menuProviders()`/`PluginRegistry::menuProviders()` и се връща
+**инициализиран** (действието често работи с онова, което `Initialize()` е
+построило). IDE-то инсталира действията през `PluginMenuController`
+(`src/plugins/node_editor/node_editor_ide/PluginMenuController.{h,cpp}`):
+
+- сегментите на `menuPath` се резолвват по **заглавие** (`&` се игнорира) —
+  съществуващо меню/подменю (напр. `Tools → Plugins`) се **преизползва**, липсващото
+  се създава;
+- `setProviders()` е **идемпотентен**: премахва предишните си действия и само
+  създадените от него менюта, затова повторна инсталация не дава дубликат и не
+  изпразва чуждо меню;
+- празен `id`/`menuPath` се пропуска с предупреждение, `enabled=false` се показва
+  сиво, изключение от `menuActions()`/`triggerMenuAction()` се логва, не се
+  разпространява.
+
+## INodeConfigSchema
 Опционално самоописание на конфигурацията на нод (REQ-SW-PL-063 AC10). `save()`
 дава *формата* (имена на полета + JSON типове), но не и машинно четимата мета
 информация, нужна на отдалечен UI — `enum`, `minimum`/`maximum`, defaults,

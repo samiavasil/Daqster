@@ -25,6 +25,7 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include <capabilities/INodeProvider.h>
 #include <capabilities/IRuntimeHost.h>  // RuntimeMode (by value in the API)
 #include <capabilities/IStatusBarProvider.h>
+#include <capabilities/IMenuProvider.h>
 #include <capabilities/IWidgetProvider.h>
 #include <QObject>
 #include <QList>
@@ -153,6 +154,16 @@ public:
    * reports live state of what the plugin built in Initialize().
    */
   QList<Daqster::IStatusBarProvider*> statusBarProviders();
+
+  /**
+   * @brief Return all plugin objects that contribute actions to the host's
+   *        menus (IMenuProvider, REQ-SW-PL-084).
+   *
+   * Lets a plugin add an entry where it belongs (`Tools → AI Setup`) without
+   * the host naming the plugin. The returned objects are initialized, because
+   * their actions target what Initialize() builds.
+   */
+  QList<Daqster::IMenuProvider*> menuProviders();
 
 public slots:
   void EnableDisablePlugin( const QString& Hash, bool Enable );

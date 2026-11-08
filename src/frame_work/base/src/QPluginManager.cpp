@@ -521,4 +521,9 @@ QList<Daqster::IStatusBarProvider*> QPluginManager::statusBarProviders()
     return m_registry->statusBarProviders();
 }
 
+QList<Daqster::IMenuProvider*> QPluginManager::menuProviders()
+{
+    return m_registry->menuProviders();
+}
+
 }//End of Daqster namespace

@@ -30,6 +30,8 @@ set(TEST_SOURCES
     test_widget_embed.cpp test_widget_embed.h
     # REQ-SW-PL-079: status-bar rows + plugin menu (IStatusBarProvider).
     test_status_bar.cpp test_status_bar.h
+    # REQ-SW-PL-084: plugin actions in the host menu bar (IMenuProvider).
+    test_plugin_menu.cpp test_plugin_menu.h
     # REQ-SW-PL-082: the panel listing what ISceneOpening reported (IDE half of
     # "loads, marks, does not start").
     test_scene_problems_panel.cpp test_scene_problems_panel.h
@@ -40,6 +42,9 @@ set(TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutEngine.cpp
     # Status bar controller (REQ-SW-PL-079): renders providers, owns the menu.
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/StatusBarController.cpp
+    # Plugin menu controller (REQ-SW-PL-084): installs IMenuProvider actions
+    # into a host menu bar (path resolution, no duplicates).
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/PluginMenuController.cpp
     # Visual layout designer (REQ-SW-PL-059): panel commands + serialization.
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutDesignerPanel.cpp
     # Scene problems panel (REQ-SW-PL-082): fills from SceneOpenProblem.

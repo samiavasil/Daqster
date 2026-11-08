@@ -15,6 +15,7 @@
 
 class LayoutDesignerPanel;
 class NodeEditorWidget;
+class PluginMenuController;
 class SceneProblemsPanel;
 class StatusBarController;
 class QAction;
@@ -119,6 +120,14 @@ private:
     /// so a provider that appears later still gets its row.
     void adoptStatusBarProviders();
 
+    /// REQ-SW-PL-084: installs the actions of every IMenuProvider plugin into
+    /// the IDE menu bar (`Tools → AI Setup` and friends).
+    ///
+    /// Called once from Initialize(), after the menus exist. Idempotent — the
+    /// controller removes what it installed before, so a re-Initialize() (or a
+    /// second call) never leaves a duplicate entry.
+    void installPluginMenuActions();
+
     /// REQ-SW-PL-082: applies an `ISceneOpening` verdict to the *loaded* scene —
     /// "зарежда, маркира, не стартира". Each problem with a node id marks that
     /// node (`NodeValidationState::Error`) and is logged; the panel lists them
@@ -190,6 +199,11 @@ private:
     /// survives the window; its own widget handles are QPointers and go null
     /// with the window, which turns every later refresh into a no-op.
     QPointer<StatusBarController> m_statusBar;
+
+    /// Plugin-provided menu actions (REQ-SW-PL-084). Parented to `this` so it
+    /// outlives the window; its QMenuBar handle is a QPointer and goes null
+    /// with the window, which turns every later call into a no-op.
+    QPointer<PluginMenuController> m_pluginMenu;
 
     /// Visual layout designer (REQ-SW-PL-059). Created in Initialize(), shown
     /// only in designer mode.
