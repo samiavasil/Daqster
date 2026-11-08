@@ -52,6 +52,14 @@ private slots:
     /// After `start()` the interprocess lock is free again.
     void lockIsReleasedAfterStart();
 
+    /// A missing `<data>/Daqster` (a fresh machine) is created by `start()`,
+    /// instead of failing with "lock file is not writable".
+    void startCreatesMissingDataDir();
+
+    /// A data directory that cannot be created → `failed` naming the path, and
+    /// no process is spawned.
+    void unwritableDataDirReportsPath();
+
     /// `stop()` removes the record under the lock.
     void stopRemovesRecordUnderLock();
 

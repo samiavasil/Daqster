@@ -64,6 +64,28 @@ QString ownershipLockFilePath()
     return dataDir() + QStringLiteral("/local-servers.lock");
 }
 
+/// Creates `<GenericDataLocation>/Daqster` before anything is written in it.
+///
+/// On a fresh machine the directory does not exist: `QLockFile` then refuses
+/// with "lock file is not writable" and the ownership file cannot be written at
+/// all. One `mkpath` covers the lock, the record and the sweep.
+///
+/// @param error receives the reason, naming the path, when creation fails
+/// @return true when the directory exists afterwards
+bool ensureDataDir(QString* error)
+{
+    const QString dir = dataDir();
+    if (QDir().mkpath(dir))
+        return true;
+
+    const QString reason =
+        QStringLiteral("не може да се създаде директорията за ключалката \"%1\"").arg(dir);
+    if (error)
+        *error = reason;
+    qCWarning(lcThreading).noquote() << QStringLiteral("LocalServerService: %1").arg(reason);
+    return false;
+}
+
 QJsonArray readRecords()
 {
     QFile file(LocalServerService::ownershipFilePath());
@@ -79,7 +101,7 @@ void writeRecords(const QJsonArray& records)
         QFile::remove(LocalServerService::ownershipFilePath());
         return;
     }
-    if (!QDir().mkpath(dataDir()))
+    if (!ensureDataDir(nullptr))
         return;
 
     QJsonObject root;
@@ -522,6 +544,19 @@ void LocalServerService::start(const LocalServerSpec& spec, QString* error)
         return;
     }
 
+    // The lock and the ownership file live in the same directory, and on a fresh
+    // machine it does not exist yet (REQ-SW-PL-081). `QLockFile` cannot lock
+    // inside a missing directory, so the directory is created — and a failure
+    // names the path — before the sweep or the lock is reached.
+    if (!ensureDataDir(&reason)) {
+        m_state     = State::Failed;
+        m_lastError = reason;
+        if (error)
+            *error = reason;
+        Q_EMIT failed(reason);
+        return;
+    }
+
     // Orphans first (they hold the port and the memory), then the question "is
     // there a server already running that we can reuse". Our own process is
     // spawned only when both steps find nothing.
@@ -614,15 +649,10 @@ bool LocalServerService::acquireStartLock(int waitMs, QString* error)
     if (m_startLock.isLocked())
         return true;   // ours already (a launch is in flight)
 
-    if (!QDir().mkpath(dataDir())) {
-        const QString reason =
-            QStringLiteral("не може да се създаде директорията за ключалката \"%1\"")
-                .arg(dataDir());
-        if (error)
-            *error = reason;
-        qCWarning(lcThreading).noquote() << QStringLiteral("LocalServerService: %1").arg(reason);
+    // Covers every writer: `start()`/`launch()` (the lock), `sweepOrphans()`
+    // and `stop()`/`forgetRecords()` (the record under the same lock).
+    if (!ensureDataDir(error))
         return false;
-    }
 
     if (m_startLock.tryLock(waitMs))
         return true;
@@ -698,6 +728,8 @@ void LocalServerService::sweepOrphans()
     // The sweep writes the ownership file (it forgets what it stopped), so it
     // takes the same lock as `start()`/`stop()` — briefly, because it only has
     // to beat another process to the file, not to wait for a server.
+    if (!ensureDataDir(nullptr))
+        return;   // the reason (with the path) is logged by `ensureDataDir()`
     const bool lockedByUs = m_startLock.isLocked();
     if (!lockedByUs && !acquireStartLock(kShortLockWaitMs, nullptr)) {
         qCWarning(lcThreading).noquote()

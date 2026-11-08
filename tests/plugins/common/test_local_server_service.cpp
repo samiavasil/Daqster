@@ -147,6 +147,44 @@ QJsonObject recordForKind(const QString& kind)
 /// A pid nobody can have (above `pid_max` on Linux, dead everywhere else).
 constexpr qint64 kDeadPid = 999999999;
 
+#ifdef Q_OS_UNIX
+/// Moves `QStandardPaths::GenericDataLocation` into `path` for its scope.
+///
+/// The data directory of the service is
+/// `<GenericDataLocation>/Daqster`; on Linux that location honours
+/// `XDG_DATA_HOME` (read on every call, not only at first use), so a temporary
+/// home is enough — no test mode, no touching the real `~/.local/share`.
+class ScopedDataHome
+{
+public:
+    explicit ScopedDataHome(const QString& path)
+        : m_hadPrevious(qEnvironmentVariableIsSet("XDG_DATA_HOME"))
+        , m_previous(qgetenv("XDG_DATA_HOME"))
+    {
+        qputenv("XDG_DATA_HOME", QFile::encodeName(path));
+    }
+
+    ~ScopedDataHome() { restore(); }
+
+    ScopedDataHome(const ScopedDataHome&) = delete;
+    ScopedDataHome& operator=(const ScopedDataHome&) = delete;
+
+    /// Puts the previous value back (the destructor calls it; explicit calls are
+    /// allowed so the directory can be inspected before the guard dies).
+    void restore()
+    {
+        if (m_hadPrevious)
+            qputenv("XDG_DATA_HOME", m_previous);
+        else
+            qunsetenv("XDG_DATA_HOME");
+    }
+
+private:
+    bool       m_hadPrevious;
+    QByteArray m_previous;
+};
+#endif
+
 } // namespace
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -399,7 +437,88 @@ void TestLocalServerService::lockIsReleasedAfterStart()
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  2e. `stop()` removes the record under the lock
+//  2e. The data directory exists before anything is written in it
+// ═══════════════════════════════════════════════════════════════════════
+
+void TestLocalServerService::startCreatesMissingDataDir()
+{
+#ifndef Q_OS_UNIX
+    QSKIP("XDG_DATA_HOME does not drive QStandardPaths on this platform");
+#else
+    if (stubBinary().isEmpty())
+        QSKIP("LOCAL_SERVER_STUB is not set (not built through CMake?)");
+    const int base = freePortBase(32);
+    QVERIFY2(base > 0, "no free port for the range");
+
+    QTemporaryDir home;
+    QVERIFY2(home.isValid(), "no temporary home");
+    const QString dataDir = home.path() + QStringLiteral("/Daqster");
+    QVERIFY2(!QFileInfo::exists(dataDir), "the premise: <data>/Daqster must be missing");
+
+    ScopedDataHome scopedHome(home.path());
+
+    LocalServerService service;
+    QVERIFY2(LocalServerService::ownershipFilePath().startsWith(home.path()),
+             qPrintable(LocalServerService::ownershipFilePath()));
+
+    QSignalSpy started(&service, &LocalServerService::started);
+    QSignalSpy failed(&service, &LocalServerService::failed);
+
+    QString error;
+    service.start(stubSpec(base), &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QVERIFY2(QFileInfo(dataDir).isDir(),
+             "start() must create <data>/Daqster before taking the lock");
+
+    QTRY_VERIFY_WITH_TIMEOUT(service.isReady(), 20000);
+    QCOMPARE(failed.count(), 0);
+    QCOMPARE(started.count(), 1);
+    QVERIFY2(QFileInfo(LocalServerService::lockFilePath()).absolutePath() == dataDir,
+             "the lock must live in the directory that was just created");
+
+    service.stop();
+#endif
+}
+
+void TestLocalServerService::unwritableDataDirReportsPath()
+{
+#ifndef Q_OS_UNIX
+    QSKIP("XDG_DATA_HOME does not drive QStandardPaths on this platform");
+#else
+    if (stubBinary().isEmpty())
+        QSKIP("LOCAL_SERVER_STUB is not set (not built through CMake?)");
+    const int base = freePortBase(32);
+    QVERIFY2(base > 0, "no free port for the range");
+
+    QTemporaryDir parent;
+    QVERIFY2(parent.isValid(), "no temporary directory");
+    // A **file** where the directory must be: `mkpath` cannot create it.
+    const QString blockedDir = parent.path() + QStringLiteral("/Daqster");
+    QFile blocker(blockedDir);
+    QVERIFY2(blocker.open(QIODevice::WriteOnly), "cannot create the blocking file");
+    blocker.write("not a directory");
+    blocker.close();
+
+    ScopedDataHome scopedHome(parent.path());
+
+    LocalServerService service;
+    QSignalSpy failed(&service, &LocalServerService::failed);
+
+    QString error;
+    service.start(stubSpec(base), &error);
+
+    QVERIFY2(!error.isEmpty(),
+             "a data directory that cannot be created must fail, not start opaquely");
+    QVERIFY2(error.contains(blockedDir), qPrintable(error));
+    QCOMPARE(failed.count(), 1);
+    QCOMPARE(service.state(), LocalServerService::State::Failed);
+    if (stubProcessCount() >= 0)
+        QCOMPARE(stubProcessCount(), 0);   // nothing is launched without the directory
+#endif
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  2f. `stop()` removes the record under the lock
 // ═══════════════════════════════════════════════════════════════════════
 
 void TestLocalServerService::stopRemovesRecordUnderLock()
