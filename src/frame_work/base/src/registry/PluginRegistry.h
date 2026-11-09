@@ -18,6 +18,7 @@ class INodeProvider;
 class IWidgetProvider;
 class IStatusBarProvider;
 class IMenuProvider;
+class IProblemFixer;
 
 /**
  * @brief Handles runtime plugin registration and instance management.
@@ -213,6 +214,20 @@ public:
      * @return List of IMenuProvider pointers (lazily instantiating plugins)
      */
     QList<Daqster::IMenuProvider*> menuProviders();
+
+    /**
+     * @brief Find all plugin objects implementing the IProblemFixer capability
+     *        (REQ-SW-PL-085).
+     *
+     * A plugin that reported a scene problem through `ISceneOpening` can also
+     * repair it ("model file is missing", "backend is not built"). Probed with
+     * dynamic_cast for the same reason as menuProviders() — IProblemFixer is a
+     * non-QObject interface — and returned initialized, because a fixer acts on
+     * what `Initialize()` built (resolved paths, known backends).
+     *
+     * @return List of IProblemFixer pointers (lazily instantiating plugins)
+     */
+    QList<Daqster::IProblemFixer*> problemFixers();
 
     // ── Additional methods for full QPluginManager delegation ─────
 

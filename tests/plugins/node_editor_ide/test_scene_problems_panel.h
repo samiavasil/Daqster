@@ -20,4 +20,10 @@ private slots:
     void problemTextIncludesHint();
     void enterKeyActivatesSelectedRow();
     void panelStartsCollapsedAndExpands();
+
+    // REQ-SW-PL-085: a plugin may offer "Поправи" for a problem it reported.
+    void problemWithoutFixerHasNoButton();
+    void fixerShowsLabelAndIsInvoked();
+    void fixFailureIsReportedInPanel();
+    void panelRefreshesAfterFix();
 };

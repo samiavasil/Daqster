@@ -10,6 +10,7 @@
 #include "capabilities/INodeProvider.h"
 #include "capabilities/IStatusBarProvider.h"
 #include "capabilities/IMenuProvider.h"
+#include "capabilities/IProblemFixer.h"
 #include "capabilities/IWidgetProvider.h"
 #include "debug.h"
 #include "LogCategories.h"
@@ -200,6 +201,9 @@ bool NodeEditorIdeObject::Initialize()
     m_problemsPanel->setVisible(false);
     connect(m_problemsPanel, &SceneProblemsPanel::problemActivated,
             this, &NodeEditorIdeObject::selectSceneNode);
+    // REQ-SW-PL-085: a fixer's success must re-read the scene, not trust it.
+    connect(m_problemsPanel, &SceneProblemsPanel::fixRequested,
+            this, &NodeEditorIdeObject::onProblemFixed);
     l->addWidget(m_problemsPanel);
 
     l->setContentsMargins(0, 0, 0, 0);
@@ -236,6 +240,9 @@ bool NodeEditorIdeObject::Initialize()
     // (Tools → AI Setup) without the IDE knowing the plugin: it implements
     // IMenuProvider, the controller adds the QAction and calls back by id.
     installPluginMenuActions();
+
+    // REQ-SW-PL-085: the plugin that reported a problem may also fix it.
+    adoptProblemFixers();
 
     // The designer panel lives next to the canvas; only one of the two is
     // visible at a time (see setLayoutDesignerMode).
@@ -341,6 +348,9 @@ void NodeEditorIdeObject::discoverAndRegisterExternalNodes()
     // REQ-SW-PL-084: the same for menu actions — a plugin loaded after the
     // menus were built still gets its entry (setProviders() is idempotent).
     installPluginMenuActions();
+
+    // REQ-SW-PL-085: and for problem fixers ("Поправи" on a reported row).
+    adoptProblemFixers();
 }
 
 void NodeEditorIdeObject::adoptStatusBarProviders()
@@ -367,6 +377,62 @@ void NodeEditorIdeObject::installPluginMenuActions()
 
     qCInfo(lcNodeEditor) << "Plugin menu ready:" << m_pluginMenu->actionCount()
                          << "action(s) from IMenuProvider plugin(s)";
+}
+
+void NodeEditorIdeObject::adoptProblemFixers()
+{
+    if (m_problemsPanel == nullptr)
+        return;
+
+    Daqster::QPluginManager* pm = Daqster::QPluginManager::instance();
+    m_problemFixers = pm ? pm->problemFixers()
+                         : QList<Daqster::IProblemFixer*>();
+
+    // First fixer that says it handles the row wins; the panel asks for a label
+    // only when there is one, so a row without a fixer keeps its plain text.
+    m_problemsPanel->setFixHandler(
+        [this](const Daqster::SceneOpenProblem& problem) -> QString {
+            for (Daqster::IProblemFixer* fixer : m_problemFixers) {
+                if (fixer != nullptr && fixer->canFix(problem))
+                    return fixer->fixLabel(problem);
+            }
+            return QString();
+        },
+        [this](const Daqster::SceneOpenProblem& problem, QString* error) -> bool {
+            for (Daqster::IProblemFixer* fixer : m_problemFixers) {
+                if (fixer != nullptr && fixer->canFix(problem))
+                    return fixer->fix(problem, error);
+            }
+            if (error != nullptr)
+                *error = tr("Няма плъгин, който да поправи този проблем");
+            return false;
+        });
+
+    qCInfo(lcNodeEditor) << "Problem fixers:" << m_problemFixers.size()
+                         << "provider(s) from IProblemFixer plugin(s)";
+}
+
+void NodeEditorIdeObject::onProblemFixed(const Daqster::SceneOpenProblem& problem)
+{
+    // The fixer says the problem is gone; drop the evidence the panel was
+    // built from and unmark the node, then let the graph be the judge.
+    for (int i = m_sceneOpenProblems.size() - 1; i >= 0; --i) {
+        const Daqster::SceneOpenProblem& stored = m_sceneOpenProblems.at(i);
+        if (stored.nodeId == problem.nodeId && stored.message == problem.message)
+            m_sceneOpenProblems.removeAt(i);
+    }
+
+    if (!problem.nodeId.isEmpty() && m_Widget != nullptr
+        && m_Widget->graphModel() != nullptr) {
+        auto* model = m_Widget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(
+            static_cast<QtNodes::NodeId>(problem.nodeId.toUInt()));
+        if (model != nullptr)
+            model->setValidationState({QtNodes::NodeValidationState::State::Valid, QString()});
+    }
+
+    qCInfo(lcNodeEditor).noquote() << "problem fixed:" << problem.nodeId
+                                   << problem.message;
+    refreshNodeProblems();
 }
 
 void NodeEditorIdeObject::adoptWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers)

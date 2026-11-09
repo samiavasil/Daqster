@@ -16,6 +16,7 @@ Capability интерфейсите са **header-only** договори в
 | [`IWidgetProvider`](#iwidgetprovider) | Доставя `QWidget`-а на нод, чийто модел е в widget-free core плъгин | `dynamic_cast` през `PluginRegistry` |
 | [`IStatusBarProvider`](#istatusbarprovider) | Плъгинът показва глобалното си състояние в статус бара + действия в меню | `QPluginManager::statusBarProviders()` |
 | [`IMenuProvider`](#imenuprovider) | Плъгинът добавя действия на произволно място в менюто на хоста (`Tools → AI Setup`) | `QPluginManager::menuProviders()` |
+| [`IProblemFixer`](#iproblemfixer) | Плъгинът предлага „Поправи“ за проблем, който сам е докладвал при отваряне | `QPluginManager::problemFixers()` |
 | [`INodeConfigSchema`](#inodeconfigschema) | Widget-free JSON Schema фрагмент за конфигурацията на нод | `dynamic_cast` върху модел инстанцията |
 | [`IRuntimeHost`](#iruntimehost) | Runtime host плъгин (headless/GUI) + optional control plane | `QPluginManager::runtimeHosts()` |
 | [`IStartable`](#istartable--istoppable) | Нодове с потребителско „Start" действие | `dynamic_cast` |
@@ -122,6 +123,46 @@ public:
 - празен `id`/`menuPath` се пропуска с предупреждение, `enabled=false` се показва
   сиво, изключение от `menuActions()`/`triggerMenuAction()` се логва, не се
   разпространява.
+
+## IProblemFixer
+
+Плъгинът **поправя** проблем, който сам е докладвал през `ISceneOpening`
+(REQ-SW-PL-085). Присъдата казва какво не е наред; досега човекът трябваше сам да
+познае какво да прави от `hint`-а, дори когато плъгинът знае точното действие
+(„този модел липсва — изтегли го“).
+
+```cpp
+class IProblemFixer {
+public:
+    virtual bool canFix(const Daqster::SceneOpenProblem& problem) const = 0;
+    virtual QString fixLabel(const Daqster::SceneOpenProblem& problem) const = 0;
+    virtual bool fix(const Daqster::SceneOpenProblem& problem, QString* error) = 0;
+};
+```
+
+Хедърът е `src/plugins/common/capabilities/IProblemFixer.h` — plain (non-`QObject`),
+header-only, включва `ISceneOpening.h` за `SceneOpenProblem`. **Хостът не поправя
+нищо:** пита `canFix()`, показва `fixLabel()` като бутон на реда и вика `fix()`
+при натискане.
+
+- `canFix()`/`fixLabel()` се викат при пълнене на панела (GUI нишкa) — евтини,
+  без I/O и диалози. **Празен `fixLabel()` = няма бутон**, тоест плъгин, който
+  още не знае, мълчи без втори метод.
+- `fix()` се вика от натискането на бутона; при `false` попълва `error` и хостът
+  го показва в **собствения ред за статус на панела**, не в модален диалог.
+- Съпоставянето е по `canFix(problem)`, не по идентичност на плъгина: питат се
+  няколко и **първият, който каже „да“, печели**. Затова `canFix()` трябва да
+  връща `false` при съмнение.
+- Discovery: `PluginRegistry::problemFixers()` / `QPluginManager::problemFixers()`
+  — `dynamic_cast` като при `IMenuProvider`, връща **инициализирани** обекти
+  (поправката работи с наученото в `Initialize()`).
+
+IDE-то (`NodeEditorIdeObject::adoptProblemFixers()`) подава на
+`SceneProblemsPanel::setFixHandler(label, fix)` два callable-а, които обхождат
+провайдърите; при успех панелът излъчва `fixRequested(problem)`, а IDE-то маха
+реда и маркировката на нода и препрочита валидационните състояния
+(`onProblemFixed()`). Излъчването е отложено с една итерация на event loop-а,
+защото хостът изчиства списъка — тоест изтрива бутона, в чийто `clicked()` сме.
 
 ## INodeConfigSchema
 Опционално самоописание на конфигурацията на нод (REQ-SW-PL-063 AC10). `save()`

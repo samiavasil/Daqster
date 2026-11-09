@@ -180,6 +180,31 @@ IDE-то беше последният хост с вето: `File → Load Scen
 се пропускат). Който иска данни, а не текст, ползва
 `SceneOpenReport::problemsJson()` / `lastSceneProblems()`.
 
+### „Поправи“ до проблема (`IProblemFixer`, REQ-SW-PL-085)
+
+Диагнозата вече е видима, но лечението беше ръчно: дори когато плъгинът знае
+точното действие („този модел липсва — изтегли го“, „смени backend-а“),
+човекът трябваше да го изведе от `hint`-а. Сега плъгин, който имплементира
+`Daqster::IProblemFixer` (`src/plugins/common/capabilities/IProblemFixer.h`),
+получава бутон на своя ред в `SceneProblemsPanel`.
+
+- `NodeEditorIdeObject::adoptProblemFixers()` взима
+  `QPluginManager::problemFixers()` и подава на
+  `SceneProblemsPanel::setFixHandler(label, fix)` два callable-а: **първият
+  fixer, чийто `canFix()` каже „да“, печели**; празен `fixLabel()` значи „без
+  бутон“ и редът остава както преди.
+- Натискането вика `fix(problem, &error)`. При `false` причината отива в
+  **собствения статус ред на панела** (`sceneProblemsStatus`) — без модален
+  диалог, редът остава за повторен опит. При успех панелът излъчва
+  `fixRequested(problem)`, IDE-то маха реда и маркировката на нода
+  (`onProblemFixed()`) и препрочита валидационните състояния.
+- Излъчването е отложено с една итерация на event loop-а: хостът изчиства
+  списъка, тоест изтрива бутона, в чийто `clicked()` сме — директно излъчване
+  би разрушило widget-а по време на собствения му сигнал.
+- Откриването е същото като при `IMenuProvider` — `dynamic_cast` през
+  `PluginRegistry::problemFixers()`, връща инициализирани обекти; повторно се
+  вика при зареждане/разтоварване на плъгин.
+
 ## Причината за затварянето (`SceneCloseReason`)
 
 `onSceneClosed()` казва *че* сцената изчезва, но не и *защо* — а плъгин, който

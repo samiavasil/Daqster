@@ -24,6 +24,7 @@ class QTimer;
 class QWidget;
 namespace Daqster {
 class IWidgetProvider;
+class IProblemFixer;
 }
 namespace QtNodes {
 class NodeDelegateModel;
@@ -128,6 +129,15 @@ private:
     /// second call) never leaves a duplicate entry.
     void installPluginMenuActions();
 
+    /// REQ-SW-PL-085: hands ALL IProblemFixer plugins to the problems panel and
+    /// lets the first provider that `canFix()` a row put its "Поправи" button
+    /// on it. Re-run whenever plugins are loaded/unloaded.
+    void adoptProblemFixers();
+
+    /// REQ-SW-PL-085: a fixer succeeded for @p problem. Drops that row and the
+    /// node's error mark, then re-reads the graph's validation states.
+    void onProblemFixed(const Daqster::SceneOpenProblem& problem);
+
     /// REQ-SW-PL-082: applies an `ISceneOpening` verdict to the *loaded* scene —
     /// "зарежда, маркира, не стартира". Each problem with a node id marks that
     /// node (`NodeValidationState::Error`) and is logged; the panel lists them
@@ -223,6 +233,12 @@ private:
     /// What the panel currently shows — a per-frame `nodeUpdated` from a
     /// display node must not rebuild the list when nothing changed.
     QVector<Daqster::SceneOpenProblem> m_lastPanelProblems;
+
+    /// Fixers contributed by plugins (REQ-SW-PL-085). The panel shows a
+    /// "Поправи" button on a row when the first fixer here says it can handle
+    /// the problem; the panel emits `fixRequested` after a success and the IDE
+    /// re-reads the scene.
+    QList<Daqster::IProblemFixer*> m_problemFixers;
 
     /// Coalesces bursts of `nodeUpdated` into one `refreshNodeProblems()`
     /// per event-loop turn (single-shot, 0 ms — not a poll).

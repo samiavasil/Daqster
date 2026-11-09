@@ -23,6 +23,7 @@
 #pragma once
 
 #include <QJsonObject>
+#include <QMetaType>
 #include <QString>
 #include <QVector>
 
@@ -157,3 +158,6 @@ public:
 };
 
 } // namespace Daqster
+
+// Passed by signals (`SceneProblemsPanel::fixRequested`) and in `QSignalSpy`.
+Q_DECLARE_METATYPE(Daqster::SceneOpenProblem)

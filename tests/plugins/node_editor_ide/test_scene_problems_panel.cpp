@@ -7,6 +7,7 @@
 #include <QListWidget>
 #include <QSignalSpy>
 #include <QStringList>
+#include <QToolButton>
 
 // REQ-SW-PL-082. The panel is the user-facing half of the verdict: it must say
 // *which* node is broken and *what to do*, and it must stay out of the way when
@@ -152,6 +153,119 @@ void TestSceneProblemsPanel::panelStartsCollapsedAndExpands()
 
     panel.setCollapsed(true);
     QVERIFY(panel.isCollapsed());
+}
+
+// ── "Поправи" (REQ-SW-PL-085) ───────────────────────────────────────────────
+
+void TestSceneProblemsPanel::problemWithoutFixerHasNoButton()
+{
+    QWidget host;
+    SceneProblemsPanel panel(&host);
+    panel.setProblems({makeProblem(QStringLiteral("3"), QStringLiteral("Chat"),
+                                   QStringLiteral("моделът липсва"), QString())});
+
+    QVERIFY2(panel.fixButtonAt(0) == nullptr,
+             "without a fixer the row must stay exactly as before");
+
+    // A fixer that handles nothing means the same: no button, no empty label.
+    panel.setFixHandler(
+        [](const Daqster::SceneOpenProblem&) -> QString { return QString(); },
+        [](const Daqster::SceneOpenProblem&, QString*) { return false; });
+    QVERIFY(panel.fixButtonAt(0) == nullptr);
+}
+
+void TestSceneProblemsPanel::fixerShowsLabelAndIsInvoked()
+{
+    QWidget host;
+    SceneProblemsPanel panel(&host);
+    const Daqster::SceneOpenProblem problem =
+        makeProblem(QStringLiteral("4"), QStringLiteral("Chat"),
+                    QStringLiteral("моделът липсва"), QStringLiteral("изтеглете го"));
+    panel.setProblems({problem});
+
+    int calls = 0;
+    Daqster::SceneOpenProblem seen;
+    panel.setFixHandler(
+        [](const Daqster::SceneOpenProblem& p) {
+            return p.message.contains(QStringLiteral("модел"))
+                       ? QStringLiteral("Изтегли")
+                       : QString();
+        },
+        [&](const Daqster::SceneOpenProblem& p, QString*) {
+            ++calls;
+            seen = p;
+            return true;
+        });
+
+    QToolButton* button = panel.fixButtonAt(0);
+    QVERIFY2(button != nullptr, "a handled problem gets the fixer's button");
+    QCOMPARE(button->text(), QStringLiteral("Изтегли"));
+
+    QSignalSpy spy(&panel, &SceneProblemsPanel::fixRequested);
+    button->click();
+
+    QCOMPARE(calls, 1);
+    QCOMPARE(seen.nodeId, problem.nodeId);
+    // The host is told after the click unwinds (it rebuilds the rows).
+    QTRY_COMPARE(spy.count(), 1);
+    QCOMPARE(spy.at(0).at(0).value<Daqster::SceneOpenProblem>().nodeId,
+             problem.nodeId);
+}
+
+void TestSceneProblemsPanel::fixFailureIsReportedInPanel()
+{
+    QWidget host;
+    SceneProblemsPanel panel(&host);
+    panel.setProblems({makeProblem(QStringLiteral("5"), QStringLiteral("Tts"),
+                                   QStringLiteral("voice липсва"), QString())});
+
+    panel.setFixHandler(
+        [](const Daqster::SceneOpenProblem&) { return QStringLiteral("Поправи"); },
+        [](const Daqster::SceneOpenProblem&, QString* error) {
+            if (error != nullptr)
+                *error = QStringLiteral("няма достъп до /models");
+            return false;
+        });
+
+    QSignalSpy spy(&panel, &SceneProblemsPanel::fixRequested);
+    QToolButton* button = panel.fixButtonAt(0);
+    QVERIFY(button != nullptr);
+    button->click();
+
+    QVERIFY2(panel.statusText().contains(QStringLiteral("няма достъп")),
+             "the failure reason is shown in the panel, not swallowed");
+    QCOMPARE(spy.count(), 0);
+    QCOMPARE(panel.problemCount(), 1); // the row stays, the user may retry
+}
+
+void TestSceneProblemsPanel::panelRefreshesAfterFix()
+{
+    QWidget host;
+    SceneProblemsPanel panel(&host);
+    panel.setProblems({
+        makeProblem(QStringLiteral("6"), QStringLiteral("Asr"),
+                    QStringLiteral("моделът липсва"), QString()),
+        makeProblem(QString(), QStringLiteral("сцена"),
+                    QStringLiteral("няма ui секция"), QString()),
+    });
+
+    panel.setFixHandler(
+        [](const Daqster::SceneOpenProblem&) { return QStringLiteral("Поправи"); },
+        [](const Daqster::SceneOpenProblem&, QString*) { return true; });
+
+    // The host's job: on success re-read the scene and refill the panel.
+    connect(&panel, &SceneProblemsPanel::fixRequested, &panel, [&panel]() {
+        panel.setProblems({makeProblem(QString(), QStringLiteral("сцена"),
+                                       QStringLiteral("няма ui секция"), QString())});
+    });
+
+    QToolButton* button = panel.fixButtonAt(0);
+    QVERIFY(button != nullptr);
+    button->click();
+
+    QTRY_COMPARE(panel.problemCount(), 1);
+    QCOMPARE(panel.nodeIds(), QStringList({QString()}));
+    QVERIFY(panel.statusText().isEmpty());
 }
 
 #include "test_scene_problems_panel.moc"

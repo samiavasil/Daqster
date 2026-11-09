@@ -1,7 +1,10 @@
 #include "SceneProblemsPanel.h"
 
+#include <QHBoxLayout>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QListWidgetItem>
+#include <QMetaObject>
 #include <QSignalBlocker>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -41,11 +44,19 @@ SceneProblemsPanel::SceneProblemsPanel(QWidget* parent)
     // that activates on a single click cannot turn selection into navigation.
     m_list->installEventFilter(this);
 
+    // The failure of a fixer lands here, not in a modal: the user keeps the
+    // list (and the node) in front of them while reading the reason.
+    m_status = new QLabel(this);
+    m_status->setObjectName(QStringLiteral("sceneProblemsStatus"));
+    m_status->setWordWrap(true);
+    m_status->setVisible(false);
+
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(4, 2, 4, 2);
     layout->setSpacing(2);
     layout->addWidget(m_header);
     layout->addWidget(m_list);
+    layout->addWidget(m_status);
 
     setCollapsed(true);
     setVisible(false);
@@ -70,18 +81,23 @@ QString SceneProblemsPanel::textForProblem(const Daqster::SceneOpenProblem& prob
 
 void SceneProblemsPanel::setProblems(const QVector<Daqster::SceneOpenProblem>& problems)
 {
+    m_problems = problems;
+    setStatus(QString());
+
     {
         // Filling must not emit activation for every added row.
         const QSignalBlocker blocker(m_list);
         m_list->clear();
         m_nodeIds.clear();
 
-        for (const Daqster::SceneOpenProblem& problem : problems) {
+        for (int i = 0; i < problems.size(); ++i) {
+            const Daqster::SceneOpenProblem& problem = problems.at(i);
             auto* item = new QListWidgetItem(textForProblem(problem), m_list);
             item->setData(kNodeIdRole, problem.nodeId);
             if (!problem.hint.isEmpty())
                 item->setToolTip(problem.hint);
             m_nodeIds << problem.nodeId;
+            installRowWidget(item, i, problem);
         }
     }
 
@@ -139,6 +155,98 @@ void SceneProblemsPanel::activateRow(int row)
     if (row < 0 || row >= m_nodeIds.size())
         return;
     emit problemActivated(m_nodeIds.at(row));
+}
+
+// ── "Поправи" (REQ-SW-PL-085) ───────────────────────────────────────────────
+
+void SceneProblemsPanel::setFixHandler(
+    std::function<QString(const Daqster::SceneOpenProblem&)> label,
+    std::function<bool(const Daqster::SceneOpenProblem&, QString*)> fix)
+{
+    m_fixLabel = std::move(label);
+    m_fix = std::move(fix);
+
+    // Rebuild so the buttons appear (or disappear) on the rows already shown.
+    setProblems(m_problems);
+}
+
+QString SceneProblemsPanel::statusText() const
+{
+    return m_status != nullptr && !m_status->isHidden() ? m_status->text() : QString();
+}
+
+QToolButton* SceneProblemsPanel::fixButtonAt(int row) const
+{
+    if (row < 0 || row >= m_list->count())
+        return nullptr;
+    QWidget* widget = m_list->itemWidget(m_list->item(row));
+    return widget != nullptr ? widget->findChild<QToolButton*>() : nullptr;
+}
+
+void SceneProblemsPanel::installRowWidget(QListWidgetItem* item, int index,
+                                          const Daqster::SceneOpenProblem& problem)
+{
+    if (!m_fixLabel || !m_fix)
+        return;
+
+    const QString label = m_fixLabel(problem);
+    if (label.isEmpty())
+        return; // no fixer handles this row — keep the plain text row
+
+    auto* row = new QWidget(m_list);
+    auto* rowLayout = new QHBoxLayout(row);
+    rowLayout->setContentsMargins(0, 0, 0, 0);
+    rowLayout->setSpacing(4);
+
+    auto* text = new QLabel(item->text(), row);
+    text->setObjectName(QStringLiteral("sceneProblemsRowText"));
+    text->setWordWrap(true);
+    text->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    rowLayout->addWidget(text, 1);
+
+    auto* button = new QToolButton(row);
+    button->setObjectName(QStringLiteral("sceneProblemsFixButton"));
+    button->setText(label);
+    button->setToolTip(label);
+    rowLayout->addWidget(button, 0, Qt::AlignTop);
+    connect(button, &QToolButton::clicked, this, [this, index]() { runFix(index); });
+
+    m_list->setItemWidget(item, row);
+    item->setSizeHint(row->sizeHint());
+}
+
+void SceneProblemsPanel::runFix(int index)
+{
+    if (!m_fix || index < 0 || index >= m_problems.size())
+        return;
+
+    // The list can be rebuilt by the host while the fix runs (setProblems()
+    // clears the rows), so work on a copy and never touch the items here.
+    const Daqster::SceneOpenProblem problem = m_problems.at(index);
+    QString error;
+    const bool ok = m_fix(problem, &error);
+
+    if (!ok) {
+        setStatus(error.isEmpty() ? tr("Поправката се провали — причината не е известна")
+                                  : error);
+        return;
+    }
+
+    setStatus(QString());
+
+    // The host refreshes the panel from the scene, which clears the list and
+    // deletes the button we are currently inside — let the click unwind first.
+    QMetaObject::invokeMethod(
+        this, [this, problem]() { emit fixRequested(problem); },
+        Qt::QueuedConnection);
+}
+
+void SceneProblemsPanel::setStatus(const QString& text)
+{
+    if (m_status == nullptr)
+        return;
+    m_status->setText(text);
+    m_status->setVisible(!text.isEmpty());
 }
 
 bool SceneProblemsPanel::eventFilter(QObject* watched, QEvent* event)
