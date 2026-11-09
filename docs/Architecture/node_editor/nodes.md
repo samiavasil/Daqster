@@ -30,7 +30,7 @@
 | `Sinks/Video` | `VideoOutputNode` |
 | `Sinks/File` | `FileRecordModel` |
 | `Sinks/Network` | `NetworkSinkModel` |
-| `Processing/Video` | `VideoEffectNode`, `CustomShaderNode`, `FrameSamplerNode` |
+| `Processing/Video` | `VideoEffectNode`, `CustomShaderNode`, `FrameSamplerNode`, `FrameWindowNode`³ |
 | `Displays/DAQ` | `DaqDisplayNode`, `GenericDisplayNode`², `AudioDisplayModelObsolete`, `AudioDisplayAlias`² |
 | `Routing` | `DemuxNodeObsolete`, `MuxNodeObsolete` (+ alias-и `DemuxNode`/`MuxNode`) |
 | `Obsolete` | `AudioSourceDataModelObsolete` |
@@ -39,6 +39,10 @@
 включен: `HAVE_LIBIIO` (PlutoSDR), `HAVE_PCAP` (Pcap), `HAVE_SYSTEM_MONITOR`
 (System Monitor), `HAVE_GAMEPAD` (Gamepad), `HAVE_NVML` (GPU Monitor),
 `HAVE_JACK_DETECT` (Jack Detect). Повечето са Linux-only (`if(NOT WIN32)`).
+
+³ **`FrameWindowNode`** (REQ-SW-PL-086) е входно семплиране: пази последните N
+`VideoFrameData` и ги публикува като един `FrameWindowData` блок (`"frame-window"`),
+за да не събира кадри сам omni/vision консуматорът.
 
 ² **Legacy alias** — тънък наследник само с override на `name()` (напр. `GenericDisplay`,
 `AudioDisplay`, `DemuxNode`, `MuxNode`), за да отварят стари записани `.flow` сцени.

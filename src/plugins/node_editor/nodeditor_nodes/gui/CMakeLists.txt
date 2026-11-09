@@ -99,6 +99,8 @@ set(GUI_WIDGETS
     Sources/Video/VideoFileSourceWidget.cpp
     Processing/Video/FrameSamplerWidget.h
     Processing/Video/FrameSamplerWidget.cpp
+    Processing/Video/FrameWindowWidget.h
+    Processing/Video/FrameWindowWidget.cpp
     Processing/Video/CustomShaderWidget.h
     Processing/Video/CustomShaderWidget.cpp
     Processing/Video/VideoEffectWidget.h

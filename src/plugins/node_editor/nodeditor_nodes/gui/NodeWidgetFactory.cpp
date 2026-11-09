@@ -9,6 +9,7 @@
 #include <Sources/Video/StreamSourceNode.h>
 #include <Sources/Video/VideoFileSourceNode.h>
 #include <Processing/Video/FrameSamplerNode.h>
+#include <Processing/Video/FrameWindowNode.h>
 #include <Processing/Video/CustomShaderNode.h>
 #include <Processing/Video/VideoEffectNode.h>
 #include <Sinks/Video/VideoOutputNode.h>
@@ -74,6 +75,7 @@
 #include "Sources/Video/StreamSourceWidget.h"
 #include "Sources/Video/VideoFileSourceWidget.h"
 #include "Processing/Video/FrameSamplerWidget.h"
+#include "Processing/Video/FrameWindowWidget.h"
 #include "Processing/Video/CustomShaderWidget.h"
 #include "Processing/Video/VideoEffectWidget.h"
 #include "Sinks/Video/VideoOutputUi.h"
@@ -426,6 +428,23 @@ void registerDefaultWidgetCreators(NodeWidgetFactory* factory)
                          m, &FrameSamplerNode::onMaxFpsChanged);
         QObject::connect(m, &FrameSamplerNode::paramsChanged,
                          widget, &FrameSamplerWidget::setParams);
+        return widget;
+    });
+
+    // FrameWindow (REQ-SW-PL-086)
+    factory->registerWidgetCreator("FrameWindow", [](QtNodes::NodeDelegateModel* model) -> QWidget* {
+        auto* m = safeCast<FrameWindowNode>(model, "FrameWindow");
+        if (!m) return nullptr;
+        auto* widget = new FrameWindowWidget();
+        widget->setParams(static_cast<int>(m->emitMode()), m->windowSize(), m->intervalMs());
+        QObject::connect(widget, &FrameWindowWidget::modeChanged,
+                         m, &FrameWindowNode::onModeChanged);
+        QObject::connect(widget, &FrameWindowWidget::windowChanged,
+                         m, &FrameWindowNode::onWindowChanged);
+        QObject::connect(widget, &FrameWindowWidget::intervalMsChanged,
+                         m, &FrameWindowNode::onIntervalMsChanged);
+        QObject::connect(m, &FrameWindowNode::paramsChanged,
+                         widget, &FrameWindowWidget::setParams);
         return widget;
     });
 

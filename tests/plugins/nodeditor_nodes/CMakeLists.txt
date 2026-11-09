@@ -54,15 +54,22 @@ set(TEST_SOURCES
     test_audio_buffer_to_sampled.cpp test_audio_buffer_to_sampled.h
     test_video_perf_badge.cpp test_video_perf_badge.h
     test_image_data.cpp test_image_data.h
+    test_frame_window_node.cpp test_frame_window_node.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoTransformOps.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/StreamUrlValidator.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoPerfBadge.cpp
+    # REQ-SW-PL-086: the FrameWindowNode model, compiled directly into the
+    # binary (same pattern as the FrameSampler suite below).
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Video/FrameWindowNode.cpp
 )
 
 add_executable(nodeditor_nodes_tests ${TEST_SOURCES})
 
 target_include_directories(nodeditor_nodes_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
@@ -80,6 +87,9 @@ target_link_libraries(nodeditor_nodes_tests PRIVATE
     # target propagates the NODE_EDITOR_SHARED compile definition (Export.hpp
     # requires it) and supplies the NodeData base-class symbols.
     QtNodes
+    # FrameWindowNode's VideoFrameData destructor reaches TexturePool::release()
+    # on the pooled path (REQ-SW-PL-032 E1) — link the one process-wide pool.
+    DaqsterCommonLibrary
 )
 
 add_test(NAME nodeditor_nodes_tests COMMAND $<TARGET_FILE:nodeditor_nodes_tests>)

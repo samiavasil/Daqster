@@ -11,6 +11,7 @@
 #include "Processing/Video/VideoEffectNode.h"
 #include "Processing/Video/CustomShaderNode.h"
 #include "Processing/Video/FrameSamplerNode.h"
+#include "Processing/Video/FrameWindowNode.h"
 #include "Sources/PlutoSdr/PlutoSdrModel.h"
 #include "Sources/SystemMonitor/SystemMonitorModel.h"
 #include "Sources/Gamepad/GamepadModel.h"
@@ -81,6 +82,7 @@ void NodeditorNodesCoreObject::registerNodes(QtNodes::NodeDelegateModelRegistry&
     registry.registerModel<VideoEffectNode>("Processing/Video");
     registry.registerModel<CustomShaderNode>("Processing/Video");
     registry.registerModel<FrameSamplerNode>("Processing/Video");
+    registry.registerModel<FrameWindowNode>("Processing/Video");
     
     // Conditional nodes (guarded by compile definitions)
 #ifdef HAVE_LIBIIO
@@ -162,6 +164,7 @@ void NodeditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateModelR
     registry.registerModel<VideoEffectNode>("Processing/Video");
     registry.registerModel<CustomShaderNode>("Processing/Video");
     registry.registerModel<FrameSamplerNode>("Processing/Video");
+    registry.registerModel<FrameWindowNode>("Processing/Video");
     
     // Conditional nodes (guarded by compile definitions)
 #ifdef HAVE_LIBIIO

@@ -98,6 +98,8 @@ set(VIDEO_NODES
     Processing/Video/CustomShaderNode.cpp
     Processing/Video/FrameSamplerNode.h
     Processing/Video/FrameSamplerNode.cpp
+    Processing/Video/FrameWindowNode.h
+    Processing/Video/FrameWindowNode.cpp
     # Texture pool for GPU effect outputs (REQ-SW-PL-032 Issue #7) is NOT
     # compiled here: TexturePool::instance() is a process-wide singleton of GL
     # texture names, and a second copy in this .so would be a second pool —
