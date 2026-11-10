@@ -8,6 +8,7 @@
 // application object the "the worker/process deletes itself" half of the
 // contract would never be exercised.
 
+#include "test_dependency_manager.h"
 #include "test_local_server_service.h"
 #include "test_process_owner.h"
 #include "test_thread_owner.h"
@@ -42,6 +43,14 @@ int main(int argc, char *argv[])
         // Qt::Network), against an in-test server — no Qt WebSockets.
         TestWebSocketClient webSocketClient;
         status |= QTest::qExec(&webSocketClient, argc, argv);
+    }
+
+    {
+        // REQ-SW-PL-088: declarative dependency management — manifest
+        // validation, checksum verification, adopt + lockfile round-trip.
+        // No network: install() is covered through its validation half.
+        TestDependencyManager dependencyManager;
+        status |= QTest::qExec(&dependencyManager, argc, argv);
     }
 
     return status;

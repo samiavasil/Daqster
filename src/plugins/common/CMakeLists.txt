@@ -52,6 +52,10 @@ if(DAQSTER_COMMON_LIB_ENABLED)
         # (REQ-SW-PL-087). Masked client frames, fragmentation, ping→pong,
         # close handshake, bounded message size.
         WebSocket/WebSocketClient.cpp
+        # Declarative install/adopt/verify of external artifacts
+        # (REQ-SW-PL-088): manifest → checksum → atomic install → lockfile.
+        # Framework capability, knows nothing about models or catalogs.
+        Dependencies/DependencyManager.cpp
     )
 
     # Windows: WINDOWS_EXPORT_ALL_SYMBOLS makes the linker export all symbols

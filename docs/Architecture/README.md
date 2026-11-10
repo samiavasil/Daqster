@@ -15,6 +15,7 @@
 - [threading.md](./threading.md) - нишки и живот на процесите (ThreadOwner / ProcessOwner / CancelToken) — авторитетът, налаган от статична проверка
 - [local-server-service.md](./local-server-service.md) - животът на локален сървър по HTTP (`LocalServerService`): свободен порт, `/health`, файл за собственост, ограничен стоп
 - [websocket-client.md](./websocket-client.md) - WebSocket клиент (`WebSocketClient`): RFC 6455 върху `Qt::Network`, маскирани кадри, фрагментация, лимити
+- [dependency-manager.md](./dependency-manager.md) - декларативно управление на външни артефакти (`DependencyManager`): манифест, sha256, атомарна инсталация, adopt, lockfile
 - [node_editor/scene-lifecycle.md](./node_editor/scene-lifecycle.md) - затваряне на сцена (Close Scene, освобождаване на ресурси)
 - [runtime-mode-architecture.md](./runtime-mode-architecture.md) - (исторически) runtime режими
 - [apps/README.md](./apps/README.md) - application подсистема

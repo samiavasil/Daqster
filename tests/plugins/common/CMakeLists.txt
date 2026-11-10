@@ -26,11 +26,14 @@ set(COMMON_TEST_SOURCES
     test_local_server_service.cpp test_local_server_service.h
     # REQ-SW-PL-087: RFC 6455 client against a tiny in-test server.
     test_websocket_client.cpp test_websocket_client.h
+    # REQ-SW-PL-088: manifest/verify/adopt/lockfile — no network in tests.
+    test_dependency_manager.cpp test_dependency_manager.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ProcessOwner.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ThreadingLog.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Servers/LocalServerService.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/WebSocket/WebSocketClient.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Dependencies/DependencyManager.cpp
 )
 
 add_executable(daqster_common_tests ${COMMON_TEST_SOURCES})
