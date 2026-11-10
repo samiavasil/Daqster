@@ -100,6 +100,9 @@ target_link_libraries(nodeditor_nodes_tests PRIVATE
     QtNodes
     # FrameWindowNode's VideoFrameData destructor reaches TexturePool::release()
     # on the pooled path (REQ-SW-PL-032 E1) — link the one process-wide pool.
+    # REQ-SW-PL-090: wrapBuffer() counts the per-block copy, and the counter
+    # lives in the same library — the assertions read the singleton the plugin
+    # increments, not a private copy.
     DaqsterCommonLibrary
 )
 
@@ -749,6 +752,9 @@ target_link_libraries(demo_nodeditor_modelname_tests PRIVATE
     # utility; the models themselves are compiled in above rather than linked
     # from the core plugin .so.
     FrameworkCore
+    # REQ-SW-PL-090: MicCaptureWorker.cpp reaches AudioBufferToSampled::
+    # wrapBuffer(), which counts the per-block copy in the library's singleton.
+    DaqsterCommonLibrary
 )
 
 add_test(NAME demo_nodeditor_modelname_tests
@@ -984,6 +990,10 @@ target_link_libraries(demo_nodeditor_lifecycle_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Multimedia
     QtNodes
     FrameworkCore
+    # REQ-SW-PL-090: the video source models (compiled in above) reach
+    # AudioBufferToSampled::wrapBuffer() and VideoCompat::frameToOwnedFrame(),
+    # both of which count their copy in the library's process-wide singleton.
+    DaqsterCommonLibrary
 )
 
 add_test(NAME demo_nodeditor_lifecycle_tests

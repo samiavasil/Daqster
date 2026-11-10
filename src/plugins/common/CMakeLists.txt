@@ -56,6 +56,11 @@ if(DAQSTER_COMMON_LIB_ENABLED)
         # (REQ-SW-PL-088): manifest → checksum → atomic install → lockfile.
         # Framework capability, knows nothing about models or catalogs.
         Dependencies/DependencyManager.cpp
+        # Copy counters for the three transport hot spots (REQ-SW-PL-090).
+        # In the library for the same reason as TexturePool: nodeditor_nodes,
+        # the private plugin and the test binaries must increment the SAME
+        # atomics, not one copy per shared library.
+        Diagnostics/TransportStats.cpp
     )
 
     # Windows: WINDOWS_EXPORT_ALL_SYMBOLS makes the linker export all symbols
