@@ -870,6 +870,11 @@ set(LIFECYCLE_TEST_SOURCES
     test_lifecycle_main.cpp
     test_thread_lifecycle.cpp
     test_thread_lifecycle.h
+    # Connection policy of the capture sources (REQ-SW-PL-024): the same models
+    # are already compiled in below, so the graph-level fan-out test only adds
+    # its own files — no second harness.
+    test_source_fan_out.cpp
+    test_source_fan_out.h
     ${MODEL_NAME_TEST_SOURCES}
     # SystemMonitorModel is not in MODEL_NAME_TEST_SOURCES (the model-name
     # suite covers a different set) but it IS one of the four nodes whose

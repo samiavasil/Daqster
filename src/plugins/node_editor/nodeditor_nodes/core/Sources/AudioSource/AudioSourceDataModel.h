@@ -85,11 +85,15 @@ public:
     /// Start capture programmatically (runtime autoStart, REQ-SW-PL-048).
     void start() override;
 
+    /// Out = Many: the microphone broadcasts — the graph hands the SAME
+    /// `SampledData` shared_ptr to every input port and no consumer mutates it,
+    /// so a second consumer costs nothing (the node already counts its links
+    /// and captures while count > 0).
     QtNodes::ConnectionPolicy portConnectionPolicy(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
-        Q_UNUSED(portType);
         Q_UNUSED(portIndex);
-        return QtNodes::ConnectionPolicy::One;
+        return portType == QtNodes::PortType::Out ? QtNodes::ConnectionPolicy::Many
+                                                  : QtNodes::ConnectionPolicy::One;
     }
 
     void outputConnectionCreated(QtNodes::ConnectionId const &) override;

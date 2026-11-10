@@ -13,6 +13,7 @@
 // (REQ-SW-PL-051) and are idle until start().
 
 #include "test_model_name_serialization.h"
+#include "test_source_fan_out.h"
 #include "test_thread_lifecycle.h"
 
 #include <QtTest>
@@ -35,6 +36,13 @@ int main(int argc, char *argv[])
     {
         TestThreadLifecycle lifecycle;
         status |= QTest::qExec(&lifecycle, argc, argv);
+    }
+    {
+        // Connection policy of the capture sources (REQ-SW-PL-024): the models
+        // are already compiled into this binary, and the class needs the app
+        // instance for the same event-dispatcher reason as the two above.
+        SourceFanOutTest fanOut;
+        status |= QTest::qExec(&fanOut, argc, argv);
     }
 
     return status;

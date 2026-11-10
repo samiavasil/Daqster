@@ -394,6 +394,11 @@ Mic пътят мигрира от QDevIO byte-stream към SampledData. Нов
 
 - Един изходен порт, тип `{"sample","Sample"}` (от `SampledData().type()`).
 - `outData()` връща най-новото `shared_ptr<SampledData>` (member `m_lastData`).
+- **Един изход, няколко консуматора** — `portConnectionPolicy()` дава
+  `Out = Many` (и `In = One`); `onOutPortDataUpdated` подава **същия**
+  `shared_ptr` на всеки вход, тоест разклонението е без копие. Нодът брои
+  връзките си и заснема, докато `count > 0`, така че последното разкачване
+  спира микрофона. Същото важи за полерите `Pcap`/`JackDetect`/`GpuMonitor`.
 - **Няма остатък от QDevIO** в новия нод.
 
 ### Threading — dedicated worker thread
