@@ -46,10 +46,10 @@ int freePortBase(int span)
 }
 
 /// A spec for the stub: short poll and sensible deadlines, so the test is fast.
-LocalServerSpec stubSpec(int base)
+LocalServerSpec stubSpecFor(const QString& kind, int base)
 {
     LocalServerSpec spec;
-    spec.kind             = QStringLiteral("stub-server");
+    spec.kind             = kind;
     spec.binary           = stubBinary();
     // Explicit QStringList: on Qt5 the brace list is ambiguous between the
     // QList<QString> and QStringList assignment operators.
@@ -67,13 +67,18 @@ LocalServerSpec stubSpec(int base)
 /// How many stub processes run right now (-1 = the platform cannot tell).
 ///
 /// This is the proof of "no second process is started": the real process count
-/// is checked, not just the class' `isOwned()` flag.
+/// is checked, not just the class' `isOwned()` flag. The **whole path** is
+/// compared, not only the file name: the same stub is built in more than one
+/// tree on this machine, and a process left behind by another tree's run is not
+/// ours (counting it made a reuse test see two servers).
 int stubProcessCount()
 {
 #ifdef Q_OS_UNIX
-    const QString name = QFileInfo(stubBinary()).fileName();
+    const QFileInfo stub(stubBinary());
+    const QString name = stub.fileName();
     if (name.isEmpty())
         return 0;
+    const QString expected = stub.canonicalFilePath();
 
     int count = 0;
     const QStringList entries =
@@ -89,10 +94,15 @@ int stubProcessCount()
             continue;
         const QList<QByteArray> args = file.readAll().split('\0');
         for (int i = 0; i < qMin(2, args.size()); ++i) {
-            if (QFileInfo(QString::fromLocal8Bit(args.at(i))).fileName() == name) {
-                ++count;
-                break;
-            }
+            const QFileInfo arg(QString::fromLocal8Bit(args.at(i)));
+            if (arg.fileName() != name)
+                continue;
+            // A relative argv[0] has no canonical path — fall back to the name.
+            const QString path = arg.canonicalFilePath();
+            if (!expected.isEmpty() && !path.isEmpty() && path != expected)
+                continue;
+            ++count;
+            break;
         }
     }
     return count;
@@ -144,6 +154,17 @@ QJsonObject recordForKind(const QString& kind)
     return {};
 }
 
+/// How many records name `kind` (a duplicate is a defect, not clutter).
+int recordCountForKind(const QString& kind)
+{
+    int count = 0;
+    for (const QJsonValue& value : readOwnershipRecords()) {
+        if (value.toObject().value(QStringLiteral("kind")).toString() == kind)
+            ++count;
+    }
+    return count;
+}
+
 /// A pid nobody can have (above `pid_max` on Linux, dead everywhere else).
 constexpr qint64 kDeadPid = 999999999;
 
@@ -188,31 +209,51 @@ private:
 } // namespace
 
 // ═══════════════════════════════════════════════════════════════════════
-//  Isolation: the ownership file is left as it was found
+//  Isolation: every test gets its own data directory and its own kind
 // ═══════════════════════════════════════════════════════════════════════
 void TestLocalServerService::init()
 {
-    QFile file(LocalServerService::ownershipFilePath());
-    m_hadOwnershipFile = file.open(QIODevice::ReadOnly);
-    m_ownershipBackup  = m_hadOwnershipFile ? file.readAll() : QByteArray();
-    file.close();
+    // The ownership file lives in `<GenericDataLocation>/Daqster` — machine-wide,
+    // written by every build tree and every user of the service. A test that
+    // reads it sees foreign records (`recordForKind()` returned a port from
+    // another run), so the whole fixture runs in a temporary home; the real file
+    // is never read, never written and never "restored".
+    m_home = std::make_unique<QTemporaryDir>();
+    QVERIFY2(m_home->isValid(), "no temporary data home");
+#ifdef Q_OS_UNIX
+    m_hadXdgDataHome      = qEnvironmentVariableIsSet("XDG_DATA_HOME");
+    m_previousXdgDataHome = qgetenv("XDG_DATA_HOME");
+    qputenv("XDG_DATA_HOME", QFile::encodeName(m_home->path()));
+#endif
+    // The service's own directory, as on a machine that has run it once: the
+    // tests that write a record themselves (a crashed run's leftovers) need it.
+    QVERIFY2(QDir().mkpath(m_home->path() + QStringLiteral("/Daqster")),
+             "cannot create the per-test data directory");
 
-    // The test starts from a clean state: a stale record from a previous run
-    // must not move the probe to a foreign port.
-    QFile::remove(LocalServerService::ownershipFilePath());
-    // …and a lock file left by a crashed run would make every start wait 10 s.
-    QFile::remove(LocalServerService::lockFilePath());
+    // …and its own kind: a record from another test (or from a crashed run of
+    // this one) can never satisfy an assertion about "our" record.
+    m_kind = QStringLiteral("stub-server-%1-%2")
+                 .arg(QCoreApplication::applicationPid())
+                 .arg(QString::fromLatin1(QTest::currentTestFunction()));
 }
 
 void TestLocalServerService::cleanup()
 {
-    if (!m_hadOwnershipFile) {
-        QFile::remove(LocalServerService::ownershipFilePath());
-        return;
-    }
-    QFile restore(LocalServerService::ownershipFilePath());
-    if (restore.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        restore.write(m_ownershipBackup);
+#ifdef Q_OS_UNIX
+    if (m_hadXdgDataHome)
+        qputenv("XDG_DATA_HOME", m_previousXdgDataHome);
+    else
+        qunsetenv("XDG_DATA_HOME");
+    m_hadXdgDataHome = false;
+    m_previousXdgDataHome.clear();
+#endif
+    m_kind.clear();
+    m_home.reset();   // removes the records, the lock file and the whole home
+}
+
+LocalServerSpec TestLocalServerService::stubSpec(int base) const
+{
+    return stubSpecFor(m_kind, base);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -372,8 +413,8 @@ void TestLocalServerService::staleRecordIsRemovedAndReplaced()
 
     // What a crash leaves behind: a record for a process that no longer exists.
     // Reading it as "a server is starting" would make the start wait forever.
-    writeOwnershipRecord(QStringLiteral("stub-server"), kDeadPid, stubBinary(), base);
-    QVERIFY(!recordForKind(QStringLiteral("stub-server")).isEmpty());
+    writeOwnershipRecord(kind(), kDeadPid, stubBinary(), base);
+    QVERIFY(!recordForKind(kind()).isEmpty());
 
     LocalServerService service;
     QSignalSpy started(&service, &LocalServerService::started);
@@ -385,9 +426,11 @@ void TestLocalServerService::staleRecordIsRemovedAndReplaced()
     QVERIFY(service.isOwned());
     QVERIFY2(!service.isReused(), "a dead pid must not be reused");
 
-    // The stale record is gone and the record now names the live process.
-    const QJsonObject record = recordForKind(QStringLiteral("stub-server"));
+    // The stale record is gone and the record now names the live process — one
+    // record, not an old one plus a new one.
+    const QJsonObject record = recordForKind(kind());
     QVERIFY2(!record.isEmpty(), "the new process must be recorded");
+    QCOMPARE(recordCountForKind(kind()), 1);
     const qint64 pid = qint64(record.value(QStringLiteral("pid")).toDouble());
     QVERIFY2(pid != kDeadPid, "the stale record was not replaced");
     QVERIFY2(pid > 0, "the record has no pid");
@@ -531,14 +574,14 @@ void TestLocalServerService::stopRemovesRecordUnderLock()
     LocalServerService service;
     service.start(stubSpec(base));
     QTRY_VERIFY_WITH_TIMEOUT(service.isReady(), 20000);
-    QVERIFY2(!recordForKind(QStringLiteral("stub-server")).isEmpty(),
+    QVERIFY2(!recordForKind(kind()).isEmpty(),
              "a running server must be recorded");
 
     service.stop();
 
     // The record is gone (so the next start launches instead of reusing a dead
     // pid), and the lock is free — the removal happened under it, briefly.
-    QVERIFY2(recordForKind(QStringLiteral("stub-server")).isEmpty(),
+    QVERIFY2(recordForKind(kind()).isEmpty(),
              "stop() left the ownership record behind");
     QLockFile probe(LocalServerService::lockFilePath());
     QVERIFY2(probe.tryLock(2000), "stop() left the start lock held");
@@ -570,6 +613,51 @@ void TestLocalServerService::stopLeavesReusedServerAlone()
     guest.stop();
     QVERIFY(!guest.isReused());   // the connection is closed…
     QVERIFY(owner.isReady());     // …but the owner's server still runs
+    if (stubProcessCount() >= 0)
+        QCOMPARE(stubProcessCount(), 1);
+
+    // The record names a process that is still alive, so it stays: its owner
+    // still runs that server.
+    QCOMPARE(recordCountForKind(kind()), 1);
+    QVERIFY2(!recordForKind(kind()).isEmpty(),
+             "stop() of the reuser dropped a live foreign record");
+
+    owner.stop();
+    QVERIFY2(recordForKind(kind()).isEmpty(),
+             "the record of a stopped owner is garbage");
+    if (stubProcessCount() >= 0)
+        QTRY_COMPARE(stubProcessCount(), 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  3b. `stop()` of a reused server drops the record when its pid is dead
+// ═══════════════════════════════════════════════════════════════════════
+void TestLocalServerService::reusedServerDropsRecordOfDeadProcess()
+{
+    if (stubBinary().isEmpty())
+        QSKIP("LOCAL_SERVER_STUB is not set (not built through CMake?)");
+    const int base = freePortBase(32);
+    QVERIFY2(base > 0, "no free port for the range");
+
+    LocalServerService owner;
+    owner.start(stubSpec(base));
+    QTRY_VERIFY_WITH_TIMEOUT(owner.isReady(), 20000);
+
+    LocalServerService guest;
+    guest.start(stubSpec(base));
+    QTRY_VERIFY_WITH_TIMEOUT(guest.isReady(), 20000);
+    QVERIFY(guest.isReused());
+
+    // The rule: a reused record is kept only while its process lives. Here the
+    // recorded pid is a dead one (what a crashed owner leaves behind) — nothing
+    // may survive `stop()`.
+    writeOwnershipRecord(kind(), kDeadPid, stubBinary(), guest.port());
+    QVERIFY(!recordForKind(kind()).isEmpty());
+
+    guest.stop();
+    QVERIFY2(recordForKind(kind()).isEmpty(),
+             "stop() kept the record of a process that is gone");
+    QVERIFY(owner.isReady());   // the live server itself is untouched
     if (stubProcessCount() >= 0)
         QCOMPARE(stubProcessCount(), 1);
 

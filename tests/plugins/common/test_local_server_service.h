@@ -1,6 +1,11 @@
 #pragma once
 
 #include <QtTest>
+#include <QTemporaryDir>
+
+#include <memory>
+
+#include "Servers/LocalServerService.h"
 
 /// Tests for `Daqster::LocalServerService` (REQ-SW-PL-081): one supervisor for
 /// any local HTTP server.
@@ -30,10 +35,11 @@ class TestLocalServerService : public QObject
     Q_OBJECT
 
 private slots:
-    /// The user's ownership file is saved and restored around each test.
+    /// Every test runs in its own data directory and with its own `kind`: the
+    /// ownership file is machine-wide, so the real one is never touched.
     void init();
-    /// `init`/`cleanup` must not leave the lock behind either: a stale lock file
-    /// from a crashed run would make every start wait 10 s.
+    /// Restores the environment and removes the per-test data directory (lock
+    /// file included: a stale lock from a crashed run would stall every start).
     void cleanup();
 
 
@@ -63,8 +69,12 @@ private slots:
     /// `stop()` removes the record under the lock.
     void stopRemovesRecordUnderLock();
 
-    /// `stop()` of the reuser does not kill the foreign server.
+    /// `stop()` of the reuser does not kill the foreign server, and its record
+    /// survives only while that server's process lives.
     void stopLeavesReusedServerAlone();
+
+    /// `stop()` of a reused server drops the record when its pid is dead.
+    void reusedServerDropsRecordOfDeadProcess();
 
     /// Missing and non-executable binary → a clear `failed`, no crash.
     void missingBinaryFailsClearly();
@@ -92,6 +102,13 @@ private slots:
     void defaultFlagsUnchanged();
 
 private:
-    bool m_hadOwnershipFile = false;
-    QByteArray m_ownershipBackup;
+    /// The spec for this test's stub: its own `kind` on top of `stubSpecFor()`.
+    Daqster::LocalServerSpec stubSpec(int base) const;
+    /// This test's kind (`stub-server-<pid>-<testname>`).
+    const QString& kind() const { return m_kind; }
+
+    std::unique_ptr<QTemporaryDir> m_home;
+    QString                        m_kind;
+    bool                           m_hadXdgDataHome = false;
+    QByteArray                     m_previousXdgDataHome;
 };

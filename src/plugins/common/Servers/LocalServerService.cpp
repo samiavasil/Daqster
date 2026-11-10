@@ -112,15 +112,36 @@ void writeRecords(const QJsonArray& records)
     file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
 }
 
+/// Is the recorded pid still running?
+///
+/// `Unknown` where the platform cannot tell (no `/proc`/`kill(pid, 0)`): a
+/// record is then kept rather than guessed away.
+enum class PidState { Dead, Alive, Unknown };
+
+PidState pidState(qint64 pid);   // defined next to the /proc helpers below
+
+/// The records without those whose process is gone (`pruned` counts them).
+QJsonArray withoutDeadRecords(const QJsonArray& records, int* pruned);
+
 /// Writes (or replaces) the record for `pid` — one process, one record.
+///
+/// Two rules keep the file from rotting: an entry for the same `pid` is
+/// **replaced** instead of appended (a retry must not leave a second copy of one
+/// process), and every record whose process is gone is dropped on the way — a
+/// dead pid is garbage, the next start would look at a port nobody listens on.
+///
+/// Must be called under the start lock (every writer of the file is).
 void rememberServer(qint64 pid, const LocalServerSpec& spec, int port)
 {
     if (pid <= 0)
         return;
+    int pruned = 0;
     QJsonArray kept;
-    for (const QJsonValue& value : readRecords()) {
-        if (qint64(value.toObject().value(QStringLiteral("pid")).toDouble()) != pid)
-            kept.append(value);
+    for (const QJsonValue& value : withoutDeadRecords(readRecords(), &pruned)) {
+        const QJsonObject record = value.toObject();
+        if (qint64(record.value(QStringLiteral("pid")).toDouble()) == pid)
+            continue;   // the same process is re-recorded below
+        kept.append(value);
     }
     QJsonObject record;
     record.insert(QStringLiteral("pid"), double(pid));
@@ -129,6 +150,12 @@ void rememberServer(qint64 pid, const LocalServerSpec& spec, int port)
     record.insert(QStringLiteral("port"), port);
     kept.append(record);
     writeRecords(kept);
+
+    if (pruned > 0) {
+        qCInfo(lcThreading).noquote()
+            << QStringLiteral("ownership: %1 record(s) with a dead pid removed")
+                   .arg(pruned);
+    }
 }
 
 /// Removes the record **only** for `pid` (another instance is left alone).
@@ -309,6 +336,69 @@ bool terminatePid(qint64 pid, int graceMs)
 
 } // namespace
 #endif  // Q_OS_UNIX
+
+namespace {
+
+PidState pidState(qint64 pid)
+{
+#ifdef Q_OS_UNIX
+    if (pid <= 0)
+        return PidState::Dead;
+    return isAlive(pid) ? PidState::Alive : PidState::Dead;
+#else
+    Q_UNUSED(pid);
+    return PidState::Unknown;
+#endif
+}
+
+QJsonArray withoutDeadRecords(const QJsonArray& records, int* pruned)
+{
+    QJsonArray kept;
+    int dead = 0;
+    for (const QJsonValue& value : records) {
+        const qint64 pid = qint64(value.toObject().value(QStringLiteral("pid")).toDouble());
+        if (pidState(pid) == PidState::Dead) {
+            ++dead;
+            continue;
+        }
+        kept.append(value);
+    }
+    if (pruned)
+        *pruned = dead;
+    return kept;
+}
+
+/// Removes the records of `kind` whose process is gone; @return how many.
+///
+/// **Rule for a reused server:** its record names a process we did not start, so
+/// it stays valid only while that process lives — a live pid is kept (its owner
+/// is still running it), a dead one is garbage and is dropped. A recycled pid is
+/// caught separately by `matchesBinary()` on the next start.
+///
+/// Must be called under the start lock (it writes the file).
+int dropDeadRecordsFor(const QString& kind)
+{
+    QJsonArray kept;
+    int dropped = 0;
+    for (const QJsonValue& value : readRecords()) {
+        const QJsonObject record = value.toObject();
+        if (record.value(QStringLiteral("kind")).toString() != kind) {
+            kept.append(value);
+            continue;
+        }
+        if (pidState(qint64(record.value(QStringLiteral("pid")).toDouble()))
+            == PidState::Dead) {
+            ++dropped;
+            continue;
+        }
+        kept.append(value);
+    }
+    if (dropped > 0)
+        writeRecords(kept);
+    return dropped;
+}
+
+} // namespace
 
 // ── The live record: "somebody is already starting or running this kind" ─────
 //
@@ -573,6 +663,17 @@ void LocalServerService::start(const LocalServerSpec& spec, QString* error)
         fail(lockReason);
         return;
     }
+    // Dead records are garbage for **every** kind: the file is the second source
+    // for orphans, so it must not name processes that cannot exist. Done under
+    // the lock, like every other write.
+    int pruned = 0;
+    const QJsonArray liveRecords = withoutDeadRecords(readRecords(), &pruned);
+    if (pruned > 0) {
+        writeRecords(liveRecords);
+        qCInfo(lcThreading).noquote()
+            << QStringLiteral("ownership: %1 record(s) with a dead pid removed")
+                   .arg(pruned);
+    }
     const OwnershipRecord record =
         liveRecordFor(m_spec.kind, QFileInfo(m_spec.binary).fileName());
     releaseStartLock();
@@ -604,10 +705,24 @@ void LocalServerService::stop()
     // A reused server is foreign: we close the connection but do not kill it.
     if (!m_owned || !m_procOwner.isRunning()) {
         if (m_reused) {
+            // Its ownership record names a process we did not start, so it is
+            // kept only while that process lives (a dead pid is dropped).
+            int dropped = 0;
+            if (acquireStartLock(kShortLockWaitMs, nullptr)) {
+                dropped = dropDeadRecordsFor(m_spec.kind);
+                releaseStartLock();
+            }
             qCInfo(lcThreading).noquote()
                 << QStringLiteral("%1: the server on %2 is not ours — leaving it "
                                   "running")
                        .arg(m_spec.kind, baseUrl().toString());
+            if (dropped > 0) {
+                qCInfo(lcThreading).noquote()
+                    << QStringLiteral("%1: dropped %2 ownership record(s) of a dead "
+                                      "process")
+                           .arg(m_spec.kind)
+                           .arg(dropped);
+            }
             m_reused = false;
         }
         m_owned = false;
