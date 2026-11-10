@@ -83,6 +83,16 @@ nodeditor_nodes/
 │   │   └── AudioDisplayModelObsolete.{h,cpp}  # Старият QDevIO audio display (rename-only)
 │   ├── DaqDisplay/
 │   │   └── DaqDisplayNode.{h,cpp}        # Реален Qt Charts waveform + FFT (REQ-SW-PL-022/025)
+│   ├── DisplayRefresh/
+│   │   └── DisplayRefreshDriver.{h,cpp}  # 30 Hz throttle + ComputePool ключ + CancelToken (REQ-SW-PL-090)
+│   ├── TextDisplay/
+│   │   └── TextDisplayNode.{h,cpp}       # TextData → последен текст + броячи (REQ-SW-PL-090)
+│   ├── ImageDisplay/
+│   │   └── ImageDisplayNode.{h,cpp}      # ImageData → превю + метаданни (REQ-SW-PL-090)
+│   ├── FrameWindowDisplay/
+│   │   └── FrameWindowDisplayNode.{h,cpp} # FrameWindowData → метаданни + ≤4 миниатюри (REQ-SW-PL-090)
+│   ├── NumberDisplay/
+│   │   └── NumberDisplayDataModel.{h,cpp} # double / int / embedding (REQ-SW-PL-090 добавя embedding)
 │   └── GenericDisplay/
 │       └── GenericDisplayNode.{h,cpp}
 └── Routing/
@@ -192,11 +202,23 @@ NodeditorNodesCoreObject → INodeProvider
 ### Displays
 | Нод | Категория | Описание |
 |-----|-----------|----------|
+| NumberDisplayDataModel | Displays/General | **„Последна стойност" дисплей** — селектор `double` / `int` / `embedding`; за число показва `numberAsText()`, за `EmbeddingData` (REQ-SW-PL-090) — `dim · min · max · mean` и първите 8 компоненти. Числовите пътища са непроменени |
+| TextDisplayNode | Displays/General | **Текстов дисплей** (REQ-SW-PL-090) — `TextData` → нищо. Последният текст (превю до 240 знака, цялото в tooltip) + брой блокове, брой знаци, редове, „преди N ms" |
+| ImageDisplayNode | Displays/General | **Дисплей на картина** (REQ-SW-PL-090) — `ImageData` → нищо. Превю, смалено до 320×180 **на worker-а** (пълната картина никога не се задържа), + ширина×височина на източника, формат на пикселите, mime/model от `Meta`, „преди N ms" |
+| FrameWindowDisplayNode | Displays/General | **Дисплей на кадров прозорец** (REQ-SW-PL-090) — `FrameWindowData` → нищо. Брой кадри, timestamps на първия/последния (+ разлика) и до 4 миниатюри. Миниатюрите се правят с `VideoFrameData::frameToImageScaled()` (чист CPU, безопасен от всяка нишка); GPU-резидентен кадър **не** се конвертира (`asImage()` е GL readback само за GUI нишката) — показва се като „metadata only — N frame(s) not CPU-convertible" |
 | DaqDisplayNode | Displays/DAQ | **Каноничният SampledData дисплей** — реален Qt Charts waveform + FFT за всеки плъгин с sampled данни (audio/DAQ/сензори). v2 (REQ-SW-PL-025): физически decode (`decodeToPhysical`, `raw × amplitudeScale + amplitudeOffset`), unit оси от дескриптора (Time (s)/Hz + мерна единица), worker-притежаван N-секунден ring buffer (default 10 s) с FFT от опашката; per-card `mode` (normalized/physical) + `unitAxes`, backward-compatible save/restore |
 | GenericDisplayNode | Displays/DAQ | Тънък alias на DaqDisplayNode (само name/caption) — legacy key "GenericDisplay" |
 | AudioDisplayAlias | Displays/DAQ | Тънък alias на DaqDisplayNode (само name) — legacy key "AudioDisplay", консолидиран върху SampledData display-а |
 | AudioDisplayModelObsolete | Obsolete | Старият QDevIO аудио дисплей (rename-only, registered `AudioDisplayObsolete`) — за стари QDevIO графи |
 | QDevIoDisplayModelObsolete | Obsolete | Старият QDevIO display (rename-only, registered `QDevIoDisplayObsolete` + alias `QDevIoDisplay`) |
+
+**Правило за дисплеите:** дисплеите са **консуматори** — 1 вход, 0 изхода, без
+мутация на получените данни (само `const` достъп). Моделът живее в
+`nodeditor_nodes/core` (без widget включвания, `embeddedWidget()` = `nullptr`),
+тялото — в `nodeditor_nodes/gui`, вързано през `NodeWidgetFactory`. Тежкото
+рендиране (смаляване на картина, миниатюри, статистика) минава през 30 Hz
+throttle (`DisplayRefreshDriver`) и общия `ComputePool` (REQ-SW-PL-039); моделът
+държи само това, което дисплеят показва, и го пуска веднага след паса.
 
 ### Routing
 | Нод | Категория | Описание |

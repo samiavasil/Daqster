@@ -36,6 +36,9 @@
 // Built-in nodes (moved from node_editor_ide)
 #include "Sources/NumberSource/NumberSourceDataModel.h"
 #include "Displays/NumberDisplay/NumberDisplayDataModel.h"
+#include "Displays/TextDisplay/TextDisplayNode.h"
+#include "Displays/ImageDisplay/ImageDisplayNode.h"
+#include "Displays/FrameWindowDisplay/FrameWindowDisplayNode.h"
 #include "Operators/ModuloModel.h"
 #include "Operators/ArithmeticLogic/ArithmeticLogicModel.h"
 #include "Operators/ArithmeticLogic/ExprParser.h"
@@ -68,6 +71,10 @@ void NodeditorNodesCoreObject::registerNodes(QtNodes::NodeDelegateModelRegistry&
     // Built-in nodes (moved from node_editor_ide)
     registry.registerModel<NumberSourceDataModel>("Sources/General");
     registry.registerModel<NumberDisplayDataModel>("Displays/General");
+    // Node debug displays (REQ-SW-PL-090): pure consumers — 1 input, 0 outputs.
+    registry.registerModel<TextDisplayNode>("Displays/General");
+    registry.registerModel<ImageDisplayNode>("Displays/General");
+    registry.registerModel<FrameWindowDisplayNode>("Displays/General");
     registry.registerModel<ModuloModel>("Operators/General");
     registry.registerModel<ArithmeticLogicModel>("Operators/General");
 
@@ -149,6 +156,10 @@ void NodeditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateModelR
     // Built-in nodes (moved from node_editor_ide) - pure logic, no widgets
     registry.registerModel<NumberSourceDataModel>("Sources/General");
     registry.registerModel<NumberDisplayDataModel>("Displays/General");
+    // Node debug displays (REQ-SW-PL-090): pure consumers — 1 input, 0 outputs.
+    registry.registerModel<TextDisplayNode>("Displays/General");
+    registry.registerModel<ImageDisplayNode>("Displays/General");
+    registry.registerModel<FrameWindowDisplayNode>("Displays/General");
     registry.registerModel<ModuloModel>("Operators/General");
     registry.registerModel<ArithmeticLogicModel>("Operators/General");
 

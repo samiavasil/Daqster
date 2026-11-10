@@ -55,6 +55,7 @@ set(TEST_SOURCES
     test_video_perf_badge.cpp test_video_perf_badge.h
     test_image_data.cpp test_image_data.h
     test_frame_window_node.cpp test_frame_window_node.h
+    test_display_nodes.cpp test_display_nodes.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoTransformOps.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/StreamUrlValidator.cpp
@@ -62,6 +63,16 @@ set(TEST_SOURCES
     # REQ-SW-PL-086: the FrameWindowNode model, compiled directly into the
     # binary (same pattern as the FrameSampler suite below).
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Video/FrameWindowNode.cpp
+    # REQ-SW-PL-090: the three debug display models + the shared 30 Hz driver
+    # and the NumberDisplayDataModel they extend (used for the embedding path).
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/DisplayRefresh/DisplayRefreshDriver.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/TextDisplay/TextDisplayNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/ImageDisplay/ImageDisplayNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/FrameWindowDisplay/FrameWindowDisplayNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/NumberDisplay/NumberDisplayDataModel.cpp
+    # The displays hand their snapshot to the shared ComputePool, whose single
+    # definition lives in common/Threading (not in DaqsterCommonLibrary).
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ComputePool.cpp
 )
 
 add_executable(nodeditor_nodes_tests ${TEST_SOURCES})
