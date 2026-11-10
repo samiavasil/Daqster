@@ -77,7 +77,8 @@ bool urlProblem(const QString& url, QString* why)
 {
     const QUrl parsed(url, QUrl::StrictMode);
     if (!parsed.isValid() || parsed.host().isEmpty()) {
-        *why = QStringLiteral("invalid URL \"%1\"").arg(url);
+        *why = QStringLiteral("invalid URL \"%1\" — expected https://<host>/<path>")
+                   .arg(url);
         return true;
     }
     if (parsed.scheme().compare(QLatin1String("https"), Qt::CaseInsensitive) != 0) {

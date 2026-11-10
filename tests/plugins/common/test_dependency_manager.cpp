@@ -303,7 +303,11 @@ void TestDependencyManager::adoptRejectsChecksumMismatch()
     QVERIFY(root.isValid() && source.isValid());
     const QString existing =
         QDir(source.path()).filePath(QStringLiteral("preexisting"));
-    QVERIFY(writeFile(existing, QByteArray("actual")));
+    // Същата дължина като `localSpec(…, "expected")` нарочно: при различна
+    // дължина `adopt()` пада още на size guard-а и пътят за проверка на
+    // sha256 остава непокрит (тестът тогава твърдеше „sha256", а получаваше
+    // „size mismatch").
+    QVERIFY(writeFile(existing, QByteArray("mismatch")));
 
     Daqster::DependencySpec spec =
         localSpec(root.path(), QByteArray("expected"));
