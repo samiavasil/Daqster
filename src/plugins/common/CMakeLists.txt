@@ -48,6 +48,10 @@ if(DAQSTER_COMMON_LIB_ENABLED)
         # `/health`, ownership file, bounded stop (REQ-SW-PL-081). It is a
         # framework capability, not AI: it knows nothing about models.
         Servers/LocalServerService.cpp
+        # RFC 6455 client over Qt::Network — no Qt WebSockets dependency
+        # (REQ-SW-PL-087). Masked client frames, fragmentation, ping→pong,
+        # close handshake, bounded message size.
+        WebSocket/WebSocketClient.cpp
     )
 
     # Windows: WINDOWS_EXPORT_ALL_SYMBOLS makes the linker export all symbols

@@ -11,6 +11,7 @@
 #include "test_local_server_service.h"
 #include "test_process_owner.h"
 #include "test_thread_owner.h"
+#include "test_websocket_client.h"
 
 #include <QtTest>
 
@@ -34,6 +35,13 @@ int main(int argc, char *argv[])
         // process — no model, no GPU.
         TestLocalServerService localServerService;
         status |= QTest::qExec(&localServerService, argc, argv);
+    }
+
+    {
+        // REQ-SW-PL-087: the framework WebSocket client (RFC 6455 over
+        // Qt::Network), against an in-test server — no Qt WebSockets.
+        TestWebSocketClient webSocketClient;
+        status |= QTest::qExec(&webSocketClient, argc, argv);
     }
 
     return status;

@@ -24,10 +24,13 @@ set(COMMON_TEST_SOURCES
     test_thread_owner.cpp test_thread_owner.h
     test_process_owner.cpp test_process_owner.h
     test_local_server_service.cpp test_local_server_service.h
+    # REQ-SW-PL-087: RFC 6455 client against a tiny in-test server.
+    test_websocket_client.cpp test_websocket_client.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ProcessOwner.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ThreadingLog.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Servers/LocalServerService.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/WebSocket/WebSocketClient.cpp
 )
 
 add_executable(daqster_common_tests ${COMMON_TEST_SOURCES})

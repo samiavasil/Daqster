@@ -13,6 +13,7 @@ Parent: [Documentation Index](../index.en.md)
 - [capabilities.md](./capabilities.md) - capability interfaces (host ↔ plugin contracts)
 - [plugins-status-bar.md](./plugins-status-bar.md) - plugin status bar (`IStatusBarProvider`): global plugin state that belongs to no node
 - [local-server-service.md](./local-server-service.md) - the life of a local HTTP server (`LocalServerService`): free port, `/health`, ownership file, bounded stop
+- [websocket-client.md](./websocket-client.en.md) - WebSocket client (`WebSocketClient`): RFC 6455 over `Qt::Network`, masked frames, fragmentation, limits
 - [runtime-mode-architecture.md](./runtime-mode-architecture.md) - (historical) runtime modes
 - [apps/README.md](./apps/README.md) - applications subsystem
 - [framework/README.md](./framework/README.md) - framework subsystem
