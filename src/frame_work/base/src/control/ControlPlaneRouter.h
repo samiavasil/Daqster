@@ -44,6 +44,17 @@ public:
                  const QJsonObject& body, bool bodyValid = true);
 
 private:
+    /// Whether the node currently reports `state == "running"` — the same field
+    /// `GET /api/nodes` exposes, so both hosts answer from one place.
+    bool isNodeRunning(quint64 nodeId) const;
+
+    /// Reply body for a configuration mutation: `applied` plus `started` and
+    /// `restartRequired`.
+    ///
+    /// A started node keeps the configuration it was started with: the reply
+    /// says so instead of stopping/starting it behind the caller's back.
+    QJsonObject configMutationResult(quint64 nodeId, bool applied) const;
+
     RuntimeController* m_controller = nullptr;
 };
 

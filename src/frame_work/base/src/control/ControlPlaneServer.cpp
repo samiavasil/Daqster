@@ -1031,7 +1031,7 @@ QJsonObject ControlPlaneServer::buildOpenApiSpec() const
                 QString(), QStringLiteral("NodeDetail"), false);
     addNodePath(QStringLiteral("/config"), QStringLiteral("Update a node's configuration"),
                 QStringLiteral("setNodeConfig"), QStringLiteral("post"),
-                QStringLiteral("NodeConfig"), QStringLiteral("MutationResult"), true);
+                QStringLiteral("NodeConfig"), QStringLiteral("NodeConfigResult"), true);
     addNodePath(QStringLiteral("/schema"), QStringLiteral("JSON Schema for a node's config"),
                 QStringLiteral("getNodeSchema"), QStringLiteral("get"),
                 QString(), QStringLiteral("JsonSchema"), false);
@@ -1059,12 +1059,15 @@ QJsonObject ControlPlaneServer::buildOpenApiSpec() const
 
         QJsonObject patch;
         patch.insert(QStringLiteral("tags"), QJsonArray{QStringLiteral("nodes")});
-        patch.insert(QStringLiteral("summary"), QStringLiteral("Update a node's position or label"));
+        patch.insert(QStringLiteral("summary"),
+                     QStringLiteral("Update a node's position, label or configuration "
+                                    "(config goes through the /config implementation)"));
         patch.insert(QStringLiteral("operationId"), QStringLiteral("patchNode"));
         patch.insert(QStringLiteral("parameters"), QJsonArray{pathParam(QStringLiteral("id"), QStringLiteral("Node id"))});
         patch.insert(QStringLiteral("requestBody"), requestJsonBody(QStringLiteral("PatchNodeRequest")));
         QJsonObject patchResponses;
-        patchResponses.insert(QStringLiteral("200"), okResponse(QStringLiteral("Applied"), QStringLiteral("MutationResult")));
+        patchResponses.insert(QStringLiteral("200"), okResponse(QStringLiteral("Applied"), QStringLiteral("NodeConfigResult")));
+        patchResponses.insert(QStringLiteral("400"), jsonResponse(QStringLiteral("Rejected")));
         patchResponses.insert(QStringLiteral("404"), jsonResponse(QStringLiteral("Node not found")));
         patch.insert(QStringLiteral("responses"), patchResponses);
         p.insert(QStringLiteral("patch"), patch);
@@ -1264,7 +1267,8 @@ QJsonObject ControlPlaneServer::buildOpenApiSpec() const
         {QStringLiteral("properties"), QJsonObject{
             {QStringLiteral("position"), QJsonObject{{QStringLiteral("type"), QStringLiteral("object")}}},
             {QStringLiteral("label"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
-            {QStringLiteral("labelVisible"), QJsonObject{{QStringLiteral("type"), QStringLiteral("boolean")}}}}}});
+            {QStringLiteral("labelVisible"), QJsonObject{{QStringLiteral("type"), QStringLiteral("boolean")}}},
+            {QStringLiteral("config"), refSchema(QStringLiteral("NodeConfig"))}}}});
 
     schemas.insert(QStringLiteral("NodeConfig"), QJsonObject{
         {QStringLiteral("type"), QStringLiteral("object")},
@@ -1281,6 +1285,22 @@ QJsonObject ControlPlaneServer::buildOpenApiSpec() const
             {QStringLiteral("connections"), QJsonObject{{QStringLiteral("type"), QStringLiteral("array")}}},
             {QStringLiteral("ui"), QJsonObject{{QStringLiteral("type"), QStringLiteral("object")}}},
             {QStringLiteral("path"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}, {QStringLiteral("description"), QStringLiteral("Alternative to nodes/connections: server reads the .flow file from disk.")}}}}}});
+
+    schemas.insert(QStringLiteral("NodeConfigResult"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("required"), QJsonArray{QStringLiteral("applied")}},
+        {QStringLiteral("description"),
+         QStringLiteral("Reply for a configuration write (POST /api/nodes/{id}/config and "
+                        "PATCH /api/nodes/{id}). A started node keeps the configuration it "
+                        "was started with; nothing is restarted automatically.")},
+        {QStringLiteral("properties"), QJsonObject{
+            {QStringLiteral("applied"), QJsonObject{{QStringLiteral("type"), QStringLiteral("boolean")},
+                                                    {QStringLiteral("description"), QStringLiteral("false when the node rejected the configuration")}}},
+            {QStringLiteral("started"), QJsonObject{{QStringLiteral("type"), QStringLiteral("boolean")},
+                                                    {QStringLiteral("description"), QStringLiteral("true when the node was running at the time of the write")}}},
+            {QStringLiteral("restartRequired"), QJsonObject{{QStringLiteral("type"), QStringLiteral("boolean")},
+                                                            {QStringLiteral("description"), QStringLiteral("true when 'started' — POST /api/nodes/{id}/stop then /start makes the new configuration take effect")}}},
+            {QStringLiteral("error"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}}}}});
 
     schemas.insert(QStringLiteral("MutationResult"), QJsonObject{
         {QStringLiteral("type"), QStringLiteral("object")},

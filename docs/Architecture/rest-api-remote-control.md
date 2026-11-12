@@ -207,14 +207,26 @@ The raw `NodeDelegateModel::save()` object (no wrapper envelope):
 
 `404` when the id does not exist.
 
-### `PATCH /api/nodes/{id}` — move / label
+### `PATCH /api/nodes/{id}` — move / label / config
 
 ```json
-{ "position": { "x": 10, "y": 20 }, "label": "My node", "labelVisible": true }
+{ "position": { "x": 10, "y": 20 }, "label": "My node", "labelVisible": true,
+  "config": { "interval": 500 } }
 ```
 
 Each key is optional; a missing `position`/`label` leaves it unchanged. `404`
-when the id does not exist. Emits a `nodeMoved` event.
+when the id does not exist. Emits a `nodeMoved` event. `config` (optional) is
+applied through **the same** `setNodeConfig` path as
+`POST /api/nodes/{id}/config` — one implementation, not a second one — and a
+rejected `config` returns `400` **without** moving or renaming the node. The
+reply always carries the configuration-write fields:
+
+```json
+{ "applied": true, "started": false, "restartRequired": false }
+```
+
+`restartRequired` is `false` for a position/label-only patch (neither needs a
+restart); see `POST /api/nodes/{id}/config` for what `started` means.
 
 ### `DELETE /api/nodes/{id}` — delete
 
@@ -243,8 +255,15 @@ returns `void`, the engine snapshots `save()` first and rolls back if the model
 throws — a bad patch cannot take the engine down.
 
 ```json
-{ "applied": true }
+{ "applied": true, "started": false, "restartRequired": false }
 ```
+
+`started` is `true` when the node was **running** at the time of the write.
+A running node does not re-read its configuration (`load()` only changes what
+the next `start()` will use), so the reply then says `restartRequired: true`
+instead of stopping/starting the node as a side effect of a config write:
+`POST /api/nodes/{id}/stop` + `/start` makes the new configuration take effect.
+The same two fields come back from `PATCH /api/nodes/{id}` with a `config`.
 
 `400` when rejected / malformed body. On success emits a
 `nodeConfigChanged` event.

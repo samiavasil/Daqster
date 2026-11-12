@@ -89,6 +89,28 @@ ControlPlaneRouter::ControlPlaneRouter(RuntimeController* controller)
 {
 }
 
+bool ControlPlaneRouter::isNodeRunning(quint64 nodeId) const
+{
+    // `state` is the field `GET /api/nodes` and `GET /api/nodes/{id}` report
+    // ("running" / "stopped"); both hosts fill it from their own running set.
+    return m_controller->nodeDetail(nodeId).value(QStringLiteral("state")).toString()
+           == QLatin1String("running");
+}
+
+QJsonObject ControlPlaneRouter::configMutationResult(quint64 nodeId, bool applied) const
+{
+    // A running node does not re-read its configuration: `load()` only changes
+    // what the next start() will use. Say that instead of restarting the node
+    // as a side effect of a config write.
+    const bool started = applied && isNodeRunning(nodeId);
+
+    QJsonObject out;
+    out.insert(QStringLiteral("applied"), applied);
+    out.insert(QStringLiteral("started"), started);
+    out.insert(QStringLiteral("restartRequired"), started);
+    return out;
+}
+
 ControlPlaneRouter::Result ControlPlaneRouter::route(const QByteArray& method,
                                                      const QString& path,
                                                      const QJsonObject& body,
@@ -299,6 +321,19 @@ ControlPlaneRouter::Result ControlPlaneRouter::route(const QByteArray& method,
                 if (method == "PATCH") {
                     if (m_controller->nodeDetail(id).isEmpty())
                         return errorResult(404, QStringLiteral("node not found"));
+                    // Optional "config" first: it is the only part that can be
+                    // rejected, so a refused patch must not move the node.
+                    bool configApplied = false;
+                    if (body.contains(QStringLiteral("config"))) {
+                        const QJsonValue cfg = body.value(QStringLiteral("config"));
+                        if (!cfg.isObject())
+                            return errorResult(400, QStringLiteral("'config' must be an object"));
+                        // Same seam as POST /api/nodes/{id}/config — a second
+                        // implementation of a config write would drift from it.
+                        if (!m_controller->setNodeConfig(id, cfg.toObject()))
+                            return errorResult(400, QStringLiteral("node rejected 'config'"));
+                        configApplied = true;
+                    }
                     if (body.contains(QStringLiteral("position"))) {
                         const QJsonObject pos = body.value(QStringLiteral("position")).toObject();
                         m_controller->setNodePosition(id,
@@ -313,7 +348,14 @@ ControlPlaneRouter::Result ControlPlaneRouter::route(const QByteArray& method,
                             : true;
                         m_controller->setNodeLabel(id, label, visible);
                     }
-                    return makeResult(200, QJsonObject{{QStringLiteral("applied"), true}});
+                    if (configApplied)
+                        return makeResult(200, configMutationResult(id, true));
+                    // Position/label do not need a restart; the state is still
+                    // reported so the caller does not have to ask twice.
+                    return makeResult(200,
+                                      QJsonObject{{QStringLiteral("applied"), true},
+                                                  {QStringLiteral("started"), isNodeRunning(id)},
+                                                  {QStringLiteral("restartRequired"), false}});
                 }
                 return methodNotAllowed();
             }
@@ -327,8 +369,7 @@ ControlPlaneRouter::Result ControlPlaneRouter::route(const QByteArray& method,
                 }
                 if (method == "POST") {
                     const bool applied = m_controller->setNodeConfig(id, body);
-                    return makeResult(applied ? 200 : 400,
-                                      QJsonObject{{QStringLiteral("applied"), applied}});
+                    return makeResult(applied ? 200 : 400, configMutationResult(id, applied));
                 }
                 return methodNotAllowed();
             }

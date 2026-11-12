@@ -14,6 +14,7 @@
 
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QSet>
 
 namespace {
 
@@ -53,6 +54,9 @@ public:
         QJsonObject out;
         out.insert(QStringLiteral("id"), static_cast<qint64>(nodeId));
         out.insert(QStringLiteral("type"), QStringLiteral("VideoEffect"));
+        out.insert(QStringLiteral("state"),
+                   m_running.contains(nodeId) ? QStringLiteral("running")
+                                              : QStringLiteral("stopped"));
         out.insert(QStringLiteral("config"), m_configs.value(nodeId));
         return out;
     }
@@ -201,6 +205,7 @@ public:
     // Test-facing state.
     QVector<NodeInfo> m_nodes;
     QHash<quint64, QJsonObject> m_configs;
+    QSet<quint64> m_running;
     QVector<ConnectionInfo> m_connections;
     quint64 m_nextId = 0;
     int m_startCalls = 0;
@@ -377,6 +382,128 @@ private slots:
         QVERIFY(r.handled);
         QCOMPARE(r.status, 200);
         QCOMPARE(controller.m_configs.value(5).value(QStringLiteral("brightness")).toInt(), 42);
+    }
+
+    void configWriteReportsRestartNeed()
+    {
+        FakeController controller;
+        controller.m_configs[5] = QJsonObject{};
+        controller.m_configs[6] = QJsonObject{};
+        controller.m_running.insert(6); // node 5 stopped, node 6 started
+        Daqster::ControlPlaneRouter router(&controller);
+
+        // Stopped node: the write is all a restart would have done.
+        const auto stopped = router.route("POST", QStringLiteral("/api/nodes/5/config"),
+                                          QJsonObject{{QStringLiteral("brightness"), 1}});
+        QCOMPARE(stopped.status, 200);
+        QCOMPARE(stopped.body.value(QStringLiteral("applied")).toBool(), true);
+        QCOMPARE(stopped.body.value(QStringLiteral("started")).toBool(), false);
+        QCOMPARE(stopped.body.value(QStringLiteral("restartRequired")).toBool(), false);
+
+        // Started node: load() only changes what the next start() uses.
+        const auto running = router.route("POST", QStringLiteral("/api/nodes/6/config"),
+                                          QJsonObject{{QStringLiteral("brightness"), 2}});
+        QCOMPARE(running.status, 200);
+        QCOMPARE(running.body.value(QStringLiteral("applied")).toBool(), true);
+        QCOMPARE(running.body.value(QStringLiteral("started")).toBool(), true);
+        QCOMPARE(running.body.value(QStringLiteral("restartRequired")).toBool(), true);
+        // The config was applied, not deferred.
+        QCOMPARE(controller.m_configs.value(6).value(QStringLiteral("brightness")).toInt(), 2);
+    }
+
+    void configWriteRejectionReportsNotApplied()
+    {
+        FakeController controller;
+        Daqster::ControlPlaneRouter router(&controller);
+        const auto r = router.route("POST", QStringLiteral("/api/nodes/9/config"),
+                                    QJsonObject{{QStringLiteral("x"), 1}});
+        QCOMPARE(r.status, 400);
+        QCOMPARE(r.body.value(QStringLiteral("applied")).toBool(), false);
+    }
+
+    void patchesConfigThroughTheSameSeam()
+    {
+        FakeController controller;
+        controller.m_configs[7] = QJsonObject{};
+        controller.m_running.insert(7);
+        Daqster::ControlPlaneRouter router(&controller);
+
+        QJsonObject body;
+        body.insert(QStringLiteral("config"),
+                    QJsonObject{{QStringLiteral("interval"), 250}});
+        const auto r = router.route("PATCH", QStringLiteral("/api/nodes/7"), body);
+        QVERIFY(r.handled);
+        QCOMPARE(r.status, 200);
+        QCOMPARE(controller.m_configs.value(7).value(QStringLiteral("interval")).toInt(), 250);
+        QCOMPARE(r.body.value(QStringLiteral("applied")).toBool(), true);
+        QCOMPARE(r.body.value(QStringLiteral("started")).toBool(), true);
+        QCOMPARE(r.body.value(QStringLiteral("restartRequired")).toBool(), true);
+    }
+
+    void patchConfigAndPositionTogether()
+    {
+        FakeController controller;
+        controller.m_configs[1] = QJsonObject{};
+        Daqster::ControlPlaneRouter router(&controller);
+
+        QJsonObject body;
+        QJsonObject position;
+        position.insert(QStringLiteral("x"), 11.0);
+        position.insert(QStringLiteral("y"), 12.0);
+        body.insert(QStringLiteral("position"), position);
+        body.insert(QStringLiteral("config"), QJsonObject{{QStringLiteral("n"), 3}});
+
+        const auto r = router.route("PATCH", QStringLiteral("/api/nodes/1"), body);
+        QCOMPARE(r.status, 200);
+        QCOMPARE(controller.m_movedTo, QPointF(11.0, 12.0));
+        QCOMPARE(controller.m_configs.value(1).value(QStringLiteral("n")).toInt(), 3);
+        QCOMPARE(r.body.value(QStringLiteral("restartRequired")).toBool(), false);
+    }
+
+    void patchRejectedConfigLeavesPositionAlone()
+    {
+        FakeController controller;
+        Daqster::ControlPlaneRouter router(&controller);
+
+        QJsonObject body;
+        QJsonObject position;
+        position.insert(QStringLiteral("x"), 99.0);
+        position.insert(QStringLiteral("y"), 99.0);
+        body.insert(QStringLiteral("position"), position);
+        body.insert(QStringLiteral("config"), QJsonObject{{QStringLiteral("n"), 3}});
+
+        // Node 42 does not exist: 404, and nothing was moved.
+        const auto missing = router.route("PATCH", QStringLiteral("/api/nodes/42"), body);
+        QCOMPARE(missing.status, 404);
+        QCOMPARE(controller.m_movedTo, QPointF());
+    }
+
+    void patchPositionOnlyStaysBackwardCompatible()
+    {
+        FakeController controller;
+        controller.m_configs[2] = QJsonObject{};
+        Daqster::ControlPlaneRouter router(&controller);
+
+        QJsonObject position;
+        position.insert(QStringLiteral("x"), 1.0);
+        position.insert(QStringLiteral("y"), 2.0);
+        const auto r = router.route("PATCH", QStringLiteral("/api/nodes/2"),
+                                    QJsonObject{{QStringLiteral("position"), position}});
+        QCOMPARE(r.status, 200);
+        QCOMPARE(r.body.value(QStringLiteral("applied")).toBool(), true);
+        QCOMPARE(r.body.value(QStringLiteral("restartRequired")).toBool(), false);
+        QCOMPARE(controller.m_configs.value(2), QJsonObject()); // config untouched
+    }
+
+    void patchRejectsNonObjectConfig()
+    {
+        FakeController controller;
+        controller.m_configs[3] = QJsonObject{};
+        Daqster::ControlPlaneRouter router(&controller);
+
+        const auto r = router.route("PATCH", QStringLiteral("/api/nodes/3"),
+                                    QJsonObject{{QStringLiteral("config"), 5}});
+        QCOMPARE(r.status, 400);
     }
 
     void schemaEndpoint()
