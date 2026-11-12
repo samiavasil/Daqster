@@ -461,6 +461,12 @@ target_link_libraries(demo_nodeditor_audiooutput_tests PRIVATE
 
 add_test(NAME demo_nodeditor_audiooutput_tests
          COMMAND demo_nodeditor_audiooutput_tests)
+# Opens the real output device too (QAudioSink) on the tests that are not
+# QSKIPped for a missing device, so it owns the same lock as the capture side:
+# a sink and a mic in parallel go through the same PulseAudio/PipeWire server,
+# and the capture side is the one whose stop() has a 3 s deadline.
+set_tests_properties(demo_nodeditor_audiooutput_tests PROPERTIES
+    RESOURCE_LOCK audio)
 
 # ── AudioOutputWidget GUI tests (REQ-SW-PL-076, AC6) ─────────────────────────
 #
@@ -1010,7 +1016,30 @@ add_test(NAME demo_nodeditor_lifecycle_tests
 # stopWithActiveWorkIsSafe joins the poller threads. If a regression breaks the
 # join, the binary hangs rather than failing an assertion — bound it so CI
 # fails fast instead of sitting on the default 1500 s timeout.
-set_tests_properties(demo_nodeditor_lifecycle_tests PROPERTIES TIMEOUT 120)
+#
+# This binary is the one test that opens the REAL capture device: four tests
+# call AudioSourceDataModel::start() → MicCaptureWorker::startCapture() →
+# QAudioSource, and ThreadOwner::stop() joins that thread with a 3000 ms
+# deadline. Under `ctest -j4` that join timed out (worker "did not stop within
+# 3000 ms — terminating", second stop() 7001 ms instead of <5 ms, binary killed
+# by the 120 s TIMEOUT) whenever another binary was using the audio stack at
+# the same time: `node_runner_headless_registry` SIGTERMs a NodeRunner whose
+# flow holds AudioSourceObsolete/AudioDisplay nodes at t=10 s, and the check
+# script itself records that this "can leave PulseAudio/PipeWire in a state that
+# hangs a subsequent run". Measured before the fix: lifecycle + that test with
+# -j2 failed 2 of 3 runs; serial passed 3 of 3.
+#
+# RESOURCE_LOCK `audio` is the contract — one test at a time owns the audio
+# device. Every test that opens a capture device or an audio sink must declare
+# the same lock (demo_nodeditor_audiooutput_tests, node_runner_headless_registry
+# today; the name is shared across the whole ctest run, so a test in this repo
+# and one in the private tree join the same queue).
+# RUN_SERIAL additionally keeps unrelated heavy binaries from starving the
+# 3000 ms join deadline; the binary is ~1.5 s.
+set_tests_properties(demo_nodeditor_lifecycle_tests PROPERTIES
+    TIMEOUT 120
+    RUN_SERIAL TRUE
+    RESOURCE_LOCK audio)
 
 # ── core/gui split guard (REQ-SW-PL-051, AC 3 / AC 7; hardened by
 #    REQ-SW-PL-056) ─────────────────────────────────────────────────────────

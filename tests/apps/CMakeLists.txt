@@ -21,6 +21,16 @@ add_test(NAME node_runner_headless_registry
 # platform is a test/CI convention, not a product hardcode: after REQ-SW-PL-056
 # NodeRunner itself no longer sets QT_QPA_PLATFORM (see main.cpp), so the
 # offscreen plugin is declared here, on the test.
+#
+# RESOURCE_LOCK audio: the positive fixture is one node of every previously
+# missing component, including AudioSourceObsolete/AudioDisplay, and the run is
+# ended by execute_process(TIMEOUT) → SIGTERM. The check script records the
+# consequence itself ("the abrupt termination can leave PulseAudio/PipeWire in a
+# state that hangs a subsequent run"). Measured: in parallel with
+# demo_nodeditor_lifecycle_tests this made the latter's 3000 ms QAudioSource
+# thread join time out 2 of 3 runs. Same lock name as the two audio suites in
+# tests/plugins/nodeditor_nodes/CMakeLists.txt.
 set_tests_properties(node_runner_headless_registry PROPERTIES
     TIMEOUT 120
+    RESOURCE_LOCK audio
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
