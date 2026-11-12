@@ -1,6 +1,6 @@
 // Shared main() for daqster_common_tests.
 //
-// Three test classes, one QCoreApplication — the same shape as
+// Several test classes, one QCoreApplication — the same shape as
 // tests/plugins/nodeditor_nodes/test_lifecycle_main.cpp. QCoreApplication (not
 // QApplication): the lifetime primitives under test own no widgets, but the
 // event dispatcher is load-bearing — QThread::finished → deleteLater and
@@ -11,6 +11,7 @@
 #include "test_dependency_manager.h"
 #include "test_local_server_service.h"
 #include "test_process_owner.h"
+#include "test_scene_variables.h"
 #include "test_thread_owner.h"
 #include "test_websocket_client.h"
 
@@ -51,6 +52,13 @@ int main(int argc, char *argv[])
         // No network: install() is covered through its validation half.
         TestDependencyManager dependencyManager;
         status |= QTest::qExec(&dependencyManager, argc, argv);
+    }
+
+    {
+        // REQ-SW-PL-091: the `${VAR}` resolver — one token table per machine,
+        // expanded by the node that consumes the path.
+        TestSceneVariables sceneVariables;
+        status |= QTest::qExec(&sceneVariables, argc, argv);
     }
 
     return status;

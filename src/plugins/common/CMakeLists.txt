@@ -61,6 +61,11 @@ if(DAQSTER_COMMON_LIB_ENABLED)
         # the private plugin and the test binaries must increment the SAME
         # atomics, not one copy per shared library.
         Diagnostics/TransportStats.cpp
+        # `${VAR}` resolution for scenes (REQ-SW-PL-091): one token table per
+        # machine, expanded by the node that consumes the path. In the library
+        # so the IDE, NodeRunner and HeadlessEngine cannot end up with three
+        # tables (or three slightly different parsers).
+        Scene/SceneVariables.cpp
     )
 
     # Windows: WINDOWS_EXPORT_ALL_SYMBOLS makes the linker export all symbols
