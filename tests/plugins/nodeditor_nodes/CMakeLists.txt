@@ -372,6 +372,9 @@ target_link_libraries(demo_nodeditor_fileplayback_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Gui
     QtNodes
     FrameworkCore
+    # REQ-SW-PL-091: FilePlaybackModel::load()/loadFile() resolve ${VAR} through
+    # Daqster::SceneVariables, whose only definition lives in DaqsterCommonLibrary.
+    DaqsterCommonLibrary
 )
 
 add_test(NAME demo_nodeditor_fileplayback_tests
