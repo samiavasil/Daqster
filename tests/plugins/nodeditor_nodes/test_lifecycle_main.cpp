@@ -13,6 +13,7 @@
 // (REQ-SW-PL-051) and are idle until start().
 
 #include "test_model_name_serialization.h"
+#include "test_node_config_schemas.h"
 #include "test_source_fan_out.h"
 #include "test_thread_lifecycle.h"
 
@@ -43,6 +44,13 @@ int main(int argc, char *argv[])
         // instance for the same event-dispatcher reason as the two above.
         SourceFanOutTest fanOut;
         status |= QTest::qExec(&fanOut, argc, argv);
+    }
+    {
+        // REQ-SW-PL-091: the same models must describe their save() keys, with
+        // an "x-restart" marker per field — that is what the control plane reads
+        // to answer restartRequired exactly.
+        TestNodeConfigSchemas schemas;
+        status |= QTest::qExec(&schemas, argc, argv);
     }
 
     return status;

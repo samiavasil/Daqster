@@ -324,14 +324,30 @@ private slots:
         QCOMPARE(reply.body.value(QStringLiteral("type")).toString(), QStringLiteral("int"));
         QCOMPARE(reply.body.value(QStringLiteral("interval")).toInt(), 500);
 
-        // ── 4. Start a node, then PATCH it: the reply says restart required. ─
+        // ── 4. Start a node, then PATCH it: a live field needs no restart. ──
         const QByteArray monitorPath = "/api/nodes/" + QByteArray::number(monitorId);
+        QVERIFY2(httpRequest(host.port(), QByteArrayLiteral("GET"), monitorPath,
+                             {}, &reply, &error),
+                 qPrintable(error));
+        QCOMPARE(reply.status, 200);
+        // Both hosts report whether the node can be started at all; the router
+        // needs it for a changed key the schema does not mark (REQ-SW-PL-091).
+        QCOMPARE(reply.body.value(QStringLiteral("startable")).toBool(), true);
+        QCOMPARE(reply.body.value(QStringLiteral("schema"))
+                     .toObject().value(QStringLiteral("properties")).toObject()
+                     .value(QStringLiteral("pollIntervalSec")).toObject()
+                     .value(QStringLiteral("x-restart")).toBool(false),
+                 false);
+
         QVERIFY2(httpRequest(host.port(), QByteArrayLiteral("POST"),
                              monitorPath + "/start", {}, &reply, &error),
                  qPrintable(error));
         QCOMPARE(reply.status, 200);
         QCOMPARE(reply.body.value(QStringLiteral("ok")).toBool(), true);
 
+        // pollIntervalSec goes straight into the running poll timer
+        // (SystemMonitorModel::configSchema marks it x-restart:false), so the
+        // write is complete: no stop()/start() cycle to ask for.
         QVERIFY2(httpRequest(host.port(), QByteArrayLiteral("PATCH"), monitorPath,
                              QJsonObject{{QStringLiteral("config"),
                                           QJsonObject{{QStringLiteral("pollIntervalSec"), 2.0}}}},
@@ -340,7 +356,17 @@ private slots:
         QCOMPARE(reply.status, 200);
         QCOMPARE(reply.body.value(QStringLiteral("applied")).toBool(), true);
         QCOMPARE(reply.body.value(QStringLiteral("started")).toBool(), true);
-        QCOMPARE(reply.body.value(QStringLiteral("restartRequired")).toBool(), true);
+        QCOMPARE(reply.body.value(QStringLiteral("restartRequired")).toBool(), false);
+
+        // Writing back the value the node already has is not a change either.
+        QVERIFY2(httpRequest(host.port(), QByteArrayLiteral("POST"),
+                             monitorPath + "/config",
+                             QJsonObject{{QStringLiteral("pollIntervalSec"), 2.0}},
+                             &reply, &error),
+                 qPrintable(error));
+        QCOMPARE(reply.status, 200);
+        QCOMPARE(reply.body.value(QStringLiteral("started")).toBool(), true);
+        QCOMPARE(reply.body.value(QStringLiteral("restartRequired")).toBool(), false);
 
         // ── 5. Close the scene through the API, then let the host die. ───────
         QVERIFY2(httpRequest(host.port(), QByteArrayLiteral("POST"),

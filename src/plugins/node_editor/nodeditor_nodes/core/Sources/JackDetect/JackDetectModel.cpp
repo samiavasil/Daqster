@@ -158,3 +158,28 @@ std::shared_ptr<SampledData> JackDetectModel::buildSampledData(
 
     return std::make_shared<SampledData>(buffer, desc);
 }
+
+QJsonObject JackDetectModel::configSchema() const
+{
+    // Describes exactly the object save() emits (REQ-SW-PL-091).
+    // "x-restart" is the per-field answer the control plane reads
+    // when a config write lands on a running node.
+    QJsonObject properties;
+
+    // The interval is applied to the (already running) polling timer, so it is
+    // a live field, not a restart one.
+    properties.insert(QStringLiteral("intervalSeconds"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("number")},
+        {QStringLiteral("minimum"), 0.1},
+        {QStringLiteral("maximum"), 5.0},
+        {QStringLiteral("default"), 0.5},
+        {QStringLiteral("x-restart"), false},
+        {QStringLiteral("description"),
+         QStringLiteral("Jack polling interval in seconds (clamped to "
+                        "0.1-5.0) — applied to a running node")}});
+
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), properties},
+        {QStringLiteral("additionalProperties"), false}};
+}

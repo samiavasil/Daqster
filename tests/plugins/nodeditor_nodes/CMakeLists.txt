@@ -890,6 +890,12 @@ set(LIFECYCLE_TEST_SOURCES
     test_lifecycle_main.cpp
     test_thread_lifecycle.cpp
     test_thread_lifecycle.h
+    # REQ-SW-PL-091: the config schemas of the IStartable public nodes, asserted
+    # against the key set their save() emits. Same binary because it already
+    # compiles those very models in (see the roster below) — no second harness,
+    # and the schemas cannot rot away from the models they describe.
+    test_node_config_schemas.cpp
+    test_node_config_schemas.h
     # Connection policy of the capture sources (REQ-SW-PL-024): the same models
     # are already compiled in below, so the graph-level fan-out test only adds
     # its own files — no second harness.

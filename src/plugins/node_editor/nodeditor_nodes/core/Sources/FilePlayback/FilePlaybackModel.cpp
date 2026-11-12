@@ -327,3 +327,25 @@ void FilePlaybackModel::updateStatus(const QString &status)
 {
     emit statusChanged(status);
 }
+
+QJsonObject FilePlaybackModel::configSchema() const
+{
+    // Describes exactly the object save() emits (REQ-SW-PL-091).
+    // "x-restart" is the per-field answer the control plane reads
+    // when a config write lands on a running node.
+    QJsonObject properties;
+
+    // The file is opened in start(): a new path needs stop() + start().
+    properties.insert(QStringLiteral("filePath"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("string")},
+        {QStringLiteral("default"), QString()},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("Audio/video file to play back. A running playback keeps "
+                        "the file it was started with")}});
+
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), properties},
+        {QStringLiteral("additionalProperties"), false}};
+}

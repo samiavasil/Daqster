@@ -294,3 +294,37 @@ void CameraSourceNode::setStatus(const QString &text, bool ok)
 {
     Q_EMIT statusChanged(text, ok);
 }
+
+QJsonObject CameraSourceNode::configSchema() const
+{
+    // Describes exactly the object save() emits (REQ-SW-PL-091).
+    // "x-restart" is the per-field answer the control plane reads
+    // when a config write lands on a running node.
+    QJsonObject properties;
+
+    // "running" is the capture state, not configuration: load() ignores it, so
+    // a config write can never change it. It is described (readOnly) because
+    // this schema describes exactly the object save() emits.
+    properties.insert(QStringLiteral("cameraId"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("string")},
+        {QStringLiteral("default"), QString()},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("ID of the selected camera. Omitted by save() while no "
+                        "device is selected. Opening a different device needs "
+                        "start()")}});
+
+    properties.insert(QStringLiteral("running"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("boolean")},
+        {QStringLiteral("default"), false},
+        {QStringLiteral("readOnly"), true},
+        {QStringLiteral("x-restart"), false},
+        {QStringLiteral("description"),
+         QStringLiteral("Capture state (IStartable::start() sets it), not a "
+                        "configurable value")}});
+
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), properties},
+        {QStringLiteral("additionalProperties"), false}};
+}

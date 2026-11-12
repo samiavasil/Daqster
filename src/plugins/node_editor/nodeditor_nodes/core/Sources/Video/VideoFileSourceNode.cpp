@@ -360,3 +360,27 @@ void VideoFileSourceNode::updateTransportEnabled()
     m_transportEnabled = enabled;
     Q_EMIT transportEnabledChanged(enabled);
 }
+
+QJsonObject VideoFileSourceNode::configSchema() const
+{
+    // Describes exactly the object save() emits (REQ-SW-PL-091).
+    // "x-restart" is the per-field answer the control plane reads
+    // when a config write lands on a running node.
+    QJsonObject properties;
+
+    // The decoder is opened once in start(): a new path only reaches it through
+    // stop() + start().
+    properties.insert(QStringLiteral("filePath"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("string")},
+        {QStringLiteral("default"), QString()},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("Video file to play. ${VAR} is expanded from the scene "
+                        "token table / environment on load(). A running source "
+                        "keeps the file it was started with")}});
+
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), properties},
+        {QStringLiteral("additionalProperties"), false}};
+}

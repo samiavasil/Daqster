@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <QSet>
 
 namespace Daqster {
 
@@ -97,18 +98,82 @@ bool ControlPlaneRouter::isNodeRunning(quint64 nodeId) const
            == QLatin1String("running");
 }
 
-QJsonObject ControlPlaneRouter::configMutationResult(quint64 nodeId, bool applied) const
+bool ControlPlaneRouter::isNodeStartable(quint64 nodeId) const
+{
+    // Both hosts fill `startable` from the same cast startNode() makes; a host
+    // (or a test double) that does not report it is read as "not startable".
+    return m_controller->nodeDetail(nodeId).value(QStringLiteral("startable")).toBool();
+}
+
+QJsonObject ControlPlaneRouter::configMutationResult(quint64 nodeId,
+                                                     const QJsonObject& before,
+                                                     bool beforeKnown, bool applied) const
 {
     // A running node does not re-read its configuration: `load()` only changes
     // what the next start() will use. Say that instead of restarting the node
-    // as a side effect of a config write.
+    // as a side effect of a config write — but only when the write actually
+    // touched a field the node cannot apply live (REQ-SW-PL-091).
     const bool started = applied && isNodeRunning(nodeId);
+
+    bool restartRequired = false;
+    if (started) {
+        if (!beforeKnown) {
+            // No snapshot, no diff: a write to a running node we could not read
+            // first is reported conservatively, never as "nothing to do".
+            restartRequired = isNodeStartable(nodeId);
+        } else {
+            QJsonObject after;
+            const bool afterKnown = m_controller->nodeConfig(nodeId, after);
+            restartRequired = afterKnown ? configChangeNeedsRestart(nodeId, before, after)
+                                         : isNodeStartable(nodeId);
+        }
+    }
 
     QJsonObject out;
     out.insert(QStringLiteral("applied"), applied);
     out.insert(QStringLiteral("started"), started);
-    out.insert(QStringLiteral("restartRequired"), started);
+    out.insert(QStringLiteral("restartRequired"), restartRequired);
     return out;
+}
+
+QSet<QString> ControlPlaneRouter::changedConfigKeys(const QJsonObject& before,
+                                                    const QJsonObject& after)
+{
+    // Both directions: a key the write removed is a change too (a node that
+    // falls back to its default for it still has to be restarted).
+    QSet<QString> changed;
+    for (auto it = after.constBegin(); it != after.constEnd(); ++it) {
+        if (before.value(it.key()) != it.value())
+            changed.insert(it.key());
+    }
+    for (auto it = before.constBegin(); it != before.constEnd(); ++it) {
+        if (!after.contains(it.key()))
+            changed.insert(it.key());
+    }
+    return changed;
+}
+
+bool ControlPlaneRouter::configChangeNeedsRestart(quint64 nodeId, const QJsonObject& before,
+                                                  const QJsonObject& after) const
+{
+    const QSet<QString> changed = changedConfigKeys(before, after);
+    if (changed.isEmpty())
+        return false;
+
+    // The schema is the per-field authority: `"x-restart": true|false` says
+    // whether the running node picks the new value up. A derived schema (no
+    // marker) only tells the field exists, so the node's own nature decides.
+    const QJsonObject properties =
+        m_controller->nodeSchema(nodeId).value(QStringLiteral("properties")).toObject();
+    const bool startable = isNodeStartable(nodeId);
+
+    for (const QString& key : changed) {
+        const QJsonValue marker =
+            properties.value(key).toObject().value(QStringLiteral("x-restart"));
+        if (marker.isBool() ? marker.toBool() : startable)
+            return true;
+    }
+    return false;
 }
 
 ControlPlaneRouter::Result ControlPlaneRouter::route(const QByteArray& method,
@@ -324,10 +389,15 @@ ControlPlaneRouter::Result ControlPlaneRouter::route(const QByteArray& method,
                     // Optional "config" first: it is the only part that can be
                     // rejected, so a refused patch must not move the node.
                     bool configApplied = false;
+                    QJsonObject configBefore;
+                    bool configBeforeKnown = false;
                     if (body.contains(QStringLiteral("config"))) {
                         const QJsonValue cfg = body.value(QStringLiteral("config"));
                         if (!cfg.isObject())
                             return errorResult(400, QStringLiteral("'config' must be an object"));
+                        // Snapshot first: restartRequired is the diff of what the
+                        // write actually changed, not "the node was running".
+                        configBeforeKnown = m_controller->nodeConfig(id, configBefore);
                         // Same seam as POST /api/nodes/{id}/config — a second
                         // implementation of a config write would drift from it.
                         if (!m_controller->setNodeConfig(id, cfg.toObject()))
@@ -349,7 +419,8 @@ ControlPlaneRouter::Result ControlPlaneRouter::route(const QByteArray& method,
                         m_controller->setNodeLabel(id, label, visible);
                     }
                     if (configApplied)
-                        return makeResult(200, configMutationResult(id, true));
+                        return makeResult(200, configMutationResult(id, configBefore,
+                                                                    configBeforeKnown, true));
                     // Position/label do not need a restart; the state is still
                     // reported so the caller does not have to ask twice.
                     return makeResult(200,
@@ -368,8 +439,11 @@ ControlPlaneRouter::Result ControlPlaneRouter::route(const QByteArray& method,
                     return errorResult(404, QStringLiteral("node not found"));
                 }
                 if (method == "POST") {
+                    QJsonObject before;
+                    const bool beforeKnown = m_controller->nodeConfig(id, before);
                     const bool applied = m_controller->setNodeConfig(id, body);
-                    return makeResult(applied ? 200 : 400, configMutationResult(id, applied));
+                    return makeResult(applied ? 200 : 400,
+                                      configMutationResult(id, before, beforeKnown, applied));
                 }
                 return methodNotAllowed();
             }

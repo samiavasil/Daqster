@@ -1240,12 +1240,14 @@ QJsonObject ControlPlaneServer::buildOpenApiSpec() const
 
     schemas.insert(QStringLiteral("NodeDetail"), QJsonObject{
         {QStringLiteral("type"), QStringLiteral("object")},
-        {QStringLiteral("description"), QStringLiteral("Node summary plus config, schema, position, label and ports.")},
+        {QStringLiteral("description"), QStringLiteral("Node summary plus config, schema, position, label, ports and startability.")},
         {QStringLiteral("properties"), QJsonObject{
             {QStringLiteral("id"), QJsonObject{{QStringLiteral("type"), QStringLiteral("integer")}, {QStringLiteral("format"), QStringLiteral("int64")}}},
             {QStringLiteral("type"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
             {QStringLiteral("name"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
             {QStringLiteral("state"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
+            {QStringLiteral("startable"), QJsonObject{{QStringLiteral("type"), QStringLiteral("boolean")},
+                                                      {QStringLiteral("description"), QStringLiteral("true when the node implements IStartable (accepts /start and /stop)")}}},
             {QStringLiteral("position"), QJsonObject{{QStringLiteral("type"), QStringLiteral("object")}}},
             {QStringLiteral("label"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
             {QStringLiteral("config"), refSchema(QStringLiteral("NodeConfig"))},
@@ -1299,7 +1301,7 @@ QJsonObject ControlPlaneServer::buildOpenApiSpec() const
             {QStringLiteral("started"), QJsonObject{{QStringLiteral("type"), QStringLiteral("boolean")},
                                                     {QStringLiteral("description"), QStringLiteral("true when the node was running at the time of the write")}}},
             {QStringLiteral("restartRequired"), QJsonObject{{QStringLiteral("type"), QStringLiteral("boolean")},
-                                                            {QStringLiteral("description"), QStringLiteral("true when 'started' — POST /api/nodes/{id}/stop then /start makes the new configuration take effect")}}},
+                                                            {QStringLiteral("description"), QStringLiteral("true when 'started' AND a changed field needs a restart: 'x-restart: true' in the node's schema, or no marker and the node implements IStartable. POST /api/nodes/{id}/stop then /start makes the new configuration take effect")}}},
             {QStringLiteral("error"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}}}}});
 
     schemas.insert(QStringLiteral("MutationResult"), QJsonObject{

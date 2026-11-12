@@ -987,6 +987,11 @@ QJsonObject HeadlessEngine::nodeDetail(quint64 nodeId) const
     out.insert(QStringLiteral("state"),
                m_runningNodes.value(id, false) ? QStringLiteral("running")
                                                : QStringLiteral("stopped"));
+    // Does the node accept start()/stop() — the same cast startNode() makes.
+    // The control plane needs it to answer restartRequired for a config field
+    // the schema does not mark (REQ-SW-PL-091).
+    out.insert(QStringLiteral("startable"),
+               dynamic_cast<Daqster::IStartable*>(model) != nullptr);
     out.insert(QStringLiteral("position"), position);
     out.insert(QStringLiteral("ports"), ports);
     out.insert(QStringLiteral("config"), model->save());
