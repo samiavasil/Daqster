@@ -37,6 +37,7 @@ set(COMMON_TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/WebSocket/WebSocketClient.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Dependencies/DependencyManager.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Scene/SceneVariables.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Scene/SceneLayout.cpp
 )
 
 add_executable(daqster_common_tests ${COMMON_TEST_SOURCES})

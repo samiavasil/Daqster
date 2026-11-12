@@ -41,6 +41,12 @@ private slots:
     void rejectsNamesThatLookLikeSyntax();
     /// `seedFromEnvironment()` never overwrites an existing value.
     void seedFromEnvironmentKeepsExistingValue();
+    /// Only `DAQSTER_DEPS` set: the two llama.cpp names are joins under it.
+    void derivedTokensFollowTheLayout();
+    /// An explicit value at any level still wins over the derived one.
+    void explicitLlamaValueWinsOverTheLayout();
+    /// No root: empty plus a reason, never `/<subpath>`.
+    void missingDepsRootIsEmptyWithAReason();
     /// The default path honours the env override and stays under the temp roots.
     void defaultPathIsOneRootPerMachine();
     /// Tokens still expand; a relative result is anchored to the scene directory.

@@ -1,6 +1,7 @@
 #include "test_scene_variables.h"
 
 #include <Scene/SceneVariables.h>
+#include <Scene/SceneLayout.h>
 
 #include <QDir>
 #include <QFile>
@@ -37,6 +38,7 @@ void TestSceneVariables::init()
     unsetEnvironment("DAQSTER_SCENE_VARIABLES");
     unsetEnvironment("DAQSTER_DEPS");
     unsetEnvironment("DAQSTER_LLAMA");
+    unsetEnvironment("DAQSTER_LLAMA_MODELS");
     unsetEnvironment("DAQSTER_VIDEO_FILE");
 
     m_document = m_configDir->path() + QStringLiteral("/Daqster/scene-variables.json");
@@ -312,6 +314,101 @@ void TestSceneVariables::seedFromEnvironmentKeepsExistingValue()
     QCOMPARE(variables.seedFromEnvironment(QStringList{ QStringLiteral("DAQSTER_DEPS"),
                                                         QStringLiteral("DAQSTER_LLAMA") }),
              0);
+}
+
+void TestSceneVariables::derivedTokensFollowTheLayout()
+{
+    SceneVariables& variables = SceneVariables::instance();
+
+    // The machine configures **one** root; the two llama.cpp names are joins.
+    overrideEnvironment("DAQSTER_DEPS", "/opt/deps");
+    const auto under = [](const QString& relative) {
+        return QDir(QStringLiteral("/opt/deps")).filePath(relative);
+    };
+
+    QCOMPARE(QDir::fromNativeSeparators(variables.expand(QStringLiteral("${DAQSTER_LLAMA}"))),
+             QStringLiteral("/opt/deps/llama.cpp/build"));
+    QCOMPARE(QDir::fromNativeSeparators(
+                 variables.expand(QStringLiteral("${DAQSTER_LLAMA}/bin/llama-server"))),
+             QStringLiteral("/opt/deps/llama.cpp/build/bin/llama-server"));
+    QCOMPARE(QDir::fromNativeSeparators(variables.expand(QStringLiteral("${DAQSTER_LLAMA_MODELS}"))),
+             QStringLiteral("/opt/deps/models"));
+
+    // tokenValue() is the same precedence minus overrides — the settings UI and
+    // SceneLayout ask this, so it must not answer differently from expand().
+    QCOMPARE(variables.tokenValue(QStringLiteral("DAQSTER_LLAMA")),
+             variables.expand(QStringLiteral("${DAQSTER_LLAMA}")));
+
+    QString reason;
+    const Daqster::SceneLayout layout = Daqster::SceneLayout::fromMachine(&reason);
+    QVERIFY2(reason.isEmpty(), qPrintable(reason));
+    QCOMPARE(layout.depsRoot(), QStringLiteral("/opt/deps"));
+    QCOMPARE(layout.llamaBuildRoot(), under(QStringLiteral("llama.cpp/build")));
+    QCOMPARE(layout.llamaBinDir(), under(QStringLiteral("llama.cpp/build/bin")));
+    QCOMPARE(layout.modelsDir(), under(QStringLiteral("models")));
+    QCOMPARE(layout.modelsDirFor(QStringLiteral("llm")), under(QStringLiteral("models/llm")));
+    QCOMPARE(layout.piperBin(), under(QStringLiteral("piper/piper")));
+    QCOMPARE(layout.piperVoicesDir(), under(QStringLiteral("piper-voices")));
+    QCOMPARE(layout.whisperBin(), under(QStringLiteral("whisper.cpp/build/bin/whisper-server")));
+    QCOMPARE(layout.sdServer(), under(QStringLiteral("sd-server")));
+
+    // An unknown kind is not a directory somebody invented: it is empty.
+    QCOMPARE(layout.modelsDirFor(QStringLiteral("nope")), QString());
+    QCOMPARE(layout.modelsDirFor(QString()), QString());
+}
+
+void TestSceneVariables::explicitLlamaValueWinsOverTheLayout()
+{
+    SceneVariables& variables = SceneVariables::instance();
+    overrideEnvironment("DAQSTER_DEPS", "/opt/deps");
+
+    // A table value written before the layout existed keeps winning.
+    QVERIFY(variables.setPathToken(QStringLiteral("DAQSTER_LLAMA"),
+                                   QStringLiteral("/my/llama/build")));
+    QCOMPARE(variables.expand(QStringLiteral("${DAQSTER_LLAMA}")),
+             QStringLiteral("/my/llama/build"));
+
+    // The environment is the same: an exported name is an explicit decision.
+    overrideEnvironment("DAQSTER_LLAMA_MODELS", "/my/models");
+    QCOMPARE(variables.expand(QStringLiteral("${DAQSTER_LLAMA_MODELS}")),
+             QStringLiteral("/my/models"));
+
+    // Caller overrides beat both, including a root override that the derived
+    // value has to follow (the join must use the overridden root).
+    SceneVariables::Overrides overrides;
+    overrides.insert(QStringLiteral("DAQSTER_LLAMA"), QStringLiteral("/from/override"));
+    QCOMPARE(variables.expandDetailed(QStringLiteral("${DAQSTER_LLAMA}"), overrides).text,
+             QStringLiteral("/from/override"));
+
+    QVERIFY(variables.removePathToken(QStringLiteral("DAQSTER_LLAMA")));
+    unsetEnvironment("DAQSTER_LLAMA_MODELS");
+    SceneVariables::Overrides rootOverride;
+    rootOverride.insert(QStringLiteral("DAQSTER_DEPS"), QStringLiteral("/other/deps"));
+    QCOMPARE(QDir::fromNativeSeparators(
+                 variables.expandDetailed(QStringLiteral("${DAQSTER_LLAMA}"), rootOverride).text),
+             QStringLiteral("/other/deps/llama.cpp/build"));
+}
+
+void TestSceneVariables::missingDepsRootIsEmptyWithAReason()
+{
+    // init() unsets `DAQSTER_DEPS` and the temp table is empty, so this is the
+    // "machine configured nothing" case.
+    QString reason;
+    const Daqster::SceneLayout layout = Daqster::SceneLayout::fromMachine(&reason);
+    QVERIFY(!layout.isValid());
+    QVERIFY2(!reason.isEmpty(), "an empty root must say why, not answer '/'");
+    QVERIFY(layout.llamaBinDir().isEmpty());
+    QVERIFY(layout.modelsDirFor(QStringLiteral("llm")).isEmpty());
+    QVERIFY(layout.piperBin().isEmpty());
+    QVERIFY(layout.whisperBin().isEmpty());
+
+    // The tokens stay visible in the scene instead of becoming "/llama.cpp/build".
+    SceneVariables& variables = SceneVariables::instance();
+    QString token;
+    QCOMPARE(variables.expand(QStringLiteral("${DAQSTER_LLAMA}/bin/x"), &token),
+             QStringLiteral("${DAQSTER_LLAMA}/bin/x"));
+    QCOMPARE(token, QStringLiteral("${DAQSTER_LLAMA}"));
+    QVERIFY(variables.tokenValue(QStringLiteral("DAQSTER_LLAMA")).isEmpty());
 }
 
 void TestSceneVariables::defaultPathIsOneRootPerMachine()

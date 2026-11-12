@@ -66,6 +66,11 @@ if(DAQSTER_COMMON_LIB_ENABLED)
         # so the IDE, NodeRunner and HeadlessEngine cannot end up with three
         # tables (or three slightly different parsers).
         Scene/SceneVariables.cpp
+        # The layout behind those tokens (REQ-SW-PL-091): one root with fixed
+        # subpaths, so `DAQSTER_LLAMA`/`DAQSTER_LLAMA_MODELS` are derived
+        # instead of configured. Same library, for the same reason — a script,
+        # the IDE and a private plugin must join the identical strings.
+        Scene/SceneLayout.cpp
     )
 
     # Windows: WINDOWS_EXPORT_ALL_SYMBOLS makes the linker export all symbols

@@ -1,5 +1,7 @@
 #include "Scene/SceneVariables.h"
 
+#include "Scene/SceneLayout.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -18,6 +20,13 @@ namespace {
 
 /// Group of the document that holds the token table (`paths/DAQSTER_DEPS`).
 const char* const kPathsGroup = "paths";
+
+/// The token that carries the dependency root (REQ-SW-PL-091).
+const char* const kDepsToken = "DAQSTER_DEPS";
+
+/// Tokens the layout answers out of the root (`SceneLayout`).
+const char* const kLlamaToken = "DAQSTER_LLAMA";
+const char* const kLlamaModelsToken = "DAQSTER_LLAMA_MODELS";
 
 /// One value of the table, however it was found.
 struct Lookup
@@ -151,7 +160,38 @@ QString nameProblem(const QString& name)
     return QString();
 }
 
-/// Resolve @p name: overrides → machine config → environment → not set.
+/// Resolve @p name: overrides → machine config → environment → derived → not set.
+Lookup lookup(const QString& name, const SceneVariables::Overrides& overrides,
+              const QMap<QString, QString>& table);
+
+/**
+ * @brief The value the layout derives for @p name, or an empty string.
+ *
+ * `DAQSTER_LLAMA` and `DAQSTER_LLAMA_MODELS` used to be configured names; the
+ * layout makes them joins under `DAQSTER_DEPS` (one root, kinds are
+ * subdirectories). They are checked **after** overrides/config/environment, so
+ * an explicit value keeps winning — a machine set up before the layout existed
+ * is not silently re-pointed at a tree it does not have.
+ *
+ * The root is resolved through lookup() itself, which means overrides passed to
+ * expandDetailed() reach the derived value too, and it cannot recurse: the root
+ * token is not one of the derived names.
+ */
+QString derivedValue(const QString& name, const SceneVariables::Overrides& overrides,
+                     const QMap<QString, QString>& table)
+{
+    if (name != QLatin1String(kLlamaToken) && name != QLatin1String(kLlamaModelsToken))
+        return QString();
+
+    const Lookup root = lookup(QLatin1String(kDepsToken), overrides, table);
+    if (!root.isSet)
+        return QString();   // no root → no derived answer, not "/<subpath>"
+
+    const SceneLayout layout(root.value);
+    return name == QLatin1String(kLlamaToken) ? layout.llamaBuildRoot()
+                                              : layout.modelsDir();
+}
+
 Lookup lookup(const QString& name, const SceneVariables::Overrides& overrides,
               const QMap<QString, QString>& table)
 {
@@ -169,6 +209,10 @@ Lookup lookup(const QString& name, const SceneVariables::Overrides& overrides,
         if (!value.isEmpty())
             return Lookup{ true, value };
     }
+
+    const QString derived = derivedValue(name, overrides, table);
+    if (!derived.isEmpty())
+        return Lookup{ true, derived };
 
     return Lookup{};
 }
@@ -221,11 +265,24 @@ QString SceneVariables::defaultFilePath()
     return candidates.first();
 }
 
+QString SceneVariables::tokenValue(const QString& name) const
+{
+    QMap<QString, QString> table;
+    {
+        QMutexLocker locker(&m_mutex);
+        ensureLoaded();
+        table = m_tokens;
+    }
+
+    const Lookup found = lookup(name, Overrides(), table);
+    return found.isSet ? found.value : QString();
+}
+
 QStringList SceneVariables::knownTokenNames()
 {
     return QStringList{
-        QStringLiteral("DAQSTER_DEPS"),        // binaries/, models/, tts_voice/
-        QStringLiteral("DAQSTER_LLAMA"),       // llama.cpp binaries + GGUF models
+        QStringLiteral("DAQSTER_DEPS"),        // the layout root: binaries/, models/
+        QStringLiteral("DAQSTER_LLAMA"),       // derived from the root, kept for old tables
         QStringLiteral("DAQSTER_VIDEO_FILE"),  // the clip a scene was written against
     };
 }

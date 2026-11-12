@@ -17,7 +17,16 @@
 //   2. **machine config** — group `paths` of one JSON document per machine
 //      (see `defaultFilePath()`), e.g. `paths/DAQSTER_DEPS`;
 //   3. **process environment** — `qgetenv(name)`;
-//   4. **empty** — the token cannot be resolved.
+//   4. **derived from the layout** — `DAQSTER_LLAMA` and
+//      `DAQSTER_LLAMA_MODELS` are answered by `SceneLayout` out of
+//      `DAQSTER_DEPS` (one root, see `docs/Architecture/dependency-layout.md`);
+//   5. **empty** — the token cannot be resolved.
+//
+// Rule 4 is a **fallback**, not a replacement: an explicit value at any of the
+// levels above still wins, so every scene written before the layout existed
+// keeps resolving exactly as it did. A machine that configures only
+// `DAQSTER_DEPS` no longer has to configure the two derived names — and a
+// machine that configures neither gets nothing, not `/<subpath>`.
 //
 // An empty value counts as *not resolved* at every level: `${DEPS}/x.bin`
 // with an empty `DEPS` would silently become `/x.bin`, a path that exists only
@@ -130,9 +139,24 @@ public:
      * @brief Token names the shipped scenes and scripts use today.
      *
      * Informational: `seedFromEnvironment()` seeds exactly these unless the
-     * caller passes its own list.
+     * caller passes its own list. `DAQSTER_LLAMA` stays in the list for tables
+     * written before the layout existed; it does **not** need seeding any more,
+     * because it is derived from `DAQSTER_DEPS` (see the class comment).
      */
     static QStringList knownTokenNames();
+
+    /**
+     * @brief The value @p name resolves to without caller overrides.
+     *
+     * Machine config → process environment → derived from the layout — exactly
+     * the order an expansion uses, minus rule 1. This is the "what does this
+     * machine say right now" question (the settings UI, `SceneLayout`), so it
+     * must not be answered by a second copy of the precedence rules.
+     *
+     * @param name Token name, e.g. `DAQSTER_DEPS`.
+     * @return The value, or an empty string when the token is unresolved.
+     */
+    QString tokenValue(const QString& name) const;
 
     /**
      * @brief Expand every `${...}` in @p raw.
