@@ -47,12 +47,16 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <QThread>
 #include <type_traits>
 #include <typeinfo>
 
 #include <Threading/CancelToken.h>
+
+// REQ-SW-PL-091: the `${VAR}` table a node expands its paths from.
+#include <Scene/SceneVariables.h>
 
 #include <QtNodes/DataFlowGraphModel>
 #include <QtNodes/NodeDelegateModelRegistry>
@@ -718,3 +722,69 @@ void TestThreadLifecycle::audioSourceAndDisplaySurviveFiveSceneCloses()
     }
 }
 
+
+// ── REQ-SW-PL-091: `${VAR}` is expanded by the node that consumes it ─────
+//
+// The two nodes below used to pass the stored string straight to the platform
+// (`QUrl::fromLocalFile`, `QFile`) — a committed `.flow` therefore worked only
+// on the machine that wrote it, and an unexpanded `${X}` showed up later as
+// "Invalid media" / "Cannot open" instead of naming the missing token.
+void TestThreadLifecycle::sceneVariablesAreExpandedOnLoad()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    // One temporary table: the real `~/.config/Daqster/scene-variables.json` is
+    // never read and never written.
+    const QString document = dir.path() + QStringLiteral("/scene-variables.json");
+    const bool hadOverride = qEnvironmentVariableIsSet("DAQSTER_SCENE_VARIABLES");
+    const QByteArray previousOverride = qgetenv("DAQSTER_SCENE_VARIABLES");
+    qputenv("DAQSTER_SCENE_VARIABLES", QFile::encodeName(document));
+
+    Daqster::SceneVariables &variables = Daqster::SceneVariables::instance();
+    variables.setFilePath(document);
+    QVERIFY(variables.setPathToken(QStringLiteral("DAQSTER_DEPS"), dir.path()));
+
+    QJsonObject scene;
+    scene.insert(QStringLiteral("filePath"), QStringLiteral("${DAQSTER_DEPS}/clip.mp4"));
+
+    VideoFileSourceNode videoSource;
+    videoSource.load(scene);
+    QCOMPARE(videoSource.filePath(), dir.path() + QStringLiteral("/clip.mp4"));
+    QCOMPARE(videoSource.validationState()._state, QtNodes::NodeValidationState::State::Valid);
+
+    QJsonObject fileScene;
+    fileScene.insert(QStringLiteral("filePath"), QStringLiteral("${DAQSTER_DEPS}/capture.sdf"));
+    FilePlaybackModel filePlayback;
+    filePlayback.load(fileScene);
+    QCOMPARE(filePlayback.save().value(QStringLiteral("filePath")).toString(),
+             dir.path() + QStringLiteral("/capture.sdf"));
+    QCOMPARE(filePlayback.validationState()._state, QtNodes::NodeValidationState::State::Valid);
+
+    // A token this machine does not have: the state names it, and the literal
+    // is left visible (not silently turned into "").
+    QJsonObject broken;
+    broken.insert(QStringLiteral("filePath"), QStringLiteral("${DAQSTER_NO_SUCH_TOKEN}/x.mp4"));
+
+    videoSource.load(broken);
+    QCOMPARE(videoSource.validationState()._state, QtNodes::NodeValidationState::State::Error);
+    QVERIFY2(videoSource.validationState()._stateMessage.contains(
+                 QStringLiteral("${DAQSTER_NO_SUCH_TOKEN}")),
+             qPrintable(videoSource.validationState()._stateMessage));
+
+    filePlayback.load(broken);
+    QCOMPARE(filePlayback.validationState()._state, QtNodes::NodeValidationState::State::Error);
+    QVERIFY2(filePlayback.validationState()._stateMessage.contains(
+                 QStringLiteral("${DAQSTER_NO_SUCH_TOKEN}")),
+             qPrintable(filePlayback.validationState()._stateMessage));
+
+    // A successful load clears the error again (the GUI reuses the node).
+    videoSource.load(scene);
+    QCOMPARE(videoSource.validationState()._state, QtNodes::NodeValidationState::State::Valid);
+
+    if (hadOverride)
+        qputenv("DAQSTER_SCENE_VARIABLES", previousOverride);
+    else
+        qunsetenv("DAQSTER_SCENE_VARIABLES");
+    variables.setFilePath(QString());
+}

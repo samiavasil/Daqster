@@ -2,6 +2,7 @@
 
 #include "FilePlaybackTiming.h"
 #include "LogCategories.h"
+#include "Scene/SceneVariables.h"
 
 #include <QFile>
 #include <QJsonArray>
@@ -102,7 +103,31 @@ QJsonObject FilePlaybackModel::save() const
 
 void FilePlaybackModel::load(QJsonObject const &p)
 {
-    m_filePath = p.value("filePath").toString();
+    if (!p.contains("filePath"))
+        return;
+
+    // Expanded here, by the node that consumes the path (REQ-SW-PL-091): the
+    // `.flow` in git carries `${DAQSTER_DEPS}/capture.sdf`, the machine config
+    // supplies the root, and the loader never needs a temp copy of the scene.
+    const Daqster::SceneVariableExpansion expansion =
+        Daqster::SceneVariables::instance().expandDetailed(
+            p.value(QStringLiteral("filePath")).toString());
+
+    m_filePath = expansion.text.trimmed();
+
+    // An unresolved `${X}` is a missing token, not an empty selection — say
+    // which one instead of failing later with "Cannot open ${X}/capture.sdf".
+    QtNodes::NodeValidationState state;
+    if (expansion.isComplete()) {
+        state._state = QtNodes::NodeValidationState::State::Valid;
+    } else {
+        state._state = QtNodes::NodeValidationState::State::Error;
+        state._stateMessage =
+            tr("Unresolved %1 in filePath — set paths/%2 in the scene token table")
+                .arg(expansion.token, expansion.name);
+        emit statusChanged(state._stateMessage);
+    }
+    setValidationState(state);
 }
 
 unsigned int FilePlaybackModel::nPorts(QtNodes::PortType portType) const
@@ -179,33 +204,37 @@ void FilePlaybackModel::onPathChanged(const QString &path)
 
 bool FilePlaybackModel::loadFile()
 {
-    QFile file(m_filePath);
+    // A path typed into the widget may still carry `${VAR}`: expand it here too
+    // (idempotent for an already expanded path, REQ-SW-PL-091).
+    const QString filePath = Daqster::SceneVariables::instance().expand(m_filePath);
+
+    QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
-        emit statusChanged(tr("Cannot open %1: %2").arg(m_filePath, file.errorString()));
+        emit statusChanged(tr("Cannot open %1: %2").arg(filePath, file.errorString()));
         return false;
     }
 
-    QFile sidecar(m_filePath + ".json");
+    QFile sidecar(filePath + ".json");
     if (!sidecar.open(QIODevice::ReadOnly)) {
-        emit statusChanged(tr("Cannot open sidecar for %1").arg(m_filePath));
+        emit statusChanged(tr("Cannot open sidecar for %1").arg(filePath));
         return false;
     }
 
     QJsonDocument doc = QJsonDocument::fromJson(sidecar.readAll());
     if (!doc.isObject()) {
-        emit statusChanged(tr("Invalid sidecar JSON for %1").arg(m_filePath));
+        emit statusChanged(tr("Invalid sidecar JSON for %1").arg(filePath));
         return false;
     }
 
     if (!descriptorFromJson(doc.object(), m_descriptor)) {
-        emit statusChanged(tr("Invalid descriptor for %1").arg(m_filePath));
+        emit statusChanged(tr("Invalid descriptor for %1").arg(filePath));
         return false;
     }
 
     m_fileSize = file.size();
-    m_file.setFileName(m_filePath);
+    m_file.setFileName(filePath);
     if (!m_file.open(QIODevice::ReadOnly)) {
-        emit statusChanged(tr("Cannot open %1 for reading: %2").arg(m_filePath, m_file.errorString()));
+        emit statusChanged(tr("Cannot open %1 for reading: %2").arg(filePath, m_file.errorString()));
         return false;
     }
 

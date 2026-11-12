@@ -2,6 +2,7 @@
 
 #include "AudioBufferToSampled.h"
 #include "NodeDataTypes/VideoFrameData.h"
+#include "Scene/SceneVariables.h"
 
 #include <QMediaPlayer>
 
@@ -108,10 +109,36 @@ QJsonObject VideoFileSourceNode::save() const
 
 void VideoFileSourceNode::load(QJsonObject const &p)
 {
-    if (p.contains("filePath")) {
-        m_filePath = p["filePath"].toString();
-        Q_EMIT filePathChanged(m_filePath);
+    if (!p.contains("filePath"))
+        return;
+
+    // The node that consumes the path is the one that expands it
+    // (REQ-SW-PL-091): a committed `.flow` carries `${DAQSTER_VIDEO_FILE}`, and
+    // the loader/IDE never needs to know that "filePath" is a path. The token
+    // table is the machine config's `paths` group, with the environment as the
+    // last resort — no temp copy of the scene and no exported variables.
+    const Daqster::SceneVariableExpansion expansion =
+        Daqster::SceneVariables::instance().expandDetailed(
+            p.value(QStringLiteral("filePath")).toString());
+
+    m_filePath = expansion.text.trimmed();
+
+    // A path that still holds `${X}` is not "no file chosen" — it is a token
+    // this machine does not have. Name it, instead of handing the literal to
+    // QUrl::fromLocalFile and failing later with "Invalid media".
+    QtNodes::NodeValidationState state;
+    if (expansion.isComplete()) {
+        state._state = QtNodes::NodeValidationState::State::Valid;
+    } else {
+        state._state = QtNodes::NodeValidationState::State::Error;
+        state._stateMessage =
+            tr("Unresolved %1 in filePath — set paths/%2 in the scene token table")
+                .arg(expansion.token, expansion.name);
+        setStatus(state._stateMessage, false);
     }
+    setValidationState(state);
+
+    Q_EMIT filePathChanged(m_filePath);
 }
 
 unsigned int VideoFileSourceNode::nPorts(PortType portType) const
