@@ -4,6 +4,7 @@
 #include "NodeDataTypes/VideoFrameData.h"
 #include "Scene/SceneVariables.h"
 
+#include <QFileInfo>
 #include <QMediaPlayer>
 
 using QtNodes::NodeData;
@@ -112,29 +113,48 @@ void VideoFileSourceNode::load(QJsonObject const &p)
     if (!p.contains("filePath"))
         return;
 
-    // The node that consumes the path is the one that expands it
-    // (REQ-SW-PL-091): a committed `.flow` carries `${DAQSTER_VIDEO_FILE}`, and
-    // the loader/IDE never needs to know that "filePath" is a path. The token
-    // table is the machine config's `paths` group, with the environment as the
-    // last resort — no temp copy of the scene and no exported variables.
-    const Daqster::SceneVariableExpansion expansion =
-        Daqster::SceneVariables::instance().expandDetailed(
-            p.value(QStringLiteral("filePath")).toString());
+    // The node that consumes the path is the one that resolves it
+    // (REQ-SW-PL-091): a committed `.flow` carries `${DAQSTER_VIDEO_FILE}` — or
+    // a file **next to itself** — and the loader/IDE never needs to know that
+    // "filePath" is a path. The token table is the machine config's `paths`
+    // group (environment last), the relative half is the directory of the scene
+    // the host recorded before loading it. No temp copy of the scene and no
+    // exported variables.
+    Daqster::SceneVariables& variables = Daqster::SceneVariables::instance();
+    const QString stored = p.value(QStringLiteral("filePath")).toString();
 
-    m_filePath = expansion.text.trimmed();
+    // Two calls on purpose: the expansion names the missing token (for the
+    // message), resolvePath anchors the result (for the player).
+    const Daqster::SceneVariableExpansion expansion = variables.expandDetailed(stored);
+    QString reason;
+    m_filePath = variables.resolvePath(stored, nullptr, &reason);
 
-    // A path that still holds `${X}` is not "no file chosen" — it is a token
-    // this machine does not have. Name it, instead of handing the literal to
-    // QUrl::fromLocalFile and failing later with "Invalid media".
+    // Three different defects, three different messages: a token this machine
+    // does not have, a relative path with no scene to be relative to, and a
+    // file that is not where the scene says it is. Anything else is usable.
     QtNodes::NodeValidationState state;
-    if (expansion.isComplete()) {
-        state._state = QtNodes::NodeValidationState::State::Valid;
-    } else {
+    const auto fail = [this, &state](const QString& message) {
         state._state = QtNodes::NodeValidationState::State::Error;
-        state._stateMessage =
-            tr("Unresolved %1 in filePath — set paths/%2 in the scene token table")
-                .arg(expansion.token, expansion.name);
-        setStatus(state._stateMessage, false);
+        state._stateMessage = message;
+        setStatus(message, false);
+    };
+
+    if (!expansion.isComplete()) {
+        // A path that still holds `${X}` is not "no file chosen" — it is a token
+        // this machine does not have. Name it, instead of handing the literal to
+        // QUrl::fromLocalFile and failing later with "Invalid media".
+        fail(tr("Unresolved %1 in filePath — set paths/%2 in the scene token table")
+                 .arg(expansion.token, expansion.name));
+    } else if (!reason.isEmpty()) {
+        // The reason from the resolver is framework wording; the node speaks to
+        // the user, so it says what to do about it instead.
+        fail(tr("filePath \"%1\" is relative and the scene's directory is unknown — "
+                "load it from a scene file, or use an absolute path or a ${VAR} token")
+                 .arg(stored.trimmed()));
+    } else if (!m_filePath.isEmpty() && !QFileInfo::exists(m_filePath)) {
+        fail(tr("Video file not found: %1").arg(m_filePath));
+    } else {
+        state._state = QtNodes::NodeValidationState::State::Valid;
     }
     setValidationState(state);
 

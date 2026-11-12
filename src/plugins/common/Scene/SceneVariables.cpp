@@ -365,6 +365,68 @@ QString SceneVariables::expand(const QString& raw, QString* unexpandedToken) con
     return expansion.text;
 }
 
+QString SceneVariables::sceneDirectory() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_sceneDirectory;
+}
+
+void SceneVariables::setSceneDirectory(const QString& directory)
+{
+    QMutexLocker locker(&m_mutex);
+    m_sceneDirectory = directory.isEmpty() ? QString() : QDir::cleanPath(directory);
+}
+
+void SceneVariables::adoptSceneFile(const QString& scenePath)
+{
+    // An empty path is not "the scene lives in the cwd": it is a scene that did
+    // not come from a file (a REST body, a reload of the running graph), and it
+    // keeps the directory it was loaded from.
+    if (scenePath.isEmpty())
+        return;
+
+    setSceneDirectory(QFileInfo(scenePath).absolutePath());
+}
+
+QString SceneVariables::resolvePath(const QString& raw, QString* unexpandedToken,
+                                    QString* reason) const
+{
+    if (unexpandedToken != nullptr)
+        unexpandedToken->clear();
+    if (reason != nullptr)
+        reason->clear();
+
+    const SceneVariableExpansion expansion = expandDetailed(raw);
+    if (unexpandedToken != nullptr)
+        *unexpandedToken = expansion.token;
+
+    // An unresolved `${X}` is not a path yet: hand back the visible literal so
+    // save() writes the same token it read, and let the caller name the token.
+    if (!expansion.isComplete())
+        return expansion.text.trimmed();
+
+    const QString path = expansion.text.trimmed();
+    if (path.isEmpty())
+        return QString();   // nothing configured — a valid state, not a failure
+
+    if (QDir::isAbsolutePath(path))
+        return path;        // a path that is already whole needs no anchor
+
+    const QString directory = sceneDirectory();
+    if (directory.isEmpty()) {
+        if (reason != nullptr) {
+            *reason = QStringLiteral("\"%1\" is relative and the scene directory is "
+                                     "not known — the scene was not loaded from a file")
+                          .arg(path);
+        }
+        return QString();
+    }
+
+    // Lexical only: the file may not exist yet and the scene may live behind a
+    // symlink, so nothing here asks the filesystem what ".." means.
+    return QDir::cleanPath(QDir(directory).filePath(path));
+}
+
 QString SceneVariables::pathToken(const QString& name) const
 {
     QMutexLocker locker(&m_mutex);

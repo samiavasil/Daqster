@@ -12,6 +12,7 @@
 #include "shared/IStartable.h"
 #include "shared/IStoppable.h"
 #include "capabilities/INodeConfigSchema.h"
+#include "Scene/SceneVariables.h"
 
 // REQ-SW-PL-054: the control plane is a mode-agnostic seam. ControlPlaneServer
 // lives in FrameworkCore; the GUI host plugs itself in as the RuntimeController.
@@ -375,6 +376,11 @@ bool RuntimeShell::applySceneJson(QJsonObject sceneJson,
         emit errorOccurred(tr("editor not initialized"));
         return false;
     }
+
+    // REQ-SW-PL-091: relative paths in the scene mean "next to the scene file".
+    // One call per load, before any node's load() runs; an in-memory scene
+    // (`reloadFlow(QJsonObject)`) keeps the directory it came from.
+    Daqster::SceneVariables::instance().adoptSceneFile(scenePath);
 
     // Extract the "ui" section (REQ-SW-PL-049; v2 REQ-SW-PL-053) BEFORE the
     // node-cleaning loop: it is not part of the graph model JSON and must not be

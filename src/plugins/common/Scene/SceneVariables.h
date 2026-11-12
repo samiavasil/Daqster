@@ -23,6 +23,16 @@
 // with an empty `DEPS` would silently become `/x.bin`, a path that exists only
 // in theory. Whoever wants a fallback writes `${DEPS:-/tmp}`.
 //
+// **Relative paths (REQ-SW-PL-091, second half).** A token is not the only
+// portable form: a scene may carry a file that lives *next to it*
+// (`"filePath": "bars_h265_1080p25_x3.mp4"`). `expand()` alone cannot express
+// that, because a relative path handed to the platform resolves against the
+// process cwd. The host that reads the `.flow` therefore records its directory
+// (`adoptSceneFile()`), and `resolvePath()` — not `expand()` — is what a node
+// calls for a path field: tokens first, then the scene's directory for a
+// relative result. No scene directory and no token means no answer: empty plus
+// a reason, never the cwd.
+//
 // Syntax (deliberately small — it is what `.flow` files use, nothing more):
 //
 // | Input                              | Result                    |
@@ -80,10 +90,11 @@ struct DAQSTERCOMMON_EXPORT SceneVariableExpansion
  * @brief The `${VAR}` resolver: one token table per machine, one instance per
  *        process.
  *
- * **Thread contract:** `expand()`, `expandDetailed()`, `pathToken()` and
- * `pathTokens()` may be called from any thread — they take one mutex, copy the
- * table and release it before parsing, so no lock is held while the caller's
- * code runs. `setPathToken()`/`removePathToken()` take the same mutex and
+ * **Thread contract:** `expand()`, `expandDetailed()`, `resolvePath()`,
+ * `sceneDirectory()`, `pathToken()` and `pathTokens()` may be called from any
+ * thread — they take one mutex, copy the table (or the directory) and release
+ * it before parsing, so no lock is held while the caller's code runs.
+ * `setPathToken()`/`removePathToken()` take the same mutex and
  * rewrite the file atomically (`QSaveFile`), so a crash never leaves a half
  * table. Re-reads are stamp-checked (mtime + size), which makes a table written
  * by **another process** (IDE ↔ NodeRunner) visible without a restart, at the
@@ -143,6 +154,74 @@ public:
      * @return The expanded text.
      */
     QString expand(const QString& raw, QString* unexpandedToken = nullptr) const;
+
+    /**
+     * @brief Directory of the scene currently being loaded or run.
+     *
+     * **Ambient state**, set by the host that reads the `.flow` (`HeadlessEngine`,
+     * `RuntimeShell`, `NodeEditorIdeObject`) before it hands the JSON to the
+     * graph model, and read by every node that resolves a path while loading.
+     * One process runs one scene at a time, so one value is enough; a host that
+     * has no file (a REST body, a `reloadFlow(QJsonObject)`) leaves it alone.
+     *
+     * It is a directory, not a file path: a node only needs "next to what".
+     * Lexically normalised (`..` folded), never canonicalised — the scene's file
+     * may live behind a symlink and the stored paths are relative to the
+     * *written* location.
+     *
+     * @return The directory, or an empty string when no scene was adopted.
+     */
+    QString sceneDirectory() const;
+
+    /**
+     * @brief Set the directory relative paths in a scene resolve against.
+     *
+     * @param directory A directory (an empty string clears it). Stored
+     *        lexically normalised, without touching the filesystem.
+     */
+    void setSceneDirectory(const QString& directory);
+
+    /**
+     * @brief Adopt the directory of the scene file at @p scenePath.
+     *
+     * The one helper the three hosts call, so `QFileInfo::absolutePath()`
+     * (and the "an in-memory scene has no directory" rule) exist once.
+     *
+     * @param scenePath Path of the `.flow` that was read, or empty. Empty means
+     *        "this scene did not come from a file": the previous directory is
+     *        kept — a hot-reload of the running scene must not turn its own
+     *        relative paths into cwd-relative ones.
+     */
+    void adoptSceneFile(const QString& scenePath);
+
+    /**
+     * @brief Resolve a stored path: tokens first, then the scene's directory.
+     *
+     * `expand()` answers "which machine is this path on". It does not answer
+     * "which file is this": a committed scene carries `bars.mp4` **next to
+     * itself**, and a relative path handed to `QUrl::fromLocalFile()` resolves
+     * against the process cwd — true only when the process happens to be
+     * started in the scene's directory. So a relative result is anchored to
+     * sceneDirectory() and lexically normalised; an absolute result is returned
+     * untouched.
+     *
+     * Three answers, one per failure:
+     *   - an unresolved `${X}`: the expanded text is returned **with the literal
+     *     `${X}` still visible** (so `save()` round-trips it and the user sees
+     *     which token is missing) and @p unexpandedToken names it;
+     *   - a relative path with no scene directory: **empty** plus @p reason —
+     *     the cwd is exactly what this function exists to stop being an answer;
+     *   - otherwise: the resolved path (empty input stays empty and is not an
+     *     error — "no file chosen" is a valid state).
+     *
+     * @param raw The stored value (a `.flow` field, or an already resolved path
+     *        — resolution is idempotent for an absolute path without `${`).
+     * @param unexpandedToken Optional; receives `"${NAME}"` (or `""`).
+     * @param reason Optional; why the result is empty (empty when it is not).
+     * @return The absolute path, the visible literal, or an empty string.
+     */
+    QString resolvePath(const QString& raw, QString* unexpandedToken = nullptr,
+                        QString* reason = nullptr) const;
 
     /**
      * @brief The table value of @p name (config only — no overrides, no env).
@@ -215,6 +294,8 @@ private:
     mutable QString          m_stamp;    ///< "mtime:size" of the cached file
     mutable bool             m_loaded = false;
     QString                  m_filePath;
+    /// Ambient scene directory for relative paths (see resolvePath()).
+    QString                  m_sceneDirectory;
 };
 
 } // namespace Daqster

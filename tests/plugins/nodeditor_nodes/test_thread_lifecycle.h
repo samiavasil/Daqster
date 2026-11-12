@@ -78,6 +78,11 @@ private slots:
     // a named node error, never a silent "the path is not set".
     void sceneVariablesAreExpandedOnLoad();
 
+    // …and the other half of portability: a scene may carry a file **next to
+    // itself**. A host records the scene's directory, the node resolves its
+    // `filePath` against it, and no token/absolute path/env is needed.
+    void relativePathsResolveAgainstTheSceneFile();
+
 private:
     /// One entry per node that owns background work: a label plus a factory.
     struct ModelEntry

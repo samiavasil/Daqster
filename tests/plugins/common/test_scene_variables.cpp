@@ -41,10 +41,14 @@ void TestSceneVariables::init()
 
     m_document = m_configDir->path() + QStringLiteral("/Daqster/scene-variables.json");
     SceneVariables::instance().setFilePath(m_document);
+    // Ambient state survives between tests (one process, one instance): start
+    // every case with no scene adopted, exactly like a fresh process.
+    SceneVariables::instance().setSceneDirectory(QString());
 }
 
 void TestSceneVariables::cleanup()
 {
+    SceneVariables::instance().setSceneDirectory(QString());
     // Back to the default path *before* the temp roots disappear, then restore
     // the environment the test process was started with.
     SceneVariables::instance().setFilePath(QString());
@@ -321,4 +325,96 @@ void TestSceneVariables::defaultPathIsOneRootPerMachine()
     const QString explicitPath = m_homeDir->path() + QStringLiteral("/explicit.json");
     overrideEnvironment("DAQSTER_SCENE_VARIABLES", QFile::encodeName(explicitPath));
     QCOMPARE(SceneVariables::defaultFilePath(), explicitPath);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Relative paths — the second half of "a scene is portable"
+// ═══════════════════════════════════════════════════════════════════════
+
+void TestSceneVariables::resolvePathAnchorsRelativePathsToTheScene()
+{
+    SceneVariables& variables = SceneVariables::instance();
+    QTemporaryDir sceneDir;
+    QVERIFY(sceneDir.isValid());
+
+    QString token;
+    QString reason;
+
+    // No scene adopted: an absolute path needs no anchor and is returned as is,
+    // including one whose file does not exist (existence is the caller's call).
+    QCOMPARE(variables.resolvePath(QStringLiteral("/deps/clip.mp4"), &token, &reason),
+             QStringLiteral("/deps/clip.mp4"));
+    QVERIFY(token.isEmpty());
+    QVERIFY(reason.isEmpty());
+
+    // Tokens still expand exactly as before — the anchor is only for the result.
+    QVERIFY(variables.setPathToken(QStringLiteral("DAQSTER_DEPS"), QStringLiteral("/deps")));
+    QCOMPARE(variables.resolvePath(QStringLiteral("${DAQSTER_DEPS}/clip.mp4")),
+             QStringLiteral("/deps/clip.mp4"));
+
+    // A scene is adopted through the one helper the hosts call: it takes the
+    // *file* path and keeps its directory.
+    const QString sceneFile = sceneDir.path() + QStringLiteral("/video_e2e.flow");
+    variables.adoptSceneFile(sceneFile);
+    QCOMPARE(variables.sceneDirectory(), QDir::cleanPath(sceneDir.path()));
+
+    // Relative → scene directory, lexically normalised (no filesystem lookup:
+    // the file need not exist and the scene may live behind a symlink).
+    QCOMPARE(variables.resolvePath(QStringLiteral("bars_h265_1080p25_x3.mp4")),
+             QDir::cleanPath(sceneDir.path() + QStringLiteral("/bars_h265_1080p25_x3.mp4")));
+    QCOMPARE(variables.resolvePath(QStringLiteral("./media/../clip.mp4")),
+             QDir::cleanPath(sceneDir.path() + QStringLiteral("/clip.mp4")));
+
+    // Idempotent: resolving an already resolved path changes nothing.
+    QCOMPARE(variables.resolvePath(variables.resolvePath(QStringLiteral("clip.mp4"))),
+             QDir::cleanPath(sceneDir.path() + QStringLiteral("/clip.mp4")));
+
+    // A token that resolves to a relative value is anchored as well.
+    QVERIFY(variables.setPathToken(QStringLiteral("RELATIVE_ROOT"), QStringLiteral("media")));
+    QCOMPARE(variables.resolvePath(QStringLiteral("${RELATIVE_ROOT}/clip.mp4")),
+             QDir::cleanPath(sceneDir.path() + QStringLiteral("/media/clip.mp4")));
+
+    // An in-memory scene has no path of its own: it keeps the directory it was
+    // loaded from rather than falling back to the cwd.
+    variables.adoptSceneFile(QString());
+    QCOMPARE(variables.sceneDirectory(), QDir::cleanPath(sceneDir.path()));
+
+    // An empty field is "no file chosen", not a failure: empty, no reason.
+    reason = QStringLiteral("sentinel");
+    QVERIFY(variables.resolvePath(QString(), &token, &reason).isEmpty());
+    QVERIFY(reason.isEmpty());
+
+    // Clearing the ambient state is explicit.
+    variables.setSceneDirectory(QString());
+    QVERIFY(variables.sceneDirectory().isEmpty());
+}
+
+void TestSceneVariables::resolvePathWithoutASceneDirectoryReportsWhy()
+{
+    SceneVariables& variables = SceneVariables::instance();
+    QVERIFY(variables.sceneDirectory().isEmpty());
+
+    QString token;
+    QString reason;
+    // A relative path with nothing to be relative to. The cwd is exactly what
+    // this must not become: the process may have been started anywhere.
+    QVERIFY(variables.resolvePath(QStringLiteral("bars.mp4"), &token, &reason).isEmpty());
+    QVERIFY(token.isEmpty());
+    QVERIFY2(reason.contains(QStringLiteral("bars.mp4")), qPrintable(reason));
+    QVERIFY2(reason.contains(QStringLiteral("scene")), qPrintable(reason));
+
+    // An unresolved token is reported *and* left visible: save() writes back the
+    // same token, and the user sees which one is missing instead of "".
+    QCOMPARE(variables.resolvePath(QStringLiteral("${DAQSTER_NO_SUCH_TOKEN}/x.mp4"), &token,
+                                   &reason),
+             QStringLiteral("${DAQSTER_NO_SUCH_TOKEN}/x.mp4"));
+    QCOMPARE(token, QStringLiteral("${DAQSTER_NO_SUCH_TOKEN}"));
+
+    // A scene directory does not rescue a broken token — the token wins, because
+    // anchoring `${X}/y` to the scene would hide the real defect.
+    variables.setSceneDirectory(m_homeDir->path());
+    token.clear();
+    QCOMPARE(variables.resolvePath(QStringLiteral("${DAQSTER_NO_SUCH_TOKEN}/x.mp4"), &token),
+             QStringLiteral("${DAQSTER_NO_SUCH_TOKEN}/x.mp4"));
+    QCOMPARE(token, QStringLiteral("${DAQSTER_NO_SUCH_TOKEN}"));
 }

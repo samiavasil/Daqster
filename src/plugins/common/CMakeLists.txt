@@ -104,6 +104,22 @@ if(DAQSTER_COMMON_LIB_ENABLED)
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 
+    # REQ-SW-PL-091: the headless engine records the directory of the scene it
+    # is about to load, so a relative `filePath` resolves against the scene and
+    # not against the process cwd. That state is Daqster::SceneVariables, whose
+    # only definition is this library, so FrameworkCore depends on it — the
+    # bottom of the stack (this library depends on nothing project-internal) is
+    # the one direction that cannot cycle.
+    #
+    # Declared here rather than in src/frame_work/CMakeLists.txt because the
+    # root adds src/frame_work FIRST: this target does not exist yet when that
+    # file is configured, and CMake resolves a link by target name at generate
+    # time, after both are known.
+    if(TARGET FrameworkCore)
+        target_link_libraries(FrameworkCore PUBLIC DaqsterCommonLibrary)
+        message(STATUS "Linked DaqsterCommonLibrary -> FrameworkCore (SceneVariables)")
+    endif()
+
     message(STATUS "Created internal library: DaqsterCommonLibrary")
 else()
     get_property(REASONS GLOBAL PROPERTY COMPONENT_DaqsterCommonLibrary_REASONS)

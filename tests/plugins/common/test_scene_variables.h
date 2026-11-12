@@ -43,6 +43,10 @@ private slots:
     void seedFromEnvironmentKeepsExistingValue();
     /// The default path honours the env override and stays under the temp roots.
     void defaultPathIsOneRootPerMachine();
+    /// Tokens still expand; a relative result is anchored to the scene directory.
+    void resolvePathAnchorsRelativePathsToTheScene();
+    /// No scene directory and no token: empty plus a reason, never the cwd.
+    void resolvePathWithoutASceneDirectoryReportsWhy();
 
 private:
     /// One environment variable as it was before `init()` touched it.

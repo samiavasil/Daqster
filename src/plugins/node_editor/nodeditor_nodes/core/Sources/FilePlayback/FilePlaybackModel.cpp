@@ -5,6 +5,7 @@
 #include "Scene/SceneVariables.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -106,26 +107,43 @@ void FilePlaybackModel::load(QJsonObject const &p)
     if (!p.contains("filePath"))
         return;
 
-    // Expanded here, by the node that consumes the path (REQ-SW-PL-091): the
-    // `.flow` in git carries `${DAQSTER_DEPS}/capture.sdf`, the machine config
-    // supplies the root, and the loader never needs a temp copy of the scene.
-    const Daqster::SceneVariableExpansion expansion =
-        Daqster::SceneVariables::instance().expandDetailed(
-            p.value(QStringLiteral("filePath")).toString());
+    // Resolved here, by the node that consumes the path (REQ-SW-PL-091): the
+    // `.flow` in git carries `${DAQSTER_DEPS}/capture.sdf`, or a file next to
+    // itself, the machine config supplies the root, the host supplies the scene
+    // directory, and the loader never needs a temp copy of the scene.
+    Daqster::SceneVariables& variables = Daqster::SceneVariables::instance();
+    const QString stored = p.value(QStringLiteral("filePath")).toString();
 
-    m_filePath = expansion.text.trimmed();
+    // Two calls on purpose: the expansion names the missing token (for the
+    // message), resolvePath anchors the result (for QFile below).
+    const Daqster::SceneVariableExpansion expansion = variables.expandDetailed(stored);
+    QString reason;
+    m_filePath = variables.resolvePath(stored, nullptr, &reason);
 
-    // An unresolved `${X}` is a missing token, not an empty selection — say
-    // which one instead of failing later with "Cannot open ${X}/capture.sdf".
+    // Three different defects, three different messages: a missing token, a
+    // relative path with no scene, a file that is not there.
     QtNodes::NodeValidationState state;
-    if (expansion.isComplete()) {
-        state._state = QtNodes::NodeValidationState::State::Valid;
-    } else {
+    if (!expansion.isComplete()) {
+        // An unresolved `${X}` is a missing token, not an empty selection — say
+        // which one instead of failing later with "Cannot open ${X}/capture.sdf".
         state._state = QtNodes::NodeValidationState::State::Error;
         state._stateMessage =
             tr("Unresolved %1 in filePath — set paths/%2 in the scene token table")
                 .arg(expansion.token, expansion.name);
         emit statusChanged(state._stateMessage);
+    } else if (!reason.isEmpty()) {
+        state._state = QtNodes::NodeValidationState::State::Error;
+        state._stateMessage =
+            tr("filePath \"%1\" is relative and the scene's directory is unknown — "
+               "load it from a scene file, or use an absolute path or a ${VAR} token")
+                .arg(stored.trimmed());
+        emit statusChanged(state._stateMessage);
+    } else if (!m_filePath.isEmpty() && !QFileInfo::exists(m_filePath)) {
+        state._state = QtNodes::NodeValidationState::State::Error;
+        state._stateMessage = tr("File not found: %1").arg(m_filePath);
+        emit statusChanged(state._stateMessage);
+    } else {
+        state._state = QtNodes::NodeValidationState::State::Valid;
     }
     setValidationState(state);
 }
@@ -204,9 +222,17 @@ void FilePlaybackModel::onPathChanged(const QString &path)
 
 bool FilePlaybackModel::loadFile()
 {
-    // A path typed into the widget may still carry `${VAR}`: expand it here too
-    // (idempotent for an already expanded path, REQ-SW-PL-091).
-    const QString filePath = Daqster::SceneVariables::instance().expand(m_filePath);
+    // A path typed into the widget may still carry `${VAR}` or be relative to
+    // the scene: resolve it here too (idempotent for an already resolved path,
+    // REQ-SW-PL-091), so the widget field and load() agree on what a path is.
+    QString reason;
+    const QString filePath =
+        Daqster::SceneVariables::instance().resolvePath(m_filePath, nullptr, &reason);
+    if (filePath.isEmpty()) {
+        emit statusChanged(reason.isEmpty() ? tr("No file path set")
+                                           : tr("Cannot use %1: %2").arg(m_filePath, reason));
+        return false;
+    }
 
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
