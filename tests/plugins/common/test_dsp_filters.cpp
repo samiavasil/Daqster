@@ -1,5 +1,7 @@
 #include "test_dsp_filters.h"
 
+#include "DspTestHelpers.h"
+
 #include "Dsp/FirCoefficients.h"
 #include "Dsp/FirDecimator.h"
 #include "Dsp/PolyphaseResampler.h"
@@ -17,43 +19,12 @@
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-
-/// `n` samples of `amplitude · sin(2π·freq/fs·i)`.
-QVector<float> makeSine(double amplitude, double freq, double sampleRate, int n)
-{
-    QVector<float> samples(n);
-    const double w = 2.0 * kPi * freq / sampleRate;
-    for (int i = 0; i < n; ++i)
-        samples[i] = float(amplitude * std::sin(w * double(i)));
-    return samples;
-}
-
-QVector<float> makeConstant(float value, int n)
-{
-    return QVector<float>(n, value);
-}
-
-/// One DFT bin, evaluated directly: the amplitude of a sinusoid at `freq`.
-///
-/// No window is used and none is needed — every frequency this file measures is
-/// exactly on a bin of every analysis length it passes (the signals are chosen
-/// to be periodic over the analysed span), so a rectangular window leaks
-/// nothing and the amplitude of an on-bin tone is exact.
-double dftAmplitudeAt(const QVector<float> &signal, double freq, double sampleRate)
-{
-    const int n = signal.size();
-    if (n <= 0)
-        return 0.0;
-    const double w = 2.0 * kPi * freq / sampleRate;
-    double re = 0.0;
-    double im = 0.0;
-    for (int i = 0; i < n; ++i) {
-        re += double(signal.at(i)) * std::cos(w * double(i));
-        im -= double(signal.at(i)) * std::sin(w * double(i));
-    }
-    return 2.0 * std::sqrt(re * re + im * im) / double(n);
-}
+// Signal generation and the one-bin DFT live in a header because the node
+// tests ask the same questions (REQ-SW-PL-092).
+using DaqsterDspTest::dftAmplitudeAt;
+using DaqsterDspTest::kPi;
+using DaqsterDspTest::makeConstant;
+using DaqsterDspTest::makeSine;
 
 /// Energy centroid of a signal: the "where is the impulse response" measure.
 /// Equals the group delay for a symmetric kernel, and stays meaningful when the
@@ -515,4 +486,58 @@ void TestDspFilters::resamplerChunkingDoesNotDrift()
         chunkedDecimated += piece;
     }
     QVERIFY2(bitIdentical(wholeDecimated, chunkedDecimated), "decimator chunking drifted");
+}
+
+void TestDspFilters::interpolatorKeepsUnityGainAcrossPhases()
+{
+    // A polyphase interpolator is `up` filters in one: output sample i uses
+    // branch i·down mod up, and every branch must have the same DC gain (1/up
+    // before the engine's ×up scaling). The failure that motivated this test:
+    // with a prototype `down×` too wide, the branch containing the kernel's
+    // centre got gain ~up·h[0] while its neighbours got almost nothing, so a
+    // clean 0.5 sine came out as silence punctuated by spikes of 31.
+    struct Case {
+        int up;
+        int down;
+        double inputRate;
+        double tone;
+    };
+    const Case cases[] = {
+        {160, 147, 44100.0, 1000.0},   // 44.1 kHz → 48 kHz, the real-world ratio
+        {3, 2, 48000.0, 1000.0},       // the small ratio the DC test already used
+    };
+
+    for (const Case &c : cases) {
+        const double outputRate = c.inputRate * double(c.up) / double(c.down);
+        const int taps = std::max(FirCoefficients::kDefaultTaps, 16 * c.up);
+        const QVector<float> input = makeSine(0.5, c.tone, c.inputRate, 4410);
+
+        PolyphaseResampler resampler;
+        QString error;
+        QVERIFY2(resampler.configure(c.up, c.down,
+                                     FirCoefficients::antiAliasForResampling(c.up, c.down, taps),
+                                     &error),
+                 qPrintable(error));
+
+        QVector<float> output;
+        resampler.process(input.constData(), input.size(), output);
+        QVERIFY(output.size() > 1400);
+
+        double peak = 0.0;
+        for (float value : output)
+            peak = std::max(peak, std::abs(double(value)));
+        // 0.5 in → 0.5 out: anything near `up` means one branch dominates.
+        QVERIFY2(peak <= 0.55,
+                 qPrintable(QStringLiteral("%1/%2: пик %3 при вход 0.5 — фазовото усилване "
+                                           "не е еднакво").arg(c.up).arg(c.down).arg(peak, 0, 'g', 6)));
+
+        // 300 warm-up samples, then 960 = exactly 20 periods of 1 kHz at 48 kHz
+        // (and 48 samples/period at 48 kHz; for 72 kHz use its own period count).
+        const int periodSamples = int(std::lround(outputRate / c.tone));
+        const int window = periodSamples * 20;
+        const double measured = dftAmplitudeAt(output.mid(300, window), c.tone, outputRate);
+        QVERIFY2(std::abs(measured - 0.5) < 0.01,
+                 qPrintable(QStringLiteral("%1/%2: тонът е %3 вместо 0.5")
+                                .arg(c.up).arg(c.down).arg(measured, 0, 'g', 8)));
+    }
 }

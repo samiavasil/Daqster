@@ -18,6 +18,7 @@ const char* const kPiper = "piper";
 const char* const kPiperVoices = "piper-voices";
 const char* const kWhisperBuild = "whisper.cpp/build";
 const char* const kSdServer = "sd-server";
+const char* const kFilters = "filters";
 
 } // namespace
 
@@ -104,6 +105,11 @@ QString SceneLayout::whisperBin() const
 QString SceneLayout::sdServer() const
 {
     return join(QLatin1String(kSdServer));
+}
+
+QString SceneLayout::filtersDir() const
+{
+    return join(QLatin1String(kFilters));
 }
 
 QStringList SceneLayout::kinds()

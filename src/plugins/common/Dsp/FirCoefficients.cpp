@@ -131,12 +131,19 @@ FirCoefficients FirCoefficients::antiAliasForDecimation(int M, int taps, double 
 FirCoefficients FirCoefficients::antiAliasForResampling(int up, int down, int taps,
                                                         double factor, double beta)
 {
-    // The prototype runs at up× the input rate; the lower Nyquist is
-    // min(up, down)/(2·up) of that rate, so the ratio is factor·min(up,down)/up.
+    // The prototype runs at up× the input rate. The design Nyquist is up× the
+    // input's, and the lower of the two rates is min(up, down) of the input's,
+    // so the passband edge is factor·min(up,down)/(up·down) of the design
+    // Nyquist. `up·down` (not `up`) is what makes every polyphase branch sum to
+    // 1/up; with the wider kernel the branches see different DC gains.
     const int l = std::max(1, up);
     const int m = std::max(1, down);
-    const double ratio = factor * double(std::min(l, m)) / double(l);
-    return makeDefault(taps, ratio, beta);
+    const double ratio = factor * double(std::min(l, m)) / (double(l) * double(m));
+
+    // Every phase must own at least one tap: with taps < up, whole phases are
+    // empty and their output samples are exactly zero.
+    const int effectiveTaps = std::min(std::max(taps, l), kMaxTaps);
+    return makeDefault(effectiveTaps, ratio, beta);
 }
 
 FirCoefficients FirCoefficients::fromJson(const QJsonObject &object, QString *error,

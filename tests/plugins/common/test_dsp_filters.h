@@ -42,4 +42,13 @@ private slots:
 
     /// The key streaming property: 5 × 100 samples == 1 × 480 samples.
     void resamplerChunkingDoesNotDrift();
+
+    /// Every polyphase branch has (approximately) the same DC gain: a 0.5 sine
+    /// through 160/147 comes out at 0.5, with no phase whose taps blow up.
+    ///
+    /// Guards the cutoff formula: with `factor·min/up` instead of
+    /// `factor·min/(up·down)` the prototype is `down×` too wide, the branch
+    /// that contains the kernel's centre has a gain of ~up·h[0], and the
+    /// output is silence punctuated by spikes (measured peak 31 for 160/147).
+    void interpolatorKeepsUnityGainAcrossPhases();
 };

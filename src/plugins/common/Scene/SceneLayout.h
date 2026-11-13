@@ -103,6 +103,14 @@ public:
     /// `<DEPS>/sd-server`.
     QString sdServer() const;
 
+    /// `<DEPS>/filters` — FIR tap sets as data (REQ-SW-PL-092).
+    ///
+    /// A rate-changing node resolves `filterRef` here (`<ref>.json`), so a
+    /// scene names a filter without carrying an absolute path. Like every other
+    /// getter this is about *paths*, not existence: the caller checks and names
+    /// the missing file.
+    QString filtersDir() const;
+
     /// The model kinds the layout defines (contract, not discovery).
     static QStringList kinds();
 

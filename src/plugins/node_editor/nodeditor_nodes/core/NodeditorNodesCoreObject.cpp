@@ -12,6 +12,9 @@
 #include "Processing/Video/CustomShaderNode.h"
 #include "Processing/Video/FrameSamplerNode.h"
 #include "Processing/Video/FrameWindowNode.h"
+#include "Processing/Audio/BlockResizerNode.h"
+#include "Processing/Audio/SampleDecimatorNode.h"
+#include "Processing/Audio/SampleResamplerNode.h"
 #include "Sources/PlutoSdr/PlutoSdrModel.h"
 #include "Sources/SystemMonitor/SystemMonitorModel.h"
 #include "Sources/Gamepad/GamepadModel.h"
@@ -90,6 +93,10 @@ void NodeditorNodesCoreObject::registerNodes(QtNodes::NodeDelegateModelRegistry&
     registry.registerModel<CustomShaderNode>("Processing/Video");
     registry.registerModel<FrameSamplerNode>("Processing/Video");
     registry.registerModel<FrameWindowNode>("Processing/Video");
+    // Audio rate domain (REQ-SW-PL-092): re-package, decimate, resample.
+    registry.registerModel<BlockResizerNode>("Processing/Audio");
+    registry.registerModel<SampleDecimatorNode>("Processing/Audio");
+    registry.registerModel<SampleResamplerNode>("Processing/Audio");
     
     // Conditional nodes (guarded by compile definitions)
 #ifdef HAVE_LIBIIO
@@ -176,6 +183,10 @@ void NodeditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateModelR
     registry.registerModel<CustomShaderNode>("Processing/Video");
     registry.registerModel<FrameSamplerNode>("Processing/Video");
     registry.registerModel<FrameWindowNode>("Processing/Video");
+    // Audio rate domain (REQ-SW-PL-092): re-package, decimate, resample.
+    registry.registerModel<BlockResizerNode>("Processing/Audio");
+    registry.registerModel<SampleDecimatorNode>("Processing/Audio");
+    registry.registerModel<SampleResamplerNode>("Processing/Audio");
     
     // Conditional nodes (guarded by compile definitions)
 #ifdef HAVE_LIBIIO

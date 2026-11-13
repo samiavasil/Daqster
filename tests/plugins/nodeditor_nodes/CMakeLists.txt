@@ -886,6 +886,52 @@ target_link_libraries(demo_nodeditor_framesampler_tests PRIVATE
 add_test(NAME demo_nodeditor_framesampler_tests
          COMMAND demo_nodeditor_framesampler_tests)
 
+# ── Audio rate-domain node tests (REQ-SW-PL-092) ────────────────────────────
+#
+# QTEST_GUILESS_MAIN (QCoreApplication): the three nodes own no widget and open
+# no device — they transform a SampledData block. The sources are compiled into
+# the binary (same pattern as the frame-sampler suite) and DaqsterCommonLibrary
+# is *linked*, not recompiled: the DSP engines and `SceneVariables` under test
+# must be the same definitions the plugin ships, or a passing test would prove
+# nothing about the plugin.
+#
+# FrameworkCore supplies `lcDemoNodes` (the models log their verdicts there) and
+# `AudioCompat` is not needed — no audio device is opened.
+set(AUDIO_DSP_NODES_TEST_SOURCES
+    test_audio_dsp_nodes.cpp
+    test_audio_dsp_nodes.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Audio/FilterResolver.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Audio/BlockResizerNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Audio/SampleDecimatorNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Audio/SampleResamplerNode.cpp
+)
+
+add_executable(demo_nodeditor_audiodspnodes_tests ${AUDIO_DSP_NODES_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_audiodspnodes_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Audio
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+    ${DEMO_CORE_EXPORT_INCLUDE_DIR}
+)
+target_compile_definitions(demo_nodeditor_audiodspnodes_tests PRIVATE ${DEMO_CORE_EXPORT_DEFINITIONS})
+
+target_link_libraries(demo_nodeditor_audiodspnodes_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    QtNodes
+    FrameworkCore
+    DaqsterCommonLibrary
+)
+
+add_test(NAME demo_nodeditor_audiodspnodes_tests
+         COMMAND demo_nodeditor_audiodspnodes_tests)
+
 # ── IStoppable lifecycle tests (REQ-SW-PL-050, AC 7) ─────────────────────────
 #
 # QTEST_GUILESS_MAIN. Reuses the model-name suite's source list: both targets

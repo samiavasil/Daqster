@@ -110,13 +110,22 @@ public:
     /**
      * @brief Convenience: the anti-alias kernel for rational resampling.
      *
-     * Design rate is `up ×` the input rate, so the cutoff is
-     * `factor · min(up, down) / up` — i.e. `factor` of the lower Nyquist, in the
-     * units of the interpolated rate.
+     * Design rate is `up ×` the input rate, so the passband must stop at
+     * `factor · min(fs_in, fs_out)/2` — i.e. at `factor · min(up,down)/(up·down)`
+     * of the **design-rate Nyquist**. The `up·down` in the denominator is not a
+     * typo: the design Nyquist is `up` times the input's, and the lower of the
+     * two rates brings the `down`. Omitting it makes the prototype `down×` too
+     * wide, and then every polyphase branch has a different DC gain (measured:
+     * a 0.5 sine came out with peaks of 31 at phase 0 for 160/147 — the phase
+     * whose tap set contains the kernel's centre).
      *
      * @param up Interpolation factor, ≥ 1.
      * @param down Decimation factor, ≥ 1.
-     * @param taps Tap count at the interpolated rate (default 64).
+     * @param taps Tap count at the interpolated rate (default 64). Raised to at
+     *        least `up` so every phase owns a coefficient: fewer taps leaves
+     *        whole phases empty, and those output samples are exactly zero.
+     *        Eight to sixteen taps per phase (`8·up … 16·up`) is the useful
+     *        range; the result is capped at `kMaxTaps`.
      * @param factor Cutoff as a fraction of the *lower* Nyquist (default 0.45).
      * @param beta Kaiser β (default 8).
      */

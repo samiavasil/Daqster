@@ -100,6 +100,20 @@ set(VIDEO_NODES
     Processing/Video/FrameSamplerNode.cpp
     Processing/Video/FrameWindowNode.h
     Processing/Video/FrameWindowNode.cpp
+    # ── Audio rate domain (REQ-SW-PL-092) ───────────────────────────────
+    # Re-package / decimate / resample a SampledData stream. The DSP engines
+    # live in DaqsterCommonLibrary (src/plugins/common/Dsp/); these files only
+    # hold the stream glue (timebase, descriptor, per-channel engines) and the
+    # one coefficient resolver both rate-changing nodes share.
+    Processing/Audio/AudioDspSupport.h
+    Processing/Audio/FilterResolver.h
+    Processing/Audio/FilterResolver.cpp
+    Processing/Audio/BlockResizerNode.h
+    Processing/Audio/BlockResizerNode.cpp
+    Processing/Audio/SampleDecimatorNode.h
+    Processing/Audio/SampleDecimatorNode.cpp
+    Processing/Audio/SampleResamplerNode.h
+    Processing/Audio/SampleResamplerNode.cpp
     # Texture pool for GPU effect outputs (REQ-SW-PL-032 Issue #7) is NOT
     # compiled here: TexturePool::instance() is a process-wide singleton of GL
     # texture names, and a second copy in this .so would be a second pool —
