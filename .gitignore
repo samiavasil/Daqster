@@ -2,7 +2,11 @@
 # Qt Creator per-user project settings (all locations)
 CMakeLists.txt.user
 CMakeLists.txt.user.*
-**/.qtcreator/CMakeLists.txt.user
+*.user
+*.user.*
+**/.qtcreator/
+# Машинни override-и на пресетите (REQ-SW-PL-090) — не се комитват
+CMakeUserPresets.json
 /build*/
 /tools/Build*
 /.fuse_hidden001190e600000eeb
