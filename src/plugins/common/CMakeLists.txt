@@ -71,6 +71,16 @@ if(DAQSTER_COMMON_LIB_ENABLED)
         # instead of configured. Same library, for the same reason — a script,
         # the IDE and a private plugin must join the identical strings.
         Scene/SceneLayout.cpp
+        # The DSP engine for sampled streams (REQ-SW-PL-092): coefficient
+        # loading/validation, an integer decimator and a rational polyphase
+        # resampler. QtCore only — a rate converter must be usable in a
+        # headless process, and one definition is what keeps two nodes that
+        # decimate identically from drifting apart. Identity is recorded per
+        # kernel (`ref` + sha256), which is why the loader lives here and not
+        # inside one node.
+        Dsp/FirCoefficients.cpp
+        Dsp/FirDecimator.cpp
+        Dsp/PolyphaseResampler.cpp
     )
 
     # Windows: WINDOWS_EXPORT_ALL_SYMBOLS makes the linker export all symbols

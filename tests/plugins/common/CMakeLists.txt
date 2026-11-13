@@ -30,6 +30,11 @@ set(COMMON_TEST_SOURCES
     test_dependency_manager.cpp test_dependency_manager.h
     # REQ-SW-PL-091: `${VAR}` resolution — syntax, precedence, persistence.
     test_scene_variables.cpp test_scene_variables.h
+    # REQ-SW-PL-092: the DSP engine — coefficient loading/validation, the
+    # integer decimator and the rational polyphase resampler. Properties only
+    # (DC gain, alias attenuation, group delay, bit-identical chunking), never
+    # golden vectors, so a redesign that keeps the promise stays green.
+    test_dsp_filters.cpp test_dsp_filters.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ProcessOwner.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ThreadingLog.cpp
@@ -38,6 +43,11 @@ set(COMMON_TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Dependencies/DependencyManager.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Scene/SceneVariables.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Scene/SceneLayout.cpp
+    # REQ-SW-PL-092: same argument as above — the engine is QtCore-only, so the
+    # test binary compiles it directly instead of linking the shared library.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Dsp/FirCoefficients.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Dsp/FirDecimator.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Dsp/PolyphaseResampler.cpp
 )
 
 add_executable(daqster_common_tests ${COMMON_TEST_SOURCES})

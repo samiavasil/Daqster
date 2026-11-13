@@ -9,6 +9,7 @@
 // contract would never be exercised.
 
 #include "test_dependency_manager.h"
+#include "test_dsp_filters.h"
 #include "test_local_server_service.h"
 #include "test_process_owner.h"
 #include "test_scene_variables.h"
@@ -59,6 +60,13 @@ int main(int argc, char *argv[])
         // expanded by the node that consumes the path.
         TestSceneVariables sceneVariables;
         status |= QTest::qExec(&sceneVariables, argc, argv);
+    }
+
+    {
+        // REQ-SW-PL-092: the DSP engine — coefficients as data, decimation and
+        // rational resampling. QtCore only: no QtMultimedia, no widgets, no GPU.
+        TestDspFilters dspFilters;
+        status |= QTest::qExec(&dspFilters, argc, argv);
     }
 
     return status;
