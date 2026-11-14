@@ -564,6 +564,15 @@ target_link_libraries(demo_nodeditor_audiosink_tests PRIVATE
 
 add_test(NAME demo_nodeditor_audiosink_tests
          COMMAND demo_nodeditor_audiosink_tests)
+# Opens the real output device: `recordingWorksWithPlaybackEnabledOnADeviceLessBox`
+# feeds a block into a node with `playbackEnabled`, and AudioSinkNode::play()
+# calls AudioPlaybackEngine::start() → QAudioSink on the first block (never on
+# load(), which the same binary asserts). So it owns the same `audio` lock as
+# demo_nodeditor_audiooutput_tests and demo_nodeditor_lifecycle_tests: a sink and
+# a capture device in parallel go through the same PulseAudio/PipeWire server,
+# whose stall aborts the whole -j run.
+set_tests_properties(demo_nodeditor_audiosink_tests PROPERTIES
+    RESOURCE_LOCK audio)
 
 # ── AudioSinkWidget GUI tests (REQ-SW-PL-077, AC6) ──────────────────────────
 #
