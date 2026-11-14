@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QTimer>
 
+#include <algorithm>
 #include <cmath>
 
 using QtNodes::NodeData;
@@ -51,9 +52,21 @@ PlotResult DaqDisplayNode::computePlotResult(const std::shared_ptr<const Sampled
 
     // 1. Worker-owned ring append (REQ-SW-PL-025 §3, AC 3/AC 4). Runs on the
     //    worker thread; m_ring is never touched by the GUI thread (AC 6).
+    //    Generation-guarded: the same block appended twice is a no-op.
     appendRingBlock(m_ring, *data, ringSeconds, dataGeneration);
 
-    // 2. Per-card series + ranges from the rolling history.
+    // 2. The same (data, configuration) pair has the same answer. The 30 Hz
+    //    timer re-submits while the upstream holds one block; without this the
+    //    ring would be decoded again and again for a picture that cannot have
+    //    changed (REQ-SW-PL-086: 21–25 pp of a core).
+    const quint64 key = plotResultKey(dataGeneration, configs, ringSeconds);
+    if (key == m_ring.lastResultKey) {
+        m_ring.decodedSamples = 0; // the cache answered — nothing was decoded
+        return m_ring.lastResult;
+    }
+
+    // 3. Per-card series + ranges from the rolling history.
+    m_ring.decodedSamples = 0;
     result.series.reserve(configs.size());
     result.ranges.reserve(configs.size());
     for (const CardConfig &config : configs) {
@@ -70,6 +83,8 @@ PlotResult DaqDisplayNode::computePlotResult(const std::shared_ptr<const Sampled
         const StreamChannelDescriptor &chDesc = desc.channels.at(channel);
         const double scale = desc.amplitudeScale;
         const double offset = desc.amplitudeOffset;
+        const int byteSize = std::max(1, sampleTypeByteSize(chDesc.sampleType));
+        const int totalSamples = int(ringCh.bytes.size()) / byteSize;
 
         if (config.processingType == PlotCard::ProcessingType::FrequencySpectrum) {
             // FFT from the ring TAIL: most recent ≤4096 samples (AC 5), never
@@ -77,20 +92,52 @@ PlotResult DaqDisplayNode::computePlotResult(const std::shared_ptr<const Sampled
             const QVector<float> tail = decodeRingChannel(
                 ringCh, chDesc.sampleType, desc.endianness, config.mode,
                 scale, offset, kMaxFftSamples);
+            m_ring.decodedSamples += tail.size();
             const QVector<float> mags = FftUtil::magnitudeSpectrum(tail);
             result.series.append(buildSpectrumSeries(mags, sampleRate));
             result.ranges.append(spectrumRanges(mags, sampleRate));
         } else {
-            // Time Domain: the whole rolling window (AC 3), decimated in
-            // buildTimeSeries (≤ 2000 points/series, v1 budget).
+            // Time Domain: the whole rolling window, but ONLY the samples that
+            // become points. buildTimeSeries drew ceil(total/2000) points and
+            // threw the rest away; decoding a 10 s ring at 30 Hz meant 480 000
+            // decodes per tick for ≤2000 of them (REQ-SW-PL-086). Decoding with
+            // that same stride yields the identical points at 1/240 of the work.
+            const int stride = std::max(1, (totalSamples + kMaxSeriesPoints - 1)
+                                               / kMaxSeriesPoints);
             const QVector<float> values = decodeRingChannel(
                 ringCh, chDesc.sampleType, desc.endianness, config.mode,
-                scale, offset);
-            result.series.append(buildTimeSeries(values, sampleRate));
-            result.ranges.append(timeRanges(values.size(), sampleRate, values, config.mode));
+                scale, offset, -1, stride);
+            m_ring.decodedSamples += values.size();
+            result.series.append(buildTimeSeries(values, sampleRate, stride));
+            result.ranges.append(timeRanges(totalSamples, sampleRate, values, config.mode));
         }
     }
+
+    m_ring.lastResultKey = key;
+    m_ring.lastResult = result;
     return result;
+}
+
+quint64 DaqDisplayNode::plotResultKey(quint64 dataGeneration,
+                                      const QVector<CardConfig> &configs, double ringSeconds)
+{
+    // FNV-1a: a collision would serve a stale picture, so mix every field the
+    // pass reads rather than combining them with a cheap multiply.
+    quint64 hash = 0xcbf29ce484222325ULL;
+    const auto mix = [&hash](quint64 value) {
+        hash ^= value;
+        hash *= 0x100000001b3ULL;
+    };
+    mix(dataGeneration);
+    mix(quint64(std::llround(ringSeconds * 1000.0)));
+    mix(quint64(configs.size()));
+    for (const CardConfig &config : configs) {
+        mix(quint64(int(config.processingType)));
+        mix(quint64(std::max(0, config.channelIndex)));
+        mix(quint64(int(config.mode)));
+        mix(config.unitAxes ? 1u : 0u);
+    }
+    return hash;
 }
 
 void DaqDisplayNode::appendRingBlock(ComputeState &ring, const SampledData &data,
@@ -163,48 +210,52 @@ QVector<float> DaqDisplayNode::decodeRingChannel(const RingChannel &ring, Sample
                                                  SampleEndian endian,
                                                  PlotCard::DecodeMode mode,
                                                  double scale, double offset,
-                                                 int tailSamples)
+                                                 int tailSamples, int stride)
 {
     const int byteSize = sampleTypeByteSize(type);
     if (byteSize <= 0)
         return {};
 
-    const int totalSamples = ring.bytes.size() / byteSize;
+    const int step = std::max(1, stride);
+    const int totalSamples = int(ring.bytes.size()) / byteSize;
     const int start = tailSamples > 0 ? std::max(0, totalSamples - tailSamples) : 0;
-    const int count = totalSamples - start;
+    const int count = (totalSamples - start + step - 1) / step;
     QVector<float> out(count);
     if (count <= 0)
         return out;
 
+    // Physical: raw × amplitudeScale + amplitudeOffset, no clamp (AC 1).
+    // Normalized: v1 convention (32767 + clamp to [-1, 1]).
+    const bool physical = mode == PlotCard::DecodeMode::Physical;
+    const auto decode = [&](const char *sample) {
+        return physical
+                   ? static_cast<float>(SampledDecoder::decodeRawSample(sample, type, endian) * scale
+                                        + offset)
+                   : static_cast<float>(SampledDecoder::decodeNormalizedSample(sample, type,
+                                                                              endian));
+    };
+
     const char *ptr = ring.bytes.constData() + start * byteSize;
-    if (mode == PlotCard::DecodeMode::Physical) {
-        // Physical: raw × amplitudeScale + amplitudeOffset, no clamp (AC 1).
-        for (int i = 0; i < count; ++i) {
-            out[i] = static_cast<float>(
-                SampledDecoder::decodeRawSample(ptr, type, endian) * scale + offset);
-            ptr += byteSize;
-        }
-    } else {
-        // Normalized: v1 convention (32767 + clamp to [-1, 1]).
-        for (int i = 0; i < count; ++i) {
-            out[i] = static_cast<float>(
-                SampledDecoder::decodeNormalizedSample(ptr, type, endian));
-            ptr += byteSize;
-        }
+    const int advance = step * byteSize;
+    for (int i = 0; i < count; ++i) {
+        out[i] = decode(ptr);
+        ptr += advance;
     }
     return out;
 }
 
-QVector<QPointF> DaqDisplayNode::buildTimeSeries(const QVector<float> &values, double sampleRate)
+QVector<QPointF> DaqDisplayNode::buildTimeSeries(const QVector<float> &values, double sampleRate,
+                                                 int stride, int firstSample)
 {
-    // Time-domain decimation: stride = ceil(n/2000) → ≤ 2000 points (§5).
-    const int n = values.size();
-    const int stride = std::max(1, static_cast<int>(std::ceil(double(n) / kMaxSeriesPoints)));
+    // One point per decoded value; the x position is the sample's index in the
+    // RING, so a strided decode and a full decode draw the same curve.
+    const int step = std::max(1, stride);
 
     QVector<QPointF> points;
-    points.reserve((n + stride - 1) / stride);
-    for (int i = 0; i < n; i += stride) {
-        const double x = sampleRate > 0.0 ? double(i) / sampleRate : double(i);
+    points.reserve(values.size());
+    for (int i = 0; i < values.size(); ++i) {
+        const int index = firstSample + i * step;
+        const double x = sampleRate > 0.0 ? double(index) / sampleRate : double(index);
         points.append(QPointF(x, values.at(i)));
     }
     return points;

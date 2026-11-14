@@ -24,3 +24,20 @@ target_link_libraries(control_plane_router_tests PRIVATE
 )
 
 add_test(NAME control_plane_router_tests COMMAND $<TARGET_FILE:control_plane_router_tests>)
+
+# End-to-end over a real socket: starts `NodeRunner --headless --rest-port` and
+# drives the config/start/close sequence over HTTP. Opt-in via DAQSTER_REST_E2E=1
+# (QSKIP otherwise), so it costs the normal `ctest` run nothing.
+add_executable(control_plane_rest_e2e_tests
+    test_control_plane_rest_e2e.cpp
+)
+
+target_link_libraries(control_plane_rest_e2e_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Network
+)
+
+add_test(NAME control_plane_rest_e2e_tests COMMAND $<TARGET_FILE:control_plane_rest_e2e_tests>)
+set_tests_properties(control_plane_rest_e2e_tests PROPERTIES LABELS "e2e")
+

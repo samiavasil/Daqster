@@ -299,15 +299,36 @@ inline qreal decodeNormalizedSample(const char *samplePtr, SampleType type,
  * (44.1 kHz stereo float32 20 ms block) and a single memcpy is sub-microsecond.
  * Zero-copy is a video-specific problem (REQ-SW-PL-020); it is not carried
  * over to audio (REQ-SW-PL-022, out of scope note).
+ *
+ * **Timebase (REQ-SW-PL-092).** A block carries `N` samples and the descriptor
+ * carries the rate, so time is *derived* (`N · Ts`), never stored: a duration
+ * field would be a second opinion that can disagree with the two facts that are
+ * actually known. What the block does carry is `firstIndex` — the index of its
+ * first sample in the stream — because without it two consecutive blocks are
+ * indistinguishable from two blocks with a gap between them. Index −1 means
+ * "unknown" (every construction path that predates the field, and every source
+ * that does not count), and unknown is never reported as contiguous.
  */
 class SampledData : public QtNodes::NodeData
 {
 public:
+    /// "This block does not know where it sits in the stream."
+    static constexpr qint64 kUnknownIndex = -1;
+
     SampledData() = default;
 
-    SampledData(QByteArray buffer, SampledStreamDescriptor descriptor)
+    /**
+     * @param buffer Raw interleaved sample bytes.
+     * @param descriptor Stream layout and rate.
+     * @param firstIndex Index of the first sample in the stream, −1 = unknown.
+     *        Defaulted so every pre-existing two-argument construction keeps
+     *        compiling with exactly the old meaning.
+     */
+    SampledData(QByteArray buffer, SampledStreamDescriptor descriptor,
+                qint64 firstIndex = kUnknownIndex)
         : m_buffer(std::move(buffer))
         , m_descriptor(std::move(descriptor))
+        , m_firstIndex(firstIndex)
     {
     }
 
@@ -326,6 +347,67 @@ public:
     int channels() const { return m_descriptor.totalChannels(); }
     double sampleRate() const { return m_descriptor.sampleRate; }
     QString domain() const { return m_descriptor.domain; }
+
+    // ── Timebase (REQ-SW-PL-092) ────────────────────────────────────────────
+
+    /// Index of this block's first sample in the stream; kUnknownIndex = −1
+    /// when the producer does not count (the historical behaviour).
+    qint64 firstIndex() const { return m_firstIndex; }
+    void setFirstIndex(qint64 firstIndex) { m_firstIndex = firstIndex; }
+    bool hasKnownTimebase() const { return m_firstIndex >= 0; }
+
+    /// Index of the last sample in this block (−1 when the timebase is unknown).
+    qint64 lastIndex() const
+    {
+        if (m_firstIndex < 0)
+            return kUnknownIndex;
+        const int n = blockSamples();
+        return n > 0 ? m_firstIndex + n - 1 : m_firstIndex;
+    }
+
+    /**
+     * @brief Number of frames (sample instants) in this block.
+     *
+     * Derived from the buffer and the descriptor instead of stored: a stored
+     * copy is one more number that can disagree with the bytes it describes.
+     * 0 when the descriptor is incomplete or the buffer is empty.
+     */
+    int blockSamples() const
+    {
+        const int frameBytes = m_descriptor.bytesPerFrame();
+        if (frameBytes <= 0)
+            return 0;
+        return m_buffer.size() / frameBytes;
+    }
+
+    /// Derived duration of this block: `blockSamples() / sampleRate` seconds
+    /// (0 when the rate is unknown). Time is never carried, only computed.
+    double durationSeconds() const
+    {
+        if (m_descriptor.sampleRate <= 0.0)
+            return 0.0;
+        return double(blockSamples()) / m_descriptor.sampleRate;
+    }
+
+    /**
+     * @brief Is this block the immediate successor of `prev`?
+     *
+     * @param prev The block that (presumably) precedes this one.
+     * @param prevSamples Frame count of `prev`; a negative value means "ask
+     *        `prev.blockSamples()`". Passed explicitly by a consumer that knows
+     *        the block it received was a *suffix* (e.g. after dropped data).
+     * @return true only when both timebases are known and
+     *         `prev.firstIndex + prevSamples == this->firstIndex()`. Unknown on
+     *         either side is **not** contiguity: a gap that cannot be ruled out
+     *         is a gap as far as a time-domain filter is concerned.
+     */
+    bool isContiguousWith(const SampledData &prev, int prevSamples = -1) const
+    {
+        if (m_firstIndex < 0 || prev.m_firstIndex < 0)
+            return false;
+        const int count = prevSamples >= 0 ? prevSamples : prev.blockSamples();
+        return m_firstIndex == prev.m_firstIndex + qint64(count);
+    }
 
     /**
      * @brief Decode the raw buffer into per-channel normalized values.
@@ -442,4 +524,5 @@ public:
 private:
     QByteArray m_buffer;
     SampledStreamDescriptor m_descriptor;
+    qint64 m_firstIndex = kUnknownIndex;  ///< −1 = timebase unknown
 };

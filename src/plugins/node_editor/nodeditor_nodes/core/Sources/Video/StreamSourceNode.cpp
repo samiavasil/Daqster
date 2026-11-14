@@ -272,3 +272,26 @@ void StreamSourceNode::updateConnectButton()
 {
     Q_EMIT playingChanged(m_isPlaying);
 }
+
+QJsonObject StreamSourceNode::configSchema() const
+{
+    // Describes exactly the object save() emits (REQ-SW-PL-091).
+    // "x-restart" is the per-field answer the control plane reads
+    // when a config write lands on a running node.
+    QJsonObject properties;
+
+    // The URL is handed to the playback backend in start(); a running stream
+    // keeps reading the one it was started with.
+    properties.insert(QStringLiteral("url"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("string")},
+        {QStringLiteral("default"), QString()},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("Stream URL (rtsp/http/udp/...). Change it and restart "
+                        "the node to switch the source")}});
+
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), properties},
+        {QStringLiteral("additionalProperties"), false}};
+}

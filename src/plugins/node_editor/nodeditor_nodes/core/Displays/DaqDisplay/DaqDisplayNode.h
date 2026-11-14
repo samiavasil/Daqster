@@ -259,12 +259,29 @@ private:
         double sampleRate = 0.0;                  // descriptor signature (AC 4)
         int bytesPerFrame = 0;                    // descriptor signature (AC 4)
         quint64 lastAppendedGeneration = 0;       // identity of last appended block
+
+        // ── Same question, same answer (REQ-SW-PL-086) ─────────────────────
+        // A 30 Hz tick over an unchanged block must not decode anything: the
+        // upstream re-emits the same shared_ptr (pointer-equal data, same
+        // generation), and the ring cannot change without a new generation.
+        // `lastResultKey` is that identity — generation + ringSeconds + the
+        // per-card configuration — and `lastResult` is its answer.
+        quint64 lastResultKey = 0;
+        PlotResult lastResult;
+        /// Diagnostic: how many raw samples the LAST compute pass decoded.
+        /// 0 means the cache answered; a whole 10 s ring would be 480 000.
+        int decodedSamples = 0;
     };
 
     void clearAllCards();
     void bindCardPreprocess(PlotCard &card);
     void refresh();
     void applyAxisTitlesFor(PlotCard &card, const SampledStreamDescriptor &desc);
+
+    /// Identity of one (data, configuration) pair for the compute cache. FNV-1a
+    /// over generation, ringSeconds and every card field the pass reads.
+    static quint64 plotResultKey(quint64 dataGeneration, const QVector<CardConfig> &configs,
+                                 double ringSeconds);
 
     /// Default decode mode for a NEW card: physical unless the descriptor unit
     /// is "normalized" (REQ-SW-PL-025 §2). Restored cards keep their saved mode.
@@ -280,13 +297,19 @@ private:
     static void appendRingBlock(ComputeState &ring, const SampledData &data,
                                 double ringSeconds, quint64 dataGeneration);
     /// Decode one channel's rolling raw bytes; tailSamples > 0 → only the most
-    /// recent N samples (FFT tail, AC 5).
+    /// recent N samples (FFT tail, AC 5). `stride` samples every stride-th
+    /// sample and skips the rest, which is how the time-domain plot decodes the
+    /// ~2000 samples it can draw instead of a 480 000-sample ring
+    /// (REQ-SW-PL-086).
     static QVector<float> decodeRingChannel(const RingChannel &ring, SampleType type,
                                             SampleEndian endian,
                                             PlotCard::DecodeMode mode,
                                             double scale, double offset,
-                                            int tailSamples = -1);
-    static QVector<QPointF> buildTimeSeries(const QVector<float> &values, double sampleRate);
+                                            int tailSamples = -1, int stride = 1);
+    /// Points for a time-domain series: one point per decoded value, at
+    /// `firstSample + i·stride` (the index in the ring, not in `values`).
+    static QVector<QPointF> buildTimeSeries(const QVector<float> &values, double sampleRate,
+                                            int stride = 1, int firstSample = 0);
     static QVector<QPointF> buildSpectrumSeries(const QVector<float> &values, double sampleRate);
     static QPair<QPointF, QPointF> timeRanges(int sampleCount, double sampleRate,
                                               const QVector<float> &values,

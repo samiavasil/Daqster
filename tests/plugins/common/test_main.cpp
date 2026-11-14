@@ -1,6 +1,6 @@
 // Shared main() for daqster_common_tests.
 //
-// Three test classes, one QCoreApplication — the same shape as
+// Several test classes, one QCoreApplication — the same shape as
 // tests/plugins/nodeditor_nodes/test_lifecycle_main.cpp. QCoreApplication (not
 // QApplication): the lifetime primitives under test own no widgets, but the
 // event dispatcher is load-bearing — QThread::finished → deleteLater and
@@ -8,9 +8,13 @@
 // application object the "the worker/process deletes itself" half of the
 // contract would never be exercised.
 
+#include "test_dependency_manager.h"
+#include "test_dsp_filters.h"
 #include "test_local_server_service.h"
 #include "test_process_owner.h"
+#include "test_scene_variables.h"
 #include "test_thread_owner.h"
+#include "test_websocket_client.h"
 
 #include <QtTest>
 
@@ -34,6 +38,35 @@ int main(int argc, char *argv[])
         // process — no model, no GPU.
         TestLocalServerService localServerService;
         status |= QTest::qExec(&localServerService, argc, argv);
+    }
+
+    {
+        // REQ-SW-PL-087: the framework WebSocket client (RFC 6455 over
+        // Qt::Network), against an in-test server — no Qt WebSockets.
+        TestWebSocketClient webSocketClient;
+        status |= QTest::qExec(&webSocketClient, argc, argv);
+    }
+
+    {
+        // REQ-SW-PL-088: declarative dependency management — manifest
+        // validation, checksum verification, adopt + lockfile round-trip.
+        // No network: install() is covered through its validation half.
+        TestDependencyManager dependencyManager;
+        status |= QTest::qExec(&dependencyManager, argc, argv);
+    }
+
+    {
+        // REQ-SW-PL-091: the `${VAR}` resolver — one token table per machine,
+        // expanded by the node that consumes the path.
+        TestSceneVariables sceneVariables;
+        status |= QTest::qExec(&sceneVariables, argc, argv);
+    }
+
+    {
+        // REQ-SW-PL-092: the DSP engine — coefficients as data, decimation and
+        // rational resampling. QtCore only: no QtMultimedia, no widgets, no GPU.
+        TestDspFilters dspFilters;
+        status |= QTest::qExec(&dspFilters, argc, argv);
     }
 
     return status;

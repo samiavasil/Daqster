@@ -10,6 +10,7 @@
 #include "test_video_perf_badge.h"
 #include "test_frame_window_node.h"
 #include "test_image_data.h"
+#include "test_display_nodes.h"
 
 // Shared main for the nodeditor_nodes video test classes. Each class is
 // declared in its own header so a single binary can run all of them through
@@ -57,6 +58,11 @@ int main(int argc, char *argv[])
     {
         TestFrameWindowNode frameWindow;
         status |= QTest::qExec(&frameWindow, argc, argv);
+    }
+    {
+        // REQ-SW-PL-090: the debug display models + the Embedding extension.
+        TestDisplayNodes displayNodes;
+        status |= QTest::qExec(&displayNodes, argc, argv);
     }
     return status;
 }

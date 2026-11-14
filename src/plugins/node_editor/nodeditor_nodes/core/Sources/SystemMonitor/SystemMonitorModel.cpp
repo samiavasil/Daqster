@@ -196,3 +196,29 @@ void SystemMonitorModel::setPollingEnabled(bool enabled)
     else
         m_engine->stop();
 }
+
+QJsonObject SystemMonitorModel::configSchema() const
+{
+    // Describes exactly the object save() emits (REQ-SW-PL-091).
+    // "x-restart" is the per-field answer the control plane reads
+    // when a config write lands on a running node.
+    QJsonObject properties;
+
+    // The interval goes straight into the poll timer, so a running monitor
+    // picks it up. The other switches (cpu/ram/temp/network) are applied by the
+    // GUI widget and are not part of this object.
+    properties.insert(QStringLiteral("pollIntervalSec"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("number")},
+        {QStringLiteral("minimum"), 0.1},
+        {QStringLiteral("maximum"), 5.0},
+        {QStringLiteral("default"), 1.0},
+        {QStringLiteral("x-restart"), false},
+        {QStringLiteral("description"),
+         QStringLiteral("Sampling interval in seconds (clamped to 0.1-5.0) — "
+                        "applied to a running node")}});
+
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), properties},
+        {QStringLiteral("additionalProperties"), false}};
+}

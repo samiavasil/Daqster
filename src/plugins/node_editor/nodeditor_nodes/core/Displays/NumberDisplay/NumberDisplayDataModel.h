@@ -9,6 +9,8 @@
 
 #include <iostream>
 #include <memory>
+#include <vector>
+#include "NodeDataTypes/EmbeddingData.h"
 #include "NodeDataTypes/NumericType.h"
 
 class NODEDITOR_NODES_CORE_EXPORT NumberDisplayDataModel : public QtNodes::NodeDelegateModel
@@ -16,7 +18,8 @@ class NODEDITOR_NODES_CORE_EXPORT NumberDisplayDataModel : public QtNodes::NodeD
     Q_OBJECT
 
 public:
-    enum class DataType { Int, Double };
+    /// What the single input port accepts (REQ-SW-PL-090 added Embedding).
+    enum class DataType { Int, Double, Embedding };
 
     NumberDisplayDataModel();
 
@@ -80,6 +83,12 @@ public:
 public slots:
     /// Type selector of the GUI widget (called by NodeWidgetFactory).
     void onTypeChanged(int index);
+
+public:
+    /// Human-readable embedding summary: dimension, min/max/mean and the first
+    /// `maxValues` components. Pure and side-effect free, so the rule is
+    /// testable without a widget (REQ-SW-PL-090).
+    static QString embeddingSummary(std::vector<float> const &values, int maxValues = 8);
 
 signals:
     /// The number to display. The core model owns the data; the GUI widget owns

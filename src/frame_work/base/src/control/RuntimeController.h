@@ -68,7 +68,9 @@ public:
     virtual bool setNodeConfig(quint64 nodeId, const QJsonObject& config) = 0;
 
     /// Combined view for `GET /api/nodes/{id}`: config + schema + position +
-    /// label + ports + state. Empty object when the node does not exist.
+    /// label + ports + state + `startable` (does the node implement
+    /// IStartable — read by the router when a changed config key carries no
+    /// `x-restart` marker). Empty object when the node does not exist.
     virtual QJsonObject nodeDetail(quint64 nodeId) const = 0;
 
     /// Start / stop a single node through IStartable / IStoppable.

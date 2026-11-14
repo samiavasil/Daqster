@@ -4,6 +4,7 @@
 
 #include <QByteArray>
 #include <QJsonObject>
+#include <QSet>
 #include <QString>
 
 namespace Daqster {
@@ -44,6 +45,45 @@ public:
                  const QJsonObject& body, bool bodyValid = true);
 
 private:
+    /// Whether the node currently reports `state == "running"` — the same field
+    /// `GET /api/nodes` exposes, so both hosts answer from one place.
+    bool isNodeRunning(quint64 nodeId) const;
+
+    /// Whether the node accepts `start()` — the `startable` field of
+    /// `nodeDetail()`, filled from the same `dynamic_cast<Daqster::IStartable*>`
+    /// the hosts use in `startNode()`. Read only as the fallback for a changed
+    /// key whose schema carries no `x-restart` marker.
+    bool isNodeStartable(quint64 nodeId) const;
+
+    /// Reply body for a configuration mutation: `applied` plus `started` and
+    /// `restartRequired`.
+    ///
+    /// A started node keeps the configuration it was started with: the reply
+    /// says so instead of stopping/starting it behind the caller's back.
+    ///
+    /// `restartRequired` is exact (REQ-SW-PL-091): the node must be running AND
+    /// at least one key that actually changed between @p before (the snapshot
+    /// taken **before** the write, read back here afterwards) and the current
+    /// config must need a restart — `"x-restart": true` in the node's schema,
+    /// or, when the schema carries no marker (derived from `save()`), the node
+    /// implements IStartable. @p beforeKnown is false when the host could not
+    /// read the config first; the diff is then unknown and the answer falls
+    /// back to the node's startability.
+    QJsonObject configMutationResult(quint64 nodeId, const QJsonObject& before,
+                                     bool beforeKnown, bool applied) const;
+
+    /// Keys whose value differs between @p before and @p after, in both
+    /// directions (removed keys included).
+    static QSet<QString> changedConfigKeys(const QJsonObject& before,
+                                          const QJsonObject& after);
+
+    /// Whether at least one key in `changedConfigKeys()` needs a restart:
+    /// `"x-restart": true` in the node's schema, or — when the schema has no
+    /// marker for that key (derived from `save()`) — the node implements
+    /// IStartable. `"x-restart": false` never needs one.
+    bool configChangeNeedsRestart(quint64 nodeId, const QJsonObject& before,
+                                  const QJsonObject& after) const;
+
     RuntimeController* m_controller = nullptr;
 };
 

@@ -4,6 +4,7 @@
 #include "nodeditor_nodes_core_export.h"
 
 #include "NodeDataTypes/SampledData.h"
+#include "capabilities/INodeConfigSchema.h"
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
 
@@ -34,7 +35,10 @@
  * The GUI widget is provided by the GUI plugin via NodeWidgetFactory.
  * Core model has no QtWidgets dependency — returns nullptr from embeddedWidget().
  */
-class NODEDITOR_NODES_CORE_EXPORT FilePlaybackModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
+class NODEDITOR_NODES_CORE_EXPORT FilePlaybackModel : public QtNodes::NodeDelegateModel,
+                                                      public Daqster::IStoppable,
+                                                      public Daqster::IStartable,
+                                                      public Daqster::INodeConfigSchema
 {
     Q_OBJECT
 
@@ -53,6 +57,13 @@ public:
 
     QJsonObject save() const override;
     void load(QJsonObject const &p) override;
+
+    /// Draft-7 fragment describing exactly the object `save()` emits
+    /// (REQ-SW-PL-091). Each property carries `x-restart`: `true` when a running
+    /// node cannot pick the new value up and needs stop() + start(), `false`
+    /// when the value takes effect live. The control plane diffs the config
+    /// before/after a write and answers `restartRequired` from this marker.
+    QJsonObject configSchema() const override;
 
     unsigned int nPorts(QtNodes::PortType portType) const override;
 

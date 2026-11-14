@@ -6,6 +6,7 @@
 #include <QVector>
 
 #include "AudioBufferToSampled.h"
+#include "Diagnostics/TransportStats.h"
 #include "NodeDataTypes/SampledData.h"
 #include "test_audio_buffer_to_sampled.h"
 
@@ -126,6 +127,42 @@ void AudioBufferToSampledTest::wrapBuffer_decodeMatchesInput()
         QVERIFY(qAbs(channels.at(0).at(i) - expectedCh0) < 1e-4);
         QVERIFY(qAbs(channels.at(1).at(i) - expectedCh1) < 1e-4);
     }
+}
+
+// REQ-SW-PL-090: the source boundary copy is not just inline code any more —
+// it is counted. Two wrapBuffer() calls must add exactly two allocations and
+// exactly the payload size, and reset() must zero the snapshot.
+void AudioBufferToSampledTest::wrapBuffer_countsTransportCopies()
+{
+    Daqster::TransportStats &stats = Daqster::TransportStats::instance();
+    stats.reset();
+
+    constexpr int kFrameCount = 100;
+    // 100 frames x 2 channels x 2 bytes (int16) = 400 bytes.
+    constexpr int kPayloadBytes = kFrameCount * 2 * 2;
+    QByteArray raw;
+    raw.fill(0, kPayloadBytes);
+
+    const QAudioBuffer buffer(raw, makeInt16StereoFormat());
+    QVERIFY(buffer.isValid());
+    QCOMPARE(buffer.byteCount(), kPayloadBytes);
+
+    for (int i = 0; i < 2; ++i) {
+        const auto data = AudioBufferToSampled::wrapBuffer(buffer);
+        QVERIFY(data != nullptr);
+    }
+
+    const Daqster::TransportSnapshot after = stats.snapshot();
+    QCOMPARE(after.audioAllocs, quint64(2));
+    QCOMPARE(after.audioBytes, quint64(2 * kPayloadBytes));
+
+    stats.reset();
+    const Daqster::TransportSnapshot zero = stats.snapshot();
+    QCOMPARE(zero.audioAllocs, quint64(0));
+    QCOMPARE(zero.audioBytes, quint64(0));
+    QCOMPARE(zero.videoAllocs, quint64(0));
+    QCOMPARE(zero.vadConcatAllocs, quint64(0));
+    QCOMPARE(zero.carryCopies, quint64(0));
 }
 
 // No QTEST_GUILESS_MAIN here: the audio-buffer test class shares the

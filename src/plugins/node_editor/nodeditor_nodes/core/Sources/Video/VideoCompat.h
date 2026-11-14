@@ -26,6 +26,10 @@
 
 #include <QByteArray>
 #include <QList>
+
+// REQ-SW-PL-090: the owned-copy counter below. Included only on the Qt5 path —
+// the Qt6 path has no copy to count.
+#include "Diagnostics/TransportStats.h"
 #endif
 
 /**
@@ -309,14 +313,20 @@ inline QVideoFrame frameToOwnedFrame(const QVideoFrame &frame)
 
     QList<QByteArray> planes;
     QList<int> strides;
+    quint64 copiedBytes = 0;
     for (int i = 0; i < planeCount; ++i) {
         const int stride = mappable.bytesPerLine(i);
         const int planeHeight = (i == 0) ? height : chromaH;
         planes.append(QByteArray(
             reinterpret_cast<const char *>(mappable.bits(i)), stride * planeHeight));
         strides.append(stride);
+        copiedBytes += static_cast<quint64>(stride) * static_cast<quint64>(planeHeight);
     }
     mappable.unmap();
+
+    // REQ-SW-PL-090: the bytes above ARE the per-frame transport copy (the
+    // backend recycles the probe buffer, so this copy is unavoidable today).
+    Daqster::TransportStats::instance().addVideoAlloc(copiedBytes);
 
     return QVideoFrame(new OwnedPlanarVideoBuffer(planes, strides),
                        QSize(width, height), pf);

@@ -109,18 +109,52 @@ vX.Y.Z tag → hotfix/X.Y.(Z+1) → fix → merge master + tag vX.Y.(Z+1) → me
 - **Няма отделна release документация** (Option A) — документацията на `master`
   винаги отговаря на последния release.
 
-## 6. CI роли
+## 6. Какво пази master
+
+`master` е FROZEN и приема **само** `develop` (release promotion) или `release/*`.
+Три слоя, в този ред на сила:
+
+| # | Слой | Къде | Какво прави |
+|---|------|------|--------------|
+| 1 | **Branch protection / ruleset** | GitHub → Settings → Rules → Rulesets (или Branches) | Забранява force-push/изтриване и изисква PR; това е единственият слой, който сървърът наистина налага |
+| 2 | **Required check** `guard-master-source.yml` | `.github/workflows/guard-master-source.yml` | PR към `master` минава само ако `github.head_ref` е `develop` или `release/*`; блокира merge, **само когато е маркиран като required** |
+| 3 | **Локален pre-push hook** | `scripts/hooks/pre-push` (`./scripts/install-hooks.sh`) | Отказва `push` към `refs/heads/master` от всеки друг локален клон и изтриване на `master`; прескача се с `--no-verify`, затова не е гаранция |
+
+Точни настройки за включване (име → стойност):
+
+- **Ruleset** за `master`: *Require a pull request before merging* (0 approvals е
+  достатъчно за solo repo) + *Require status checks to pass* → добави check
+  **`guard`** (пълното име `master приема само от develop или release/*` от job-а
+  `guard`; показва се в списъка след първия PR към `master`) +
+  *Block force pushes* + *Restrict deletions*.
+- Ако се ползва старият UI: Settings → Branches → Branch protection rule за
+  `master` → същите чекбоксове, `Require status checks to pass` → `guard`.
+- Локално: `./scripts/install-hooks.sh` (задава `core.hooksPath=scripts/hooks`).
+
+Проверка на hook-а без push:
+
+```bash
+echo "refs/heads/feat/x abc refs/heads/master def" | ./scripts/hooks/pre-push  # exit 1
+git checkout develop
+echo "refs/heads/master abc refs/heads/master def" | ./scripts/hooks/pre-push  # exit 0
+```
+
+`pull_request_target` съзнателно **не** се ползва в guard workflow-а — той дава
+write токен и secrets на код от fork-ове, а проверката е само на ref имена.
+
+## 7. CI роли
 
 | Workflow | Роля |
 |----------|------|
 | `ci.yml` | PR/push проверки — Qt6 primary (Linux + Windows), Qt5 compat (Linux), тестове, smoke |
 | `release.yml` | Tag-triggered release pipeline (`v*.*.*`) — build, тестове, smoke, пакетиране, checksums, GitHub Release |
 | `version-sync.yml` | Drift check — версията съвпада навсякъде |
+| `guard-master-source.yml` | PR към `master` само от `develop`/`release/*` — **required check** (виж §6) |
 | `pages.yml` | **Изключен** (`pages.yml.disabled`) — сайтът ползва UI-based deployment (Settings → Pages → Deploy from a branch: `master/docs`), workflow не е нужен; опционален, re-enableable |
 | `render-plantuml.yml` | Рендерира PlantUML диаграмите (`docs/diagrams/*.puml` → SVG) |
 | DeepSource | **Изключен** (`deepsource.yml.disabled`) — опционален, re-enableable |
 
-## 7. Кой прави какво
+## 8. Кой прави какво
 
 | Дейност | Кой |
 |---------|-----|

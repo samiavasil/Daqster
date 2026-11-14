@@ -1,6 +1,7 @@
 #include "MicCaptureWorker.h"
 
 #include "AudioCaptureBuffer.h"
+#include "Diagnostics/TransportStats.h"
 #include "LogCategories.h"
 
 #include <QMutex>
@@ -163,6 +164,12 @@ void MicCaptureWorker::onReadyRead()
     // Drain unconditionally (the audio thread keeps writing); wrap + emit only
     // while a downstream consumer is connected (REQ-SW-PL-024 §3).
     const QByteArray raw = m_captureDevice->readAll();
+    // REQ-SW-PL-090: this QByteArray IS the mic-side per-block transport copy —
+    // PCM copied out of the device buffer, the same class of copy as the
+    // file-audio path in AudioBufferToSampled::wrapBuffer(). Count it here.
+    if (!raw.isEmpty())
+        Daqster::TransportStats::instance().addAudioAlloc(
+            static_cast<quint64>(raw.size()));
     if (raw.isEmpty() || !m_connected.load())
         return;
 

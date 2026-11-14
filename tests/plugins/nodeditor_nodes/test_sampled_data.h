@@ -18,4 +18,8 @@ private slots:
     void decodePhysical_uint16_noClamp();
     void decodePhysical_float32_passthrough();
     void decodePhysical_emptyBuffer();
+
+    /// REQ-SW-PL-092: the block knows its own frame count and, when told, where
+    /// it sits in the stream — so a gap is detectable instead of assumed away.
+    void timebaseIsDerivedAndGapsAreDetected();
 };

@@ -15,4 +15,6 @@ private slots:
     void descriptorFromFormat_int16Stereo();
     void wrapBuffer_producesExpectedFrames();
     void wrapBuffer_decodeMatchesInput();
+    // REQ-SW-PL-090: the per-block copy is counted, and reset() zeroes it.
+    void wrapBuffer_countsTransportCopies();
 };

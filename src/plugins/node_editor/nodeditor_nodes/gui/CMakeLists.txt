@@ -84,6 +84,15 @@ set(GUI_WIDGETS
     Operators/ArithmeticLogicWidget.cpp
     Displays/DaqDisplay/DaqDisplayWidget.h
     Displays/DaqDisplay/DaqDisplayWidget.cpp
+    # REQ-SW-PL-090: bodies of the text / image / frame-window displays. The
+    # models stay in nodeditor_nodes/core (widget-free); these only render the
+    # snapshot each model computed on the shared ComputePool.
+    Displays/TextDisplay/TextDisplayWidget.h
+    Displays/TextDisplay/TextDisplayWidget.cpp
+    Displays/ImageDisplay/ImageDisplayWidget.h
+    Displays/ImageDisplay/ImageDisplayWidget.cpp
+    Displays/FrameWindowDisplay/FrameWindowDisplayWidget.h
+    Displays/FrameWindowDisplay/FrameWindowDisplayWidget.cpp
     # REQ-SW-PL-056: the obsolete QDevIO display VIEW moved here from
     # node_editor_ide/NodeSupport/display — NodeWidgetFactory's
     # "AudioDisplayObsolete" creator builds it and connects the model's device

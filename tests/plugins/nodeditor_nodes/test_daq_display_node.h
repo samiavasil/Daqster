@@ -22,6 +22,14 @@ private slots:
     void ringBuffer_rollingWindowDropsOldest();
     void ringBuffer_descriptorChangeReset();
 
+    // The 30 Hz compute pass decoded the WHOLE ring per tick (a 10 s window at
+    // 48 kHz = 480 000 samples) and then drew ≤2000 points from it: 21–25 pp of
+    // a core, 26 % total on the user's scene (REQ-SW-PL-086). Now it decodes one
+    // sample per drawn column and answers from a cache when neither the data
+    // nor the configuration changed.
+    void computePassDecodesOnlyWhatThePlotShows();
+    void computePassCachesAnUnchangedBlock();
+
     // Display-world consolidation: GenericDisplayNode is a thin DaqDisplayNode
     // subclass (name/caption only) with behavioral parity (save/restore), and
     // the "AudioDisplay" registry key resolves to a DaqDisplayNode-derived

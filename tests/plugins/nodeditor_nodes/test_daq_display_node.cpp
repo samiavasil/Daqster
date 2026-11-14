@@ -301,8 +301,108 @@ void DaqDisplayNodeTest::ringBuffer_descriptorChangeReset()
     QCOMPARE(readInt16LE(ring.channels.at(0).bytes, 1), qint16(701));
 }
 
-// ── GenericDisplayNode: thin DaqDisplayNode alias (behavioral parity) ───────
+// ── The compute pass decodes only what the plot shows (REQ-SW-PL-086) ──────
 //
+// One tick used to decode the whole rolling ring: for the user's 5 s scene at
+// 48 kHz that is 240 000 samples, and VadNode hands the display whole 8–11 s
+// segments (~1 MB), so a single tick decoded ~1 MB for a plot that can draw
+// 2000 points. 21–25 pp of one core, 26 % of the process.
+void DaqDisplayNodeTest::computePassDecodesOnlyWhatThePlotShows()
+{
+    DaqDisplayNode node;
+    node.addPlotCard(QStringLiteral("Plot"), PT::TimeDomain, 0, DM::Normalized, true);
+
+    // 1 s of 440 Hz at 48 kHz = 48 000 samples; the plot can draw 2000 points,
+    // so the stride is 24 and exactly 2000 samples may be decoded.
+    constexpr int kSamples = 48000;
+    constexpr int kStride = kSamples / 2000;
+    QVector<qint16> samples(kSamples);
+    for (int i = 0; i < kSamples; ++i)
+        samples[i] = qint16(std::lround(16000.0 * std::sin(2.0 * 3.14159265358979323846
+                                                            * 440.0 * double(i) / 48000.0)));
+
+    SampledData block(makeInterleavedInt16({samples}), makeInt16Descriptor(1, 48000.0));
+    node.setInData(std::make_shared<SampledData>(block), 0);
+
+    const QVector<DaqDisplayNode::CardConfig> configs{
+        { PT::TimeDomain, 0, DM::Normalized, true } };
+    const PlotResult result = node.computePlotResult(node.m_lastData, configs,
+                                                     node.m_ringSeconds, node.m_dataGeneration);
+
+    QCOMPARE(node.m_ring.decodedSamples, 2000);
+    QCOMPARE(result.series.size(), 1);
+    QCOMPARE(result.series.at(0).size(), 2000);
+    // The last point is the 1999th drawn column, i.e. sample 1999·24.
+    QVERIFY2(std::abs(result.series.at(0).last().x() - double(1999 * kStride) / 48000.0) < 1e-9,
+             "the time axis no longer matches the sample index");
+
+    // Same picture, not a different one: a strided decode must equal the full
+    // decode sampled at the same indices, bit for bit.
+    const DaqDisplayNode::RingChannel &ring = node.m_ring.channels.at(0);
+    const QVector<float> full = DaqDisplayNode::decodeRingChannel(
+        ring, SampleType::INT16, SampleEndian::LittleEndian, DM::Normalized, 1.0, 0.0);
+    const QVector<float> strided = DaqDisplayNode::decodeRingChannel(
+        ring, SampleType::INT16, SampleEndian::LittleEndian, DM::Normalized, 1.0, 0.0, -1, kStride);
+    QCOMPARE(full.size(), kSamples);
+    QCOMPARE(strided.size(), 2000);
+    for (int i = 0; i < strided.size(); ++i)
+        QCOMPARE(strided.at(i), full.at(i * kStride));
+
+    // And a whole 10 s ring (the default) is not decoded in full either.
+    const QVector<float> tenSeconds = DaqDisplayNode::decodeRingChannel(
+        ring, SampleType::INT16, SampleEndian::LittleEndian, DM::Normalized, 1.0, 0.0, -1, 240);
+    QCOMPARE(tenSeconds.size(), (kSamples + 239) / 240);
+}
+
+// ── An unchanged block costs nothing (REQ-SW-PL-086) ───────────────────────
+//
+// The 30 Hz timer re-submits while m_lastData holds one block; before the cache
+// each of those ticks decoded the ring again. "Nothing changed" must mean
+// nothing decoded — invalidated by new data OR by a configuration change.
+void DaqDisplayNodeTest::computePassCachesAnUnchangedBlock()
+{
+    DaqDisplayNode node;
+    node.addPlotCard(QStringLiteral("Plot"), PT::TimeDomain, 0, DM::Normalized, true);
+
+    QVector<qint16> samples(48000);
+    for (int i = 0; i < samples.size(); ++i)
+        samples[i] = qint16(i % 1000);
+    SampledData block(makeInterleavedInt16({samples}), makeInt16Descriptor(1, 48000.0));
+    node.setInData(std::make_shared<SampledData>(block), 0);
+
+    const QVector<DaqDisplayNode::CardConfig> configs{
+        { PT::TimeDomain, 0, DM::Normalized, true } };
+    const PlotResult first = node.computePlotResult(node.m_lastData, configs,
+                                                    node.m_ringSeconds, node.m_dataGeneration);
+    QCOMPARE(node.m_ring.decodedSamples, 2000);
+
+    const PlotResult second = node.computePlotResult(node.m_lastData, configs,
+                                                     node.m_ringSeconds, node.m_dataGeneration);
+    QCOMPARE(node.m_ring.decodedSamples, 0);
+    QCOMPARE(second.series.size(), first.series.size());
+    QCOMPARE(second.series.at(0).size(), first.series.at(0).size());
+    for (int i = 0; i < first.series.at(0).size(); ++i) {
+        QCOMPARE(second.series.at(0).at(i).x(), first.series.at(0).at(i).x());
+        QCOMPARE(second.series.at(0).at(i).y(), first.series.at(0).at(i).y());
+    }
+
+    // A configuration change invalidates: the pass runs again.
+    const QVector<DaqDisplayNode::CardConfig> physical{
+        { PT::TimeDomain, 0, DM::Physical, true } };
+    node.computePlotResult(node.m_lastData, physical, node.m_ringSeconds, node.m_dataGeneration);
+    QVERIFY2(node.m_ring.decodedSamples > 0, "a config change was served from the cache");
+
+    // New data invalidates too (a fresh generation).
+    QVector<qint16> more(4800);
+    for (int i = 0; i < more.size(); ++i)
+        more[i] = qint16(-i);
+    SampledData next(makeInterleavedInt16({more}), makeInt16Descriptor(1, 48000.0));
+    node.setInData(std::make_shared<SampledData>(next), 0);
+    node.computePlotResult(node.m_lastData, physical, node.m_ringSeconds, node.m_dataGeneration);
+    QVERIFY2(node.m_ring.decodedSamples > 0, "new data was served from the cache");
+}
+
+// ── GenericDisplayNode: thin DaqDisplayNode alias (behavioral parity) ───────
 // GenericDisplayNode overrides only name()/caption() — everything else
 // (SampledData input, plot cards, save/restore) is inherited. save() must
 // carry the "GenericDisplay" model-name and restore() must round-trip a

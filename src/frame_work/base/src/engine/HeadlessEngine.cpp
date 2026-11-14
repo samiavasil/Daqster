@@ -25,6 +25,7 @@
 #include <capabilities/IStoppable.h>
 #include <capabilities/IStartable.h>
 #include <logging/LogCategories.h>
+#include <Scene/SceneVariables.h>
 
 #include <algorithm>
 
@@ -429,6 +430,12 @@ bool HeadlessEngine::applySceneJson(QJsonObject sceneJson, const QString& sceneP
     m_uiSection = UiSection{};
     m_runningNodes.clear();
     m_autoStartNodes.clear();
+
+    // REQ-SW-PL-091: a relative `filePath` in the scene means "next to the scene
+    // file", so the directory is recorded before any node's load() resolves a
+    // path. An in-memory scene (`reloadFlow(QJsonObject)`, `POST /api/flow`)
+    // passes no path and keeps the directory of the scene it replaces.
+    Daqster::SceneVariables::instance().adoptSceneFile(scenePath);
 
     // Extract the "ui" section BEFORE the node-cleaning loop
     if (!parseUiSection(sceneJson)) {
@@ -987,6 +994,11 @@ QJsonObject HeadlessEngine::nodeDetail(quint64 nodeId) const
     out.insert(QStringLiteral("state"),
                m_runningNodes.value(id, false) ? QStringLiteral("running")
                                                : QStringLiteral("stopped"));
+    // Does the node accept start()/stop() — the same cast startNode() makes.
+    // The control plane needs it to answer restartRequired for a config field
+    // the schema does not mark (REQ-SW-PL-091).
+    out.insert(QStringLiteral("startable"),
+               dynamic_cast<Daqster::IStartable*>(model) != nullptr);
     out.insert(QStringLiteral("position"), position);
     out.insert(QStringLiteral("ports"), ports);
     out.insert(QStringLiteral("config"), model->save());

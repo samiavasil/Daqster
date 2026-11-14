@@ -2,6 +2,7 @@
 
 #include "LogCategories.h"
 
+#include <QJsonArray>
 #include <QJsonObject>
 
 using QtNodes::NodeDataType;
@@ -193,4 +194,66 @@ void PlutoSdrModel::setStreamingEnabled(bool enabled)
     else
         m_engine->stop();
     // GUI widget (if present) will update its own running state
+}
+
+QJsonObject PlutoSdrModel::configSchema() const
+{
+    // Describes exactly the object save() emits (REQ-SW-PL-091).
+    // "x-restart" is the per-field answer the control plane reads
+    // when a config write lands on a running node.
+    QJsonObject properties;
+
+    // Every field here is an argument of the libiio context/stream setup, which
+    // happens once in start(): the running capture never re-reads them.
+    //
+    // Config values are saved by the GUI widget; the core model stores them on
+    // its engine, so this schema is the contract the control plane diffs.
+    properties.insert(QStringLiteral("uri"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("string")},
+        {QStringLiteral("default"), QStringLiteral("ip:192.168.2.1")},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("libiio context URI of the PlutoSDR")}});
+
+    properties.insert(QStringLiteral("frequencyMhz"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("number")},
+        {QStringLiteral("minimum"), 70.0},
+        {QStringLiteral("maximum"), 6000.0},
+        {QStringLiteral("default"), 98.5},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("RX centre frequency in MHz (the widget offers 70-6000)")}});
+
+    properties.insert(QStringLiteral("sampleRateMsps"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("number")},
+        {QStringLiteral("minimum"), 0.2},
+        {QStringLiteral("maximum"), 7.5},
+        {QStringLiteral("default"), 2.4},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("RX sample rate in MSPS (the widget offers 0.2-7.5)")}});
+
+    properties.insert(QStringLiteral("gainMode"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("string")},
+        {QStringLiteral("enum"), QJsonArray{QStringLiteral("manual"),
+                                            QStringLiteral("fast_attack"),
+                                            QStringLiteral("slow_attack")}},
+        {QStringLiteral("default"), QStringLiteral("manual")},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"), QStringLiteral("RX gain control mode")}});
+
+    properties.insert(QStringLiteral("gainDb"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("number")},
+        {QStringLiteral("minimum"), -10.0},
+        {QStringLiteral("maximum"), 70.0},
+        {QStringLiteral("default"), 30.0},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("Manual RX gain in dB — only meaningful for "
+                        "gainMode: \"manual\"")}});
+
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), properties},
+        {QStringLiteral("additionalProperties"), false}};
 }

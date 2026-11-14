@@ -3,6 +3,7 @@
 #include "shared/NetworkFrame.h"
 
 #include <QHostAddress>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QNetworkDatagram>
 #include <QTcpServer>
@@ -324,4 +325,65 @@ void NetworkSourceModel::handleFrame(const QByteArray &payload)
 void NetworkSourceModel::updateStatus(const QString &status)
 {
     emit statusChanged(status);
+}
+
+QJsonObject NetworkSourceModel::configSchema() const
+{
+    // Describes exactly the object save() emits (REQ-SW-PL-091).
+    // "x-restart" is the per-field answer the control plane reads
+    // when a config write lands on a running node.
+    QJsonObject properties;
+
+    // protocol/port are bound in start(); the stream format is read per block,
+    // so sampleRate/channelCount/channelType change a running capture's output.
+    properties.insert(QStringLiteral("protocol"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("string")},
+        {QStringLiteral("enum"), QJsonArray{QStringLiteral("UDP"),
+                                            QStringLiteral("TCP")}},
+        {QStringLiteral("default"), QStringLiteral("UDP")},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("Transport — the socket is opened in start()")}});
+
+    properties.insert(QStringLiteral("port"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("integer")},
+        {QStringLiteral("minimum"), 1},
+        {QStringLiteral("maximum"), 65535},
+        {QStringLiteral("default"), 5000},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("Listening port — bound in start()")}});
+
+    properties.insert(QStringLiteral("sampleRate"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("number")},
+        {QStringLiteral("minimum"), 1.0},
+        {QStringLiteral("maximum"), 10000000.0},
+        {QStringLiteral("default"), 1000.0},
+        {QStringLiteral("x-restart"), false},
+        {QStringLiteral("description"),
+         QStringLiteral("Stream sample rate in Hz — part of the published "
+                        "descriptor, not of the socket setup")}});
+
+    properties.insert(QStringLiteral("channelCount"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("integer")},
+        {QStringLiteral("minimum"), 1},
+        {QStringLiteral("maximum"), 16},
+        {QStringLiteral("default"), 2},
+        {QStringLiteral("x-restart"), false},
+        {QStringLiteral("description"),
+         QStringLiteral("Channel count of the published stream")}});
+
+    properties.insert(QStringLiteral("channelType"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("string")},
+        {QStringLiteral("enum"), QJsonArray{QStringLiteral("INT16"),
+                                            QStringLiteral("FLOAT32")}},
+        {QStringLiteral("default"), QStringLiteral("INT16")},
+        {QStringLiteral("x-restart"), false},
+        {QStringLiteral("description"),
+         QStringLiteral("Sample type of the published stream")}});
+
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), properties},
+        {QStringLiteral("additionalProperties"), false}};
 }

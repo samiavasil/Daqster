@@ -168,7 +168,7 @@ IDE-то (`NodeEditorIdeObject::adoptProblemFixers()`) подава на
 Опционално самоописание на конфигурацията на нод (REQ-SW-PL-063 AC10). `save()`
 дава *формата* (имена на полета + JSON типове), но не и машинно четимата мета
 информация, нужна на отдалечен UI — `enum`, `minimum`/`maximum`, defaults,
-`visibleWhen`:
+`visibleWhen`, `"x-restart"`:
 
 ```cpp
 virtual QJsonObject configSchema() const = 0;   // Draft-7 фрагмент
@@ -177,7 +177,10 @@ virtual QJsonObject configSchema() const = 0;   // Draft-7 фрагмент
 Когато моделът не го имплементира, контролната плоскост пада към best-effort схема,
 изведена от `save()` — имплементацията е инкрементална и опционална. Интерфейсът е
 widget-free и живее в core-а, затова работи и headless. Пилотен нод:
-`VideoEffectNode`.
+`VideoEffectNode`; всички публични `IStartable` нодове го имплементират от
+REQ-SW-PL-091, защото `"x-restart"` е точният отговор на `restartRequired` при
+запис на конфигурация (виж
+[rest-api-remote-control.md](rest-api-remote-control.md) § `POST /api/nodes/{id}/config`).
 
 ## IRuntimeHost
 
