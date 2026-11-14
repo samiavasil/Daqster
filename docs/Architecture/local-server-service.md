@@ -56,7 +56,7 @@
 | Флаг | `isOwned() == true` (`isReused() == false`) | `isReused() == true` (`isOwned() == false`) |
 | Как се стига | никой не отговаря на well-known порта → `launch()` | `GET /health` върна `200`/`503` → `adoptExistingServer()` |
 | Процес | `m_procOwner` (`Daqster::ProcessOwner`) | няма наш процес; знаем само порта |
-| `stop()` | `ProcessOwner::stop(grace,kill)` — `terminate → grace → kill → killWait`, после `forgetServer()` | затваря връзките и **не пипа** чуждия процес; логва „the server on … is not ours — leaving it running" |
+| `stop()` | `ProcessOwner::stop(grace,kill)` — `terminate → grace → kill → killWait`, после `forgetServer()` | затваря връзките и **не пипа** чуждия процес; логва „the server on … is not ours — leaving it running"; записът му остава само докато процесът е жив — мъртъв PID е боклук и се трие |
 | Деструктор | спира своя процес с къси срокове | нищо |
 
 Двете никога не са едновременно истина: `launch()` слага `m_owned = true`,
@@ -137,6 +137,15 @@ REQ-SW-PL-050; тест `TestLocalServerService::stopBeforeStartedIsNoOp`).
 Записът се прави на `QProcess::started` — щом ОС даде номер, и се трие **само
 за нашия PID** (`forgetServer()`; викове от `stop()`, `onProcessFinished()`,
 `fail()`, деструктора). Файлът се чисти, когато остане празен.
+
+**Един процес — един запис.** `rememberServer()` **замества** записа за същия
+`pid`, вместо да го добавя (повторен опит не бива да оставя две копия), и по
+пътя изхвърля всеки запис, чийто процес вече го няма (`kill(pid, 0)`); същото
+изчистване на мъртви записи се прави и при `start()` под ключалката. Записът на
+**преизползван** (чужд) сървър се пази само докато процесът му е жив: `stop()` го
+трие, ако PID-ът е мъртъв, защото описва процес, който никой не пуска. Форматът
+на файла не се променя. Без `/proc` (Windows) „жив ли е" е неизвестно и записът
+се пази, вместо да се гадае.
 
 ## Два процеса, една услуга
 

@@ -83,6 +83,16 @@ nodeditor_nodes/
 │   │   └── AudioDisplayModelObsolete.{h,cpp}  # Старият QDevIO audio display (rename-only)
 │   ├── DaqDisplay/
 │   │   └── DaqDisplayNode.{h,cpp}        # Реален Qt Charts waveform + FFT (REQ-SW-PL-022/025)
+│   ├── DisplayRefresh/
+│   │   └── DisplayRefreshDriver.{h,cpp}  # 30 Hz throttle + ComputePool ключ + CancelToken (REQ-SW-PL-090)
+│   ├── TextDisplay/
+│   │   └── TextDisplayNode.{h,cpp}       # TextData → последен текст + броячи (REQ-SW-PL-090)
+│   ├── ImageDisplay/
+│   │   └── ImageDisplayNode.{h,cpp}      # ImageData → превю + метаданни (REQ-SW-PL-090)
+│   ├── FrameWindowDisplay/
+│   │   └── FrameWindowDisplayNode.{h,cpp} # FrameWindowData → метаданни + ≤4 миниатюри (REQ-SW-PL-090)
+│   ├── NumberDisplay/
+│   │   └── NumberDisplayDataModel.{h,cpp} # double / int / embedding (REQ-SW-PL-090 добавя embedding)
 │   └── GenericDisplay/
 │       └── GenericDisplayNode.{h,cpp}
 └── Routing/
@@ -192,11 +202,23 @@ NodeditorNodesCoreObject → INodeProvider
 ### Displays
 | Нод | Категория | Описание |
 |-----|-----------|----------|
+| NumberDisplayDataModel | Displays/General | **„Последна стойност" дисплей** — селектор `double` / `int` / `embedding`; за число показва `numberAsText()`, за `EmbeddingData` (REQ-SW-PL-090) — `dim · min · max · mean` и първите 8 компоненти. Числовите пътища са непроменени |
+| TextDisplayNode | Displays/General | **Текстов дисплей** (REQ-SW-PL-090) — `TextData` → нищо. Последният текст (превю до 240 знака, цялото в tooltip) + брой блокове, брой знаци, редове, „преди N ms" |
+| ImageDisplayNode | Displays/General | **Дисплей на картина** (REQ-SW-PL-090) — `ImageData` → нищо. Превю, смалено до 320×180 **на worker-а** (пълната картина никога не се задържа), + ширина×височина на източника, формат на пикселите, mime/model от `Meta`, „преди N ms" |
+| FrameWindowDisplayNode | Displays/General | **Дисплей на кадров прозорец** (REQ-SW-PL-090) — `FrameWindowData` → нищо. Брой кадри, timestamps на първия/последния (+ разлика) и до 4 миниатюри. Миниатюрите се правят с `VideoFrameData::frameToImageScaled()` (чист CPU, безопасен от всяка нишка); GPU-резидентен кадър **не** се конвертира (`asImage()` е GL readback само за GUI нишката) — показва се като „metadata only — N frame(s) not CPU-convertible" |
 | DaqDisplayNode | Displays/DAQ | **Каноничният SampledData дисплей** — реален Qt Charts waveform + FFT за всеки плъгин с sampled данни (audio/DAQ/сензори). v2 (REQ-SW-PL-025): физически decode (`decodeToPhysical`, `raw × amplitudeScale + amplitudeOffset`), unit оси от дескриптора (Time (s)/Hz + мерна единица), worker-притежаван N-секунден ring buffer (default 10 s) с FFT от опашката; per-card `mode` (normalized/physical) + `unitAxes`, backward-compatible save/restore |
 | GenericDisplayNode | Displays/DAQ | Тънък alias на DaqDisplayNode (само name/caption) — legacy key "GenericDisplay" |
 | AudioDisplayAlias | Displays/DAQ | Тънък alias на DaqDisplayNode (само name) — legacy key "AudioDisplay", консолидиран върху SampledData display-а |
 | AudioDisplayModelObsolete | Obsolete | Старият QDevIO аудио дисплей (rename-only, registered `AudioDisplayObsolete`) — за стари QDevIO графи |
 | QDevIoDisplayModelObsolete | Obsolete | Старият QDevIO display (rename-only, registered `QDevIoDisplayObsolete` + alias `QDevIoDisplay`) |
+
+**Правило за дисплеите:** дисплеите са **консуматори** — 1 вход, 0 изхода, без
+мутация на получените данни (само `const` достъп). Моделът живее в
+`nodeditor_nodes/core` (без widget включвания, `embeddedWidget()` = `nullptr`),
+тялото — в `nodeditor_nodes/gui`, вързано през `NodeWidgetFactory`. Тежкото
+рендиране (смаляване на картина, миниатюри, статистика) минава през 30 Hz
+throttle (`DisplayRefreshDriver`) и общия `ComputePool` (REQ-SW-PL-039); моделът
+държи само това, което дисплеят показва, и го пуска веднага след паса.
 
 ### Routing
 | Нод | Категория | Описание |
@@ -394,6 +416,11 @@ Mic пътят мигрира от QDevIO byte-stream към SampledData. Нов
 
 - Един изходен порт, тип `{"sample","Sample"}` (от `SampledData().type()`).
 - `outData()` връща най-новото `shared_ptr<SampledData>` (member `m_lastData`).
+- **Един изход, няколко консуматора** — `portConnectionPolicy()` дава
+  `Out = Many` (и `In = One`); `onOutPortDataUpdated` подава **същия**
+  `shared_ptr` на всеки вход, тоест разклонението е без копие. Нодът брои
+  връзките си и заснема, докато `count > 0`, така че последното разкачване
+  спира микрофона. Същото важи за полерите `Pcap`/`JackDetect`/`GpuMonitor`.
 - **Няма остатък от QDevIO** в новия нод.
 
 ### Threading — dedicated worker thread
@@ -757,6 +784,66 @@ platform guard, без външни зависимости).
    и `Network Source` → `DAQ Display` (`Displays/DAQ`).
 5. Дескрипторът на Source-а трябва да съвпада с дескриптора на изпращача
    (sampleRate, channels, тип) — wire-ът носи само raw bytes.
+
+## `${VAR}` в сцените (REQ-SW-PL-091)
+
+`.flow` в git **никога** не носи абсолютен път и не изисква експортирани
+променливи: носи `${DAQSTER_DEPS}/clip.mp4` (или `ref` към каталога), а
+**нодът, който консумира пътя**, го разширява при `load()`. Затова една и съща
+сцена работи в IDE-то, в `NodeRunner` и в `HeadlessEngine` на чиста машина — без
+временни копия на сцената и без env.
+
+Механизмът е `Daqster::SceneVariables` (`src/plugins/common/Scene/`) — една
+таблица на машина:
+
+| Ниво (първото печели) | Откъде идва |
+|---|---|
+| 1. override | подаден от викащия: `expandDetailed(raw, overrides)` |
+| 2. конфиг на машината | група `paths` във `<config>/Daqster/scene-variables.json` |
+| 3. среда | `qgetenv(NAME)` |
+| 4. — | празно: токенът остава видим и се докладва |
+
+Синтаксис: `${X}`, `${X:-default}`, `${X:?съобщение}` (връща празно и докладва
+токена + съобщението — нодът го превръща в `NodeValidationState::Error`, който
+именува липсващото) и `$$` за литерален `$`. Непознат `${X}` без default
+**остава буквално**, за да се види кой път е счупен. Празна стойност на всяко
+ниво не е стойност — `${DEPS}/x` с празна `DEPS` не бива да става `/x`.
+
+Файлът: `DAQSTER_SCENE_VARIABLES` (env, за тестове) → иначе първият кандидат, в
+който вече има файл → иначе launcher-независимият
+`~/.config/Daqster/scene-variables.json` (децата на IDE-то получават
+`XDG_CONFIG_HOME=~/.config/daqster`, тоест `GenericConfigLocation` сам не стига).
+Писане: `setPathToken()`/`removePathToken()`/`pathTokens()`;
+`seedFromEnvironment()` копира познатите имена от средата **само ако ключът
+липсва** (конфигурирана машина не се връща към каквото е експортирал launcher-ът).
+
+Правилото: **`.flow` в git носи `${VAR}` или `ref`, никога абсолютен път; нодът
+разширява при зареждане.** `*Ref`/`namedRef` ключовете НЕ се разширяват — те са
+идентификатори за каталога, не пътища. Днес това правят `VideoFileSource` и
+`FilePlayback`.
+
+**Относителните пътища в сцената се решават спрямо директорията на сцената**
+(същата REQ, втората половина). Токенът не е единственият преносим вид: сцена
+може да носи файл, който лежи до нея — `"filePath": "bars_h265_1080p25_x3.mp4"`,
+без токен и без абсолютен път. `expand()` сам не може да изрази това, защото
+относителен път, подаден на платформата, се решава спрямо **cwd на процеса** —
+вярно само ако процесът е стартиран в директорията на сцената. Затова:
+
+- хостът, който чете `.flow`-а (`HeadlessEngine`, `RuntimeShell`,
+  `NodeEditorIdeObject`), извиква `SceneVariables::adoptSceneFile(<път до
+  .flow>)` **преди** JSON-ът да стигне до графовия модел;
+- нодът вика `resolvePath()`, не `expand()`: токените се разширяват както досега,
+  после относителният резултат се закача за `sceneDirectory()` и се нормализира
+  лексикално (`..` се сгъва; файловата система не се пита — файлът може още да
+  не съществува, а сцената може да е зад symlink), а абсолютният остава непокътнат;
+- без токен и без сцена → **празно + причина**, никога cwd; `NodeValidationState`
+  имени трите различни дефекта: неразрешен `${X}`, относителен път без сцена,
+  липсващ файл.
+
+Недомантиран резултат тук няма: `setSceneDirectory("")` изчиства, а
+`adoptSceneFile("")` (сцена от REST/`reloadFlow`, не от файл) **оставя**
+текущата директория — hot-reload не бива да обръща собствените си относителни
+пътища на cwd-относителни.
 
 ## Зависимости
 

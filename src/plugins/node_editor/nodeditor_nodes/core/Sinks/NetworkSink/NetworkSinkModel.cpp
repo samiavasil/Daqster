@@ -3,6 +3,7 @@
 #include "shared/NetworkFrame.h"
 
 #include <QHostAddress>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QTcpSocket>
 #include <QUdpSocket>
@@ -208,4 +209,44 @@ void NetworkSinkModel::sendFrame(const QByteArray &payload)
 void NetworkSinkModel::updateStatus(const QString &status)
 {
     emit statusChanged(status);
+}
+
+QJsonObject NetworkSinkModel::configSchema() const
+{
+    // Describes exactly the object save() emits (REQ-SW-PL-091).
+    // "x-restart" is the per-field answer the control plane reads
+    // when a config write lands on a running node.
+    QJsonObject properties;
+
+    // All three describe the socket, which start() opens: a running sink keeps
+    // sending to the destination it was started with.
+    properties.insert(QStringLiteral("protocol"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("string")},
+        {QStringLiteral("enum"), QJsonArray{QStringLiteral("UDP"),
+                                            QStringLiteral("TCP")}},
+        {QStringLiteral("default"), QStringLiteral("UDP")},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("Transport — the socket is opened in start()")}});
+
+    properties.insert(QStringLiteral("host"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("string")},
+        {QStringLiteral("default"), QStringLiteral("127.0.0.1")},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("Destination host — connected in start()")}});
+
+    properties.insert(QStringLiteral("port"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("integer")},
+        {QStringLiteral("minimum"), 1},
+        {QStringLiteral("maximum"), 65535},
+        {QStringLiteral("default"), 5000},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("Destination port — connected in start()")}});
+
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), properties},
+        {QStringLiteral("additionalProperties"), false}};
 }

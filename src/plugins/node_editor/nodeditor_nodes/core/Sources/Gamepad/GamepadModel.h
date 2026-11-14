@@ -5,6 +5,7 @@
 
 #include "NodeDataTypes/SampledData.h"
 #include "GamepadEngine.h"
+#include "capabilities/INodeConfigSchema.h"
 #include "shared/IStoppable.h"
 #include "shared/IStartable.h"
 
@@ -31,7 +32,10 @@
  * connection exists; removing the last connection auto-stops the polling
  * (clean teardown).
  */
-class NODEDITOR_NODES_CORE_EXPORT GamepadModel : public QtNodes::NodeDelegateModel, public Daqster::IStoppable, public Daqster::IStartable
+class NODEDITOR_NODES_CORE_EXPORT GamepadModel : public QtNodes::NodeDelegateModel,
+                                                 public Daqster::IStoppable,
+                                                 public Daqster::IStartable,
+                                                 public Daqster::INodeConfigSchema
 {
     Q_OBJECT
 
@@ -50,6 +54,13 @@ public:
 
     QJsonObject save() const override;
     void load(QJsonObject const &p) override;
+
+    /// Draft-7 fragment describing exactly the object `save()` emits
+    /// (REQ-SW-PL-091). Each property carries `x-restart`: `true` when a running
+    /// node cannot pick the new value up and needs stop() + start(), `false`
+    /// when the value takes effect live. The control plane diffs the config
+    /// before/after a write and answers `restartRequired` from this marker.
+    QJsonObject configSchema() const override;
 
     unsigned int nPorts(QtNodes::PortType portType) const override;
 

@@ -37,6 +37,9 @@
 #include <XYSeriesIODeviceObsolete.h>
 #include <QAudioFormat>
 #include <Displays/NumberDisplay/NumberDisplayDataModel.h>
+#include <Displays/TextDisplay/TextDisplayNode.h>
+#include <Displays/ImageDisplay/ImageDisplayNode.h>
+#include <Displays/FrameWindowDisplay/FrameWindowDisplayNode.h>
 #include <Operators/ModuloModel.h>
 #include <Operators/ArithmeticLogic/ArithmeticLogicModel.h>
 #include <Sources/NumberSource/NumberSourceDataModel.h>
@@ -66,6 +69,9 @@
 #include "Displays/DaqDisplay/DaqDisplayWidget.h"
 #include "Displays/ObsoleteAudioDisplay/QDevioDisplayModelUiObsolete.h"
 #include "Displays/NumberDisplay/NumberDisplayWidget.h"
+#include "Displays/TextDisplay/TextDisplayWidget.h"
+#include "Displays/ImageDisplay/ImageDisplayWidget.h"
+#include "Displays/FrameWindowDisplay/FrameWindowDisplayWidget.h"
 #include "Operators/ModuloWidget.h"
 #include "Operators/ArithmeticLogicWidget.h"
 #include "Sources/NumberSourceWidget.h"
@@ -535,6 +541,37 @@ void registerDefaultWidgetCreators(NodeWidgetFactory* factory)
         // Model pushes the number to the widget label
         QObject::connect(m, &NumberDisplayDataModel::displayTextChanged,
                          widget, &NumberDisplayWidget::setDisplayText);
+        return widget;
+    });
+
+    // ── Node debug displays (REQ-SW-PL-090) ──────────────────────────────
+    // Each model is a pure consumer (1 input, 0 outputs) that computed its
+    // snapshot on the shared ComputePool; the widget only renders it, so the
+    // creators wire exactly one signal.
+    factory->registerWidgetCreator("TextDisplay", [](QtNodes::NodeDelegateModel* model) -> QWidget* {
+        auto* m = safeCast<TextDisplayNode>(model, "TextDisplay");
+        if (!m) return nullptr;
+        auto* widget = new TextDisplayWidget();
+        QObject::connect(m, &TextDisplayNode::snapshotReady,
+                         widget, &TextDisplayWidget::setSnapshot);
+        return widget;
+    });
+
+    factory->registerWidgetCreator("ImageDisplay", [](QtNodes::NodeDelegateModel* model) -> QWidget* {
+        auto* m = safeCast<ImageDisplayNode>(model, "ImageDisplay");
+        if (!m) return nullptr;
+        auto* widget = new ImageDisplayWidget();
+        QObject::connect(m, &ImageDisplayNode::snapshotReady,
+                         widget, &ImageDisplayWidget::setSnapshot);
+        return widget;
+    });
+
+    factory->registerWidgetCreator("FrameWindowDisplay", [](QtNodes::NodeDelegateModel* model) -> QWidget* {
+        auto* m = safeCast<FrameWindowDisplayNode>(model, "FrameWindowDisplay");
+        if (!m) return nullptr;
+        auto* widget = new FrameWindowDisplayWidget();
+        QObject::connect(m, &FrameWindowDisplayNode::snapshotReady,
+                         widget, &FrameWindowDisplayWidget::setSnapshot);
         return widget;
     });
 

@@ -14,6 +14,7 @@
 #include "capabilities/IWidgetProvider.h"
 #include "debug.h"
 #include "LogCategories.h"
+#include "Scene/SceneVariables.h"
 
 #include <QMainWindow>
 #include <QLabel>
@@ -883,6 +884,12 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
     }
 
     QJsonObject sceneJson = sceneDocument.object();
+
+    // REQ-SW-PL-091: a relative `filePath` in a scene means "next to this file",
+    // so the host records the scene's directory before the graph model sees a
+    // single node — the nodes resolve their paths while `load()`. Recorded here,
+    // not in the node: the node cannot know where the JSON came from.
+    Daqster::SceneVariables::instance().adoptSceneFile(fileName);
 
     // Extract the "ui" section (REQ-SW-PL-049 / v2 REQ-SW-PL-059) BEFORE the
     // node-cleaning loop: it is not part of the graph model JSON and must not be

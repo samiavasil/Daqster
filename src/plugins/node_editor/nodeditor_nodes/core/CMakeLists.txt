@@ -100,6 +100,20 @@ set(VIDEO_NODES
     Processing/Video/FrameSamplerNode.cpp
     Processing/Video/FrameWindowNode.h
     Processing/Video/FrameWindowNode.cpp
+    # ── Audio rate domain (REQ-SW-PL-092) ───────────────────────────────
+    # Re-package / decimate / resample a SampledData stream. The DSP engines
+    # live in DaqsterCommonLibrary (src/plugins/common/Dsp/); these files only
+    # hold the stream glue (timebase, descriptor, per-channel engines) and the
+    # one coefficient resolver both rate-changing nodes share.
+    Processing/Audio/AudioDspSupport.h
+    Processing/Audio/FilterResolver.h
+    Processing/Audio/FilterResolver.cpp
+    Processing/Audio/BlockResizerNode.h
+    Processing/Audio/BlockResizerNode.cpp
+    Processing/Audio/SampleDecimatorNode.h
+    Processing/Audio/SampleDecimatorNode.cpp
+    Processing/Audio/SampleResamplerNode.h
+    Processing/Audio/SampleResamplerNode.cpp
     # Texture pool for GPU effect outputs (REQ-SW-PL-032 Issue #7) is NOT
     # compiled here: TexturePool::instance() is a process-wide singleton of GL
     # texture names, and a second copy in this .so would be a second pool —
@@ -322,6 +336,21 @@ set(DAQ_DISPLAY_NODES
     Displays/AudioDisplay/AudioDisplayModelObsolete.cpp
 )
 
+# ── Displays: node debug displays (REQ-SW-PL-090) ───────────────────
+# Text / Image / FrameWindow displays: 1 input, 0 outputs, no widget here.
+# They share DisplayRefreshDriver (the 30 Hz throttle + ComputePool key +
+# CancelToken) so the timing/threading contract exists once, not three times.
+set(DEBUG_DISPLAY_NODES
+    Displays/DisplayRefresh/DisplayRefreshDriver.h
+    Displays/DisplayRefresh/DisplayRefreshDriver.cpp
+    Displays/TextDisplay/TextDisplayNode.h
+    Displays/TextDisplay/TextDisplayNode.cpp
+    Displays/ImageDisplay/ImageDisplayNode.h
+    Displays/ImageDisplay/ImageDisplayNode.cpp
+    Displays/FrameWindowDisplay/FrameWindowDisplayNode.h
+    Displays/FrameWindowDisplay/FrameWindowDisplayNode.cpp
+)
+
 # ── Routing: Demux + Mux (obsolete) ─────────────────────────────────
 set(ROUTING_NODES
     Routing/Demux/DemuxNodeObsolete.h
@@ -412,6 +441,7 @@ create_plugin(NodeditorNodesCore
         ${JACK_DETECT_SOURCES}
         ${PCAP_SOURCES}
         ${DAQ_DISPLAY_NODES}
+        ${DEBUG_DISPLAY_NODES}
         ${ROUTING_NODES}
         ${SHARED_TYPES}
         ${BUILTIN_SOURCE_NODES}
@@ -458,6 +488,7 @@ create_plugin(NodeditorNodesCore
         ${CMAKE_CURRENT_SOURCE_DIR}/Operators/ArithmeticLogic
         ${CMAKE_CURRENT_SOURCE_DIR}/shared
         ${CMAKE_CURRENT_SOURCE_DIR}/Displays/DaqDisplay
+        ${CMAKE_CURRENT_SOURCE_DIR}/Displays/FrameWindowDisplay
         ${VIDEO_OPENCV_INCLUDE_DIRS}
         ${PLUTOSDR_INCLUDE_DIRS}
         ${GPU_MONITOR_INCLUDE_DIRS}

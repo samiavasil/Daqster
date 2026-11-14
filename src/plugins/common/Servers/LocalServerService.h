@@ -23,7 +23,8 @@
 //   * `external` — someone else already answers on the well-known port and we
 //     **reuse** it (`isReused() == true`, `isOwned() == false`): `stop()`
 //     closes the connection and leaves the foreign process alone — it has its
-//     own owner.
+//     own owner. Its ownership record stays only while that process lives: a
+//     dead pid is garbage and `stop()` drops it.
 //
 // **One service, two processes (the start lock):** the ownership file says who
 // runs a `kind`, and "read it, find nothing, launch" is only safe when nobody
@@ -152,9 +153,11 @@ public:
      * @brief Stops the server: `terminate()` → grace → `kill()` → killWait.
      *
      * Shuts down **only** a process we spawned; a reused foreign one stays
-     * alive. Idempotent: the second and later calls do nothing. Before
-     * `started` (the process has not exec'ed yet) `ProcessOwner` waits for the
-     * start and sends **no** signal — the invariant from REQ-SW-PL-050.
+     * alive. For a reused one the ownership record is kept only while its
+     * process lives (a dead pid makes it garbage, so it is dropped). Idempotent:
+     * the second and later calls do nothing. Before `started` (the process has
+     * not exec'ed yet) `ProcessOwner` waits for the start and sends **no**
+     * signal — the invariant from REQ-SW-PL-050.
      */
     void stop();
 

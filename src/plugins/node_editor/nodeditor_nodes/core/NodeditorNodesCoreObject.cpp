@@ -12,6 +12,9 @@
 #include "Processing/Video/CustomShaderNode.h"
 #include "Processing/Video/FrameSamplerNode.h"
 #include "Processing/Video/FrameWindowNode.h"
+#include "Processing/Audio/BlockResizerNode.h"
+#include "Processing/Audio/SampleDecimatorNode.h"
+#include "Processing/Audio/SampleResamplerNode.h"
 #include "Sources/PlutoSdr/PlutoSdrModel.h"
 #include "Sources/SystemMonitor/SystemMonitorModel.h"
 #include "Sources/Gamepad/GamepadModel.h"
@@ -36,6 +39,9 @@
 // Built-in nodes (moved from node_editor_ide)
 #include "Sources/NumberSource/NumberSourceDataModel.h"
 #include "Displays/NumberDisplay/NumberDisplayDataModel.h"
+#include "Displays/TextDisplay/TextDisplayNode.h"
+#include "Displays/ImageDisplay/ImageDisplayNode.h"
+#include "Displays/FrameWindowDisplay/FrameWindowDisplayNode.h"
 #include "Operators/ModuloModel.h"
 #include "Operators/ArithmeticLogic/ArithmeticLogicModel.h"
 #include "Operators/ArithmeticLogic/ExprParser.h"
@@ -68,6 +74,10 @@ void NodeditorNodesCoreObject::registerNodes(QtNodes::NodeDelegateModelRegistry&
     // Built-in nodes (moved from node_editor_ide)
     registry.registerModel<NumberSourceDataModel>("Sources/General");
     registry.registerModel<NumberDisplayDataModel>("Displays/General");
+    // Node debug displays (REQ-SW-PL-090): pure consumers — 1 input, 0 outputs.
+    registry.registerModel<TextDisplayNode>("Displays/General");
+    registry.registerModel<ImageDisplayNode>("Displays/General");
+    registry.registerModel<FrameWindowDisplayNode>("Displays/General");
     registry.registerModel<ModuloModel>("Operators/General");
     registry.registerModel<ArithmeticLogicModel>("Operators/General");
 
@@ -83,6 +93,10 @@ void NodeditorNodesCoreObject::registerNodes(QtNodes::NodeDelegateModelRegistry&
     registry.registerModel<CustomShaderNode>("Processing/Video");
     registry.registerModel<FrameSamplerNode>("Processing/Video");
     registry.registerModel<FrameWindowNode>("Processing/Video");
+    // Audio rate domain (REQ-SW-PL-092): re-package, decimate, resample.
+    registry.registerModel<BlockResizerNode>("Processing/Audio");
+    registry.registerModel<SampleDecimatorNode>("Processing/Audio");
+    registry.registerModel<SampleResamplerNode>("Processing/Audio");
     
     // Conditional nodes (guarded by compile definitions)
 #ifdef HAVE_LIBIIO
@@ -149,6 +163,10 @@ void NodeditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateModelR
     // Built-in nodes (moved from node_editor_ide) - pure logic, no widgets
     registry.registerModel<NumberSourceDataModel>("Sources/General");
     registry.registerModel<NumberDisplayDataModel>("Displays/General");
+    // Node debug displays (REQ-SW-PL-090): pure consumers — 1 input, 0 outputs.
+    registry.registerModel<TextDisplayNode>("Displays/General");
+    registry.registerModel<ImageDisplayNode>("Displays/General");
+    registry.registerModel<FrameWindowDisplayNode>("Displays/General");
     registry.registerModel<ModuloModel>("Operators/General");
     registry.registerModel<ArithmeticLogicModel>("Operators/General");
 
@@ -165,6 +183,10 @@ void NodeditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateModelR
     registry.registerModel<CustomShaderNode>("Processing/Video");
     registry.registerModel<FrameSamplerNode>("Processing/Video");
     registry.registerModel<FrameWindowNode>("Processing/Video");
+    // Audio rate domain (REQ-SW-PL-092): re-package, decimate, resample.
+    registry.registerModel<BlockResizerNode>("Processing/Audio");
+    registry.registerModel<SampleDecimatorNode>("Processing/Audio");
+    registry.registerModel<SampleResamplerNode>("Processing/Audio");
     
     // Conditional nodes (guarded by compile definitions)
 #ifdef HAVE_LIBIIO

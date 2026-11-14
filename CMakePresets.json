@@ -1,0 +1,56 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "description": "Общи настройки: Ninja + /usr/bin/{c++,cc} + ccache, Debug, тестове ВКЛЮЧЕНИ. QtCreator и scripts/build.sh ползват едни и същи пресети, за да не си сменят генератора/компилатора/опциите в един и същ build dir.",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "/usr/bin/cc",
+        "CMAKE_CXX_COMPILER": "/usr/bin/c++",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "DAQSTER_AUTO_INIT_SUBMODULES": "ON",
+        "DAQSTER_BUILD_GUI": "ON",
+        "DAQSTER_BUILD_STATIC": "OFF",
+        "DAQSTER_BUILD_TEST_PLUGINS": "OFF",
+        "DAQSTER_BUILD_TESTS": "ON",
+        "DAQSTER_ENABLE_PERF": "ON",
+        "DAQSTER_USE_OPENCV": "ON",
+        "DAQSTER_VERBOSE_DEPENDENCIES": "OFF"
+      }
+    },
+    {
+      "name": "qt6-debug",
+      "displayName": "Qt6 6.9.2 · Debug (Ninja + ccache)",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build_qt6",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "/mnt/Builder/bin/Linux/Qt/6.9.2/gcc_64",
+        "USE_QT6": "ON"
+      }
+    },
+    {
+      "name": "qt5-debug",
+      "displayName": "Qt5 5.15.2 · Debug (Ninja + ccache)",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build_qt5",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "/mnt/Builder/bin/Linux/Qt/5.15.2/gcc_64",
+        "USE_QT6": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "qt6-debug",
+      "configurePreset": "qt6-debug"
+    },
+    {
+      "name": "qt5-debug",
+      "configurePreset": "qt5-debug"
+    }
+  ]
+}
