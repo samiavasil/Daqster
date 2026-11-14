@@ -41,6 +41,15 @@ requirements (parents/dependents).
 - **Commit after every meaningful change** — small, atomic, never batch; always push.
 - **Changelog maintenance:** keep `CHANGELOG.md` (BG) and `CHANGELOG.en.md` (EN) up to date.
 
+### Public repo (`../daqster`) — PR only
+
+**Never `git push` or `git merge` into `develop` in the public repo.** Integration
+happens only through a pull request opened by the user. Agents push feature
+branches; they never touch `develop`, and never force-push it.
+Local guard: `branch.develop.pushRemote = no-push-please` makes a bare
+`git push` fail loudly — do not remove it.
+Exception: only if the user explicitly asks in the same session.
+
 ## Release Process
 
 - **Integration branch `develop`, `master` frozen** (as today) — releases are the

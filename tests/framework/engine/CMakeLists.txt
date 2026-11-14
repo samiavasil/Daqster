@@ -27,3 +27,26 @@ target_link_libraries(scene_close_tests PRIVATE
 )
 
 add_test(NAME scene_close_tests COMMAND $<TARGET_FILE:scene_close_tests>)
+
+# Scene open hook (REQ-SW-PL-082).
+#
+# The other half of the scene lifecycle: ask the plugins BEFORE load(), so a
+# refusal leaves the running scene untouched. Same shape as the close tests —
+# FrameworkCore::SceneOpen with fake providers, no plugin and no models.
+add_executable(scene_open_tests
+    test_scene_open.cpp
+)
+
+target_include_directories(scene_open_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+)
+
+target_link_libraries(scene_open_tests PRIVATE
+    FrameworkCore
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    QtNodes
+)
+
+add_test(NAME scene_open_tests COMMAND $<TARGET_FILE:scene_open_tests>)

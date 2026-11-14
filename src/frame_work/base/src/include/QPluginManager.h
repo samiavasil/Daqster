@@ -25,6 +25,8 @@ Initial version of this file was created on 16.03.2017 at 11:40:20
 #include <capabilities/INodeProvider.h>
 #include <capabilities/IRuntimeHost.h>  // RuntimeMode (by value in the API)
 #include <capabilities/IStatusBarProvider.h>
+#include <capabilities/IMenuProvider.h>
+#include <capabilities/IProblemFixer.h>
 #include <capabilities/IWidgetProvider.h>
 #include <QObject>
 #include <QList>
@@ -153,6 +155,26 @@ public:
    * reports live state of what the plugin built in Initialize().
    */
   QList<Daqster::IStatusBarProvider*> statusBarProviders();
+
+  /**
+   * @brief Return all plugin objects that contribute actions to the host's
+   *        menus (IMenuProvider, REQ-SW-PL-084).
+   *
+   * Lets a plugin add an entry where it belongs (`Tools → AI Setup`) without
+   * the host naming the plugin. The returned objects are initialized, because
+   * their actions target what Initialize() builds.
+   */
+  QList<Daqster::IMenuProvider*> menuProviders();
+
+  /**
+   * @brief Return all plugin objects that can repair a scene problem
+   *        (IProblemFixer, REQ-SW-PL-085).
+   *
+   * The other half of `ISceneOpening`: the plugin that reported "this model is
+   * missing" can also offer a button that fixes it. Returned objects are
+   * initialized, because a repair acts on what Initialize() built.
+   */
+  QList<Daqster::IProblemFixer*> problemFixers();
 
 public slots:
   void EnableDisablePlugin( const QString& Hash, bool Enable );

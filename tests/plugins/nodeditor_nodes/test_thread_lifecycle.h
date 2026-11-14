@@ -65,10 +65,6 @@ private slots:
     // a timer.
     void audioSourceAndDisplaySurviveFiveSceneCloses();
 
-    // REQ-SW-PL-050 (D2): a local llama-server that ignores SIGTERM must be
-    // killed, not merely asked to stop.
-    void llamaModelStopKillsStubbornServer();
-
     // The cast the app uses (HeadlessEngine.cpp:17 / NodeEditorWidget.cpp:5)
     // and the interface the models satisfy (…/shared/IStoppable.h) are two
     // separate definitions of the same class name. Asserted so the duplication

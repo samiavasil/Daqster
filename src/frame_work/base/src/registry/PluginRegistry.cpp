@@ -5,6 +5,8 @@
 #include <capabilities/INodeProvider.h>
 #include <capabilities/IRuntimeHost.h>
 #include <capabilities/IStatusBarProvider.h>
+#include <capabilities/IMenuProvider.h>
+#include <capabilities/IProblemFixer.h>
 #include <capabilities/IWidgetProvider.h>
 
 namespace Daqster {
@@ -302,6 +304,49 @@ QList<Daqster::IStatusBarProvider*> PluginRegistry::statusBarProviders()
                 // An uninitialized plugin has no runtime to report on: its
                 // statusText() would describe a half-built object. Same trade
                 // widgetProviders() makes — see the header.
+                ensureInitialized(obj);
+                obj->setProperty("_daqster_hash", it.key());
+                result.append(provider);
+            }
+        }
+    }
+
+    return result;
+}
+
+QList<Daqster::IMenuProvider*> PluginRegistry::menuProviders()
+{
+    QList<Daqster::IMenuProvider*> result;
+
+    for (auto it = m_pluginMap.constBegin(); it != m_pluginMap.constEnd(); ++it) {
+        // IMenuProvider is a non-QObject interface, so dynamic_cast is the
+        // correct probe (same reasoning as nodeProviders()).
+        for (QBasePluginObject* obj : capabilityInstances(it.value(), it.key())) {
+            if (auto* provider = dynamic_cast<Daqster::IMenuProvider*>(obj)) {
+                // Actions target what Initialize() builds; an uninitialized
+                // plugin would offer entries that cannot work. Same trade
+                // statusBarProviders() makes — see the header.
+                ensureInitialized(obj);
+                obj->setProperty("_daqster_hash", it.key());
+                result.append(provider);
+            }
+        }
+    }
+
+    return result;
+}
+
+QList<Daqster::IProblemFixer*> PluginRegistry::problemFixers()
+{
+    QList<Daqster::IProblemFixer*> result;
+
+    for (auto it = m_pluginMap.constBegin(); it != m_pluginMap.constEnd(); ++it) {
+        // IProblemFixer is a non-QObject interface, so dynamic_cast is the
+        // correct probe (same reasoning as menuProviders()).
+        for (QBasePluginObject* obj : capabilityInstances(it.value(), it.key())) {
+            if (auto* provider = dynamic_cast<Daqster::IProblemFixer*>(obj)) {
+                // A fixer acts on what Initialize() built (resolved paths,
+                // known backends), so a half-built plugin must not offer it.
                 ensureInitialized(obj);
                 obj->setProperty("_daqster_hash", it.key());
                 result.append(provider);

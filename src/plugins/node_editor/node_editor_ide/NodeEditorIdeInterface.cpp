@@ -15,7 +15,7 @@ NodeEditorIdeInterface::NodeEditorIdeInterface(QObject* parent)
     m_PluginDescriptor.SetProperty(PLUGIN_DESCRIPTION, "Node editor IDE with built-in nodes and plugin-based node discovery.");
     char docstr[] =
         "Node Editor IDE plugin.\n\n"
-        "Provides a visual node editor with built-in Audio, LLaMA, and example nodes.\n"
+        "Provides a visual node editor with built-in Audio, Video and example nodes.\n"
         "Discovers and integrates external INodeProvider plugins at runtime.";
     m_PluginDescriptor.SetProperty(PLUGIN_DETAIL_DESCRIPTION, QObject::tr(docstr));
     m_PluginDescriptor.SetProperty(PLUGIN_LICENSE, QObject::tr("The plugin's license have to be....."));

@@ -14,7 +14,7 @@
 
 | Плъгин | Път (код) | Описание |
 |--------|-----------|----------|
-| [Nodeditor Nodes](./nodeditor_nodes/README.md) | `src/plugins/node_editor/nodeditor_nodes/` | INodeProvider (**core**, widget-free модели) + IWidgetProvider (**gui**, widget-и) — основният доставчик на Audio, Video, DAQ, LLaMA, Display и Routing нодове |
+| [Nodeditor Nodes](./nodeditor_nodes/README.md) | `src/plugins/node_editor/nodeditor_nodes/` | INodeProvider (**core**, widget-free модели) + IWidgetProvider (**gui**, widget-и) — основният доставчик на Audio, Video, DAQ, Display и Routing нодове |
 | [Node Editor IDE](./node_editor_ide/README.md) | `src/plugins/node_editor/node_editor_ide/` | IDE shell плъгин: `QMainWindow` + `NodeEditorWidget` (QtNodes canvas), открива външни `INodeProvider` плъгини; съдържа споделената `NodeSupport` (`libNodeEditorLibrary.so`) |
 | Runtime Host Headless | `src/plugins/runtime_host/headless/` | Headless runtime плъгин (`RuntimeHostHeadlessPlugin`) — `IRuntimeHost`, вдига граф без GUI |
 | Runtime Host GUI | `src/plugins/runtime_host/gui/` | GUI runtime shell (`RuntimeHostGuiPlugin`) — `IRuntimeHost`, вдига графа с прозорци/canvas |

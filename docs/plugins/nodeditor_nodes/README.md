@@ -4,7 +4,7 @@
 
 ## Преглед
 
-INodeProvider плъгин, който доставя Audio, Video, LLaMA, Display и Routing нодове към Node Editor IDE. Това е основният доставчик на нодове за Daqster node editor-а.
+INodeProvider плъгин, който доставя Audio, Video, Display и Routing нодове към Node Editor IDE. Това е основният доставчик на нодове за Daqster node editor-а.
 
 **Локация:** `src/plugins/node_editor/nodeditor_nodes/core/` и `src/plugins/node_editor/nodeditor_nodes/gui/`
 **Име на .so:** `libNodeditorNodesCorePlugin.so` (core) и `libNodeditorNodesGuiPlugin.so` (GUI) — REQ-SW-PL-051 раздели единия плъгин на два
@@ -35,10 +35,6 @@ nodeditor_nodes/
 │   │   ├── AudioSourceConfig.{h,cpp,ui}
 │   │   ├── AudioComboModel.{h,cpp}
 │   │   └── node_editor.qrc
-│   ├── LLamaSource/                      # LLaMA AI нодове
-│   │   ├── LLamaModelDataModel.{h,cpp}
-│   │   ├── ConsoleDataModel.{h,cpp}
-│   │   └── ChatBaseWidget.{h,cpp}
 │   └── Video/                            # Video нодове (VideoFrameData / "video-frame" flow)
 │       ├── VideoCompat.h                 # Qt5/Qt6 multimedia compatibility shim
 │       ├── CameraSourceNode.{h,cpp}
@@ -57,6 +53,7 @@ nodeditor_nodes/
 │       ├── CustomShaderGLProcessor.{h,cpp}# GPU backend за runtime GLSL (REQ-SW-PL-029)
 │       ├── CustomShaderNode.{h,cpp}      # Custom shader нод (REQ-SW-PL-029)
 │       ├── FrameSamplerNode.{h,cpp}      # Ресемплер (every-N / max-fps, REQ-SW-PL-030)
+│       ├── FrameWindowNode.{h,cpp}       # Прозорец от кадри (full/everyFrame/interval, REQ-SW-PL-086)
 │       └── OpenCVTransforms.cpp          # Само при HAVE_OPENCV
 │   ├── Gamepad/                          # Gamepad input source (REQ-SW-PL-042)
 │   │   ├── GamepadEngine.{h,cpp}         # Linux joystick API wrapper
@@ -141,9 +138,7 @@ NodeditorNodesCoreObject → INodeProvider
         registry.registerModel<VideoEffectNode>("Processing/Video")   // един нод с комбо (REQ-SW-PL-028 AC 4)
         registry.registerModel<CustomShaderNode>("Processing/Video")  // runtime GLSL (REQ-SW-PL-029)
         registry.registerModel<FrameSamplerNode>("Processing/Video")
-        // AI
-        registry.registerModel<LLamaModelDataModel>("AI/LLM")
-        registry.registerModel<ConsoleDataModel>("AI/LLM")
+        registry.registerModel<FrameWindowNode>("Processing/Video")   // прозорец от кадри (REQ-SW-PL-086)
         // Файл I/O
         registry.registerModel<FilePlaybackModel>("Sources/File")     // cross-platform (REQ-SW-PL-043)
         registry.registerModel<FileRecordModel>("Sinks/File")         // cross-platform (REQ-SW-PL-043)
@@ -209,12 +204,6 @@ NodeditorNodesCoreObject → INodeProvider
 | DemuxNodeObsolete | Routing | Старият QDevIO demultiplexer (rename-only, registered `DemuxNodeObsolete` + alias `DemuxNode`) |
 | MuxNodeObsolete | Routing | Старият QDevIO multiplexer (rename-only, registered `MuxNodeObsolete` + alias `MuxNode`) |
 
-### LLama
-| Нод | Категория | Описание |
-|-----|-----------|----------|
-| LLamaModelDataModel | AI/LLM | LLaMA модел — AI генерация на текст |
-| ConsoleDataModel | AI/LLM | Конзола за показване на AI отговори |
-
 ### Video
 | Нод | Категория | Описание |
 |-----|-----------|----------|
@@ -225,8 +214,9 @@ NodeditorNodesCoreObject → INodeProvider
 | VideoEffectNode | Processing/Video | Единен ефект нод с **комбобокс** за избор на ефект (brightness, contrast, grayscale, invert, sepia, channelSwap, flip, blur, gaussianBlur, canny, threshold) + параметри за избрания — върху `VideoFrameData`, GPU/CPU backend (REQ-SW-PL-028) |
 | CustomShaderNode | Processing/Video | GPU-only runtime GLSL нод — Shadertoy-style `mainImage` contract, GLSL редактор + compile + error log + uniform контроли, port 0 in/out `VideoFrameData`, изисква хардуерен GL (REQ-SW-PL-029) |
 | FrameSamplerNode | Processing/Video | Ресемплиране на `VideoFrameData` — всеки N-ти кадър или max FPS, zero-copy passthrough (REQ-SW-PL-030) |
+| FrameWindowNode | Processing/Video | Входно семплиране — пази последните N кадъра (`window` 2…32) и ги публикува като един `FrameWindowData` блок, режими `full` / `everyFrame` / `interval`, zero-copy (REQ-SW-PL-086) |
 
-Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy); видео source-ите имат и port 1 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема `VideoFrameData` и го дисплейва през GPU (вж. „Qt6 in-scene toggle" по-долу; Qt5: detached GL blit прозорец при `DAQSTER_GL_BLIT=1`). **Единственият frame тип е `VideoFrameData`** — `ImageData` е премахнат (Фаза 3, REQ-SW-PL-032); CPU обработката ползва lazy `VideoFrameData::asImage()` кеша. Частният AI Studio plugin консумира `VideoFrameData` на входа на `FrameToTensorNode` (REQ-AI-007).
+Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy); видео source-ите имат и port 1 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема `VideoFrameData` и го дисплейва през GPU (вж. „Qt6 in-scene toggle" по-долу; Qt5: detached GL blit прозорец при `DAQSTER_GL_BLIT=1`). **Единственият *поточен* frame тип е `VideoFrameData`** — CPU обработката ползва lazy `VideoFrameData::asImage()` кеша. Отделно от него има `ImageData` (`"image"` / `"Image"`, един кадър, не поток; REQ-SW-PL-080) за генерирани/записани картинки: пренася се по `shared_ptr`, достъпът е по `const QImage&` и носи метаданни за възпроизводимост — той **не** е видео кадър и не се приема от тези нодове.
 
 #### Qt6 in-scene GPU display toggle (REQ-SW-PL-021)
 
@@ -369,6 +359,29 @@ CPU ефектите. Стари saved графи с `"VideoTransform"` registry
   при pass `restart()`. При не-pass кадърът се изпуска без emit.
 - **Smoke driver:** `DAQSTER_AUTOSTART_SAMPLER=1` вмъква FrameSampler между
   source (или effect) и output в `autoStartVideo()`.
+
+#### FrameWindowNode — прозорец от кадри (REQ-SW-PL-086)
+
+`FrameWindowNode` е входното семплиране: omni/vision нодът **не събира кадри
+сам**, а получава цял прозорец наведнъж. Вход port 0 `VideoFrameData`, изход
+port 0 `FrameWindowData` (`"frame-window"`).
+
+- **Прозорец:** последните `window` кадъра (2…32, по подразбиране 4) с техните
+  arrival timestamps (`Item { frame, timestampMs }`).
+- **Режими (`emitMode`):** `full` — emit само когато прозорецът се напълни, после
+  плъзга и emit-ва на всеки нов кадър; `everyFrame` — emit на всеки кадър (и
+  частичен прозорец); `interval` — най-много веднъж на `intervalMs` (по
+  подразбиране 1000 ms; първият кадър emit-ва веднага).
+- **Zero-copy:** `FrameWindowData::Item::frame` е **същият**
+  `std::shared_ptr<VideoFrameData>`, който източникът е произвел — без копие на
+  пиксели и без `asImage()`.
+- **Null вход:** изчиства прозореца и emit-ва `dataInvalidated(0)`.
+- **Типът:** header-only `src/plugins/common/NodeDataTypes/FrameWindowData.h`
+  (`items()`, `isEmpty()`, `count()`, `firstTimestampMs()`, `lastTimestampMs()`);
+  копирането е изтрито, преносът е по `shared_ptr`.
+- **Persist:** `emitMode`, `window`, `intervalMs` в `save()`/`load()`.
+- **Widget:** `FrameWindowWidget` (GUI плъгина) — mode combo + два QSpinBox-а;
+  моделът е widget-free (REQ-SW-PL-051).
 
 ## AudioSource — SampledData миграция (REQ-SW-PL-024)
 
@@ -751,7 +764,7 @@ Plugin-ът изисква следните Qt модули и библиоте�
 - **Qt::Core, Qt::Gui** — основни Qt модули
 - **Qt::Charts** — за графична визуализация
 - **Qt::Multimedia** — за аудио и видео функционалност (AudioSource, Video нодове)
-- **Qt::Network** — за мрежова комуникация (LLaMA API, StreamSource)
+- **Qt::Network** — за мрежова комуникация (StreamSource, NetworkSource/Sink)
 - **Qt::OpenGL** — за rendering
 - **QtNodes** — node editor library
 - **NodeEditorLibrary** — споделена библиотека за node editor

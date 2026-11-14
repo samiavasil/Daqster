@@ -30,13 +30,27 @@ set(TEST_SOURCES
     test_widget_embed.cpp test_widget_embed.h
     # REQ-SW-PL-079: status-bar rows + plugin menu (IStatusBarProvider).
     test_status_bar.cpp test_status_bar.h
+    # REQ-SW-PL-084: plugin actions in the host menu bar (IMenuProvider).
+    test_plugin_menu.cpp test_plugin_menu.h
+    # REQ-SW-PL-082: the panel listing what ISceneOpening reported (IDE half of
+    # "loads, marks, does not start").
+    test_scene_problems_panel.cpp test_scene_problems_panel.h
+    # REQ-SW-PL-082: live node validation errors in the panel (red node says why).
+    test_live_validation_problems.cpp test_live_validation_problems.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutTree.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutEngine.cpp
     # Status bar controller (REQ-SW-PL-079): renders providers, owns the menu.
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/StatusBarController.cpp
+    # Plugin menu controller (REQ-SW-PL-084): installs IMenuProvider actions
+    # into a host menu bar (path resolution, no duplicates).
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/PluginMenuController.cpp
     # Visual layout designer (REQ-SW-PL-059): panel commands + serialization.
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutDesignerPanel.cpp
+    # Scene problems panel (REQ-SW-PL-082): fills from SceneOpenProblem.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/SceneProblemsPanel.cpp
+    # Live validation states → panel rows + merge/dedupe (REQ-SW-PL-082).
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeProblems.cpp
     # REQ-SW-PL-051: multi-IWidgetProvider fallback in the node editor
     # (nodeWidget() consults every provider, first non-null wins).
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/types/ChatGraphModel.cpp
@@ -65,6 +79,9 @@ target_link_libraries(node_editor_ide_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Gui
     Qt${QT_VERSION_MAJOR}::Widgets
+    # SceneProblemsPanel.h includes SceneOpen.h (REQ-SW-PL-082); FrameworkCore
+    # propagates base/src/engine and the generated framework_core_export.h.
+    FrameworkCore
     # LayoutTree.h/LayoutEngine.h include QtNodes/Definitions (NodeId typedef);
     # the QtNodes target also propagates the NODE_EDITOR_SHARED definition.
     QtNodes

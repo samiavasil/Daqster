@@ -71,7 +71,6 @@ new requirement — e.g. next after <code>REQ-SW-PL-015</code> is
 <tr><td>REQ-SW-PL-</td><td>Plugins (requirements manager, node editor, demo plugins)</td></tr>
 <tr><td>REQ-SW-BLD-</td><td>Build &amp; tooling (CMake infrastructure, unit test infra)</td></tr>
 <tr><td>REQ-PLG-</td><td>Plugin framework (discovery, loading, security)</td></tr>
-<tr><td>REQ-AI-</td><td>AI Studio features</td></tr>
 <tr><td>REQ-SEC-</td><td>Security</td></tr>
 <tr><td>REQ-DOC-</td><td>Documentation and processes</td></tr>
 </table>

@@ -53,15 +53,23 @@ set(TEST_SOURCES
     test_fft_util.cpp test_fft_util.h
     test_audio_buffer_to_sampled.cpp test_audio_buffer_to_sampled.h
     test_video_perf_badge.cpp test_video_perf_badge.h
+    test_image_data.cpp test_image_data.h
+    test_frame_window_node.cpp test_frame_window_node.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoTransformOps.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/StreamUrlValidator.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoPerfBadge.cpp
+    # REQ-SW-PL-086: the FrameWindowNode model, compiled directly into the
+    # binary (same pattern as the FrameSampler suite below).
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Video/FrameWindowNode.cpp
 )
 
 add_executable(nodeditor_nodes_tests ${TEST_SOURCES})
 
 target_include_directories(nodeditor_nodes_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
@@ -79,6 +87,9 @@ target_link_libraries(nodeditor_nodes_tests PRIVATE
     # target propagates the NODE_EDITOR_SHARED compile definition (Export.hpp
     # requires it) and supplies the NodeData base-class symbols.
     QtNodes
+    # FrameWindowNode's VideoFrameData destructor reaches TexturePool::release()
+    # on the pooled path (REQ-SW-PL-032 E1) — link the one process-wide pool.
+    DaqsterCommonLibrary
 )
 
 add_test(NAME nodeditor_nodes_tests COMMAND $<TARGET_FILE:nodeditor_nodes_tests>)
@@ -889,7 +900,6 @@ set(LIFECYCLE_TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/FilePlayback/FilePlaybackModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Gamepad/GamepadModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Gamepad/GamepadEngine.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/LLamaSource/LLamaModelDataModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/NetworkSource/NetworkSourceModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/CameraSourceNode.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/StreamSourceNode.cpp
@@ -905,7 +915,7 @@ set(LIFECYCLE_TEST_SOURCES
     # category, defined in exactly one TU (DaqsterCommonLibrary compiles it).
     # The models are compiled into this binary instead of linked from the
     # plugin, so the definition comes along too. ProcessOwner is the .cpp half
-    # of the same primitive (LLamaModelDataModel uses it for llama-server).
+    # of the same primitive.
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ThreadingLog.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ProcessOwner.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
@@ -1036,3 +1046,4 @@ add_test(NAME demo_nodeditor_nodewidget_tests
          COMMAND demo_nodeditor_nodewidget_tests)
 set_tests_properties(demo_nodeditor_nodewidget_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+

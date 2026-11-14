@@ -3,6 +3,7 @@
 #include "FlowUiSection.h"
 #include "LayoutTree.h"
 #include "QBasePluginObject.h"
+#include "SceneOpen.h"
 #include <QtNodes/Definitions>
 
 #include <QEvent>
@@ -14,12 +15,16 @@
 
 class LayoutDesignerPanel;
 class NodeEditorWidget;
+class PluginMenuController;
+class SceneProblemsPanel;
 class StatusBarController;
 class QAction;
 class QMainWindow;
+class QTimer;
 class QWidget;
 namespace Daqster {
 class IWidgetProvider;
+class IProblemFixer;
 }
 namespace QtNodes {
 class NodeDelegateModel;
@@ -88,6 +93,11 @@ public slots:
 protected slots:
     void nodeDoubleClicked(QtNodes::NodeId nodeId);
 
+    /// REQ-SW-PL-082: the user activated a row in the problems panel — select
+    /// the node it names and centre the view on it. Unknown/empty ids are a
+    /// logged no-op (the scene may have changed since the verdict).
+    void selectSceneNode(const QString& nodeId);
+
 private:
     /// The close sequence behind `closeScene()` and behind "Load Scene…".
     ///
@@ -110,6 +120,41 @@ private:
     /// controller. Called on start and whenever a plugin is loaded/unloaded,
     /// so a provider that appears later still gets its row.
     void adoptStatusBarProviders();
+
+    /// REQ-SW-PL-084: installs the actions of every IMenuProvider plugin into
+    /// the IDE menu bar (`Tools → AI Setup` and friends).
+    ///
+    /// Called once from Initialize(), after the menus exist. Idempotent — the
+    /// controller removes what it installed before, so a re-Initialize() (or a
+    /// second call) never leaves a duplicate entry.
+    void installPluginMenuActions();
+
+    /// REQ-SW-PL-085: hands ALL IProblemFixer plugins to the problems panel and
+    /// lets the first provider that `canFix()` a row put its "Поправи" button
+    /// on it. Re-run whenever plugins are loaded/unloaded.
+    void adoptProblemFixers();
+
+    /// REQ-SW-PL-085: a fixer succeeded for @p problem. Drops that row and the
+    /// node's error mark, then re-reads the graph's validation states.
+    void onProblemFixed(const Daqster::SceneOpenProblem& problem);
+
+    /// REQ-SW-PL-082: applies an `ISceneOpening` verdict to the *loaded* scene —
+    /// "зарежда, маркира, не стартира". Each problem with a node id marks that
+    /// node (`NodeValidationState::Error`) and is logged; the panel lists them
+    /// all. Nothing is refused, nothing is started, no modal dialog.
+    void applySceneProblems(const QVector<Daqster::SceneOpenProblem>& problems);
+
+    /// REQ-SW-PL-082: re-reads every node's `NodeRole::ValidationState` and
+    /// shows the non-`Valid` ones in the problems panel, merged with the
+    /// open-time verdict stored by `applySceneProblems()`.
+    ///
+    /// The canvas paints a red node and puts the message in a tooltip only (the
+    /// affordance icon lives outside the node in the nodeeditor submodule), so
+    /// without this a node that turns red *after* load says nothing the user can
+    /// read. Called after `load()`, after the verdict is applied and on the
+    /// graph's `nodeUpdated` signal (coalesced through `m_problemRefreshTimer`);
+    /// it never polls.
+    void refreshNodeProblems();
 
     /// Dev driver (DAQSTER_AUTOSTART_VIDEO=1): builds a video source ->
     /// VideoOutput graph, connects it, starts playback from DAQSTER_VIDEO_FILE /
@@ -165,11 +210,39 @@ private:
     /// with the window, which turns every later refresh into a no-op.
     QPointer<StatusBarController> m_statusBar;
 
+    /// Plugin-provided menu actions (REQ-SW-PL-084). Parented to `this` so it
+    /// outlives the window; its QMenuBar handle is a QPointer and goes null
+    /// with the window, which turns every later call into a no-op.
+    QPointer<PluginMenuController> m_pluginMenu;
+
     /// Visual layout designer (REQ-SW-PL-059). Created in Initialize(), shown
     /// only in designer mode.
     LayoutDesignerPanel* m_designer = nullptr;
     bool m_designerMode = false;
     QAction* m_designerAction = nullptr;
+
+    /// Scene problems reported by `ISceneOpening` (REQ-SW-PL-082). Created in
+    /// Initialize() under the canvas, hidden until a scene reports something;
+    /// a row activation selects and centres the node it names.
+    SceneProblemsPanel* m_problemsPanel = nullptr;
+
+    /// What `ISceneOpening` reported for the current scene (REQ-SW-PL-082).
+    /// Kept so a live refresh cannot drop the open-time hints; cleared on close.
+    QVector<Daqster::SceneOpenProblem> m_sceneOpenProblems;
+
+    /// What the panel currently shows — a per-frame `nodeUpdated` from a
+    /// display node must not rebuild the list when nothing changed.
+    QVector<Daqster::SceneOpenProblem> m_lastPanelProblems;
+
+    /// Fixers contributed by plugins (REQ-SW-PL-085). The panel shows a
+    /// "Поправи" button on a row when the first fixer here says it can handle
+    /// the problem; the panel emits `fixRequested` after a success and the IDE
+    /// re-reads the scene.
+    QList<Daqster::IProblemFixer*> m_problemFixers;
+
+    /// Coalesces bursts of `nodeUpdated` into one `refreshNodeProblems()`
+    /// per event-loop turn (single-shot, 0 ms — not a poll).
+    QTimer* m_problemRefreshTimer = nullptr;
 
     /// `File → Close Scene` (REQ-SW-PL-078). Also on the toolbar, so the close
     /// button the IDE was missing is visible without opening a menu.

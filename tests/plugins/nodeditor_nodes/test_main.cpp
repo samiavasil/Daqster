@@ -8,6 +8,8 @@
 #include "test_fft_util.h"
 #include "test_audio_buffer_to_sampled.h"
 #include "test_video_perf_badge.h"
+#include "test_frame_window_node.h"
+#include "test_image_data.h"
 
 // Shared main for the nodeditor_nodes video test classes. Each class is
 // declared in its own header so a single binary can run all of them through
@@ -47,6 +49,14 @@ int main(int argc, char *argv[])
     {
         TestVideoPerfBadge videoPerfBadge;
         status |= QTest::qExec(&videoPerfBadge, argc, argv);
+    }
+    {
+        ImageDataTest imageData;
+        status |= QTest::qExec(&imageData, argc, argv);
+    }
+    {
+        TestFrameWindowNode frameWindow;
+        status |= QTest::qExec(&frameWindow, argc, argv);
     }
     return status;
 }

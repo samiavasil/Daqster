@@ -4,8 +4,6 @@
 
 // Core node models (no GUI widgets)
 #include "Sources/AudioSource/AudioSourceDataModel.h"
-#include "Sources/LLamaSource/LLamaModelDataModel.h"
-#include "Sources/LLamaSource/ConsoleDataModel.h"
 #include "Sources/Video/CameraSourceNode.h"
 #include "Sources/Video/VideoFileSourceNode.h"
 #include "Sources/Video/StreamSourceNode.h"
@@ -13,6 +11,7 @@
 #include "Processing/Video/VideoEffectNode.h"
 #include "Processing/Video/CustomShaderNode.h"
 #include "Processing/Video/FrameSamplerNode.h"
+#include "Processing/Video/FrameWindowNode.h"
 #include "Sources/PlutoSdr/PlutoSdrModel.h"
 #include "Sources/SystemMonitor/SystemMonitorModel.h"
 #include "Sources/Gamepad/GamepadModel.h"
@@ -76,8 +75,6 @@ void NodeditorNodesCoreObject::registerNodes(QtNodes::NodeDelegateModelRegistry&
     registry.registerModel<AudioSourceDataModel>("Sources/Audio");
     // Migrated from old plugin: obsolete audio models
     registry.registerModel<AudioSourceDataModelObsolete>("Obsolete");
-    registry.registerModel<LLamaModelDataModel>("AI/LLM");
-    registry.registerModel<ConsoleDataModel>("AI/LLM");
     registry.registerModel<CameraSourceNode>("Sources/Video");
     registry.registerModel<VideoFileSourceNode>("Sources/Video");
     registry.registerModel<StreamSourceNode>("Sources/Video");
@@ -85,6 +82,7 @@ void NodeditorNodesCoreObject::registerNodes(QtNodes::NodeDelegateModelRegistry&
     registry.registerModel<VideoEffectNode>("Processing/Video");
     registry.registerModel<CustomShaderNode>("Processing/Video");
     registry.registerModel<FrameSamplerNode>("Processing/Video");
+    registry.registerModel<FrameWindowNode>("Processing/Video");
     
     // Conditional nodes (guarded by compile definitions)
 #ifdef HAVE_LIBIIO
@@ -159,8 +157,6 @@ void NodeditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateModelR
     // Migrated from old plugin: obsolete audio models (REQ-SW-PL-056 AC4).
     // Registered as-is — no refactor, no removal; see the AC4 note below.
     registry.registerModel<AudioSourceDataModelObsolete>("Obsolete");
-    registry.registerModel<LLamaModelDataModel>("AI/LLM");
-    registry.registerModel<ConsoleDataModel>("AI/LLM");
     registry.registerModel<CameraSourceNode>("Sources/Video");
     registry.registerModel<VideoFileSourceNode>("Sources/Video");
     registry.registerModel<StreamSourceNode>("Sources/Video");
@@ -168,6 +164,7 @@ void NodeditorNodesCoreObject::registerNodesHeadless(QtNodes::NodeDelegateModelR
     registry.registerModel<VideoEffectNode>("Processing/Video");
     registry.registerModel<CustomShaderNode>("Processing/Video");
     registry.registerModel<FrameSamplerNode>("Processing/Video");
+    registry.registerModel<FrameWindowNode>("Processing/Video");
     
     // Conditional nodes (guarded by compile definitions)
 #ifdef HAVE_LIBIIO

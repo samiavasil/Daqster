@@ -21,7 +21,7 @@
 namespace {
 
 /// Plugin object that reports a status row — the thing a real plugin would do
-/// (e.g. the AI studio plugin reporting warm model weights and VRAM).
+/// (e.g. a plugin reporting its open devices and the memory they use).
 class FakeStatusBarProvider : public Daqster::QBasePluginObject,
                               public Daqster::IStatusBarProvider
 {

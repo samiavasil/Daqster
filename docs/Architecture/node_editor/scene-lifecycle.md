@@ -15,6 +15,8 @@
 повторно отваряне в един и същ процес.
 
 `REQ-SW-PL-078` въвежда затварянето като **договор**, а не като един ред.
+`REQ-SW-PL-082` прави същото за другата половина: отварянето пита плъгините
+**преди** да спре и унищожи работещата сцена (виж „Отварянето е договор" по-долу).
 
 ## Договорът
 
@@ -40,6 +42,168 @@
 - **стъпка 2 между тях** — плъгинът вижда нодовете си **вече спрени** (нула живи
   контексти), но още живи като обекти. Това е единственият момент, в който може
   да реши съдбата на теглата.
+
+## Отварянето е договор (REQ-SW-PL-082)
+
+Затварянето получи договор, но отварянето остана „просто `load()`" — и в двата
+non-IDE host-а редът беше **обратен**: `stopAllNodes()` + `notifySceneClosed()`
+се викаха **преди** файлът да е прочетен, а `buildGraphModel()` унищожаваше
+стария граф **преди** парсването. Тоест невалиден файл (сгрешен път, скъсан JSON,
+сцена, която не може да работи на тази машина) убиваше работещата сцена, без да
+зареди нищо. Сега редът е:
+
+```
+прочети → спри старото → зареди новото → питай плъгините → (при проблеми: не стартирай)
+```
+
+Присъдата **не е вето**: `REQ-SW-PL-082` смени семантиката от „отказвам да
+заредя" на **„зарежда, маркира, не стартира"**. Сцена, за която плъгинът казва
+„този модел липсва на тази машина", се **зарежда** — потребителят вижда графа,
+който е поискал, и може да поправи пътя или да смени нода — но нодовете с
+`autoStart` остават **спрени**, защото стартирането е това, което би изгърмяло.
+Причината: отказът на зареждане беше по-скъп от проблема. Един липсващ файл
+връщаше човека към празен екран, а графът, който вижда, е и единственото място,
+на което може да поправи нещо.
+
+Пита се optional capability-то `ISceneOpening` (виж
+[capabilities.md](../capabilities.md) §ISceneOpening): `onSceneOpening(scene)`
+връща **всички** причини, поради които сцената не може да се стартира, а празен
+списък значи „няма проблеми". Хостът вика **двуаргументния** вариант
+`onSceneOpening(scene, scenePath)` и подава пътя, който вече има: `.flow`
+файлът при `loadFlow()`, а **празен** низ при `reloadFlow(QJsonObject)` /
+`POST /api/flow` (сцена без файл). Плъгин, който не знае за пътя, не губи нищо —
+default-имплементацията препраща към едноаргументния и отговаря както преди
+(REQ-SW-PL-082). Причините са **структурирани** (`SceneOpenProblem`:
+id на нода, име, съобщение и подсказка), не низове — така хостът може да маркира
+визирания нод, а не само да покаже списък.
+
+| Път | Къде се пита | Какво става при проблеми | Код |
+|---|---|---|---|
+| `NodeRunner --headless`, `loadFlow()` | последната врата, в `applySceneJson()` след филтрирането на непознатите типове; пътят на файла стига до hook-а | сцената се зарежда; `autoStartNodes()` се пропуска; `qCWarning` на проблем + `errorOccurred()` | `HeadlessEngine.cpp` `applySceneJson()` → `recordSceneOpening()`; `loadFlow()` стъпка 8 |
+| `POST /api/flow` (headless и GUI) | същото, през `reloadFlow()` — тялото е JSON, тоест пътят е празен | 200 `{"applied": true, "started": false, "problems": […]}` | `ControlPlaneRouter.cpp` (`POST /api/flow`); `lastSceneProblems()` |
+| `NodeRunner --run` (GUI), `loadFlow()` | `applySceneJson()` | сцената се зарежда; `RunRuntime()` не стартира `autoStart` нодовете | `RuntimeShell.cpp` `applySceneJson()` → `recordSceneOpening()`; `RunRuntime()` стъпка 6 |
+| `POST /api/flow` (GUI runtime) | `reloadFlow()` → `applySceneJson()` | същото тяло като headless (един и същ router) | `RuntimeShell.cpp:reloadFlow()` |
+| IDE `File → Load Scene…` | **след** `load()`, върху заредената сцена, с пътя от `loadSceneFromFile(fileName)` | сцената се зарежда и остава за редактиране; всеки проблем маркира нода си (`NodeValidationState::Error`), панелът под канваса изрежда всички, по един `qCWarning` на проблем; **без** модален диалог; нищо не се стартира | `NodeEditorIdeObject.cpp:loadSceneFromFile()` → `applySceneProblems()`; `SceneProblemsPanel` |
+
+Защо питане на едно място, а не две: при ветото ранното питане имаше смисъл
+(отказът не струваше нищо); при „зарежда, маркира, не стартира" всяко питане
+преди `load()` пита за сцена, която после се филтрира (непознатите типове
+отпадат), тоест отговорът може да е за нодове, които вече не съществуват.
+Затова пита единственото място, което вижда **филтрираната** сцена —
+`applySceneJson()` в двата host-а (и двете през `recordSceneOpening()`), а в IDE-то
+— `loadSceneFromFile()` **след** `load()`.
+
+### IDE-то: маркирай, не отказвай (`SceneProblemsPanel`)
+
+IDE-то беше последният хост с вето: `File → Load Scene…` показваше
+`QMessageBox::warning` и **не зареждаше** нищо, тоест човекът оставаше на празен
+канвас — а графът е единственото място, на което липсващият път се поправя.
+Сега `loadSceneFromFile()` пита **след** успешния `load()` (нодовете трябва да
+съществуват, за да бъдат маркирани) и прави точно три неща:
+
+1. **маркира** — за всеки проблем с непразен `nodeId` нодът получава
+   `setValidationState({State::Error, message (+ " — " + hint)})`, което
+   `NodeGraphicsObject` рисува върху тялото на нода; проблем без `nodeId` (за
+   цялата сцена) само се логва;
+2. **изрежда** — `applySceneProblems()` пълни `SceneProblemsPanel` под канваса
+   (хедър `Проблеми в сцената (N)`, свит по подразбиране; двойно щракване или
+   Enter върху ред излъчва `problemActivated(nodeId)` и хостът селектира нода и
+   центрира изгледа върху него). Празен списък **скрива** панела — чистата сцена
+   не губи височина;
+3. **логва** — по един `qCWarning(lcNodeEditor)` на проблем, с id и текст.
+
+Модален диалог няма: сцената остава отворена и редактируема, а нищо не се
+стартира (`autoStart` е грижа на runtime host-овете, не на редактора). Затваряне
+на сцената изчиства и панела, защото проблемите описват нодове, които вече не
+съществуват.
+
+Текстът на реда е същият като в логовете —
+`SceneProblemsPanel::textForProblem()`: `<nodeName> (<nodeId>): <message> — <hint>`,
+празните части се пропускат.
+
+#### Живи валидационни грешки (не само при отваряне)
+
+Панелът показва **две неща**, не едно:
+
+1. проблемите от `ISceneOpening` при отваряне (присъдата, пазена в
+   `m_sceneOpenProblems`);
+2. **живите** валидационни грешки на нодовете — всичко с
+   `NodeValidationState::State != Valid` в `NodeRole::ValidationState`.
+
+Второто съществува, защото на канваса един червен нод **не казва нищо**:
+съобщението е само tooltip, а иконката за проблема се рисува извън нода — това е
+известен дефект на `nodeeditor` submodule-а и тук **не се поправя**. Докато той
+съществува, панелът е единственото място, на което „червено" има прочетим текст.
+
+`NodeEditorIdeObject::refreshNodeProblems()` обхожда `allNodeIds()`, чете
+`NodeRole::Caption` и `NodeRole::ValidationState` и подава състоянията на
+`NodeProblems::merge()` заедно с присъдата. Правилата (тестват се с чисти данни,
+без граф — `NodeProblems.{h,cpp}`):
+
+- ред се прави за всяко състояние, различно от `Valid` (`Warning` също), с
+  текста на нода; празно съобщение получава резервен текст, защото „червено без
+  текст" е точно дефектът, който се поправя;
+- **дедупликация по (`nodeId`, `message`)**: `applySceneProblems()` маркира нода
+  със същия текст, който после идва и като жива валидация — потребителят трябва
+  да го види веднъж; при две копия оцелява това с `hint` (присъдата е по-богата);
+- щом нодът стане `Valid`, редът му изчезва, а празен списък скрива панела.
+
+Кога се вика: след `load()`, след `applySceneProblems()` и при сигналите на
+графа (`nodeUpdated`, `nodeCreated`, `nodeDeleted`, `modelReset`).
+`setValidationState()` излъчва `requestNodeUpdate()` → `nodeUpdated`, тоест
+живата грешка стига до панела без polling. Изливите от `nodeUpdated` (нод, който
+се обновява всеки кадър) се събират в един single-shot `QTimer` (0 ms) и
+`NodeProblems::sameProblems()` пропуска презареждането, когато списъкът не се е
+променил — панелът не се строи наново всеки кадър. Таймерът се спира при
+затваряне на сцената; при затваряне `m_sceneOpenProblems` и панелът се изчистват.
+
+Хостът пази присъдата в `m_lastSceneProblems` и я дава навън през
+`RuntimeController::lastSceneProblems()` — така `POST /api/flow` казва и двете
+неща в един отговор, вместо да избира между „успя" и „не успя":
+
+```json
+{"applied": true, "started": false,
+ "problems": [{"nodeId": "3", "nodeName": "Chat",
+               "message": "моделът липсва", "hint": "изтеглете го"}]}
+```
+
+`400 {"applied": false, "error": …}` остава само за документ, който хостът не
+може да зареди изобщо (счупен JSON, невалидна структура). `started` е
+`problems.isEmpty()`, а не „стартира ли се нещо" — сцена без `autoStart` нодове
+също дава `started: true`.
+
+Текстът се строи на едно място — `sceneOpeningMessage()`
+(`src/frame_work/base/src/engine/SceneOpen.cpp`), по модела на
+`unsupportedHeadlessMessage()` (`HeadlessEngine.cpp`) — и затова логът и
+`errorOccurred()` казват едно и също: всички проблеми, един под друг, всеки с
+нода, който визира (`<nodeName> (<nodeId>): <message> — <hint>`, празните части
+се пропускат). Който иска данни, а не текст, ползва
+`SceneOpenReport::problemsJson()` / `lastSceneProblems()`.
+
+### „Поправи“ до проблема (`IProblemFixer`, REQ-SW-PL-085)
+
+Диагнозата вече е видима, но лечението беше ръчно: дори когато плъгинът знае
+точното действие („този модел липсва — изтегли го“, „смени backend-а“),
+човекът трябваше да го изведе от `hint`-а. Сега плъгин, който имплементира
+`Daqster::IProblemFixer` (`src/plugins/common/capabilities/IProblemFixer.h`),
+получава бутон на своя ред в `SceneProblemsPanel`.
+
+- `NodeEditorIdeObject::adoptProblemFixers()` взима
+  `QPluginManager::problemFixers()` и подава на
+  `SceneProblemsPanel::setFixHandler(label, fix)` два callable-а: **първият
+  fixer, чийто `canFix()` каже „да“, печели**; празен `fixLabel()` значи „без
+  бутон“ и редът остава както преди.
+- Натискането вика `fix(problem, &error)`. При `false` причината отива в
+  **собствения статус ред на панела** (`sceneProblemsStatus`) — без модален
+  диалог, редът остава за повторен опит. При успех панелът излъчва
+  `fixRequested(problem)`, IDE-то маха реда и маркировката на нода
+  (`onProblemFixed()`) и препрочита валидационните състояния.
+- Излъчването е отложено с една итерация на event loop-а: хостът изчиства
+  списъка, тоест изтрива бутона, в чийто `clicked()` сме — директно излъчване
+  би разрушило widget-а по време на собствения му сигнал.
+- Откриването е същото като при `IMenuProvider` — `dynamic_cast` през
+  `PluginRegistry::problemFixers()`, връща инициализирани обекти; повторно се
+  вика при зареждане/разтоварване на плъгин.
 
 ## Причината за затварянето (`SceneCloseReason`)
 
@@ -68,9 +232,9 @@
 | Път | Какво прави | Код |
 |---|---|---|
 | IDE `File → Close Scene` (Ctrl+W, бутон в toolbar-а) | пита при нестартирани промени → `stopSceneNodes()` → `notifySceneClosed()` → `clearScene()` | `NodeEditorIdeObject::closeCurrentScene()` |
-| IDE `File → Load Scene…` | същото, без въпроса (сцената се подменя) | `NodeEditorIdeObject::loadSceneFromFile()` |
-| `NodeRunner --run` (GUI), смяна на сцена | `stopAllNodes()` → `notifySceneClosed()` → `clearScene()` | `RuntimeShell::loadFlow/reloadFlow/closeFlow` |
-| `NodeRunner --headless`, `POST /api/flow` | `stopAllNodes()` → `notifySceneClosed()` → нов `DataFlowGraphModel` | `HeadlessEngine::loadFlow/reloadFlow` |
+| IDE `File → Load Scene…` | пита `ISceneOpening` (отказ = нищо не се пипа) → същото, без въпроса (сцената се подменя) | `NodeEditorIdeObject::loadSceneFromFile()` |
+| `NodeRunner --run` (GUI), смяна на сцена | чете → `stopAllNodes()` → `notifySceneClosed()` → `clearScene()` → зарежда → пита `ISceneOpening` (проблеми = без `autoStart`) | `RuntimeShell::loadFlow/reloadFlow/closeFlow` |
+| `NodeRunner --headless`, `POST /api/flow` | чете → `stopAllNodes()` → `notifySceneClosed()` → нов `DataFlowGraphModel` → зарежда → пита `ISceneOpening` (проблеми = без `autoStart`) | `HeadlessEngine::loadFlow/reloadFlow` |
 | `POST /api/flow/close` | `closeSceneGraph()` = спиране + hook + изтриване на възлите | `HeadlessEngine::closeFlow`, `RuntimeShell::closeFlow` |
 | Изход от приложението | `stopAllNodes()` при `aboutToQuit` → `ISceneLifecycle` → `DeInitialize()` | `AppBootstrap.cpp` |
 
@@ -126,7 +290,7 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
   `abort()`), а `stop()` пак връща — никога безкрайно чакане.
 - **Процесът се убива само ако е наш.** `setOwned(false)` (или `adopt(p,false)`
   за преизползван сървър) кара `stop()` да **забрави** процеса, без да го
-  сигнализира — иначе затварянето на сцена би убило чужд топъл `whisper-server`.
+  сигнализира — иначе затварянето на сцена би убило чужд топъл процес.
 - **`finished` → `deleteLater`.** Процесът, който сме стартирали, се трие от
   собствения си сигнал, тоест не остава висяща връзка към мъртъв обект.
 
@@ -148,16 +312,13 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
 
 | Ресурс | Притежател | Освобождава се в |
 |---|---|---|
-| `ContextHandle` (KV, `n_ctx`) | нодът, който го е взел (`ChatNode`, LLM нодове) | `stop()`; деструкторът е втората защита |
-| тегла (`ModelHandle`) | брокерът (`ModelRuntime`), не нодът | политиката при затваряне — вижте долу |
-| топъл `whisper-server` | `AsrNode` → `AsrAdapter` (само **собствен**) | `stop()` → `AsrAdapter::stop()` → `stopServer()` |
-| топъл `piper` | `TtsNode` → `TtsAdapter` | `stop()` → `killWarmProcess()` |
-| `llama-mtmd-cli` | `VlmNode` → `VlmAdapter` | `stop()` → `VlmAdapter::stop()` (гаси и retire()-натите процеси) |
-| `llama-tts` (на заявка) | `TtsAdapter` | `stop()`/деструктор |
+| зает ресурс на нода (контекст, връзка) | нодът, който го е взел | `stop()`; деструкторът е втората защита |
+| споделен ресурс зад брокер | брокерът, не нодът | политиката при затваряне — вижте долу |
+| топъл външен процес | нодът, само ако е **собствен** | `stop()` → адаптерът гаси процеса |
 | `AudioOutput` sink | публичен `AudioOutputNode` | `stop()` → `AudioPlaybackEngine::stop()` |
 | `AudioSource` capture | публичен `AudioSourceDataModel` | `stop()` → `quit()` + `wait()` |
 
-**Преизползван чужд `whisper-server` не се пипа** — той има свой собственик, а
+**Преизползван чужд топъл процес не се пипа** — той има свой собственик, а
 нодът само затваря връзката си.
 
 ### След `stop()` нодът продължава да получава обръщения
@@ -198,7 +359,6 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
 | # | Място | Преди | Сега |
 |---|---|---|---|
 | D1 | `DaqDisplayNode::stop()`, `VideoEffectNode::stop()` | работната задача проверяваше `m_shuttingDown` — тоест **член на нода**, който `ComputePool::cancel()` (500 ms) може вече да е унищожил | задачата държи `CancelToken` **по стойност** и проверява него преди всяко пипане на `this`; `stop()` отменя token-а **преди** `cancel()` |
-| D2 | `LLamaModelDataModel::stopServer()` | `terminate()` + `waitForFinished(3000)`; сървър, който игнорира SIGTERM, оставаше жив, а нодът се унищожаваше | + `kill()` + `waitForFinished(1000)`; връща `NotRunning/Stopped/Killed/TimedOut` и логва при kill |
 | D3 | `PlutoSdrEngine::stop()` | `QThread::wait()` без срок — блокиран `iio_buffer_refill()` спираше затварянето завинаги | `wait(3000)`; при изтичане връща `TimedOut` и **не** вика `terminate()` (убиването на нишката вътре в libiio оставя драйвера в неопределено състояние); `close()` тогава не разрушава iio контекста |
 | D4 | `InferenceWorker::stop()` (частно) | `wait()` без срок — зареждане на модел, което не може да се отмени, блокираше изхода на процеса | `wait(5000)`; при изтичане логва и **откача** нишката (разрушаването на работещ `QThread` вдига `abort()`), а `start()` отказва втора |
 
@@ -242,6 +402,32 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
   назад, се спира от източника напред;
 - `cycleIsStillFullyStopped` — цикъл не оставя работещ нод.
 
+Отварянето (`tests/framework/engine/scene_open_tests`, fake providers, без
+плъгин и без модели на диска):
+
+- `providerWithoutHookIsSkipped` — доставчик без hook се пропуска и не се брои;
+- `oneProviderReportsAllProblems` — един отказ с три причини връща трите, не
+  първата, всяка с id, име, съобщение и подсказка;
+- `twoProvidersAreUnioned` — двама отказващи: обединението, в ред на доставчиците;
+- `problemsAreSerialised` — `problemsJson()` дава `nodeId`/`nodeName`/`message`/
+  `hint`, включително празен `nodeId` за проблем за цялата сцена;
+- `messageNamesNodeAndHint` — редът на съобщението адресира нода и подсказката,
+  а липсващата подсказка не оставя висящо тире;
+- `acceptedSceneProducesNoProblems` — приемане = празен списък и празно
+  съобщение (хостът няма какво да покаже);
+- `noProvidersIsAcceptance` — никой не имплементира hook-а: сцената се отваря,
+  както преди hook-а да съществува;
+- `providersAskedIsCounted` — `providersAsked` брои питaните, не откритите
+  (null и без hook не се броят), а съобщението съдържа проблема и „Nothing was
+  loaded";
+- `hookReceivesTheScene` — hook-ът получава обекта, който би се заредил (вижда
+  нодовете), не празен обект.
+
+Ограничение (записано и в REQ-то): `HeadlessEngine::applySceneJson()` е private,
+а публичното repo не носи тестов плъгин — затова **редът** в хостовете
+(прочети → питай → спри → зареди) не се покрива от тест; тества се шевът
+(`checkSceneOpening()` + fake доставчици).
+
 Примитивите (`tests/plugins/common/`, binary `daqster_common_tests`):
 
 - `ThreadOwner`: `stopBeforeStartIsNoOp`, `invokeDeliversToWorker`,
@@ -260,8 +446,6 @@ int  Daqster::clearGraphNodes(QtNodes::DataFlowGraphModel& graph);   // widget-f
 - D1: `displayComputeTaskChecksTokenBeforeTheNode` (след `delete node` и
   задраскване на блока с `0xAB` token-ът още отговаря), `cancelledTaskGuardSurvivesTheNode`
   (същото за `VideoEffectNode`);
-- D2: `llamaModelStopKillsStubbornServer` — реален `QProcess`, който игнорира
-  SIGTERM → `Killed` след ~3 s, `NotRunning` при повторение;
 - D1+сцена: `audioSourceAndDisplaySurviveFiveSceneCloses` — 5 × (AudioSource →
   DaqDisplay, старт, `stopSceneNodes` източниците първи, изтриване на възлите
   под задраскан heap).

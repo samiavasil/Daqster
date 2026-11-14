@@ -12,6 +12,7 @@ Parent: [Documentation Index](../index.en.md)
 - [rest-api-remote-control.md](./rest-api-remote-control.md) - REST + WebSocket control plane
 - [capabilities.md](./capabilities.md) - capability interfaces (host ↔ plugin contracts)
 - [plugins-status-bar.md](./plugins-status-bar.md) - plugin status bar (`IStatusBarProvider`): global plugin state that belongs to no node
+- [local-server-service.md](./local-server-service.md) - the life of a local HTTP server (`LocalServerService`): free port, `/health`, ownership file, bounded stop
 - [runtime-mode-architecture.md](./runtime-mode-architecture.md) - (historical) runtime modes
 - [apps/README.md](./apps/README.md) - applications subsystem
 - [framework/README.md](./framework/README.md) - framework subsystem
@@ -20,6 +21,16 @@ Parent: [Documentation Index](../index.en.md)
 ## Related Sections
 
 - [Development Topics](../development/README.md) - contributor workflow and debugging topics
+
+## The boundary rule: what lives here
+
+**Core framework capability** — threads, processes, asynchrony, local server
+supervision, ports, health checks, ownership files — is provided **here**
+(`src/plugins/common/`); plugins (including private ones) **compose** it, never
+copy it. A duplicate of such capability inside a plugin is a boundary defect,
+not a convenience: at the first second consumer the copy drifts from the
+original (REQ-SW-PL-081 is exactly that case — a local-server supervisor moved
+out of a private plugin into `Servers/`).
 
 This document describes the architecture of Daqster, its main components, data flow, and working principles.
 
@@ -102,7 +113,7 @@ Shared Qt Widgets GUI components for node-based editors, built and installed fro
 
 *   **`NodeEditorWidget`**:
     *   Main QWidget with `getInjectedRegistry()`, `buildCanvas()`, `setConnectionStyle()`.
-    *   Auto-injects all standard Daqster open-source nodes (Audio, Media, Graphs, AI, etc.).
+    *   Auto-injects all standard Daqster open-source nodes (Audio, Media, Graphs, etc.).
     *   Emits `nodeDoubleClicked` signal on node double-click.
 *   **`ChatGraphModel`**:
     *   Loop-enabled graph model with circular link support.
