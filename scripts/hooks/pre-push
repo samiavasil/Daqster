@@ -1,0 +1,48 @@
+#!/bin/sh
+# pre-push hook: master приема само от develop или release/*.
+#
+# master е FROZEN (DevelopmentProcess/RELEASE-PROCESS.md, Option A):
+# promotion-ът е develop → master + таг vX.Y.Z, правен от release процедурата.
+# Hook-ът спира случаен `git push origin some-feature:master` от локална машина.
+# GitHub-ската страна се пази от .github/workflows/guard-master-source.yml
+# (required check) — hook-ът може да се прескочи с `git push --no-verify`.
+#
+# Инсталация: ./scripts/install-hooks.sh
+#
+# stdin: по един ред на ref — "<local_ref> <local_sha> <remote_ref> <remote_sha>".
+
+ZERO="0000000000000000000000000000000000000000"
+status=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+	[ -z "$remote_ref" ] && continue
+
+	# Пазим само master; всички други ref-ове минават непокътнати.
+	[ "$remote_ref" = "refs/heads/master" ] || continue
+
+	if [ "$local_sha" = "$ZERO" ]; then
+		echo "✗ Отказвам изтриване на master (${local_ref:-<изтриване>})."
+		echo "  master е released state; изтриването му не е release операция."
+		echo "  Ако е нужно, направи го ръчно в GitHub след изрично решение."
+		status=1
+		continue
+	fi
+
+	current="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+
+	case "$current" in
+		develop|release/*)
+			echo "✓ push '$current' → master е разрешен (release promotion)."
+			;;
+		*)
+			echo "✗ Отказвам push към master от '${current:-<detached HEAD>}'."
+			echo "  master е FROZEN: приема само 'develop' или 'release/*'."
+			echo "  Правилото: DevelopmentProcess/RELEASE-PROCESS.md (develop → master + таг vX.Y.Z)."
+			echo "  Направи PR към develop; в master влиза само release процедурата."
+			echo "  (По изключение: git push --no-verify — само при изрично решение.)"
+			status=1
+			;;
+	esac
+done
+
+exit "$status"

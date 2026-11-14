@@ -161,6 +161,15 @@ Installation:
 ./scripts/install-hooks.sh
 ```
 
+`scripts/install-hooks.sh` sets `core.hooksPath=scripts/hooks` (idempotent) and
+installs both versioned hooks:
+
+- `pre-commit` — renders PlantUML diagrams (below);
+- `pre-push` — refuses `master` unless the current branch is `develop` or
+  `release/*` (`master` is frozen, see `DevelopmentProcess/RELEASE-PROCESS.md` §6).
+  The same rule is enforced server-side by the `guard-master-source.yml` required
+  check on PRs into `master`.
+
 The hook will attempt to locate PlantUML in this order:
 
 - `plantuml` CLI on PATH
