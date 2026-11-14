@@ -8,10 +8,60 @@
 #include <QProcess>
 #include <QTemporaryDir>
 
+#ifndef Q_OS_WIN
+#include <csignal>
+#include <ctime>
+#include <unistd.h>
+#endif
+
 namespace {
 
 using Daqster::ProcessOwner;
 using StopResult = ProcessOwner::StopResult;
+
+#ifndef Q_OS_WIN
+/// File descriptor the inherited SIGTERM handler writes one byte to.
+volatile sig_atomic_t g_preExecMarkerFd = -1;
+
+/// Runs in the *forked copy* when stop() signals before exec().
+///
+/// Only async-signal-safe work: one write(2). The handler is installed in the
+/// test process, so a fork() inherits it; exec() resets caught signals to the
+/// default disposition, so a post-exec SIGTERM never reaches this function.
+extern "C" void markPreExecSignal(int)
+{
+    if (g_preExecMarkerFd >= 0) {
+        const char byte = 'x';
+        const ssize_t written = ::write(g_preExecMarkerFd, &byte, 1);
+        (void)written;
+    }
+}
+
+/// Installs markPreExecSignal for the lifetime of the guard, then restores the
+/// previous handler (QtTest's own — the one that turns a stray SIGTERM into
+/// `QFATAL "Received signal 15"`).
+class ScopedSigtermProbe
+{
+public:
+    explicit ScopedSigtermProbe(int markerFd)
+        : m_previous(::signal(SIGTERM, markPreExecSignal))
+    {
+        g_preExecMarkerFd = markerFd;
+    }
+    ~ScopedSigtermProbe()
+    {
+        g_preExecMarkerFd = -1;
+        ::signal(SIGTERM, m_previous);
+    }
+
+    ScopedSigtermProbe(const ScopedSigtermProbe &) = delete;
+    ScopedSigtermProbe &operator=(const ScopedSigtermProbe &) = delete;
+
+private:
+    using Handler = void (*)(int);
+    Handler m_previous;
+};
+#endif
 
 /// Path of a `sleep` that lives long enough to be signalled. Not portable on
 /// purpose — every test that uses it skips on Windows first.
@@ -50,7 +100,7 @@ QString writeStubbornServer(const QTemporaryDir &dir)
     // `exec sleep` would NOT work: the shell resets ignored dispositions on
     // exec, so the exec'ed program dies on SIGTERM (measured).
     script.write("#!/bin/sh\n"
-                 "# Fake llama-server: ignores the polite signal (REQ-SW-PL-050 D2).\n"
+                 "# Fake server: ignores the polite signal (REQ-SW-PL-050 D2).\n"
                  "trap '' TERM\n"
                  ": > ready.flag\n"
                  "read line\n");
@@ -76,6 +126,103 @@ void ProcessOwnerTest::startRejectsEmptyProgram()
     QVERIFY(!owner.start(QString(), QStringList()));
     QVERIFY(!owner.start(QStringLiteral("   "), QStringList()));
     QVERIFY(!owner.isRunning());
+}
+
+void ProcessOwnerTest::stopBeforeExecReportsNotRunning()
+{
+    ProcessOwner owner;
+    // start() only queues the spawn; exec then fails because there is no such
+    // file. That fork is not ours to signal — stop() must report it and send
+    // nothing (a FailedToStart has no `finished`, so a signal would be lost).
+    QVERIFY(owner.start(QStringLiteral("/nonexistent/daqster-no-such-program"), {}));
+    QCOMPARE(owner.stop(0, 1000), StopResult::NotRunning);
+    QVERIFY(!owner.isRunning());
+    QCOMPARE(owner.processId(), 0);
+    QCOMPARE(owner.stop(), StopResult::NotRunning);
+}
+
+void ProcessOwnerTest::stopWhileStartingDoesNotSignalTheChild()
+{
+#ifdef Q_OS_WIN
+    QSKIP("POSIX fixture: the probe is a SIGTERM handler inherited across fork()");
+#else
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    // The handler is inherited by fork() and reset by exec(). A byte in the
+    // marker therefore means exactly one thing: stop() signalled the child
+    // before it exec'ed — the bug that made QtTest children print
+    // `QFATAL "Received signal 15"` and dump core.
+    const QString marker = dir.filePath(QStringLiteral("pre-exec-signal.flag"));
+    QFile markerFile(marker);
+    QVERIFY(markerFile.open(QIODevice::WriteOnly));
+
+    // No trap in the script: after exec the shell keeps the default SIGTERM
+    // disposition, so the polite signal ends it without touching the marker.
+    const QString script = dir.filePath(QStringLiteral("sleepy.sh"));
+    QFile file(script);
+    QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    file.write("#!/bin/sh\nsleep 5\n");
+    file.close();
+    QVERIFY(QFile::setPermissions(script, QFile::ReadOwner | QFile::WriteOwner
+                                              | QFile::ExeOwner));
+
+    ProcessOwner owner;
+    StopResult result = StopResult::TimedOut;
+    {
+        const ScopedSigtermProbe probe(markerFile.handle());
+        // Exactly the call AsrAdapter makes when an abandoned request is
+        // retired: terminate immediately, no grace. A SIGTERM that is sent
+        // *after* exec gets 0 ms to work, so Killed is the expected, legal
+        // escalation here — the assertion is the marker: no signal before exec.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+        // Without help the fork→exec window is a few microseconds: by the time
+        // start() returns, the child has normally exec'ed already, so the bug
+        // hides and this test would pass even against the unfixed stop(). Hold
+        // the child *between* fork and exec for 200 ms (well under kStartWaitMs)
+        // — the modifier runs in the child, so only async-signal-safe work here.
+        QProcess process;
+        process.setChildProcessModifier([] {
+            const timespec delay{0, 200 * 1000 * 1000};   // 200 ms
+            ::nanosleep(&delay, nullptr);
+        });
+        process.start(script);
+        // An adopted process is not deleted by the owner — the test owns it.
+        owner.adopt(&process, true);
+#else
+        // Qt 5 has no child-process modifier; the window stays narrow, so this
+        // variant proves "no signal on the failed-start path" only together
+        // with stopBeforeExecReportsNotRunning().
+        QVERIFY(owner.start(script, {}));
+#endif
+        result = owner.stop(0, 1000);
+    }
+
+    QVERIFY2(result != StopResult::TimedOut,
+             "stop() returned TimedOut on a child that did start");
+    QVERIFY(!owner.isRunning());
+    QVERIFY2(QFileInfo(marker).size() == 0,
+             "stop() sent SIGTERM to a child that had not exec'ed yet");
+#endif
+}
+
+void ProcessOwnerTest::stopAfterStartStillTerminates()
+{
+#ifdef Q_OS_WIN
+    QSKIP("POSIX fixture: uses `sleep` as the child");
+#else
+    const QString sleep = sleepPath();
+    QVERIFY2(!sleep.isEmpty(), "no /bin/sleep on this machine");
+
+    ProcessOwner owner;
+    QVERIFY(owner.start(sleep, {QStringLiteral("30")}));
+    QVERIFY2(waitStarted(owner.process()), "child never execed");
+
+    // Regression: the normal path is unchanged — SIGTERM, bounded wait, no kill.
+    QCOMPARE(owner.stop(3000, 1000), StopResult::Stopped);
+    QVERIFY(!owner.isRunning());
+    QCOMPARE(owner.processId(), 0);
+#endif
 }
 
 void ProcessOwnerTest::ownedProcessIsTerminated()

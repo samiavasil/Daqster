@@ -51,9 +51,9 @@ QtWidgets) при `--headless`, `DaqsterLauncherGui` (`QApplication`) иначе
 | `PluginType` | Плъгини | headless |
 |---|---|---|
 | `gui` | `RuntimeHostGuiPlugin`, `NodeEditorIDE`, `RequirementsManager`, `QtCoinTrader` | пропуска се |
-| `NodeGui` | `NodeditorNodesGui`, `AiStudioPluginGui` | пропуска се |
+| `NodeGui` | `NodeditorNodesGui` | пропуска се |
 | `headless` | `RuntimeHostHeadlessPlugin` | зарежда се |
-| *(липсва)* | `NodeditorNodesCorePlugin`, `AiStudioPluginCore` | зарежда се |
+| *(липсва)* | `NodeditorNodesCorePlugin` | зарежда се |
 
 `PluginDiscovery::pluginType()` чете стойността през `QPluginLoader::metaData()`
 (**без** `dlopen`), така че решението се взема, преди плъгинът да влезе в процеса.

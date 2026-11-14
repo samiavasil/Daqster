@@ -91,6 +91,10 @@ public:
     bool reloadFlow(const QJsonObject& flow, QString* errorMessage = nullptr) override;
     bool closeFlow(QString* errorMessage = nullptr) override;
 
+    /// Problems from the last load (REQ-SW-PL-082), `{}` when it was clean.
+    /// Non-empty means the scene is loaded but deliberately not started.
+    QJsonArray lastSceneProblems() const override { return m_lastSceneProblems; }
+
 Q_SIGNALS:
     void nodeStarted(QtNodes::NodeId nodeId);
     void nodeStopped(QtNodes::NodeId nodeId);
@@ -118,9 +122,24 @@ private:
     /// Apply an already-parsed scene object (shared by loadFlow and reloadFlow).
     /// Extracts the "ui" section, drops unregistered node types, then rebuilds
     /// the graph. Never shows a dialog; the caller decides on user feedback.
+    /// @param scenePath File the scene came from, or empty when it has none
+    ///                  (the hot-reload path arrives as JSON) — REQ-SW-PL-082.
     bool applySceneJson(QJsonObject sceneJson,
+                        const QString& scenePath,
                         QStringList* skippedTypes,
                         QString* errorMessage);
+
+    /// Pre-open report for @p sceneJson (REQ-SW-PL-082).
+    ///
+    /// Stores the verdict in `m_lastSceneProblems` and, when it is not empty,
+    /// logs one warning per problem and emits `errorOccurred()` with
+    /// `sceneOpeningMessage()`. Never blocks the load — it only suppresses
+    /// `autoStartNodes()` („зарежда, маркира, не стартира").
+    ///
+    /// @return true when the scene may be started (no problems reported).
+    /// @param scenePath File the scene came from, or empty for an in-memory
+    ///                  scene; handed to the plugins unchanged (REQ-SW-PL-082).
+    bool recordSceneOpening(const QJsonObject& sceneJson, const QString& scenePath);
 
     void arrangeWorkspaces(const FlowUi::UiSection& ui);
 
@@ -178,6 +197,10 @@ private:
 
     // Node lifecycle as seen by the control plane.
     QHash<QtNodes::NodeId, bool> m_runningNodes;
+
+    /// Problems from the last load (REQ-SW-PL-082). Non-empty ⇒ the scene is up
+    /// but its autoStart nodes were left stopped.
+    QJsonArray m_lastSceneProblems;
 
     // Remote control plane (REQ-SW-PL-054)
     std::unique_ptr<Daqster::ControlPlaneServer> m_controlPlane;

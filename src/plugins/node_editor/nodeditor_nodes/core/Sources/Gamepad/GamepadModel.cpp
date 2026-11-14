@@ -225,3 +225,35 @@ void GamepadModel::setPollingEnabled(bool enabled)
     else
         m_engine->stop();
 }
+
+QJsonObject GamepadModel::configSchema() const
+{
+    // Describes exactly the object save() emits (REQ-SW-PL-091).
+    // "x-restart" is the per-field answer the control plane reads
+    // when a config write lands on a running node.
+    QJsonObject properties;
+
+    // devicePath is opened by the engine in start(); pollRateHz is read on every
+    // poll, so it applies to a running node immediately.
+    properties.insert(QStringLiteral("devicePath"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("string")},
+        {QStringLiteral("default"), QStringLiteral("/dev/input/js0")},
+        {QStringLiteral("x-restart"), true},
+        {QStringLiteral("description"),
+         QStringLiteral("Joystick device node. Opening a different device needs "
+                        "start()")}});
+
+    properties.insert(QStringLiteral("pollRateHz"), QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("integer")},
+        {QStringLiteral("minimum"), 30},
+        {QStringLiteral("maximum"), 120},
+        {QStringLiteral("default"), 60},
+        {QStringLiteral("x-restart"), false},
+        {QStringLiteral("description"),
+         QStringLiteral("Polling rate in Hz — applied to a running node")}});
+
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), properties},
+        {QStringLiteral("additionalProperties"), false}};
+}

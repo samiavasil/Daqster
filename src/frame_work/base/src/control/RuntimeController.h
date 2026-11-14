@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QString>
 #include <QVector>
@@ -67,7 +68,9 @@ public:
     virtual bool setNodeConfig(quint64 nodeId, const QJsonObject& config) = 0;
 
     /// Combined view for `GET /api/nodes/{id}`: config + schema + position +
-    /// label + ports + state. Empty object when the node does not exist.
+    /// label + ports + state + `startable` (does the node implement
+    /// IStartable — read by the router when a changed config key carries no
+    /// `x-restart` marker). Empty object when the node does not exist.
     virtual QJsonObject nodeDetail(quint64 nodeId) const = 0;
 
     /// Start / stop a single node through IStartable / IStoppable.
@@ -110,11 +113,16 @@ public:
     virtual bool saveFlow(const QString& path, QString* errorMessage = nullptr) = 0;
 
     /// Replace the live scene with @p flow (hot reload, `POST /api/flow`).
-    /// Implementations stop every running node first and only report success
-    /// after the new scene validated and its autoStart nodes have started.
-    /// On failure the implementation leaves the previous scene stopped and
-    /// fills @p errorMessage with a human-readable reason.
+    /// Implementations stop every running node first, then load the new scene.
+    /// A scene a plugin objects to is still loaded — only its autoStart nodes
+    /// are left stopped (REQ-SW-PL-082, see `lastSceneProblems()`). Only a
+    /// document the host cannot load at all fails, and then the implementation
+    /// leaves the previous scene stopped and fills @p errorMessage.
     virtual bool reloadFlow(const QJsonObject& flow, QString* errorMessage = nullptr) = 0;
+
+    /// Проблемите от последното зареждане (REQ-SW-PL-082): сцената е заредена,
+    /// но не е стартирана, ако списъкът не е празен. По подразбиране — празен.
+    virtual QJsonArray lastSceneProblems() const { return {}; }
 
     /// Close the live scene (`POST /api/flow/close`, REQ-SW-PL-078): stop every
     /// node (sources first, `IStoppable::stop()`), notify the plugins

@@ -27,8 +27,6 @@ FRAMEWORK_CORE_EXPORT const QLoggingCategory &lcApp();
 // ═══════════════════════════════════════════════════════════
 FRAMEWORK_CORE_EXPORT const QLoggingCategory &lcNodeEditor();
 FRAMEWORK_CORE_EXPORT const QLoggingCategory &lcDemoNodes();
-FRAMEWORK_CORE_EXPORT const QLoggingCategory &lcAiStudio();
-FRAMEWORK_CORE_EXPORT const QLoggingCategory &lcLlama();
 FRAMEWORK_CORE_EXPORT const QLoggingCategory &lcCoinTrader();
 
 // ═══════════════════════════════════════════════════════════

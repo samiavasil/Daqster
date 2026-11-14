@@ -53,15 +53,34 @@ set(TEST_SOURCES
     test_fft_util.cpp test_fft_util.h
     test_audio_buffer_to_sampled.cpp test_audio_buffer_to_sampled.h
     test_video_perf_badge.cpp test_video_perf_badge.h
+    test_image_data.cpp test_image_data.h
+    test_frame_window_node.cpp test_frame_window_node.h
+    test_display_nodes.cpp test_display_nodes.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoTransformOps.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/StreamUrlValidator.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/VideoPerfBadge.cpp
+    # REQ-SW-PL-086: the FrameWindowNode model, compiled directly into the
+    # binary (same pattern as the FrameSampler suite below).
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Video/FrameWindowNode.cpp
+    # REQ-SW-PL-090: the three debug display models + the shared 30 Hz driver
+    # and the NumberDisplayDataModel they extend (used for the embedding path).
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/DisplayRefresh/DisplayRefreshDriver.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/TextDisplay/TextDisplayNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/ImageDisplay/ImageDisplayNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/FrameWindowDisplay/FrameWindowDisplayNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Displays/NumberDisplay/NumberDisplayDataModel.cpp
+    # The displays hand their snapshot to the shared ComputePool, whose single
+    # definition lives in common/Threading (not in DaqsterCommonLibrary).
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ComputePool.cpp
 )
 
 add_executable(nodeditor_nodes_tests ${TEST_SOURCES})
 
 target_include_directories(nodeditor_nodes_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Video
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video
     ${DAQSTER_SOURCE_DIR}/src/plugins/common
     ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
@@ -79,6 +98,12 @@ target_link_libraries(nodeditor_nodes_tests PRIVATE
     # target propagates the NODE_EDITOR_SHARED compile definition (Export.hpp
     # requires it) and supplies the NodeData base-class symbols.
     QtNodes
+    # FrameWindowNode's VideoFrameData destructor reaches TexturePool::release()
+    # on the pooled path (REQ-SW-PL-032 E1) — link the one process-wide pool.
+    # REQ-SW-PL-090: wrapBuffer() counts the per-block copy, and the counter
+    # lives in the same library — the assertions read the singleton the plugin
+    # increments, not a private copy.
+    DaqsterCommonLibrary
 )
 
 add_test(NAME nodeditor_nodes_tests COMMAND $<TARGET_FILE:nodeditor_nodes_tests>)
@@ -347,6 +372,9 @@ target_link_libraries(demo_nodeditor_fileplayback_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Gui
     QtNodes
     FrameworkCore
+    # REQ-SW-PL-091: FilePlaybackModel::load()/loadFile() resolve ${VAR} through
+    # Daqster::SceneVariables, whose only definition lives in DaqsterCommonLibrary.
+    DaqsterCommonLibrary
 )
 
 add_test(NAME demo_nodeditor_fileplayback_tests
@@ -433,6 +461,12 @@ target_link_libraries(demo_nodeditor_audiooutput_tests PRIVATE
 
 add_test(NAME demo_nodeditor_audiooutput_tests
          COMMAND demo_nodeditor_audiooutput_tests)
+# Opens the real output device too (QAudioSink) on the tests that are not
+# QSKIPped for a missing device, so it owns the same lock as the capture side:
+# a sink and a mic in parallel go through the same PulseAudio/PipeWire server,
+# and the capture side is the one whose stop() has a 3 s deadline.
+set_tests_properties(demo_nodeditor_audiooutput_tests PROPERTIES
+    RESOURCE_LOCK audio)
 
 # ── AudioOutputWidget GUI tests (REQ-SW-PL-076, AC6) ─────────────────────────
 #
@@ -530,6 +564,15 @@ target_link_libraries(demo_nodeditor_audiosink_tests PRIVATE
 
 add_test(NAME demo_nodeditor_audiosink_tests
          COMMAND demo_nodeditor_audiosink_tests)
+# Opens the real output device: `recordingWorksWithPlaybackEnabledOnADeviceLessBox`
+# feeds a block into a node with `playbackEnabled`, and AudioSinkNode::play()
+# calls AudioPlaybackEngine::start() → QAudioSink on the first block (never on
+# load(), which the same binary asserts). So it owns the same `audio` lock as
+# demo_nodeditor_audiooutput_tests and demo_nodeditor_lifecycle_tests: a sink and
+# a capture device in parallel go through the same PulseAudio/PipeWire server,
+# whose stall aborts the whole -j run.
+set_tests_properties(demo_nodeditor_audiosink_tests PROPERTIES
+    RESOURCE_LOCK audio)
 
 # ── AudioSinkWidget GUI tests (REQ-SW-PL-077, AC6) ──────────────────────────
 #
@@ -727,6 +770,9 @@ target_link_libraries(demo_nodeditor_modelname_tests PRIVATE
     # utility; the models themselves are compiled in above rather than linked
     # from the core plugin .so.
     FrameworkCore
+    # REQ-SW-PL-090: MicCaptureWorker.cpp reaches AudioBufferToSampled::
+    # wrapBuffer(), which counts the per-block copy in the library's singleton.
+    DaqsterCommonLibrary
 )
 
 add_test(NAME demo_nodeditor_modelname_tests
@@ -849,6 +895,52 @@ target_link_libraries(demo_nodeditor_framesampler_tests PRIVATE
 add_test(NAME demo_nodeditor_framesampler_tests
          COMMAND demo_nodeditor_framesampler_tests)
 
+# ── Audio rate-domain node tests (REQ-SW-PL-092) ────────────────────────────
+#
+# QTEST_GUILESS_MAIN (QCoreApplication): the three nodes own no widget and open
+# no device — they transform a SampledData block. The sources are compiled into
+# the binary (same pattern as the frame-sampler suite) and DaqsterCommonLibrary
+# is *linked*, not recompiled: the DSP engines and `SceneVariables` under test
+# must be the same definitions the plugin ships, or a passing test would prove
+# nothing about the plugin.
+#
+# FrameworkCore supplies `lcDemoNodes` (the models log their verdicts there) and
+# `AudioCompat` is not needed — no audio device is opened.
+set(AUDIO_DSP_NODES_TEST_SOURCES
+    test_audio_dsp_nodes.cpp
+    test_audio_dsp_nodes.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Audio/FilterResolver.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Audio/BlockResizerNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Audio/SampleDecimatorNode.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Audio/SampleResamplerNode.cpp
+)
+
+add_executable(demo_nodeditor_audiodspnodes_tests ${AUDIO_DSP_NODES_TEST_SOURCES})
+
+target_include_directories(demo_nodeditor_audiodspnodes_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Processing/Audio
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common/NodeDataTypes
+    ${DAQSTER_SOURCE_DIR}/src/plugins/external_libs/nodeeditor/include
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
+    ${DEMO_CORE_EXPORT_INCLUDE_DIR}
+)
+target_compile_definitions(demo_nodeditor_audiodspnodes_tests PRIVATE ${DEMO_CORE_EXPORT_DEFINITIONS})
+
+target_link_libraries(demo_nodeditor_audiodspnodes_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    QtNodes
+    FrameworkCore
+    DaqsterCommonLibrary
+)
+
+add_test(NAME demo_nodeditor_audiodspnodes_tests
+         COMMAND demo_nodeditor_audiodspnodes_tests)
+
 # ── IStoppable lifecycle tests (REQ-SW-PL-050, AC 7) ─────────────────────────
 #
 # QTEST_GUILESS_MAIN. Reuses the model-name suite's source list: both targets
@@ -859,6 +951,17 @@ set(LIFECYCLE_TEST_SOURCES
     test_lifecycle_main.cpp
     test_thread_lifecycle.cpp
     test_thread_lifecycle.h
+    # REQ-SW-PL-091: the config schemas of the IStartable public nodes, asserted
+    # against the key set their save() emits. Same binary because it already
+    # compiles those very models in (see the roster below) — no second harness,
+    # and the schemas cannot rot away from the models they describe.
+    test_node_config_schemas.cpp
+    test_node_config_schemas.h
+    # Connection policy of the capture sources (REQ-SW-PL-024): the same models
+    # are already compiled in below, so the graph-level fan-out test only adds
+    # its own files — no second harness.
+    test_source_fan_out.cpp
+    test_source_fan_out.h
     ${MODEL_NAME_TEST_SOURCES}
     # SystemMonitorModel is not in MODEL_NAME_TEST_SOURCES (the model-name
     # suite covers a different set) but it IS one of the four nodes whose
@@ -889,7 +992,6 @@ set(LIFECYCLE_TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/FilePlayback/FilePlaybackModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Gamepad/GamepadModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Gamepad/GamepadEngine.cpp
-    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/LLamaSource/LLamaModelDataModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/NetworkSource/NetworkSourceModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/CameraSourceNode.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/nodeditor_nodes/core/Sources/Video/StreamSourceNode.cpp
@@ -905,7 +1007,7 @@ set(LIFECYCLE_TEST_SOURCES
     # category, defined in exactly one TU (DaqsterCommonLibrary compiles it).
     # The models are compiled into this binary instead of linked from the
     # plugin, so the definition comes along too. ProcessOwner is the .cpp half
-    # of the same primitive (LLamaModelDataModel uses it for llama-server).
+    # of the same primitive.
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ThreadingLog.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/Threading/ProcessOwner.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/common/GL/TexturePool.cpp
@@ -958,6 +1060,10 @@ target_link_libraries(demo_nodeditor_lifecycle_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Multimedia
     QtNodes
     FrameworkCore
+    # REQ-SW-PL-090: the video source models (compiled in above) reach
+    # AudioBufferToSampled::wrapBuffer() and VideoCompat::frameToOwnedFrame(),
+    # both of which count their copy in the library's process-wide singleton.
+    DaqsterCommonLibrary
 )
 
 add_test(NAME demo_nodeditor_lifecycle_tests
@@ -965,7 +1071,30 @@ add_test(NAME demo_nodeditor_lifecycle_tests
 # stopWithActiveWorkIsSafe joins the poller threads. If a regression breaks the
 # join, the binary hangs rather than failing an assertion — bound it so CI
 # fails fast instead of sitting on the default 1500 s timeout.
-set_tests_properties(demo_nodeditor_lifecycle_tests PROPERTIES TIMEOUT 120)
+#
+# This binary is the one test that opens the REAL capture device: four tests
+# call AudioSourceDataModel::start() → MicCaptureWorker::startCapture() →
+# QAudioSource, and ThreadOwner::stop() joins that thread with a 3000 ms
+# deadline. Under `ctest -j4` that join timed out (worker "did not stop within
+# 3000 ms — terminating", second stop() 7001 ms instead of <5 ms, binary killed
+# by the 120 s TIMEOUT) whenever another binary was using the audio stack at
+# the same time: `node_runner_headless_registry` SIGTERMs a NodeRunner whose
+# flow holds AudioSourceObsolete/AudioDisplay nodes at t=10 s, and the check
+# script itself records that this "can leave PulseAudio/PipeWire in a state that
+# hangs a subsequent run". Measured before the fix: lifecycle + that test with
+# -j2 failed 2 of 3 runs; serial passed 3 of 3.
+#
+# RESOURCE_LOCK `audio` is the contract — one test at a time owns the audio
+# device. Every test that opens a capture device or an audio sink must declare
+# the same lock (demo_nodeditor_audiooutput_tests, node_runner_headless_registry
+# today; the name is shared across the whole ctest run, so a test in this repo
+# and one in the private tree join the same queue).
+# RUN_SERIAL additionally keeps unrelated heavy binaries from starving the
+# 3000 ms join deadline; the binary is ~1.5 s.
+set_tests_properties(demo_nodeditor_lifecycle_tests PROPERTIES
+    TIMEOUT 120
+    RUN_SERIAL TRUE
+    RESOURCE_LOCK audio)
 
 # ── core/gui split guard (REQ-SW-PL-051, AC 3 / AC 7; hardened by
 #    REQ-SW-PL-056) ─────────────────────────────────────────────────────────
@@ -1036,3 +1165,4 @@ add_test(NAME demo_nodeditor_nodewidget_tests
          COMMAND demo_nodeditor_nodewidget_tests)
 set_tests_properties(demo_nodeditor_nodewidget_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+

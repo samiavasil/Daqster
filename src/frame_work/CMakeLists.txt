@@ -77,6 +77,10 @@ set(FRAMEWORK_CORE_SOURCES
     # "stop every node, then tell the plugins" shared by every runtime host.
     base/src/engine/SceneClose.cpp
     base/src/engine/SceneClose.h
+    # Scene open hook (REQ-SW-PL-082): ask the plugins BEFORE the graph is
+    # loaded, so a refusal leaves the running scene untouched.
+    base/src/engine/SceneOpen.cpp
+    base/src/engine/SceneOpen.h
 
     # Shared widget-free application bootstrap (REQ-SW-PL-048)
     base/src/app/AppBootstrap.cpp

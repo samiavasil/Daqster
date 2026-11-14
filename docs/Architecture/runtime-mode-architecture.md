@@ -70,7 +70,7 @@
 **4.3 Node lifecycle протокол (REQ-SW-PL-050)**
 
 - virtual stop() на NodeDelegateModel (+ wait() където е приложимо)
-- Всички нодове го имплементират (таблица: PlutoSdr QThread, Pcap QThread, AudioSource QThread, VideoEffect ComputePool, LLama QProcess, Gamepad/SystemMonitor/GpuMonitor/JackDetect QTimer)
+- Всички нодове го имплементират (таблица: PlutoSdr QThread, Pcap QThread, AudioSource QThread, VideoEffect ComputePool, Gamepad/SystemMonitor/GpuMonitor/JackDetect QTimer)
 - deleteNode() вика stop() преди унищожаване
 - ShutdownHandler верига: stop() → wait() → deleteLater → exit
 

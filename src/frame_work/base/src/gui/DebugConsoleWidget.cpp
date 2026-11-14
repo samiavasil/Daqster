@@ -79,7 +79,7 @@ void DebugConsoleWidget::setupUi()
         // Derive group name from prefix (first 2 segments)
         // e.g., "daqster.framework.registry" -> "Framework"
         //        "daqster.app"                 -> "Application"
-        //        "daqster.plugin.aistudio"     -> "Plugins"
+        //        "daqster.plugin.demo"         -> "Plugins"
         QStringList parts = name.split('.');
         QString groupKey;
         if (parts.size() >= 3) {

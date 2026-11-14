@@ -402,6 +402,11 @@ include(ComponentTemplates)
 
 # 2. Core framework (no external dependencies)
 add_subdirectory(src/frame_work)
+#    …освен една: FrameworkCore получава DaqsterCommonLibrary по-долу (REQ-SW-PL-091 —
+#    HeadlessEngine записва директорията на сцената в Daqster::SceneVariables).
+#    Връзката е в src/plugins/common/CMakeLists.txt, защото този target още не
+#    съществува тук; CMake я резолвва по име на generate стъпка. Посоката е
+#    еднопосочна: общата библиотека не зависи от нищо проектно.
 
 # 3. External libraries
 # NodeEditor - Qt5/Qt6 (upstream има unified Qt${QT_VERSION_MAJOR} handling)

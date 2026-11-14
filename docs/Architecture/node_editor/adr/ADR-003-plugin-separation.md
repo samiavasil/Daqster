@@ -14,14 +14,14 @@ Accepted
 > live in `docs/Architecture/node_editor/adr/`. Decision unchanged.
 
 ## Context
-The node editor needs shared infrastructure (display models, connectors, decoders) that multiple plugins can use. Domain-specific nodes (Audio, LLM, etc.) should be in separate plugins for maintainability.
+The node editor needs shared infrastructure (display models, connectors, decoders) that multiple plugins can use. Domain-specific nodes (Audio, Video, etc.) should be in separate plugins for maintainability.
 
 ## Decision
 Three-layer architecture:
 
 1. **Library/** (in `node_editor_ide`) — Shared, reusable components with no domain-specific dependencies
 2. **node_editor_ide** — Clean IDE shell with generic display infrastructure
-3. **demo_nodeditor_nodes** — Domain-specific nodes (Number, Audio, LLM, MUX/DEMUX)
+3. **demo_nodeditor_nodes** — Domain-specific nodes (Number, Audio, Video, MUX/DEMUX)
 
 ## Consequences
 

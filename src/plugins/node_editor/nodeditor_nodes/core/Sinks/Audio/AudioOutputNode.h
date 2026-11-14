@@ -18,10 +18,9 @@
 /**
  * @brief Audio output node model (REQ-SW-PL-076).
  *
- * Thin `NodeDelegateModel` controller — exactly the `LlamaGenerateModel` →
- * `LlamaEngine` pattern: this class owns the config, the persistence and the
- * port wiring, `AudioPlaybackEngine` owns the device, the format and the one
- * long-lived `QAudioSink`/`QAudioOutput`.
+ * Thin `NodeDelegateModel` controller — the model → engine split: this class
+ * owns the config, the persistence and the port wiring, `AudioPlaybackEngine`
+ * owns the device, the format and the one long-lived `QAudioSink`/`QAudioOutput`.
  *
  * 1 input port ("sample", `SampledData().type()` — the same derived type as
  * every other audio node, never a hardcoded descriptor), 0 output ports. Each

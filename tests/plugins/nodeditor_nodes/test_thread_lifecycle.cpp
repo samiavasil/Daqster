@@ -27,7 +27,6 @@
 #include <Sources/AudioSource/AudioSourceDataModel.h>
 #include <Sources/FilePlayback/FilePlaybackModel.h>
 #include <Sources/Gamepad/GamepadModel.h>
-#include <Sources/LLamaSource/LLamaModelDataModel.h>
 #include <Sources/NetworkSource/NetworkSourceModel.h>
 #include <Sources/Video/CameraSourceNode.h>
 #include <Sources/Video/StreamSourceNode.h>
@@ -48,12 +47,17 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <QThread>
 #include <type_traits>
 #include <typeinfo>
 
 #include <Threading/CancelToken.h>
+
+// REQ-SW-PL-091: the `${VAR}` table a node expands its paths from.
+#include <Scene/SceneVariables.h>
 
 #include <QtNodes/DataFlowGraphModel>
 #include <QtNodes/NodeDelegateModelRegistry>
@@ -83,7 +87,6 @@ namespace {
 ///   JackDetect          an ALSA device        cast + idempotency + active
 ///   Pcap                an interface          cast + idempotency + active
 ///   AudioSource/mic     a capture device      cast + idempotency
-///   LLama               a llama.cpp binary    cast + idempotency
 ///   FilePlayback        a decodable file      cast + idempotency
 ///   FileRecord          a writable device     cast + idempotency
 ///   NetworkSource       a bound port          cast + idempotency
@@ -115,9 +118,9 @@ namespace {
 int expectedStoppableModelCount()
 {
 #ifdef HAVE_LIBIIO
-    return 16;
-#else
     return 15;
+#else
+    return 14;
 #endif
 }
 
@@ -201,43 +204,6 @@ struct ClobberedHeap
     QVector<void *> blocks;
 };
 
-/// A fake `llama-server`: ignores SIGTERM, announces that the trap is installed
-/// by creating `ready.flag` in its working directory, then blocks on the stdin
-/// pipe forever. ONE process, no children, no busy loop — SIGKILL is the only
-/// way out, which is exactly the D2 path (REQ-SW-PL-050).
-QString writeStubbornServer(const QTemporaryDir &dir)
-{
-    const QString path = dir.filePath(QStringLiteral("stubborn-server.sh"));
-    QFile script(path);
-    if (!script.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        return QString();
-    script.write("#!/bin/sh\n"
-                 "# Fake llama-server: ignores the polite signal (REQ-SW-PL-050 D2).\n"
-                 "# The real llama-server argument line (-m/--host/-c) is ignored.\n"
-                 "trap '' TERM\n"
-                 ": > ready.flag\n"
-                 "read line\n");
-    script.close();
-    QFile::setPermissions(path, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
-    return path;
-}
-
-/// RAII around QDir::setCurrent(): LLamaModelDataModel::start() inherits the
-/// process working directory (it has no workDir parameter), and the fake server
-/// announces readiness by creating a file in it.
-struct ScopedWorkingDir
-{
-    explicit ScopedWorkingDir(const QString &dir)
-        : previous(QDir::currentPath())
-    {
-        QDir::setCurrent(dir);
-    }
-
-    ~ScopedWorkingDir() { QDir::setCurrent(previous); }
-
-    QString previous;
-};
-
 /// Two nodes, one output connection: the smallest graph whose deletion reaches
 /// AudioSourceDataModel::outputConnectionDeleted().
 struct AudioSourceGraph{
@@ -281,8 +247,6 @@ QVector<TestThreadLifecycle::ModelEntry> TestThreadLifecycle::allStoppableModels
          [] { return std::make_unique<PcapModel>(); }},
         {QStringLiteral("AudioSource/mic"),
          [] { return std::make_unique<AudioSourceDataModel>(); }},
-        {QStringLiteral("LLama"),
-         [] { return std::make_unique<LLamaModelDataModel>(); }},
         {QStringLiteral("FilePlayback"),
          [] { return std::make_unique<FilePlaybackModel>(); }},
         {QStringLiteral("FileRecord"),
@@ -759,43 +723,162 @@ void TestThreadLifecycle::audioSourceAndDisplaySurviveFiveSceneCloses()
     }
 }
 
-void TestThreadLifecycle::llamaModelStopKillsStubbornServer()
+
+// ── REQ-SW-PL-091: `${VAR}` is expanded by the node that consumes it ─────
+//
+// The two nodes below used to pass the stored string straight to the platform
+// (`QUrl::fromLocalFile`, `QFile`) — a committed `.flow` therefore worked only
+// on the machine that wrote it, and an unexpanded `${X}` showed up later as
+// "Invalid media" / "Cannot open" instead of naming the missing token.
+void TestThreadLifecycle::sceneVariablesAreExpandedOnLoad()
 {
-#ifdef Q_OS_WIN
-    QSKIP("POSIX fixture: the fake server is a #!/bin/sh script that ignores SIGTERM");
-#else
-    // D2 (REQ-SW-PL-050). stop() used to be terminate() + waitForFinished(3000)
-    // and nothing else: a server that ignored SIGTERM (a stuck model load, a
-    // request tail) stayed alive while the node was destroyed pointing at it.
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
 
-    const QString server = writeStubbornServer(dir);
-    QVERIFY2(!server.isEmpty(), "could not write the fake server script");
+    // The two files exist, so the "file not found" branch stays out of this
+    // test — it has its own case below.
+    const QString clip = dir.path() + QStringLiteral("/clip.mp4");
+    const QString capture = dir.path() + QStringLiteral("/capture.sdf");
+    for (const QString& path : {clip, capture}) {
+        QFile touch(path);
+        QVERIFY2(touch.open(QIODevice::WriteOnly), qPrintable(path));
+    }
 
-    const QString ready = dir.filePath(QStringLiteral("ready.flag"));
-    const ScopedWorkingDir scopedCwd(dir.path()); // the script writes ./ready.flag
+    // One temporary table: the real `~/.config/Daqster/scene-variables.json` is
+    // never read and never written.
+    const QString document = dir.path() + QStringLiteral("/scene-variables.json");
+    const bool hadOverride = qEnvironmentVariableIsSet("DAQSTER_SCENE_VARIABLES");
+    const QByteArray previousOverride = qgetenv("DAQSTER_SCENE_VARIABLES");
+    qputenv("DAQSTER_SCENE_VARIABLES", QFile::encodeName(document));
 
-    LLamaModelDataModel model;
-    model.onExePathSelected(server);
-    model.onModelPathSelected(dir.filePath(QStringLiteral("model.gguf")));
-    model.start();
+    Daqster::SceneVariables &variables = Daqster::SceneVariables::instance();
+    variables.setFilePath(document);
+    QVERIFY(variables.setPathToken(QStringLiteral("DAQSTER_DEPS"), dir.path()));
 
-    // Handshake, not a guessed delay: before `trap` runs the shell still has the
-    // default SIGTERM disposition and would die from the polite signal.
-    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(ready), 5000);
-    QVERIFY(model.isServerRunning());
+    QJsonObject scene;
+    scene.insert(QStringLiteral("filePath"), QStringLiteral("${DAQSTER_DEPS}/clip.mp4"));
 
-    QElapsedTimer timer;
-    timer.start();
-    QCOMPARE(model.stopServer(), LLamaModelDataModel::StopResult::Killed);
-    const qint64 elapsed = timer.elapsed();
+    VideoFileSourceNode videoSource;
+    videoSource.load(scene);
+    QCOMPARE(videoSource.filePath(), clip);
+    QCOMPARE(videoSource.validationState()._state, QtNodes::NodeValidationState::State::Valid);
 
-    QVERIFY2(elapsed >= 2900,
-             qPrintable(QStringLiteral("stopServer() returned after %1 ms — the 3 s grace "
-                                       "period was not respected").arg(elapsed)));
-    QVERIFY(!model.isServerRunning());
-    // Idempotent: nothing left to signal.
-    QCOMPARE(model.stopServer(), LLamaModelDataModel::StopResult::NotRunning);
-#endif
+    QJsonObject fileScene;
+    fileScene.insert(QStringLiteral("filePath"), QStringLiteral("${DAQSTER_DEPS}/capture.sdf"));
+    FilePlaybackModel filePlayback;
+    filePlayback.load(fileScene);
+    QCOMPARE(filePlayback.save().value(QStringLiteral("filePath")).toString(), capture);
+    QCOMPARE(filePlayback.validationState()._state, QtNodes::NodeValidationState::State::Valid);
+
+    // A token this machine does not have: the state names it, and the literal
+    // is left visible (not silently turned into "").
+    QJsonObject broken;
+    broken.insert(QStringLiteral("filePath"), QStringLiteral("${DAQSTER_NO_SUCH_TOKEN}/x.mp4"));
+
+    videoSource.load(broken);
+    QCOMPARE(videoSource.validationState()._state, QtNodes::NodeValidationState::State::Error);
+    QVERIFY2(videoSource.validationState()._stateMessage.contains(
+                 QStringLiteral("${DAQSTER_NO_SUCH_TOKEN}")),
+             qPrintable(videoSource.validationState()._stateMessage));
+
+    filePlayback.load(broken);
+    QCOMPARE(filePlayback.validationState()._state, QtNodes::NodeValidationState::State::Error);
+    QVERIFY2(filePlayback.validationState()._stateMessage.contains(
+                 QStringLiteral("${DAQSTER_NO_SUCH_TOKEN}")),
+             qPrintable(filePlayback.validationState()._stateMessage));
+
+    // A token that resolves to a file nobody has is the third case: a real path,
+    // reported as missing instead of failing later inside the player.
+    QJsonObject absent;
+    absent.insert(QStringLiteral("filePath"), QStringLiteral("${DAQSTER_DEPS}/absent.mp4"));
+    videoSource.load(absent);
+    QCOMPARE(videoSource.validationState()._state, QtNodes::NodeValidationState::State::Error);
+    QVERIFY2(videoSource.validationState()._stateMessage.contains(QStringLiteral("absent.mp4")),
+             qPrintable(videoSource.validationState()._stateMessage));
+
+    filePlayback.load(absent);
+    QCOMPARE(filePlayback.validationState()._state, QtNodes::NodeValidationState::State::Error);
+    QVERIFY2(filePlayback.validationState()._stateMessage.contains(QStringLiteral("absent.mp4")),
+             qPrintable(filePlayback.validationState()._stateMessage));
+
+    // A successful load clears the error again (the GUI reuses the node).
+    videoSource.load(scene);
+    QCOMPARE(videoSource.validationState()._state, QtNodes::NodeValidationState::State::Valid);
+
+    if (hadOverride)
+        qputenv("DAQSTER_SCENE_VARIABLES", previousOverride);
+    else
+        qunsetenv("DAQSTER_SCENE_VARIABLES");
+    variables.setFilePath(QString());
+}
+
+// ── REQ-SW-PL-091: relative paths are relative to the SCENE ─────────────
+//
+// `expand()` alone left the second half of portability unsolved: a committed
+// scene carrying `bars_h265_1080p25_x3.mp4` next to itself resolved against the
+// process cwd, so it only worked when the process was started in the scene's
+// directory. The host records the scene's directory, the node anchors the
+// relative result, and the same file works from anywhere.
+void TestThreadLifecycle::relativePathsResolveAgainstTheSceneFile()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    const QString clipName = QStringLiteral("bars_h265_1080p25_x3.mp4");
+    const QString clip = dir.path() + QLatin1Char('/') + clipName;
+    {
+        QFile touch(clip);
+        QVERIFY2(touch.open(QIODevice::WriteOnly), qPrintable(clip));
+    }
+
+    const QString sceneFile = dir.path() + QStringLiteral("/scene.flow");
+    {
+        QFile scene(sceneFile);
+        QVERIFY2(scene.open(QIODevice::WriteOnly), qPrintable(sceneFile));
+        QByteArray body = "{\"nodes\": [{\"id\": 0, \"internal-data\": "
+                          "{\"model-name\": \"VideoFileSource\", \"filePath\": \"";
+        body += clipName.toUtf8();
+        body += "\"}}], \"connections\": []}";
+        scene.write(body);
+    }
+
+    Daqster::SceneVariables &variables = Daqster::SceneVariables::instance();
+    const QString previousDirectory = variables.sceneDirectory();
+    variables.setSceneDirectory(QString());
+
+    // A node with a relative path and no scene yet: the cwd is not an answer.
+    VideoFileSourceNode unattached;
+    unattached.load(QJsonObject{
+        { QStringLiteral("filePath"), clipName } });
+    QCOMPARE(unattached.validationState()._state, QtNodes::NodeValidationState::State::Error);
+    QVERIFY2(unattached.validationState()._stateMessage.contains(QStringLiteral("relative")),
+             qPrintable(unattached.validationState()._stateMessage));
+    QVERIFY2(unattached.filePath().isEmpty(),
+             qPrintable(QStringLiteral("resolved against the cwd: %1").arg(unattached.filePath())));
+
+    // What a host does before handing the JSON to the graph model.
+    variables.adoptSceneFile(sceneFile);
+    QCOMPARE(variables.sceneDirectory(), QDir::cleanPath(dir.path()));
+
+    // …and the scene JSON really loads through a graph model with the file found.
+    QFile scene(sceneFile);
+    QVERIFY(scene.open(QIODevice::ReadOnly));
+    const QJsonObject sceneJson =
+        QJsonDocument::fromJson(scene.readAll()).object();
+    scene.close();
+
+    auto registry = std::make_shared<QtNodes::NodeDelegateModelRegistry>();
+    registry->registerModel<VideoFileSourceNode>();
+    QtNodes::DataFlowGraphModel graph(registry);
+    graph.load(sceneJson);
+
+    QCOMPARE(static_cast<int>(graph.allNodeIds().size()), 1);
+    const QtNodes::NodeId id = *graph.allNodeIds().begin();
+    auto *model = graph.delegateModel<VideoFileSourceNode>(id);
+    QVERIFY(model != nullptr);
+    QCOMPARE(model->filePath(), QDir::cleanPath(clip));
+    QCOMPARE(model->validationState()._state, QtNodes::NodeValidationState::State::Valid);
+
+    (void)graph.deleteNode(id);
+    variables.setSceneDirectory(previousDirectory);
 }

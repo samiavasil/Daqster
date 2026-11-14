@@ -182,12 +182,15 @@ through `load()`). Returns `201` with the new id and the full node detail:
 ### `GET /api/nodes/{id}` — detail
 
 A superset of the config: identity, position, label, ports, state, the config
-object **and** the schema.
+object **and** the schema. `startable` says whether the node implements
+`IStartable` (it accepts `/start` and `/stop`) — the fact the config-write reply
+falls back to for a changed field its schema does not mark.
 
 ```json
 {
   "id": 0, "type": "SystemMonitor", "name": "System Monitor",
   "label": "System Monitor", "labelVisible": true, "state": "running",
+  "startable": true,
   "position": { "x": -200, "y": 0 },
   "ports": { "in": [ { "index": 0, "caption": "" } ], "out": [] },
   "config": { "interval": 500 },
@@ -195,7 +198,9 @@ object **and** the schema.
 }
 ```
 
-`404` when the id does not exist.
+`404` when the id does not exist. Both hosts fill `startable` from the same
+`dynamic_cast<Daqster::IStartable*>` `POST /api/nodes/{id}/start` uses, so the
+flag and the endpoint can never disagree.
 
 ### `GET /api/nodes/{id}/config`
 
@@ -207,14 +212,28 @@ The raw `NodeDelegateModel::save()` object (no wrapper envelope):
 
 `404` when the id does not exist.
 
-### `PATCH /api/nodes/{id}` — move / label
+### `PATCH /api/nodes/{id}` — move / label / config
 
 ```json
-{ "position": { "x": 10, "y": 20 }, "label": "My node", "labelVisible": true }
+{ "position": { "x": 10, "y": 20 }, "label": "My node", "labelVisible": true,
+  "config": { "interval": 500 } }
 ```
 
 Each key is optional; a missing `position`/`label` leaves it unchanged. `404`
-when the id does not exist. Emits a `nodeMoved` event.
+when the id does not exist. Emits a `nodeMoved` event. `config` (optional) is
+applied through **the same** `setNodeConfig` path as
+`POST /api/nodes/{id}/config` — one implementation, not a second one — and a
+rejected `config` returns `400` **without** moving or renaming the node. The
+reply always carries the configuration-write fields:
+
+```json
+{ "applied": true, "started": false, "restartRequired": false }
+```
+
+`restartRequired` is `false` for a position/label-only patch (neither needs a
+restart); a `config` in the same patch is diffed exactly like
+`POST /api/nodes/{id}/config` — the snapshot is taken **before** the write. See
+that section for `started` and `restartRequired`.
 
 ### `DELETE /api/nodes/{id}` — delete
 
@@ -243,8 +262,35 @@ returns `void`, the engine snapshots `save()` first and rolls back if the model
 throws — a bad patch cannot take the engine down.
 
 ```json
-{ "applied": true }
+{ "applied": true, "started": false, "restartRequired": false }
 ```
+
+`started` is `true` when the node was **running** at the time of the write.
+A running node does not re-read its configuration (`load()` only changes what
+the next `start()` will use), but not every field needs that cycle:
+`restartRequired` is the diff of what the write actually changed, not "the node
+was running".
+
+- For each key that differs between the config **before** the write and after
+  it, the engine reads `"x-restart"` from the node's schema
+  (`GET /api/nodes/{id}/schema`).
+- `"x-restart": true` → the running node cannot pick the value up: the reply says
+  `restartRequired: true`, and `POST /api/nodes/{id}/stop` + `/start` makes the
+  new configuration take effect. The node is never stopped/started behind the
+  caller's back.
+- `"x-restart": false` → live field, applied while running: no restart.
+- No marker (a schema derived from `save()`, node does not implement
+  `INodeConfigSchema`) → the node's own nature decides: `restartRequired: true`
+  when it implements `IStartable` (`GET /api/nodes/{id}` reports `startable`),
+  `false` otherwise.
+- No changed key at all (writing back the values the node already has) →
+  `restartRequired: false`.
+
+```json
+{ "applied": true, "started": true, "restartRequired": false }
+```
+
+The same three fields come back from `PATCH /api/nodes/{id}` with a `config`.
 
 `400` when rejected / malformed body. On success emits a
 `nodeConfigChanged` event.
@@ -262,8 +308,9 @@ Call `IStartable::start()` / `IStoppable::stop()`.
 ### `GET /api/nodes/{id}/schema`
 
 JSON Schema (Draft 7) for the node's config. Enriched when the model implements
-`Daqster::INodeConfigSchema` (ranges, enums, defaults, descriptions and
-conditional `visibleWhen`); otherwise best-effort derived from a throw-away
+`Daqster::INodeConfigSchema` (ranges, enums, defaults, descriptions, conditional
+`visibleWhen` and the per-field `"x-restart": true|false` the config-write reply
+is computed from); otherwise best-effort derived from a throw-away
 model instance's `save()` output — see [§7](#7-generic-save--load-mapping).
 
 ### `GET /api/flow`
@@ -448,11 +495,14 @@ the node type, call `save()`, and walk the result —
 `Daqster::INodeConfigSchema` (a widget-free capability in
 `plugins/common/capabilities/INodeConfigSchema.h`), its `configSchema()` is
 merged over the derived schema — a `properties` fragment carrying `minimum`,
-`maximum`, `default`, `description`, `enum`/`x-enumNames` and a `visibleWhen`
-condition. This is how per-node metadata stays available on the headless path
-without depending on GUI widgets. `VideoEffectNode` is the pilot. Models without
-the capability still get the derived schema (same public contract; the extra
-keywords are additive). The merge lives in
+`maximum`, `default`, `description`, `enum`/`x-enumNames`, a `visibleWhen`
+condition and the `x-restart` marker the config-write reply is computed from.
+This is how per-node metadata stays available on the headless path without
+depending on GUI widgets. `VideoEffectNode` was the pilot; every `IStartable`
+public node now implements it (REQ-SW-PL-091 — the sources, sinks and monitors
+whose config the API can write). Models without the capability still get the
+derived schema (same public contract; the extra keywords are additive), and a
+key without `x-restart` falls back to the node's startability. The merge lives in
 `NodeSchemaBuilder.h::nodeConfigSchema(defaults, type, provided)`.
 
 ---
@@ -563,3 +613,4 @@ media streaming. See the requirement file for the full list.
 | 2026-10-11 | 0.3 | Daqster Team | GUI mode: `RuntimeShell` implements `RuntimeController` and owns the `ControlPlaneServer`, so `--run --rest-port` serves the same API; shared `NodeSchemaBuilder.h`. |
 | 2026-10-12 | 0.4 | Daqster Team | Full graph control (REQ-SW-PL-063): `ControlPlaneRouter` seam shared by HTTP + WS RPC; `node-types`, create/delete/move/label, connections, `flow/save`; enriched schema via `INodeConfigSchema` (VideoEffect pilot); bidirectional WS (commands + new events); schema-driven web console; router unit tests. |
 | 2026-10-12 | 0.5 | Daqster Team | Web console: added the missing connect form (from node:port → to node:port, ports populated from node detail), closing the gap where the console could only list/disconnect edges. |
+| 2026-11-12 | 0.6 | Daqster Team | `restartRequired` is exact (REQ-SW-PL-091): the diff of the config before/after the write × `"x-restart"` from the node schema (fallback: node implements `IStartable`), not `== started`. `GET /api/nodes/{id}` exposes `startable`; the nine `IStartable` public sources/sinks and the three monitor nodes gained `configSchema()`, guarded against rot by `demo_nodeditor_lifecycle_tests`. |

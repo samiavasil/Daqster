@@ -105,6 +105,10 @@ public:
     QJsonObject typeSchema(const QString& type) const override;
     bool reloadFlow(const QJsonObject& flow, QString* errorMessage = nullptr) override;
 
+    /// Problems from the last load (REQ-SW-PL-082), `{}` when it was clean.
+    /// Non-empty means the scene is loaded but deliberately not started.
+    QJsonArray lastSceneProblems() const override { return m_lastSceneProblems; }
+
     /**
      * @brief Close the scene: stop every node, notify the plugins, free the graph.
      *
@@ -165,6 +169,10 @@ private:
     QHash<QtNodes::NodeId, bool> m_autoStartNodes;
     QHash<QtNodes::NodeId, bool> m_runningNodes;
 
+    /// Problems from the last load (REQ-SW-PL-082). Non-empty ⇒ the scene is up
+    /// but its autoStart nodes were left stopped.
+    QJsonArray m_lastSceneProblems;
+
     // Remote control plane (REQ-SW-PL-054)
     std::unique_ptr<ControlPlaneServer> m_controlPlane;
 
@@ -172,9 +180,26 @@ private:
     bool registerNodes();
     bool validateFlow();
     bool buildGraphModel();
-    bool parseFlowFile(const QString& flowPath);
+    /// Read and parse @p flowPath into @p sceneJson — **without applying it**.
+    ///
+    /// Split from the application (REQ-SW-PL-082) so a host can refuse an
+    /// unreadable or refused scene before it stops the one that is running.
+    bool parseFlowFile(const QString& flowPath, QJsonObject* sceneJson);
+    /// Pre-open report for @p sceneJson (REQ-SW-PL-082).
+    ///
+    /// Stores the verdict in `m_lastSceneProblems` and, when it is not empty,
+    /// logs one warning per problem and emits `errorOccurred()` with
+    /// `sceneOpeningMessage()`. A verdict never blocks the load — it only
+    /// suppresses `autoStartNodes()` („зарежда, маркира, не стартира").
+    ///
+    /// @return true when the scene may be started (no problems reported).
+    /// @param scenePath File the scene came from, or empty for an in-memory
+    ///                  flow — handed to the plugins so they can find a
+    ///                  `project.json` next to it (REQ-SW-PL-082).
+    bool recordSceneOpening(const QJsonObject& sceneJson, const QString& scenePath);
     /// Apply an already-parsed scene object (shared by loadFlow and reloadFlow).
-    bool applySceneJson(QJsonObject sceneJson);
+    /// @param scenePath File the scene came from, or empty when it has none.
+    bool applySceneJson(QJsonObject sceneJson, const QString& scenePath = QString());
     bool parseUiSection(const QJsonObject& sceneJson);
     void autoStartNodes();
     /// Marks @p nodeIds stopped and emits `nodeStopped()` for each (REQ-SW-PL-063

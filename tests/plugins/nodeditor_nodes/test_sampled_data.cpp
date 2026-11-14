@@ -207,5 +207,67 @@ void SampledDataTest::decodePhysical_emptyBuffer()
     QCOMPARE(static_cast<int>(out.size()), 0);
 }
 
+void SampledDataTest::timebaseIsDerivedAndGapsAreDetected()
+{
+    // A default-constructed block knows nothing: blockSamples() is derived from
+    // the (empty) buffer and the timebase is explicitly unknown, never 0 — "the
+    // first sample is index 0" is a claim, and nothing here has made it.
+    {
+        const SampledData unknown;
+        QCOMPARE(unknown.firstIndex(), SampledData::kUnknownIndex);
+        QVERIFY(!unknown.hasKnownTimebase());
+        QCOMPARE(unknown.blockSamples(), 0);
+        QCOMPARE(unknown.lastIndex(), SampledData::kUnknownIndex);
+        QCOMPARE(unknown.durationSeconds(), 0.0);
+    }
+
+    // The two-argument construction every existing producer uses keeps working
+    // and stays "unknown" — no behaviour change for a source that does not count.
+    {
+        const SampledData legacy = makeInt16SineData();
+        QCOMPARE(legacy.firstIndex(), SampledData::kUnknownIndex);
+        QCOMPARE(legacy.blockSamples(), kFrameCount);
+        QVERIFY(!legacy.isContiguousWith(legacy));
+        QVERIFY(legacy.durationSeconds() > 0.0);
+    }
+
+    // 1024-frame blocks, one after another: blockSamples comes from the buffer
+    // and the descriptor (not from a stored copy that could disagree), and two
+    // consecutive blocks are contiguous in both directions.
+    QByteArray buffer(kFrameCount * kChannelCount * 2, '\0');
+    const SampledData first(buffer, makeInt16StereoDescriptor(0.001, 0.0), 0);
+    const SampledData second(buffer, makeInt16StereoDescriptor(0.001, 0.0), kFrameCount);
+    const SampledData afterGap(buffer, makeInt16StereoDescriptor(0.001, 0.0),
+                               kFrameCount * 2 + 37);
+
+    QCOMPARE(first.blockSamples(), kFrameCount);
+    QCOMPARE(first.lastIndex(), qint64(kFrameCount - 1));
+    QCOMPARE(second.lastIndex(), qint64(2 * kFrameCount - 1));
+    QVERIFY(second.isContiguousWith(first));
+    QVERIFY(!first.isContiguousWith(second));
+    QVERIFY(!afterGap.isContiguousWith(second));
+    QVERIFY2(std::abs(first.durationSeconds() - double(kFrameCount) / 44100.0) < 1e-12,
+             "duration is derived from blockSamples / sampleRate");
+
+    // A consumer that received only a suffix of `prev` says so explicitly: the
+    // explicit count is what turns "contiguous" into "contiguous with what I
+    // actually got".
+    const SampledData truncated(buffer, makeInt16StereoDescriptor(0.001, 0.0),
+                               kFrameCount - 100);
+    QVERIFY(truncated.isContiguousWith(first, kFrameCount - 100));
+    QVERIFY(!truncated.isContiguousWith(first));
+
+    // An unknown timebase on either side is not contiguity: a gap that cannot be
+    // ruled out is a gap for a time-domain filter.
+    const SampledData unknownHead(buffer, makeInt16StereoDescriptor(0.001, 0.0));
+    QVERIFY(!first.isContiguousWith(unknownHead));
+    QVERIFY(!unknownHead.isContiguousWith(first));
+
+    // setFirstIndex() is the escape hatch for a node that decides late.
+    SampledData late(buffer, makeInt16StereoDescriptor(0.001, 0.0));
+    late.setFirstIndex(kFrameCount);
+    QVERIFY(late.isContiguousWith(first));
+}
+
 // No QTEST_GUILESS_MAIN here: the sampled-data test class shares the
 // nodeditor_nodes test binary whose main lives in test_main.cpp.

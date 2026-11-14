@@ -278,7 +278,6 @@ void TestFlowFixtures::arrayFormFixtureSetIsPinned_KnownDefect()
         QStringLiteral("test_generic_display.flow"),
         QStringLiteral("test_gpu_monitor.flow"),
         QStringLiteral("test_jack_detect.flow"),
-        QStringLiteral("test_llama_console.flow"),
         QStringLiteral("test_modulo.flow"),
         QStringLiteral("test_network_loopback.flow"),
         QStringLiteral("test_number_basic.flow"),

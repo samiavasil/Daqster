@@ -1,6 +1,7 @@
 #pragma once
 
 #include "NodeDataTypes/SampledData.h"
+#include "Diagnostics/TransportStats.h"
 
 #include <QAudioBuffer>
 #include <QAudioFormat>
@@ -104,6 +105,11 @@ inline std::shared_ptr<SampledData> wrapBuffer(const QAudioBuffer &buffer,
 {
     if (!buffer.isValid() || buffer.byteCount() <= 0)
         return nullptr;
+
+    // REQ-SW-PL-090: this QByteArray IS the per-block transport copy — count
+    // it here so the cost is a number instead of a reading of the code.
+    Daqster::TransportStats::instance().addAudioAlloc(
+        static_cast<quint64>(buffer.byteCount()));
 
     return std::make_shared<SampledData>(
         QByteArray(buffer.constData<char>(),

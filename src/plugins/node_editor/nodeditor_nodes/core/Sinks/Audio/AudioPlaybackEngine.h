@@ -21,8 +21,8 @@ class QIODevice;
  * @brief Owns the one long-lived audio output sink of the Audio Output node
  * (REQ-SW-PL-076).
  *
- * The node model is a thin controller (the `LlamaGenerateModel` → `LlamaEngine`
- * pattern): `AudioOutputNode` only keeps the config, `save()`/`load()` and the
+ * The node model is a thin controller (the model → engine split):
+ * `AudioOutputNode` only keeps the config, `save()`/`load()` and the
  * port wiring; this engine keeps the device, the format, the sink and the
  * playback queue.
  *

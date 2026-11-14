@@ -97,6 +97,31 @@ Callback/задача, която може да се изпълни **след**
 да провери `adopt`/`setOwned(false)`). Статичната проверка сканира
 `src/plugins/**` — тестовете не са в обхвата ѝ.
 
+## Правило 8 — не сигнализирай процес, който още не е exec-нал
+
+`ProcessOwner::stop()` има проверка **преди** `terminate()`: ако
+`QProcess::state() == Starting`, изчаква `started`/`errorOccurred` (до 500 ms) и
+**не изпраща никакъв сигнал**, ако стартът се е провалил (`NotRunning`).
+
+Причината е конкретна: между `fork()` и `exec()` детето е копие на родителя —
+със **неговите** signal handler-и. SIGTERM в този прозорец изпълнява handler-а
+на родителя в детето; в `QtTest` това е `QFATAL "Received signal 15"` + core
+dump (наблюдавано: 7 от 8 директни пуска на `TestAsrServer` /
+`TestModelRefNodes`, докато `ctest` беше зелен — load-зависим флейк). `exec()`
+нулира прихванатите сигнали, тоест **след** него SIGTERM е учтив, както трябва.
+
+Ако детето не е exec-нало до 500 ms, `stop()` връща `TimedOut`, логва и го
+оставя вързано — сигнал не се праща. Отговорността е на `ProcessOwner`, **не на
+нода**: нодът не знае в коя милисекунда е `exec()`, а `AsrAdapter` вика
+`stop(0, …)` веднага след `start()`.
+
+Покритие: `stopWhileStartingDoesNotSignalTheChild` (наследен SIGTERM handler
+пише байт, ако сигналът дойде преди `exec()`; прозорецът fork→exec е разтегнат
+до 200 ms с `QProcess::setChildProcessModifier()`, иначе е микросекунди и
+тестът би минавал дори без поправката), `stopBeforeExecReportsNotRunning`
+(липсващ изпълним файл → `NotRunning`, без сигнал),
+`stopAfterStartStillTerminates` (регресия на учтивия път).
+
 ## Как да добавя нов worker
 
 ```cpp

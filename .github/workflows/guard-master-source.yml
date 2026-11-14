@@ -1,0 +1,49 @@
+name: Guard master source
+
+# master е FROZEN: приема само `develop` (promotion по RELEASE-PROCESS) или
+# `release/*`. Този workflow е САМО проверка — той не блокира merge, докато не
+# бъде маркиран като REQUIRED CHECK в branch protection / ruleset за `master`
+# (Settings → Rules → Rulesets → master → Require status checks to pass →
+# "guard" / "master приема само от develop или release/*").
+#
+# Съзнателно НЕ се ползва `pull_request_target`: той дава write токен и достъп
+# до secrets на код от fork-ове; за чиста проверка на ref имена не е нужен.
+# Виж DevelopmentProcess/RELEASE-PROCESS.md → „Какво пази master".
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: master приема само от develop или release/*
+    runs-on: ubuntu-latest
+    steps:
+      - name: Провери източника на PR-а
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -eu
+          echo "PR #${PR_NUMBER}: ${HEAD_REF} -> ${BASE_REF}"
+
+          if [ -z "${HEAD_REF}" ]; then
+            echo "::error::Не мога да определя source branch-а (github.head_ref е празен) — отказвам."
+            exit 1
+          fi
+
+          case "${HEAD_REF}" in
+            develop|release/*)
+              echo "OK: '${HEAD_REF}' има право да влиза в master."
+              ;;
+            *)
+              echo "::error::'${HEAD_REF}' не може да влиза в master. master е FROZEN и приема само 'develop' (promotion на release) или 'release/*'."
+              echo "Правилото: DevelopmentProcess/RELEASE-PROCESS.md (Option A: develop → master + таг vX.Y.Z)."
+              echo "Пътят: merge '${HEAD_REF}' → develop, после отделна release процедура develop → master."
+              exit 1
+              ;;
+          esac

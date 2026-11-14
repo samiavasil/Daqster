@@ -1,0 +1,163 @@
+/************************************************************************
+                          Daqster/ISceneOpening.h - Copyright
+ Daqster software
+ Copyright (C) 2016, Vasil Vasilev,  Bulgaria
+
+ This file is part of Daqster and its software development toolkit.
+
+ Daqster is a free software; you can redistribute it and/or modify it
+ under the terms of the GNU Library General Public Licence as published by
+ the Free Software Foundation; either version 2 of the Licence, or (at
+ your option) any later version.
+
+ Daqster is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Library
+ General Public Licence for more details.
+
+ You should have received a copy of the GNU Library General Public Licence
+ along with Daqster; if not, see <http://www.gnu.org/licenses/>.
+
+ Initial version of this file was created on 04.11.2026
+ ************************************************************************/
+#pragma once
+
+#include <QJsonObject>
+#include <QMetaType>
+#include <QString>
+#include <QVector>
+
+namespace Daqster {
+
+/**
+ * @brief One reason a scene cannot be opened, addressed to something the user
+ *        can see.
+ *
+ * A flat string cannot say *which* node is at fault, so a host could only print
+ * a list and let the user search the graph. The node id makes the problem
+ * actionable: the host can select, highlight or mark the node (REQ-SW-PL-082).
+ */
+struct SceneOpenProblem
+{
+    /// Id of the node in the scene (`nodes[].id`). May be empty when the problem
+    /// concerns the scene as a whole (a missing settings entry, say).
+    QString nodeId;
+    /// Model or title, for the human reading the message ("Chat", "Tts").
+    QString nodeName;
+    /// What is wrong, in the plugin's own words.
+    QString message;
+    /// What the person should do about it. May be empty.
+    QString hint;
+};
+
+/**
+ * @brief What a plugin answered about a scene that is about to be opened.
+ *
+ * A scene can be refused for reasons that only the plugin knows: a model file
+ * the scene names is missing, the requested backend is not built on this
+ * machine, a node type's licence expired. The host cannot discover any of that
+ * from the JSON, and discovering it *after* `load()` means the running scene is
+ * already gone (REQ-SW-PL-082).
+ *
+ * The verdict carries **all** problems, not the first: a user fixing one
+ * missing path at a time is a bad way to spend an afternoon.
+ */
+struct SceneOpenVerdict
+{
+    /// Empty == accepted. Every reason the scene cannot be opened, in the
+    /// plugin's own words; the host renders and logs them verbatim.
+    QVector<SceneOpenProblem> problems;
+
+    /// True when there is nothing to report (an empty answer is acceptance).
+    bool accepted() const { return problems.isEmpty(); }
+};
+
+/**
+ * @brief Optional plugin-level hook for the **open** half of a scene lifecycle.
+ *
+ * The hosts ask this after the scene was read and (in the non-IDE hosts) before
+ * its nodes are started. **A verdict never blocks the load by itself**
+ * (REQ-SW-PL-082): a scene with problems is loaded, and only its `autoStart`
+ * nodes are left stopped — „зарежда, маркира, не стартира". The nodes of the
+ * new scene do not exist yet when this runs, so the hook answers from what it
+ * already knows, not from the graph.
+ *
+ * **Why this is a separate interface and not a slot on `ISceneLifecycle`.**
+ * `ISceneLifecycle` declares no `Q_DECLARE_INTERFACE` IID and no version
+ * (`capabilities/ISceneLifecycle.h`), so it has no compatibility contract: all
+ * a host knows is the vtable layout the plugin was compiled against. Adding a
+ * virtual there means a plugin built against the old header is called through a
+ * slot that does not exist in its vtable — an indirect call into whatever
+ * happens to sit after the last slot (the INC-014 class of defect, and the same
+ * reason `INodeProvider.h` must stay byte-identical). A new interface probed
+ * with `dynamic_cast` is invisible to plugins that do not implement it: they
+ * simply are not asked.
+ *
+ * **What it must not do.** This hook runs while the user is looking at a
+ * "loading…" moment and before anything exists: it must not start processes,
+ * threads or load models, and it must not block on work owned by another
+ * thread. Answer from what is already known (settings, file existence, build
+ * configuration) — the real preparation happens later, in the nodes' `start()`.
+ *
+ * **It must answer without `Initialize()` having run.** The host reaches the
+ * providers through `QPluginManager::nodeProviders()` /
+ * `PluginRegistry::nodeProviders()`, which deliberately does **not** call
+ * `ensureInitialized()` (`PluginRegistry.cpp:232-239`): initialising a plugin
+ * here would build runtime hosts (a whole `RuntimeShell` with MDI, widgets and
+ * OpenGL) just to ask a question. Settings must therefore be read lazily, from
+ * `SettingsStore` / the environment, never from state that only `Initialize()`
+ * populates.
+ *
+ * Discovery is `dynamic_cast` on the plugin object, next to `INodeProvider`
+ * (the two capabilities are independent — a provider without this hook is
+ * skipped). Called on the thread that owns the host's scene; the object belongs
+ * to the plugin and is never deleted by the host.
+ */
+class ISceneOpening
+{
+public:
+    virtual ~ISceneOpening() = default;
+
+    /**
+     * @brief Decide whether @p scene can be opened in this process.
+     *
+     * @param scene The scene exactly as it would be passed to `load()` —
+     *              `nodes`, `connections` and (when the host keeps it) `ui`.
+     *              Not modified by the host afterwards on the strength of this
+     *              call; treat it as read-only.
+     * @return Acceptance, or every reason it cannot be opened.
+     */
+    virtual SceneOpenVerdict onSceneOpening(const QJsonObject& scene) = 0;
+
+    /**
+     * @brief Same question, plus the path the scene was read from.
+     *
+     * A plugin often needs a file *next to* the scene — a `project.json` with
+     * the per-project model paths, an include directory, a relative asset
+     * folder — and the JSON alone cannot say where it sits. Hosts hand the path
+     * they already have when the scene came from a file; the path is **empty**
+     * for an in-memory flow (`reloadFlow(QJsonObject)`, a REST `POST /api/flow`
+     * body), so a plugin must treat empty as "unknown", never as "cwd".
+     *
+     * The default forwards to the single-argument method, so a plugin built
+     * against the older header keeps working unchanged (this is why the new
+     * parameter arrives as an overload and not as a changed signature: the
+     * interface has no `Q_DECLARE_INTERFACE` IID, so every existing vtable must
+     * stay layout-compatible — see the class comment above).
+     *
+     * @param scene The scene object, as in the single-argument overload.
+     * @param scenePath Path of the `.flow` file the scene was read from, or an
+     *                  empty string for an in-memory scene.
+     * @return Acceptance, or every reason it cannot be opened.
+     */
+    virtual SceneOpenVerdict onSceneOpening(const QJsonObject& scene, const QString& scenePath)
+    {
+        Q_UNUSED(scenePath);
+        return onSceneOpening(scene);
+    }
+};
+
+} // namespace Daqster
+
+// Passed by signals (`SceneProblemsPanel::fixRequested`) and in `QSignalSpy`.
+Q_DECLARE_METATYPE(Daqster::SceneOpenProblem)

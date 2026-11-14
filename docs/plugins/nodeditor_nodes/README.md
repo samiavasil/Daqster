@@ -4,7 +4,7 @@
 
 ## Преглед
 
-INodeProvider плъгин, който доставя Audio, Video, LLaMA, Display и Routing нодове към Node Editor IDE. Това е основният доставчик на нодове за Daqster node editor-а.
+INodeProvider плъгин, който доставя Audio, Video, Display и Routing нодове към Node Editor IDE. Това е основният доставчик на нодове за Daqster node editor-а.
 
 **Локация:** `src/plugins/node_editor/nodeditor_nodes/core/` и `src/plugins/node_editor/nodeditor_nodes/gui/`
 **Име на .so:** `libNodeditorNodesCorePlugin.so` (core) и `libNodeditorNodesGuiPlugin.so` (GUI) — REQ-SW-PL-051 раздели единия плъгин на два
@@ -35,10 +35,6 @@ nodeditor_nodes/
 │   │   ├── AudioSourceConfig.{h,cpp,ui}
 │   │   ├── AudioComboModel.{h,cpp}
 │   │   └── node_editor.qrc
-│   ├── LLamaSource/                      # LLaMA AI нодове
-│   │   ├── LLamaModelDataModel.{h,cpp}
-│   │   ├── ConsoleDataModel.{h,cpp}
-│   │   └── ChatBaseWidget.{h,cpp}
 │   └── Video/                            # Video нодове (VideoFrameData / "video-frame" flow)
 │       ├── VideoCompat.h                 # Qt5/Qt6 multimedia compatibility shim
 │       ├── CameraSourceNode.{h,cpp}
@@ -57,6 +53,7 @@ nodeditor_nodes/
 │       ├── CustomShaderGLProcessor.{h,cpp}# GPU backend за runtime GLSL (REQ-SW-PL-029)
 │       ├── CustomShaderNode.{h,cpp}      # Custom shader нод (REQ-SW-PL-029)
 │       ├── FrameSamplerNode.{h,cpp}      # Ресемплер (every-N / max-fps, REQ-SW-PL-030)
+│       ├── FrameWindowNode.{h,cpp}       # Прозорец от кадри (full/everyFrame/interval, REQ-SW-PL-086)
 │       └── OpenCVTransforms.cpp          # Само при HAVE_OPENCV
 │   ├── Gamepad/                          # Gamepad input source (REQ-SW-PL-042)
 │   │   ├── GamepadEngine.{h,cpp}         # Linux joystick API wrapper
@@ -86,6 +83,16 @@ nodeditor_nodes/
 │   │   └── AudioDisplayModelObsolete.{h,cpp}  # Старият QDevIO audio display (rename-only)
 │   ├── DaqDisplay/
 │   │   └── DaqDisplayNode.{h,cpp}        # Реален Qt Charts waveform + FFT (REQ-SW-PL-022/025)
+│   ├── DisplayRefresh/
+│   │   └── DisplayRefreshDriver.{h,cpp}  # 30 Hz throttle + ComputePool ключ + CancelToken (REQ-SW-PL-090)
+│   ├── TextDisplay/
+│   │   └── TextDisplayNode.{h,cpp}       # TextData → последен текст + броячи (REQ-SW-PL-090)
+│   ├── ImageDisplay/
+│   │   └── ImageDisplayNode.{h,cpp}      # ImageData → превю + метаданни (REQ-SW-PL-090)
+│   ├── FrameWindowDisplay/
+│   │   └── FrameWindowDisplayNode.{h,cpp} # FrameWindowData → метаданни + ≤4 миниатюри (REQ-SW-PL-090)
+│   ├── NumberDisplay/
+│   │   └── NumberDisplayDataModel.{h,cpp} # double / int / embedding (REQ-SW-PL-090 добавя embedding)
 │   └── GenericDisplay/
 │       └── GenericDisplayNode.{h,cpp}
 └── Routing/
@@ -141,9 +148,7 @@ NodeditorNodesCoreObject → INodeProvider
         registry.registerModel<VideoEffectNode>("Processing/Video")   // един нод с комбо (REQ-SW-PL-028 AC 4)
         registry.registerModel<CustomShaderNode>("Processing/Video")  // runtime GLSL (REQ-SW-PL-029)
         registry.registerModel<FrameSamplerNode>("Processing/Video")
-        // AI
-        registry.registerModel<LLamaModelDataModel>("AI/LLM")
-        registry.registerModel<ConsoleDataModel>("AI/LLM")
+        registry.registerModel<FrameWindowNode>("Processing/Video")   // прозорец от кадри (REQ-SW-PL-086)
         // Файл I/O
         registry.registerModel<FilePlaybackModel>("Sources/File")     // cross-platform (REQ-SW-PL-043)
         registry.registerModel<FileRecordModel>("Sinks/File")         // cross-platform (REQ-SW-PL-043)
@@ -197,23 +202,29 @@ NodeditorNodesCoreObject → INodeProvider
 ### Displays
 | Нод | Категория | Описание |
 |-----|-----------|----------|
+| NumberDisplayDataModel | Displays/General | **„Последна стойност" дисплей** — селектор `double` / `int` / `embedding`; за число показва `numberAsText()`, за `EmbeddingData` (REQ-SW-PL-090) — `dim · min · max · mean` и първите 8 компоненти. Числовите пътища са непроменени |
+| TextDisplayNode | Displays/General | **Текстов дисплей** (REQ-SW-PL-090) — `TextData` → нищо. Последният текст (превю до 240 знака, цялото в tooltip) + брой блокове, брой знаци, редове, „преди N ms" |
+| ImageDisplayNode | Displays/General | **Дисплей на картина** (REQ-SW-PL-090) — `ImageData` → нищо. Превю, смалено до 320×180 **на worker-а** (пълната картина никога не се задържа), + ширина×височина на източника, формат на пикселите, mime/model от `Meta`, „преди N ms" |
+| FrameWindowDisplayNode | Displays/General | **Дисплей на кадров прозорец** (REQ-SW-PL-090) — `FrameWindowData` → нищо. Брой кадри, timestamps на първия/последния (+ разлика) и до 4 миниатюри. Миниатюрите се правят с `VideoFrameData::frameToImageScaled()` (чист CPU, безопасен от всяка нишка); GPU-резидентен кадър **не** се конвертира (`asImage()` е GL readback само за GUI нишката) — показва се като „metadata only — N frame(s) not CPU-convertible" |
 | DaqDisplayNode | Displays/DAQ | **Каноничният SampledData дисплей** — реален Qt Charts waveform + FFT за всеки плъгин с sampled данни (audio/DAQ/сензори). v2 (REQ-SW-PL-025): физически decode (`decodeToPhysical`, `raw × amplitudeScale + amplitudeOffset`), unit оси от дескриптора (Time (s)/Hz + мерна единица), worker-притежаван N-секунден ring buffer (default 10 s) с FFT от опашката; per-card `mode` (normalized/physical) + `unitAxes`, backward-compatible save/restore |
 | GenericDisplayNode | Displays/DAQ | Тънък alias на DaqDisplayNode (само name/caption) — legacy key "GenericDisplay" |
 | AudioDisplayAlias | Displays/DAQ | Тънък alias на DaqDisplayNode (само name) — legacy key "AudioDisplay", консолидиран върху SampledData display-а |
 | AudioDisplayModelObsolete | Obsolete | Старият QDevIO аудио дисплей (rename-only, registered `AudioDisplayObsolete`) — за стари QDevIO графи |
 | QDevIoDisplayModelObsolete | Obsolete | Старият QDevIO display (rename-only, registered `QDevIoDisplayObsolete` + alias `QDevIoDisplay`) |
 
+**Правило за дисплеите:** дисплеите са **консуматори** — 1 вход, 0 изхода, без
+мутация на получените данни (само `const` достъп). Моделът живее в
+`nodeditor_nodes/core` (без widget включвания, `embeddedWidget()` = `nullptr`),
+тялото — в `nodeditor_nodes/gui`, вързано през `NodeWidgetFactory`. Тежкото
+рендиране (смаляване на картина, миниатюри, статистика) минава през 30 Hz
+throttle (`DisplayRefreshDriver`) и общия `ComputePool` (REQ-SW-PL-039); моделът
+държи само това, което дисплеят показва, и го пуска веднага след паса.
+
 ### Routing
 | Нод | Категория | Описание |
 |-----|-----------|----------|
 | DemuxNodeObsolete | Routing | Старият QDevIO demultiplexer (rename-only, registered `DemuxNodeObsolete` + alias `DemuxNode`) |
 | MuxNodeObsolete | Routing | Старият QDevIO multiplexer (rename-only, registered `MuxNodeObsolete` + alias `MuxNode`) |
-
-### LLama
-| Нод | Категория | Описание |
-|-----|-----------|----------|
-| LLamaModelDataModel | AI/LLM | LLaMA модел — AI генерация на текст |
-| ConsoleDataModel | AI/LLM | Конзола за показване на AI отговори |
 
 ### Video
 | Нод | Категория | Описание |
@@ -225,8 +236,9 @@ NodeditorNodesCoreObject → INodeProvider
 | VideoEffectNode | Processing/Video | Единен ефект нод с **комбобокс** за избор на ефект (brightness, contrast, grayscale, invert, sepia, channelSwap, flip, blur, gaussianBlur, canny, threshold) + параметри за избрания — върху `VideoFrameData`, GPU/CPU backend (REQ-SW-PL-028) |
 | CustomShaderNode | Processing/Video | GPU-only runtime GLSL нод — Shadertoy-style `mainImage` contract, GLSL редактор + compile + error log + uniform контроли, port 0 in/out `VideoFrameData`, изисква хардуерен GL (REQ-SW-PL-029) |
 | FrameSamplerNode | Processing/Video | Ресемплиране на `VideoFrameData` — всеки N-ти кадър или max FPS, zero-copy passthrough (REQ-SW-PL-030) |
+| FrameWindowNode | Processing/Video | Входно семплиране — пази последните N кадъра (`window` 2…32) и ги публикува като един `FrameWindowData` блок, режими `full` / `everyFrame` / `interval`, zero-copy (REQ-SW-PL-086) |
 
-Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy); видео source-ите имат и port 1 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема `VideoFrameData` и го дисплейва през GPU (вж. „Qt6 in-scene toggle" по-долу; Qt5: detached GL blit прозорец при `DAQSTER_GL_BLIT=1`). **Единственият frame тип е `VideoFrameData`** — `ImageData` е премахнат (Фаза 3, REQ-SW-PL-032); CPU обработката ползва lazy `VideoFrameData::asImage()` кеша. Частният AI Studio plugin консумира `VideoFrameData` на входа на `FrameToTensorNode` (REQ-AI-007).
+Всички Video нодове обменят данни от публичните shared NodeDataTypes (REQ-SW-PL-013). Източниковите нодове (`CameraSourceNode`, `VideoFileSourceNode`, `StreamSourceNode`) имат port 0 `VideoFrameData` ("video-frame", zero-copy); видео source-ите имат и port 1 `SampledData` (audio, appended last — REQ-SW-PL-022 AC 8). `VideoOutputNode` приема `VideoFrameData` и го дисплейва през GPU (вж. „Qt6 in-scene toggle" по-долу; Qt5: detached GL blit прозорец при `DAQSTER_GL_BLIT=1`). **Единственият *поточен* frame тип е `VideoFrameData`** — CPU обработката ползва lazy `VideoFrameData::asImage()` кеша. Отделно от него има `ImageData` (`"image"` / `"Image"`, един кадър, не поток; REQ-SW-PL-080) за генерирани/записани картинки: пренася се по `shared_ptr`, достъпът е по `const QImage&` и носи метаданни за възпроизводимост — той **не** е видео кадър и не се приема от тези нодове.
 
 #### Qt6 in-scene GPU display toggle (REQ-SW-PL-021)
 
@@ -370,6 +382,29 @@ CPU ефектите. Стари saved графи с `"VideoTransform"` registry
 - **Smoke driver:** `DAQSTER_AUTOSTART_SAMPLER=1` вмъква FrameSampler между
   source (или effect) и output в `autoStartVideo()`.
 
+#### FrameWindowNode — прозорец от кадри (REQ-SW-PL-086)
+
+`FrameWindowNode` е входното семплиране: omni/vision нодът **не събира кадри
+сам**, а получава цял прозорец наведнъж. Вход port 0 `VideoFrameData`, изход
+port 0 `FrameWindowData` (`"frame-window"`).
+
+- **Прозорец:** последните `window` кадъра (2…32, по подразбиране 4) с техните
+  arrival timestamps (`Item { frame, timestampMs }`).
+- **Режими (`emitMode`):** `full` — emit само когато прозорецът се напълни, после
+  плъзга и emit-ва на всеки нов кадър; `everyFrame` — emit на всеки кадър (и
+  частичен прозорец); `interval` — най-много веднъж на `intervalMs` (по
+  подразбиране 1000 ms; първият кадър emit-ва веднага).
+- **Zero-copy:** `FrameWindowData::Item::frame` е **същият**
+  `std::shared_ptr<VideoFrameData>`, който източникът е произвел — без копие на
+  пиксели и без `asImage()`.
+- **Null вход:** изчиства прозореца и emit-ва `dataInvalidated(0)`.
+- **Типът:** header-only `src/plugins/common/NodeDataTypes/FrameWindowData.h`
+  (`items()`, `isEmpty()`, `count()`, `firstTimestampMs()`, `lastTimestampMs()`);
+  копирането е изтрито, преносът е по `shared_ptr`.
+- **Persist:** `emitMode`, `window`, `intervalMs` в `save()`/`load()`.
+- **Widget:** `FrameWindowWidget` (GUI плъгина) — mode combo + два QSpinBox-а;
+  моделът е widget-free (REQ-SW-PL-051).
+
 ## AudioSource — SampledData миграция (REQ-SW-PL-024)
 
 Mic пътят мигрира от QDevIO byte-stream към SampledData. Нов нод заема името
@@ -381,6 +416,11 @@ Mic пътят мигрира от QDevIO byte-stream към SampledData. Нов
 
 - Един изходен порт, тип `{"sample","Sample"}` (от `SampledData().type()`).
 - `outData()` връща най-новото `shared_ptr<SampledData>` (member `m_lastData`).
+- **Един изход, няколко консуматора** — `portConnectionPolicy()` дава
+  `Out = Many` (и `In = One`); `onOutPortDataUpdated` подава **същия**
+  `shared_ptr` на всеки вход, тоест разклонението е без копие. Нодът брои
+  връзките си и заснема, докато `count > 0`, така че последното разкачване
+  спира микрофона. Същото важи за полерите `Pcap`/`JackDetect`/`GpuMonitor`.
 - **Няма остатък от QDevIO** в новия нод.
 
 ### Threading — dedicated worker thread
@@ -745,13 +785,73 @@ platform guard, без външни зависимости).
 5. Дескрипторът на Source-а трябва да съвпада с дескриптора на изпращача
    (sampleRate, channels, тип) — wire-ът носи само raw bytes.
 
+## `${VAR}` в сцените (REQ-SW-PL-091)
+
+`.flow` в git **никога** не носи абсолютен път и не изисква експортирани
+променливи: носи `${DAQSTER_DEPS}/clip.mp4` (или `ref` към каталога), а
+**нодът, който консумира пътя**, го разширява при `load()`. Затова една и съща
+сцена работи в IDE-то, в `NodeRunner` и в `HeadlessEngine` на чиста машина — без
+временни копия на сцената и без env.
+
+Механизмът е `Daqster::SceneVariables` (`src/plugins/common/Scene/`) — една
+таблица на машина:
+
+| Ниво (първото печели) | Откъде идва |
+|---|---|
+| 1. override | подаден от викащия: `expandDetailed(raw, overrides)` |
+| 2. конфиг на машината | група `paths` във `<config>/Daqster/scene-variables.json` |
+| 3. среда | `qgetenv(NAME)` |
+| 4. — | празно: токенът остава видим и се докладва |
+
+Синтаксис: `${X}`, `${X:-default}`, `${X:?съобщение}` (връща празно и докладва
+токена + съобщението — нодът го превръща в `NodeValidationState::Error`, който
+именува липсващото) и `$$` за литерален `$`. Непознат `${X}` без default
+**остава буквално**, за да се види кой път е счупен. Празна стойност на всяко
+ниво не е стойност — `${DEPS}/x` с празна `DEPS` не бива да става `/x`.
+
+Файлът: `DAQSTER_SCENE_VARIABLES` (env, за тестове) → иначе първият кандидат, в
+който вече има файл → иначе launcher-независимият
+`~/.config/Daqster/scene-variables.json` (децата на IDE-то получават
+`XDG_CONFIG_HOME=~/.config/daqster`, тоест `GenericConfigLocation` сам не стига).
+Писане: `setPathToken()`/`removePathToken()`/`pathTokens()`;
+`seedFromEnvironment()` копира познатите имена от средата **само ако ключът
+липсва** (конфигурирана машина не се връща към каквото е експортирал launcher-ът).
+
+Правилото: **`.flow` в git носи `${VAR}` или `ref`, никога абсолютен път; нодът
+разширява при зареждане.** `*Ref`/`namedRef` ключовете НЕ се разширяват — те са
+идентификатори за каталога, не пътища. Днес това правят `VideoFileSource` и
+`FilePlayback`.
+
+**Относителните пътища в сцената се решават спрямо директорията на сцената**
+(същата REQ, втората половина). Токенът не е единственият преносим вид: сцена
+може да носи файл, който лежи до нея — `"filePath": "bars_h265_1080p25_x3.mp4"`,
+без токен и без абсолютен път. `expand()` сам не може да изрази това, защото
+относителен път, подаден на платформата, се решава спрямо **cwd на процеса** —
+вярно само ако процесът е стартиран в директорията на сцената. Затова:
+
+- хостът, който чете `.flow`-а (`HeadlessEngine`, `RuntimeShell`,
+  `NodeEditorIdeObject`), извиква `SceneVariables::adoptSceneFile(<път до
+  .flow>)` **преди** JSON-ът да стигне до графовия модел;
+- нодът вика `resolvePath()`, не `expand()`: токените се разширяват както досега,
+  после относителният резултат се закача за `sceneDirectory()` и се нормализира
+  лексикално (`..` се сгъва; файловата система не се пита — файлът може още да
+  не съществува, а сцената може да е зад symlink), а абсолютният остава непокътнат;
+- без токен и без сцена → **празно + причина**, никога cwd; `NodeValidationState`
+  имени трите различни дефекта: неразрешен `${X}`, относителен път без сцена,
+  липсващ файл.
+
+Недомантиран резултат тук няма: `setSceneDirectory("")` изчиства, а
+`adoptSceneFile("")` (сцена от REST/`reloadFlow`, не от файл) **оставя**
+текущата директория — hot-reload не бива да обръща собствените си относителни
+пътища на cwd-относителни.
+
 ## Зависимости
 
 Plugin-ът изисква следните Qt модули и библиотеки:
 - **Qt::Core, Qt::Gui** — основни Qt модули
 - **Qt::Charts** — за графична визуализация
 - **Qt::Multimedia** — за аудио и видео функционалност (AudioSource, Video нодове)
-- **Qt::Network** — за мрежова комуникация (LLaMA API, StreamSource)
+- **Qt::Network** — за мрежова комуникация (StreamSource, NetworkSource/Sink)
 - **Qt::OpenGL** — за rendering
 - **QtNodes** — node editor library
 - **NodeEditorLibrary** — споделена библиотека за node editor

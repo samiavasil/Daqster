@@ -52,7 +52,7 @@ public:
 
     /// Set the widget providers for creating node widgets (REQ-SW-PL-051).
     /// Providers are owned by the GUI plugin objects (NodeditorNodesGuiObject,
-    /// AiStudioPluginGuiObject, ...) and must outlive the editor widget.
+    /// other GUI plugin objects, ...) and must outlive the editor widget.
     void setWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers);
 
     /// The GUI widget of a node, or nullptr when the node has none.

@@ -110,8 +110,6 @@ The `DebugConsoleWidget` (`src/frame_work/base/src/gui/DebugConsoleWidget.cpp`) 
 │ ┌─ Plugins ────────────────────────────┐    │
 │ │ ☐ daqster.plugin.nodeeditor          │    │
 │ │ ☐ daqster.plugin.demo                │    │
-│ │ ☐ daqster.plugin.aistudio            │    │
-│ │ ☐ daqster.plugin.aistudio.llama      │    │
 │ │ ☐ daqster.plugin.cointrader          │    │
 │ └──────────────────────────────────────┘    │
 │                                             │

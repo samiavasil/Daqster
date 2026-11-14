@@ -6,6 +6,15 @@
 
 namespace Daqster {
 
+namespace {
+/// How long stop() waits for a `Starting` child to exec before giving up.
+///
+/// exec is a local operation — 500 ms is several orders of magnitude more than
+/// a healthy one needs. The point is not to wait long, but to never signal a
+/// process that has not exec'ed (see the invariant in ProcessOwner.h).
+constexpr int kStartWaitMs = 500;
+} // namespace
+
 bool ProcessOwner::start(const QString &program, const QStringList &args, const QString &workDir)
 {
     if (program.trimmed().isEmpty())
@@ -44,16 +53,46 @@ ProcessOwner::StopResult ProcessOwner::stop(int graceMs, int killWaitMs)
         return StopResult::NotRunning;
     }
 
-    const qint64 pid = process->processId();
-
     if (!m_owned) {
         // Someone else's process (a reused server): never terminate, never
         // kill. Disconnect and forget — that is the whole point of the flag.
         qCWarning(lcThreading).noquote()
-            << QStringLiteral("ProcessOwner: pid %1 is not owned — leaving it running").arg(pid);
+            << QStringLiteral("ProcessOwner: pid %1 is not owned — leaving it running")
+                   .arg(process->processId());
         forgetProcess();
         return StopResult::NotRunning;
     }
+
+    // 0. A child that has not exec'ed yet is not ours to signal: the fork
+    //    still carries the parent's handlers (SIGTERM there = QFATAL in a
+    //    QtTest parent, not a polite shutdown). waitForStarted() returns on
+    //    `started` or on the failure signal, whichever comes first, so a
+    //    FailedToStart is visible HERE — before any signal is sent.
+    if (process->state() == QProcess::Starting)
+        process->waitForStarted(kStartWaitMs);
+
+    // Re-read through the QPointer: the wait above ran the event loop, and a
+    // child that exited immediately schedules its own `finished → deleteLater`.
+    process = m_process.data();
+    if (!process || process->state() == QProcess::NotRunning) {
+        // It either failed to exec or started and exited by itself: there was
+        // never a process of ours to signal.
+        forgetProcess();
+        return StopResult::NotRunning;
+    }
+    if (process->state() == QProcess::Starting) {
+        // exec did not complete within the deadline. Sending SIGTERM now is
+        // exactly what the invariant forbids; report and leave it attached so a
+        // later stop() can retry.
+        qCWarning(lcThreading).noquote()
+            << QStringLiteral("ProcessOwner: pid %1 still starting after %2 ms — "
+                              "not signalling it")
+                   .arg(process->processId())
+                   .arg(kStartWaitMs);
+        return StopResult::TimedOut;
+    }
+
+    const qint64 pid = process->processId();
 
     // 1. Polite request: SIGTERM on Unix, WM_CLOSE on Windows.
     process->terminate();

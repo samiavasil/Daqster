@@ -196,6 +196,19 @@ set(IDE_SOURCES
     # dependency beyond the capability header.
     StatusBarController.cpp
     StatusBarController.h
+    # Plugin menu actions (REQ-SW-PL-084): IMenuProvider entries installed
+    # into the host menu bar (Tools → AI Setup) without the IDE naming the
+    # plugin. Testable on its own; the IDE only feeds it providers.
+    PluginMenuController.cpp
+    PluginMenuController.h
+    # Scene problems panel (REQ-SW-PL-082): lists what ISceneOpening reported
+    # for the loaded scene; double-click/Enter asks the host to select the node.
+    SceneProblemsPanel.cpp
+    SceneProblemsPanel.h
+    # Live node validation errors (REQ-SW-PL-082): merge the open-time verdict
+    # with the graph's non-Valid states, de-duplicated by node + message.
+    NodeProblems.cpp
+    NodeProblems.h
 )
 
 create_plugin(NodeEditorIde

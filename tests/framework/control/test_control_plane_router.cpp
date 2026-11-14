@@ -14,6 +14,7 @@
 
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QSet>
 
 namespace {
 
@@ -42,7 +43,13 @@ public:
     {
         if (!m_configs.contains(nodeId))
             return false;
-        m_configs[nodeId] = config;
+        // Merge, like NodeDelegateModel::load(): a patch touches the keys it
+        // carries and leaves the rest alone. Replacing would turn every write
+        // into a "removed every other key" diff.
+        QJsonObject merged = m_configs.value(nodeId);
+        for (auto it = config.constBegin(); it != config.constEnd(); ++it)
+            merged.insert(it.key(), it.value());
+        m_configs[nodeId] = merged;
         return true;
     }
 
@@ -53,6 +60,10 @@ public:
         QJsonObject out;
         out.insert(QStringLiteral("id"), static_cast<qint64>(nodeId));
         out.insert(QStringLiteral("type"), QStringLiteral("VideoEffect"));
+        out.insert(QStringLiteral("state"),
+                   m_running.contains(nodeId) ? QStringLiteral("running")
+                                              : QStringLiteral("stopped"));
+        out.insert(QStringLiteral("startable"), m_startable.contains(nodeId));
         out.insert(QStringLiteral("config"), m_configs.value(nodeId));
         return out;
     }
@@ -167,6 +178,10 @@ public:
         return true;
     }
 
+    /// REQ-SW-PL-082: a verdict no longer blocks the load — it is reported and
+    /// the scene is left stopped (`started: false` in `POST /api/flow`).
+    QJsonArray lastSceneProblems() const override { return m_sceneProblems; }
+
     bool closeFlow(QString* errorMessage) override
     {
         if (m_closeRefused) {
@@ -184,6 +199,10 @@ public:
             return {};
         QJsonObject schema;
         schema.insert(QStringLiteral("type"), QStringLiteral("object"));
+        // Per-field metadata the router reads to decide restartRequired: the
+        // "x-restart" markers, exactly what a real model's configSchema() gives.
+        if (m_schemaProperties.contains(nodeId))
+            schema.insert(QStringLiteral("properties"), m_schemaProperties.value(nodeId));
         return schema;
     }
 
@@ -197,12 +216,16 @@ public:
     // Test-facing state.
     QVector<NodeInfo> m_nodes;
     QHash<quint64, QJsonObject> m_configs;
+    QHash<quint64, QJsonObject> m_schemaProperties;
+    QSet<quint64> m_running;
+    QSet<quint64> m_startable;
     QVector<ConnectionInfo> m_connections;
     quint64 m_nextId = 0;
     int m_startCalls = 0;
     int m_stopCalls = 0;
     bool m_rejectConnections = false;
     bool m_reloaded = false;
+    QJsonArray m_sceneProblems;
     int m_closeCalls = 0;
     bool m_closeRefused = false;
     QString m_savedPath;
@@ -374,6 +397,196 @@ private slots:
         QCOMPARE(controller.m_configs.value(5).value(QStringLiteral("brightness")).toInt(), 42);
     }
 
+    void configWriteReportsRestartNeed()
+    {
+        FakeController controller;
+        controller.m_configs[5] = QJsonObject{};
+        controller.m_configs[6] = QJsonObject{{QStringLiteral("threshold"), 1},
+                                             {QStringLiteral("gain"), 0}};
+        controller.m_running.insert(6); // node 5 stopped, node 6 started
+        controller.m_startable.insert(6);
+        // "threshold" is only read in start(); "gain" applies live.
+        controller.m_schemaProperties[6] = QJsonObject{
+            {QStringLiteral("threshold"),
+             QJsonObject{{QStringLiteral("type"), QStringLiteral("number")},
+                         {QStringLiteral("x-restart"), true}}},
+            {QStringLiteral("gain"),
+             QJsonObject{{QStringLiteral("type"), QStringLiteral("number")},
+                         {QStringLiteral("x-restart"), false}}}};
+        Daqster::ControlPlaneRouter router(&controller);
+
+        // Stopped node: the write is all a restart would have done.
+        const auto stopped = router.route("POST", QStringLiteral("/api/nodes/5/config"),
+                                          QJsonObject{{QStringLiteral("threshold"), 1}});
+        QCOMPARE(stopped.status, 200);
+        QCOMPARE(stopped.body.value(QStringLiteral("applied")).toBool(), true);
+        QCOMPARE(stopped.body.value(QStringLiteral("started")).toBool(), false);
+        QCOMPARE(stopped.body.value(QStringLiteral("restartRequired")).toBool(), false);
+
+        // Started node, a field marked x-restart: stop()/start() is needed.
+        const auto restart = router.route("POST", QStringLiteral("/api/nodes/6/config"),
+                                          QJsonObject{{QStringLiteral("threshold"), 2}});
+        QCOMPARE(restart.status, 200);
+        QCOMPARE(restart.body.value(QStringLiteral("applied")).toBool(), true);
+        QCOMPARE(restart.body.value(QStringLiteral("started")).toBool(), true);
+        QCOMPARE(restart.body.value(QStringLiteral("restartRequired")).toBool(), true);
+        // The config was applied, not deferred.
+        QCOMPARE(controller.m_configs.value(6).value(QStringLiteral("threshold")).toInt(), 2);
+
+        // Started node, a field marked x-restart:false — applied live.
+        const auto live = router.route("POST", QStringLiteral("/api/nodes/6/config"),
+                                       QJsonObject{{QStringLiteral("gain"), 9}});
+        QCOMPARE(live.status, 200);
+        QCOMPARE(live.body.value(QStringLiteral("started")).toBool(), true);
+        QCOMPARE(live.body.value(QStringLiteral("restartRequired")).toBool(), false);
+
+        // Nothing actually changed: no restart, whatever the fields are.
+        const auto noop = router.route("POST", QStringLiteral("/api/nodes/6/config"),
+                                       QJsonObject{{QStringLiteral("threshold"), 2},
+                                                   {QStringLiteral("gain"), 9}});
+        QCOMPARE(noop.body.value(QStringLiteral("restartRequired")).toBool(), false);
+
+        // A key the schema does not describe (derived-schema fallback): a node
+        // that can be started/stopped may still need the cycle.
+        const auto unmarked = router.route("POST", QStringLiteral("/api/nodes/6/config"),
+                                           QJsonObject{{QStringLiteral("threshold"), 2},
+                                                       {QStringLiteral("gain"), 9},
+                                                       {QStringLiteral("extra"), 1}});
+        QCOMPARE(unmarked.body.value(QStringLiteral("restartRequired")).toBool(), true);
+
+        // …but a running node that cannot be started at all needs no restart
+        // to apply nothing: there is no cycle to ask for.
+        controller.m_configs[8] = QJsonObject{};
+        controller.m_running.insert(8);
+        const auto inert = router.route("POST", QStringLiteral("/api/nodes/8/config"),
+                                        QJsonObject{{QStringLiteral("anything"), 1}});
+        QCOMPARE(inert.body.value(QStringLiteral("started")).toBool(), true);
+        QCOMPARE(inert.body.value(QStringLiteral("restartRequired")).toBool(), false);
+    }
+
+    void configWriteRejectionReportsNotApplied()
+    {
+        FakeController controller;
+        Daqster::ControlPlaneRouter router(&controller);
+        const auto r = router.route("POST", QStringLiteral("/api/nodes/9/config"),
+                                    QJsonObject{{QStringLiteral("x"), 1}});
+        QCOMPARE(r.status, 400);
+        QCOMPARE(r.body.value(QStringLiteral("applied")).toBool(), false);
+    }
+
+    void patchesConfigThroughTheSameSeam()
+    {
+        FakeController controller;
+        controller.m_configs[7] = QJsonObject{{QStringLiteral("interval"), 100}};
+        controller.m_running.insert(7);
+        controller.m_startable.insert(7);
+        // The PATCH path must reach the same verdict as POST /config — the
+        // snapshot is taken before the write, not after it.
+        controller.m_schemaProperties[7] = QJsonObject{
+            {QStringLiteral("interval"),
+             QJsonObject{{QStringLiteral("type"), QStringLiteral("number")},
+                         {QStringLiteral("x-restart"), true}}}};
+        Daqster::ControlPlaneRouter router(&controller);
+
+        QJsonObject body;
+        body.insert(QStringLiteral("config"),
+                    QJsonObject{{QStringLiteral("interval"), 250}});
+        const auto r = router.route("PATCH", QStringLiteral("/api/nodes/7"), body);
+        QVERIFY(r.handled);
+        QCOMPARE(r.status, 200);
+        QCOMPARE(controller.m_configs.value(7).value(QStringLiteral("interval")).toInt(), 250);
+        QCOMPARE(r.body.value(QStringLiteral("applied")).toBool(), true);
+        QCOMPARE(r.body.value(QStringLiteral("started")).toBool(), true);
+        QCOMPARE(r.body.value(QStringLiteral("restartRequired")).toBool(), true);
+    }
+
+    void patchConfigLiveFieldNeedsNoRestart()
+    {
+        FakeController controller;
+        controller.m_configs[3] = QJsonObject{{QStringLiteral("gain"), 1}};
+        controller.m_running.insert(3);
+        controller.m_startable.insert(3);
+        controller.m_schemaProperties[3] = QJsonObject{
+            {QStringLiteral("gain"),
+             QJsonObject{{QStringLiteral("type"), QStringLiteral("number")},
+                         {QStringLiteral("x-restart"), false}}}};
+        Daqster::ControlPlaneRouter router(&controller);
+
+        const auto r = router.route("PATCH", QStringLiteral("/api/nodes/3"),
+                                    QJsonObject{{QStringLiteral("config"),
+                                                 QJsonObject{{QStringLiteral("gain"), 4}}}});
+        QCOMPARE(r.status, 200);
+        QCOMPARE(r.body.value(QStringLiteral("started")).toBool(), true);
+        QCOMPARE(r.body.value(QStringLiteral("restartRequired")).toBool(), false);
+        QCOMPARE(controller.m_configs.value(3).value(QStringLiteral("gain")).toInt(), 4);
+    }
+
+    void patchConfigAndPositionTogether()
+    {
+        FakeController controller;
+        controller.m_configs[1] = QJsonObject{};
+        Daqster::ControlPlaneRouter router(&controller);
+
+        QJsonObject body;
+        QJsonObject position;
+        position.insert(QStringLiteral("x"), 11.0);
+        position.insert(QStringLiteral("y"), 12.0);
+        body.insert(QStringLiteral("position"), position);
+        body.insert(QStringLiteral("config"), QJsonObject{{QStringLiteral("n"), 3}});
+
+        const auto r = router.route("PATCH", QStringLiteral("/api/nodes/1"), body);
+        QCOMPARE(r.status, 200);
+        QCOMPARE(controller.m_movedTo, QPointF(11.0, 12.0));
+        QCOMPARE(controller.m_configs.value(1).value(QStringLiteral("n")).toInt(), 3);
+        QCOMPARE(r.body.value(QStringLiteral("restartRequired")).toBool(), false);
+    }
+
+    void patchRejectedConfigLeavesPositionAlone()
+    {
+        FakeController controller;
+        Daqster::ControlPlaneRouter router(&controller);
+
+        QJsonObject body;
+        QJsonObject position;
+        position.insert(QStringLiteral("x"), 99.0);
+        position.insert(QStringLiteral("y"), 99.0);
+        body.insert(QStringLiteral("position"), position);
+        body.insert(QStringLiteral("config"), QJsonObject{{QStringLiteral("n"), 3}});
+
+        // Node 42 does not exist: 404, and nothing was moved.
+        const auto missing = router.route("PATCH", QStringLiteral("/api/nodes/42"), body);
+        QCOMPARE(missing.status, 404);
+        QCOMPARE(controller.m_movedTo, QPointF());
+    }
+
+    void patchPositionOnlyStaysBackwardCompatible()
+    {
+        FakeController controller;
+        controller.m_configs[2] = QJsonObject{};
+        Daqster::ControlPlaneRouter router(&controller);
+
+        QJsonObject position;
+        position.insert(QStringLiteral("x"), 1.0);
+        position.insert(QStringLiteral("y"), 2.0);
+        const auto r = router.route("PATCH", QStringLiteral("/api/nodes/2"),
+                                    QJsonObject{{QStringLiteral("position"), position}});
+        QCOMPARE(r.status, 200);
+        QCOMPARE(r.body.value(QStringLiteral("applied")).toBool(), true);
+        QCOMPARE(r.body.value(QStringLiteral("restartRequired")).toBool(), false);
+        QCOMPARE(controller.m_configs.value(2), QJsonObject()); // config untouched
+    }
+
+    void patchRejectsNonObjectConfig()
+    {
+        FakeController controller;
+        controller.m_configs[3] = QJsonObject{};
+        Daqster::ControlPlaneRouter router(&controller);
+
+        const auto r = router.route("PATCH", QStringLiteral("/api/nodes/3"),
+                                    QJsonObject{{QStringLiteral("config"), 5}});
+        QCOMPARE(r.status, 400);
+    }
+
     void schemaEndpoint()
     {
         FakeController controller;
@@ -501,6 +714,50 @@ private slots:
         good.insert(QStringLiteral("nodes"), QJsonArray{});
         QCOMPARE(router.route("POST", QStringLiteral("/api/flow"), good).status, 200);
         QVERIFY(controller.m_reloaded);
+    }
+
+    /// REQ-SW-PL-082: a reported problem is not a failed load. The scene is up
+    /// (`applied: true`), it is just not started (`started: false`), and the
+    /// REST body carries the structured problems so a client can mark nodes.
+    void reloadFlowReportsProblemsWithoutStarting()
+    {
+        FakeController controller;
+        controller.m_sceneProblems = QJsonArray{
+            QJsonObject{{QStringLiteral("nodeId"), QStringLiteral("3")},
+                        {QStringLiteral("nodeName"), QStringLiteral("Chat")},
+                        {QStringLiteral("message"), QStringLiteral("моделът липсва")},
+                        {QStringLiteral("hint"), QStringLiteral("изтеглете го")}}};
+
+        Daqster::ControlPlaneRouter router(&controller);
+        QJsonObject flow;
+        flow.insert(QStringLiteral("nodes"), QJsonArray{});
+        flow.insert(QStringLiteral("connections"), QJsonArray{});
+
+        const auto r = router.route("POST", QStringLiteral("/api/flow"), flow);
+        QCOMPARE(r.status, 200);
+        QCOMPARE(r.body.value(QStringLiteral("applied")).toBool(), true);
+        QCOMPARE(r.body.value(QStringLiteral("started")).toBool(), false);
+        const QJsonArray problems = r.body.value(QStringLiteral("problems")).toArray();
+        QCOMPARE(problems.size(), 1);
+        QCOMPARE(problems.first().toObject().value(QStringLiteral("nodeName")).toString(),
+                 QStringLiteral("Chat"));
+        QVERIFY(r.body.value(QStringLiteral("error")).isUndefined());
+    }
+
+    /// The clean case stays a plain, backwards-compatible success: `applied`,
+    /// `started: true`, an empty problem list and no `error`.
+    void reloadFlowCleanSceneStarts()
+    {
+        FakeController controller;
+        Daqster::ControlPlaneRouter router(&controller);
+        QJsonObject flow;
+        flow.insert(QStringLiteral("nodes"), QJsonArray{});
+
+        const auto r = router.route("POST", QStringLiteral("/api/flow"), flow);
+        QCOMPARE(r.status, 200);
+        QCOMPARE(r.body.value(QStringLiteral("applied")).toBool(), true);
+        QCOMPARE(r.body.value(QStringLiteral("started")).toBool(), true);
+        QCOMPARE(r.body.value(QStringLiteral("problems")).toArray().size(), 0);
     }
 
     void invalidBodyRejectedForMutation()

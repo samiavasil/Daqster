@@ -15,11 +15,14 @@ Capability интерфейсите са **header-only** договори в
 | [`INodeProvider`](#inodeprovider) | Доставя `NodeDelegateModel` типове към node editor-а | `QPluginManager::instances(INodeProvider_IID)` |
 | [`IWidgetProvider`](#iwidgetprovider) | Доставя `QWidget`-а на нод, чийто модел е в widget-free core плъгин | `dynamic_cast` през `PluginRegistry` |
 | [`IStatusBarProvider`](#istatusbarprovider) | Плъгинът показва глобалното си състояние в статус бара + действия в меню | `QPluginManager::statusBarProviders()` |
+| [`IMenuProvider`](#imenuprovider) | Плъгинът добавя действия на произволно място в менюто на хоста (`Tools → AI Setup`) | `QPluginManager::menuProviders()` |
+| [`IProblemFixer`](#iproblemfixer) | Плъгинът предлага „Поправи“ за проблем, който сам е докладвал при отваряне | `QPluginManager::problemFixers()` |
 | [`INodeConfigSchema`](#inodeconfigschema) | Widget-free JSON Schema фрагмент за конфигурацията на нод | `dynamic_cast` върху модел инстанцията |
 | [`IRuntimeHost`](#iruntimehost) | Runtime host плъгин (headless/GUI) + optional control plane | `QPluginManager::runtimeHosts()` |
 | [`IStartable`](#istartable--istoppable) | Нодове с потребителско „Start" действие | `dynamic_cast` |
 | [`IStoppable`](#istartable--istoppable) | Нодове с фонова работа (threads/timers), идемпотентен `stop()` | `dynamic_cast` |
 | [`ISceneLifecycle`](#iscenelifecycle) | Плъгин: „сцената е спряна, приложи политиката си за теглата" | `dynamic_cast` върху `INodeProvider` |
+| [`ISceneOpening`](#isceneopening) | Плъгин: „тази сцена не може да се отвори тук" — **преди** `load()` | `dynamic_cast` върху `INodeProvider` |
 
 > **Защо два начина за discovery?** Само `INodeProvider` и `IRuntimeHost` са Qt
 > plugin interfaces (с `Q_DECLARE_INTERFACE` + IID). Останалите са plain интерфейси,
@@ -83,12 +86,89 @@ virtual void triggerStatusAction(const QString& id) = 0;
 Как се добавя провайдър, кога се обновява и какво не бива:
 [plugins-status-bar.md](plugins-status-bar.md).
 
-## INodeConfigSchema
+## IMenuProvider
 
+Плъгинът добавя **действия на точното им място** в менюто на хоста, без хостът
+да знае за плъгина (REQ-SW-PL-084). `IStatusBarProvider` стига, докато
+единственото меню на плъгина е `Tools → Plugins`; „`Tools → AI Setup`" е
+действие на Tools, не ред в статус бара.
+
+```cpp
+struct PluginMenuAction {
+    QString menuPath;   // "Tools", "Tools/Plugins" — "/" = подменю
+    QString text;       // текст на действието (преведен от плъгина)
+    QString id;         // идентификатор, който провайдърът разпознава
+    bool    enabled = true;
+};
+class IMenuProvider {
+public:
+    virtual QVector<PluginMenuAction> menuActions() const = 0;
+    virtual void triggerMenuAction(const QString& id) = 0;
+};
+```
+
+Интерфейсът е plain (non-`QObject`) и **без QtWidgets** — `QAction`/`QMenu`
+прави хостът. Открива се с `dynamic_cast` през
+`QPluginManager::menuProviders()`/`PluginRegistry::menuProviders()` и се връща
+**инициализиран** (действието често работи с онова, което `Initialize()` е
+построило). IDE-то инсталира действията през `PluginMenuController`
+(`src/plugins/node_editor/node_editor_ide/PluginMenuController.{h,cpp}`):
+
+- сегментите на `menuPath` се резолвват по **заглавие** (`&` се игнорира) —
+  съществуващо меню/подменю (напр. `Tools → Plugins`) се **преизползва**, липсващото
+  се създава;
+- `setProviders()` е **идемпотентен**: премахва предишните си действия и само
+  създадените от него менюта, затова повторна инсталация не дава дубликат и не
+  изпразва чуждо меню;
+- празен `id`/`menuPath` се пропуска с предупреждение, `enabled=false` се показва
+  сиво, изключение от `menuActions()`/`triggerMenuAction()` се логва, не се
+  разпространява.
+
+## IProblemFixer
+
+Плъгинът **поправя** проблем, който сам е докладвал през `ISceneOpening`
+(REQ-SW-PL-085). Присъдата казва какво не е наред; досега човекът трябваше сам да
+познае какво да прави от `hint`-а, дори когато плъгинът знае точното действие
+(„този модел липсва — изтегли го“).
+
+```cpp
+class IProblemFixer {
+public:
+    virtual bool canFix(const Daqster::SceneOpenProblem& problem) const = 0;
+    virtual QString fixLabel(const Daqster::SceneOpenProblem& problem) const = 0;
+    virtual bool fix(const Daqster::SceneOpenProblem& problem, QString* error) = 0;
+};
+```
+
+Хедърът е `src/plugins/common/capabilities/IProblemFixer.h` — plain (non-`QObject`),
+header-only, включва `ISceneOpening.h` за `SceneOpenProblem`. **Хостът не поправя
+нищо:** пита `canFix()`, показва `fixLabel()` като бутон на реда и вика `fix()`
+при натискане.
+
+- `canFix()`/`fixLabel()` се викат при пълнене на панела (GUI нишкa) — евтини,
+  без I/O и диалози. **Празен `fixLabel()` = няма бутон**, тоест плъгин, който
+  още не знае, мълчи без втори метод.
+- `fix()` се вика от натискането на бутона; при `false` попълва `error` и хостът
+  го показва в **собствения ред за статус на панела**, не в модален диалог.
+- Съпоставянето е по `canFix(problem)`, не по идентичност на плъгина: питат се
+  няколко и **първият, който каже „да“, печели**. Затова `canFix()` трябва да
+  връща `false` при съмнение.
+- Discovery: `PluginRegistry::problemFixers()` / `QPluginManager::problemFixers()`
+  — `dynamic_cast` като при `IMenuProvider`, връща **инициализирани** обекти
+  (поправката работи с наученото в `Initialize()`).
+
+IDE-то (`NodeEditorIdeObject::adoptProblemFixers()`) подава на
+`SceneProblemsPanel::setFixHandler(label, fix)` два callable-а, които обхождат
+провайдърите; при успех панелът излъчва `fixRequested(problem)`, а IDE-то маха
+реда и маркировката на нода и препрочита валидационните състояния
+(`onProblemFixed()`). Излъчването е отложено с една итерация на event loop-а,
+защото хостът изчиства списъка — тоест изтрива бутона, в чийто `clicked()` сме.
+
+## INodeConfigSchema
 Опционално самоописание на конфигурацията на нод (REQ-SW-PL-063 AC10). `save()`
 дава *формата* (имена на полета + JSON типове), но не и машинно четимата мета
 информация, нужна на отдалечен UI — `enum`, `minimum`/`maximum`, defaults,
-`visibleWhen`:
+`visibleWhen`, `"x-restart"`:
 
 ```cpp
 virtual QJsonObject configSchema() const = 0;   // Draft-7 фрагмент
@@ -97,7 +177,10 @@ virtual QJsonObject configSchema() const = 0;   // Draft-7 фрагмент
 Когато моделът не го имплементира, контролната плоскост пада към best-effort схема,
 изведена от `save()` — имплементацията е инкрементална и опционална. Интерфейсът е
 widget-free и живее в core-а, затова работи и headless. Пилотен нод:
-`VideoEffectNode`.
+`VideoEffectNode`; всички публични `IStartable` нодове го имплементират от
+REQ-SW-PL-091, защото `"x-restart"` е точният отговор на `restartRequired` при
+запис на конфигурация (виж
+[rest-api-remote-control.md](rest-api-remote-control.md) § `POST /api/nodes/{id}/config`).
 
 ## IRuntimeHost
 
@@ -157,6 +240,79 @@ Host-ът вика `onSceneClosed()` **след** като всеки нод е 
 Целият договор (ред на спиране, какво остава по дизайн, REST-ът):
 [node_editor/scene-lifecycle.md](node_editor/scene-lifecycle.md).
 
+## ISceneOpening
+
+`src/plugins/common/capabilities/ISceneOpening.h` — **optional** hook за
+**отваряне** на сцена (REQ-SW-PL-082). Огледалото на `ISceneLifecycle`, но за
+другия край: плъгинът казва дали сцената може да се отвори в **този** процес,
+преди хостът да е спрял и унищожил работещата.
+
+```cpp
+struct SceneOpenProblem {                 // ISceneOpening.h:39
+    QString nodeId;                       // nodes[].id; може празен (проблем за цялата сцена)
+    QString nodeName;                     // модел/заглавие за човека
+    QString message;                      // какво не е наред
+    QString hint;                         // какво да направи човекът; може празен
+};
+struct SceneOpenVerdict {                 // ISceneOpening.h:64
+    QVector<SceneOpenProblem> problems;   // празен == приема; ВСИЧКИ, не първата
+    bool accepted() const { return problems.isEmpty(); }
+};
+class ISceneOpening {                     // ISceneOpening.h:115
+public:
+    virtual SceneOpenVerdict onSceneOpening(const QJsonObject& scene) = 0;  // :129
+    // нов default: знае и от кой файл идва сцената (REQ-SW-PL-082)
+    virtual SceneOpenVerdict onSceneOpening(const QJsonObject& scene,
+                                            const QString& scenePath);      // :152
+};
+```
+
+`scenePath` е пътят на `.flow` файла, от който сцената е прочетена, или **празен**
+низ, когато сцената е само в паметта (`reloadFlow(QJsonObject)`, REST тяло на
+`POST /api/flow`) — плъгинът го ползва, за да намери `project.json` до сцената,
+и трябва да тълкува празния низ като „неизвестен", не като текущата директория.
+Default-имплементацията препраща към едноаргументната, така че плъгин, компилиран
+срещу стария header, продължава да работи без промяна (vtable-ът на интерфейса
+не се пипа).
+
+Проблемите са **структурирани**, не низове: всеки носи id на нода (`nodes[].id`),
+име за човека, съобщение и подсказка, така че хостът да маркира визирания нод, а
+не само да отпечата списък. `SceneOpenReport::problemsJson()` дава същите полета
+(`nodeId`, `nodeName`, `message`, `hint`) за REST тяло, а
+`sceneOpeningMessage()` рендира по един ред на проблем.
+
+Хостът пита **след** като е решил да зарежда (или преди `load()`, ако пита за
+съвет) и **присъдата никога не спира зареждането сама по себе си**: сцена с
+проблеми се зарежда, а само нодовете ѝ с `autoStart` остават спрени
+(„зарежда, маркира, не стартира" — `REQ-SW-PL-082`). Реализацията е една:
+`FrameworkCore::SceneOpen` (`src/frame_work/base/src/engine/SceneOpen.{h,cpp}`) —
+`checkSceneOpening()` (`SceneOpen.h:74`/`:90` — с път; `:105`/`:117` — без, с празен път), `SceneOpenReport` (`SceneOpen.h:30`)
+(`problemsJson()` — `SceneOpen.h:43`) и `sceneOpeningMessage()` (`SceneOpen.h:94`).
+
+**Защо е отделен интерфейс, а не слот в `ISceneLifecycle`.** `ISceneLifecycle`
+не декларира `Q_DECLARE_INTERFACE` IID и версия (`capabilities/ISceneLifecycle.h`
+— нито един ред за IID), тоест няма договор за съвместимост: хостът знае само
+подредбата на vtable-а, срещу който плъгинът е компилиран. Нов virtual там значи
+плъгин, компилиран със стария header, да бъде викан през слот, който в неговия
+vtable не съществува — индиректен call в паметта след последния слот (класът
+дефекти INC-014; същата причина `INodeProvider.h` да остава непокътнат). Нов
+интерфейс, откриван с `dynamic_cast`, е невидим за плъгините без него: те просто
+не се питат. Затова и `DAQSTER_PLUGIN_INTERFACE_*` **не** се вдига
+(`src/frame_work/base/src/include/QPluginInterface.h:254-258`) — той е
+all-or-nothing и би счупил всеки несвързан плъгин.
+
+**Какво hook-ът не бива.** Не стартира процеси, нишки и не зарежда модели: вика
+се, докато потребителят чака, и преди каквото и да съществува. Отговаря от вече
+известното (настройки, наличие на файл, конфигурация на билда); истинската
+подготовка е в `start()` на нодовете. **И трябва да отговаря без `Initialize()`.**
+`PluginRegistry::nodeProviders()` умишлено **не** вика `ensureInitialized()`
+(`src/frame_work/base/src/registry/PluginRegistry.cpp:232-239`): инициализация
+тук би построила runtime host-ове (цял `RuntimeShell` с MDI, widget-и и OpenGL)
+само за да зададе един въпрос. Затова настройките се четат лениво.
+
+Кой пита и какво прави с отказа: [node_editor/scene-lifecycle.md](node_editor/scene-lifecycle.md)
+→ „Отварянето е договор".
+
 ## Node Data Types
 
 Споделените типове (в `src/plugins/common/NodeDataTypes/`) са това, което тече по
@@ -168,7 +324,7 @@ Host-ът вика `onSceneClosed()` **след** като всеки нод е 
 | `SampledStreamDescriptor` | Метаданни: sample rate, канали, типове, мерни единици |
 | `VideoFrameData` | Видео кадър (Qt6: zero-copy handle; Qt5: OWNED копие) + `VideoTextureHandle` |
 | `VideoTextureHandle` | Дръжка към GPU текстура (zero-copy видео път) |
-| `EmbeddingData` | Векторни embedding-и (AI) |
-| `TextData` | Текст (LLM prompts/отговори) |
+| `EmbeddingData` | Векторни embedding-и |
+| `TextData` | Текст |
 | `FloatData` | Скаларна float стойност |
 | `NumericType` | Типизирано числово (generic numeric port, ADR-002) |

@@ -25,7 +25,7 @@ public:
     /// serves widgets for ITS OWN core models): the node editor must consult
     /// ALL of them, in order, and take the first widget a provider returns.
     /// Providers are owned by their plugin objects (NodeditorNodesGuiObject,
-    /// AiStudioPluginGuiObject, ...) and must outlive this model.
+    /// other GUI plugin objects, ...) and must outlive this model.
     void setWidgetProviders(const QList<Daqster::IWidgetProvider*>& providers);
 
     /// Provider-aware accessor for the GUI widget of a node (REQ-SW-PL-051).

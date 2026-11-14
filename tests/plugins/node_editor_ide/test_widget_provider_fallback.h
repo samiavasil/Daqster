@@ -5,7 +5,7 @@
 // REQ-SW-PL-051 regression: with more than one IWidgetProvider plugin loaded,
 // ChatGraphModel must consult ALL of them, in order, and take the first widget
 // any provider returns. Picking only the first provider silently dropped every
-// widget the other provider owned — e.g. the AiStudio GUI plugin (a second
+// widget the other provider owned — e.g. the GUI half of another plugin (a second
 // provider) becoming the "first one" and returning nullptr for VideoOutput,
 // which left the runtime canvas empty.
 //

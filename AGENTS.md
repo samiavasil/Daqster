@@ -39,7 +39,20 @@ requirements (parents/dependents).
   `<type>/<issue>-<short-name>` or `<type>/<REQ>-<short-name>`; never commit
   directly on `develop`.
 - **Commit after every meaningful change** — small, atomic, never batch; always push.
+- **`master` is guarded (three layers):** required check `.github/workflows/guard-master-source.yml`
+  (PR into `master` only from `develop`/`release/*`), branch protection/ruleset that
+  makes it required, and the local `scripts/hooks/pre-push` — install with
+  `./scripts/install-hooks.sh`. Full rules: [DevelopmentProcess/RELEASE-PROCESS.md](./DevelopmentProcess/RELEASE-PROCESS.md) §6 „Какво пази master".
 - **Changelog maintenance:** keep `CHANGELOG.md` (BG) and `CHANGELOG.en.md` (EN) up to date.
+
+### Public repo (`../daqster`) — PR only
+
+**Never `git push` or `git merge` into `develop` in the public repo.** Integration
+happens only through a pull request opened by the user. Agents push feature
+branches; they never touch `develop`, and never force-push it.
+Local guard: `branch.develop.pushRemote = no-push-please` makes a bare
+`git push` fail loudly — do not remove it.
+Exception: only if the user explicitly asks in the same session.
 
 ## Release Process
 

@@ -29,6 +29,7 @@ register_component(DaqsterCommonLibrary
     REQUIRES_LIBRARIES
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
+        Qt${QT_VERSION_MAJOR}::Network
         Qt${QT_VERSION_MAJOR}::OpenGL
 )
 
@@ -43,6 +44,43 @@ if(DAQSTER_COMMON_LIB_ENABLED)
         # shares ONE definition — same argument as TexturePool above.
         Threading/ProcessOwner.cpp
         Threading/ThreadingLog.cpp
+        # One supervisor for any local HTTP server — free port, start,
+        # `/health`, ownership file, bounded stop (REQ-SW-PL-081). It is a
+        # framework capability, not AI: it knows nothing about models.
+        Servers/LocalServerService.cpp
+        # RFC 6455 client over Qt::Network — no Qt WebSockets dependency
+        # (REQ-SW-PL-087). Masked client frames, fragmentation, ping→pong,
+        # close handshake, bounded message size.
+        WebSocket/WebSocketClient.cpp
+        # Declarative install/adopt/verify of external artifacts
+        # (REQ-SW-PL-088): manifest → checksum → atomic install → lockfile.
+        # Framework capability, knows nothing about models or catalogs.
+        Dependencies/DependencyManager.cpp
+        # Copy counters for the three transport hot spots (REQ-SW-PL-090).
+        # In the library for the same reason as TexturePool: nodeditor_nodes,
+        # the private plugin and the test binaries must increment the SAME
+        # atomics, not one copy per shared library.
+        Diagnostics/TransportStats.cpp
+        # `${VAR}` resolution for scenes (REQ-SW-PL-091): one token table per
+        # machine, expanded by the node that consumes the path. In the library
+        # so the IDE, NodeRunner and HeadlessEngine cannot end up with three
+        # tables (or three slightly different parsers).
+        Scene/SceneVariables.cpp
+        # The layout behind those tokens (REQ-SW-PL-091): one root with fixed
+        # subpaths, so `DAQSTER_LLAMA`/`DAQSTER_LLAMA_MODELS` are derived
+        # instead of configured. Same library, for the same reason — a script,
+        # the IDE and a private plugin must join the identical strings.
+        Scene/SceneLayout.cpp
+        # The DSP engine for sampled streams (REQ-SW-PL-092): coefficient
+        # loading/validation, an integer decimator and a rational polyphase
+        # resampler. QtCore only — a rate converter must be usable in a
+        # headless process, and one definition is what keeps two nodes that
+        # decimate identically from drifting apart. Identity is recorded per
+        # kernel (`ref` + sha256), which is why the loader lives here and not
+        # inside one node.
+        Dsp/FirCoefficients.cpp
+        Dsp/FirDecimator.cpp
+        Dsp/PolyphaseResampler.cpp
     )
 
     # Windows: WINDOWS_EXPORT_ALL_SYMBOLS makes the linker export all symbols
@@ -80,6 +118,22 @@ if(DAQSTER_COMMON_LIB_ENABLED)
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
+
+    # REQ-SW-PL-091: the headless engine records the directory of the scene it
+    # is about to load, so a relative `filePath` resolves against the scene and
+    # not against the process cwd. That state is Daqster::SceneVariables, whose
+    # only definition is this library, so FrameworkCore depends on it — the
+    # bottom of the stack (this library depends on nothing project-internal) is
+    # the one direction that cannot cycle.
+    #
+    # Declared here rather than in src/frame_work/CMakeLists.txt because the
+    # root adds src/frame_work FIRST: this target does not exist yet when that
+    # file is configured, and CMake resolves a link by target name at generate
+    # time, after both are known.
+    if(TARGET FrameworkCore)
+        target_link_libraries(FrameworkCore PUBLIC DaqsterCommonLibrary)
+        message(STATUS "Linked DaqsterCommonLibrary -> FrameworkCore (SceneVariables)")
+    endif()
 
     message(STATUS "Created internal library: DaqsterCommonLibrary")
 else()

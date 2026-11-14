@@ -20,6 +20,17 @@ private slots:
     /// start() refuses an empty program (a typo must not spawn anything).
     void startRejectsEmptyProgram();
 
+    /// A program that never exec'ed (missing binary) is not signalled:
+    /// stop() reports NotRunning instead of killing the fork.
+    void stopBeforeExecReportsNotRunning();
+
+    /// stop() while the child is still Starting waits for exec and does not
+    /// signal the fork — the fork still carries the parent's handlers.
+    void stopWhileStartingDoesNotSignalTheChild();
+
+    /// Regression: a really started child is still terminated politely.
+    void stopAfterStartStillTerminates();
+
     /// A child that exits on SIGTERM is reported as Stopped, not Killed.
     void ownedProcessIsTerminated();
 

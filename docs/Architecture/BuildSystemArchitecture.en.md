@@ -392,6 +392,12 @@ include(ComponentTemplates)
 
 # 2. Core framework (no external dependencies)
 add_subdirectory(src/frame_work)
+#    …with one exception: FrameworkCore links DaqsterCommonLibrary further down
+#    (REQ-SW-PL-091 — HeadlessEngine records the scene's directory in
+#    Daqster::SceneVariables). The link lives in src/plugins/common/CMakeLists.txt
+#    because that target does not exist yet here; CMake resolves it by name at
+#    generate time. The direction is one-way: the support library depends on
+#    nothing project-internal.
 
 # 3. External libraries
 # NodeEditor - Qt5/Qt6 (upstream has unified Qt${QT_VERSION_MAJOR} handling)
