@@ -17,7 +17,7 @@ class TestDspFilters : public QObject
     Q_OBJECT
 
 private slots:
-    /// The built-in default: 64 taps, normalised, linear phase, stable hash.
+    /// The built-in default: normalised, linear phase, stable hash, kDefaultTaps.
     void defaultKernelIsNormalisedLinearPhaseAndHashed();
 
     /// Constant 1.0 in → 1.0 out for both engines (a rate change must not be a
@@ -27,6 +27,14 @@ private slots:
     /// 48 kHz with 1 kHz + 20 kHz, decimated by 3: the 20 kHz component folds
     /// to 4 kHz and must land ≥60 dB below the 1 kHz tone.
     void decimatorSuppressesAliasAboveSixtyDb();
+
+    /// The built-in anti-alias default is the 0.90 rule: −6 dB at 0.9 of the
+    /// output Nyquist and ≥60 dB at the output Nyquist itself.
+    void antiAliasDefaultHoldsSixtyDbAtOutputNyquist();
+
+    /// A 6.5 kHz tone survives 48 kHz → 16 kHz within ±5 % (the 0.45 default
+    /// killed it; that is the defect this guard exists for).
+    void decimatorPassesSixPointFiveKhz();
 
     /// 1 kHz at 48 kHz → 16 kHz keeps amplitude (±1 %) and frequency.
     void decimatorPreservesSineAmplitudeAndFrequency();

@@ -157,8 +157,9 @@ AudioFilterResolution resolveAudioFilter(AudioFilterKind kind, int up, int down,
     // it needs at least `up` taps just to have a coefficient in every phase —
     // with fewer, whole phases are zero and the output is silence punctuated by
     // spikes (measured with the 64-tap default at 160/147). Sixteen taps per
-    // phase is the quality the 64-tap/4-phase default already has; the
-    // contract's maximum caps the cost for extreme ratios.
+    // phase is a floor, not a ceiling: the wrappers raise it further to the
+    // Kaiser estimate for the 0.90 cutoff rule (`tapsForTransition()`), and
+    // `kMaxTaps` caps the cost for extreme ratios.
     int taps = FirCoefficients::kDefaultTaps;
     if (kind == AudioFilterKind::Resampling)
         taps = std::min(std::max(taps, 16 * up), FirCoefficients::kMaxTaps);

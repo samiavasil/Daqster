@@ -75,6 +75,21 @@ QJsonArray tapsToJson(const QVector<double> &taps)
     return array;
 }
 
+/// |H(f)| of a tap set in dB — the design's own frequency response, evaluated
+/// directly instead of through a signal. The −6 dB point and the stopband level
+/// of a kernel are properties of the numbers, not of a particular test tone.
+double magnitudeDbAt(const QVector<double> &taps, double freq, double sampleRate)
+{
+    const double w = 2.0 * kPi * freq / sampleRate;
+    double re = 0.0;
+    double im = 0.0;
+    for (int i = 0; i < taps.size(); ++i) {
+        re += taps.at(i) * std::cos(w * double(i));
+        im -= taps.at(i) * std::sin(w * double(i));
+    }
+    return 20.0 * std::log10(std::max(std::sqrt(re * re + im * im), 1e-12));
+}
+
 } // namespace
 
 void TestDspFilters::defaultKernelIsNormalisedLinearPhaseAndHashed()
@@ -192,6 +207,87 @@ void TestDspFilters::decimatorSuppressesAliasAboveSixtyDb()
                             .arg(attenuationDb, 0, 'f', 1)));
 }
 
+void TestDspFilters::antiAliasDefaultHoldsSixtyDbAtOutputNyquist()
+{
+    // 48 kHz → 16 kHz. The default must behave like an anti-alias filter, not a
+    // telephone filter: −6 dB at 0.9 × the OUTPUT Nyquist (7.2 kHz) and the
+    // stopband edge (the output Nyquist itself, 8 kHz) at least 60 dB down.
+    //
+    // Measured before this guard: 0.45 put the −6 dB point at 3604 Hz with
+    // −20 dB @ 4477 and −60 dB @ 5400, and an A/B through whisper changed the
+    // transcript (`they` → `you`) away from the reference.
+    constexpr double fsIn = 48000.0;
+    constexpr double fsOut = 16000.0;
+    constexpr double cutoff = 0.90 * fsOut / 2.0; // 7200 Hz
+    const FirCoefficients kernel = FirCoefficients::antiAliasForDecimation(3);
+    const QVector<double> &taps = kernel.taps();
+
+    const double atCutoff = magnitudeDbAt(taps, cutoff, fsIn);
+    const double atNyquist = magnitudeDbAt(taps, fsOut / 2.0, fsIn);
+    qInfo("anti-alias ÷3 default: %d taps, %.2f dB @ %.0f Hz, %.1f dB @ %.0f Hz",
+          kernel.tapCount(), atCutoff, cutoff, atNyquist, fsOut / 2.0);
+
+    QVERIFY2(std::abs(atCutoff + 6.0) < 0.5,
+             qPrintable(QStringLiteral("−6 dB point is %1 dB at %2 Hz, not at 0.9·Nyquist")
+                            .arg(atCutoff, 0, 'f', 2)
+                            .arg(cutoff)));
+    QVERIFY2(atNyquist <= -60.0,
+             qPrintable(QStringLiteral("output Nyquist is only %1 dB down (need 60)")
+                            .arg(atNyquist, 0, 'f', 1)));
+
+    // The tap count is the Kaiser estimate, not a guess: 64 taps measure −18 dB
+    // at 8 kHz for ×3, 144 taps measure −62 dB. A request below the estimate is
+    // raised to it.
+    QVERIFY2(kernel.tapCount() >= 154,
+             qPrintable(QStringLiteral("only %1 taps").arg(kernel.tapCount())));
+    QCOMPARE(FirCoefficients::antiAliasForDecimation(3, 64).tapCount(), 154);
+
+    // The same rule on the lower of the two rates for a resampler: 44.1 → 48 k
+    // keeps 0.9 × 22.05 kHz and is 60 dB down by 22.05 kHz.
+    const FirCoefficients resampler = FirCoefficients::antiAliasForResampling(160, 147);
+    QVERIFY2(magnitudeDbAt(resampler.taps(), 0.90 * 22050.0, 160.0 * 44100.0) < -5.5,
+             "resampler 160/147: cutoff is not at 0.9 of the lower Nyquist");
+    QVERIFY2(magnitudeDbAt(resampler.taps(), 22050.0, 160.0 * 44100.0) <= -60.0,
+             qPrintable(QStringLiteral("resampler 160/147: lower Nyquist is %1 dB down")
+                            .arg(magnitudeDbAt(resampler.taps(), 22050.0, 160.0 * 44100.0),
+                                 0, 'f', 1)));
+}
+
+void TestDspFilters::decimatorPassesSixPointFiveKhz()
+{
+    // The 0.45 default cut everything above ~3.6 kHz, so a 6.5 kHz tone — which
+    // is well inside what a 16 kHz stream can carry — came out ~20 dB down.
+    // 0.90 must keep its amplitude within ±5 %.
+    constexpr double fsIn = 48000.0;
+    constexpr double fsOut = 16000.0;
+    constexpr double freq = 6500.0;
+    constexpr double amplitude = 0.5;
+
+    const QVector<float> input = makeSine(amplitude, freq, fsIn, 4800);
+
+    FirDecimator decimator;
+    QString error;
+    QVERIFY2(decimator.configure(3, FirCoefficients::antiAliasForDecimation(3), &error),
+             qPrintable(error));
+    QVector<float> output;
+    decimator.process(input.constData(), input.size(), output);
+    QCOMPARE(output.size(), input.size() / 3);
+
+    // 1024 outputs at 16 kHz hold exactly 416 periods of 6.5 kHz → the tone is
+    // on a DFT bin and the measurement needs no window.
+    const int skip = int(decimator.latencySamples()) + 100;
+    const QVector<float> window = output.mid(skip, 1024);
+    QCOMPARE(window.size(), 1024);
+
+    const double measured = dftAmplitudeAt(window, freq, fsOut);
+    qInfo("6.5 kHz through ÷3: %.4f (input %.4f, %+.1f %%)", measured, amplitude,
+          100.0 * (measured - amplitude) / amplitude);
+    QVERIFY2(std::abs(measured - amplitude) < 0.05 * amplitude,
+             qPrintable(QStringLiteral("6.5 kHz came out at %1, expected %2 ±5 %%")
+                            .arg(measured, 0, 'g', 8)
+                            .arg(amplitude, 0, 'g', 8)));
+}
+
 void TestDspFilters::decimatorPreservesSineAmplitudeAndFrequency()
 {
     constexpr double fsIn = 48000.0;
@@ -266,15 +362,20 @@ void TestDspFilters::reportedLatencyMatchesMeasuredGroupDelay()
     // Odd tap count with an even factor keeps the sampled impulse response
     // symmetric, so the energy centroid is the group delay exactly — and a
     // latency that forgot to divide by M (the classic bug) fails by M×.
-    constexpr int taps = 65;
+    // 161 is above every Kaiser estimate involved here (M=2 → 102, M=3 → 153,
+    // 3/2 → 153), so the explicit count is what the kernel gets: the wrappers
+    // only raise taps that are too few for the 0.90 transition.
+    constexpr int taps = 161;
     QVector<float> impulse(1000, 0.0F);
     impulse[0] = 1.0F;
 
     {
+        const FirCoefficients kernel = FirCoefficients::antiAliasForDecimation(2, taps);
+        QCOMPARE(kernel.tapCount(), taps);
+
         FirDecimator decimator;
         QString error;
-        QVERIFY2(decimator.configure(2, FirCoefficients::antiAliasForDecimation(2, taps), &error),
-                 qPrintable(error));
+        QVERIFY2(decimator.configure(2, kernel, &error), qPrintable(error));
         QVector<float> output;
         decimator.process(impulse.constData(), impulse.size(), output);
 
@@ -305,12 +406,12 @@ void TestDspFilters::reportedLatencyMatchesMeasuredGroupDelay()
     }
 
     // A decimator by 3 cannot keep the sampled response symmetric — the delay is
-    // fractional (10.33 output samples) and the ±1 sample tolerance is what
+    // fractional (26.67 output samples) and the ±1 sample tolerance is what
     // covers it.
     {
         FirDecimator decimator;
         QString error;
-        QVERIFY2(decimator.configure(3, FirCoefficients::antiAliasForDecimation(3, 63), &error),
+        QVERIFY2(decimator.configure(3, FirCoefficients::antiAliasForDecimation(3, taps), &error),
                  qPrintable(error));
         QVector<float> output;
         decimator.process(impulse.constData(), impulse.size(), output);

@@ -95,7 +95,7 @@ FirCoefficients FirCoefficients::makeDefault(int taps, double cutoffRatio, doubl
                                                                   : kDefaultCutoffRatio;
     const double b = (beta > 0.0) ? beta : kDefaultBeta;
 
-    // −6 dB point in cycles/sample: the Nyquist is 0.5, so 0.45·Nyquist = 0.225.
+    // −6 dB point in cycles/sample: the Nyquist is 0.5, so 0.90·Nyquist = 0.45.
     const double fc = 0.5 * ratio;
     const double centre = 0.5 * double(n - 1);
 
@@ -125,7 +125,13 @@ FirCoefficients FirCoefficients::antiAliasForDecimation(int M, int taps, double 
     // The filter runs at the INPUT rate; the Nyquist that matters is the lower
     // (post-decimation) one, so the cutoff in input-rate terms is factor / M.
     const int m = std::max(1, M);
-    return makeDefault(taps, factor / double(m), beta);
+    const double f = (factor > 0.0 && factor < 1.0) ? factor : kDefaultCutoffRatio;
+
+    // Transition, input-rate cycles/sample: the −6 dB point is at f·(fs/2)/M and
+    // the stopband edge at (fs/2)/M, and Kaiser's Δf spans both sides of the
+    // cutoff — so the full width is 2·(1 − f)·0.5/M = (1 − f)/M.
+    const int needed = tapsForTransition((1.0 - f) / double(m), beta);
+    return makeDefault(std::min(std::max(taps, needed), kMaxTaps), f / double(m), beta);
 }
 
 FirCoefficients FirCoefficients::antiAliasForResampling(int up, int down, int taps,
@@ -138,12 +144,32 @@ FirCoefficients FirCoefficients::antiAliasForResampling(int up, int down, int ta
     // 1/up; with the wider kernel the branches see different DC gains.
     const int l = std::max(1, up);
     const int m = std::max(1, down);
-    const double ratio = factor * double(std::min(l, m)) / (double(l) * double(m));
+    const double f = (factor > 0.0 && factor < 1.0) ? factor : kDefaultCutoffRatio;
+    const double transition = (1.0 - f) * double(std::min(l, m)) / (double(l) * double(m));
+    const double ratio = f * double(std::min(l, m)) / (double(l) * double(m));
 
     // Every phase must own at least one tap: with taps < up, whole phases are
-    // empty and their output samples are exactly zero.
-    const int effectiveTaps = std::min(std::max(taps, l), kMaxTaps);
+    // empty and their output samples are exactly zero. The Kaiser estimate then
+    // widens the prototype to the 0.90 transition (capped for extreme ratios).
+    const int needed = std::max(l, tapsForTransition(transition, beta));
+    const int effectiveTaps = std::min(std::max(taps, needed), kMaxTaps);
     return makeDefault(effectiveTaps, ratio, beta);
+}
+
+int FirCoefficients::tapsForTransition(double transitionCyclesPerSample, double beta)
+{
+    // Kaiser: Δω = (A − 8)/(2.285·N) rad/sample with Δω = 2π·Δf/fs, and a
+    // Kaiser window of shape β reaches a stopband level of A = β/0.1102 + 8.7 dB.
+    // Solving for N with A = A(β) keeps the pair consistent — the deeper window
+    // is exactly why it needs more taps for the same edge.
+    const double b = (beta > 0.0) ? beta : kDefaultBeta;
+    const double delta = 2.0 * kPi * transitionCyclesPerSample;
+    if (!(delta > 0.0))
+        return kMaxTaps; // a zero-width transition cannot be realised
+
+    const double attenuation = b / 0.1102 + 8.7;
+    const int estimate = int(std::ceil((attenuation - 8.0) / (2.285 * delta)));
+    return std::clamp(estimate, kMinTaps, kMaxTaps);
 }
 
 FirCoefficients FirCoefficients::fromJson(const QJsonObject &object, QString *error,

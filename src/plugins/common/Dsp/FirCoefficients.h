@@ -20,8 +20,8 @@
 // Three loaders exist and they are deliberately separate:
 //
 //   * `makeDefault()`     — windowed-sinc, Kaiser β, cutoff as a ratio of the
-//                           design-rate Nyquist. The built-in default (64 taps,
-//                           β = 8, cutoff 0.45) is what a node uses when the
+//                           design-rate Nyquist. The built-in default (160 taps,
+//                           β = 8, cutoff 0.90) is what a node uses when the
 //                           scene names no file;
 //   * `fromJson()`        — a document with metadata, so the numbers travel
 //                           with their intent (cutoff, rate, delay, sha256);
@@ -50,15 +50,32 @@
 class DAQSTERCOMMON_EXPORT FirCoefficients
 {
 public:
-    /// Default kernel shape: 64 taps, Kaiser β = 8, cutoff 0.45 of the Nyquist
+    /// Default kernel shape: 160 taps, Kaiser β = 8, cutoff 0.90 of the Nyquist
     /// of the rate the filter is designed for (REQ-SW-PL-092).
-    static constexpr int kDefaultTaps = 64;
+    ///
+    /// **Why 0.90 and not 0.45.** 0.45 put the −6 dB point at 3.6 kHz for
+    /// 48 kHz → 16 kHz — a telephone filter that cut speech away: measured
+    /// −6 dB @ 3604 Hz, −20 dB @ 4477, −60 dB @ 5400, and an A/B through
+    /// whisper changed the transcript (`they` → `you`) away from the reference.
+    /// 0.90 keeps 7.2 kHz and puts the stopband edge (`1.0 × Nyquist_out`,
+    /// 8 kHz) 60 dB down, which is what "anti-alias" is supposed to mean.
+    ///
+    /// **Why 160 taps.** `tapsForTransition()` is the number the 0.90 rule
+    /// demands: 64 taps hold only −18 dB at 8 kHz for ×3 (measured) because
+    /// the transition is `0.1 · Nyquist_out` wide. β = 8 needs 153 taps for
+    /// that edge (the estimate is 154); 160 keeps the default a multiple of 16 and
+    /// covers every decimation up to ×3 with margin.
+    static constexpr int kDefaultTaps = 160;
     static constexpr double kDefaultBeta = 8.0;
-    static constexpr double kDefaultCutoffRatio = 0.45;
+    static constexpr double kDefaultCutoffRatio = 0.90;
     /// A kernel shorter than this cannot hold a usable transition band.
     static constexpr int kMinTaps = 8;
     /// Longer than this is a truncated file, not a design decision.
-    static constexpr int kMaxTaps = 4096;
+    ///
+    /// 8192 (not 4096) because the 0.90 rule demands it for rational ratios:
+    /// 44.1 → 48 k = 160/147 needs 8170 taps on the prototype to be 60 dB down
+    /// at the lower Nyquist (22.05 kHz), i.e. 52 per polyphase branch.
+    static constexpr int kMaxTaps = 8192;
     /// |sum(h) − 1| must stay below this (DC gain of a passband filter).
     static constexpr double kGainTolerance = 1e-3;
     /// Delay metadata tolerance, in samples — a declared delay that disagrees
@@ -73,10 +90,10 @@ public:
      * @brief Build a windowed-sinc low-pass with a Kaiser window.
      *
      * `cutoffRatio` is relative to the **Nyquist of the rate the filter is
-     * designed for** — 0.45 means the −6 dB point sits at 0.45·fs/2. A
-     * decimator by M therefore passes 0.45/M (the lower Nyquist belongs to the
-     * *output* rate) and a resampler by up/down passes 0.45·min(up,down)/up at
-     * the up-sampled design rate; `antiAliasForDecimation()` /
+     * designed for** — 0.90 (the default) means the −6 dB point sits at
+     * 0.90·fs/2. A decimator by M therefore passes 0.90/M (the lower Nyquist
+     * belongs to the *output* rate) and a resampler by up/down passes
+     * 0.90·min(up,down)/up at the up-sampled design rate; `antiAliasForDecimation()` /
      * `antiAliasForResampling()` spell those two cases out.
      *
      * The taps are normalised so that sum(h) == 1 exactly (up to double
@@ -93,14 +110,39 @@ public:
                                        double beta = kDefaultBeta);
 
     /**
+     * @brief Kaiser's tap estimate: how many taps a transition band needs.
+     *
+     * `N ≈ (A − 8) / (2.285 · Δω)` with `Δω = 2π · Δf / fs` in rad/sample is
+     * the classical Kaiser estimate. The window's own stopband level is
+     * `A(β) = β / 0.1102 + 8.7` dB, so the pair (β, N) is what a design
+     * actually has: asking for a deeper window at a fixed edge means more
+     * taps. Using `A(β)` instead of a nominal 60 dB is what makes the estimate
+     * agree with the taps — β = 8 at a 0.1·Nyquist transition needs 153 taps,
+     * and a 144-tap kernel measures −62 dB at that edge while a 64-tap one
+     * measures −18 dB.
+     *
+     * @param transitionCyclesPerSample Full transition width, cycles/sample of
+     *        the design rate (from the passband edge to the stopband edge — the
+     *        −6 dB point lies in the middle, so it is twice the distance from
+     *        the cutoff to the stopband edge).
+     * @param beta Kaiser β the taps will be windowed with.
+     * @return A tap count clamped to [kMinTaps, kMaxTaps].
+     */
+    static int tapsForTransition(double transitionCyclesPerSample,
+                                 double beta = kDefaultBeta);
+
+    /**
      * @brief Convenience: the anti-alias kernel for decimation by `M`.
      *
      * Design rate is the input rate, so the cutoff is `factor / M` (the lower
-     * Nyquist belongs to the decimated rate).
+     * Nyquist belongs to the decimated rate), and the transition is
+     * `(1 − factor)/M` cycles/sample wide. `taps` is raised to what
+     * `tapsForTransition()` demands when the caller asks for fewer — an
+     * anti-alias kernel that does not suppress the alias is not one.
      *
      * @param M Integer decimation factor, ≥ 1.
-     * @param taps Tap count (default 64).
-     * @param factor Cutoff as a fraction of the *lower* Nyquist (default 0.45).
+     * @param taps Minimum tap count (default kDefaultTaps = 160).
+     * @param factor Cutoff as a fraction of the *lower* Nyquist (default 0.90).
      * @param beta Kaiser β (default 8).
      */
     static FirCoefficients antiAliasForDecimation(int M, int taps = kDefaultTaps,
@@ -119,14 +161,19 @@ public:
      * a 0.5 sine came out with peaks of 31 at phase 0 for 160/147 — the phase
      * whose tap set contains the kernel's centre).
      *
+     * The same 0.90 rule applies to the transition: `(1 − factor)·min/(up·down)`
+     * of the design rate, so `taps` is raised to `tapsForTransition()`'s
+     * estimate when it is smaller (the estimate wins over a caller asking for
+     * fewer taps; `kMaxTaps` caps extreme ratios).
+     *
      * @param up Interpolation factor, ≥ 1.
      * @param down Decimation factor, ≥ 1.
-     * @param taps Tap count at the interpolated rate (default 64). Raised to at
-     *        least `up` so every phase owns a coefficient: fewer taps leaves
-     *        whole phases empty, and those output samples are exactly zero.
-     *        Eight to sixteen taps per phase (`8·up … 16·up`) is the useful
-     *        range; the result is capped at `kMaxTaps`.
-     * @param factor Cutoff as a fraction of the *lower* Nyquist (default 0.45).
+     * @param taps Tap count at the interpolated rate (default kDefaultTaps).
+     *        Raised to at least `up` so every phase owns a coefficient: fewer
+     *        taps leaves whole phases empty, and those output samples are
+     *        exactly zero. Eight to sixteen taps per phase (`8·up … 16·up`) is
+     *        the useful range; the result is capped at `kMaxTaps`.
+     * @param factor Cutoff as a fraction of the *lower* Nyquist (default 0.90).
      * @param beta Kaiser β (default 8).
      */
     static FirCoefficients antiAliasForResampling(int up, int down, int taps = kDefaultTaps,
