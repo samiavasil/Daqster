@@ -37,6 +37,9 @@ set(TEST_SOURCES
     test_scene_problems_panel.cpp test_scene_problems_panel.h
     # REQ-SW-PL-082: live node validation errors in the panel (red node says why).
     test_live_validation_problems.cpp test_live_validation_problems.h
+    # REQ-SW-PL-082: autoStart applies to the IDE too — the start loop against a
+    # real DataFlowGraphModel (Widget-free: the IDE object is not needed).
+    test_ide_autostart.cpp test_ide_autostart.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutTree.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/LayoutEngine.cpp
@@ -51,6 +54,9 @@ set(TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/SceneProblemsPanel.cpp
     # Live validation states → panel rows + merge/dedupe (REQ-SW-PL-082).
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeProblems.cpp
+    # autoStart in the IDE (REQ-SW-PL-082): the start loop under test, compiled
+    # from the plugin rather than linked so the test proves the shipped code.
+    ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/IdeAutoStart.cpp
     # REQ-SW-PL-051: multi-IWidgetProvider fallback in the node editor
     # (nodeWidget() consults every provider, first non-null wins).
     ${DAQSTER_SOURCE_DIR}/src/plugins/node_editor/node_editor_ide/NodeSupport/types/ChatGraphModel.cpp

@@ -10,6 +10,7 @@
 #include <QList>
 #include <QPair>
 #include <QPointer>
+#include <QSet>
 #include <QVector>
 #include <vector>
 
@@ -64,6 +65,12 @@ public:
     /// Shared tolerant-load body: parses `fileName`, drops unregistered nodes
     /// and their connections, loads the cleaned scene and warns about skipped
     /// types. Returns true on success (including partial loads).
+    ///
+    /// REQ-SW-PL-082: a node the scene's `ui.nodes` marks `autoStart: true` and
+    /// that implements `IStartable` is started here too — the IDE used to be the
+    /// one host where the same scene sat still until the user pressed ▶ per
+    /// source. Nodes without the flag, and nodes the `ISceneOpening` verdict
+    /// marked invalid, are left stopped (`IdeAutoStart`).
     bool loadSceneFromFile(const QString& fileName);
 
 protected:
@@ -263,6 +270,12 @@ private:
 
     /// Per-node autoStart flags restored from the "ui" section (REQ-SW-PL-049).
     QHash<QtNodes::NodeId, bool> m_autoStartNodes;
+
+    /// Nodes this IDE instance started because the scene flagged them with
+    /// `autoStart: true` (REQ-SW-PL-082). The double-start guard: a reload or a
+    /// second call must not call `start()` on a node twice. Cleared on close and
+    /// on every load — a fresh graph has nothing running.
+    QSet<QtNodes::NodeId> m_startedByIde;
 
     /// Presentation mode state (REQ-SW-PL-048): true = canvas hidden, deembedded
     /// widgets shown; false = normal editor mode.

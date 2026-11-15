@@ -3,6 +3,7 @@
 #include "LayoutDesignerPanel.h"
 #include "SceneProblemsPanel.h"
 #include "NodeProblems.h"
+#include "IdeAutoStart.h"
 #include "StatusBarController.h"
 #include "PluginMenuController.h"
 #include "QPluginManager.h"
@@ -632,6 +633,7 @@ bool NodeEditorIdeObject::closeCurrentScene(bool confirmDiscard)
 
     // 4. Forget everything that described the old scene.
     m_autoStartNodes.clear();
+    m_startedByIde.clear();
     m_workspaces.clear();
     m_hasLayoutV2 = false;
     m_layoutSectionV2 = FlowUi::LayoutSection{};
@@ -979,6 +981,12 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
         m_hasLayoutV2 = true;
         if (m_designer != nullptr)
             m_designer->setLayoutSection(layoutV2);
+        // REQ-SW-PL-082: the schema-v2 section carries the same per-node
+        // `autoStart` flags as v1; the IDE reads them from one place whatever
+        // the section version (RuntimeShell does exactly this).
+        m_autoStartNodes.clear();
+        for (auto it = layoutV2.nodes.constBegin(); it != layoutV2.nodes.constEnd(); ++it)
+            m_autoStartNodes.insert(it.key(), it.value().autoStart);
         qCInfo(lcNodeEditor) << "loadSceneFromFile: ui version 2 section loaded ("
                              << layoutV2.workspaces.size() << "workspaces)";
     } else {
@@ -992,6 +1000,25 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
     // file path travels with the scene so a plugin can find the files next to
     // it (`project.json`, relative assets).
     applySceneProblems(Daqster::checkSceneOpening(sceneJson, fileName).problems);
+
+    // REQ-SW-PL-082: a scene that names a node with `autoStart: true` now starts
+    // it here, the way HeadlessEngine and RuntimeShell do — the IDE was the one
+    // host where the same scene sat still until the user pressed ▶ per source.
+    // Nodes without the flag are untouched (interactive behaviour unchanged),
+    // and a node the verdict above marked as invalid is skipped.
+    m_startedByIde.clear();
+    const QVector<IdeAutoStart::Outcome> started =
+        IdeAutoStart::startAutoStartNodes(*m_Widget->graphModel(), m_autoStartNodes,
+                                          m_sceneOpenProblems, &m_startedByIde);
+    int startedCount = 0;
+    for (const IdeAutoStart::Outcome& outcome : started) {
+        if (outcome.action == IdeAutoStart::Outcome::Action::Started)
+            ++startedCount;
+    }
+    if (!m_autoStartNodes.isEmpty()) {
+        qCInfo(lcNodeEditor) << "loadSceneFromFile: autoStart" << startedCount
+                             << "of" << m_autoStartNodes.size() << "flagged nodes started";
+    }
 
     const int loadedNodeCount = static_cast<int>(m_Widget->graphModel()->allNodeIds().size());
     const int loadedConnCount = static_cast<int>(

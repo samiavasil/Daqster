@@ -209,6 +209,11 @@ set(IDE_SOURCES
     # with the graph's non-Valid states, de-duplicated by node + message.
     NodeProblems.cpp
     NodeProblems.h
+    # autoStart in the IDE (REQ-SW-PL-082): start the nodes the scene flagged,
+    # skip the ones the open verdict marked invalid. Widget-free, so the loop
+    # runs in node_editor_ide_tests against a real graph.
+    IdeAutoStart.cpp
+    IdeAutoStart.h
 )
 
 create_plugin(NodeEditorIde

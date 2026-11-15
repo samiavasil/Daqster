@@ -83,7 +83,7 @@ id на нода, име, съобщение и подсказка), не низ
 | `POST /api/flow` (headless и GUI) | същото, през `reloadFlow()` — тялото е JSON, тоест пътят е празен | 200 `{"applied": true, "started": false, "problems": […]}` | `ControlPlaneRouter.cpp` (`POST /api/flow`); `lastSceneProblems()` |
 | `NodeRunner --run` (GUI), `loadFlow()` | `applySceneJson()` | сцената се зарежда; `RunRuntime()` не стартира `autoStart` нодовете | `RuntimeShell.cpp` `applySceneJson()` → `recordSceneOpening()`; `RunRuntime()` стъпка 6 |
 | `POST /api/flow` (GUI runtime) | `reloadFlow()` → `applySceneJson()` | същото тяло като headless (един и същ router) | `RuntimeShell.cpp:reloadFlow()` |
-| IDE `File → Load Scene…` | **след** `load()`, върху заредената сцена, с пътя от `loadSceneFromFile(fileName)` | сцената се зарежда и остава за редактиране; всеки проблем маркира нода си (`NodeValidationState::Error`), панелът под канваса изрежда всички, по един `qCWarning` на проблем; **без** модален диалог; нищо не се стартира | `NodeEditorIdeObject.cpp:loadSceneFromFile()` → `applySceneProblems()`; `SceneProblemsPanel` |
+| IDE `File → Load Scene…` | **след** `load()`, върху заредената сцена, с пътя от `loadSceneFromFile(fileName)` | сцената се зарежда и остава за редактиране; всеки проблем маркира нода си (`NodeValidationState::Error`), панелът под канваса изрежда всички, по един `qCWarning` на проблем; **без** модален диалог; стартират се само нодовете, които сцената сама е маркирала с `autoStart: true` (вижте по-долу) | `NodeEditorIdeObject.cpp:loadSceneFromFile()` → `applySceneProblems()` → `IdeAutoStart::startAutoStartNodes()`; `SceneProblemsPanel` |
 
 Защо питане на едно място, а не две: при ветото ранното питане имаше смисъл
 (отказът не струваше нищо); при „зарежда, маркира, не стартира" всяко питане
@@ -112,10 +112,32 @@ IDE-то беше последният хост с вето: `File → Load Scen
    не губи височина;
 3. **логва** — по един `qCWarning(lcNodeEditor)` на проблем, с id и текст.
 
-Модален диалог няма: сцената остава отворена и редактируема, а нищо не се
-стартира (`autoStart` е грижа на runtime host-овете, не на редактора). Затваряне
+Модален диалог няма: сцената остава отворена и редактируема. Затваряне
 на сцената изчиства и панела, защото проблемите описват нодове, които вече не
 съществуват.
+
+#### `autoStart` вече важи и в IDE-то
+
+IDE-то беше единственият хост, който не стартираше нодовете, които сцената сама
+маркира с `ui.nodes[].autoStart: true` — същата сцена, пусната през
+`HeadlessEngine`/`RuntimeShell`, тръгваше, а отворена в IDE-то чакаше ▶ на всеки
+източник. Сега `loadSceneFromFile()`, **след** `applySceneProblems()`, вика
+`IdeAutoStart::startAutoStartNodes()` с флаговете от `ui` секцията (v1 и
+schema-v2 носят същите) и получения вердикт:
+
+- `start()` се вика само на нодове с `autoStart: true`, които имплементират
+  `IStartable` — липсващ или `false` флаг не стартира нищо (интерактивният
+  потребител не вижда промяна);
+- нод, който вердиктът е маркирал (`SceneOpenProblem::nodeId`) или чието
+  `NodeValidationState` не е `Valid`, се **пропуска** с
+  `IDE: пропускам '<name>' (невалиден)` — проблемът не спира останалите;
+- един ред на стартиран нод: `IDE: стартирам '<name>' (autoStart)`;
+- двойно стартиране е невъзможно: `m_startedByIde` пази какво хостът вече е
+  пуснал (изчиства се при затваряне и при всяко зареждане), а `start()` е в
+  `try` — хвърлил нод не отнема на останалите сцената.
+
+Редът е цикълът на другите два хоста (по картата с флаговете), за да не се
+разминават трите. Тестове: `node_editor_ide_tests` `IdeAutoStartTest` (7 случая).
 
 Текстът на реда е същият като в логовете —
 `SceneProblemsPanel::textForProblem()`: `<nodeName> (<nodeId>): <message> — <hint>`,

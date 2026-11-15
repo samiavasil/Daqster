@@ -11,6 +11,7 @@
 #include "test_plugin_menu.h"
 #include "test_scene_problems_panel.h"
 #include "test_live_validation_problems.h"
+#include "test_ide_autostart.h"
 
 // Shared main for the node_editor_ide layout tests. LayoutEngine builds real
 // widgets (QSplitter/QGridLayout/QTabWidget/QDockWidget), so the binary runs
@@ -61,6 +62,12 @@ int main(int argc, char *argv[])
     {
         TestLiveValidationProblems liveValidationProblems;
         status |= QTest::qExec(&liveValidationProblems, argc, argv);
+    }
+    {
+        // REQ-SW-PL-082: a scene that flags `autoStart` starts those nodes in the
+        // IDE too — the loop loadSceneFromFile() calls, against a real graph.
+        IdeAutoStartTest ideAutoStart;
+        status |= QTest::qExec(&ideAutoStart, argc, argv);
     }
     return status;
 }
