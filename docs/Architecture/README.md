@@ -17,6 +17,7 @@
 - [websocket-client.md](./websocket-client.md) - WebSocket клиент (`WebSocketClient`): RFC 6455 върху `Qt::Network`, маскирани кадри, фрагментация, лимити
 - [dependency-manager.md](./dependency-manager.md) - декларативно управление на външни артефакти (`DependencyManager`): манифест, sha256, атомарна инсталация, adopt, lockfile
 - [dependency-layout.md](./dependency-layout.md) - layout на зависимостите: един корен `<DEPS>`, видовете са подпапки, `DAQSTER_LLAMA` е derived (REQ-SW-PL-091)
+- [extension-packaging.md](./extension-packaging.md) - пакетиране на разширения: плъгини-доставчици на нодове, общи типове, един resolver с три входа
 - [node_editor/scene-lifecycle.md](./node_editor/scene-lifecycle.md) - затваряне на сцена (Close Scene, освобождаване на ресурси)
 - [runtime-mode-architecture.md](./runtime-mode-architecture.md) - (исторически) runtime режими
 - [apps/README.md](./apps/README.md) - application подсистема
