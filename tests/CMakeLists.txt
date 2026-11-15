@@ -20,3 +20,9 @@ endif()
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
     add_subdirectory(plugins)
 endif()
+
+# REQ-SW-PL-094: documentation guard (bash + grep, no build artifacts) — the public
+# tree must not carry private specifics in its prose.
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/docs)
+    add_subdirectory(docs)
+endif()
