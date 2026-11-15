@@ -1,8 +1,11 @@
 # Anti-rot за прозата: публичното дърво не бива да съдържа частни специфики в
 # документацията (REQ-SW-PL-094). Само bash + grep — без Qt, без билд, под секунда.
 #
-# `scripts/check-public-docs.sh` сканира `docs/` и root `*.md` и сравнява с
-# `scripts/public-docs-baseline.txt` (замразени срещания, само за намаляване).
+# `scripts/check-public-docs.sh` сканира `docs/` и root `*.md` за частни
+# идентификатори (Tier A: името на частния плъгин/репо и класовете на нодовете му).
+# Няма baseline — дългът е нула, всяко срещание е провал. Публичните артефакти
+# (llama.cpp, whisper.cpp, piper, stable-diffusion.cpp, Qwen, LFM, nomic) са
+# позволени: layout документът трябва да ги назове.
 
 find_program(BASH_PROGRAM bash)
 
