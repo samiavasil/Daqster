@@ -5,6 +5,7 @@
 
 #include <QAudioFormat>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QHash>
 #include <QMutex>
 #include <QMutexLocker>
@@ -31,6 +32,11 @@ constexpr int kHardBlockCapMs = AudioPlaybackEngine::kHardBlockCapMs;
 /// below the smallest device buffer (20 ms) so the sink never underruns because
 /// of the timer, and the timer is stopped as soon as the queue is empty.
 constexpr int kPumpIntervalMs = 20;
+
+/// How often `drain()` re-checks the queue/device while it waits. Below the
+/// pump tick, so the wait never outlives the transfer by more than a tick; the
+/// `QTimer` deadline is what actually bounds the call.
+constexpr int kDrainPollMs = 10;
 
 /// Minimum interval between two attempts to open a sink that failed. Without it
 /// an unusable format would retry (and log) once per block, i.e. ~100×/s.
@@ -157,6 +163,10 @@ AudioPlaybackEngine::AudioPlaybackEngine(QObject *parent)
 
 AudioPlaybackEngine::~AudioPlaybackEngine()
 {
+    // Same path as an explicit stop(): the audio already queued is played
+    // before the sink dies, bounded by drainWaitMs() (≤ 10 s). Reaching here
+    // after AudioOutputNode::stop() is a no-op (the queue is already empty).
+    drain();
     // Single shutdown path: destroySink() stops the sink before dropping it.
     destroySink();
 }
@@ -265,6 +275,14 @@ void AudioPlaybackEngine::stop()
 {
     const bool wasRunning = m_running;
 
+    // Drain BEFORE the sink is destroyed (REQ-SW-PL-076, measured defect):
+    // `QAudioSink::stop()` discards what the device has not played, and a TTS
+    // sentence is ONE block of ~2.4 s against a 200 ms device buffer — stopping
+    // cut the speech mid-sentence although the WAV on disk was complete. The
+    // wait is bounded (queueMs() + bufferMs + 1000 ms, ≤ 10 s), so scene close
+    // and process exit cannot hang on a dead device.
+    drain();
+
     m_running = false;
     // "Stop" means "stop and stay stopped": AudioOutputNode auto-arms on the
     // first block, and only an explicit start() clears this flag again.
@@ -280,6 +298,83 @@ void AudioPlaybackEngine::stop()
     if (wasRunning)
         Q_EMIT runningChanged(m_running);
     refreshStatus();
+}
+
+int AudioPlaybackEngine::drainWaitMs() const
+{
+    // What is still to play, plus the device buffer it has to travel through,
+    // plus the grace a period + pump tick needs to be reported as finished.
+    const int needed = queueMs() + m_bufferMs + kDrainGraceMs;
+    return qBound(0, needed, kMaxDrainWaitMs);
+}
+
+int AudioPlaybackEngine::drain(int maxWaitMs)
+{
+    m_lastDrainMs = 0;
+    m_lastDrainDroppedMs = 0;
+
+    // Nothing to wait for (AC5 — this is the headless path, it must cost zero):
+    // disabled or no sink at all (nothing can play), a sink the device already
+    // stopped (its buffer died with it), or an empty queue with an idle device.
+    if (!m_enabled || m_sink == nullptr || m_ioDevice == nullptr)
+        return 0;
+    if (m_sink->state() == QAudio::StoppedState)
+        return 0;
+    if (m_queue.isEmpty() && m_sink->state() != QAudio::ActiveState)
+        return 0;
+
+    const int boundMs = (maxWaitMs >= 0) ? qBound(0, maxWaitMs, kMaxDrainWaitMs)
+                                         : drainWaitMs();
+
+    // Refuse new blocks, keep feeding the one already queued: the pump gate
+    // admits `m_draining` even if a caller flipped `m_running` first.
+    m_draining = true;
+
+    QElapsedTimer elapsed;
+    elapsed.start();
+
+    QEventLoop loop;
+    QTimer poll;
+    poll.setInterval(kDrainPollMs);
+    QObject::connect(&poll, &QTimer::timeout, &loop, [this, &loop]() {
+        // "Handed to the device" is the queue being empty AND the device not
+        // consuming: IdleState (Qt6/Qt5 push mode) or a dead sink.
+        if (m_sink == nullptr || m_sink->state() == QAudio::StoppedState
+            || (m_queue.isEmpty() && m_sink->state() != QAudio::ActiveState))
+            loop.quit();
+    });
+    QTimer deadline;
+    deadline.setSingleShot(true);
+    QObject::connect(&deadline, &QTimer::timeout, &loop, &QEventLoop::quit);
+
+    poll.start();
+    deadline.start(boundMs);
+    // Visible, not silent: the one place where a stop() takes seconds instead
+    // of milliseconds must say why (and how much it is waiting for).
+    qCInfo(lcDemoNodes).noquote()
+        << QStringLiteral("AudioPlaybackEngine: изчаквам изсвирване: %1 ms "
+                          "(опашка %2 ms, буфер %3 ms)")
+               .arg(boundMs)
+               .arg(queueMs())
+               .arg(m_bufferMs);
+    pump();          // hand the queue to the device before waiting at all
+    loop.exec();
+    poll.stop();
+    deadline.stop();
+
+    m_draining = false;
+    m_lastDrainMs = int(elapsed.elapsed());
+    m_lastDrainDroppedMs = queueMs();
+
+    // One line, once — not one per block. The number is the audio that is about
+    // to be thrown away, so a silent cut becomes a measurable one.
+    if (m_lastDrainDroppedMs > 0) {
+        qCWarning(lcDemoNodes).noquote()
+            << QStringLiteral("AudioPlaybackEngine: изчакването приключи с "
+                              "неизсвирен звук: %1 ms")
+                   .arg(m_lastDrainDroppedMs);
+    }
+    return m_lastDrainMs;
 }
 
 bool AudioPlaybackEngine::isPlaying() const
@@ -335,6 +430,15 @@ void AudioPlaybackEngine::push(const SampledData &data)
     if (!m_enabled) {
         ++m_blocksSkipped;
         refreshStatus();
+        return;
+    }
+
+    // stop() is waiting for the device to finish the audio it already has: a
+    // nested event loop can deliver another node's block here, and appending it
+    // would both extend the drain and be thrown away with the sink a moment
+    // later. Refused, and counted, never silently dropped.
+    if (m_draining) {
+        ++m_blocksSkipped;
         return;
     }
 
@@ -480,7 +584,7 @@ void AudioPlaybackEngine::pump()
         return;   // re-entered from a synchronous stateChanged during write()
     const QScopedValueRollback<bool> guard(m_pumping, true);
 
-    if (!m_enabled || !m_running || m_queue.isEmpty()) {
+    if (!m_enabled || (!m_running && !m_draining) || m_queue.isEmpty()) {
         updatePumpTimer();
         return;
     }
@@ -564,7 +668,7 @@ bool AudioPlaybackEngine::writeQueued()
 
 void AudioPlaybackEngine::updatePumpTimer()
 {
-    const bool needed = m_enabled && m_running && !m_queue.isEmpty()
+    const bool needed = m_enabled && (m_running || m_draining) && !m_queue.isEmpty()
                         && (m_ioDevice != nullptr || deviceAvailable());
     if (needed && !m_pumpTimer.isActive())
         m_pumpTimer.start();

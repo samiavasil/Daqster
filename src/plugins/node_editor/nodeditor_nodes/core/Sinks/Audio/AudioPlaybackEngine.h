@@ -57,6 +57,22 @@ class QIODevice;
  * timer that runs only while the queue is non-empty **and** a device exists
  * (it is stopped when the queue empties — nothing spins forever).
  *
+ * **Stopping drains instead of cutting** (REQ-SW-PL-076, measured defect):
+ * `QAudioSink::stop()` throws away the audio the device has not played, and the
+ * device buffer (`bufferMs`, 200 ms default) holds one tenth of a 2.4 s TTS
+ * sentence sitting in `m_queue` — the WAV on disk was complete while the
+ * speaker fell silent mid-sentence. `stop()` now calls `drain()` **before**
+ * `destroySink()`: new blocks are refused, the sink keeps running, and a
+ * `QEventLoop` with a bounded `QTimer` waits for the queue to empty and the
+ * device to report `IdleState`. The deadline is
+ * `queueMs() + bufferMs + kDrainGraceMs` (1000 ms), capped at
+ * `kMaxDrainWaitMs` (10 s): a stalled device costs at most that, and the
+ * remaining audio is reported (`изчакването приключи с неизсвирен звук: N ms`)
+ * instead of vanishing. No sink / a stopped sink / an idle device with an empty
+ * queue = no wait at all (the headless path). `~AudioPlaybackEngine` and
+ * `AudioOutputNode::~AudioOutputNode()` take the same route, so scene close and
+ * process exit behave like an explicit stop.
+ *
  * Status (REQ-SW-PL-076, measured defect): `playing` means **sound**, not
  * `ActiveState`. On Qt6 a healthy push-mode sink holds roughly one backend
  * period (a PipeWire quantum, 21.3 ms), so it drops to `IdleState` between the
@@ -150,6 +166,14 @@ public:
     /// reserve (a segment can be emitted a silence window late) and still only
     /// fires on a runaway source: it is ~8× a measured TTS sentence (2.4–2.6 s).
     static constexpr int kHardBlockCapMs = 20000;
+    /// Reserve added to the drain deadline on top of `queueMs() + bufferMs`:
+    /// the last chunk needs one device period plus the 20 ms pump tick to be
+    /// reported as `IdleState`, and a machine under load may need several.
+    static constexpr int kDrainGraceMs = 1000;
+    /// Absolute cap on the drain — a stalled device must not make `stop()`
+    /// (scene close, process exit) hang. 10 s covers the 20 s per-block cap
+    /// only partially on purpose: an unbounded shutdown is the worse defect.
+    static constexpr int kMaxDrainWaitMs = 10000;
 
     explicit AudioPlaybackEngine(QObject *parent = nullptr);
     ~AudioPlaybackEngine() override;
@@ -187,7 +211,39 @@ public:
     /// Stop playback, destroy the sink and clear the queue. Idempotent
     /// (REQ-SW-PL-050). Marks the stop as **explicit** (`userStopped()`): the
     /// node's auto-arm then leaves the engine alone until the next `start()`.
+    ///
+    /// **Drains first** (`drain()`): `QAudioSink::stop()` throws away whatever
+    /// the device has not played yet, and the device buffer (`bufferMs`, 200 ms
+    /// default) holds a fraction of what is queued — one TTS sentence is ONE
+    /// block of ~2.4 s. Stopping without the drain cut every reply mid-sentence
+    /// while the WAV written by `AudioSinkNode` was complete.
     void stop();
+
+    /// Wait (bounded) until the audio already queued has reached the device, so
+    /// that the sink can be destroyed without truncating playback.
+    ///
+    /// Stops accepting new blocks (`push()` counts them as skipped), keeps the
+    /// sink running and the 20 ms pump alive, and returns when the queue is
+    /// empty **and** the device reports `IdleState` — "everything was handed to
+    /// the device" — or when the deadline expires. Runs a `QEventLoop` with
+    /// timers: no sleep loops, no unbounded `processEvents()`.
+    ///
+    /// The bound is `queueMs() + bufferMs + 1000 ms`, capped at
+    /// `kMaxDrainWaitMs` (10 s) — see `drainWaitMs()`. It exists because the
+    /// caller is a `IStoppable::stop()` (scene close, process exit), which must
+    /// not hang on a stalled device. Nothing is waited for when there is no
+    /// sink, when the sink is already in `StoppedState`, or when nothing is
+    /// queued and the device is idle — that is the path every headless run
+    /// takes (AC5), and it costs zero milliseconds.
+    ///
+    /// @param maxWaitMs Explicit bound in ms; negative = `drainWaitMs()`.
+    /// @return How long the call actually waited, in milliseconds.
+    int drain(int maxWaitMs = -1);
+
+    /// The deadline `stop()`/`drain()` uses right now:
+    /// `queueMs() + bufferMs + kDrainGraceMs`, clamped to `[0, kMaxDrainWaitMs]`.
+    /// Exposed so the bound is testable without a device.
+    int drainWaitMs() const;
 
     /// True while the sink is actually consuming audio (ActiveState).
     bool isPlaying() const;
@@ -252,6 +308,17 @@ public:
     /// True when the configured device resolves to a real output device.
     /// Served from the cache — the device list is never enumerated here.
     bool deviceAvailable() const;
+
+    // ── Drain diagnostics (tests, stop() reporting) ─────────────────────────
+    /// True while `drain()` (i.e. `stop()`) is waiting for the device to finish
+    /// the audio that was already queued. New blocks are refused meanwhile.
+    bool isDraining() const { return m_draining; }
+    /// How long the last `drain()` actually waited, in milliseconds.
+    int lastDrainMs() const { return m_lastDrainMs; }
+    /// Audio still unplayed when the last `drain()` gave up, in ms: non-zero
+    /// only when the deadline was hit, and exactly the number the warning
+    /// carries (`изчакването приключи с неизсвирен звук: N ms`).
+    int lastDrainDroppedMs() const { return m_lastDrainDroppedMs; }
 
     /// Converted PCM bytes still waiting for the device (not yet written).
     qsizetype bytesQueued() const;
@@ -425,6 +492,14 @@ private:
     /// a drain if the device had something to play — the IdleState a sink emits
     /// right after `start()` is not an underrun.
     bool m_sinkReceivedData = false;
+
+    /// Set only while `drain()` runs: the sink stays alive and the pump keeps
+    /// feeding it, but `push()` refuses new blocks (a nested event loop can
+    /// deliver another node's block through `setInData()`).
+    bool m_draining = false;
+    /// Duration of the last `drain()` and the audio it gave up on (ms).
+    int m_lastDrainMs = 0;
+    int m_lastDrainDroppedMs = 0;
 };
 
 #endif // AUDIOPLAYBACKENGINE_H
