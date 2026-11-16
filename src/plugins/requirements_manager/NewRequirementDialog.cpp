@@ -140,6 +140,19 @@ QString NewRequirementDialog::createdFilePath() const
     return m_createdFilePath;
 }
 
+QString NewRequirementDialog::createdId() const
+{
+    return m_createdId;
+}
+
+void NewRequirementDialog::setPrefill(const QString &title, const QString &description,
+                                      const QString &fromIdea)
+{
+    m_titleEdit->setText(title);
+    m_descriptionEdit->setPlainText(description);
+    m_fromIdea = fromIdea.trimmed();
+}
+
 void NewRequirementDialog::onPrefixChanged()
 {
     m_idLabel->setText(RequirementsParser::generateNextId(m_baseDir,
@@ -213,6 +226,10 @@ void NewRequirementDialog::buildMarkdown(QString &outContent, QString &outId,
     content += QStringLiteral("- **Приоритет:** %1\n").arg(m_priorityCombo->currentText());
     content += QStringLiteral("- **Отговорник (роля):** %1\n").arg(m_assigneeCombo->currentText());
     content += QStringLiteral("- **Дата:** %1\n").arg(QDate::currentDate().toString(Qt::ISODate));
+    // Promotion link back to the idea (REQ-SW-PL-095): a plain metadata line so
+    // the traceability script and the parser both see it as one field.
+    if (!m_fromIdea.isEmpty())
+        content += QStringLiteral("- from_idea: %1\n").arg(m_fromIdea);
     content += parentLine + QStringLiteral("\n");
     content += depsLine + QStringLiteral("\n\n");
     content += QStringLiteral("## Описание\n\n");
@@ -242,6 +259,7 @@ bool NewRequirementDialog::writeFile(const QString &content, const QString &id,
     file.write(content.toUtf8());
     file.close();
     m_createdFilePath = filePath;
+    m_createdId = id;
     return true;
 }
 

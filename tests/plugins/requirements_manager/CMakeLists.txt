@@ -197,6 +197,10 @@ set(WIDGET_TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsModel.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsSortProxyModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsSearchEngine.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/IdeaReader.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/IdeaReader.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/IdeaModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/IdeaModel.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsValidator.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/ValidationReport.cpp
@@ -222,4 +226,35 @@ target_link_libraries(requirements_manager_widget_tests PRIVATE
 add_test(NAME requirements_manager_widget_tests
          COMMAND $<TARGET_FILE:requirements_manager_widget_tests>)
 set_tests_properties(requirements_manager_widget_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# GUI tests for the read-only "Идеи" panel (REQ-SW-PL-095). The source set is
+# the widget-test set with a different test main: the panel reuses
+# RequirementsWidget and RequirementPreview, so the same plugin sources are
+# compiled in. Separate binary on purpose — these tests also prove the panel
+# leaves the validator/traceability pipeline untouched.
+set(IDEAS_TEST_SOURCES ${WIDGET_TEST_SOURCES})
+list(REMOVE_ITEM IDEAS_TEST_SOURCES test_widgets.cpp)
+list(APPEND IDEAS_TEST_SOURCES test_ideas.cpp)
+
+add_executable(requirements_manager_ideas_tests ${IDEAS_TEST_SOURCES})
+
+target_include_directories(requirements_manager_ideas_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include   # for LogCategories.h
+)
+
+target_link_libraries(requirements_manager_ideas_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    FrameworkCore
+    NodeEditorLibrary
+)
+
+add_test(NAME requirements_manager_ideas_tests
+         COMMAND $<TARGET_FILE:requirements_manager_ideas_tests>)
+set_tests_properties(requirements_manager_ideas_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

@@ -38,6 +38,10 @@ set(PLUGIN_SOURCES
     RequirementsValidator.h
     RequirementsSearchEngine.cpp
     RequirementsSearchEngine.h
+    IdeaReader.cpp
+    IdeaReader.h
+    IdeaModel.cpp
+    IdeaModel.h
     DependencyGraphData.cpp
     DependencyGraphData.h
     DependencyGraphLayout.cpp

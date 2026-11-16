@@ -4,6 +4,8 @@
 #include "RequirementsSortProxyModel.h"
 #include "RequirementsParser.h"
 #include "RequirementsSearchEngine.h"
+#include "IdeaModel.h"
+#include "IdeaReader.h"
 #include "DependencyGraphWidget.h"
 #include "TraceabilityMatrixWidget.h"
 #include "NewRequirementDialog.h"
@@ -13,6 +15,7 @@
 #include "LogCategories.h"
 
 #include <QTreeView>
+#include <QTableView>
 #include <QTextBrowser>
 #include <QPlainTextEdit>
 #include <QLabel>
@@ -193,10 +196,19 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_graphWidget = new DependencyGraphWidget(this);
     m_matrixWidget = new TraceabilityMatrixWidget(this);
 
+    // "Идеи" tab (REQ-SW-PL-095): its own model + proxy, its own tab. Nothing
+    // from here reaches m_requirements, the validator or the matrix.
+    m_ideaModel = new IdeaTableModel(this);
+    m_ideaProxy = new IdeaFilterProxyModel(this);
+    m_ideaProxy->setSourceModel(m_ideaModel);
+    m_ideasPanel = createIdeasPanel();
+
     m_tabs = new QTabWidget(this);
     m_tabs->addTab(m_splitter, tr("Requirements"));
     m_tabs->addTab(m_graphWidget, tr("Dependency Graph"));
     m_tabs->addTab(m_matrixWidget, tr("Traceability"));
+    m_ideasTabIndex = m_tabs->addTab(m_ideasPanel, tr("Идеи"));
+    m_tabs->setTabVisible(m_ideasTabIndex, false); // shown only when ideas exist
 
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->addWidget(m_tabs);
@@ -349,6 +361,7 @@ void RequirementsWidget::reload()
     m_graphWidget->setRequirements(m_filtered, m_validationIssues);
     updateValidationStatus();
     refreshActionState();
+    refreshIdeasTab();
 }
 
 const Requirement *RequirementsWidget::requirementAtViewIndex(const QModelIndex &viewIndex) const
@@ -845,6 +858,174 @@ void RequirementsWidget::updateNavButtons()
 {
     m_backAction->setEnabled(m_navHistoryPos > 0);
     m_forwardAction->setEnabled(m_navHistoryPos < m_navHistory.size() - 1);
+}
+
+QWidget *RequirementsWidget::createIdeasPanel()
+{
+    m_ideasSearchEdit = new QLineEdit(this);
+    m_ideasSearchEdit->setObjectName(QStringLiteral("ideasSearch"));
+    m_ideasSearchEdit->setClearButtonEnabled(true);
+    m_ideasSearchEdit->setPlaceholderText(tr("Search ideas by ID or title…"));
+
+    m_promoteButton = new QPushButton(tr("Създай изискване от тази идея"), this);
+    m_promoteButton->setObjectName(QStringLiteral("promoteIdeaButton"));
+    m_promoteButton->setEnabled(false);
+
+    QHBoxLayout *controlsLayout = new QHBoxLayout;
+    controlsLayout->addWidget(new QLabel(tr("Search:"), this));
+    controlsLayout->addWidget(m_ideasSearchEdit, 1);
+    controlsLayout->addWidget(m_promoteButton);
+
+    m_ideasView = new QTableView(this);
+    m_ideasView->setObjectName(QStringLiteral("ideasTable"));
+    m_ideasView->setModel(m_ideaProxy);
+    // Same proxy approach as the requirements tree: sorting lives in the view,
+    // the model stays in register order (REQ-SW-PL-095).
+    m_ideasView->setSortingEnabled(true);
+    m_ideasView->sortByColumn(IdeaTableModel::IdColumn, Qt::AscendingOrder);
+    m_ideasView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_ideasView->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_ideasView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_ideasView->setAlternatingRowColors(true);
+    m_ideasView->verticalHeader()->setVisible(false);
+    m_ideasView->horizontalHeader()->setSectionResizeMode(IdeaTableModel::TitleColumn,
+                                                         QHeaderView::Stretch);
+
+    m_ideaPreview = new QTextBrowser(this);
+    m_ideaPreview->setObjectName(QStringLiteral("ideaPreview"));
+    m_ideaPreview->setReadOnly(true);
+    m_ideaPreview->setOpenLinks(false);
+
+    QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
+    splitter->addWidget(m_ideasView);
+    splitter->addWidget(m_ideaPreview);
+    splitter->setStretchFactor(0, 3);
+    splitter->setStretchFactor(1, 2);
+    splitter->setChildrenCollapsible(false);
+
+    QWidget *panel = new QWidget(this);
+    panel->setObjectName(QStringLiteral("ideasPanel"));
+    QVBoxLayout *panelLayout = new QVBoxLayout(panel);
+    panelLayout->addLayout(controlsLayout);
+    panelLayout->addWidget(splitter, 1);
+    panel->setLayout(panelLayout);
+
+    connect(m_ideasView->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, &RequirementsWidget::onIdeaSelectionChanged);
+    connect(m_ideasSearchEdit, &QLineEdit::textChanged,
+            this, &RequirementsWidget::onIdeaSearchChanged);
+    connect(m_promoteButton, &QPushButton::clicked,
+            this, &RequirementsWidget::onPromoteIdea);
+    return panel;
+}
+
+void RequirementsWidget::refreshIdeasTab()
+{
+    m_ideas = IdeaReader::readFromRoots(m_roots);
+    m_currentIdeaRow = -1;
+    m_ideaModel->setIdeas(m_ideas);
+    m_ideaPreview->clear();
+    m_promoteButton->setEnabled(false);
+
+    if (m_ideasTabIndex < 0)
+        return;
+    // No idea files → no tab at all (not an empty tab).
+    m_tabs->setTabVisible(m_ideasTabIndex, !m_ideas.isEmpty());
+    if (m_ideas.isEmpty() && m_tabs->currentIndex() == m_ideasTabIndex)
+        m_tabs->setCurrentIndex(0);
+}
+
+void RequirementsWidget::showIdeaPreview(const Idea &idea)
+{
+    // Reuse the requirement renderer (no second Markdown engine): the fields
+    // the requirement header would show are filled from the idea where they
+    // exist, and the body is the idea's own .md.
+    Requirement asRequirement;
+    asRequirement.id = idea.id;
+    asRequirement.title = idea.title;
+    asRequirement.status = idea.status;
+    asRequirement.priority = QStringLiteral("—");
+    asRequirement.assignee = QStringLiteral("—");
+    asRequirement.date = idea.added;
+    asRequirement.repo = QStringLiteral("idea");
+    asRequirement.filePath = idea.path;
+    asRequirement.rawContent = idea.rawContent;
+    RequirementPreview::render(m_ideaPreview, asRequirement, {}, {});
+}
+
+void RequirementsWidget::onIdeaSelectionChanged()
+{
+    const Idea *idea = m_ideaModel->ideaAt(m_ideaProxy->mapToSource(m_ideasView->currentIndex()));
+    if (!idea) {
+        m_currentIdeaRow = -1;
+        m_ideaPreview->clear();
+        m_promoteButton->setEnabled(false);
+        return;
+    }
+
+    m_currentIdeaRow = -1;
+    for (int i = 0; i < m_ideas.size(); ++i) {
+        if (m_ideas.at(i).path == idea->path) {
+            m_currentIdeaRow = i;
+            break;
+        }
+    }
+    showIdeaPreview(*idea);
+    m_promoteButton->setEnabled(m_currentIdeaRow >= 0);
+}
+
+void RequirementsWidget::onIdeaSearchChanged(const QString &text)
+{
+    m_ideaProxy->setQuery(text);
+    if (!m_ideasView->currentIndex().isValid()) {
+        m_currentIdeaRow = -1;
+        m_ideaPreview->clear();
+        m_promoteButton->setEnabled(false);
+    }
+}
+
+QString RequirementsWidget::rootForIdea(const Idea &idea) const
+{
+    // A promoted requirement belongs to the repo the idea lives in.
+    QString best;
+    const QString separator = QDir::separator();
+    for (const QString &root : m_roots) {
+        if (idea.path.startsWith(root + separator) && root.size() > best.size())
+            best = root;
+    }
+    return best.isEmpty() ? m_baseDir : best;
+}
+
+void RequirementsWidget::onPromoteIdea()
+{
+    if (m_currentIdeaRow < 0 || m_currentIdeaRow >= m_ideas.size())
+        return;
+
+    const Idea idea = m_ideas.at(m_currentIdeaRow);
+    NewRequirementDialog dialog(rootForIdea(idea), this);
+    dialog.setPrefill(idea.title,
+                      tr("Изведено от идея %1: %2").arg(idea.id, idea.path),
+                      idea.id);
+
+    // Cancel (or closing the dialog) writes nothing — neither the requirement
+    // nor the promotion line in the idea.
+    if (dialog.exec() != QDialog::Accepted || dialog.createdId().isEmpty())
+        return;
+
+    if (!IdeaReader::appendPromotionLine(idea.path, dialog.createdId())) {
+        qCWarning(lcFramework) << "RequirementsManager: cannot record promotion in"
+                               << idea.path;
+    }
+
+    const QString createdPath = dialog.createdFilePath();
+    reload();
+    for (const Requirement &req : m_requirements) {
+        if (req.filePath == createdPath) {
+            m_tabs->setCurrentIndex(0);
+            navigateToId(req.id);
+            break;
+        }
+    }
 }
 
 } // namespace Daqster

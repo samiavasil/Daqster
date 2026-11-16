@@ -32,6 +32,22 @@ public:
      */
     QString createdFilePath() const;
 
+    /**
+     * @brief ID of the created requirement, or empty if not created.
+     */
+    QString createdId() const;
+
+    /**
+     * @brief Pre-fills the dialog from an idea (promotion flow).
+     *
+     * @param title Initial title.
+     * @param description Initial description text (the stub quoting the idea).
+     * @param fromIdea Idea ID that becomes `- **from_idea:** IDEA-…` in the
+     *        created requirement's metadata; empty for a plain requirement.
+     */
+    void setPrefill(const QString &title, const QString &description,
+                    const QString &fromIdea = QString());
+
 private slots:
     void onPrefixChanged();
     void onAddCriterion();
@@ -45,6 +61,8 @@ private:
 
     QString m_baseDir;
     QString m_createdFilePath;
+    QString m_createdId;
+    QString m_fromIdea; //!< "- **from_idea:**" value; empty for a plain requirement
 
     QComboBox *m_prefixCombo;
     QLabel *m_idLabel;

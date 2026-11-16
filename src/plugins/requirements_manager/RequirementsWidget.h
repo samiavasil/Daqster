@@ -4,8 +4,10 @@
 #include <QVector>
 #include "RequirementsParser.h"
 #include "RequirementsValidator.h"
+#include "IdeaReader.h"
 
 class QTreeView;
+class QTableView;
 class QTextBrowser;
 class QPlainTextEdit;
 class QLabel;
@@ -24,6 +26,8 @@ namespace Daqster {
 
 class RequirementsModel;
 class RequirementsSortProxyModel;
+class IdeaTableModel;
+class IdeaFilterProxyModel;
 class DependencyGraphWidget;
 class TraceabilityMatrixWidget;
 
@@ -47,6 +51,11 @@ class TraceabilityMatrixWidget;
  *
  * The tree is sorted through RequirementsSortProxyModel: sorting reorders the
  * requirements inside a section and never moves the section rows.
+ *
+ * The "Идеи" tab (REQ-SW-PL-095) is a read-only view of the idea register
+ * derived from the same roots. It has its own model and is structurally
+ * outside the requirement collection: nothing there feeds the validator, the
+ * matrix or any count. The tab is hidden when no idea files exist.
  *
  * Changes are written back to the .md files (bidirectional sync).
  */
@@ -92,6 +101,9 @@ private slots:
     void onSearchTextChanged(const QString &text);
     void onNavBack();
     void onNavForward();
+    void onIdeaSelectionChanged();
+    void onIdeaSearchChanged(const QString &text);
+    void onPromoteIdea();
 
 private:
     void reload();
@@ -104,6 +116,14 @@ private:
     void applyViewFilters();
     void updateNavButtons();
     void pushNavHistory(const QString &id);
+    //!< Builds the read-only "Идеи" tab (REQ-SW-PL-095).
+    QWidget *createIdeasPanel();
+    //!< Re-reads the idea register and hides the tab when it is empty.
+    void refreshIdeasTab();
+    //!< Renders the selected idea's Markdown through RequirementPreview.
+    void showIdeaPreview(const Idea &idea);
+    //!< Repo root an idea belongs to (for the promoted requirement's file).
+    QString rootForIdea(const Idea &idea) const;
     //!< Requirement behind a *view* index (the tree is sorted by a proxy).
     const Requirement *requirementAtViewIndex(const QModelIndex &viewIndex) const;
 
@@ -137,6 +157,19 @@ private:
     QTabWidget *m_tabs;
     DependencyGraphWidget *m_graphWidget;
     TraceabilityMatrixWidget *m_matrixWidget;
+
+    // "Идеи" tab (REQ-SW-PL-095) — read-only, structurally outside the
+    // requirements collection: nothing here feeds the validator/matrix.
+    IdeaTableModel *m_ideaModel;
+    IdeaFilterProxyModel *m_ideaProxy;
+    QTableView *m_ideasView;
+    QLineEdit *m_ideasSearchEdit;
+    QTextBrowser *m_ideaPreview;
+    QPushButton *m_promoteButton;
+    QWidget *m_ideasPanel;
+    int m_ideasTabIndex = -1;
+    QVector<Idea> m_ideas;
+    int m_currentIdeaRow = -1; //!< row in m_ideas; -1 when none selected
 
     QString m_baseDir;
     QStringList m_roots;                 //!< merged tree roots currently loaded
