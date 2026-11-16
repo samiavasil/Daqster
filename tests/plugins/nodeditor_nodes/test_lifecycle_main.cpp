@@ -12,6 +12,7 @@
 // QCoreApplication, not QApplication: the models under test own no widget
 // (REQ-SW-PL-051) and are idle until start().
 
+#include "test_declared_scene_paths.h"
 #include "test_model_name_serialization.h"
 #include "test_node_config_schemas.h"
 #include "test_source_fan_out.h"
@@ -51,6 +52,12 @@ int main(int argc, char *argv[])
         // to answer restartRequired exactly.
         TestNodeConfigSchemas schemas;
         status |= QTest::qExec(&schemas, argc, argv);
+    }
+    {
+        // REQ-SW-PL-091: open a portable scene, save it again — the path in the
+        // file must still be the token, not this machine's absolute path.
+        TestSceneDeclaredPaths declaredPaths;
+        status |= QTest::qExec(&declaredPaths, argc, argv);
     }
 
     return status;

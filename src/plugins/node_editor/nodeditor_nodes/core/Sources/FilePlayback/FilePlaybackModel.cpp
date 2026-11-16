@@ -97,8 +97,13 @@ void FilePlaybackModel::start()
 
 QJsonObject FilePlaybackModel::save() const
 {
+    // The text the scene declared, not the path this machine computed
+    // (REQ-SW-PL-091): `load()` resolves `${VAR}` / a scene-relative name, and
+    // writing the result back would pin the `.flow` to the machine that saved
+    // it. For a node built through the API only, the declared text is exactly
+    // what the API passed.
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
-    modelJson["filePath"] = m_filePath;
+    modelJson["filePath"] = m_declaredFilePath;
     return modelJson;
 }
 
@@ -119,6 +124,9 @@ void FilePlaybackModel::load(QJsonObject const &p)
     const Daqster::SceneVariableExpansion expansion = variables.expandDetailed(stored);
     QString reason;
     m_filePath = variables.resolvePath(stored, nullptr, &reason);
+    // ...and the declared text is kept beside the resolved one so `save()`
+    // emits the token again instead of the absolute path (REQ-SW-PL-091).
+    m_declaredFilePath = stored;
 
     // Three different defects, three different messages: a missing token, a
     // relative path with no scene, a file that is not there.
@@ -214,6 +222,9 @@ void FilePlaybackModel::onStopRequested()
 void FilePlaybackModel::onPathChanged(const QString &path)
 {
     if (!m_playing) {
+        // A value through the API (the widget's field, the file dialog) is both
+        // the declared text and the path in use (REQ-SW-PL-091).
+        m_declaredFilePath = path;
         m_filePath = path;
     }
 }

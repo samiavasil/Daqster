@@ -957,6 +957,11 @@ set(LIFECYCLE_TEST_SOURCES
     # and the schemas cannot rot away from the models they describe.
     test_node_config_schemas.cpp
     test_node_config_schemas.h
+    # REQ-SW-PL-091: `save()` keeps the declared path (`${VAR}` / a relative
+    # name), not the resolved absolute one — the models are already compiled in
+    # below, so the suite adds only its own files.
+    test_declared_scene_paths.cpp
+    test_declared_scene_paths.h
     # Connection policy of the capture sources (REQ-SW-PL-024): the same models
     # are already compiled in below, so the graph-level fan-out test only adds
     # its own files — no second harness.
