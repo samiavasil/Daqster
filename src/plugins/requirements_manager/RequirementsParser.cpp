@@ -48,6 +48,93 @@ const QRegularExpression &documentIdRe()
     return re;
 }
 
+// The description section has three spellings in the tree, one per template
+// generation: "Описание" (v1), "Накратко" (v2, the one RDD-PROCESS.md prints
+// today) and "Проблем" (the oldest files). Recognizing only the first made
+// 60 requirements look undescribed while they plainly had a description.
+bool isDescriptionHeading(const QString &heading)
+{
+    static const QStringList names = {QStringLiteral("Описание"),
+                                      QStringLiteral("Накратко"),
+                                      QStringLiteral("Проблем")};
+    return names.contains(heading.trimmed());
+}
+
+// The acceptance-criteria section: "Acceptance Criteria",
+// "Изисквания (Acceptance Criteria)" or the template's
+// "Как ще разберем, че работи[(AC)]".
+bool isCriteriaHeading(const QString &heading)
+{
+    const QString text = heading.trimmed();
+    if (text.contains(QStringLiteral("Acceptance Criteria"), Qt::CaseInsensitive))
+        return true;
+    if (text.startsWith(QStringLiteral("Как ще разберем, че работи")))
+        return true;
+    return text == QStringLiteral("Изисквания");
+}
+
+// A criterion written as a heading: "### [x] AC1 — text" (state in the
+// checkbox) or "### AC1 — text" (no state — the criterion stays open, exactly
+// as an unchecked bullet does).
+bool appendCriterionHeading(const QString &line, Requirement &out)
+{
+    static const QRegularExpression boxed(
+        QStringLiteral("^###\\s+\\[([ xX])\\]\\s*(?:AC\\s*\\d+)?\\s*[—–:.-]?\\s*(.*)$"));
+    static const QRegularExpression plain(
+        QStringLiteral("^###\\s+AC\\s*\\d+\\b\\s*[—–:.-]?\\s*(.*)$"));
+
+    QRegularExpressionMatch match = boxed.match(line);
+    bool done = false;
+    if (match.hasMatch()) {
+        done = match.captured(1).toLower() == QStringLiteral("x");
+    } else {
+        match = plain.match(line);
+        if (!match.hasMatch())
+            return false;
+    }
+    const QString text = match.captured(match.lastCapturedIndex()).trimmed();
+    if (text.isEmpty())
+        return false;
+    out.acceptanceCriteria.append(text);
+    out.criteriaDone.append(done);
+    return true;
+}
+
+// Accepts one of the three ways the tree writes acceptance criteria (a
+// checkbox bullet, an "### ACn" heading or a numbered entry inside the
+// criteria section) plus the table form "| 3 | text | ✅ |". Everything here is
+// section-scoped by the caller: a numbered list or a table elsewhere in the
+// file is prose, not criteria.
+bool appendCriterionLine(const QString &line, Requirement &out)
+{
+    static const QRegularExpression numbered(
+        QStringLiteral("^\\d+\\.\\s+(?:\\*\\*)?(.*?)(?:\\*\\*)?\\s*$"));
+    static const QRegularExpression tableRow(
+        QStringLiteral("^\\|\\s*(\\d+)\\s*\\|([^|]*)\\|([^|]*)\\|"));
+
+    const QString trimmed = line.trimmed();
+    const QRegularExpressionMatch row = tableRow.match(trimmed);
+    if (row.hasMatch()) {
+        const QString text = row.captured(2).trimmed();
+        if (text.isEmpty())
+            return false;
+        // The status cell is human prose; ✅ means done, ☐ explicitly open.
+        out.acceptanceCriteria.append(text);
+        out.criteriaDone.append(row.captured(3).contains(QStringLiteral("✅")));
+        return true;
+    }
+
+    const QRegularExpressionMatch item = numbered.match(trimmed);
+    if (!item.hasMatch())
+        return false;
+    const QString text = item.captured(1).trimmed();
+    if (text.isEmpty())
+        return false;
+    out.acceptanceCriteria.append(text);
+    out.criteriaDone.append(false);
+    return true;
+}
+
 /**
  * @brief One reference parsed out of a metadata value.
  */
@@ -550,6 +637,7 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
     const QRegularExpression criterionRe(QStringLiteral("^\\s*-\\s*\\[([ xX])\\]\\s*(.*)$"));
 
     bool inDescription = false;
+    bool inCriteria = false;
     bool inTraceability = false;
     QStringList descriptionLines;
     QStringList traceabilityLines;
@@ -557,12 +645,16 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
     for (const QString &line : lines) {
         const QString trimmed = line.trimmed();
         if (trimmed.startsWith(QStringLiteral("## "))) {
-            inDescription = (trimmed == QStringLiteral("## Описание"));
+            inDescription = isDescriptionHeading(trimmed.mid(3));
+            inCriteria = isCriteriaHeading(trimmed.mid(3));
             inTraceability = (trimmed == QStringLiteral("## Проследимост"));
             continue;
         }
-        if (trimmed.startsWith(QStringLiteral("### ")))
+        if (trimmed.startsWith(QStringLiteral("### "))) {
+            if (inCriteria)
+                appendCriterionHeading(line, out);
             continue;
+        }
 
         const QRegularExpressionMatch titleMatch = titleRe.match(line);
         if (titleMatch.hasMatch()) {
@@ -623,6 +715,11 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
             out.criteriaDone.append(criterionMatch.captured(1).toLower() == QStringLiteral("x"));
             continue;
         }
+
+        // Numbered entries and table rows only count inside the criteria
+        // section; the same shapes elsewhere are prose.
+        if (inCriteria && appendCriterionLine(line, out))
+            continue;
 
         if (inDescription)
             descriptionLines.append(line);

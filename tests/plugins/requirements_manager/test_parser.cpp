@@ -240,6 +240,90 @@ void TestParser::parseDirectory_typedId()
     QCOMPARE(req->section, QStringLiteral("active"));
 }
 
+void TestParser::parseDirectory_descriptionDialects()
+{
+    // The tree writes the description section three ways, one per template
+    // generation. All three must produce a description; before the aliases a
+    // requirement written with "## Накратко" or "## Проблем" looked
+    // undescribed (60 warnings on the real tree).
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir = QDir(temp.path())
+                                  .filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    const QString head = QStringLiteral("# REQ-SW-PL-%1: Dialect\n\n"
+                                        "- **Статус:** ACTIVE\n\n");
+    const QVector<QPair<QString, QString>> sections = {
+        {QStringLiteral("001"), QStringLiteral("## Накратко")},
+        {QStringLiteral("002"), QStringLiteral("## Проблем")},
+        {QStringLiteral("003"), QStringLiteral("## Описание")},
+    };
+    for (const auto &entry : sections) {
+        writeFixture(activeDir, QStringLiteral("%1.md").arg(entry.first),
+                     head.arg(entry.first) + entry.second
+                         + QStringLiteral("\n\nТекст на описанието.\n"));
+    }
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(temp.path());
+
+    QCOMPARE(requirements.size(), 3);
+    for (const Requirement &req : requirements)
+        QCOMPARE(req.description, QStringLiteral("Текст на описанието."));
+}
+
+void TestParser::parseDirectory_criteriaDialects()
+{
+    // Criteria arrive as checkbox bullets, as "### ACn" headings (with or
+    // without a checkbox) and as a table inside the criteria section. Only the
+    // bullet form was recognized, so 21 requirements looked criteria-less.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir = QDir(temp.path())
+                                  .filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    writeFixture(activeDir, QStringLiteral("001.md"),
+                 QStringLiteral(
+                     "# REQ-SW-PL-001: Criteria Dialects\n\n"
+                     "- **Статус:** ACTIVE\n\n"
+                     "## Накратко\n\nОписание.\n\n"
+                     "## Acceptance Criteria\n\n"
+                     "### [x] AC1 — Заглавен критерий със отметка\n\n"
+                     "### AC2 — Заглавен критерий без отметка\n\n"
+                     "- [ ] 3. Точков критерий\n\n"
+                     "1. Номериран критерий\n\n"
+                     "| AC | Description | Status |\n"
+                     "|---|---|---|\n"
+                     "| 5 | Табличен критерий | ✅ |\n"
+                     "| 6 | Табличен отворен | ☐ |\n"));
+    // A numbered list and a table outside the criteria section are prose.
+    writeFixture(activeDir, QStringLiteral("002.md"),
+                 QStringLiteral(
+                     "# REQ-SW-PL-002: Prose\n\n"
+                     "- **Статус:** ACTIVE\n\n"
+                     "## Накратко\n\n1. Не е критерий.\n\n"
+                     "| 7 | Също не е критерий | ✅ |\n"));
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(temp.path());
+
+    QCOMPARE(requirements.size(), 2);
+
+    const Requirement *req = findRequirement(requirements, QStringLiteral("REQ-SW-PL-001"));
+    QVERIFY2(req, "REQ-SW-PL-001 should be parsed");
+    QCOMPARE(req->acceptanceCriteria.size(), 6);
+    QCOMPARE(req->criteriaDone.size(), 6);
+    QVERIFY(req->criteriaDone.at(0));
+    QVERIFY(!req->criteriaDone.at(1)); // heading without checkbox is open
+    QVERIFY(!req->criteriaDone.at(2));
+    QVERIFY(!req->criteriaDone.at(3));
+    QVERIFY(req->criteriaDone.at(4));
+    QVERIFY(!req->criteriaDone.at(5));
+    QCOMPARE(req->acceptanceCriteria.at(4), QStringLiteral("Табличен критерий"));
+
+    const Requirement *prose = findRequirement(requirements, QStringLiteral("REQ-SW-PL-002"));
+    QVERIFY2(prose, "REQ-SW-PL-002 should be parsed");
+    QVERIFY(prose->acceptanceCriteria.isEmpty());
+}
+
 void TestParser::parseDirectory_nestedSubdirSection()
 {
     // A requirement nested below active/ (e.g. active/framework/) still

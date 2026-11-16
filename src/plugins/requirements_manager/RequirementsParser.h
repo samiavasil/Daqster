@@ -26,10 +26,15 @@ inline constexpr char kRequirementsSubdir[] = "DevelopmentProcess/requirements";
  *   - **Родител:** REQ-XXX
  *   - **Зависи от:** REQ-XXX, REQ-YYY
  *   - **Деца:** REQ-ZZZ
- *   ## Описание
- *   ## Acceptance Criteria
+ *   ## Описание | ## Накратко | ## Проблем   (description section, any of the
+ *                                          three template generations)
+ *   ## Acceptance Criteria | ## Как ще разберем, че работи
  *   - [ ] criterion
  *   - [x] done criterion
+ *   ### [x] AC1 — heading criterion     (state in the checkbox)
+ *   ### AC2 — heading criterion         (no checkbox → open)
+ *   1. numbered criterion               (inside the criteria section)
+ *   | 3 | table criterion | ✅ |         (inside the criteria section)
  *   ## Проследимост
  *   - **Коммити:** ...
  *

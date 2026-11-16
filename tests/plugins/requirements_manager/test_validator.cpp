@@ -130,11 +130,11 @@ void TestValidator::selfReference_error()
 void TestValidator::archivedDependency_warning()
 {
     QVector<Requirement> reqs;
-    // An active requirement depending on an archived one triggers the warning
-    // ("depends on archived requirement"). The original fixture had the
-    // sections inverted (archive depending on active), which correctly
-    // produced no issue. The archived requirement carries CANCELLED — a status
-    // its zone allows — so the zone check stays silent here.
+    // A live requirement depending on a CANCELLED one warns: the dependency
+    // was dropped, so the dependent cannot be built on it. A DONE dependency
+    // is the normal end state and stays silent (see
+    // doneDependency_noWarning) — warning on it flagged the correct archiving
+    // of a finished requirement.
     reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("archive"),
                                 QString(), {}, QStringLiteral("CANCELLED")));
     reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"), QStringLiteral("active"), QString(),
@@ -145,7 +145,24 @@ void TestValidator::archivedDependency_warning()
     QCOMPARE(issues.size(), 1);
     QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Warning);
     QCOMPARE(issues.at(0).field, QStringLiteral("dependencies"));
-    QVERIFY(issues.at(0).message.contains(QStringLiteral("archived requirement")));
+    QVERIFY(issues.at(0).message.contains(QStringLiteral("cancelled requirement")));
+}
+
+void TestValidator::doneDependency_noWarning()
+{
+    QVector<Requirement> reqs;
+    // Archiving a DONE requirement is what the lifecycle asks for, so a live
+    // requirement depending on it must not be flagged.
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("archive"),
+                                QString(), {}, QStringLiteral("DONE")));
+    reqs[0].acceptanceCriteria = QStringList{QStringLiteral("criterion")};
+    reqs[0].criteriaDone = QVector<bool>{true};
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"), QStringLiteral("active"), QString(),
+                                {QStringLiteral("REQ-SW-PL-001")}));
+
+    const QVector<RequirementsValidator::Issue> issues = RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 0);
 }
 
 void TestValidator::typedIdFormat_validAndMalformed()

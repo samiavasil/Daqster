@@ -320,9 +320,18 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
                                    .arg(dep),
                                Severity::Error});
             } else if (target->section == QStringLiteral("archive")
-                       && req.section != QStringLiteral("archive")) {
+                       && req.section != QStringLiteral("archive")
+                       && normalizedStatus(target->status)
+                              == QStringLiteral("CANCELLED")) {
+                // Only a CANCELLED dependency is questionable: it was dropped,
+                // so a live requirement cannot build on it. A DONE one is the
+                // normal end state — archiving it is what the lifecycle asks
+                // for, and warning on it punished every requirement whose
+                // dependency had been filed correctly (4 of the 22 warnings on
+                // the real tree came from archiving REQ-SW-PL-057/079).
                 issues.append({req.id, QStringLiteral("dependencies"),
-                               QStringLiteral("depends on archived requirement '%1'")
+                               QStringLiteral("depends on cancelled requirement '%1' "
+                                              "(archived)")
                                    .arg(dep),
                                Severity::Warning});
             }
