@@ -64,12 +64,27 @@ requirements viewer/editor. Изгледите са организирани в 
   - `DependencyGraphWidget`/`DependencyGraphScene` (QtWidgets) — `QGraphicsScene`
     с movable rounded-rect възли (ID + title), `QGraphicsPathItem` ребра със
     стрелки (dashed = Parent, solid = Dependency), wheel zoom върху
-    `QGraphicsView`, drag (`ItemIsMovable`) и `navigateRequested(id)` при клик
-    върху възел — връща потребителя в tree tab и селектира изискването.
-  - Цветово кодиране (hex-only, Qt5/Qt6-safe): border = статус
-    (ACTIVE `#2E7D32`, DONE `#757575`, CANCELLED `#C62828`), fill = приоритет
-    (High по-тъмен / Medium среден / Low по-светъл). Легенда и warning label
-    при dangling references.
+    `QGraphicsView`, drag (`ItemIsMovable`) и **двойно кликане** →
+    `navigateRequested(id)` — връща потребителя в tree tab и селектира
+    изискването.
+  - **Навигация в графа (REQ-SW-PL-001, 2026-11-16):** ред за търсене над
+    изгледа (``QLineEdit`` + „Следващ“ + брояч `3 / 12`) филтрира по ID **или**
+    заглавие, без значение от регистъра; Enter/„Следващ“ обикаля попаденията и
+    всяко се центрира и приближава в изгледа (при нужда `resetTransform()` до
+    100 %), Escape чисти маркировката. **Единичното кликане вече само
+    селектира**: избраният възел получава ореол, всичките му ребра (входящи и
+    изходящи) се удебеляват и взимат цвета на статуса на източника, преките
+    съседи остават със среден акцент, а останалите възли/ребра се затъмняват
+    (`opacity` 0.3/0.18); клик върху празно платно или Escape чисти. Tooltip на
+    възел: ID, заглавие, статус, брой зависимости/родители и валидационните
+    проблеми на изискването (досега `issues` се изхвърляха). „Покажи всичко“ =
+    fit, „Нулирай“ = 100 % + изчистване на търсенето и селекцията.
+  - Цветово кодиране (hex-only, Qt5/Qt6-safe): border = статус — една таблица
+    `DependencyGraphScene::statusStyles()` (ACTIVE `#2E7D32`, IMPLEMENTED
+    `#1565C0`, DONE `#757575`, CANCELLED `#C62828`, BACKLOG `#EF6C00`), fill =
+    приоритет (High по-тъмен / Medium среден / Low по-светъл). Легендата е
+    overlay в долния ляв ъгъл на изгледа, построена от същата таблица (плюс
+    приоритетните квадратчета); отделен warning label при dangling references.
 
   - **Ребрата следват възлите при влачене (2026-08-02):** ребрата са
     `DependencyGraphEdgeItem` (държат `from`/`to`), преизчислявани от
