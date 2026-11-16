@@ -27,4 +27,11 @@ private slots:
     void statusVocabulary_hasOneEntryPoint();
     void statusVocabulary_invalidStatus_error();
     void statusVocabulary_doneNaKlonaMapsToImplemented();
+    void statusZone_activeInArchive_error();
+    void statusZone_doneInActive_error();
+    void statusZone_implementedInArchive_noIssue();
+    void doneWithOpenCriterion_error();
+    void doneWithDeferredCriterion_warning();
+    void nonRequirementParent_warning();
+    void multipleParents_secondDangling_error();
 };

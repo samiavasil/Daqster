@@ -25,12 +25,22 @@ inline constexpr char kRequirementsSubdir[] = "DevelopmentProcess/requirements";
  *   - **Дата:** YYYY-MM-DD
  *   - **Родител:** REQ-XXX
  *   - **Зависи от:** REQ-XXX, REQ-YYY
+ *   - **Деца:** REQ-ZZZ
  *   ## Описание
  *   ## Acceptance Criteria
  *   - [ ] criterion
  *   - [x] done criterion
  *   ## Проследимост
  *   - **Коммити:** ...
+ *
+ * @par Reference grammar (Родител / Зависи от / Деца)
+ * A reference is an ID token — `REQ-<PREFIX>-<NNN>` or `REQ-SW-<TYPE>-<NNN>` —
+ * optionally followed by a parenthesised annotation, e.g.
+ * `REQ-AI-005 (LlamaEngine FFI — предходник, \`DONE\`)`. The value is split on
+ * TOP-LEVEL commas only: a comma inside the annotation belongs to the
+ * annotation. The prose around an ID is never resolved as a requirement, which
+ * is what keeps a sentence from being reported as a dangling reference; a
+ * non-requirement document ID (`ADR-AI-013`) is kept and reported as such.
  */
 struct Requirement
 {
@@ -41,7 +51,10 @@ struct Requirement
     QString assignee;              //!< PM | Architect | Implementation | QA
     QString date;                  //!< creation/modification date (ISO), from "- **Дата:**"
     QString parentId;              //!< parent requirement ID, empty when none ("—")
+    QStringList parentIds;         //!< every ID in "Родител:" (parentId is the first
+                                   //!< requirement one); a requirement may list several
     QStringList dependencies;      //!< requirement IDs this depends on ("Зависи от:")
+    QStringList childIds;          //!< IDs listed in "Деца:" (inverse of "Родител:")
     QString description;           //!< free text under "## Описание"
     QString traceability;          //!< free text under "## Проследимост"
     QString commits;               //!< "- **Коммити:**" under Проследимост (commit hash list)

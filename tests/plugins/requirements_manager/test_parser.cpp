@@ -265,6 +265,123 @@ void TestParser::parseDirectory_nestedSubdirSection()
     QCOMPARE(req->section, QStringLiteral("active"));
 }
 
+void TestParser::parseReferences_annotationWithComma()
+{
+    // A reference is an ID token, not the text that happens to follow it. An
+    // annotation may itself contain commas ("LlamaEngine FFI — предходник,
+    // `DONE`"); splitting the value on every comma cut it in two and both
+    // halves were then looked up as requirement IDs — 40 of the 46 errors the
+    // GUI reported on the real tree while the CLI reported 2.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString baseDir = temp.path();
+    const QString activeDir = QDir(baseDir).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    writeFixture(activeDir, QStringLiteral("REQ-AI-009-registry.md"),
+                 QStringLiteral(
+                     "# REQ-AI-009: Registry\n"
+                     "\n"
+                     "- **Статус:** ACTIVE\n"
+                     "- **Приоритет:** Medium\n"
+                     "- **Отговорник (роля):** Implementation\n"
+                     "- **Дата:** 2026-11-10\n"
+                     "- **Родител:** —\n"
+                     "- **Зависи от:** REQ-AI-005 (LlamaEngine FFI — предходник,"
+                     " `DONE`), REQ-AI-010 (registry)\n"
+                     "\n"
+                     "## Описание\n"
+                     "\n"
+                     "Тест на референциите.\n"
+                     "\n"
+                     "## Acceptance Criteria\n"
+                     "\n"
+                     "- [ ] 1. Критерий.\n"));
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(baseDir);
+    QCOMPARE(requirements.size(), 1);
+    const Requirement &req = requirements.first();
+
+    QCOMPARE(req.dependencies.size(), 2);
+    QCOMPARE(req.dependencies.at(0), QStringLiteral("REQ-AI-005"));
+    QCOMPARE(req.dependencies.at(1), QStringLiteral("REQ-AI-010"));
+    QVERIFY(req.dependencyHints.value(QStringLiteral("REQ-AI-005"))
+                .contains(QStringLiteral("предходник")));
+    QCOMPARE(req.dependencyHints.value(QStringLiteral("REQ-AI-010")),
+             QStringLiteral("registry"));
+}
+
+void TestParser::parseReferences_multipleParents()
+{
+    // "Родител:" lists every parent; the tree is single-parent, so parentId is
+    // the first requirement ID while parentIds keeps all of them resolvable.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString baseDir = temp.path();
+    const QString activeDir = QDir(baseDir).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    writeFixture(activeDir, QStringLiteral("REQ-AI-013-ladder.md"),
+                 requirementContent(QStringLiteral("REQ-AI-013"),
+                                    QStringLiteral("Ladder"),
+                                    QStringLiteral("ACTIVE"),
+                                    QStringLiteral("REQ-AI-011, REQ-AI-012"),
+                                    QStringLiteral("—")));
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(baseDir);
+    QCOMPARE(requirements.size(), 1);
+    const Requirement &req = requirements.first();
+
+    QCOMPARE(req.parentIds.size(), 2);
+    QCOMPARE(req.parentIds.at(0), QStringLiteral("REQ-AI-011"));
+    QCOMPARE(req.parentIds.at(1), QStringLiteral("REQ-AI-012"));
+    QCOMPARE(req.parentId, QStringLiteral("REQ-AI-011"));
+}
+
+void TestParser::parseReferences_childrenAndNonRequirementId()
+{
+    // "Деца:" is the inverse of "Родител:" and is parsed the same way. A header
+    // may also cite a document that is not a requirement (ADR-AI-013): the ID
+    // token is kept so the validator can report it as "not a requirement"
+    // instead of dropping it or looking it up as one.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString baseDir = temp.path();
+    const QString activeDir = QDir(baseDir).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    writeFixture(activeDir, QStringLiteral("REQ-AI-021-model-runtime.md"),
+                 QStringLiteral(
+                     "# REQ-AI-021: Model Runtime\n"
+                     "\n"
+                     "- **Статус:** ACTIVE\n"
+                     "- **Приоритет:** High\n"
+                     "- **Отговорник (роля):** Implementation\n"
+                     "- **Дата:** 2026-11-01\n"
+                     "- **Родител:** ADR-AI-013\n"
+                     "- **Зависи от:** —\n"
+                     "- **Деца:** REQ-AI-024, `REQ-AI-025`\n"
+                     "\n"
+                     "## Описание\n"
+                     "\n"
+                     "Тест на деца и не-REQ референция.\n"
+                     "\n"
+                     "## Acceptance Criteria\n"
+                     "\n"
+                     "- [ ] 1. Критерий.\n"));
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(baseDir);
+    QCOMPARE(requirements.size(), 1);
+    const Requirement &req = requirements.first();
+
+    QCOMPARE(req.parentIds.size(), 1);
+    QCOMPARE(req.parentIds.first(), QStringLiteral("ADR-AI-013"));
+    QCOMPARE(req.parentId, QStringLiteral("ADR-AI-013"));
+    QCOMPARE(req.childIds.size(), 2);
+    QCOMPARE(req.childIds.at(0), QStringLiteral("REQ-AI-024"));
+    QCOMPARE(req.childIds.at(1), QStringLiteral("REQ-AI-025"));
+}
+
 void TestParser::parseDirectory_traceabilityFields()
 {
     // "- **Коммити:**" / "- **Код:**" / "- **Тестове:**" / "- **Документация:**"

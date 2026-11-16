@@ -28,47 +28,116 @@ bool numberStrIsDigits(const QString &s)
     return true;
 }
 
-// Matches a reference with a trailing parenthesized annotation, e.g.
-//   "REQ-SW-PL-013 (публично)"  ->  bare "REQ-SW-PL-013", hint "публично"
-// Group 1 = bare ID (no spaces), group 2 = annotation text.
-const QRegularExpression &annotationRe()
+// A requirement reference inside a "Родител:" / "Зависи от:" / "Деца:" value:
+// REQ-<PREFIX>-<NNN> (private scheme) or REQ-SW-<TYPE>-<NNN> (typed public one).
+// The ID is what a reference IS; the text around it is prose.
+const QRegularExpression &requirementIdRe()
 {
     static const QRegularExpression re(
-        QStringLiteral("^([^\\s(]+)\\s*\\(([^()]*)\\)$"));
+        QStringLiteral("\\b(REQ-[A-Z]+(?:-[A-Z]+)?-\\d{3})\\b"));
     return re;
 }
 
-// Splits one "Родител:" / "Зависи от:" item into a bare ID and (when present)
-// its annotation text. The bare ID is what references are resolved by; the
-// annotation is preserved in Requirement::dependencyHints for repo checks.
-QString bareReferenceId(const QString &item, QString *hintOut)
+// Any other document ID a header may cite (ADR-AI-013, ISS-007, CND-046). Such
+// a token is still a reference — kept and reported as "not a requirement"
+// instead of being silently dropped or looked up as a requirement ID.
+const QRegularExpression &documentIdRe()
 {
-    const QRegularExpressionMatch match = annotationRe().match(item.trimmed());
-    if (!match.hasMatch()) {
-        if (hintOut)
-            hintOut->clear();
-        return item.trimmed();
-    }
-    if (hintOut)
-        *hintOut = match.captured(2).trimmed();
-    return match.captured(1).trimmed();
+    static const QRegularExpression re(
+        QStringLiteral("\\b([A-Z]{2,}(?:-[A-Z]{2,})*-\\d{2,4})\\b"));
+    return re;
 }
 
-// Appends a reference to a list of bare IDs and, when an annotation was
-// present, records the hint keyed by the bare ID.
-void appendReference(const QString &item, QStringList &bareIds,
-                     QHash<QString, QString> &hints)
+/**
+ * @brief One reference parsed out of a metadata value.
+ */
+struct ParsedReference
 {
-    const QString trimmed = item.trimmed();
-    if (trimmed.isEmpty() || trimmed == QStringLiteral("—"))
-        return;
-    QString hint;
-    const QString bare = bareReferenceId(trimmed, &hint);
-    if (bare.isEmpty() || bare == QStringLiteral("—"))
-        return;
-    if (!hint.isEmpty() && !hints.contains(bare))
-        hints.insert(bare, hint);
-    bareIds.append(bare);
+    QString id;                    //!< the ID token, empty for prose
+    QString hint;                  //!< annotation text (parenthesised), or empty
+    bool isRequirement = false;    //!< true when the token matched REQ-<…>
+};
+
+// Splits a metadata value on TOP-LEVEL commas only — a comma inside
+// parentheses belongs to the annotation, not to the next reference.
+//
+// Splitting on every comma was the defect: an annotated dependency such as
+// "REQ-AI-005 (LlamaEngine FFI — предходник, `DONE`)" became two "references"
+// ("REQ-AI-005 (LlamaEngine FFI — предходник" and "`DONE` )"), each reported as
+// a dangling dependency — 40 of the 46 errors the GUI showed on the real tree
+// while the CLI showed 2.
+QStringList splitTopLevelCommas(const QString &value)
+{
+    QStringList parts;
+    QString current;
+    int depth = 0;
+    for (const QChar &c : value) {
+        if (c == QLatin1Char('('))
+            ++depth;
+        else if (c == QLatin1Char(')') && depth > 0)
+            --depth;
+        if (c == QLatin1Char(',') && depth == 0) {
+            parts.append(current);
+            current.clear();
+            continue;
+        }
+        current.append(c);
+    }
+    parts.append(current);
+    return parts;
+}
+
+// Parses one top-level item of a metadata value: the ID token it starts from
+// plus the annotation attached to it. Items with no ID at all are prose ("—",
+// "DONE") and yield an empty id — a reference is an ID, never a sentence.
+ParsedReference parseReferenceItem(const QString &rawItem)
+{
+    ParsedReference ref;
+    const QString item = rawItem.trimmed();
+    if (item.isEmpty() || item.startsWith(QChar(0x2014))) // "—"
+        return ref;
+
+    QRegularExpressionMatch match = requirementIdRe().match(item);
+    if (match.hasMatch()) {
+        ref.isRequirement = true;
+    } else {
+        match = documentIdRe().match(item);
+        if (!match.hasMatch())
+            return ref;
+    }
+    ref.id = match.captured(1);
+
+    // The annotation is the parenthesised text right after the ID. Prose that
+    // follows without parentheses is a comment, not a repo hint.
+    const QString rest = item.mid(match.capturedEnd()).trimmed();
+    if (rest.startsWith(QLatin1Char('('))) {
+        const int close = rest.lastIndexOf(QLatin1Char(')'));
+        if (close > 0)
+            ref.hint = rest.mid(1, close - 1).trimmed();
+    }
+    return ref;
+}
+
+// Appends the references of a whole metadata value to a list of IDs, keyed
+// annotations into @p hints, and returns the first requirement ID found (used
+// as the single "Родител:" of the tree).
+QString appendReferences(const QString &value, QStringList &ids,
+                         QHash<QString, QString> &hints)
+{
+    ids.clear();
+    QString firstRequirementId;
+    for (const QString &item : splitTopLevelCommas(value)) {
+        const ParsedReference ref = parseReferenceItem(item);
+        if (ref.id.isEmpty())
+            continue;
+        if (!ids.contains(ref.id))
+            ids.append(ref.id);
+        if (!ref.hint.isEmpty() && !hints.contains(ref.id))
+            hints.insert(ref.id, ref.hint);
+        if (ref.isRequirement && firstRequirementId.isEmpty())
+            firstRequirementId = ref.id;
+    }
+    return firstRequirementId;
 }
 
 QString sectionOf(const QString &baseDir, const QString &absolutePath)
@@ -516,17 +585,20 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
             else if (key == QStringLiteral("Дата"))
                 out.date = value;
             else if (key == QStringLiteral("Родител")) {
-                QString hint;
-                const QString bare = bareReferenceId(value, &hint);
-                out.parentId = (bare == QStringLiteral("—")) ? QString() : bare;
-                if (!bare.isEmpty() && bare != QStringLiteral("—") && !hint.isEmpty())
-                    out.dependencyHints.insert(bare, hint);
+                // A parent list is possible ("REQ-AI-011, REQ-AI-012"); the tree
+                // is single-parent, so parentId is the first requirement ID —
+                // all of them stay in parentIds and are validated.
+                const QString first = appendReferences(value, out.parentIds,
+                                                       out.dependencyHints);
+                out.parentId = first.isEmpty() ? out.parentIds.value(0) : first;
             }
             else if (key == QStringLiteral("Зависи от")) {
-                out.dependencies.clear();
-                const QStringList parts = value.split(QLatin1Char(','));
-                for (const QString &part : parts)
-                    appendReference(part, out.dependencies, out.dependencyHints);
+                appendReferences(value, out.dependencies, out.dependencyHints);
+            }
+            else if (key == QStringLiteral("Деца")) {
+                // Inverse of "Родител:" — parsed and validated so the child
+                // links of a requirement cannot rot unobserved.
+                appendReferences(value, out.childIds, out.dependencyHints);
             } else {
                 handled = false; // unknown metadata (e.g. under Проследимост)
                 // Traceability keys are captured into structured fields BUT

@@ -9,9 +9,19 @@ namespace Daqster {
 /**
  * @brief Consistency validation engine for parsed requirements.
  *
- * Detects dangling references in "Родител:" / "Зависи от:" metadata,
- * cycles in the dependency and parent graphs (DFS back-edge detection)
- * and missing required fields.
+ * Detects dangling references in "Родител:" / "Зависи от:" / "Деца:" metadata,
+ * cycles in the dependency and parent graphs (DFS back-edge detection),
+ * missing required fields, an invalid or unreadable status, a status that
+ * contradicts the file's zone (ACTIVE in archive/, DONE in active/), and a
+ * DONE requirement with unaddressed acceptance criteria.
+ *
+ * @par Division of labour with the traceability CLI
+ * This is the authority for requirement FIELDS — id, status, zone, acceptance
+ * criteria, dependencies. Traceability that needs the repository (matrix
+ * coverage, commit hashes, code paths, cross-references) belongs to
+ * `scripts/validate-traceability.sh`. Both read the same directory scope
+ * (DevelopmentProcess/requirements) and the same status vocabulary; neither
+ * may invent a third answer.
  *
  * The validator only consumes the structured, normalized Requirement
  * records produced by RequirementsParser — it never re-parses raw

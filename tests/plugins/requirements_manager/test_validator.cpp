@@ -13,12 +13,13 @@ namespace {
 
 Requirement makeRequirement(const QString &id, const QString &section,
                             const QString &parentId,
-                            const QStringList &dependencies = QStringList())
+                            const QStringList &dependencies = QStringList(),
+                            const QString &status = QStringLiteral("ACTIVE"))
 {
     Requirement req;
     req.id = id;
     req.title = id;
-    req.status = QStringLiteral("ACTIVE");
+    req.status = status;
     req.priority = QStringLiteral("Medium");
     req.section = section;
     req.parentId = parentId;
@@ -26,6 +27,7 @@ Requirement makeRequirement(const QString &id, const QString &section,
     req.description = QStringLiteral("Description");
     req.date = QStringLiteral("2026-07-31");
     req.acceptanceCriteria << QStringLiteral("1. Criterion");
+    req.criteriaDone.append(false); // parallel to acceptanceCriteria
     return req;
 }
 
@@ -131,8 +133,10 @@ void TestValidator::archivedDependency_warning()
     // An active requirement depending on an archived one triggers the warning
     // ("depends on archived requirement"). The original fixture had the
     // sections inverted (archive depending on active), which correctly
-    // produced no issue.
-    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("archive"), QString()));
+    // produced no issue. The archived requirement carries CANCELLED — a status
+    // its zone allows — so the zone check stays silent here.
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("archive"),
+                                QString(), {}, QStringLiteral("CANCELLED")));
     reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"), QStringLiteral("active"), QString(),
                                 {QStringLiteral("REQ-SW-PL-001")}));
 
@@ -289,10 +293,13 @@ void TestValidator::hintMatch_noWarning()
 
 namespace {
 
-// Writes one requirement .md using the conventional template.
+// Writes one requirement .md using the conventional template. @p criterionDone
+// writes "- [x]" instead of "- [ ]" — a DONE requirement may not keep an
+// unaddressed criterion (validator §4 parity with the CLI).
 QString writeRequirementFixture(const QString &dirPath, const QString &fileName,
                                 const QString &id, const QString &status,
-                                const QString &dependsOn)
+                                const QString &dependsOn,
+                                bool criterionDone = false)
 {
     QDir().mkpath(dirPath);
     const QString filePath = QDir(dirPath).filePath(fileName);
@@ -315,7 +322,9 @@ QString writeRequirementFixture(const QString &dirPath, const QString &fileName,
         "\n"
         "## Acceptance Criteria\n"
         "\n"
-        "- [ ] 1. Criterion.\n").arg(id, status, dependsOn);
+        "- [%4] 1. Criterion.\n").arg(id, status, dependsOn,
+                                      criterionDone ? QStringLiteral("x")
+                                                    : QStringLiteral(" "));
     file.write(content.toUtf8());
     file.close();
     return filePath;
@@ -342,12 +351,13 @@ void TestValidator::scope_onlyRequirementsTreeIsValidated()
                  QStringLiteral("REQ-SW-PL-001-fixture.md"),
                  QStringLiteral("REQ-SW-PL-001"), QStringLiteral("ACTIVE"),
                  QStringLiteral("—")).isEmpty());
-    // archive/ is in scope as well.
+    // archive/ is in scope as well. DONE there is a legal zone; the criterion
+    // is closed so the DONE/AC invariant (CLI §4) stays satisfied.
     QVERIFY(!writeRequirementFixture(
                  QDir(requirementsDir).filePath(QStringLiteral("archive")),
                  QStringLiteral("REQ-SW-PL-002-fixture.md"),
                  QStringLiteral("REQ-SW-PL-002"), QStringLiteral("DONE"),
-                 QStringLiteral("—")).isEmpty());
+                 QStringLiteral("—"), true).isEmpty());
     // Out of scope: a draft with an invalid status AND a dangling dependency.
     // Both would be Errors if it were parsed.
     QVERIFY(!writeRequirementFixture(
@@ -416,6 +426,149 @@ void TestValidator::statusVocabulary_doneNaKlonaMapsToImplemented()
     reqs.append(req);
 
     QCOMPARE(RequirementsValidator::validate(reqs).size(), 0);
+}
+
+// No QTEST_GUILESS_MAIN here: the three test classes share one binary whose
+void TestValidator::statusZone_activeInArchive_error()
+{
+    // RDD-PROCESS: ACTIVE -> DONE, and DONE moves the file to archive/. An
+    // ACTIVE requirement filed in archive/ contradicts its own status. The CLI
+    // reports the same defect (§3 zone check) — this is the parity that makes
+    // the two validators agree instead of each inventing an answer.
+    QVector<Requirement> reqs;
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                QStringLiteral("archive"), QString()));
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QCOMPARE(issues.at(0).field, QStringLiteral("status"));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("в archive/")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::statusZone_doneInActive_error()
+{
+    // The one real defect on the current tree (REQ-SW-PL-079): DONE while the
+    // file still sits in active/.
+    QVector<Requirement> reqs;
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-079"),
+                                      QStringLiteral("active"), QString(), {},
+                                      QStringLiteral("DONE"));
+    req.criteriaDone[0] = true; // isolate the zone rule from the AC rule
+    reqs.append(req);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QCOMPARE(issues.at(0).field, QStringLiteral("status"));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("в active/")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::statusZone_implementedInArchive_noIssue()
+{
+    // IMPLEMENTED belongs to neither zone: the code is on a branch, so the file
+    // may sit in active/ or be filed in archive/ once its record is finished.
+    QVector<Requirement> archive;
+    archive.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                   QStringLiteral("archive"), QString(), {},
+                                   QStringLiteral("IMPLEMENTED")));
+    QCOMPARE(RequirementsValidator::validate(archive).size(), 0);
+
+    QVector<Requirement> active;
+    active.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"),
+                                  QStringLiteral("active"), QString(), {},
+                                  QStringLiteral("IMPLEMENTED")));
+    QCOMPARE(RequirementsValidator::validate(active).size(), 0);
+}
+
+void TestValidator::doneWithOpenCriterion_error()
+{
+    // DONE asserts the work landed, so an unaddressed criterion forbids it.
+    // Mirrors CLI §4 (list convention).
+    QVector<Requirement> reqs;
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                QStringLiteral("archive"), QString(), {},
+                                QStringLiteral("DONE")));
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QCOMPARE(issues.at(0).field, QStringLiteral("acceptanceCriteria"));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("незакрити AC")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::doneWithDeferredCriterion_warning()
+{
+    // An unchecked criterion carrying ⏸ (blocked by environment) or ⛔ (proven
+    // blocker) is a documented deferral, not an unaddressed one: a Warning, and
+    // the decision stays with a human.
+    QVector<Requirement> reqs;
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                      QStringLiteral("archive"), QString(), {},
+                                      QStringLiteral("DONE"));
+    req.acceptanceCriteria[0] = QStringLiteral("1. Нещо ⏸ (чака среда).");
+    reqs.append(req);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Warning);
+    QCOMPARE(issues.at(0).field, QStringLiteral("acceptanceCriteria"));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("CND-046")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::nonRequirementParent_warning()
+{
+    // "Родител: ADR-AI-013" cites a decision record, not a requirement. The
+    // reference is kept and reported as "not a requirement" — an Error would
+    // claim the ADR is missing, which is false.
+    QVector<Requirement> reqs;
+    reqs.append(makeRequirement(QStringLiteral("REQ-AI-021"),
+                                QStringLiteral("active"),
+                                QStringLiteral("ADR-AI-013")));
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Warning);
+    QCOMPARE(issues.at(0).field, QStringLiteral("parentId"));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("не е изискване")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::multipleParents_secondDangling_error()
+{
+    // Every listed parent is resolved, not only the first: a stale second
+    // parent must not hide behind the one the tree displays.
+    QVector<Requirement> reqs;
+    reqs.append(makeRequirement(QStringLiteral("REQ-AI-011"), QStringLiteral("active"),
+                                QString()));
+    Requirement child = makeRequirement(QStringLiteral("REQ-AI-013"),
+                                        QStringLiteral("active"),
+                                        QStringLiteral("REQ-AI-011"));
+    child.parentIds.append(QStringLiteral("REQ-AI-011"));
+    child.parentIds.append(QStringLiteral("REQ-AI-999"));
+    reqs.append(child);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-AI-999")),
+             qPrintable(issues.at(0).message));
 }
 
 // No QTEST_GUILESS_MAIN here: the three test classes share one binary whose

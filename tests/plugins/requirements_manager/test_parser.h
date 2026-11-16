@@ -15,6 +15,9 @@ private slots:
     void parseDirectory_typedId();
     void parseDirectory_nestedSubdirSection();
     void parseDirectory_traceabilityFields();
+    void parseReferences_annotationWithComma();
+    void parseReferences_multipleParents();
+    void parseReferences_childrenAndNonRequirementId();
     void phaseStatus_allEmpty_false();
     void phaseStatus_dashAndWhitespace_false();
     void phaseStatus_allFilled_true();

@@ -62,8 +62,15 @@ DependencyGraphData DependencyGraphData::build(const QVector<Requirement> &requi
     for (int i = 0; i < n; ++i) {
         const Requirement &req = requirements.at(i);
 
-        const int parentIdx = resolve(req.parentId, req.repo);
-        if (parentIdx >= 0 && parentIdx != i) {
+        // "Родител:" may list several IDs; each one is a parent edge. Records
+        // built in memory (callers/tests) may carry only parentId.
+        QStringList parents = req.parentIds;
+        if (parents.isEmpty() && !req.parentId.trimmed().isEmpty())
+            parents.append(req.parentId);
+        for (const QString &parentId : parents) {
+            const int parentIdx = resolve(parentId, req.repo);
+            if (parentIdx < 0 || parentIdx == i)
+                continue;
             GraphEdge edge;
             edge.from = i;
             edge.to = parentIdx;
