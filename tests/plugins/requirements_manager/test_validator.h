@@ -23,4 +23,8 @@ private slots:
     void crossRepoParent_notDangling();
     void hintMismatch_warning();
     void hintMatch_noWarning();
+    void scope_onlyRequirementsTreeIsValidated();
+    void statusVocabulary_hasOneEntryPoint();
+    void statusVocabulary_invalidStatus_error();
+    void statusVocabulary_doneNaKlonaMapsToImplemented();
 };

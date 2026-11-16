@@ -15,7 +15,10 @@ namespace Daqster {
  *
  * The validator only consumes the structured, normalized Requirement
  * records produced by RequirementsParser — it never re-parses raw
- * Markdown (see REQ-SW-PL-002 AC6-7 / REQ-SW-PL-011).
+ * Markdown (see REQ-SW-PL-002 AC6-7 / REQ-SW-PL-011). Its scope is therefore
+ * whatever the parser walked: RequirementsParser scans the requirements tree
+ * (DevelopmentProcess/requirements: active + archive), the same scope the
+ * traceability CLI validates — never the whole repo root.
  */
 class RequirementsValidator
 {
@@ -43,6 +46,31 @@ public:
      * @brief Convenience count of issues of a given severity.
      */
     static int countSeverity(const QVector<Issue> &issues, Severity severity);
+
+    /**
+     * @brief The single status vocabulary shared with the traceability CLI.
+     *
+     * Mirrors `VOCAB` in `scripts/validate-traceability.sh` (private repo):
+     * ACTIVE, IMPLEMENTED, DONE, CANCELLED, BACKLOG. IMPLEMENTED means "the code
+     * is on a branch, nothing in develop yet" — a real state, not a typo.
+     *
+     * @return The allowed status tokens, in the CLI's order.
+     */
+    static QStringList statusVocabulary();
+
+    /**
+     * @brief Normalizes a "- **Статус:**" value to a bare vocabulary token.
+     *
+     * Handles the two conventions the CLI handles: a status carrying a written
+     * rationale ("ACTIVE — реализиран на клон `feat/…`", emphasis, backticks)
+     * and `DONE НА КЛОНА`, which maps to IMPLEMENTED because the code is on a
+     * branch and nothing is in develop.
+     *
+     * @param rawStatus The parsed status value, verbatim.
+     * @return The first all-caps token of the value, or an empty string when
+     *         the value carries no readable status.
+     */
+    static QString normalizedStatus(const QString &rawStatus);
 };
 
 } // namespace Daqster

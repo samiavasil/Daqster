@@ -3,6 +3,7 @@
 #include <QHash>
 #include <QRegularExpression>
 #include <QSet>
+#include <QStringList>
 
 #include <functional>
 
@@ -146,6 +147,32 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
                            Severity::Warning});
     }
 
+    // --- Status vocabulary -------------------------------------------------
+    // One lifecycle vocabulary, shared with the traceability CLI
+    // (scripts/validate-traceability.sh → VOCAB): a status outside it is a
+    // defect, not a new lifecycle. Two invalid statuses (FUTURE, PLANNED) once
+    // lived in the tree with no visible consequence, which is exactly why this
+    // is checked. An empty status is already reported as "status is missing"
+    // above and is not repeated here.
+    const QStringList vocabulary = statusVocabulary();
+    for (const Requirement &req : requirements) {
+        if (req.status.trimmed().isEmpty())
+            continue;
+        const QString token = normalizedStatus(req.status);
+        if (token.isEmpty()) {
+            issues.append({req.id, QStringLiteral("status"),
+                           QStringLiteral("не може да се прочете статус от '%1' "
+                                          "(позволени: %2)")
+                               .arg(req.status, vocabulary.join(QLatin1Char(' '))),
+                           Severity::Error});
+        } else if (!vocabulary.contains(token)) {
+            issues.append({req.id, QStringLiteral("status"),
+                           QStringLiteral("невалиден статус '%1' (позволени: %2)")
+                               .arg(token, vocabulary.join(QLatin1Char(' '))),
+                           Severity::Error});
+        }
+    }
+
     // --- Parent references (Родител) --------------------------------------
     for (const Requirement &req : requirements) {
         if (req.parentId.trimmed().isEmpty())
@@ -279,6 +306,49 @@ int RequirementsValidator::countSeverity(const QVector<Issue> &issues, Severity 
             ++count;
     }
     return count;
+}
+
+QStringList RequirementsValidator::statusVocabulary()
+{
+    // Order and membership mirror `readonly VOCAB` in
+    // scripts/validate-traceability.sh. Changing one without the other makes
+    // the two validators disagree again, which is the defect this fixes.
+    return {QStringLiteral("ACTIVE"), QStringLiteral("IMPLEMENTED"),
+            QStringLiteral("DONE"), QStringLiteral("CANCELLED"),
+            QStringLiteral("BACKLOG")};
+}
+
+QString RequirementsValidator::normalizedStatus(const QString &rawStatus)
+{
+    // "DONE НА КЛОНА" is IMPLEMENTED, not DONE: the code sits on a branch and
+    // nothing is in develop. The CLI maps it the same way, so both validators
+    // read the same state from the same file.
+    static const QRegularExpression doneOnBranchRe(
+        QStringLiteral("^DONE\\s+НА\\s+КЛОНА"));
+
+    // A field of the value, optionally wrapped in punctuation the author used
+    // for emphasis — "(ACTIVE)", "**ACTIVE**", "ACTIVE,". Inner lowercase
+    // letters disqualify a field, so prose ("на", "клон") can never be read as
+    // a status.
+    static const QRegularExpression fieldTokenRe(
+        QStringLiteral("^[^A-Za-z]*([A-Z]{3,15})[^A-Za-z]*$"));
+
+    QString text = rawStatus;
+    text.remove(QLatin1Char('*')).remove(QLatin1Char('`')).remove(QLatin1Char(':'));
+
+    if (doneOnBranchRe.match(text.trimmed()).hasMatch())
+        return QStringLiteral("IMPLEMENTED");
+
+    // The status is the FIRST readable all-caps field; whatever follows it is
+    // rationale ("ACTIVE — AC1–AC13 имплементирани").
+    const QStringList fields =
+        text.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+    for (const QString &field : fields) {
+        const QRegularExpressionMatch match = fieldTokenRe.match(field);
+        if (match.hasMatch())
+            return match.captured(1);
+    }
+    return QString();
 }
 
 } // namespace Daqster

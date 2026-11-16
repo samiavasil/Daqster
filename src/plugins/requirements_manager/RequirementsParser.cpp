@@ -112,13 +112,36 @@ void collectMarkdownFiles(const QString &dirPath, QVector<QFileInfo> &out)
     }
 }
 
+// Resolves the directory a parse must WALK — the scope of the requirement set.
+//
+// A caller may pass a repo root (containing DevelopmentProcess/requirements) or
+// the requirements directory itself. Walking the repo root collected every
+// Markdown file under it whose H1 merely looks like a requirement: drafts in
+// DevelopmentProcess/plans/ (DRAFT-PL-06x under ideas/ plus their archive/
+// copies → the same ID twice → "duplicate requirement ID"), design documents
+// that quote a template, and one full copy of REQ-SW-PL-050 living in plans/.
+// The traceability CLI never sees those — it scans
+// DevelopmentProcess/requirements — so the GUI reported ~47 errors where the
+// CLI reported 2. The scope is therefore the requirements tree itself.
+QString scanRootOf(const QString &baseDir)
+{
+    const QDir base(baseDir);
+    const QString tree = base.filePath(QString::fromUtf8(kRequirementsSubdir));
+    if (QDir(tree).exists())
+        return tree;
+    // The caller already pointed at the requirements tree (or at a directory
+    // with no requirements subdirectory at all, e.g. a test fixture).
+    return base.absolutePath();
+}
+
 } // namespace
 
 QVector<Requirement> RequirementsParser::parseDirectory(const QString &baseDir)
 {
     QVector<Requirement> result;
     QVector<QFileInfo> files;
-    collectMarkdownFiles(baseDir, files);
+    // Scope = the requirements tree, never the whole repo root (see scanRootOf).
+    collectMarkdownFiles(scanRootOf(baseDir), files);
 
     for (const QFileInfo &fileInfo : files) {
         const QString section = sectionOf(baseDir, fileInfo.absoluteFilePath());

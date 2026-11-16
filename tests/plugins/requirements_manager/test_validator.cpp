@@ -1,4 +1,7 @@
 #include <QtTest>
+#include <QDir>
+#include <QFile>
+#include <QTemporaryDir>
 
 #include "RequirementsValidator.h"
 #include "RequirementsParser.h"
@@ -282,6 +285,137 @@ void TestValidator::hintMatch_noWarning()
         RequirementsValidator::validate(reqs);
 
     QCOMPARE(issues.size(), 0);
+}
+
+namespace {
+
+// Writes one requirement .md using the conventional template.
+QString writeRequirementFixture(const QString &dirPath, const QString &fileName,
+                                const QString &id, const QString &status,
+                                const QString &dependsOn)
+{
+    QDir().mkpath(dirPath);
+    const QString filePath = QDir(dirPath).filePath(fileName);
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+        return QString();
+    const QString content = QStringLiteral(
+        "# %1: Fixture\n"
+        "\n"
+        "- **Статус:** %2\n"
+        "- **Приоритет:** Medium\n"
+        "- **Отговорник (роля):** Implementation\n"
+        "- **Дата:** 2026-11-16\n"
+        "- **Родител:** —\n"
+        "- **Зависи от:** %3\n"
+        "\n"
+        "## Описание\n"
+        "\n"
+        "Fixture requirement.\n"
+        "\n"
+        "## Acceptance Criteria\n"
+        "\n"
+        "- [ ] 1. Criterion.\n").arg(id, status, dependsOn);
+    file.write(content.toUtf8());
+    file.close();
+    return filePath;
+}
+
+} // namespace
+
+void TestValidator::scope_onlyRequirementsTreeIsValidated()
+{
+    // A repo root whose plans/ tree holds a requirement-shaped draft. The real
+    // tree has 9 DRAFT-PL/FW files under plans/ideas/ plus their archive/
+    // copies and one full REQ-SW-PL-050 copy in plans/ — walking the repo root
+    // turned those into requirements (duplicate IDs, malformed IDs, missing
+    // fields), which is where the GUI's 47 errors came from while the CLI
+    // reported 2. The parse scope is the requirements tree only.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    const QString requirementsDir = QDir(root).filePath(
+        QString::fromUtf8(kRequirementsSubdir));
+
+    QVERIFY(!writeRequirementFixture(
+                 QDir(requirementsDir).filePath(QStringLiteral("active")),
+                 QStringLiteral("REQ-SW-PL-001-fixture.md"),
+                 QStringLiteral("REQ-SW-PL-001"), QStringLiteral("ACTIVE"),
+                 QStringLiteral("—")).isEmpty());
+    // archive/ is in scope as well.
+    QVERIFY(!writeRequirementFixture(
+                 QDir(requirementsDir).filePath(QStringLiteral("archive")),
+                 QStringLiteral("REQ-SW-PL-002-fixture.md"),
+                 QStringLiteral("REQ-SW-PL-002"), QStringLiteral("DONE"),
+                 QStringLiteral("—")).isEmpty());
+    // Out of scope: a draft with an invalid status AND a dangling dependency.
+    // Both would be Errors if it were parsed.
+    QVERIFY(!writeRequirementFixture(
+                 QDir(root).filePath(QStringLiteral("DevelopmentProcess/plans")),
+                 QStringLiteral("REQ-SW-PL-777-draft.md"),
+                 QStringLiteral("REQ-SW-PL-777"), QStringLiteral("PLANNED"),
+                 QStringLiteral("REQ-SW-PL-998")).isEmpty());
+
+    const QVector<Requirement> parsed = RequirementsParser::parseDirectory(root);
+
+    QCOMPARE(parsed.size(), 2);
+    QCOMPARE(parsed.at(0).id, QStringLiteral("REQ-SW-PL-001"));
+    QCOMPARE(parsed.at(1).id, QStringLiteral("REQ-SW-PL-002"));
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(parsed);
+
+    // The draft would have reported "невалиден статус" and a dangling
+    // dependency; nothing from plans/ reaches the validator.
+    QCOMPARE(issues.size(), 0);
+}
+
+void TestValidator::statusVocabulary_hasOneEntryPoint()
+{
+    QCOMPARE(RequirementsValidator::statusVocabulary().join(QLatin1Char(' ')),
+             QStringLiteral("ACTIVE IMPLEMENTED DONE CANCELLED BACKLOG"));
+}
+
+void TestValidator::statusVocabulary_invalidStatus_error()
+{
+    QVector<Requirement> reqs;
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                      QStringLiteral("active"), QString());
+    req.status = QStringLiteral("PLANNED");
+    reqs.append(req);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QCOMPARE(issues.at(0).field, QStringLiteral("status"));
+    QVERIFY(issues.at(0).message.contains(QStringLiteral("PLANNED")));
+    QVERIFY(issues.at(0).message.contains(QStringLiteral("BACKLOG")));
+}
+
+void TestValidator::statusVocabulary_doneNaKlonaMapsToImplemented()
+{
+    // "DONE НА КЛОНА" is IMPLEMENTED, not DONE: the code is on a branch.
+    QCOMPARE(RequirementsValidator::normalizedStatus(
+                 QStringLiteral("DONE НА КЛОНА (AC1–AC8) — чака merge в develop")),
+             QStringLiteral("IMPLEMENTED"));
+    // A rationale after the status never overrides it.
+    QCOMPARE(RequirementsValidator::normalizedStatus(
+                 QStringLiteral("ACTIVE — IN PROGRESS (2026-11-10: MVP)")),
+             QStringLiteral("ACTIVE"));
+    // Emphasis and backticks around the value are not part of the status.
+    QCOMPARE(RequirementsValidator::normalizedStatus(QStringLiteral("**ACTIVE**")),
+             QStringLiteral("ACTIVE"));
+    QCOMPARE(RequirementsValidator::normalizedStatus(QStringLiteral("")), QString());
+
+    QVector<Requirement> reqs;
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                      QStringLiteral("active"), QString());
+    req.status = QStringLiteral("DONE НА КЛОНА (AC1–AC8) — чака merge в develop");
+    reqs.append(req);
+
+    QCOMPARE(RequirementsValidator::validate(reqs).size(), 0);
 }
 
 // No QTEST_GUILESS_MAIN here: the three test classes share one binary whose

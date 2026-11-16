@@ -117,6 +117,22 @@ struct RequirementRoot
 class RequirementsParser
 {
 public:
+    /**
+     * @brief Parses one requirements tree and returns its requirements.
+     *
+     * @par Scope
+     * @p baseDir may be a repo root or the requirements directory itself; in
+     * both cases the walk is limited to the requirements tree
+     * (DevelopmentProcess/requirements — active, archive and nested
+     * subdirectories). The rest of the repo is never parsed, which matches the
+     * scope of scripts/validate-traceability.sh: a draft under
+     * DevelopmentProcess/plans/ cannot become a "requirement" the CLI does not
+     * know about.
+     *
+     * @param baseDir Repo root or requirements directory to parse.
+     * @return Requirements sorted by ID; files without a parser-conformant H1
+     *         are skipped.
+     */
     static QVector<Requirement> parseDirectory(const QString &baseDir);
 
     /**
