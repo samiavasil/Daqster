@@ -12,8 +12,18 @@ namespace Daqster {
  * Detects dangling references in "Родител:" / "Зависи от:" / "Деца:" metadata,
  * cycles in the dependency and parent graphs (DFS back-edge detection),
  * missing required fields, an invalid or unreadable status, a status that
- * contradicts the file's zone (ACTIVE in archive/, DONE in active/), and a
- * DONE requirement with unaddressed acceptance criteria.
+ * contradicts the file's zone (ACTIVE in archive/, DONE in active/), a
+ * DONE requirement with unaddressed acceptance criteria, and a file written
+ * with a non-canonical template generation (v0/v1 — a Warning; a file with no
+ * description heading at all is an Error).
+ *
+ * @par Dependency grading (REQ-SW-PL-008)
+ * A "Зависи от:" reference is graded by its target's state, not by whether the
+ * target is archived: DONE and IMPLEMENTED are silent (normal end states),
+ * CANCELLED is a Warning ("зависи от отказано изискване"), an archived target
+ * whose status cannot be read is a Warning naming its file, and an ID that does
+ * not exist in the tree is an Error ("зависи от несъществуващо изискване") —
+ * a broken reference is never silence.
  *
  * @par Division of labour with the traceability CLI
  * This is the authority for requirement FIELDS — id, status, zone, acceptance

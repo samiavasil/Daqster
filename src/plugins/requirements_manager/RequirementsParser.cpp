@@ -49,15 +49,16 @@ const QRegularExpression &documentIdRe()
 }
 
 // The description section has three spellings in the tree, one per template
-// generation: "Описание" (v1), "Накратко" (v2, the one RDD-PROCESS.md prints
-// today) and "Проблем" (the oldest files). Recognizing only the first made
-// 60 requirements look undescribed while they plainly had a description.
-bool isDescriptionHeading(const QString &heading)
+// generation: "Накратко" (v2 — canonical, see RDD-PROCESS.md „Поколения на
+// шаблона"), "Описание" (v1) and "Проблем" plus its optional "Цел" (v0, the
+// oldest files). Recognizing only the first made 60 requirements look
+// undescribed while they plainly had a description.
+//
+// The generation itself is kept in Requirement::templateVersion so the
+// validator can report a deviation as a Warning without hiding the text.
+QString descriptionVersion(const QString &heading)
 {
-    static const QStringList names = {QStringLiteral("Описание"),
-                                      QStringLiteral("Накратко"),
-                                      QStringLiteral("Проблем")};
-    return names.contains(heading.trimmed());
+    return RequirementTemplate::versionForHeading(heading);
 }
 
 // The acceptance-criteria section: "Acceptance Criteria",
@@ -291,6 +292,46 @@ QString scanRootOf(const QString &baseDir)
 }
 
 } // namespace
+
+namespace RequirementTemplate {
+
+QString canonicalVersion()
+{
+    return QStringLiteral("v2");
+}
+
+QString canonicalHeading()
+{
+    return QStringLiteral("Накратко");
+}
+
+QString versionForHeading(const QString &heading)
+{
+    const QString text = heading.trimmed();
+    // v2 first: it is the only one an author should be writing today.
+    if (text == canonicalHeading())
+        return canonicalVersion();
+    if (text == QStringLiteral("Описание"))
+        return QStringLiteral("v1");
+    // v0 is "## Проблем" plus its optional "## Цел": both belong to the same
+    // generation, and Цел alone is still the oldest template, not a fourth one.
+    if (text == QStringLiteral("Проблем") || text == QStringLiteral("Цел"))
+        return QStringLiteral("v0");
+    return QString();
+}
+
+QString headingForVersion(const QString &version)
+{
+    if (version == canonicalVersion())
+        return canonicalHeading();
+    if (version == QStringLiteral("v1"))
+        return QStringLiteral("Описание");
+    if (version == QStringLiteral("v0"))
+        return QStringLiteral("Проблем");
+    return QString();
+}
+
+} // namespace RequirementTemplate
 
 QVector<Requirement> RequirementsParser::parseDirectory(const QString &baseDir)
 {
@@ -645,8 +686,17 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
     for (const QString &line : lines) {
         const QString trimmed = line.trimmed();
         if (trimmed.startsWith(QStringLiteral("## "))) {
-            inDescription = isDescriptionHeading(trimmed.mid(3));
-            inCriteria = isCriteriaHeading(trimmed.mid(3));
+            const QString heading = trimmed.mid(3).trimmed();
+            const QString version = descriptionVersion(heading);
+            inDescription = !version.isEmpty();
+            if (inDescription && out.templateVersion.isEmpty()) {
+                // First description heading wins: a file that starts its
+                // description with a legacy heading IS that generation, even
+                // when a canonical heading follows later in the file.
+                out.templateVersion = version;
+                out.templateHeading = heading;
+            }
+            inCriteria = isCriteriaHeading(heading);
             inTraceability = (trimmed == QStringLiteral("## Проследимост"));
             continue;
         }
@@ -729,6 +779,10 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
 
     out.description = descriptionLines.join(QStringLiteral("\n")).trimmed();
     out.traceability = traceabilityLines.join(QStringLiteral("\n")).trimmed();
+    // A parsed file always has a generation: "unknown" is the honest answer for
+    // one that follows no template at all, and it stays an Error downstream.
+    if (out.templateVersion.isEmpty())
+        out.templateVersion = QStringLiteral("unknown");
     return !out.id.isEmpty();
 }
 

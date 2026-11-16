@@ -15,6 +15,49 @@ namespace Daqster {
 inline constexpr char kRequirementsSubdir[] = "DevelopmentProcess/requirements";
 
 /**
+ * @brief Template generations of a requirement file (REQ-SW-PL-008).
+ *
+ * One canonical template — the one RDD-PROCESS.md prints — and the two older
+ * generations still present in the tree. The single source of both the parser
+ * (which records the generation) and the validator (which reports a
+ * deviation), so neither can drift from the other or from the process doc.
+ *
+ * | variant | description heading | status |
+ * |---------|--------------------|--------|
+ * | v2      | `## Накратко`      | canonical |
+ * | v1      | `## Описание`      | recognised, not canonical |
+ * | v0      | `## Проблем` (+ `## Цел`) | recognised, not canonical |
+ * | unknown | (none)             | no template — an error |
+ */
+namespace RequirementTemplate {
+
+/** @brief The canonical generation token ("v2"). */
+QString canonicalVersion();
+
+/** @brief The canonical description heading, without "## " ("Накратко"). */
+QString canonicalHeading();
+
+/**
+ * @brief Template generation of a description heading.
+ *
+ * @param heading A "## " heading's text, prefix already stripped.
+ * @return "v2", "v1" or "v0"; an empty string when @p heading is not a
+ *         description heading at all.
+ */
+QString versionForHeading(const QString &heading);
+
+/**
+ * @brief The description heading a generation prints, for messages.
+ *
+ * @param version "v2", "v1", "v0" or anything else.
+ * @return The heading ("Накратко", "Описание", "Проблем"), or an empty string
+ *         for an unrecognised/absent generation.
+ */
+QString headingForVersion(const QString &version);
+
+} // namespace RequirementTemplate
+
+/**
  * @brief Structured representation of a single Markdown requirement file.
  *
  * Fields are parsed from the conventional requirement template:
@@ -27,7 +70,9 @@ inline constexpr char kRequirementsSubdir[] = "DevelopmentProcess/requirements";
  *   - **Зависи от:** REQ-XXX, REQ-YYY
  *   - **Деца:** REQ-ZZZ
  *   ## Описание | ## Накратко | ## Проблем   (description section, any of the
- *                                          three template generations)
+ *                                          three template generations; the one
+ *                                          used is recorded in
+ *                                          Requirement::templateVersion)
  *   ## Acceptance Criteria | ## Как ще разберем, че работи
  *   - [ ] criterion
  *   - [x] done criterion
@@ -76,6 +121,16 @@ struct Requirement
                                    //!< parseDirectory alone, keeping single-root callers
                                    //!< compile- and behavior-compatible)
     QString rawContent;            //!< original file content (for round-trip edit)
+    QString templateVersion;       //!< template generation the file was written
+                                   //!< with, by its description heading:
+                                   //!< "v2" (## Накратко, canonical), "v1"
+                                   //!< (## Описание), "v0" (## Проблем/## Цел) or
+                                   //!< "unknown" (no description heading at all).
+                                   //!< Empty only for records a caller built by
+                                   //!< hand (no .md behind them) — the validator
+                                   //!< grades parsed files only.
+    QString templateHeading;       //!< the description heading actually found,
+                                   //!< without the "## " prefix (empty when none)
 
     /**
      * @brief Cross-repo annotations preserved from "Родител:" / "Зависи от:".

@@ -70,7 +70,9 @@ void TestValidator::danglingDependency_error()
     QCOMPARE(issues.size(), 1);
     QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
     QCOMPARE(issues.at(0).field, QStringLiteral("dependencies"));
-    QVERIFY(issues.at(0).message.contains(QStringLiteral("does not exist")));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("несъществуващо изискване")),
+             qPrintable(issues.at(0).message));
+    QVERIFY(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-999")));
 }
 
 void TestValidator::cycle_detection()
@@ -145,7 +147,9 @@ void TestValidator::archivedDependency_warning()
     QCOMPARE(issues.size(), 1);
     QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Warning);
     QCOMPARE(issues.at(0).field, QStringLiteral("dependencies"));
-    QVERIFY(issues.at(0).message.contains(QStringLiteral("cancelled requirement")));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("отказано изискване")),
+             qPrintable(issues.at(0).message));
+    QVERIFY(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-001")));
 }
 
 void TestValidator::doneDependency_noWarning()
@@ -312,17 +316,24 @@ namespace {
 
 // Writes one requirement .md using the conventional template. @p criterionDone
 // writes "- [x]" instead of "- [ ]" — a DONE requirement may not keep an
-// unaddressed criterion (validator §4 parity with the CLI).
+// unaddressed criterion (validator §4 parity with the CLI). @p descriptionHeading
+// selects the template generation (canonical "## Накратко" by default; an empty
+// string writes no description section at all).
 QString writeRequirementFixture(const QString &dirPath, const QString &fileName,
                                 const QString &id, const QString &status,
                                 const QString &dependsOn,
-                                bool criterionDone = false)
+                                bool criterionDone = false,
+                                const QString &descriptionHeading =
+                                    QStringLiteral("## Накратко"))
 {
     QDir().mkpath(dirPath);
     const QString filePath = QDir(dirPath).filePath(fileName);
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
         return QString();
+    const QString description = descriptionHeading.isEmpty()
+        ? QString()
+        : QStringLiteral("%1\n\nFixture requirement.\n\n").arg(descriptionHeading);
     const QString content = QStringLiteral(
         "# %1: Fixture\n"
         "\n"
@@ -333,15 +344,13 @@ QString writeRequirementFixture(const QString &dirPath, const QString &fileName,
         "- **Родител:** —\n"
         "- **Зависи от:** %3\n"
         "\n"
-        "## Описание\n"
-        "\n"
-        "Fixture requirement.\n"
-        "\n"
+        "%5"
         "## Acceptance Criteria\n"
         "\n"
         "- [%4] 1. Criterion.\n").arg(id, status, dependsOn,
                                       criterionDone ? QStringLiteral("x")
-                                                    : QStringLiteral(" "));
+                                                    : QStringLiteral(" "),
+                                      description);
     file.write(content.toUtf8());
     file.close();
     return filePath;
@@ -590,3 +599,176 @@ void TestValidator::multipleParents_secondDangling_error()
 
 // No QTEST_GUILESS_MAIN here: the three test classes share one binary whose
 // main lives in test_main.cpp.
+
+namespace {
+
+// Parses and validates one fixture written with the given description heading,
+// so the template generation comes from a real .md instead of a hand-built
+// record (the validator grades parsed files only).
+QVector<RequirementsValidator::Issue>
+validateFixture(const QString &id, const QString &descriptionHeading,
+                QString *error)
+{
+    QTemporaryDir temp;
+    if (!temp.isValid()) {
+        if (error)
+            *error = QStringLiteral("temporary dir");
+        return {};
+    }
+    const QString requirementsDir = QDir(temp.path()).filePath(
+        QString::fromUtf8(kRequirementsSubdir));
+    const QString path = writeRequirementFixture(
+        QDir(requirementsDir).filePath(QStringLiteral("active")),
+        QStringLiteral("%1-fixture.md").arg(id), id, QStringLiteral("ACTIVE"),
+        QStringLiteral("—"), false, descriptionHeading);
+    if (path.isEmpty()) {
+        if (error)
+            *error = QStringLiteral("fixture write");
+        return {};
+    }
+    const QVector<Requirement> parsed = RequirementsParser::parseDirectory(temp.path());
+    if (parsed.size() != 1) {
+        if (error)
+            *error = QStringLiteral("parsed %1 records").arg(parsed.size());
+        return {};
+    }
+    return RequirementsValidator::validate(parsed);
+}
+
+} // namespace
+
+void TestValidator::templateV2_canonical_noIssue()
+{
+    // "## Накратко" is the canonical generation: it must produce nothing at all.
+    QString error;
+    const QVector<RequirementsValidator::Issue> issues =
+        validateFixture(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("## Накратко"),
+                        &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(issues.size(), 0);
+}
+
+void TestValidator::templateV1_deviationWarning()
+{
+    // "## Описание" (v1) is recognised but not canonical: one Warning, never an
+    // Error — the description itself is present and usable.
+    QString error;
+    const QVector<RequirementsValidator::Issue> issues =
+        validateFixture(QStringLiteral("REQ-SW-PL-002"), QStringLiteral("## Описание"),
+                        &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Warning);
+    QCOMPARE(issues.at(0).field, QStringLiteral("template"));
+    QVERIFY2(issues.at(0).message.contains(
+                 QStringLiteral("шаблон v1 (## Описание) — каноничният е v2 (## Накратко)")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::templateV0_deviationWarning()
+{
+    // "## Проблем" is the oldest generation (v0). Same grading: a Warning that
+    // names the variant and the heading the file actually uses.
+    QString error;
+    const QVector<RequirementsValidator::Issue> issues =
+        validateFixture(QStringLiteral("REQ-SW-PL-003"), QStringLiteral("## Проблем"),
+                        &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Warning);
+    QCOMPARE(issues.at(0).field, QStringLiteral("template"));
+    QVERIFY2(issues.at(0).message.contains(
+                 QStringLiteral("шаблон v0 (## Проблем) — каноничният е v2 (## Накратко)")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::templateMissing_descriptionError()
+{
+    // No description heading at all is not a deviation — the file follows no
+    // template. That stays an Error: silencing it is how 60 undescribed
+    // requirements passed as "recognised dialect".
+    QString error;
+    const QVector<RequirementsValidator::Issue> issues =
+        validateFixture(QStringLiteral("REQ-SW-PL-004"), QString(), &error);
+    QVERIFY2(error.isEmpty(), qPrintable(error));
+
+    int templateErrors = 0;
+    for (const auto &issue : issues) {
+        if (issue.field == QStringLiteral("template")) {
+            ++templateErrors;
+            QCOMPARE(issue.severity, RequirementsValidator::Severity::Error);
+            QVERIFY2(issue.message.contains(QStringLiteral("## Накратко")),
+                     qPrintable(issue.message));
+        }
+    }
+    QCOMPARE(templateErrors, 1);
+}
+
+void TestValidator::dependencyOnImplemented_silent()
+{
+    // IMPLEMENTED means "the code is on a branch, nothing in develop yet" — a
+    // real state, not a defect. A dependency on it is silent, like DONE.
+    QVector<Requirement> reqs;
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                QStringLiteral("archive"), QString(), {},
+                                QStringLiteral("IMPLEMENTED")));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"),
+                                QStringLiteral("active"), QString(),
+                                {QStringLiteral("REQ-SW-PL-001")}));
+
+    QCOMPARE(RequirementsValidator::validate(reqs).size(), 0);
+}
+
+void TestValidator::dependencyOnArchivedUnknownStatus_warning()
+{
+    // The target exists but sits in archive/ with a status the vocabulary cannot
+    // read: the reference resolves to a record nobody can grade, so the Warning
+    // names the file to open instead of staying silent.
+    QVector<Requirement> reqs;
+    Requirement target = makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                         QStringLiteral("archive"), QString(), {},
+                                         QStringLiteral("ОСТАРЯЛО"));
+    target.fileName = QStringLiteral("REQ-SW-PL-001-old.md");
+    reqs.append(target);
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"),
+                                QStringLiteral("active"), QString(),
+                                {QStringLiteral("REQ-SW-PL-001")}));
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    // The target's own status is reported too (invalid status, Error); this
+    // test is about the reference-level Warning.
+    int dependencyWarnings = 0;
+    for (const auto &issue : issues) {
+        if (issue.field == QStringLiteral("dependencies")
+            && issue.severity == RequirementsValidator::Severity::Warning) {
+            ++dependencyWarnings;
+            QVERIFY2(issue.message.contains(QStringLiteral("неразпознат статус")),
+                     qPrintable(issue.message));
+            QVERIFY2(issue.message.contains(QStringLiteral("REQ-SW-PL-001-old.md")),
+                     qPrintable(issue.message));
+        }
+    }
+    QCOMPARE(dependencyWarnings, 1);
+}
+
+void TestValidator::childDangling_error()
+{
+    // "Деца:" is the inverse of "Родител:" and nothing else reads it, so a stale
+    // child link must be an Error like any other broken reference.
+    QVector<Requirement> reqs;
+    Requirement parent = makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                         QStringLiteral("active"), QString());
+    parent.childIds.append(QStringLiteral("REQ-SW-PL-999"));
+    reqs.append(parent);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QCOMPARE(issues.at(0).field, QStringLiteral("childIds"));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-999")),
+             qPrintable(issues.at(0).message));
+}

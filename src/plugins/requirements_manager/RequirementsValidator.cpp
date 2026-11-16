@@ -1,6 +1,7 @@
 #include "RequirementsValidator.h"
 
 #include <QHash>
+#include <QFileInfo>
 #include <QRegularExpression>
 #include <QSet>
 #include <QStringList>
@@ -176,6 +177,40 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
                            Severity::Warning});
     }
 
+    // --- Template generation (REQ-SW-PL-008) ------------------------------
+    // One canonical template: the description section is "## Накратко" (v2).
+    // The two older generations stay recognised (their text is a real
+    // description, not a missing one) but are reported, otherwise v1 never
+    // retires: 88 of the 129 files on the real tree still say "## Описание".
+    // A file with no description heading at all follows no template at all —
+    // that is an Error, not a deviation, and it must not be silenced.
+    for (const Requirement &req : requirements) {
+        const QString version = req.templateVersion.trimmed();
+        if (version.isEmpty())
+            continue; // hand-built record (no .md behind it) — nothing to grade
+        if (version == RequirementTemplate::canonicalVersion())
+            continue;
+
+        const QString canonical = QStringLiteral("%1 (## %2)")
+                                      .arg(RequirementTemplate::canonicalVersion(),
+                                           RequirementTemplate::canonicalHeading());
+        if (version == QStringLiteral("unknown")) {
+            issues.append({req.id, QStringLiteral("template"),
+                           QStringLiteral("няма секция за описание — каноничният "
+                                          "шаблон иска ## %1")
+                               .arg(RequirementTemplate::canonicalHeading()),
+                           Severity::Error});
+            continue;
+        }
+        const QString heading = req.templateHeading.trimmed().isEmpty()
+            ? RequirementTemplate::headingForVersion(version)
+            : req.templateHeading.trimmed();
+        issues.append({req.id, QStringLiteral("template"),
+                       QStringLiteral("шаблон %1 (## %2) — каноничният е %3")
+                           .arg(version, heading, canonical),
+                       Severity::Warning});
+    }
+
     // --- Status vocabulary -------------------------------------------------
     // One lifecycle vocabulary, shared with the traceability CLI
     // (scripts/validate-traceability.sh → VOCAB): a status outside it is a
@@ -297,6 +332,15 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
     }
 
     // --- Dependency references (Зависи от) --------------------------------
+    // Explicit grading of a reference by the target's status (REQ-SW-PL-008):
+    //   DONE / IMPLEMENTED / ACTIVE / BACKLOG -> nothing: a normal state. A DONE
+    //       dependency is the end state the lifecycle asks for, so archiving it
+    //       is not a defect (warning on it punished 4 correct filings);
+    //   CANCELLED -> Warning: the dependency was dropped, so a live requirement
+    //       cannot be built on it;
+    //   archived with an unreadable status -> Warning naming the file: the
+    //       reference points at a record nobody can grade;
+    //   not in the tree -> Error: a broken reference is never silence.
     for (const Requirement &req : requirements) {
         for (const QString &dep : req.dependencies) {
             if (dep == req.id) {
@@ -316,23 +360,29 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
             const Requirement *target = findById(dep);
             if (!target) {
                 issues.append({req.id, QStringLiteral("dependencies"),
-                               QStringLiteral("dependency '%1' does not exist (dangling reference)")
+                               QStringLiteral("зависи от несъществуващо изискване '%1'")
                                    .arg(dep),
                                Severity::Error});
-            } else if (target->section == QStringLiteral("archive")
-                       && req.section != QStringLiteral("archive")
-                       && normalizedStatus(target->status)
-                              == QStringLiteral("CANCELLED")) {
-                // Only a CANCELLED dependency is questionable: it was dropped,
-                // so a live requirement cannot build on it. A DONE one is the
-                // normal end state — archiving it is what the lifecycle asks
-                // for, and warning on it punished every requirement whose
-                // dependency had been filed correctly (4 of the 22 warnings on
-                // the real tree came from archiving REQ-SW-PL-057/079).
+                continue;
+            }
+            const QString token = normalizedStatus(target->status);
+            if (token == QStringLiteral("CANCELLED")) {
                 issues.append({req.id, QStringLiteral("dependencies"),
-                               QStringLiteral("depends on cancelled requirement '%1' "
-                                              "(archived)")
+                               QStringLiteral("зависи от отказано изискване '%1'")
                                    .arg(dep),
+                               Severity::Warning});
+            } else if (target->section == QStringLiteral("archive")
+                       && !vocabulary.contains(token)) {
+                // Archived, yet its status cannot be read at all: the reference
+                // resolves to a record the vocabulary does not grade. Name the
+                // file so a human can open it.
+                const QString file = target->fileName.trimmed().isEmpty()
+                    ? QFileInfo(target->filePath).fileName()
+                    : target->fileName;
+                issues.append({req.id, QStringLiteral("dependencies"),
+                               QStringLiteral("зависи от архивирано изискване '%1' с "
+                                              "неразпознат статус (файл %2)")
+                                   .arg(dep, file),
                                Severity::Warning});
             }
         }

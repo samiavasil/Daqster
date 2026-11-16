@@ -35,4 +35,11 @@ private slots:
     void doneWithDeferredCriterion_warning();
     void nonRequirementParent_warning();
     void multipleParents_secondDangling_error();
+    void templateV2_canonical_noIssue();
+    void templateV1_deviationWarning();
+    void templateV0_deviationWarning();
+    void templateMissing_descriptionError();
+    void dependencyOnImplemented_silent();
+    void dependencyOnArchivedUnknownStatus_warning();
+    void childDangling_error();
 };

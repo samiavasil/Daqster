@@ -269,6 +269,36 @@ void TestParser::parseDirectory_descriptionDialects()
     QCOMPARE(requirements.size(), 3);
     for (const Requirement &req : requirements)
         QCOMPARE(req.description, QStringLiteral("Текст на описанието."));
+
+    // The generation used is recorded (REQ-SW-PL-008): the validator grades a
+    // deviation from it, and it must come from the heading, not from the file
+    // name or the ID.
+    QCOMPARE(findRequirement(requirements, QStringLiteral("REQ-SW-PL-001"))->templateVersion,
+             QStringLiteral("v2"));
+    QCOMPARE(findRequirement(requirements, QStringLiteral("REQ-SW-PL-002"))->templateVersion,
+             QStringLiteral("v0"));
+    QCOMPARE(findRequirement(requirements, QStringLiteral("REQ-SW-PL-003"))->templateVersion,
+             QStringLiteral("v1"));
+
+    // "## Цел" belongs to the same oldest generation as "## Проблем".
+    writeFixture(activeDir, QStringLiteral("004.md"),
+                 head.arg(QStringLiteral("004"))
+                     + QStringLiteral("## Проблем\n\nПроблем.\n\n"
+                                      "## Цел\n\nЦел.\n"));
+    // No description heading at all: no template, and that is what the parser
+    // must record — an empty version would be indistinguishable from a record
+    // built by hand, which is never graded.
+    writeFixture(activeDir, QStringLiteral("005.md"),
+                 head.arg(QStringLiteral("005"))
+                     + QStringLiteral("## Как ще разберем, че работи\n\n- [ ] x\n"));
+
+    const QVector<Requirement> extended = RequirementsParser::parseDirectory(temp.path());
+    QCOMPARE(extended.size(), 5);
+    const Requirement *goal = findRequirement(extended, QStringLiteral("REQ-SW-PL-004"));
+    QCOMPARE(goal->templateVersion, QStringLiteral("v0"));
+    const Requirement *none = findRequirement(extended, QStringLiteral("REQ-SW-PL-005"));
+    QCOMPARE(none->templateVersion, QStringLiteral("unknown"));
+    QVERIFY(none->templateHeading.isEmpty());
 }
 
 void TestParser::parseDirectory_criteriaDialects()
