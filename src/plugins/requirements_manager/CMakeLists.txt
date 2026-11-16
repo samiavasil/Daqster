@@ -26,8 +26,14 @@ set(PLUGIN_SOURCES
     RequirementsParser.h
     RequirementsModel.cpp
     RequirementsModel.h
+    RequirementsSortProxyModel.cpp
+    RequirementsSortProxyModel.h
     RequirementsWidget.cpp
     RequirementsWidget.h
+    RequirementPreview.cpp
+    RequirementPreview.h
+    ValidationReport.cpp
+    ValidationReport.h
     RequirementsValidator.cpp
     RequirementsValidator.h
     RequirementsSearchEngine.cpp

@@ -12,6 +12,8 @@ class QLabel;
 class QLineEdit;
 class QTimer;
 class QPushButton;
+class QAction;
+class QToolBar;
 class QListWidget;
 class QSplitter;
 class QComboBox;
@@ -21,6 +23,7 @@ class QUrl;
 namespace Daqster {
 
 class RequirementsModel;
+class RequirementsSortProxyModel;
 class DependencyGraphWidget;
 class TraceabilityMatrixWidget;
 
@@ -38,7 +41,12 @@ class TraceabilityMatrixWidget;
  * Additional actions: create new requirements (NewRequirementDialog),
  * mark done & archive / reopen (REQ-SW-PL-004), dependency editing
  * (REQ-SW-PL-007), validation report (REQ-SW-PL-008) and built-in help
- * (REQ-SW-PL-005).
+ * (REQ-SW-PL-005). The actions live in a text-only QToolBar, which overflows
+ * into an extension menu instead of forcing the window wider than one button
+ * (REQ-SW-PL-001).
+ *
+ * The tree is sorted through RequirementsSortProxyModel: sorting reorders the
+ * requirements inside a section and never moves the section rows.
  *
  * Changes are written back to the .md files (bidirectional sync).
  */
@@ -96,9 +104,11 @@ private:
     void applyViewFilters();
     void updateNavButtons();
     void pushNavHistory(const QString &id);
-    QString linkFor(const QString &id) const;
+    //!< Requirement behind a *view* index (the tree is sorted by a proxy).
+    const Requirement *requirementAtViewIndex(const QModelIndex &viewIndex) const;
 
     RequirementsModel *m_model;
+    RequirementsSortProxyModel *m_sortProxy;
     QTreeView *m_treeView;
     QComboBox *m_viewModeCombo;
     QComboBox *m_repoFilterCombo;
@@ -111,16 +121,17 @@ private:
     QLabel *m_fileLabel;
     QLabel *m_validationLabel;
     QLabel *m_rootStatusLabel;
-    QPushButton *m_editButton;
-    QPushButton *m_saveButton;
-    QPushButton *m_cancelButton;
-    QPushButton *m_browseButton;
-    QPushButton *m_newButton;
-    QPushButton *m_doneButton;
-    QPushButton *m_reopenButton;
-    QPushButton *m_depsButton;
-    QPushButton *m_validateButton;
-    QPushButton *m_helpButton;
+    QToolBar *m_actionBar;
+    QAction *m_editAction;
+    QAction *m_saveAction;
+    QAction *m_cancelAction;
+    QAction *m_browseAction;
+    QAction *m_newAction;
+    QAction *m_doneAction;
+    QAction *m_reopenAction;
+    QAction *m_depsAction;
+    QAction *m_validateAction;
+    QAction *m_helpAction;
     QListWidget *m_criteriaList;
     QSplitter *m_splitter;
     QTabWidget *m_tabs;
@@ -133,8 +144,8 @@ private:
     QVector<Requirement> m_filtered;     //!< subset feeding model/graph/matrix
     QVector<RequirementsValidator::Issue> m_validationIssues;
     int m_currentIndex; //!< index into m_requirements; -1 when none selected
-    QPushButton *m_backButton = nullptr;
-    QPushButton *m_forwardButton = nullptr;
+    QAction *m_backAction = nullptr;
+    QAction *m_forwardAction = nullptr;
     QVector<QString> m_navHistory;
     int m_navHistoryPos = -1;
 };

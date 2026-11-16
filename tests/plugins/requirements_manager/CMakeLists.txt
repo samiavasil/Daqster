@@ -36,6 +36,8 @@ set(TEST_SOURCES
     test_graph_layout.cpp
     test_search.cpp
     test_merge.cpp
+    test_sorting.cpp
+    test_report.cpp
     test_parser.h
     test_model.h
     test_validator.h
@@ -43,10 +45,15 @@ set(TEST_SOURCES
     test_graph_layout.h
     test_search.h
     test_merge.h
+    test_sorting.h
+    test_report.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsSortProxyModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsValidator.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/ValidationReport.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/TraceabilityMatrixModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsSearchEngine.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphData.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphLayout.cpp
@@ -157,4 +164,62 @@ target_link_libraries(requirements_manager_gui_tests PRIVATE
 add_test(NAME requirements_manager_gui_tests
          COMMAND $<TARGET_FILE:requirements_manager_gui_tests>)
 set_tests_properties(requirements_manager_gui_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# GUI tests for the Requirements Manager widgets themselves (REQ-SW-PL-001):
+# compact action toolbar (minimum width), full-Markdown preview, validation
+# copy actions, traceability metrics panel + sorting. The widget sources are
+# compiled directly into the binary (they carry no plugin registration), and
+# QTEST_MAIN in test_widgets.cpp provides a QApplication; the offscreen
+# platform plugin keeps the run headless.
+set(WIDGET_TEST_SOURCES
+    test_widgets.cpp
+    # plugin logic under test (compiled directly into the test binary):
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsWidget.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsWidget.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementPreview.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/ValidationDialog.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/ValidationDialog.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/HelpDialog.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/HelpDialog.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/NewRequirementDialog.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/NewRequirementDialog.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/TraceabilityMatrixWidget.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/TraceabilityMatrixWidget.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/TraceabilityMatrixModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/TraceabilityMatrixModel.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphWidget.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphWidget.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphData.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphLayout.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/MatrixExporter.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsModel.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsSortProxyModel.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsSearchEngine.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsValidator.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/ValidationReport.cpp
+)
+
+add_executable(requirements_manager_widget_tests ${WIDGET_TEST_SOURCES})
+
+target_include_directories(requirements_manager_widget_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+    ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include   # for LogCategories.h
+)
+
+target_link_libraries(requirements_manager_widget_tests PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    FrameworkCore
+    NodeEditorLibrary
+)
+
+add_test(NAME requirements_manager_widget_tests
+         COMMAND $<TARGET_FILE:requirements_manager_widget_tests>)
+set_tests_properties(requirements_manager_widget_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

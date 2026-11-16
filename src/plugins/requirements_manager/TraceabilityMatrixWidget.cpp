@@ -7,6 +7,9 @@
 #include <QComboBox>
 #include <QLabel>
 #include <QPushButton>
+#include <QTextBrowser>
+#include <QTextEdit>
+#include <QSortFilterProxyModel>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFileDialog>
@@ -14,18 +17,37 @@
 #include <QFile>
 #include <QHeaderView>
 #include <QAbstractItemView>
+#include <QApplication>
+#include <QClipboard>
+#include <QResizeEvent>
+#include <QShowEvent>
+#include <QFontDatabase>
+#include <QScrollBar>
 
 #include <algorithm>
 
 namespace Daqster {
 
+namespace {
+
+//!< Below this width the metrics panel starts collapsed: a narrow plugin pane
+//!< needs the height for the table, not for a paragraph of counters.
+constexpr int kNarrowWidth = 900;
+
+} // namespace
+
 TraceabilityMatrixWidget::TraceabilityMatrixWidget(QWidget *parent)
     : QWidget(parent)
 {
     m_model = new TraceabilityMatrixModel(this);
+    m_sortProxy = new QSortFilterProxyModel(this);
+    m_sortProxy->setSourceModel(m_model);
+    m_sortProxy->setSortCaseSensitivity(Qt::CaseInsensitive);
 
     m_table = new QTableView(this);
-    m_table->setModel(m_model);
+    m_table->setObjectName(QStringLiteral("traceabilityTable"));
+    m_table->setModel(m_sortProxy);
+    m_table->setSortingEnabled(true);
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -41,8 +63,27 @@ TraceabilityMatrixWidget::TraceabilityMatrixWidget(QWidget *parent)
     m_domainCombo = new QComboBox(this);
     m_domainCombo->addItem(tr("All domains"), QString());
 
-    m_metricsLabel = new QLabel(this);
-    m_metricsLabel->setWordWrap(true);
+    // Metrics: a read-only document (selectable, copyable) that can be folded
+    // away — a word-wrapped label could do neither.
+    m_metricsView = new QTextBrowser(this);
+    m_metricsView->setObjectName(QStringLiteral("traceabilityMetrics"));
+    m_metricsView->setReadOnly(true);
+    m_metricsView->setOpenLinks(false);
+    m_metricsView->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    m_metricsView->setLineWrapMode(QTextEdit::NoWrap);
+    // Bounded, not fixed: the panel reports six counters, the table keeps the
+    // rest of the height.
+    m_metricsView->setMaximumHeight(160);
+    m_metricsView->setVisible(false);
+
+    m_metricsToggle = new QPushButton(tr("Метрики ▸"), this);
+    m_metricsToggle->setCheckable(true);
+    m_metricsToggle->setChecked(false);
+    m_metricsToggle->setToolTip(tr("Покажи/скрий отчета с метрики"));
+
+    m_metricsCopy = new QPushButton(tr("Копирай"), this);
+    m_metricsCopy->setToolTip(tr("Копира отчета с метрики в клипборда"));
+    m_metricsCopy->setEnabled(false);
 
     m_markdownButton = new QPushButton(tr("Export Markdown"), this);
     m_csvButton = new QPushButton(tr("Export CSV"), this);
@@ -57,6 +98,8 @@ TraceabilityMatrixWidget::TraceabilityMatrixWidget(QWidget *parent)
     filterRow->addWidget(new QLabel(tr("Domain:"), this));
     filterRow->addWidget(m_domainCombo);
     filterRow->addStretch();
+    filterRow->addWidget(m_metricsToggle);
+    filterRow->addWidget(m_metricsCopy);
 
     QHBoxLayout *exportRow = new QHBoxLayout;
     exportRow->addWidget(m_markdownButton);
@@ -67,7 +110,7 @@ TraceabilityMatrixWidget::TraceabilityMatrixWidget(QWidget *parent)
 
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->addLayout(filterRow);
-    layout->addWidget(m_metricsLabel);
+    layout->addWidget(m_metricsView);
     layout->addWidget(m_table, 1);
     layout->addLayout(exportRow);
     setLayout(layout);
@@ -82,6 +125,10 @@ TraceabilityMatrixWidget::TraceabilityMatrixWidget(QWidget *parent)
             this, &TraceabilityMatrixWidget::onExportCsv);
     connect(m_jsonButton, &QPushButton::clicked,
             this, &TraceabilityMatrixWidget::onExportJson);
+    connect(m_metricsToggle, &QPushButton::clicked,
+            this, &TraceabilityMatrixWidget::onToggleMetrics);
+    connect(m_metricsCopy, &QPushButton::clicked,
+            this, &TraceabilityMatrixWidget::onCopyMetrics);
 }
 
 void TraceabilityMatrixWidget::setRequirements(const QVector<Requirement> &requirements)
@@ -89,10 +136,66 @@ void TraceabilityMatrixWidget::setRequirements(const QVector<Requirement> &requi
     m_requirements = requirements;
     m_model->setRequirements(m_requirements);
     refreshDomainCombo();
-    m_metricsLabel->setText(MatrixExporter::buildSummary(m_requirements));
+    m_metricsView->setPlainText(MatrixExporter::buildSummary(m_requirements));
+    m_metricsCopy->setEnabled(!m_requirements.isEmpty());
     m_statusLabel->clear();
     qCInfo(lcFramework) << "TraceabilityMatrixWidget: showing"
                         << m_requirements.size() << "requirements";
+}
+
+void TraceabilityMatrixWidget::setMetricsExpanded(bool expanded)
+{
+    m_metricsExpanded = expanded;
+    m_metricsView->setVisible(expanded);
+    m_metricsToggle->setChecked(expanded);
+    m_metricsToggle->setText(expanded ? tr("Метрики ▾") : tr("Метрики ▸"));
+}
+
+bool TraceabilityMatrixWidget::metricsExpanded() const
+{
+    return m_metricsExpanded;
+}
+
+QString TraceabilityMatrixWidget::metricsText() const
+{
+    return m_metricsView->toPlainText();
+}
+
+void TraceabilityMatrixWidget::onToggleMetrics()
+{
+    // A manual toggle wins over the width heuristic from here on.
+    m_metricsUserToggled = true;
+    setMetricsExpanded(!m_metricsExpanded);
+}
+
+void TraceabilityMatrixWidget::onCopyMetrics()
+{
+    const QString text = metricsText();
+    if (text.isEmpty())
+        return;
+    QApplication::clipboard()->setText(text);
+    m_statusLabel->setText(tr("Метриките са копирани в клипборда."));
+}
+
+void TraceabilityMatrixWidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    applyMetricsWidthPolicy();
+}
+
+void TraceabilityMatrixWidget::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    // A hidden widget queues its resize events, so the first decision has to
+    // happen on show as well.
+    applyMetricsWidthPolicy();
+}
+
+void TraceabilityMatrixWidget::applyMetricsWidthPolicy()
+{
+    if (m_metricsUserToggled)
+        return;
+    setMetricsExpanded(width() >= kNarrowWidth);
 }
 
 void TraceabilityMatrixWidget::refreshDomainCombo()

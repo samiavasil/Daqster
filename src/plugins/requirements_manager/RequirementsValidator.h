@@ -44,6 +44,9 @@ public:
         QString field;   //!< e.g. "parentId", "dependencies", "status"
         QString message; //!< human readable description
         Severity severity = Severity::Error;
+        QString filePath; //!< .md file the requirement lives in; empty for global issues
+        int line = 0;     //!< line inside @c filePath; 0 = unknown (the parser
+                          //!< keeps no line metadata, so it stays 0 today)
     };
 
     /**

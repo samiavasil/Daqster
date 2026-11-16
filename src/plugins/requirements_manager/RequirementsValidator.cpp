@@ -436,6 +436,20 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
                          return a.id < b.id;
                      });
 
+    // --- Attach the source file to every issue that names an ID -----------
+    // Filled in one post-pass instead of at each creation site: the copyable
+    // report addresses an issue by file (REQ-SW-PL-001), and the requirement
+    // set is the only place the mapping lives.
+    QHash<QString, QString> idToFile;
+    for (const Requirement &req : requirements) {
+        if (!req.id.isEmpty() && !idToFile.contains(req.id.toLower()))
+            idToFile.insert(req.id.toLower(), req.filePath);
+    }
+    for (Issue &issue : issues) {
+        if (!issue.id.isEmpty())
+            issue.filePath = idToFile.value(issue.id.toLower());
+    }
+
     return issues;
 }
 
