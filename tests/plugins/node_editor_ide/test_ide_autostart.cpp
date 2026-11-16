@@ -2,6 +2,7 @@
 
 #include "FlowUiSection.h"
 #include "IdeAutoStart.h"
+#include "SceneAutoStart.h"
 
 #include <QtNodes/DataFlowGraphModel>
 #include <QtNodes/NodeDelegateModelRegistry>
@@ -19,7 +20,7 @@ using QtNodes::NodeId;
 
 namespace {
 
-/// One graph with the two fake model types registered.
+/// One graph with the three fake model types registered.
 ///
 /// The registry is the real one the IDE uses, so `load()` goes through the same
 /// `internal-data.model-name` path the scene file does — a test that built the
@@ -29,12 +30,9 @@ struct TestGraph
     TestGraph()
         : registry(std::make_shared<NodeDelegateModelRegistry>())
     {
-        registry->registerModel(
-            [] { return std::make_unique<IdeAutoStartSourceModel>(); },
-            QStringLiteral("Test"));
-        registry->registerModel(
-            [] { return std::make_unique<IdeAutoStartSinkModel>(); },
-            QStringLiteral("Test"));
+        registry->registerModel<IdeAutoStartSourceModel>(QStringLiteral("Test"));
+        registry->registerModel<IdeAutoStartMiddleModel>(QStringLiteral("Test"));
+        registry->registerModel<IdeAutoStartSinkModel>(QStringLiteral("Test"));
         graph = std::make_unique<DataFlowGraphModel>(registry);
     }
 
@@ -58,6 +56,17 @@ struct TestGraph
         return node;
     }
 
+    /// One connection entry in the graph-model JSON shape.
+    static QJsonObject connectionJson(NodeId out, int outPort, NodeId in, int inPort)
+    {
+        QJsonObject connection;
+        connection[QStringLiteral("outNodeId")] = static_cast<int>(out);
+        connection[QStringLiteral("outPortIndex")] = outPort;
+        connection[QStringLiteral("inNodeId")] = static_cast<int>(in);
+        connection[QStringLiteral("inPortIndex")] = inPort;
+        return connection;
+    }
+
     /// The per-node `ui` entry in the v1 shape (`FlowUi::UiSection`).
     static QJsonObject uiNodeJson(bool autoStart)
     {
@@ -68,13 +77,17 @@ struct TestGraph
         return ui;
     }
 
-    /// Build and load a scene: @p models in id order, with @p uiNodes keyed by
-    /// the node id as a string (the JSON key is what the IDE reads).
-    void load(const QJsonArray& nodes, const QJsonObject& uiNodes, bool withUi = true)
+    /// Build and load a scene: @p nodes in id order, @p connections between
+    /// them, with @p uiNodes keyed by the node id as a string (the JSON key is
+    /// what the IDE reads).
+    void load(const QJsonArray& nodes,
+              const QJsonObject& uiNodes,
+              const QJsonArray& connections = QJsonArray{},
+              bool withUi = true)
     {
         QJsonObject scene;
         scene[QStringLiteral("nodes")] = nodes;
-        scene[QStringLiteral("connections")] = QJsonArray{};
+        scene[QStringLiteral("connections")] = connections;
         if (withUi) {
             QJsonObject ui;
             ui[QStringLiteral("version")] = 1;
@@ -100,6 +113,12 @@ struct TestGraph
         return flags;
     }
 
+    /// What the IDE runs: the shared plan, from the graph and the scene flags.
+    Daqster::SceneStartPlan plan() const
+    {
+        return Daqster::plannedStarts(*graph, autoStartFlags());
+    }
+
     template<typename T>
     T* model(NodeId nodeId) const
     {
@@ -113,115 +132,144 @@ private:
     QJsonObject m_lastScene;
 };
 
+/// `source → middle → sink`, ids 0, 1, 2.
+QJsonArray chainNodes()
+{
+    return QJsonArray{TestGraph::nodeJson(0, QStringLiteral("IdeAutoStartSource")),
+                      TestGraph::nodeJson(1, QStringLiteral("IdeAutoStartMiddle")),
+                      TestGraph::nodeJson(2, QStringLiteral("IdeAutoStartSink"))};
+}
+
+QJsonArray chainConnections()
+{
+    return QJsonArray{TestGraph::connectionJson(0, 0, 1, 0),
+                      TestGraph::connectionJson(1, 0, 2, 0)};
+}
+
 } // namespace
 
-// ── The acceptance case ─────────────────────────────────────────────────────
-void IdeAutoStartTest::onlyTheFlaggedNodeStarts()
+// ── The rule, on the IDE's own graph ────────────────────────────────────────
+void IdeAutoStartTest::computingThePlanStartsNothing()
 {
     TestGraph scene;
-    scene.load(QJsonArray{TestGraph::nodeJson(0, QStringLiteral("IdeAutoStartSource")),
-                          TestGraph::nodeJson(1, QStringLiteral("IdeAutoStartSource"))},
-               QJsonObject{{QStringLiteral("0"), TestGraph::uiNodeJson(true)},
-                           {QStringLiteral("1"), TestGraph::uiNodeJson(false)}});
+    scene.load(chainNodes(), QJsonObject{}, chainConnections());
 
-    auto* flagged = scene.model<IdeAutoStartSourceModel>(0);
-    auto* plain = scene.model<IdeAutoStartSourceModel>(1);
-    QVERIFY(flagged != nullptr);
-    QVERIFY(plain != nullptr);
+    // Exactly what `loadSceneFromFile()` does now: compute the plan, log it,
+    // start nothing.
+    const Daqster::SceneStartPlan plan = scene.plan();
+    QCOMPARE(static_cast<int>(plan.starts.size()), 1);
+    QCOMPARE(plan.starts.first().nodeId, 0u);
+
+    QCOMPARE(scene.model<IdeAutoStartSourceModel>(0)->startCount(), 0);
+    QCOMPARE(scene.model<IdeAutoStartMiddleModel>(1)->startCount(), 0);
+}
+
+void IdeAutoStartTest::noFlagStartsOnlyTheEntryPoint()
+{
+    TestGraph scene;
+    scene.load(chainNodes(), QJsonObject{}, chainConnections());
 
     QSet<NodeId> running;
     const QVector<IdeAutoStart::Outcome> outcomes =
-        IdeAutoStart::startAutoStartNodes(*scene.graph, scene.autoStartFlags(), {}, &running);
+        IdeAutoStart::startPlannedNodes(*scene.graph, scene.plan(), {}, &running);
 
-    // Exactly one node is running, and it is the flagged one.
-    QCOMPARE(flagged->startCount(), 1);
-    QCOMPARE(plain->startCount(), 0);
-    QCOMPARE(outcomes.size(), 1);
+    QCOMPARE(scene.model<IdeAutoStartSourceModel>(0)->startCount(), 1);
+    // The wired node is driven by its wire, not by the scene.
+    QCOMPARE(scene.model<IdeAutoStartMiddleModel>(1)->startCount(), 0);
+    QCOMPARE(static_cast<int>(outcomes.size()), 1);
     QCOMPARE(outcomes.first().nodeId, 0u);
     QCOMPARE(outcomes.first().action, IdeAutoStart::Outcome::Action::Started);
-    QCOMPARE(running.size(), 1);
+    QCOMPARE(static_cast<int>(running.size()), 1);
     QVERIFY(running.contains(0u));
 }
 
-void IdeAutoStartTest::absentFlagStartsNothing()
+void IdeAutoStartTest::falseFlagStartsNothing()
 {
     TestGraph scene;
-    // No "ui" section at all: an old scene, or a scene nobody flagged.
+    // The only entry point of an undriven scene, explicitly forbidden.
     scene.load(QJsonArray{TestGraph::nodeJson(0, QStringLiteral("IdeAutoStartSource"))},
-               QJsonObject{}, /*withUi=*/false);
+               QJsonObject{{QStringLiteral("0"), TestGraph::uiNodeJson(false)}});
+
+    const Daqster::SceneStartPlan plan = scene.plan();
+    QVERIFY(plan.starts.isEmpty());
+    QCOMPARE(static_cast<int>(plan.suppressed.size()), 1);
 
     QSet<NodeId> running;
     const QVector<IdeAutoStart::Outcome> outcomes =
-        IdeAutoStart::startAutoStartNodes(*scene.graph, scene.autoStartFlags(), {}, &running);
+        IdeAutoStart::startPlannedNodes(*scene.graph, plan, {}, &running);
 
     QCOMPARE(scene.model<IdeAutoStartSourceModel>(0)->startCount(), 0);
     QVERIFY(outcomes.isEmpty());
     QVERIFY(running.isEmpty());
 }
 
-void IdeAutoStartTest::falseFlagStartsNothing()
+void IdeAutoStartTest::trueFlagForcesTheWiredNode()
 {
     TestGraph scene;
-    scene.load(QJsonArray{TestGraph::nodeJson(0, QStringLiteral("IdeAutoStartSource"))},
-               QJsonObject{{QStringLiteral("0"), TestGraph::uiNodeJson(false)}});
+    scene.load(chainNodes(),
+               QJsonObject{{QStringLiteral("1"), TestGraph::uiNodeJson(true)}},
+               chainConnections());
 
     QSet<NodeId> running;
-    IdeAutoStart::startAutoStartNodes(*scene.graph, scene.autoStartFlags(), {}, &running);
+    const QVector<IdeAutoStart::Outcome> outcomes =
+        IdeAutoStart::startPlannedNodes(*scene.graph, scene.plan(), {}, &running);
 
-    QCOMPARE(scene.model<IdeAutoStartSourceModel>(0)->startCount(), 0);
-    QVERIFY(running.isEmpty());
+    // The entry point by structure, and the middle node because the scene
+    // forced it — the flag adds, it does not replace.
+    QCOMPARE(scene.model<IdeAutoStartSourceModel>(0)->startCount(), 1);
+    QCOMPARE(scene.model<IdeAutoStartMiddleModel>(1)->startCount(), 1);
+    QCOMPARE(static_cast<int>(outcomes.size()), 2);
+    QCOMPARE(outcomes.at(0).nodeId, 0u);
+    QCOMPARE(outcomes.at(1).nodeId, 1u);
+    QCOMPARE(static_cast<int>(running.size()), 2);
+    QVERIFY(running.contains(0u));
+    QVERIFY(running.contains(1u));
 }
 
 // ── Skip rules ──────────────────────────────────────────────────────────────
 void IdeAutoStartTest::verdictSkipsTheOffendingNode()
 {
     TestGraph scene;
-    scene.load(QJsonArray{TestGraph::nodeJson(0, QStringLiteral("IdeAutoStartSource")),
-                          TestGraph::nodeJson(1, QStringLiteral("IdeAutoStartSource"))},
-               QJsonObject{{QStringLiteral("0"), TestGraph::uiNodeJson(true)},
-                           {QStringLiteral("1"), TestGraph::uiNodeJson(true)}});
+    // Two undriven sources: both entry points, both startable.
+    scene.load(QJsonArray{TestGraph::nodeJson(1, QStringLiteral("IdeAutoStartSource")),
+                          TestGraph::nodeJson(2, QStringLiteral("IdeAutoStartSource"))},
+               QJsonObject{});
 
-    // ISceneOpening's answer: node 1 cannot run here. The other one may.
+    // ISceneOpening's answer: node 2 cannot run here. The other one may.
     Daqster::SceneOpenProblem problem;
-    problem.nodeId = QStringLiteral("1");
+    problem.nodeId = QStringLiteral("2");
     problem.nodeName = QStringLiteral("AutoStartSource");
     problem.message = QStringLiteral("липсва модел");
 
     QSet<NodeId> running;
-    const QVector<IdeAutoStart::Outcome> outcomes = IdeAutoStart::startAutoStartNodes(
-        *scene.graph, scene.autoStartFlags(), QVector<Daqster::SceneOpenProblem>{problem},
-        &running);
+    const QVector<IdeAutoStart::Outcome> outcomes = IdeAutoStart::startPlannedNodes(
+        *scene.graph, scene.plan(), QVector<Daqster::SceneOpenProblem>{problem}, &running);
 
-    QCOMPARE(scene.model<IdeAutoStartSourceModel>(0)->startCount(), 1);
-    QCOMPARE(scene.model<IdeAutoStartSourceModel>(1)->startCount(), 0);
-    QCOMPARE(outcomes.size(), 2);
-    // The map's iteration order is not the scene's order (QHash), so the
-    // outcomes are matched by id — the *actions* are what the test is about.
-    for (const IdeAutoStart::Outcome& outcome : outcomes) {
-        if (outcome.nodeId == 0u)
-            QCOMPARE(outcome.action, IdeAutoStart::Outcome::Action::Started);
-        else if (outcome.nodeId == 1u)
-            QCOMPARE(outcome.action, IdeAutoStart::Outcome::Action::SkippedInvalid);
-        else
-            QFAIL("unexpected node id in outcomes");
-    }
+    QCOMPARE(scene.model<IdeAutoStartSourceModel>(1)->startCount(), 1);
+    QCOMPARE(scene.model<IdeAutoStartSourceModel>(2)->startCount(), 0);
+    QCOMPARE(static_cast<int>(outcomes.size()), 2);
+    // The plan is ascending by id, so the order is this test's own.
+    QCOMPARE(outcomes.at(0).nodeId, 1u);
+    QCOMPARE(outcomes.at(0).action, IdeAutoStart::Outcome::Action::Started);
+    QCOMPARE(outcomes.at(1).nodeId, 2u);
+    QCOMPARE(outcomes.at(1).action, IdeAutoStart::Outcome::Action::SkippedInvalid);
 }
 
 void IdeAutoStartTest::invalidNodeIsSkipped()
 {
     TestGraph scene;
     scene.load(QJsonArray{TestGraph::nodeJson(0, QStringLiteral("IdeAutoStartSource"))},
-               QJsonObject{{QStringLiteral("0"), TestGraph::uiNodeJson(true)}});
+               QJsonObject{});
 
     auto* source = scene.model<IdeAutoStartSourceModel>(0);
     source->setInvalid(QStringLiteral("няма устройство"));
 
     QSet<NodeId> running;
     const QVector<IdeAutoStart::Outcome> outcomes =
-        IdeAutoStart::startAutoStartNodes(*scene.graph, scene.autoStartFlags(), {}, &running);
+        IdeAutoStart::startPlannedNodes(*scene.graph, scene.plan(), {}, &running);
 
     QCOMPARE(source->startCount(), 0);
-    QCOMPARE(outcomes.size(), 1);
+    QCOMPARE(static_cast<int>(outcomes.size()), 1);
     QCOMPARE(outcomes.first().action, IdeAutoStart::Outcome::Action::SkippedInvalid);
     QCOMPARE(outcomes.first().reason, QStringLiteral("няма устройство"));
 }
@@ -234,7 +282,7 @@ void IdeAutoStartTest::nonStartableFlaggedNodeIsIgnored()
 
     QSet<NodeId> running;
     const QVector<IdeAutoStart::Outcome> outcomes =
-        IdeAutoStart::startAutoStartNodes(*scene.graph, scene.autoStartFlags(), {}, &running);
+        IdeAutoStart::startPlannedNodes(*scene.graph, scene.plan(), {}, &running);
 
     // Nothing to start and nothing to complain about: a display node in a
     // scene that flagged it is a normal scene, not a defect.
@@ -246,16 +294,16 @@ void IdeAutoStartTest::alreadyRunningNodeIsNotStartedTwice()
 {
     TestGraph scene;
     scene.load(QJsonArray{TestGraph::nodeJson(0, QStringLiteral("IdeAutoStartSource"))},
-               QJsonObject{{QStringLiteral("0"), TestGraph::uiNodeJson(true)}});
+               QJsonObject{});
 
     QSet<NodeId> running;
-    running.insert(0); // the host's record: it is already running
+    running.insert(0); // the host's record: a previous Ctrl+R already started it
 
     const QVector<IdeAutoStart::Outcome> outcomes =
-        IdeAutoStart::startAutoStartNodes(*scene.graph, scene.autoStartFlags(), {}, &running);
+        IdeAutoStart::startPlannedNodes(*scene.graph, scene.plan(), {}, &running);
 
     QCOMPARE(scene.model<IdeAutoStartSourceModel>(0)->startCount(), 0);
-    QCOMPARE(outcomes.size(), 1);
+    QCOMPARE(static_cast<int>(outcomes.size()), 1);
     QCOMPARE(outcomes.first().action, IdeAutoStart::Outcome::Action::AlreadyRunning);
-    QCOMPARE(running.size(), 1);
+    QCOMPARE(static_cast<int>(running.size()), 1);
 }

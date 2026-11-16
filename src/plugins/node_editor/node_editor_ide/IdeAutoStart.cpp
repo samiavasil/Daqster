@@ -30,21 +30,22 @@ QSet<QtNodes::NodeId> blockedNodes(const QVector<Daqster::SceneOpenProblem>& pro
 
 } // namespace
 
-QVector<Outcome> startAutoStartNodes(QtNodes::DataFlowGraphModel& graph,
-                                    const QHash<QtNodes::NodeId, bool>& autoStart,
-                                    const QVector<Daqster::SceneOpenProblem>& problems,
-                                    QSet<QtNodes::NodeId>* running)
+QVector<Outcome> startPlannedNodes(QtNodes::DataFlowGraphModel& graph,
+                                   const Daqster::SceneStartPlan& plan,
+                                   const QVector<Daqster::SceneOpenProblem>& problems,
+                                   QSet<QtNodes::NodeId>* running)
 {
     QVector<Outcome> outcomes;
     const QSet<QtNodes::NodeId> blocked = blockedNodes(problems);
 
-    for (auto it = autoStart.constBegin(); it != autoStart.constEnd(); ++it) {
-        const QtNodes::NodeId nodeId = it.key();
+    // The scene said `autoStart: false` for an entry point: say so once, so the
+    // user can tell "nothing to start" from "the scene forbade it".
+    for (const Daqster::SceneStart& suppressed : plan.suppressed)
+        qCInfo(lcNodeEditor).noquote()
+            << QStringLiteral("IDE: пропускам '%1' (autoStart:false)").arg(suppressed.caption);
 
-        // Absent/false means "the scene did not ask": not even a log line, or an
-        // interactive user would read a skip notice for every node.
-        if (!it.value())
-            continue;
+    for (const Daqster::SceneStart& start : plan.starts) {
+        const QtNodes::NodeId nodeId = start.nodeId;
 
         // Tolerant load guard, as in the other two hosts: the graph may have
         // dropped the node (unregistered model type).
@@ -57,8 +58,8 @@ QVector<Outcome> startAutoStartNodes(QtNodes::DataFlowGraphModel& graph,
 
         auto* startable = dynamic_cast<Daqster::IStartable*>(model);
         if (startable == nullptr) {
-            // A display/processing node in a scene that flagged it: not an
-            // error, it simply has nothing to start.
+            // A display/processing node in the plan: not an error, it simply
+            // has nothing to start.
             qCDebug(lcNodeEditor) << "IDE: няма какво да стартирам в" << model->caption();
             continue;
         }
@@ -86,7 +87,11 @@ QVector<Outcome> startAutoStartNodes(QtNodes::DataFlowGraphModel& graph,
 
         try {
             qCInfo(lcNodeEditor).noquote()
-                << QStringLiteral("IDE: стартирам '%1' (autoStart)").arg(outcome.name);
+                << QStringLiteral("IDE: стартирам '%1' (%2)")
+                       .arg(outcome.name,
+                            start.reason == Daqster::SceneStartReason::Forced
+                                ? QStringLiteral("autoStart")
+                                : QStringLiteral("входна точка"));
             startable->start();
         } catch (const std::exception& e) {
             // A start() that throws must not cost the rest of the scene.

@@ -1,6 +1,7 @@
 #include "HeadlessEngine.h"
 #include "SceneClose.h"
 #include "SceneOpen.h"
+#include "SceneAutoStart.h"
 
 #include "ControlPlaneServer.h"
 #include "NodeSchemaBuilder.h"
@@ -578,27 +579,31 @@ void HeadlessEngine::autoStartNodes()
     if (!m_graphModel)
         return;
 
-    for (auto it = m_autoStartNodes.constBegin(); it != m_autoStartNodes.constEnd(); ++it) {
-        const QtNodes::NodeId nodeId = it.key();
-        const bool autoStart = it.value();
+    // REQ-SW-PL-082: what a scene means by "start" is structural — its entry
+    // points — with `ui.nodes[].autoStart` as an override on top. The same
+    // helper answers for the GUI runtime and the IDE (`plannedStarts()`), so
+    // the three hosts cannot disagree on which nodes a scene starts.
+    const SceneStartPlan plan = plannedStarts(*m_graphModel, m_autoStartNodes);
+    for (const SceneStart& suppressed : plan.suppressed)
+        qCInfo(lcNodeEditor).noquote()
+            << QStringLiteral("HeadlessEngine: пропускам '%1' (autoStart:false)")
+                   .arg(suppressed.caption);
 
-        if (!autoStart)
-            continue;
+    for (const SceneStart& start : plan.starts) {
+        auto* model = m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(start.nodeId);
+        auto* startable = model != nullptr ? dynamic_cast<Daqster::IStartable*>(model) : nullptr;
+        if (startable == nullptr)
+            continue;   // the plan only carries startable nodes; be tolerant anyway
 
-        if (!m_graphModel->nodeExists(nodeId))
-            continue;
-
-        auto* model = m_graphModel->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
-        if (!model)
-            continue;
-
-        auto* startable = dynamic_cast<Daqster::IStartable*>(model);
-        if (startable) {
-            qCInfo(lcNodeEditor) << "HeadlessEngine: auto-starting node:" << model->caption() << "(id=" << nodeId << ")";
-            startable->start();
-            m_runningNodes[nodeId] = true;
-            emit nodeStarted(nodeId);
-        }
+        qCInfo(lcNodeEditor).noquote()
+            << QStringLiteral("HeadlessEngine: стартирам '%1' (%2)")
+                   .arg(start.caption,
+                        start.reason == SceneStartReason::Forced
+                            ? QStringLiteral("autoStart")
+                            : QStringLiteral("входна точка"));
+        startable->start();
+        m_runningNodes[start.nodeId] = true;
+        emit nodeStarted(start.nodeId);
     }
 }
 

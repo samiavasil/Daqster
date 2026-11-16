@@ -83,7 +83,7 @@ id на нода, име, съобщение и подсказка), не низ
 | `POST /api/flow` (headless и GUI) | същото, през `reloadFlow()` — тялото е JSON, тоест пътят е празен | 200 `{"applied": true, "started": false, "problems": […]}` | `ControlPlaneRouter.cpp` (`POST /api/flow`); `lastSceneProblems()` |
 | `NodeRunner --run` (GUI), `loadFlow()` | `applySceneJson()` | сцената се зарежда; `RunRuntime()` не стартира `autoStart` нодовете | `RuntimeShell.cpp` `applySceneJson()` → `recordSceneOpening()`; `RunRuntime()` стъпка 6 |
 | `POST /api/flow` (GUI runtime) | `reloadFlow()` → `applySceneJson()` | същото тяло като headless (един и същ router) | `RuntimeShell.cpp:reloadFlow()` |
-| IDE `File → Load Scene…` | **след** `load()`, върху заредената сцена, с пътя от `loadSceneFromFile(fileName)` | сцената се зарежда и остава за редактиране; всеки проблем маркира нода си (`NodeValidationState::Error`), панелът под канваса изрежда всички, по един `qCWarning` на проблем; **без** модален диалог; стартират се само нодовете, които сцената сама е маркирала с `autoStart: true` (вижте по-долу) | `NodeEditorIdeObject.cpp:loadSceneFromFile()` → `applySceneProblems()` → `IdeAutoStart::startAutoStartNodes()`; `SceneProblemsPanel` |
+| IDE `File → Load Scene…` | **след** `load()`, върху заредената сцена, с пътя от `loadSceneFromFile(fileName)` | сцената се зарежда и остава за редактиране; всеки проблем маркира нода си (`NodeValidationState::Error`), панелът под канваса изрежда всички, по един `qCWarning` на проблем; **без** модален диалог; **нищо не се стартира** — `File → Пусни сцената` (Ctrl+R) пуска `plannedStarts()` (вижте по-долу) | `NodeEditorIdeObject.cpp:loadSceneFromFile()` → `applySceneProblems()`; `runScene()` → `IdeAutoStart::startPlannedNodes()`; `SceneProblemsPanel` |
 
 Защо питане на едно място, а не две: при ветото ранното питане имаше смисъл
 (отказът не струваше нищо); при „зарежда, маркира, не стартира" всяко питане
@@ -116,28 +116,51 @@ IDE-то беше последният хост с вето: `File → Load Scen
 на сцената изчиства и панела, защото проблемите описват нодове, които вече не
 съществуват.
 
-#### `autoStart` вече важи и в IDE-то
+#### Стартът се определя от графа, не от флагове
 
-IDE-то беше единственият хост, който не стартираше нодовете, които сцената сама
-маркира с `ui.nodes[].autoStart: true` — същата сцена, пусната през
-`HeadlessEngine`/`RuntimeShell`, тръгваше, а отворена в IDE-то чакаше ▶ на всеки
-източник. Сега `loadSceneFromFile()`, **след** `applySceneProblems()`, вика
-`IdeAutoStart::startAutoStartNodes()` с флаговете от `ui` секцията (v1 и
-schema-v2 носят същите) и получения вердикт:
+Една сцена стартира **входните си точки**: нодовете, които имплементират
+`IStartable` и на които нито един входен порт няма връзка. Нод със свързан вход
+се задвижва от връзката, не от сцената — стартирането му „ей така" е грешка, а
+два пъти (преди upstream да е тръгнал) е дефект. `ui.nodes[].autoStart` е
+**override**, не причината за старт: `false` = никога автоматично, `true` =
+форсирай нод, който има вход, липсва = реши по структурата.
 
-- `start()` се вика само на нодове с `autoStart: true`, които имплементират
-  `IStartable` — липсващ или `false` флаг не стартира нищо (интерактивният
-  потребител не вижда промяна);
+Правилото живее на едно място —
+`Daqster::plannedStarts(graph, autoStart)` (+ `entryPoints(graph)`) в
+`src/frame_work/base/src/engine/SceneAutoStart.{h,cpp}` — и трите хоста само
+изпълняват получения план:
+
+| Хост | Кой вика плана | Какво добавя |
+|---|---|---|
+| `HeadlessEngine::autoStartNodes()` | `plannedStarts()` | `nodeStarted()`, `m_runningNodes` |
+| `RuntimeShell::autoStartNodes()` | `plannedStarts()` | същото за GUI runtime |
+| IDE `runScene()` | `plannedStarts()` | вердикт, `NodeValidationState`, `m_startedByIde` |
+
+Логът казва причината на нод: `стартирам '<name>' (входна точка)` /
+`(autoStart)`, а входна точка, махната от сцената, се съобщава:
+`пропускам '<name>' (autoStart:false)`.
+
+#### IDE: отварянето не стартира нищо, `Ctrl+R` пуска сцената
+
+Отварянето на сцена в IDE-то е **редакторско** действие: `loadSceneFromFile()`
+не вика `start()`. Вместо това изчислява плана и логва какво би тръгнало —
+`loadSceneFromFile: нищо не е стартирано — 'Пусни сцената' (Ctrl+R) ще стартира …`,
+за да не е стартът нито изненада, нито скрит. Изричното действие е
+`File → Пусни сцената` (`Ctrl+R`, и бутон на лентата до Save/Load) →
+`NodeEditorIdeObject::runScene()` → `IdeAutoStart::startPlannedNodes()`:
+
+- `start()` се вика само на нодовете от плана;
 - нод, който вердиктът е маркирал (`SceneOpenProblem::nodeId`) или чието
   `NodeValidationState` не е `Valid`, се **пропуска** с
   `IDE: пропускам '<name>' (невалиден)` — проблемът не спира останалите;
-- един ред на стартиран нод: `IDE: стартирам '<name>' (autoStart)`;
-- двойно стартиране е невъзможно: `m_startedByIde` пази какво хостът вече е
-  пуснал (изчиства се при затваряне и при всяко зареждане), а `start()` е в
-  `try` — хвърлил нод не отнема на останалите сцената.
+- повторен `Ctrl+R` не стартира нод два пъти: `m_startedByIde` пази какво хостът
+  вече е пуснал (изчиства се при затваряне и при всяко зареждане), а `start()` е
+  в `try` — хвърлил нод не отнема на останалите сцената;
+- за headless UI проверки: `DAQSTER_RUN_SCENE=1` прави същото като `Ctrl+R`.
 
-Редът е цикълът на другите два хоста (по картата с флаговете), за да не се
-разминават трите. Тестове: `node_editor_ide_tests` `IdeAutoStartTest` (7 случая).
+Тестове: `scene_autostart_tests` (правилото, с реален `DataFlowGraphModel`) и
+`node_editor_ide_tests` `IdeAutoStartTest` (цикълът и skip правилата).
+
 
 Текстът на реда е същият като в логовете —
 `SceneProblemsPanel::textForProblem()`: `<nodeName> (<nodeId>): <message> — <hint>`,
@@ -191,8 +214,8 @@ schema-v2 носят същите) и получения вердикт:
 
 `400 {"applied": false, "error": …}` остава само за документ, който хостът не
 може да зареди изобщо (счупен JSON, невалидна структура). `started` е
-`problems.isEmpty()`, а не „стартира ли се нещо" — сцена без `autoStart` нодове
-също дава `started: true`.
+`problems.isEmpty()`, а не „стартира ли се нещо" — сцена с входни точки, но без
+нито един `autoStart` флаг, също дава `started: true`.
 
 Текстът се строи на едно място — `sceneOpeningMessage()`
 (`src/frame_work/base/src/engine/SceneOpen.cpp`), по модела на

@@ -156,12 +156,35 @@
 
 ## 3. `autoStart` семантика
 
-- **Файлово-ниво поле** в `ui.nodes[<id>].autoStart` (default `false`).
-- При `--run <flow>` RuntimeShell-ът чете флага и вика `IStartable::start()` върху нодовете, които го имплементират (source/sink нодове с „start" действие). Виж `src/plugins/common/capabilities/IStartable.h`.
+> **Правилото е структурно (REQ-SW-PL-082):** една сцена стартира **входните си
+> точки** — нодовете, които имплементират `IStartable` и на които **нито един
+> входен порт няма връзка**. Флагът `autoStart` е **override върху това**, не
+> причината за старт.
+
+- **Входна точка** = `IStartable` + нито един свързан входен порт. Нод със
+  свързан вход се задвижва от връзката, не от сцената; стартирането му „ей така"
+  е грешка. Една реализация за трите хоста:
+  `Daqster::plannedStarts(DataFlowGraphModel&, const QHash<NodeId,bool>&)`
+  (`src/frame_work/base/src/engine/SceneAutoStart.cpp`), върху
+  `entryPoints(...)`.
+- **Файлово-ниво поле** в `ui.nodes[<id>].autoStart` — трите стойности:
+
+  | Стойност | Значение |
+  |---|---|
+  | липсва | структурата решава: входна точка → стартира |
+  | `false` | **никога** не се стартира автоматично (входна точка се маха от плана: `пропускам '<name>' (autoStart:false)`) |
+  | `true` | **форсира** старт дори когато нодът има свързан вход |
+
+- Хостовете (`HeadlessEngine`, `RuntimeShell`, IDE) само изпълняват плана и
+  добавят своите skip правила (`ISceneOpening` вердикт, невалиден
+  `NodeValidationState`, вече стартиран нод). Логът казва причината на нод:
+  `стартирам '<name>' (входна точка)` / `(autoStart)`.
+- **IDE-то не стартира нищо при отваряне** — сцената се отваря „студена", а
+  `File → Пусни сцената` (`Ctrl+R`) пуска същия план.
 - **Днес НЕ е конфигурируемо от IDE.** Няма UI контрол (checkbox/context menu), който да го записва. Единствените начини да се зададе:
   - ръчно редактиране на `.flow` JSON (perf/harness flows — `tests/data/*.flow`),
-  - програмен път чрез dev driver env vars (`DAQSTER_AUTOSTART_VIDEO`, `DAQSTER_AUTOSTART_FLOW`).
-- Нишов дизайнерски избор (A3): при `autoStart: false` flow-ът стартира „студен" и потребителят пуска всеки нод ръчно от неговите (docked/detached) контроли.
+  - програмен път чрез dev driver env vars (`DAQSTER_AUTOSTART_VIDEO`, `DAQSTER_AUTOSTART_FLOW`, `DAQSTER_RUN_SCENE`).
+
 
 ## 4. Runtime mode `--run` (REQ-SW-PL-048)
 
@@ -170,7 +193,10 @@
 - Env vars за автоматизация (dev/perf drivers):
   - `DAQSTER_AUTOSTART_VIDEO=1` — програмен video-source flow (dev driver)
   - `DAQSTER_AUTOSTART_FLOW=<path>` — зарежда произволен `.flow` headlessly
-- Deadlines/приоритет на `autoStart` изпълнение: при `--run` RuntimeShell минава по `ui.nodes` и за всеки нод с `autoStart:true` → `IStartable::start()`.
+- Deadlines/приоритет на старта: при `--run` RuntimeShell вика
+  `plannedStarts()` и стартира плана — входните точки на графа, минус
+  `autoStart: false`, плюс `autoStart: true` (виж §3).
+
 
 ## 5. Интерфейси (CP-1/CP-3)
 

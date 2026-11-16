@@ -64,8 +64,9 @@ int main(int argc, char *argv[])
         status |= QTest::qExec(&liveValidationProblems, argc, argv);
     }
     {
-        // REQ-SW-PL-082: a scene that flags `autoStart` starts those nodes in the
-        // IDE too — the loop loadSceneFromFile() calls, against a real graph.
+        // REQ-SW-PL-082: which nodes a scene starts — its entry points, with
+        // `autoStart` as the override — and the IDE loop that runs the plan
+        // (`Пусни сцената` / Ctrl+R), against a real graph.
         IdeAutoStartTest ideAutoStart;
         status |= QTest::qExec(&ideAutoStart, argc, argv);
     }

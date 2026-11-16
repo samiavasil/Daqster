@@ -81,6 +81,11 @@ set(FRAMEWORK_CORE_SOURCES
     # loaded, so a refusal leaves the running scene untouched.
     base/src/engine/SceneOpen.cpp
     base/src/engine/SceneOpen.h
+    # Which nodes a scene starts (REQ-SW-PL-082): the entry points of the
+    # graph, with `ui.nodes[].autoStart` as an override. One implementation for
+    # the headless engine, the GUI runtime and the IDE.
+    base/src/engine/SceneAutoStart.cpp
+    base/src/engine/SceneAutoStart.h
 
     # Shared widget-free application bootstrap (REQ-SW-PL-048)
     base/src/app/AppBootstrap.cpp

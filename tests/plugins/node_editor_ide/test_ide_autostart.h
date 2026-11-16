@@ -12,7 +12,7 @@
 /// The whole point of the tests is "was `start()` called, exactly once, on
 /// exactly the right node", so the fake must be observable and free: no timer,
 /// no thread, no device. It implements `IStartable` (like the real capture
-/// sources) and nothing else.
+/// sources), has one output and no input — an entry point by structure.
 class IdeAutoStartSourceModel : public QtNodes::NodeDelegateModel,
                                 public Daqster::IStartable
 {
@@ -25,7 +25,10 @@ public:
 
     QString caption() const override { return QStringLiteral("AutoStartSource"); }
 
-    unsigned int nPorts(QtNodes::PortType) const override { return 0u; }
+    unsigned int nPorts(QtNodes::PortType type) const override
+    {
+        return type == QtNodes::PortType::Out ? 1u : 0u;
+    }
 
     QtNodes::NodeDataType dataType(QtNodes::PortType, QtNodes::PortIndex) const override
     {
@@ -57,6 +60,41 @@ private:
     QtNodes::NodeValidationState m_state;
 };
 
+/// A startable node with one input and one output: **not** an entry point (its
+/// input is wired), so only `autoStart: true` puts it in the plan.
+class IdeAutoStartMiddleModel : public QtNodes::NodeDelegateModel,
+                                public Daqster::IStartable
+{
+    Q_OBJECT
+
+public:
+    IdeAutoStartMiddleModel() = default;
+
+    QString name() const override { return QStringLiteral("IdeAutoStartMiddle"); }
+
+    QString caption() const override { return QStringLiteral("AutoStartMiddle"); }
+
+    unsigned int nPorts(QtNodes::PortType) const override { return 1u; }
+
+    QtNodes::NodeDataType dataType(QtNodes::PortType, QtNodes::PortIndex) const override
+    {
+        return {};
+    }
+
+    void setInData(std::shared_ptr<QtNodes::NodeData>, QtNodes::PortIndex) override {}
+
+    std::shared_ptr<QtNodes::NodeData> outData(QtNodes::PortIndex) override { return nullptr; }
+
+    QWidget* embeddedWidget() override { return nullptr; }
+
+    void start() override { ++m_starts; }
+
+    int startCount() const { return m_starts; }
+
+private:
+    int m_starts = 0;
+};
+
 /// A display-like node: flagged `autoStart` in a scene, but it has nothing to
 /// start, so the IDE must ignore it instead of failing the load.
 class IdeAutoStartSinkModel : public QtNodes::NodeDelegateModel
@@ -70,8 +108,10 @@ public:
 
     QString caption() const override { return QStringLiteral("AutoStartSink"); }
 
-    unsigned int nPorts(QtNodes::PortType) const override { return 0u; }
-
+    unsigned int nPorts(QtNodes::PortType type) const override
+    {
+        return type == QtNodes::PortType::In ? 1u : 0u;
+    }
     QtNodes::NodeDataType dataType(QtNodes::PortType, QtNodes::PortIndex) const override
     {
         return {};
@@ -84,25 +124,32 @@ public:
     QWidget* embeddedWidget() override { return nullptr; }
 };
 
-/// REQ-SW-PL-082: the IDE starts the nodes a scene declared with `autoStart`.
+/// REQ-SW-PL-082: the start the IDE runs on „Пусни сцената" (Ctrl+R).
 ///
-/// The loop under test is the one `NodeEditorIdeObject::loadSceneFromFile()`
-/// calls, so these tests go through a real `DataFlowGraphModel` and the real
-/// `ui` section parser — not through a mock of either. No IDE window is needed:
-/// the loop owns no widget, and starting a node is the model's business.
+/// *Which* nodes is `Daqster::plannedStarts()` — the entry points of the graph,
+/// with `autoStart` as the override — tested once in `scene_autostart_tests`.
+/// What is tested here is the IDE's half: the loop `NodeEditorIdeObject` calls,
+/// its skip rules and its double-start guard, against a real
+/// `DataFlowGraphModel` and the real `ui` section parser. No IDE window needed.
 class IdeAutoStartTest : public QObject
 {
     Q_OBJECT
 
 private slots:
-    /// The acceptance case: two nodes, one flagged → exactly one started.
-    void onlyTheFlaggedNodeStarts();
+    /// Computing the plan is not a start: opening a scene runs this and must
+    /// leave every node stopped.
+    void computingThePlanStartsNothing();
 
-    /// A scene with no `autoStart` anywhere keeps the old behaviour: nothing runs.
-    void absentFlagStartsNothing();
+    /// No flags at all: the entry point starts, the wired node does not — the
+    /// structure decides, and that is the change (an unmarked scene used to do
+    /// nothing).
+    void noFlagStartsOnlyTheEntryPoint();
 
-    /// `autoStart: false` is the same as absent.
+    /// `autoStart: false` on the only entry point of the scene: nothing runs.
     void falseFlagStartsNothing();
+
+    /// `autoStart: true` on the wired node forces it in, next to the entry point.
+    void trueFlagForcesTheWiredNode();
 
     /// A node the `ISceneOpening` verdict named is not started, and says why.
     void verdictSkipsTheOffendingNode();

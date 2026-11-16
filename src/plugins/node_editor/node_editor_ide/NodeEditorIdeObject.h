@@ -66,11 +66,10 @@ public:
     /// and their connections, loads the cleaned scene and warns about skipped
     /// types. Returns true on success (including partial loads).
     ///
-    /// REQ-SW-PL-082: a node the scene's `ui.nodes` marks `autoStart: true` and
-    /// that implements `IStartable` is started here too — the IDE used to be the
-    /// one host where the same scene sat still until the user pressed ▶ per
-    /// source. Nodes without the flag, and nodes the `ISceneOpening` verdict
-    /// marked invalid, are left stopped (`IdeAutoStart`).
+    /// REQ-SW-PL-082: opening a scene starts **nothing**. What it *would* start
+    /// is structural — its entry points (`IStartable` with no connected input),
+    /// with `ui.nodes[].autoStart` as an override — and the log names it; the
+    /// user runs it with „Пусни сцената" (`runScene()`, Ctrl+R).
     bool loadSceneFromFile(const QString& fileName);
 
 protected:
@@ -96,6 +95,15 @@ public slots:
     /// and empties the canvas. Nothing is left running and nothing is left in
     /// the graph; model weights a plugin keeps warm survive by design.
     void closeScene();
+
+    /// Start the loaded scene (`File → Пусни сцената` / Ctrl+R, REQ-SW-PL-082).
+    ///
+    /// Runs exactly `Daqster::plannedStarts()`: the graph's entry points, minus
+    /// the ones the scene marked `autoStart: false`, plus the ones it marked
+    /// `autoStart: true`. Nodes the `ISceneOpening` verdict named, and nodes
+    /// already started by a previous run of this scene, are skipped — one log
+    /// line each. Opening a scene never does this by itself.
+    void runScene();
 
 protected slots:
     void nodeDoubleClicked(QtNodes::NodeId nodeId);
@@ -255,6 +263,10 @@ private:
     /// button the IDE was missing is visible without opening a menu.
     QAction* m_closeSceneAction = nullptr;
 
+    /// `File → Пусни сцената` (Ctrl+R, REQ-SW-PL-082). The explicit start the
+    /// IDE needed once opening a scene stopped starting anything.
+    QAction* m_runSceneAction = nullptr;
+
     /// True when the graph changed since the last load/save — decides whether
     /// "Close Scene" asks before discarding (REQ-SW-PL-078 AC1).
     bool m_sceneDirty = false;
@@ -271,10 +283,10 @@ private:
     /// Per-node autoStart flags restored from the "ui" section (REQ-SW-PL-049).
     QHash<QtNodes::NodeId, bool> m_autoStartNodes;
 
-    /// Nodes this IDE instance started because the scene flagged them with
-    /// `autoStart: true` (REQ-SW-PL-082). The double-start guard: a reload or a
-    /// second call must not call `start()` on a node twice. Cleared on close and
-    /// on every load — a fresh graph has nothing running.
+    /// Nodes this IDE instance started (`runScene()`, REQ-SW-PL-082). The
+    /// double-start guard: a second Ctrl+R must not call `start()` twice on the
+    /// same node. Cleared on close and on every load — a fresh graph has
+    /// nothing running.
     QSet<QtNodes::NodeId> m_startedByIde;
 
     /// Presentation mode state (REQ-SW-PL-048): true = canvas hidden, deembedded
