@@ -13,6 +13,9 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
+#include <QSplitter>
+#include <QListWidget>
+#include <QPlainTextEdit>
 
 #include "RequirementsWidget.h"
 #include "ValidationDialog.h"
@@ -102,6 +105,7 @@ private slots:
     void matrixMetricsPanelCollapsesOnNarrowWindow();
     void matrixTableSortsInView();
     void requirementsTreeSortsInView();
+    void detailsSplitterSeparatesPreviewAndCheckboxes();
 };
 
 void TestWidgets::actionBarFitsNarrowWindow()
@@ -355,6 +359,125 @@ void TestWidgets::requirementsTreeSortsInView()
              QStringLiteral("REQ-SW-PL-901"));
     QCOMPARE(model->index(1, 0, section).data(Qt::DisplayRole).toString(),
              QStringLiteral("REQ-SW-PL-900"));
+}
+
+void TestWidgets::detailsSplitterSeparatesPreviewAndCheckboxes()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    widget.resize(900, 700);
+    widget.show();
+    QCoreApplication::processEvents();
+
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    QAbstractItemModel *model = tree->model();
+    QModelIndex target;
+    for (int section = 0; section < model->rowCount() && !target.isValid(); ++section) {
+        const QModelIndex sectionIndex = model->index(section, 0);
+        for (int row = 0; row < model->rowCount(sectionIndex); ++row) {
+            const QModelIndex candidate = model->index(row, 0, sectionIndex);
+            if (candidate.data(Qt::DisplayRole).toString()
+                == QStringLiteral("REQ-SW-PL-900")) {
+                target = candidate;
+                break;
+            }
+        }
+    }
+    QVERIFY(target.isValid());
+    tree->setCurrentIndex(target);
+    QCoreApplication::processEvents();
+
+    // The vertical splitter lives INSIDE the horizontal tree ↔ details
+    // splitter; nesting must not flatten the outer one (REQ-SW-PL-095).
+    QSplitter *details =
+        widget.findChild<QSplitter *>(QStringLiteral("requirementDetailsSplitter"));
+    QVERIFY(details);
+    QCOMPARE(details->orientation(), Qt::Vertical);
+    QCOMPARE(details->count(), 2);
+    QVERIFY(!details->childrenCollapsible());
+    QVERIFY(details->handle(1));
+    QCOMPARE(details->handleWidth(), 6);
+
+    QWidget *top = details->widget(0);
+    QWidget *bottom = details->widget(1);
+    QVERIFY(top);
+    QVERIFY(bottom);
+    QVERIFY2(top->height() >= 80 && bottom->height() >= 80,
+             qPrintable(QStringLiteral("initial heights %1 / %2")
+                            .arg(top->height()).arg(bottom->height())));
+    // Preview owns the bigger share by default (~2/3 vs ~1/3).
+    QVERIFY(top->height() > bottom->height());
+
+    // Dragging (here: setSizes) really moves the boundary: the default is
+    // ~2/3 for the preview, so shrinking it must shrink the widget.
+    const int topBefore = top->height();
+    const int bottomBefore = bottom->height();
+    details->setSizes({150, 350});
+    QCoreApplication::processEvents();
+    QVERIFY2(top->height() != topBefore || bottom->height() != bottomBefore,
+             qPrintable(QStringLiteral("heights unchanged: %1 / %2")
+                            .arg(top->height()).arg(bottom->height())));
+    QVERIFY2(bottom->height() > top->height(),
+             qPrintable(QStringLiteral("after setSizes 150/350: %1 / %2")
+                            .arg(top->height()).arg(bottom->height())));
+    details->setSizes({400, 120});
+    QCoreApplication::processEvents();
+    QVERIFY2(top->height() > bottom->height(),
+             qPrintable(QStringLiteral("after setSizes 400/120: %1 / %2")
+                            .arg(top->height()).arg(bottom->height())));
+
+    // The outer, horizontal (tree ↔ details) splitter still holds the panel
+    // that now contains the vertical one — the nesting did not flatten it.
+    QSplitter *outer = qobject_cast<QSplitter *>(details->parentWidget()->parentWidget());
+    QWidget *detailsPanel = details->parentWidget();
+    QVERIFY(outer);
+    QCOMPARE(outer->orientation(), Qt::Horizontal);
+    QVERIFY(outer->indexOf(detailsPanel) >= 0);
+
+    // …and the checkbox half did not lose its signal in the splitter: a tick
+    // still travels through onCriterionToggled to the file on disk.
+    // The bottom half IS the checkbox list, no wrapper in between.
+    QListWidget *criteria = qobject_cast<QListWidget *>(bottom);
+    QVERIFY(criteria);
+    QVERIFY(criteria->count() >= 1);
+    QListWidgetItem *criterion = criteria->item(0);
+    QVERIFY(criterion->checkState() == Qt::Unchecked);
+    criterion->setCheckState(Qt::Checked);
+    QCoreApplication::processEvents();
+    const QString criteriaFile = QDir(root).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/active/REQ-SW-PL-900-fixture.md"));
+    QFile written(criteriaFile);
+    QVERIFY(written.open(QIODevice::ReadOnly | QIODevice::Text));
+    QVERIFY2(QString::fromUtf8(written.readAll()).contains(QStringLiteral("- [x] 1.")),
+             "ticking a criterion must reach the file");
+
+    // Edit swaps preview ↔ editor inside the same pane: the splitter and its
+    // checkbox half survive the toggle.
+    QToolBar *bar = widget.findChild<QToolBar *>(QStringLiteral("requirementsActionBar"));
+    QVERIFY(bar);
+    QAction *edit = nullptr;
+    for (QAction *action : bar->actions()) {
+        if (action->text() == QStringLiteral("Edit"))
+            edit = action;
+    }
+    QVERIFY(edit);
+    QPlainTextEdit *editor = widget.findChild<QPlainTextEdit *>();
+    QTextBrowser *preview =
+        widget.findChild<QTextBrowser *>(QStringLiteral("requirementPreview"));
+    QVERIFY(editor);
+    QVERIFY(preview);
+    QVERIFY(!editor->isVisible());
+    edit->trigger();
+    QCoreApplication::processEvents();
+    QVERIFY(editor->isVisible());
+    QVERIFY(!preview->isVisible());
+    QCOMPARE(details->count(), 2);
+    QCOMPARE(details->widget(0), top);
 }
 
 QTEST_MAIN(TestWidgets)

@@ -179,9 +179,37 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     fileLayout->addWidget(m_actionBar);
 
     fileLayout->addWidget(m_validationLabel);
-    fileLayout->addWidget(m_preview);
-    fileLayout->addWidget(m_editor);
-    fileLayout->addWidget(m_criteriaList);
+
+    // Preview and editor share ONE pane: Edit only swaps which of the two is
+    // visible, so the vertical splitter below keeps its sizes and handle in
+    // place (REQ-SW-PL-095).
+    QWidget *previewPane = new QWidget(this);
+    previewPane->setObjectName(QStringLiteral("requirementPreviewPane"));
+    QVBoxLayout *previewPaneLayout = new QVBoxLayout(previewPane);
+    previewPaneLayout->setContentsMargins(0, 0, 0, 0);
+    previewPaneLayout->addWidget(m_preview);
+    previewPaneLayout->addWidget(m_editor);
+
+    // The splitter only moves the boundary if both halves can actually shrink
+    // and grow: a minimum keeps them usable, no maximum lets them take the
+    // room the user gives them (REQ-SW-PL-095).
+    m_preview->setMinimumHeight(80);
+    m_editor->setMinimumHeight(80);
+    m_criteriaList->setMinimumHeight(80);
+
+    m_detailsSplitter = new QSplitter(Qt::Vertical, this);
+    m_detailsSplitter->setObjectName(QStringLiteral("requirementDetailsSplitter"));
+    m_detailsSplitter->setChildrenCollapsible(false);
+    m_detailsSplitter->setHandleWidth(6);
+    m_detailsSplitter->addWidget(previewPane);
+    m_detailsSplitter->addWidget(m_criteriaList);
+    // Preview gets ~2/3, the checkbox block ~1/3, and the ratio survives a
+    // window resize until the user drags the handle.
+    m_detailsSplitter->setStretchFactor(0, 2);
+    m_detailsSplitter->setStretchFactor(1, 1);
+    m_detailsSplitter->setSizes({400, 120});
+
+    fileLayout->addWidget(m_detailsSplitter, 1);
 
     QWidget *detailsPanel = new QWidget(this);
     detailsPanel->setLayout(fileLayout);

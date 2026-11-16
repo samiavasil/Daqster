@@ -154,6 +154,7 @@ private:
     QAction *m_helpAction;
     QListWidget *m_criteriaList;
     QSplitter *m_splitter;
+    QSplitter *m_detailsSplitter; //!< vertical: preview/editor pane ↔ checkboxes
     QTabWidget *m_tabs;
     DependencyGraphWidget *m_graphWidget;
     TraceabilityMatrixWidget *m_matrixWidget;
