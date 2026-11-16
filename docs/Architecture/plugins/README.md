@@ -183,6 +183,32 @@ builds + unit тестове + headless smoke test) по RDD-PROCESS.md. Инд�
   потребителя** (standing instruction: имплементации без тестове до ново
   нареждане).
 
+#### Кой валидатор за какво отговаря
+
+Изискванията се проверяват от **два** инструмента. Всеки има своя предмет и не
+бива да измисля трети отговор:
+
+| Инструмент | Какво е authority | Какво проверява |
+|---|---|---|
+| CLI `DevelopmentProcess/scripts/validate-traceability.sh` | **проследимост** | матрица, коммити/хешове, кодови пътища, cross-reference-и (иска git и двете repo-та) |
+| GUI `RequirementsValidator` (`requirements_manager`) | **полета на изискването** | `id`, `status`, зона (active/archive), acceptance criteria, `Родител:`/`Зависи от:`/`Деца:` |
+
+- **Един обхват:** и двата четат само `DevelopmentProcess/requirements/`
+  (`active/` + `archive/`), никога целия repo root — драфт в `plans/` не става
+  „изискване“, което CLI-ят не познава.
+- **Един речник:** `ACTIVE IMPLEMENTED DONE CANCELLED BACKLOG`; `DONE НА КЛОНА` =
+  `IMPLEMENTED`. Дефиниран е на две места (`VOCAB` в скрипта,
+  `RequirementsValidator::statusVocabulary()`) и се променя в един комит.
+- **Общите правила дават един и същ резултат:** зона (`ACTIVE` в `archive/`,
+  `DONE`/`CANCELLED` в `active/` — `IMPLEMENTED` е законен в двете) и
+  `DONE` с неадресиран AC (⛔/⏸ = документирано отлагане → Warning).
+- **Разделението е по необходимост, не по вкус:** матрица, хешове и кодови
+  пътища искат git и второто repo — GUI ги няма; затова те са само в CLI-я.
+- **Референциите се парсват по ID:** `REQ-<PREFIX>-<NNN>` (+ анотация в скоби),
+  split само по запетаи на топ-ниво. Проза в скоби не е референция, а
+  non-REQ документ (`ADR-AI-013`) се отчита като Warning, не като липсващо
+  изискване.
+
 ## Shared Components
 
 - **NodeEditorWidget** — вграден в `node_editor_ide/NodeEditorWidget.{h,cpp}` (вече НЕ е отделна библиотека)
