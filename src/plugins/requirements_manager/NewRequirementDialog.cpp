@@ -68,7 +68,7 @@ NewRequirementDialog::NewRequirementDialog(const QString &baseDir, QWidget *pare
     }
 
     m_descriptionEdit = new QPlainTextEdit(this);
-    m_descriptionEdit->setPlaceholderText(tr("Free-text description (## Описание)..."));
+    m_descriptionEdit->setPlaceholderText(tr("Free-text description (## Накратко)..."));
 
     m_criteriaList = new QListWidget(this);
     m_criteriaList->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -232,7 +232,7 @@ void NewRequirementDialog::buildMarkdown(QString &outContent, QString &outId,
         content += QStringLiteral("- from_idea: %1\n").arg(m_fromIdea);
     content += parentLine + QStringLiteral("\n");
     content += depsLine + QStringLiteral("\n\n");
-    content += QStringLiteral("## Описание\n\n");
+    content += QStringLiteral("## Накратко\n\n");
     content += m_descriptionEdit->toPlainText().trimmed();
     content += QStringLiteral("\n\n## Acceptance Criteria\n\n");
     for (const QString &criterion : criteria)

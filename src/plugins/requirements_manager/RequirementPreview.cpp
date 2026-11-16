@@ -96,8 +96,9 @@ QString markdownSource(const Requirement &req)
     if (!req.rawContent.trimmed().isEmpty())
         return req.rawContent;
     // Fallback for records parsed without raw content (e.g. a test fixture or a
-    // caller that built the Requirement by hand): render the description.
-    return QStringLiteral("## Описание\n\n%1\n").arg(req.description);
+    // caller that built the Requirement by hand): render the description under
+    // the canonical heading (RDD-PROCESS.md → „Поколения на шаблона“).
+    return QStringLiteral("## Накратко\n\n%1\n").arg(req.description);
 }
 
 void render(QTextBrowser *view,
