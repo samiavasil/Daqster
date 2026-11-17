@@ -5,6 +5,7 @@
 #include <QTextStream>
 
 #include "RequirementsParser.h"
+#include "RequirementsValidator.h"
 #include "test_parser.h"
 
 using namespace Daqster;
@@ -352,6 +353,51 @@ void TestParser::parseDirectory_criteriaDialects()
     const Requirement *prose = findRequirement(requirements, QStringLiteral("REQ-SW-PL-002"));
     QVERIFY2(prose, "REQ-SW-PL-002 should be parsed");
     QVERIFY(prose->acceptanceCriteria.isEmpty());
+}
+
+void TestParser::parseDirectory_criteriaHeadingBulgarian()
+{
+    // "## Критерии за приемане" is the fourth spelling of the criteria section
+    // on the real tree (two files use it). It was not in the alias set, so its
+    // "### ACn" headings were invisible: the requirement was parsed with zero
+    // criteria and graded "no acceptance criteria defined" while the ACs were
+    // plainly written. The checkbox bullet needs no heading (bullets are
+    // recognized anywhere), which is exactly why the gap stayed hidden.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir = QDir(temp.path())
+                                  .filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-001-heading.md"),
+                 QStringLiteral(
+                     "# REQ-SW-PL-001: Критерии за приемане\n\n"
+                     "- **Статус:** ACTIVE\n"
+                     "- **Приоритет:** High\n"
+                     "- **Дата:** 2026-11-16\n"
+                     "- **Родител:** —\n"
+                     "- **Зависи от:** —\n\n"
+                     "## Накратко\n\nОписание.\n\n"
+                     "## Критерии за приемане\n\n"
+                     "### AC1 — Първи критерий\n\n"
+                     "### AC2 — Втори критерий\n"));
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(temp.path());
+    QCOMPARE(requirements.size(), 1);
+
+    const Requirement *req = findRequirement(requirements, QStringLiteral("REQ-SW-PL-001"));
+    QVERIFY2(req, "REQ-SW-PL-001 should be parsed");
+    QCOMPARE(req->acceptanceCriteria.size(), 2);
+    QCOMPARE(req->criteriaDone.size(), 2);
+    QCOMPARE(req->acceptanceCriteria.at(0), QStringLiteral("Първи критерий"));
+    QVERIFY(!req->criteriaDone.at(0)); // a heading without a checkbox stays open
+
+    // What the gap actually cost: the validator's "no acceptance criteria"
+    // warning. It must be gone for this file (other fields are filled, so the
+    // criteria field is the only thing this case looks at).
+    const QVector<RequirementsValidator::Issue> issues = RequirementsValidator::validate(requirements);
+    for (const RequirementsValidator::Issue &issue : issues)
+        QVERIFY2(issue.field != QStringLiteral("acceptanceCriteria"),
+                 qPrintable(QStringLiteral("%1: %2").arg(issue.id, issue.message)));
 }
 
 void TestParser::parseDirectory_nestedSubdirSection()

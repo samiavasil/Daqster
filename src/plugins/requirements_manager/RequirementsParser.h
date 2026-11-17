@@ -73,7 +73,7 @@ QString headingForVersion(const QString &version);
  *                                          three template generations; the one
  *                                          used is recorded in
  *                                          Requirement::templateVersion)
- *   ## Acceptance Criteria | ## Как ще разберем, че работи
+ *   ## Acceptance Criteria | ## Как ще разберем, че работи | ## Критерии за приемане
  *   - [ ] criterion
  *   - [x] done criterion
  *   ### [x] AC1 — heading criterion     (state in the checkbox)

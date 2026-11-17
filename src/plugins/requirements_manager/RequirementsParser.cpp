@@ -62,14 +62,20 @@ QString descriptionVersion(const QString &heading)
 }
 
 // The acceptance-criteria section: "Acceptance Criteria",
-// "Изисквания (Acceptance Criteria)" or the template's
-// "Как ще разберем, че работи[(AC)]".
+// "Изисквания (Acceptance Criteria)", the template's
+// "Как ще разберем, че работи[(AC)]" and the Bulgarian translation of the
+// first one, "Критерии за приемане". Missing the last one was not cosmetic:
+// the checkbox bullets were still recognized (they are recognized anywhere),
+// but a "### ACn" heading or a numbered/table entry under that heading was
+// invisible, so those requirements were graded "no acceptance criteria".
 bool isCriteriaHeading(const QString &heading)
 {
     const QString text = heading.trimmed();
     if (text.contains(QStringLiteral("Acceptance Criteria"), Qt::CaseInsensitive))
         return true;
     if (text.startsWith(QStringLiteral("Как ще разберем, че работи")))
+        return true;
+    if (text.startsWith(QStringLiteral("Критерии за приемане")))
         return true;
     return text == QStringLiteral("Изисквания");
 }
