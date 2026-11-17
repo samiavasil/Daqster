@@ -150,8 +150,8 @@ struct ParsedReference
 // parentheses belongs to the annotation, not to the next reference.
 //
 // Splitting on every comma was the defect: an annotated dependency such as
-// "REQ-AI-005 (LlamaEngine FFI — предходник, `DONE`)" became two "references"
-// ("REQ-AI-005 (LlamaEngine FFI — предходник" and "`DONE` )"), each reported as
+// "REQ-AI-005 (интероп слой — предшественик, `DONE`)" became two "references"
+// ("REQ-AI-005 (интероп слой — предшественик" and "`DONE` )"), each reported as
 // a dangling dependency — 40 of the 46 errors the GUI showed on the real tree
 // while the CLI showed 2.
 QStringList splitTopLevelCommas(const QString &value)

@@ -86,7 +86,7 @@ QString headingForVersion(const QString &version);
  * @par Reference grammar (Родител / Зависи от / Деца)
  * A reference is an ID token — `REQ-<PREFIX>-<NNN>` or `REQ-SW-<TYPE>-<NNN>` —
  * optionally followed by a parenthesised annotation, e.g.
- * `REQ-AI-005 (LlamaEngine FFI — предходник, \`DONE\`)`. The value is split on
+ * `REQ-AI-005 (интероп слой — предшественик, \`DONE\`)`. The value is split on
  * TOP-LEVEL commas only: a comma inside the annotation belongs to the
  * annotation. The prose around an ID is never resolved as a requirement, which
  * is what keeps a sentence from being reported as a dangling reference; a

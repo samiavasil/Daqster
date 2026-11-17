@@ -382,7 +382,7 @@ void TestParser::parseDirectory_nestedSubdirSection()
 void TestParser::parseReferences_annotationWithComma()
 {
     // A reference is an ID token, not the text that happens to follow it. An
-    // annotation may itself contain commas ("LlamaEngine FFI — предходник,
+    // annotation may itself contain commas ("интероп слой — предшественик,
     // `DONE`"); splitting the value on every comma cut it in two and both
     // halves were then looked up as requirement IDs — 40 of the 46 errors the
     // GUI reported on the real tree while the CLI reported 2.
@@ -401,7 +401,7 @@ void TestParser::parseReferences_annotationWithComma()
                      "- **Отговорник (роля):** Implementation\n"
                      "- **Дата:** 2026-11-10\n"
                      "- **Родител:** —\n"
-                     "- **Зависи от:** REQ-AI-005 (LlamaEngine FFI — предходник,"
+                     "- **Зависи от:** REQ-AI-005 (интероп слой — предшественик,"
                      " `DONE`), REQ-AI-010 (registry)\n"
                      "\n"
                      "## Описание\n"
@@ -420,7 +420,7 @@ void TestParser::parseReferences_annotationWithComma()
     QCOMPARE(req.dependencies.at(0), QStringLiteral("REQ-AI-005"));
     QCOMPARE(req.dependencies.at(1), QStringLiteral("REQ-AI-010"));
     QVERIFY(req.dependencyHints.value(QStringLiteral("REQ-AI-005"))
-                .contains(QStringLiteral("предходник")));
+                .contains(QStringLiteral("предшественик")));
     QCOMPARE(req.dependencyHints.value(QStringLiteral("REQ-AI-010")),
              QStringLiteral("registry"));
 }
