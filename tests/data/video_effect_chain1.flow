@@ -23,7 +23,7 @@
         {
             "id": 0,
             "internal-data": {
-                "filePath": "/mnt/Data/Pictures/Video/converted/VID_20180810_203733.mp4",
+                "filePath": "${DAQSTER_VIDEO_FILE:-bars_h265_1080p25_x3.mp4}",
                 "model-name": "VideoFileSource"
             },
             "label": "VideoFileSource",

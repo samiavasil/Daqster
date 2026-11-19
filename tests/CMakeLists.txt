@@ -26,3 +26,9 @@ endif()
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/docs)
     add_subdirectory(docs)
 endif()
+
+# REQ-SW-PL-091: scene guard (bash + python3, no Qt, no build) — a committed
+# `.flow` carries an empty/relative/`${VAR}` path, never a machine path.
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data/CMakeLists.txt)
+    add_subdirectory(data)
+endif()
