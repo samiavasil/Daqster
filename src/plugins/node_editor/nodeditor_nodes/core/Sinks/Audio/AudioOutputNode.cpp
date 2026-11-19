@@ -29,7 +29,9 @@ AudioOutputNode::AudioOutputNode()
 
 AudioOutputNode::~AudioOutputNode()
 {
-    // Single shutdown path: stop() closes the sink (REQ-SW-PL-050).
+    // Single shutdown path: stop() plays out the queue (bounded drain, see
+    // AudioPlaybackEngine::drain()) and then closes the sink (REQ-SW-PL-050).
+    // Scene close and process exit therefore sound exactly like a stop().
     stop();
 }
 

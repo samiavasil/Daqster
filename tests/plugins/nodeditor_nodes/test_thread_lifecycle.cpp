@@ -767,7 +767,12 @@ void TestThreadLifecycle::sceneVariablesAreExpandedOnLoad()
     fileScene.insert(QStringLiteral("filePath"), QStringLiteral("${DAQSTER_DEPS}/capture.sdf"));
     FilePlaybackModel filePlayback;
     filePlayback.load(fileScene);
-    QCOMPARE(filePlayback.save().value(QStringLiteral("filePath")).toString(), capture);
+    // REQ-SW-PL-091: save() emits the text the scene declared. It used to emit
+    // the resolved absolute path, so opening a portable scene and saving it
+    // pinned the `.flow` to the machine that saved it (fixed with the
+    // `TestSceneDeclaredPaths` suite).
+    QCOMPARE(filePlayback.save().value(QStringLiteral("filePath")).toString(),
+             QStringLiteral("${DAQSTER_DEPS}/capture.sdf"));
     QCOMPARE(filePlayback.validationState()._state, QtNodes::NodeValidationState::State::Valid);
 
     // A token this machine does not have: the state names it, and the literal

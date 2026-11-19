@@ -13,8 +13,14 @@ private slots:
     void parseDirectory_fullMetadata();
     void parseDirectory_minimalAndDashFields();
     void parseDirectory_typedId();
+    void parseDirectory_descriptionDialects();
+    void parseDirectory_criteriaDialects();
+    void parseDirectory_criteriaHeadingBulgarian();
     void parseDirectory_nestedSubdirSection();
     void parseDirectory_traceabilityFields();
+    void parseReferences_annotationWithComma();
+    void parseReferences_multipleParents();
+    void parseReferences_childrenAndNonRequirementId();
     void phaseStatus_allEmpty_false();
     void phaseStatus_dashAndWhitespace_false();
     void phaseStatus_allFilled_true();

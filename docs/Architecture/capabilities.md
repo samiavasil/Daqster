@@ -66,7 +66,7 @@ QtWidgets, а `NodeditorNodesGui` държи всички widget-и.
 на хоста плюс действия в меню (REQ-SW-PL-079):
 
 ```cpp
-virtual QString statusId() const = 0;        // "ai-studio.models", уникален
+virtual QString statusId() const = 0;        // "myplugin.models", уникален
 virtual QString statusText() const = 0;      // кратък ред; празен = скрит ред
 virtual QString statusTooltip() const = 0;   // подробности (може многоредов)
 virtual int statusOrder() const { return 100; }

@@ -28,47 +28,210 @@ bool numberStrIsDigits(const QString &s)
     return true;
 }
 
-// Matches a reference with a trailing parenthesized annotation, e.g.
-//   "REQ-SW-PL-013 (публично)"  ->  bare "REQ-SW-PL-013", hint "публично"
-// Group 1 = bare ID (no spaces), group 2 = annotation text.
-const QRegularExpression &annotationRe()
+// A requirement reference inside a "Родител:" / "Зависи от:" / "Деца:" value:
+// REQ-<PREFIX>-<NNN> (private scheme) or REQ-SW-<TYPE>-<NNN> (typed public one).
+// The ID is what a reference IS; the text around it is prose.
+const QRegularExpression &requirementIdRe()
 {
     static const QRegularExpression re(
-        QStringLiteral("^([^\\s(]+)\\s*\\(([^()]*)\\)$"));
+        QStringLiteral("\\b(REQ-[A-Z]+(?:-[A-Z]+)?-\\d{3})\\b"));
     return re;
 }
 
-// Splits one "Родител:" / "Зависи от:" item into a bare ID and (when present)
-// its annotation text. The bare ID is what references are resolved by; the
-// annotation is preserved in Requirement::dependencyHints for repo checks.
-QString bareReferenceId(const QString &item, QString *hintOut)
+// Any other document ID a header may cite (ADR-AI-013, ISS-007, CND-046). Such
+// a token is still a reference — kept and reported as "not a requirement"
+// instead of being silently dropped or looked up as a requirement ID.
+const QRegularExpression &documentIdRe()
 {
-    const QRegularExpressionMatch match = annotationRe().match(item.trimmed());
-    if (!match.hasMatch()) {
-        if (hintOut)
-            hintOut->clear();
-        return item.trimmed();
-    }
-    if (hintOut)
-        *hintOut = match.captured(2).trimmed();
-    return match.captured(1).trimmed();
+    static const QRegularExpression re(
+        QStringLiteral("\\b([A-Z]{2,}(?:-[A-Z]{2,})*-\\d{2,4})\\b"));
+    return re;
 }
 
-// Appends a reference to a list of bare IDs and, when an annotation was
-// present, records the hint keyed by the bare ID.
-void appendReference(const QString &item, QStringList &bareIds,
-                     QHash<QString, QString> &hints)
+// The description section has three spellings in the tree, one per template
+// generation: "Накратко" (v2 — canonical, see RDD-PROCESS.md „Поколения на
+// шаблона"), "Описание" (v1) and "Проблем" plus its optional "Цел" (v0, the
+// oldest files). Recognizing only the first made 60 requirements look
+// undescribed while they plainly had a description.
+//
+// The generation itself is kept in Requirement::templateVersion so the
+// validator can report a deviation as a Warning without hiding the text.
+QString descriptionVersion(const QString &heading)
 {
-    const QString trimmed = item.trimmed();
-    if (trimmed.isEmpty() || trimmed == QStringLiteral("—"))
-        return;
-    QString hint;
-    const QString bare = bareReferenceId(trimmed, &hint);
-    if (bare.isEmpty() || bare == QStringLiteral("—"))
-        return;
-    if (!hint.isEmpty() && !hints.contains(bare))
-        hints.insert(bare, hint);
-    bareIds.append(bare);
+    return RequirementTemplate::versionForHeading(heading);
+}
+
+// The acceptance-criteria section: "Acceptance Criteria",
+// "Изисквания (Acceptance Criteria)", the template's
+// "Как ще разберем, че работи[(AC)]" and the Bulgarian translation of the
+// first one, "Критерии за приемане". Missing the last one was not cosmetic:
+// the checkbox bullets were still recognized (they are recognized anywhere),
+// but a "### ACn" heading or a numbered/table entry under that heading was
+// invisible, so those requirements were graded "no acceptance criteria".
+bool isCriteriaHeading(const QString &heading)
+{
+    const QString text = heading.trimmed();
+    if (text.contains(QStringLiteral("Acceptance Criteria"), Qt::CaseInsensitive))
+        return true;
+    if (text.startsWith(QStringLiteral("Как ще разберем, че работи")))
+        return true;
+    if (text.startsWith(QStringLiteral("Критерии за приемане")))
+        return true;
+    return text == QStringLiteral("Изисквания");
+}
+
+// A criterion written as a heading: "### [x] AC1 — text" (state in the
+// checkbox) or "### AC1 — text" (no state — the criterion stays open, exactly
+// as an unchecked bullet does).
+bool appendCriterionHeading(const QString &line, Requirement &out)
+{
+    static const QRegularExpression boxed(
+        QStringLiteral("^###\\s+\\[([ xX])\\]\\s*(?:AC\\s*\\d+)?\\s*[—–:.-]?\\s*(.*)$"));
+    static const QRegularExpression plain(
+        QStringLiteral("^###\\s+AC\\s*\\d+\\b\\s*[—–:.-]?\\s*(.*)$"));
+
+    QRegularExpressionMatch match = boxed.match(line);
+    bool done = false;
+    if (match.hasMatch()) {
+        done = match.captured(1).toLower() == QStringLiteral("x");
+    } else {
+        match = plain.match(line);
+        if (!match.hasMatch())
+            return false;
+    }
+    const QString text = match.captured(match.lastCapturedIndex()).trimmed();
+    if (text.isEmpty())
+        return false;
+    out.acceptanceCriteria.append(text);
+    out.criteriaDone.append(done);
+    return true;
+}
+
+// Accepts one of the three ways the tree writes acceptance criteria (a
+// checkbox bullet, an "### ACn" heading or a numbered entry inside the
+// criteria section) plus the table form "| 3 | text | ✅ |". Everything here is
+// section-scoped by the caller: a numbered list or a table elsewhere in the
+// file is prose, not criteria.
+bool appendCriterionLine(const QString &line, Requirement &out)
+{
+    static const QRegularExpression numbered(
+        QStringLiteral("^\\d+\\.\\s+(?:\\*\\*)?(.*?)(?:\\*\\*)?\\s*$"));
+    static const QRegularExpression tableRow(
+        QStringLiteral("^\\|\\s*(\\d+)\\s*\\|([^|]*)\\|([^|]*)\\|"));
+
+    const QString trimmed = line.trimmed();
+    const QRegularExpressionMatch row = tableRow.match(trimmed);
+    if (row.hasMatch()) {
+        const QString text = row.captured(2).trimmed();
+        if (text.isEmpty())
+            return false;
+        // The status cell is human prose; ✅ means done, ☐ explicitly open.
+        out.acceptanceCriteria.append(text);
+        out.criteriaDone.append(row.captured(3).contains(QStringLiteral("✅")));
+        return true;
+    }
+
+    const QRegularExpressionMatch item = numbered.match(trimmed);
+    if (!item.hasMatch())
+        return false;
+    const QString text = item.captured(1).trimmed();
+    if (text.isEmpty())
+        return false;
+    out.acceptanceCriteria.append(text);
+    out.criteriaDone.append(false);
+    return true;
+}
+
+/**
+ * @brief One reference parsed out of a metadata value.
+ */
+struct ParsedReference
+{
+    QString id;                    //!< the ID token, empty for prose
+    QString hint;                  //!< annotation text (parenthesised), or empty
+    bool isRequirement = false;    //!< true when the token matched REQ-<…>
+};
+
+// Splits a metadata value on TOP-LEVEL commas only — a comma inside
+// parentheses belongs to the annotation, not to the next reference.
+//
+// Splitting on every comma was the defect: an annotated dependency such as
+// "REQ-AI-005 (интероп слой — предшественик, `DONE`)" became two "references"
+// ("REQ-AI-005 (интероп слой — предшественик" and "`DONE` )"), each reported as
+// a dangling dependency — 40 of the 46 errors the GUI showed on the real tree
+// while the CLI showed 2.
+QStringList splitTopLevelCommas(const QString &value)
+{
+    QStringList parts;
+    QString current;
+    int depth = 0;
+    for (const QChar &c : value) {
+        if (c == QLatin1Char('('))
+            ++depth;
+        else if (c == QLatin1Char(')') && depth > 0)
+            --depth;
+        if (c == QLatin1Char(',') && depth == 0) {
+            parts.append(current);
+            current.clear();
+            continue;
+        }
+        current.append(c);
+    }
+    parts.append(current);
+    return parts;
+}
+
+// Parses one top-level item of a metadata value: the ID token it starts from
+// plus the annotation attached to it. Items with no ID at all are prose ("—",
+// "DONE") and yield an empty id — a reference is an ID, never a sentence.
+ParsedReference parseReferenceItem(const QString &rawItem)
+{
+    ParsedReference ref;
+    const QString item = rawItem.trimmed();
+    if (item.isEmpty() || item.startsWith(QChar(0x2014))) // "—"
+        return ref;
+
+    QRegularExpressionMatch match = requirementIdRe().match(item);
+    if (match.hasMatch()) {
+        ref.isRequirement = true;
+    } else {
+        match = documentIdRe().match(item);
+        if (!match.hasMatch())
+            return ref;
+    }
+    ref.id = match.captured(1);
+
+    // The annotation is the parenthesised text right after the ID. Prose that
+    // follows without parentheses is a comment, not a repo hint.
+    const QString rest = item.mid(match.capturedEnd()).trimmed();
+    if (rest.startsWith(QLatin1Char('('))) {
+        const int close = rest.lastIndexOf(QLatin1Char(')'));
+        if (close > 0)
+            ref.hint = rest.mid(1, close - 1).trimmed();
+    }
+    return ref;
+}
+
+// Appends the references of a whole metadata value to a list of IDs, keyed
+// annotations into @p hints, and returns the first requirement ID found (used
+// as the single "Родител:" of the tree).
+QString appendReferences(const QString &value, QStringList &ids,
+                         QHash<QString, QString> &hints)
+{
+    ids.clear();
+    QString firstRequirementId;
+    for (const QString &item : splitTopLevelCommas(value)) {
+        const ParsedReference ref = parseReferenceItem(item);
+        if (ref.id.isEmpty())
+            continue;
+        if (!ids.contains(ref.id))
+            ids.append(ref.id);
+        if (!ref.hint.isEmpty() && !hints.contains(ref.id))
+            hints.insert(ref.id, ref.hint);
+        if (ref.isRequirement && firstRequirementId.isEmpty())
+            firstRequirementId = ref.id;
+    }
+    return firstRequirementId;
 }
 
 QString sectionOf(const QString &baseDir, const QString &absolutePath)
@@ -112,13 +275,76 @@ void collectMarkdownFiles(const QString &dirPath, QVector<QFileInfo> &out)
     }
 }
 
+// Resolves the directory a parse must WALK — the scope of the requirement set.
+//
+// A caller may pass a repo root (containing DevelopmentProcess/requirements) or
+// the requirements directory itself. Walking the repo root collected every
+// Markdown file under it whose H1 merely looks like a requirement: drafts in
+// DevelopmentProcess/plans/ (DRAFT-PL-06x under ideas/ plus their archive/
+// copies → the same ID twice → "duplicate requirement ID"), design documents
+// that quote a template, and one full copy of REQ-SW-PL-050 living in plans/.
+// The traceability CLI never sees those — it scans
+// DevelopmentProcess/requirements — so the GUI reported ~47 errors where the
+// CLI reported 2. The scope is therefore the requirements tree itself.
+QString scanRootOf(const QString &baseDir)
+{
+    const QDir base(baseDir);
+    const QString tree = base.filePath(QString::fromUtf8(kRequirementsSubdir));
+    if (QDir(tree).exists())
+        return tree;
+    // The caller already pointed at the requirements tree (or at a directory
+    // with no requirements subdirectory at all, e.g. a test fixture).
+    return base.absolutePath();
+}
+
 } // namespace
+
+namespace RequirementTemplate {
+
+QString canonicalVersion()
+{
+    return QStringLiteral("v2");
+}
+
+QString canonicalHeading()
+{
+    return QStringLiteral("Накратко");
+}
+
+QString versionForHeading(const QString &heading)
+{
+    const QString text = heading.trimmed();
+    // v2 first: it is the only one an author should be writing today.
+    if (text == canonicalHeading())
+        return canonicalVersion();
+    if (text == QStringLiteral("Описание"))
+        return QStringLiteral("v1");
+    // v0 is "## Проблем" plus its optional "## Цел": both belong to the same
+    // generation, and Цел alone is still the oldest template, not a fourth one.
+    if (text == QStringLiteral("Проблем") || text == QStringLiteral("Цел"))
+        return QStringLiteral("v0");
+    return QString();
+}
+
+QString headingForVersion(const QString &version)
+{
+    if (version == canonicalVersion())
+        return canonicalHeading();
+    if (version == QStringLiteral("v1"))
+        return QStringLiteral("Описание");
+    if (version == QStringLiteral("v0"))
+        return QStringLiteral("Проблем");
+    return QString();
+}
+
+} // namespace RequirementTemplate
 
 QVector<Requirement> RequirementsParser::parseDirectory(const QString &baseDir)
 {
     QVector<Requirement> result;
     QVector<QFileInfo> files;
-    collectMarkdownFiles(baseDir, files);
+    // Scope = the requirements tree, never the whole repo root (see scanRootOf).
+    collectMarkdownFiles(scanRootOf(baseDir), files);
 
     for (const QFileInfo &fileInfo : files) {
         const QString section = sectionOf(baseDir, fileInfo.absoluteFilePath());
@@ -458,6 +684,7 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
     const QRegularExpression criterionRe(QStringLiteral("^\\s*-\\s*\\[([ xX])\\]\\s*(.*)$"));
 
     bool inDescription = false;
+    bool inCriteria = false;
     bool inTraceability = false;
     QStringList descriptionLines;
     QStringList traceabilityLines;
@@ -465,12 +692,25 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
     for (const QString &line : lines) {
         const QString trimmed = line.trimmed();
         if (trimmed.startsWith(QStringLiteral("## "))) {
-            inDescription = (trimmed == QStringLiteral("## Описание"));
+            const QString heading = trimmed.mid(3).trimmed();
+            const QString version = descriptionVersion(heading);
+            inDescription = !version.isEmpty();
+            if (inDescription && out.templateVersion.isEmpty()) {
+                // First description heading wins: a file that starts its
+                // description with a legacy heading IS that generation, even
+                // when a canonical heading follows later in the file.
+                out.templateVersion = version;
+                out.templateHeading = heading;
+            }
+            inCriteria = isCriteriaHeading(heading);
             inTraceability = (trimmed == QStringLiteral("## Проследимост"));
             continue;
         }
-        if (trimmed.startsWith(QStringLiteral("### ")))
+        if (trimmed.startsWith(QStringLiteral("### "))) {
+            if (inCriteria)
+                appendCriterionHeading(line, out);
             continue;
+        }
 
         const QRegularExpressionMatch titleMatch = titleRe.match(line);
         if (titleMatch.hasMatch()) {
@@ -493,17 +733,20 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
             else if (key == QStringLiteral("Дата"))
                 out.date = value;
             else if (key == QStringLiteral("Родител")) {
-                QString hint;
-                const QString bare = bareReferenceId(value, &hint);
-                out.parentId = (bare == QStringLiteral("—")) ? QString() : bare;
-                if (!bare.isEmpty() && bare != QStringLiteral("—") && !hint.isEmpty())
-                    out.dependencyHints.insert(bare, hint);
+                // A parent list is possible ("REQ-AI-011, REQ-AI-012"); the tree
+                // is single-parent, so parentId is the first requirement ID —
+                // all of them stay in parentIds and are validated.
+                const QString first = appendReferences(value, out.parentIds,
+                                                       out.dependencyHints);
+                out.parentId = first.isEmpty() ? out.parentIds.value(0) : first;
             }
             else if (key == QStringLiteral("Зависи от")) {
-                out.dependencies.clear();
-                const QStringList parts = value.split(QLatin1Char(','));
-                for (const QString &part : parts)
-                    appendReference(part, out.dependencies, out.dependencyHints);
+                appendReferences(value, out.dependencies, out.dependencyHints);
+            }
+            else if (key == QStringLiteral("Деца")) {
+                // Inverse of "Родител:" — parsed and validated so the child
+                // links of a requirement cannot rot unobserved.
+                appendReferences(value, out.childIds, out.dependencyHints);
             } else {
                 handled = false; // unknown metadata (e.g. under Проследимост)
                 // Traceability keys are captured into structured fields BUT
@@ -529,6 +772,11 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
             continue;
         }
 
+        // Numbered entries and table rows only count inside the criteria
+        // section; the same shapes elsewhere are prose.
+        if (inCriteria && appendCriterionLine(line, out))
+            continue;
+
         if (inDescription)
             descriptionLines.append(line);
         else if (inTraceability)
@@ -537,6 +785,10 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
 
     out.description = descriptionLines.join(QStringLiteral("\n")).trimmed();
     out.traceability = traceabilityLines.join(QStringLiteral("\n")).trimmed();
+    // A parsed file always has a generation: "unknown" is the honest answer for
+    // one that follows no template at all, and it stays an Error downstream.
+    if (out.templateVersion.isEmpty())
+        out.templateVersion = QStringLiteral("unknown");
     return !out.id.isEmpty();
 }
 

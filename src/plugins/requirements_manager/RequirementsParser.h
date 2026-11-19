@@ -15,6 +15,49 @@ namespace Daqster {
 inline constexpr char kRequirementsSubdir[] = "DevelopmentProcess/requirements";
 
 /**
+ * @brief Template generations of a requirement file (REQ-SW-PL-008).
+ *
+ * One canonical template — the one RDD-PROCESS.md prints — and the two older
+ * generations still present in the tree. The single source of both the parser
+ * (which records the generation) and the validator (which reports a
+ * deviation), so neither can drift from the other or from the process doc.
+ *
+ * | variant | description heading | status |
+ * |---------|--------------------|--------|
+ * | v2      | `## Накратко`      | canonical |
+ * | v1      | `## Описание`      | recognised, not canonical |
+ * | v0      | `## Проблем` (+ `## Цел`) | recognised, not canonical |
+ * | unknown | (none)             | no template — an error |
+ */
+namespace RequirementTemplate {
+
+/** @brief The canonical generation token ("v2"). */
+QString canonicalVersion();
+
+/** @brief The canonical description heading, without "## " ("Накратко"). */
+QString canonicalHeading();
+
+/**
+ * @brief Template generation of a description heading.
+ *
+ * @param heading A "## " heading's text, prefix already stripped.
+ * @return "v2", "v1" or "v0"; an empty string when @p heading is not a
+ *         description heading at all.
+ */
+QString versionForHeading(const QString &heading);
+
+/**
+ * @brief The description heading a generation prints, for messages.
+ *
+ * @param version "v2", "v1", "v0" or anything else.
+ * @return The heading ("Накратко", "Описание", "Проблем"), or an empty string
+ *         for an unrecognised/absent generation.
+ */
+QString headingForVersion(const QString &version);
+
+} // namespace RequirementTemplate
+
+/**
  * @brief Structured representation of a single Markdown requirement file.
  *
  * Fields are parsed from the conventional requirement template:
@@ -25,12 +68,29 @@ inline constexpr char kRequirementsSubdir[] = "DevelopmentProcess/requirements";
  *   - **Дата:** YYYY-MM-DD
  *   - **Родител:** REQ-XXX
  *   - **Зависи от:** REQ-XXX, REQ-YYY
- *   ## Описание
- *   ## Acceptance Criteria
+ *   - **Деца:** REQ-ZZZ
+ *   ## Описание | ## Накратко | ## Проблем   (description section, any of the
+ *                                          three template generations; the one
+ *                                          used is recorded in
+ *                                          Requirement::templateVersion)
+ *   ## Acceptance Criteria | ## Как ще разберем, че работи | ## Критерии за приемане
  *   - [ ] criterion
  *   - [x] done criterion
+ *   ### [x] AC1 — heading criterion     (state in the checkbox)
+ *   ### AC2 — heading criterion         (no checkbox → open)
+ *   1. numbered criterion               (inside the criteria section)
+ *   | 3 | table criterion | ✅ |         (inside the criteria section)
  *   ## Проследимост
  *   - **Коммити:** ...
+ *
+ * @par Reference grammar (Родител / Зависи от / Деца)
+ * A reference is an ID token — `REQ-<PREFIX>-<NNN>` or `REQ-SW-<TYPE>-<NNN>` —
+ * optionally followed by a parenthesised annotation, e.g.
+ * `REQ-AI-005 (интероп слой — предшественик, \`DONE\`)`. The value is split on
+ * TOP-LEVEL commas only: a comma inside the annotation belongs to the
+ * annotation. The prose around an ID is never resolved as a requirement, which
+ * is what keeps a sentence from being reported as a dangling reference; a
+ * non-requirement document ID (`ADR-AI-013`) is kept and reported as such.
  */
 struct Requirement
 {
@@ -41,7 +101,10 @@ struct Requirement
     QString assignee;              //!< PM | Architect | Implementation | QA
     QString date;                  //!< creation/modification date (ISO), from "- **Дата:**"
     QString parentId;              //!< parent requirement ID, empty when none ("—")
+    QStringList parentIds;         //!< every ID in "Родител:" (parentId is the first
+                                   //!< requirement one); a requirement may list several
     QStringList dependencies;      //!< requirement IDs this depends on ("Зависи от:")
+    QStringList childIds;          //!< IDs listed in "Деца:" (inverse of "Родител:")
     QString description;           //!< free text under "## Описание"
     QString traceability;          //!< free text under "## Проследимост"
     QString commits;               //!< "- **Коммити:**" under Проследимост (commit hash list)
@@ -58,6 +121,16 @@ struct Requirement
                                    //!< parseDirectory alone, keeping single-root callers
                                    //!< compile- and behavior-compatible)
     QString rawContent;            //!< original file content (for round-trip edit)
+    QString templateVersion;       //!< template generation the file was written
+                                   //!< with, by its description heading:
+                                   //!< "v2" (## Накратко, canonical), "v1"
+                                   //!< (## Описание), "v0" (## Проблем/## Цел) or
+                                   //!< "unknown" (no description heading at all).
+                                   //!< Empty only for records a caller built by
+                                   //!< hand (no .md behind them) — the validator
+                                   //!< grades parsed files only.
+    QString templateHeading;       //!< the description heading actually found,
+                                   //!< without the "## " prefix (empty when none)
 
     /**
      * @brief Cross-repo annotations preserved from "Родител:" / "Зависи от:".
@@ -117,6 +190,22 @@ struct RequirementRoot
 class RequirementsParser
 {
 public:
+    /**
+     * @brief Parses one requirements tree and returns its requirements.
+     *
+     * @par Scope
+     * @p baseDir may be a repo root or the requirements directory itself; in
+     * both cases the walk is limited to the requirements tree
+     * (DevelopmentProcess/requirements — active, archive and nested
+     * subdirectories). The rest of the repo is never parsed, which matches the
+     * scope of scripts/validate-traceability.sh: a draft under
+     * DevelopmentProcess/plans/ cannot become a "requirement" the CLI does not
+     * know about.
+     *
+     * @param baseDir Repo root or requirements directory to parse.
+     * @return Requirements sorted by ID; files without a parser-conformant H1
+     *         are skipped.
+     */
     static QVector<Requirement> parseDirectory(const QString &baseDir);
 
     /**

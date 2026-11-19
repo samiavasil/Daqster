@@ -38,9 +38,10 @@ Markdown file in <code>DevelopmentProcess/requirements/active/</code>. The multi
 - **Родител:** REQ-XXX (or —)
 - **Зависи от:** REQ-XXX, REQ-YYY (or —)
 
-## Описание
+## Накратко
 
-Free-text description of the requirement.
+Free-text description of the requirement. „Накратко“ is the canonical heading
+(template v2); „Описание“ (v1) and „Проблем“ (v0) are recognised but reported.
 
 ## Acceptance Criteria
 

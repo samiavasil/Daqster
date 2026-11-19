@@ -85,4 +85,11 @@ private slots:
     // Step 3 of the Qt6 starvation fix: a sink between bursts is still playing
     // while audio is queued — "ready" only when there is really nothing left.
     void queuedAudioReportsPlayingEvenWhileTheSinkIdles();
+
+    // Stop must play out what is already queued (REQ-SW-PL-076, playback was
+    // cut mid-sentence: the sink buffer is 200 ms, one sentence is one block).
+    void drainDeadlineIsQueuePlusBufferPlusGrace();
+    void drainWaitsForTheQueuedAudioBeforeTheSinkDies();
+    void drainDeadlineReportsTheAudioItGivesUpOn();
+    void stopDoesNotWaitWhenNothingCanPlay();
 };

@@ -6,6 +6,7 @@
 #include "Sinks/Audio/AudioOutputNode.h"
 #include "Sinks/Audio/AudioPlaybackEngine.h"
 
+#include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QSignalSpy>
@@ -915,4 +916,145 @@ void TestAudioOutputNode::queuedAudioReportsPlayingEvenWhileTheSinkIdles()
     // Nothing queued and no device: "ready" — or "stopped", never "playing".
     QVERIFY2(!node.statusText().startsWith(QStringLiteral("playing")),
              qPrintable(node.statusText()));
+}
+
+// ── Stop plays out what is already queued (REQ-SW-PL-076) ─────────────────────
+
+namespace {
+/// Warnings seen while a message handler is installed — the drain's
+/// "gave up on N ms" line must be visible, not only counted.
+QStringList g_capturedWarnings;
+
+void captureMessages(QtMsgType type, const QMessageLogContext &context,
+                     const QString &message)
+{
+    Q_UNUSED(context);
+    if (type == QtWarningMsg || type == QtCriticalMsg)
+        g_capturedWarnings.append(message);
+    // Everything still reaches the normal test output.
+    fprintf(stderr, "%s\n", message.toLocal8Bit().constData());
+}
+} // namespace
+
+void TestAudioOutputNode::drainDeadlineIsQueuePlusBufferPlusGrace()
+{
+    // The bound is a formula, not a magic number: what is still queued plus the
+    // device buffer it has to travel through plus one second of grace, capped so
+    // a stalled device cannot hang stop() (scene close, process exit).
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.deviceId = missingDeviceId();   // the formula is a queue property
+    config.bufferMs = 200;
+    node.setConfig(config);
+
+    // Nothing queued: buffer + grace.
+    QCOMPARE(node.engine()->drainWaitMs(),
+             config.bufferMs + AudioPlaybackEngine::kDrainGraceMs);
+
+    node.start();
+    node.setInData(makeSentenceBlock(), 0);   // 1900 ms, one block
+    QCOMPARE(node.engine()->drainWaitMs(),
+             1900 + config.bufferMs + AudioPlaybackEngine::kDrainGraceMs);
+
+    // A 15 s VAD segment replaces the sentence (two blocks over the bound drop
+    // the oldest), and 15 s + buffer + grace exceeds the cap by far.
+    node.setInData(makeFloatBlock(24000 * 15, 24000.0), 0);
+    QCOMPARE(node.engine()->queueMs(), 15000);
+    QCOMPARE(node.engine()->drainWaitMs(), AudioPlaybackEngine::kMaxDrainWaitMs);
+}
+
+void TestAudioOutputNode::drainWaitsForTheQueuedAudioBeforeTheSinkDies()
+{
+    // The measured defect: a TTS sentence is ONE block of ~2.4 s, the device
+    // buffer is 200 ms, and stop() called QAudioSink::stop() immediately — the
+    // WAV was complete and the speaker fell silent mid-sentence.
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.bufferMs = 200;
+    config.maxQueuedMs = 3000;   // one sentence is never dropped
+    node.setConfig(config);
+    node.start();
+
+    if (!node.engine()->deviceAvailable())
+        QSKIP("no audio output device on this machine — nothing can be played out");
+
+    node.setInData(makeSentenceBlock(), 0);   // 1.9 s as one block
+    QVERIFY(node.engine()->bytesQueued() > 0);
+
+    QElapsedTimer timer;
+    timer.start();
+    node.stop();
+    const qint64 elapsed = timer.elapsed();
+
+    // Either the audio really was played out (the call took a real part of the
+    // sentence) or a device swallowed it at once. What must never happen is
+    // returning with audio left unplayed *without* the deadline having passed.
+    QCOMPARE(node.engine()->bytesQueued(), qsizetype(0));
+    QCOMPARE(node.engine()->lastDrainDroppedMs(), 0);
+    QVERIFY2(elapsed <= AudioPlaybackEngine::kMaxDrainWaitMs + 500,
+             qPrintable(QString::number(elapsed)));
+    QVERIFY2(node.engine()->lastDrainMs() > 0,
+             qPrintable(QString::number(node.engine()->lastDrainMs())));
+}
+
+void TestAudioOutputNode::drainDeadlineReportsTheAudioItGivesUpOn()
+{
+    // The deadline path: an explicit 0 ms bound gives up at once, and the audio
+    // it is about to throw away is REPORTED — one line with the count, so a cut
+    // is measurable instead of silent.
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.bufferMs = 200;
+    node.setConfig(config);
+    node.start();
+
+    if (!node.engine()->deviceAvailable())
+        QSKIP("no audio output device on this machine — the sink is never opened");
+
+    node.setInData(makeSentenceBlock(), 0);
+    QVERIFY(node.engine()->bytesQueued() > 0);
+
+    g_capturedWarnings.clear();
+    QtMessageHandler previous = qInstallMessageHandler(captureMessages);
+    const int waited = node.engine()->drain(0);
+    qInstallMessageHandler(previous);
+
+    QVERIFY2(waited < 500, qPrintable(QString::number(waited)));
+    QVERIFY2(node.engine()->lastDrainDroppedMs() > 0,
+             qPrintable(QString::number(node.engine()->lastDrainDroppedMs())));
+    // The audio is still there — the deadline stopped the wait, not the audio.
+    QVERIFY(node.engine()->bytesQueued() > 0);
+
+    bool reported = false;
+    for (const QString &line : g_capturedWarnings) {
+        if (line.contains(QStringLiteral("неизсвирен звук"))
+            && line.contains(QString::number(node.engine()->lastDrainDroppedMs())))
+            reported = true;
+    }
+    QVERIFY2(reported, qPrintable(g_capturedWarnings.join(QLatin1Char('|'))));
+
+    node.stop();
+}
+
+void TestAudioOutputNode::stopDoesNotWaitWhenNothingCanPlay()
+{
+    // The headless path (AC5): no device means no sink, so there is nothing to
+    // wait for — stop() must not block, and it must not claim the deadline hit
+    // a device that was never there.
+    AudioOutputNode node;
+    AudioOutputNode::Config config;
+    config.deviceId = missingDeviceId();
+    node.setConfig(config);
+    node.start();
+    node.setInData(makeSentenceBlock(), 0);   // 1.9 s queued, nothing can play it
+    QVERIFY(node.engine()->bytesQueued() > 0);
+
+    QElapsedTimer timer;
+    timer.start();
+    node.stop();
+
+    QVERIFY2(timer.elapsed() < 1000, qPrintable(QString::number(timer.elapsed())));
+    QCOMPARE(node.engine()->lastDrainMs(), 0);
+    QCOMPARE(node.engine()->lastDrainDroppedMs(), 0);
+    QCOMPARE(node.engine()->bytesQueued(), qsizetype(0));
 }

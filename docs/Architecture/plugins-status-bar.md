@@ -34,7 +34,7 @@ class IStatusBarProvider {
 public:
     virtual ~IStatusBarProvider() = default;
 
-    virtual QString statusId() const = 0;        // "ai-studio.models" — уникален
+    virtual QString statusId() const = 0;        // "myplugin.models" — уникален
     virtual QString statusText() const = 0;      // кратък ред за статус бара
     virtual QString statusTooltip() const = 0;   // подробности (може многоредов)
     virtual int statusOrder() const { return 100; }

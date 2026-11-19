@@ -1,5 +1,7 @@
 #include "ValidationDialog.h"
 
+#include "ValidationReport.h"
+
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QDialogButtonBox>
@@ -7,12 +9,17 @@
 #include <QVBoxLayout>
 #include <QBrush>
 #include <QLabel>
+#include <QApplication>
+#include <QClipboard>
+#include <QShortcut>
+#include <QKeySequence>
 
 namespace Daqster {
 
 ValidationDialog::ValidationDialog(const QVector<RequirementsValidator::Issue> &issues,
                                    QWidget *parent)
     : QDialog(parent)
+    , m_issues(issues)
 {
     setWindowTitle(tr("Requirements Validation Report"));
     resize(720, 420);
@@ -56,9 +63,30 @@ ValidationDialog::ValidationDialog(const QVector<RequirementsValidator::Issue> &
                     emit navigateRequested(id);
             });
 
-    QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    QDialogButtonBox *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Close, this);
     buttons->button(QDialogButtonBox::Close)->setText(tr("Close"));
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+
+    // Copy actions live in the same button box so the dialog keeps one row of
+    // actions; both are disabled when there is nothing to copy.
+    m_copyButton = buttons->addButton(tr("Копирай"), QDialogButtonBox::ActionRole);
+    m_copyReportButton = buttons->addButton(tr("Копирай като справка"),
+                                            QDialogButtonBox::ActionRole);
+    m_copyButton->setEnabled(!issues.isEmpty());
+    m_copyReportButton->setEnabled(!issues.isEmpty());
+    m_copyButton->setToolTip(tr("Копира всички проблеми като Markdown (Ctrl+C)"));
+    m_copyReportButton->setToolTip(tr("Копира справка с дата и брой — за статус бележка"));
+
+    connect(m_copyButton, &QPushButton::clicked, this,
+            [this]() { copyToClipboard(markdownText()); });
+    connect(m_copyReportButton, &QPushButton::clicked, this,
+            [this]() { copyToClipboard(reportText()); });
+
+    // Ctrl+C on the list copies the same markdown as the button.
+    QShortcut *copyShortcut = new QShortcut(QKeySequence::Copy, m_issueList);
+    connect(copyShortcut, &QShortcut::activated, this,
+            [this]() { copyToClipboard(markdownText()); });
 
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->addWidget(new QLabel(tr("Validation result: %1 error(s), %2 warning(s)")
@@ -66,6 +94,23 @@ ValidationDialog::ValidationDialog(const QVector<RequirementsValidator::Issue> &
     layout->addWidget(m_issueList);
     layout->addWidget(buttons);
     setLayout(layout);
+}
+
+QString ValidationDialog::markdownText() const
+{
+    return ValidationReport::issuesAsMarkdown(m_issues);
+}
+
+QString ValidationDialog::reportText() const
+{
+    return ValidationReport::asStatusReport(m_issues);
+}
+
+void ValidationDialog::copyToClipboard(const QString &text)
+{
+    if (text.isEmpty())
+        return;
+    QApplication::clipboard()->setText(text);
 }
 
 } // namespace Daqster

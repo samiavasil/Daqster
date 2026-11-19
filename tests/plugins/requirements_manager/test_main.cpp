@@ -8,6 +8,8 @@
 #include "test_graph_layout.h"
 #include "test_search.h"
 #include "test_merge.h"
+#include "test_sorting.h"
+#include "test_report.h"
 
 // Shared main for the Requirements Manager test classes. Each class is
 // declared in its own header so a single binary can run all of them through
@@ -46,6 +48,14 @@ int main(int argc, char *argv[])
     {
         TestMerge merge;
         status |= QTest::qExec(&merge, argc, argv);
+    }
+    {
+        TestSorting sorting;
+        status |= QTest::qExec(&sorting, argc, argv);
+    }
+    {
+        TestValidationReport report;
+        status |= QTest::qExec(&report, argc, argv);
     }
     return status;
 }

@@ -104,7 +104,12 @@ private:
 
     QTimer *m_timer = nullptr;
     QFile m_file;
+    /// Resolved for `QFile` — the path actually opened.
     QString m_filePath;
+    /// The text the scene declared (`${VAR}`, a relative name, or an absolute
+    /// path) — what `save()` emits, so open + save keeps the scene portable
+    /// (REQ-SW-PL-091).
+    QString m_declaredFilePath;
     qint64 m_fileSize = 0;
     qint64 m_position = 0;
     /// Timer chunk budget in BYTES (QFile::read() counts bytes). The bytes

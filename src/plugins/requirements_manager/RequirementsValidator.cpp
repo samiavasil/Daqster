@@ -1,14 +1,45 @@
 #include "RequirementsValidator.h"
 
 #include <QHash>
+#include <QFileInfo>
 #include <QRegularExpression>
 #include <QSet>
+#include <QStringList>
 
 #include <functional>
 
 namespace Daqster {
 
 namespace {
+
+// Statuses that assert the work has landed: they may not stay in active/.
+// Mirrors ARCHIVED_STATUSES in scripts/validate-traceability.sh (private repo).
+const QStringList &archivedStatuses()
+{
+    static const QStringList list = {QStringLiteral("DONE"),
+                                     QStringLiteral("CANCELLED")};
+    return list;
+}
+
+// IMPLEMENTED belongs to neither zone: the code is on a branch, so the file may
+// sit in active/ next to its siblings or be filed in archive/. Both are honest;
+// only ACTIVE-in-archive/ and DONE-in-active/ are contradictions.
+// Mirrors EITHER_ZONE_STATUSES in the same script.
+const QStringList &eitherZoneStatuses()
+{
+    static const QStringList list = {QStringLiteral("IMPLEMENTED")};
+    return list;
+}
+
+// The ID grammar of a requirement reference — the same one the parser resolves
+// references with. A header citing something else ("ADR-AI-013") is a link of a
+// different kind, not a mistyped requirement.
+const QRegularExpression &requirementIdRe()
+{
+    static const QRegularExpression re(
+        QStringLiteral("^REQ-[A-Z]+(-[A-Z]+)?-\\d{3}$"));
+    return re;
+}
 
 // DFS helper: reports back-edge cycles in a directed graph.
 // adjacency[u] returns the list of target requirement indexes for node u.
@@ -146,26 +177,170 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
                            Severity::Warning});
     }
 
-    // --- Parent references (Родител) --------------------------------------
+    // --- Template generation (REQ-SW-PL-008) ------------------------------
+    // One canonical template: the description section is "## Накратко" (v2).
+    // The two older generations stay recognised (their text is a real
+    // description, not a missing one) but are reported, otherwise v1 never
+    // retires: 88 of the 129 files on the real tree still say "## Описание".
+    // A file with no description heading at all follows no template at all —
+    // that is an Error, not a deviation, and it must not be silenced.
     for (const Requirement &req : requirements) {
-        if (req.parentId.trimmed().isEmpty())
+        const QString version = req.templateVersion.trimmed();
+        if (version.isEmpty())
+            continue; // hand-built record (no .md behind it) — nothing to grade
+        if (version == RequirementTemplate::canonicalVersion())
             continue;
-        if (req.parentId == req.id) {
-            issues.append({req.id, QStringLiteral("parentId"),
-                           QStringLiteral("requirement references itself as parent"),
+
+        const QString canonical = QStringLiteral("%1 (## %2)")
+                                      .arg(RequirementTemplate::canonicalVersion(),
+                                           RequirementTemplate::canonicalHeading());
+        if (version == QStringLiteral("unknown")) {
+            issues.append({req.id, QStringLiteral("template"),
+                           QStringLiteral("няма секция за описание — каноничният "
+                                          "шаблон иска ## %1")
+                               .arg(RequirementTemplate::canonicalHeading()),
                            Severity::Error});
             continue;
         }
-        const Requirement *parent = findById(req.parentId);
-        if (!parent) {
-            issues.append({req.id, QStringLiteral("parentId"),
-                           QStringLiteral("parent '%1' does not exist (dangling reference)")
-                               .arg(req.parentId),
+        const QString heading = req.templateHeading.trimmed().isEmpty()
+            ? RequirementTemplate::headingForVersion(version)
+            : req.templateHeading.trimmed();
+        issues.append({req.id, QStringLiteral("template"),
+                       QStringLiteral("шаблон %1 (## %2) — каноничният е %3")
+                           .arg(version, heading, canonical),
+                       Severity::Warning});
+    }
+
+    // --- Status vocabulary -------------------------------------------------
+    // One lifecycle vocabulary, shared with the traceability CLI
+    // (scripts/validate-traceability.sh → VOCAB): a status outside it is a
+    // defect, not a new lifecycle. Two invalid statuses (FUTURE, PLANNED) once
+    // lived in the tree with no visible consequence, which is exactly why this
+    // is checked. An empty status is already reported as "status is missing"
+    // above and is not repeated here.
+    const QStringList vocabulary = statusVocabulary();
+    for (const Requirement &req : requirements) {
+        if (req.status.trimmed().isEmpty())
+            continue;
+        const QString token = normalizedStatus(req.status);
+        if (token.isEmpty()) {
+            issues.append({req.id, QStringLiteral("status"),
+                           QStringLiteral("не може да се прочете статус от '%1' "
+                                          "(позволени: %2)")
+                               .arg(req.status, vocabulary.join(QLatin1Char(' '))),
+                           Severity::Error});
+            continue;
+        }
+        if (!vocabulary.contains(token)) {
+            issues.append({req.id, QStringLiteral("status"),
+                           QStringLiteral("невалиден статус '%1' (позволени: %2)")
+                               .arg(token, vocabulary.join(QLatin1Char(' '))),
+                           Severity::Error});
+            continue;
+        }
+        // --- Status vs zone (CLI §3 parity) -------------------------------
+        // RDD-PROCESS defines one lifecycle: ACTIVE -> DONE (move to archive).
+        // The zone check is what catches "ACTIVE while sitting in archive/" and
+        // "DONE still in active/" — the latter is the one real defect the two
+        // validators now report identically (REQ-SW-PL-079).
+        const QString zone = req.section.trimmed().toLower();
+        const bool archived = archivedStatuses().contains(token);
+        const bool either = eitherZoneStatuses().contains(token);
+        if (zone == QStringLiteral("archive") && !archived && !either) {
+            issues.append({req.id, QStringLiteral("status"),
+                           QStringLiteral("статус '%1' в archive/ (очаква се %2 или %3)")
+                               .arg(token,
+                                    archivedStatuses().join(QStringLiteral(", ")),
+                                    eitherZoneStatuses().join(QStringLiteral(", "))),
+                           Severity::Error});
+        } else if (zone == QStringLiteral("active") && archived) {
+            issues.append({req.id, QStringLiteral("status"),
+                           QStringLiteral("статус '%1' в active/ (очаква се ACTIVE, "
+                                          "BACKLOG или %2)")
+                               .arg(token, eitherZoneStatuses().join(QStringLiteral(", "))),
                            Severity::Error});
         }
     }
 
+    // --- Acceptance criteria vs DONE (CLI §4 parity) ----------------------
+    // A DONE requirement asserts the work landed, so it may not carry an
+    // unaddressed criterion. An unchecked criterion annotated with ⛔ (proven
+    // blocker) or ⏸ (blocked by environment) is a *documented* deferral — a
+    // real state, reported as a Warning and left to a human decision.
+    for (const Requirement &req : requirements) {
+        if (normalizedStatus(req.status) != QStringLiteral("DONE"))
+            continue;
+        int open = 0;
+        int deferred = 0;
+        for (int i = 0; i < req.acceptanceCriteria.size(); ++i) {
+            if (i < req.criteriaDone.size() && req.criteriaDone.at(i))
+                continue;
+            const QString &text = req.acceptanceCriteria.at(i);
+            if (text.contains(QStringLiteral("⛔"))
+                || text.contains(QStringLiteral("⏸")))
+                ++deferred;
+            else
+                ++open;
+        }
+        if (open > 0) {
+            issues.append({req.id, QStringLiteral("acceptanceCriteria"),
+                           QStringLiteral("%1 незакрити AC без маркер при статус DONE")
+                               .arg(open),
+                           Severity::Error});
+        }
+        if (deferred > 0) {
+            issues.append({req.id, QStringLiteral("acceptanceCriteria"),
+                           QStringLiteral("%1 AC са ⏸/⛔ при статус DONE — виж CND-046")
+                               .arg(deferred),
+                           Severity::Warning});
+        }
+    }
+
+    // --- Parent references (Родител) --------------------------------------
+    // A "Родител:" value may cite several IDs, and may cite a non-requirement
+    // document (ADR-AI-013). The tree uses the first requirement ID; every
+    // listed reference is resolved here so none can rot unseen.
+    for (const Requirement &req : requirements) {
+        QStringList parents = req.parentIds;
+        if (parents.isEmpty() && !req.parentId.trimmed().isEmpty())
+            parents.append(req.parentId); // hand-built records (callers, tests)
+        for (const QString &parentId : parents) {
+            const QString id = parentId.trimmed();
+            if (id.isEmpty())
+                continue;
+            if (id == req.id) {
+                issues.append({req.id, QStringLiteral("parentId"),
+                               QStringLiteral("requirement references itself as parent"),
+                               Severity::Error});
+                continue;
+            }
+            if (!requirementIdRe().match(id).hasMatch()) {
+                issues.append({req.id, QStringLiteral("parentId"),
+                               QStringLiteral("референцията '%1' не е изискване "
+                                              "(REQ-…), не се резолвира тук")
+                                   .arg(id),
+                               Severity::Warning});
+                continue;
+            }
+            if (!findById(id)) {
+                issues.append({req.id, QStringLiteral("parentId"),
+                               QStringLiteral("parent '%1' does not exist (dangling reference)")
+                                   .arg(id),
+                               Severity::Error});
+            }
+        }
+    }
+
     // --- Dependency references (Зависи от) --------------------------------
+    // Explicit grading of a reference by the target's status (REQ-SW-PL-008):
+    //   DONE / IMPLEMENTED / ACTIVE / BACKLOG -> nothing: a normal state. A DONE
+    //       dependency is the end state the lifecycle asks for, so archiving it
+    //       is not a defect (warning on it punished 4 correct filings);
+    //   CANCELLED -> Warning: the dependency was dropped, so a live requirement
+    //       cannot be built on it;
+    //   archived with an unreadable status -> Warning naming the file: the
+    //       reference points at a record nobody can grade;
+    //   not in the tree -> Error: a broken reference is never silence.
     for (const Requirement &req : requirements) {
         for (const QString &dep : req.dependencies) {
             if (dep == req.id) {
@@ -174,18 +349,65 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
                                Severity::Error});
                 continue;
             }
+            if (!requirementIdRe().match(dep).hasMatch()) {
+                issues.append({req.id, QStringLiteral("dependencies"),
+                               QStringLiteral("референцията '%1' не е изискване "
+                                              "(REQ-…), не се резолвира тук")
+                                   .arg(dep),
+                               Severity::Warning});
+                continue;
+            }
             const Requirement *target = findById(dep);
             if (!target) {
                 issues.append({req.id, QStringLiteral("dependencies"),
-                               QStringLiteral("dependency '%1' does not exist (dangling reference)")
+                               QStringLiteral("зависи от несъществуващо изискване '%1'")
                                    .arg(dep),
                                Severity::Error});
-            } else if (target->section == QStringLiteral("archive")
-                       && req.section != QStringLiteral("archive")) {
+                continue;
+            }
+            const QString token = normalizedStatus(target->status);
+            if (token == QStringLiteral("CANCELLED")) {
                 issues.append({req.id, QStringLiteral("dependencies"),
-                               QStringLiteral("depends on archived requirement '%1'")
+                               QStringLiteral("зависи от отказано изискване '%1'")
                                    .arg(dep),
                                Severity::Warning});
+            } else if (target->section == QStringLiteral("archive")
+                       && !vocabulary.contains(token)) {
+                // Archived, yet its status cannot be read at all: the reference
+                // resolves to a record the vocabulary does not grade. Name the
+                // file so a human can open it.
+                const QString file = target->fileName.trimmed().isEmpty()
+                    ? QFileInfo(target->filePath).fileName()
+                    : target->fileName;
+                issues.append({req.id, QStringLiteral("dependencies"),
+                               QStringLiteral("зависи от архивирано изискване '%1' с "
+                                              "неразпознат статус (файл %2)")
+                                   .arg(dep, file),
+                               Severity::Warning});
+            }
+        }
+    }
+
+    // --- Child references (Деца) ------------------------------------------
+    // The inverse of "Родител:". Nothing else reads it, so without this check a
+    // stale child link would never be noticed.
+    for (const Requirement &req : requirements) {
+        for (const QString &child : req.childIds) {
+            if (child == req.id)
+                continue; // reported by the parent/graph checks
+            if (!requirementIdRe().match(child).hasMatch()) {
+                issues.append({req.id, QStringLiteral("childIds"),
+                               QStringLiteral("референцията '%1' не е изискване "
+                                              "(REQ-…), не се резолвира тук")
+                                   .arg(child),
+                               Severity::Warning});
+                continue;
+            }
+            if (!findById(child)) {
+                issues.append({req.id, QStringLiteral("childIds"),
+                               QStringLiteral("child '%1' does not exist (dangling reference)")
+                                   .arg(child),
+                               Severity::Error});
             }
         }
     }
@@ -226,7 +448,9 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
     for (const Requirement &req : requirements) {
         for (auto it = req.dependencyHints.constBegin();
              it != req.dependencyHints.constEnd(); ++it) {
-            const QString field = (it.key() == req.parentId)
+            const bool isParent = it.key() == req.parentId
+                || req.parentIds.contains(it.key());
+            const QString field = isParent
                 ? QStringLiteral("parentId")
                 : QStringLiteral("dependencies");
             checkHintRepo(req, field, it.key(), it.value(), findById(it.key()));
@@ -250,12 +474,15 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
     // --- Cycles in the parent graph (tree would otherwise nest forever) ---
     QVector<QVector<int>> parentAdjacency(n);
     for (int u = 0; u < n; ++u) {
-        if (requirements.at(u).parentId.trimmed().isEmpty())
-            continue;
-        const auto it = idToIndex.constFind(requirements.at(u).parentId.toLower());
-        if (it == idToIndex.constEnd() || it.value() == u)
-            continue;
-        parentAdjacency[u].append(it.value());
+        QStringList parents = requirements.at(u).parentIds;
+        if (parents.isEmpty() && !requirements.at(u).parentId.trimmed().isEmpty())
+            parents.append(requirements.at(u).parentId);
+        for (const QString &parentId : parents) {
+            const auto it = idToIndex.constFind(parentId.trimmed().toLower());
+            if (it == idToIndex.constEnd() || it.value() == u)
+                continue;
+            parentAdjacency[u].append(it.value());
+        }
     }
     collectCycles(requirements, idToIndex, parentAdjacency,
                   QStringLiteral("parentId"), issues);
@@ -268,6 +495,20 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
                          return a.id < b.id;
                      });
 
+    // --- Attach the source file to every issue that names an ID -----------
+    // Filled in one post-pass instead of at each creation site: the copyable
+    // report addresses an issue by file (REQ-SW-PL-001), and the requirement
+    // set is the only place the mapping lives.
+    QHash<QString, QString> idToFile;
+    for (const Requirement &req : requirements) {
+        if (!req.id.isEmpty() && !idToFile.contains(req.id.toLower()))
+            idToFile.insert(req.id.toLower(), req.filePath);
+    }
+    for (Issue &issue : issues) {
+        if (!issue.id.isEmpty())
+            issue.filePath = idToFile.value(issue.id.toLower());
+    }
+
     return issues;
 }
 
@@ -279,6 +520,49 @@ int RequirementsValidator::countSeverity(const QVector<Issue> &issues, Severity 
             ++count;
     }
     return count;
+}
+
+QStringList RequirementsValidator::statusVocabulary()
+{
+    // Order and membership mirror `readonly VOCAB` in
+    // scripts/validate-traceability.sh. Changing one without the other makes
+    // the two validators disagree again, which is the defect this fixes.
+    return {QStringLiteral("ACTIVE"), QStringLiteral("IMPLEMENTED"),
+            QStringLiteral("DONE"), QStringLiteral("CANCELLED"),
+            QStringLiteral("BACKLOG")};
+}
+
+QString RequirementsValidator::normalizedStatus(const QString &rawStatus)
+{
+    // "DONE НА КЛОНА" is IMPLEMENTED, not DONE: the code sits on a branch and
+    // nothing is in develop. The CLI maps it the same way, so both validators
+    // read the same state from the same file.
+    static const QRegularExpression doneOnBranchRe(
+        QStringLiteral("^DONE\\s+НА\\s+КЛОНА"));
+
+    // A field of the value, optionally wrapped in punctuation the author used
+    // for emphasis — "(ACTIVE)", "**ACTIVE**", "ACTIVE,". Inner lowercase
+    // letters disqualify a field, so prose ("на", "клон") can never be read as
+    // a status.
+    static const QRegularExpression fieldTokenRe(
+        QStringLiteral("^[^A-Za-z]*([A-Z]{3,15})[^A-Za-z]*$"));
+
+    QString text = rawStatus;
+    text.remove(QLatin1Char('*')).remove(QLatin1Char('`')).remove(QLatin1Char(':'));
+
+    if (doneOnBranchRe.match(text.trimmed()).hasMatch())
+        return QStringLiteral("IMPLEMENTED");
+
+    // The status is the FIRST readable all-caps field; whatever follows it is
+    // rationale ("ACTIVE — AC1–AC13 имплементирани").
+    const QStringList fields =
+        text.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+    for (const QString &field : fields) {
+        const QRegularExpressionMatch match = fieldTokenRe.match(field);
+        if (match.hasMatch())
+            return match.captured(1);
+    }
+    return QString();
 }
 
 } // namespace Daqster

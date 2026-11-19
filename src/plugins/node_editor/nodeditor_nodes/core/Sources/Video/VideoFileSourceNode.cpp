@@ -103,8 +103,13 @@ void VideoFileSourceNode::start()
 
 QJsonObject VideoFileSourceNode::save() const
 {
+    // The text the scene declared, not the path this machine computed
+    // (REQ-SW-PL-091): `load()` resolves `${VAR}` / a scene-relative name, and
+    // writing the result back would pin the `.flow` to the machine that saved
+    // it. `m_declaredFilePath` is what the file said (or, for a node built
+    // through the API only, exactly what the API passed).
     QJsonObject modelJson = QtNodes::NodeDelegateModel::save();
-    modelJson["filePath"] = m_filePath;
+    modelJson["filePath"] = m_declaredFilePath;
     return modelJson;
 }
 
@@ -128,6 +133,9 @@ void VideoFileSourceNode::load(QJsonObject const &p)
     const Daqster::SceneVariableExpansion expansion = variables.expandDetailed(stored);
     QString reason;
     m_filePath = variables.resolvePath(stored, nullptr, &reason);
+    // ...and the declared text is kept beside the resolved one so `save()`
+    // emits the token again instead of the absolute path (REQ-SW-PL-091).
+    m_declaredFilePath = stored;
 
     // Three different defects, three different messages: a token this machine
     // does not have, a relative path with no scene to be relative to, and a
@@ -215,6 +223,9 @@ void VideoFileSourceNode::onBrowseClicked()
 
 void VideoFileSourceNode::onFilePathChanged(const QString &filePath)
 {
+    // A value through the API (the widget's field, the file dialog) is both the
+    // declared text and the path in use (REQ-SW-PL-091).
+    m_declaredFilePath = filePath;
     m_filePath = filePath;
 }
 

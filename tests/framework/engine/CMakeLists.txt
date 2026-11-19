@@ -50,3 +50,27 @@ target_link_libraries(scene_open_tests PRIVATE
 )
 
 add_test(NAME scene_open_tests COMMAND $<TARGET_FILE:scene_open_tests>)
+
+# Which nodes a scene starts (REQ-SW-PL-082).
+#
+# The rule is structural — a startable node with no connected input is an entry
+# point; `ui.nodes[].autoStart` is an override on top. FrameworkCore::SceneAutoStart
+# with a real DataFlowGraphModel and fake node models, so the three hosts (headless
+# engine, GUI runtime, IDE) are not needed to test it.
+add_executable(scene_autostart_tests
+    test_scene_autostart.cpp
+)
+
+target_include_directories(scene_autostart_tests PRIVATE
+    ${DAQSTER_SOURCE_DIR}/src/plugins/common
+)
+
+target_link_libraries(scene_autostart_tests PRIVATE
+    FrameworkCore
+    Qt${QT_VERSION_MAJOR}::Test
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    QtNodes
+)
+
+add_test(NAME scene_autostart_tests COMMAND $<TARGET_FILE:scene_autostart_tests>)

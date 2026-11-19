@@ -154,7 +154,11 @@ private:
         return 1; // 0 = video-frame, 1 = audio (no gap)
     }
 
-    QString m_filePath;               // video file, persisted in save()/load()
+    QString m_filePath;               // video file, resolved for the player
+    /// The text the scene declared (`${VAR}`, a relative name, or an absolute
+    /// path) — what `save()` emits, so open + save keeps the scene portable
+    /// (REQ-SW-PL-091).
+    QString m_declaredFilePath;
     QMediaPlayer *m_player = nullptr;
     VideoCompat::FrameProbe *m_frameProbe = nullptr;
     // Runtime profiling (REQ-SW-PL-027): inter-frame gap stopwatch + first-frame

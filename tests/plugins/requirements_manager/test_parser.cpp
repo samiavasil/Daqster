@@ -5,6 +5,7 @@
 #include <QTextStream>
 
 #include "RequirementsParser.h"
+#include "RequirementsValidator.h"
 #include "test_parser.h"
 
 using namespace Daqster;
@@ -240,6 +241,165 @@ void TestParser::parseDirectory_typedId()
     QCOMPARE(req->section, QStringLiteral("active"));
 }
 
+void TestParser::parseDirectory_descriptionDialects()
+{
+    // The tree writes the description section three ways, one per template
+    // generation. All three must produce a description; before the aliases a
+    // requirement written with "## Накратко" or "## Проблем" looked
+    // undescribed (60 warnings on the real tree).
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir = QDir(temp.path())
+                                  .filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    const QString head = QStringLiteral("# REQ-SW-PL-%1: Dialect\n\n"
+                                        "- **Статус:** ACTIVE\n\n");
+    const QVector<QPair<QString, QString>> sections = {
+        {QStringLiteral("001"), QStringLiteral("## Накратко")},
+        {QStringLiteral("002"), QStringLiteral("## Проблем")},
+        {QStringLiteral("003"), QStringLiteral("## Описание")},
+    };
+    for (const auto &entry : sections) {
+        writeFixture(activeDir, QStringLiteral("%1.md").arg(entry.first),
+                     head.arg(entry.first) + entry.second
+                         + QStringLiteral("\n\nТекст на описанието.\n"));
+    }
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(temp.path());
+
+    QCOMPARE(requirements.size(), 3);
+    for (const Requirement &req : requirements)
+        QCOMPARE(req.description, QStringLiteral("Текст на описанието."));
+
+    // The generation used is recorded (REQ-SW-PL-008): the validator grades a
+    // deviation from it, and it must come from the heading, not from the file
+    // name or the ID.
+    QCOMPARE(findRequirement(requirements, QStringLiteral("REQ-SW-PL-001"))->templateVersion,
+             QStringLiteral("v2"));
+    QCOMPARE(findRequirement(requirements, QStringLiteral("REQ-SW-PL-002"))->templateVersion,
+             QStringLiteral("v0"));
+    QCOMPARE(findRequirement(requirements, QStringLiteral("REQ-SW-PL-003"))->templateVersion,
+             QStringLiteral("v1"));
+
+    // "## Цел" belongs to the same oldest generation as "## Проблем".
+    writeFixture(activeDir, QStringLiteral("004.md"),
+                 head.arg(QStringLiteral("004"))
+                     + QStringLiteral("## Проблем\n\nПроблем.\n\n"
+                                      "## Цел\n\nЦел.\n"));
+    // No description heading at all: no template, and that is what the parser
+    // must record — an empty version would be indistinguishable from a record
+    // built by hand, which is never graded.
+    writeFixture(activeDir, QStringLiteral("005.md"),
+                 head.arg(QStringLiteral("005"))
+                     + QStringLiteral("## Как ще разберем, че работи\n\n- [ ] x\n"));
+
+    const QVector<Requirement> extended = RequirementsParser::parseDirectory(temp.path());
+    QCOMPARE(extended.size(), 5);
+    const Requirement *goal = findRequirement(extended, QStringLiteral("REQ-SW-PL-004"));
+    QCOMPARE(goal->templateVersion, QStringLiteral("v0"));
+    const Requirement *none = findRequirement(extended, QStringLiteral("REQ-SW-PL-005"));
+    QCOMPARE(none->templateVersion, QStringLiteral("unknown"));
+    QVERIFY(none->templateHeading.isEmpty());
+}
+
+void TestParser::parseDirectory_criteriaDialects()
+{
+    // Criteria arrive as checkbox bullets, as "### ACn" headings (with or
+    // without a checkbox) and as a table inside the criteria section. Only the
+    // bullet form was recognized, so 21 requirements looked criteria-less.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir = QDir(temp.path())
+                                  .filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    writeFixture(activeDir, QStringLiteral("001.md"),
+                 QStringLiteral(
+                     "# REQ-SW-PL-001: Criteria Dialects\n\n"
+                     "- **Статус:** ACTIVE\n\n"
+                     "## Накратко\n\nОписание.\n\n"
+                     "## Acceptance Criteria\n\n"
+                     "### [x] AC1 — Заглавен критерий със отметка\n\n"
+                     "### AC2 — Заглавен критерий без отметка\n\n"
+                     "- [ ] 3. Точков критерий\n\n"
+                     "1. Номериран критерий\n\n"
+                     "| AC | Description | Status |\n"
+                     "|---|---|---|\n"
+                     "| 5 | Табличен критерий | ✅ |\n"
+                     "| 6 | Табличен отворен | ☐ |\n"));
+    // A numbered list and a table outside the criteria section are prose.
+    writeFixture(activeDir, QStringLiteral("002.md"),
+                 QStringLiteral(
+                     "# REQ-SW-PL-002: Prose\n\n"
+                     "- **Статус:** ACTIVE\n\n"
+                     "## Накратко\n\n1. Не е критерий.\n\n"
+                     "| 7 | Също не е критерий | ✅ |\n"));
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(temp.path());
+
+    QCOMPARE(requirements.size(), 2);
+
+    const Requirement *req = findRequirement(requirements, QStringLiteral("REQ-SW-PL-001"));
+    QVERIFY2(req, "REQ-SW-PL-001 should be parsed");
+    QCOMPARE(req->acceptanceCriteria.size(), 6);
+    QCOMPARE(req->criteriaDone.size(), 6);
+    QVERIFY(req->criteriaDone.at(0));
+    QVERIFY(!req->criteriaDone.at(1)); // heading without checkbox is open
+    QVERIFY(!req->criteriaDone.at(2));
+    QVERIFY(!req->criteriaDone.at(3));
+    QVERIFY(req->criteriaDone.at(4));
+    QVERIFY(!req->criteriaDone.at(5));
+    QCOMPARE(req->acceptanceCriteria.at(4), QStringLiteral("Табличен критерий"));
+
+    const Requirement *prose = findRequirement(requirements, QStringLiteral("REQ-SW-PL-002"));
+    QVERIFY2(prose, "REQ-SW-PL-002 should be parsed");
+    QVERIFY(prose->acceptanceCriteria.isEmpty());
+}
+
+void TestParser::parseDirectory_criteriaHeadingBulgarian()
+{
+    // "## Критерии за приемане" is the fourth spelling of the criteria section
+    // on the real tree (two files use it). It was not in the alias set, so its
+    // "### ACn" headings were invisible: the requirement was parsed with zero
+    // criteria and graded "no acceptance criteria defined" while the ACs were
+    // plainly written. The checkbox bullet needs no heading (bullets are
+    // recognized anywhere), which is exactly why the gap stayed hidden.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir = QDir(temp.path())
+                                  .filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    writeFixture(activeDir, QStringLiteral("REQ-SW-PL-001-heading.md"),
+                 QStringLiteral(
+                     "# REQ-SW-PL-001: Критерии за приемане\n\n"
+                     "- **Статус:** ACTIVE\n"
+                     "- **Приоритет:** High\n"
+                     "- **Дата:** 2026-11-16\n"
+                     "- **Родител:** —\n"
+                     "- **Зависи от:** —\n\n"
+                     "## Накратко\n\nОписание.\n\n"
+                     "## Критерии за приемане\n\n"
+                     "### AC1 — Първи критерий\n\n"
+                     "### AC2 — Втори критерий\n"));
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(temp.path());
+    QCOMPARE(requirements.size(), 1);
+
+    const Requirement *req = findRequirement(requirements, QStringLiteral("REQ-SW-PL-001"));
+    QVERIFY2(req, "REQ-SW-PL-001 should be parsed");
+    QCOMPARE(req->acceptanceCriteria.size(), 2);
+    QCOMPARE(req->criteriaDone.size(), 2);
+    QCOMPARE(req->acceptanceCriteria.at(0), QStringLiteral("Първи критерий"));
+    QVERIFY(!req->criteriaDone.at(0)); // a heading without a checkbox stays open
+
+    // What the gap actually cost: the validator's "no acceptance criteria"
+    // warning. It must be gone for this file (other fields are filled, so the
+    // criteria field is the only thing this case looks at).
+    const QVector<RequirementsValidator::Issue> issues = RequirementsValidator::validate(requirements);
+    for (const RequirementsValidator::Issue &issue : issues)
+        QVERIFY2(issue.field != QStringLiteral("acceptanceCriteria"),
+                 qPrintable(QStringLiteral("%1: %2").arg(issue.id, issue.message)));
+}
+
 void TestParser::parseDirectory_nestedSubdirSection()
 {
     // A requirement nested below active/ (e.g. active/framework/) still
@@ -263,6 +423,123 @@ void TestParser::parseDirectory_nestedSubdirSection()
     QVERIFY2(req, "REQ-SW-FW-001 should be parsed");
     QCOMPARE(req->id, QStringLiteral("REQ-SW-FW-001"));
     QCOMPARE(req->section, QStringLiteral("active"));
+}
+
+void TestParser::parseReferences_annotationWithComma()
+{
+    // A reference is an ID token, not the text that happens to follow it. An
+    // annotation may itself contain commas ("интероп слой — предшественик,
+    // `DONE`"); splitting the value on every comma cut it in two and both
+    // halves were then looked up as requirement IDs — 40 of the 46 errors the
+    // GUI reported on the real tree while the CLI reported 2.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString baseDir = temp.path();
+    const QString activeDir = QDir(baseDir).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    writeFixture(activeDir, QStringLiteral("REQ-AI-009-registry.md"),
+                 QStringLiteral(
+                     "# REQ-AI-009: Registry\n"
+                     "\n"
+                     "- **Статус:** ACTIVE\n"
+                     "- **Приоритет:** Medium\n"
+                     "- **Отговорник (роля):** Implementation\n"
+                     "- **Дата:** 2026-11-10\n"
+                     "- **Родител:** —\n"
+                     "- **Зависи от:** REQ-AI-005 (интероп слой — предшественик,"
+                     " `DONE`), REQ-AI-010 (registry)\n"
+                     "\n"
+                     "## Описание\n"
+                     "\n"
+                     "Тест на референциите.\n"
+                     "\n"
+                     "## Acceptance Criteria\n"
+                     "\n"
+                     "- [ ] 1. Критерий.\n"));
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(baseDir);
+    QCOMPARE(requirements.size(), 1);
+    const Requirement &req = requirements.first();
+
+    QCOMPARE(req.dependencies.size(), 2);
+    QCOMPARE(req.dependencies.at(0), QStringLiteral("REQ-AI-005"));
+    QCOMPARE(req.dependencies.at(1), QStringLiteral("REQ-AI-010"));
+    QVERIFY(req.dependencyHints.value(QStringLiteral("REQ-AI-005"))
+                .contains(QStringLiteral("предшественик")));
+    QCOMPARE(req.dependencyHints.value(QStringLiteral("REQ-AI-010")),
+             QStringLiteral("registry"));
+}
+
+void TestParser::parseReferences_multipleParents()
+{
+    // "Родител:" lists every parent; the tree is single-parent, so parentId is
+    // the first requirement ID while parentIds keeps all of them resolvable.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString baseDir = temp.path();
+    const QString activeDir = QDir(baseDir).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    writeFixture(activeDir, QStringLiteral("REQ-AI-013-ladder.md"),
+                 requirementContent(QStringLiteral("REQ-AI-013"),
+                                    QStringLiteral("Ladder"),
+                                    QStringLiteral("ACTIVE"),
+                                    QStringLiteral("REQ-AI-011, REQ-AI-012"),
+                                    QStringLiteral("—")));
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(baseDir);
+    QCOMPARE(requirements.size(), 1);
+    const Requirement &req = requirements.first();
+
+    QCOMPARE(req.parentIds.size(), 2);
+    QCOMPARE(req.parentIds.at(0), QStringLiteral("REQ-AI-011"));
+    QCOMPARE(req.parentIds.at(1), QStringLiteral("REQ-AI-012"));
+    QCOMPARE(req.parentId, QStringLiteral("REQ-AI-011"));
+}
+
+void TestParser::parseReferences_childrenAndNonRequirementId()
+{
+    // "Деца:" is the inverse of "Родител:" and is parsed the same way. A header
+    // may also cite a document that is not a requirement (ADR-AI-013): the ID
+    // token is kept so the validator can report it as "not a requirement"
+    // instead of dropping it or looking it up as one.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString baseDir = temp.path();
+    const QString activeDir = QDir(baseDir).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/active"));
+
+    writeFixture(activeDir, QStringLiteral("REQ-AI-021-model-runtime.md"),
+                 QStringLiteral(
+                     "# REQ-AI-021: Model Runtime\n"
+                     "\n"
+                     "- **Статус:** ACTIVE\n"
+                     "- **Приоритет:** High\n"
+                     "- **Отговорник (роля):** Implementation\n"
+                     "- **Дата:** 2026-11-01\n"
+                     "- **Родител:** ADR-AI-013\n"
+                     "- **Зависи от:** —\n"
+                     "- **Деца:** REQ-AI-024, `REQ-AI-025`\n"
+                     "\n"
+                     "## Описание\n"
+                     "\n"
+                     "Тест на деца и не-REQ референция.\n"
+                     "\n"
+                     "## Acceptance Criteria\n"
+                     "\n"
+                     "- [ ] 1. Критерий.\n"));
+
+    const QVector<Requirement> requirements = RequirementsParser::parseDirectory(baseDir);
+    QCOMPARE(requirements.size(), 1);
+    const Requirement &req = requirements.first();
+
+    QCOMPARE(req.parentIds.size(), 1);
+    QCOMPARE(req.parentIds.first(), QStringLiteral("ADR-AI-013"));
+    QCOMPARE(req.parentId, QStringLiteral("ADR-AI-013"));
+    QCOMPARE(req.childIds.size(), 2);
+    QCOMPARE(req.childIds.at(0), QStringLiteral("REQ-AI-024"));
+    QCOMPARE(req.childIds.at(1), QStringLiteral("REQ-AI-025"));
 }
 
 void TestParser::parseDirectory_traceabilityFields()

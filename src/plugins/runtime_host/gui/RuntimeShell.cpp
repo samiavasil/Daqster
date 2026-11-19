@@ -7,6 +7,7 @@
 #include "capabilities/IWidgetProvider.h"
 #include "SceneClose.h"
 #include "SceneOpen.h"
+#include "SceneAutoStart.h"
 #include "debug.h"
 #include "LogCategories.h"
 #include "shared/IStartable.h"
@@ -665,28 +666,32 @@ void RuntimeShell::autoStartNodes()
     if (!m_editorWidget || !m_editorWidget->graphModel())
         return;
 
-    for (auto it = m_autoStartNodes.constBegin(); it != m_autoStartNodes.constEnd(); ++it) {
-        const QtNodes::NodeId nodeId = it.key();
+    // REQ-SW-PL-082: the graph decides what "start" means — its entry points —
+    // and `ui.nodes[].autoStart` overrides that (`plannedStarts()`, the helper
+    // the headless engine and the IDE use as well).
+    const Daqster::SceneStartPlan plan =
+        Daqster::plannedStarts(*m_editorWidget->graphModel(), m_autoStartNodes);
+    for (const Daqster::SceneStart& suppressed : plan.suppressed)
+        qCInfo(lcNodeEditor).noquote()
+            << QStringLiteral("RuntimeShell: пропускам '%1' (autoStart:false)")
+                   .arg(suppressed.caption);
 
-        if (!it.value())
+    for (const Daqster::SceneStart& start : plan.starts) {
+        auto* model = m_editorWidget->graphModel()
+                          ->delegateModel<QtNodes::NodeDelegateModel>(start.nodeId);
+        auto* startable = model != nullptr ? dynamic_cast<Daqster::IStartable*>(model) : nullptr;
+        if (startable == nullptr)
             continue;
 
-        // Tolerant load guard
-        if (!m_editorWidget->graphModel()->nodeExists(nodeId))
-            continue;
-
-        auto* model = m_editorWidget->graphModel()->delegateModel<QtNodes::NodeDelegateModel>(nodeId);
-        if (!model)
-            continue;
-
-        // Dynamic cast to IStartable and call start()
-        auto* startable = dynamic_cast<Daqster::IStartable*>(model);
-        if (startable) {
-            qCInfo(lcNodeEditor) << "Auto-starting node:" << model->caption() << "(id=" << nodeId << ")";
-            startable->start();
-            m_runningNodes[nodeId] = true;
-            emit nodeStarted(nodeId);
-        }
+        qCInfo(lcNodeEditor).noquote()
+            << QStringLiteral("RuntimeShell: стартирам '%1' (%2)")
+                   .arg(start.caption,
+                        start.reason == Daqster::SceneStartReason::Forced
+                            ? QStringLiteral("autoStart")
+                            : QStringLiteral("входна точка"));
+        startable->start();
+        m_runningNodes[start.nodeId] = true;
+        emit nodeStarted(start.nodeId);
     }
 }
 

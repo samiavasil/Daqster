@@ -1,22 +1,29 @@
 #include "RequirementsWidget.h"
 
 #include "RequirementsModel.h"
+#include "RequirementsSortProxyModel.h"
 #include "RequirementsParser.h"
 #include "RequirementsSearchEngine.h"
+#include "IdeaModel.h"
+#include "IdeaReader.h"
 #include "DependencyGraphWidget.h"
 #include "TraceabilityMatrixWidget.h"
 #include "NewRequirementDialog.h"
 #include "ValidationDialog.h"
 #include "HelpDialog.h"
+#include "RequirementPreview.h"
 #include "LogCategories.h"
 
 #include <QTreeView>
+#include <QTableView>
 #include <QTextBrowser>
 #include <QPlainTextEdit>
 #include <QLabel>
 #include <QLineEdit>
 #include <QTimer>
 #include <QPushButton>
+#include <QAction>
+#include <QToolBar>
 #include <QListWidget>
 #include <QSplitter>
 #include <QTabWidget>
@@ -30,6 +37,8 @@
 #include <QDialogButtonBox>
 #include <QColor>
 #include <QDir>
+#include <QKeySequence>
+#include <QHeaderView>
 
 namespace Daqster {
 
@@ -38,6 +47,8 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     , m_currentIndex(-1)
 {
     m_model = new RequirementsModel(this);
+    m_sortProxy = new RequirementsSortProxyModel(this);
+    m_sortProxy->setSourceModel(m_model);
 
     m_viewModeCombo = new QComboBox(this);
     m_viewModeCombo->addItem(tr("By Section"));
@@ -59,11 +70,18 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_searchTimer->setInterval(150);
 
     m_treeView = new QTreeView(this);
-    m_treeView->setModel(m_model);
+    m_treeView->setObjectName(QStringLiteral("requirementsTree"));
+    m_treeView->setModel(m_sortProxy);
     m_treeView->setRootIsDecorated(true);
+    // Sorting is per section: the proxy keeps the section rows in the model's
+    // order and sorts only the requirements inside them (REQ-SW-PL-001).
+    m_treeView->setSortingEnabled(true);
+    m_treeView->sortByColumn(RequirementsModel::IdColumn, Qt::AscendingOrder);
+    m_treeView->setColumnWidth(RequirementsModel::IdColumn, 150);
     m_treeView->expandAll();
 
     m_preview = new QTextBrowser(this);
+    m_preview->setObjectName(QStringLiteral("requirementPreview"));
     m_preview->setReadOnly(true);
     m_preview->setOpenLinks(false); // handle navigation ourselves
 
@@ -78,27 +96,34 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_validationLabel->setVisible(false);
     m_rootStatusLabel = new QLabel(this);
 
-    m_editButton = new QPushButton(tr("Edit"), this);
-    m_saveButton = new QPushButton(tr("Save"), this);
-    m_cancelButton = new QPushButton(tr("Cancel"), this);
-    m_browseButton = new QPushButton(tr("Add requirements folder..."), this);
-    m_newButton = new QPushButton(tr("New Requirement..."), this);
-    m_doneButton = new QPushButton(tr("Mark Done & Archive"), this);
-    m_reopenButton = new QPushButton(tr("Reopen"), this);
-    m_depsButton = new QPushButton(tr("Edit deps..."), this);
-    m_validateButton = new QPushButton(tr("Validate"), this);
-    m_helpButton = new QPushButton(tr("Help / Format"), this);
-    m_backButton = new QPushButton(tr("Back"), this);
-    m_forwardButton = new QPushButton(tr("Forward"), this);
-    m_backButton->setEnabled(false);
-    m_forwardButton->setEnabled(false);
+    m_editAction = new QAction(tr("Edit"), this);
+    m_editAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+E")));
+    m_saveAction = new QAction(tr("Save"), this);
+    m_saveAction->setShortcut(QKeySequence::Save);
+    m_cancelAction = new QAction(tr("Cancel"), this);
+    m_browseAction = new QAction(tr("Add requirements folder…"), this);
+    m_newAction = new QAction(tr("New Requirement…"), this);
+    m_newAction->setShortcut(QKeySequence::New);
+    m_doneAction = new QAction(tr("Mark Done & Archive"), this);
+    m_reopenAction = new QAction(tr("Reopen"), this);
+    m_depsAction = new QAction(tr("Edit deps…"), this);
+    m_validateAction = new QAction(tr("Validate"), this);
+    m_validateAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+V")));
+    m_helpAction = new QAction(tr("Help / Format"), this);
+    m_helpAction->setShortcut(QKeySequence::HelpContents);
+    m_backAction = new QAction(tr("Back"), this);
+    m_backAction->setShortcut(QKeySequence::Back);
+    m_forwardAction = new QAction(tr("Forward"), this);
+    m_forwardAction->setShortcut(QKeySequence::Forward);
+    m_backAction->setEnabled(false);
+    m_forwardAction->setEnabled(false);
 
-    m_saveButton->setEnabled(false);
-    m_cancelButton->setEnabled(false);
-    m_doneButton->setEnabled(false);
-    m_reopenButton->setEnabled(false);
-    m_depsButton->setEnabled(false);
-    m_editButton->setEnabled(false);
+    m_saveAction->setEnabled(false);
+    m_cancelAction->setEnabled(false);
+    m_doneAction->setEnabled(false);
+    m_reopenAction->setEnabled(false);
+    m_depsAction->setEnabled(false);
+    m_editAction->setEnabled(false);
 
     m_criteriaList = new QListWidget(this);
     m_criteriaList->setVisible(false);
@@ -124,26 +149,67 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     fileLayout->addWidget(m_fileLabel);
     fileLayout->addWidget(m_rootStatusLabel);
 
-    QHBoxLayout *actionLayout = new QHBoxLayout;
-    actionLayout->addWidget(m_backButton);
-    actionLayout->addWidget(m_forwardButton);
-    actionLayout->addWidget(m_newButton);
-    actionLayout->addWidget(m_editButton);
-    actionLayout->addWidget(m_saveButton);
-    actionLayout->addWidget(m_cancelButton);
-    actionLayout->addWidget(m_depsButton);
-    actionLayout->addWidget(m_doneButton);
-    actionLayout->addWidget(m_reopenButton);
-    actionLayout->addWidget(m_validateButton);
-    actionLayout->addWidget(m_helpButton);
-    actionLayout->addStretch();
-    actionLayout->addWidget(m_browseButton);
-    fileLayout->addLayout(actionLayout);
+    // Actions in a text-only toolbar instead of a row of QPushButtons: the
+    // toolbar overflows into an extension menu, so the minimum width is one
+    // button plus the ellipsis rather than the sum of all eleven buttons
+    // (REQ-SW-PL-001).
+    m_actionBar = new QToolBar(tr("Actions"), this);
+    m_actionBar->setObjectName(QStringLiteral("requirementsActionBar"));
+    m_actionBar->setMovable(false);
+    m_actionBar->setFloatable(false);
+    m_actionBar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    m_actionBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_actionBar->addAction(m_backAction);
+    m_actionBar->addAction(m_forwardAction);
+    m_actionBar->addSeparator();
+    m_actionBar->addAction(m_newAction);
+    m_actionBar->addAction(m_editAction);
+    m_actionBar->addAction(m_saveAction);
+    m_actionBar->addAction(m_cancelAction);
+    m_actionBar->addSeparator();
+    m_actionBar->addAction(m_depsAction);
+    m_actionBar->addAction(m_doneAction);
+    m_actionBar->addAction(m_reopenAction);
+    m_actionBar->addSeparator();
+    m_actionBar->addAction(m_validateAction);
+    m_actionBar->addAction(m_helpAction);
+    m_actionBar->addSeparator();
+    m_actionBar->addAction(m_browseAction);
+
+    fileLayout->addWidget(m_actionBar);
 
     fileLayout->addWidget(m_validationLabel);
-    fileLayout->addWidget(m_preview);
-    fileLayout->addWidget(m_editor);
-    fileLayout->addWidget(m_criteriaList);
+
+    // Preview and editor share ONE pane: Edit only swaps which of the two is
+    // visible, so the vertical splitter below keeps its sizes and handle in
+    // place (REQ-SW-PL-095).
+    QWidget *previewPane = new QWidget(this);
+    previewPane->setObjectName(QStringLiteral("requirementPreviewPane"));
+    QVBoxLayout *previewPaneLayout = new QVBoxLayout(previewPane);
+    previewPaneLayout->setContentsMargins(0, 0, 0, 0);
+    previewPaneLayout->addWidget(m_preview);
+    previewPaneLayout->addWidget(m_editor);
+
+    // The splitter only moves the boundary if both halves can actually shrink
+    // and grow: a minimum keeps them usable, no maximum lets them take the
+    // room the user gives them (REQ-SW-PL-095).
+    m_preview->setMinimumHeight(80);
+    m_editor->setMinimumHeight(80);
+    m_criteriaList->setMinimumHeight(80);
+
+    m_detailsSplitter = new QSplitter(Qt::Vertical, this);
+    m_detailsSplitter->setObjectName(QStringLiteral("requirementDetailsSplitter"));
+    m_detailsSplitter->setChildrenCollapsible(false);
+    m_detailsSplitter->setHandleWidth(6);
+    m_detailsSplitter->addWidget(previewPane);
+    m_detailsSplitter->addWidget(m_criteriaList);
+    // Preview gets ~2/3, the checkbox block ~1/3, and the ratio survives a
+    // window resize until the user drags the handle.
+    m_detailsSplitter->setStretchFactor(0, 2);
+    m_detailsSplitter->setStretchFactor(1, 1);
+    m_detailsSplitter->setSizes({400, 120});
+
+    fileLayout->addWidget(m_detailsSplitter, 1);
 
     QWidget *detailsPanel = new QWidget(this);
     detailsPanel->setLayout(fileLayout);
@@ -158,10 +224,19 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_graphWidget = new DependencyGraphWidget(this);
     m_matrixWidget = new TraceabilityMatrixWidget(this);
 
+    // "Идеи" tab (REQ-SW-PL-095): its own model + proxy, its own tab. Nothing
+    // from here reaches m_requirements, the validator or the matrix.
+    m_ideaModel = new IdeaTableModel(this);
+    m_ideaProxy = new IdeaFilterProxyModel(this);
+    m_ideaProxy->setSourceModel(m_ideaModel);
+    m_ideasPanel = createIdeasPanel();
+
     m_tabs = new QTabWidget(this);
     m_tabs->addTab(m_splitter, tr("Requirements"));
     m_tabs->addTab(m_graphWidget, tr("Dependency Graph"));
     m_tabs->addTab(m_matrixWidget, tr("Traceability"));
+    m_ideasTabIndex = m_tabs->addTab(m_ideasPanel, tr("Идеи"));
+    m_tabs->setTabVisible(m_ideasTabIndex, false); // shown only when ideas exist
 
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->addWidget(m_tabs);
@@ -169,19 +244,19 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
 
     connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged,
             this, &RequirementsWidget::onSelectionChanged);
-    connect(m_editButton, &QPushButton::clicked, this,
+    connect(m_editAction, &QAction::triggered, this,
             [this]() { onEditToggled(!m_editor->isVisible()); });
-    connect(m_saveButton, &QPushButton::clicked, this, &RequirementsWidget::onSave);
-    connect(m_cancelButton, &QPushButton::clicked, this, &RequirementsWidget::onCancel);
-    connect(m_browseButton, &QPushButton::clicked, this, &RequirementsWidget::onBrowseDirectory);
-    connect(m_newButton, &QPushButton::clicked, this, &RequirementsWidget::onNewRequirement);
-    connect(m_backButton, &QPushButton::clicked, this, &RequirementsWidget::onNavBack);
-    connect(m_forwardButton, &QPushButton::clicked, this, &RequirementsWidget::onNavForward);
-    connect(m_doneButton, &QPushButton::clicked, this, &RequirementsWidget::onMarkDoneAndArchive);
-    connect(m_reopenButton, &QPushButton::clicked, this, &RequirementsWidget::onReopen);
-    connect(m_depsButton, &QPushButton::clicked, this, &RequirementsWidget::onEditDependencies);
-    connect(m_validateButton, &QPushButton::clicked, this, &RequirementsWidget::onValidate);
-    connect(m_helpButton, &QPushButton::clicked, this, &RequirementsWidget::onShowHelp);
+    connect(m_saveAction, &QAction::triggered, this, &RequirementsWidget::onSave);
+    connect(m_cancelAction, &QAction::triggered, this, &RequirementsWidget::onCancel);
+    connect(m_browseAction, &QAction::triggered, this, &RequirementsWidget::onBrowseDirectory);
+    connect(m_newAction, &QAction::triggered, this, &RequirementsWidget::onNewRequirement);
+    connect(m_backAction, &QAction::triggered, this, &RequirementsWidget::onNavBack);
+    connect(m_forwardAction, &QAction::triggered, this, &RequirementsWidget::onNavForward);
+    connect(m_doneAction, &QAction::triggered, this, &RequirementsWidget::onMarkDoneAndArchive);
+    connect(m_reopenAction, &QAction::triggered, this, &RequirementsWidget::onReopen);
+    connect(m_depsAction, &QAction::triggered, this, &RequirementsWidget::onEditDependencies);
+    connect(m_validateAction, &QAction::triggered, this, &RequirementsWidget::onValidate);
+    connect(m_helpAction, &QAction::triggered, this, &RequirementsWidget::onShowHelp);
     connect(m_preview, &QTextBrowser::anchorClicked,
             this, &RequirementsWidget::onAnchorClicked);
     connect(m_validationLabel, &QLabel::linkActivated,
@@ -314,12 +389,21 @@ void RequirementsWidget::reload()
     m_graphWidget->setRequirements(m_filtered, m_validationIssues);
     updateValidationStatus();
     refreshActionState();
+    refreshIdeasTab();
+}
+
+const Requirement *RequirementsWidget::requirementAtViewIndex(const QModelIndex &viewIndex) const
+{
+    if (!viewIndex.isValid())
+        return nullptr;
+    // The tree shows the sorted proxy; the model owns the Requirement records.
+    return m_model->requirementAt(m_sortProxy->mapToSource(viewIndex));
 }
 
 void RequirementsWidget::onSelectionChanged()
 {
     const QModelIndex index = m_treeView->currentIndex();
-    const Requirement *req = m_model->requirementAt(index);
+    const Requirement *req = requirementAtViewIndex(index);
     if (!req) {
         m_currentIndex = -1;
         m_preview->clear();
@@ -354,14 +438,14 @@ void RequirementsWidget::onEditToggled(bool edit)
         m_preview->setVisible(false);
         m_criteriaList->setVisible(false);
         m_editor->setPlainText(m_requirements.at(m_currentIndex).rawContent);
-        m_saveButton->setEnabled(true);
-        m_cancelButton->setEnabled(true);
-        m_editButton->setText(tr("Preview"));
+        m_saveAction->setEnabled(true);
+        m_cancelAction->setEnabled(true);
+        m_editAction->setText(tr("Preview"));
     } else {
         showPreview();
-        m_editButton->setText(tr("Edit"));
-        m_saveButton->setEnabled(false);
-        m_cancelButton->setEnabled(false);
+        m_editAction->setText(tr("Edit"));
+        m_saveAction->setEnabled(false);
+        m_cancelAction->setEnabled(false);
     }
 }
 
@@ -378,9 +462,9 @@ void RequirementsWidget::onSave()
         return;
     }
     reload();
-    m_editButton->setText(tr("Edit"));
-    m_saveButton->setEnabled(false);
-    m_cancelButton->setEnabled(false);
+    m_editAction->setText(tr("Edit"));
+    m_saveAction->setEnabled(false);
+    m_cancelAction->setEnabled(false);
 }
 
 void RequirementsWidget::onCancel()
@@ -388,9 +472,9 @@ void RequirementsWidget::onCancel()
     if (m_currentIndex < 0)
         return;
     showPreview();
-    m_editButton->setText(tr("Edit"));
-    m_saveButton->setEnabled(false);
-    m_cancelButton->setEnabled(false);
+    m_editAction->setText(tr("Edit"));
+    m_saveAction->setEnabled(false);
+    m_cancelAction->setEnabled(false);
 }
 
 void RequirementsWidget::onCriterionToggled(int index, bool done)
@@ -668,99 +752,39 @@ void RequirementsWidget::showPreview()
     m_criteriaList->blockSignals(false);
 }
 
-QString RequirementsWidget::linkFor(const QString &id) const
-{
-    return QStringLiteral("<a href=\"req:%1\">%1</a>").arg(id);
-}
-
 void RequirementsWidget::updatePreviewText(const Requirement &req)
 {
-    QString text;
-    text += QStringLiteral("<h2>%1: %2</h2>").arg(req.id.toHtmlEscaped(), req.title.toHtmlEscaped());
-    text += QStringLiteral("<p><b>Status:</b> %1 &nbsp; <b>Priority:</b> %2 &nbsp; <b>Assignee:</b> %3 &nbsp; <b>Date:</b> %4</p>")
-                .arg(req.status.toHtmlEscaped(), req.priority.toHtmlEscaped(),
-                     req.assignee.toHtmlEscaped(), req.date.toHtmlEscaped());
-
-    // Repo badge (REQ-SW-PL-012): which requirements tree this requirement
-    // comes from in the merged view.
-    text += QStringLiteral("<p><b>Repo:</b> %1</p>")
-                .arg(req.repo.isEmpty() ? QStringLiteral("—") : req.repo.toHtmlEscaped());
-
-    // Phase status indicators (REQ-SW-PL-017): informative only — "✓" means the
-    // traceability field is recorded ("записано"), NOT that the phase is verified.
-    const PhaseStatus phase = phaseStatus(req);
-    text += QStringLiteral("<p><b>Фази:</b> Архитектура %1 · Имплементация %2 · Тестове %3</p>")
-                .arg(phase.architecture ? QStringLiteral("✓") : QStringLiteral("✗"),
-                     phase.implementation ? QStringLiteral("✓") : QStringLiteral("✗"),
-                     phase.testing ? QStringLiteral("✓") : QStringLiteral("✗"));
-
-    // Relationship axes: Родител / Деца / Зависи от / Зависими от
-    text += QStringLiteral("<p><b>Родител:</b> ");
-    if (req.parentId.trimmed().isEmpty())
-        text += QStringLiteral("—");
-    else
-        text += linkFor(req.parentId);
-    text += QStringLiteral("</p>");
-
-    QStringList childrenIds;
+    // The whole file is rendered, not just the parsed fields: the header keeps
+    // the at-a-glance metadata, everything below it is the real Markdown of the
+    // .md (REQ-SW-PL-001). Relationship lists are gathered from the FULL set so
+    // a filtered view does not hide a link.
+    QStringList childIds;
     for (const Requirement &other : m_requirements) {
         if (other.parentId == req.id)
-            childrenIds.append(other.id);
+            childIds.append(other.id);
     }
-    text += QStringLiteral("<p><b>Деца:</b> ");
-    if (childrenIds.isEmpty())
-        text += QStringLiteral("—");
-    else {
-        QStringList links;
-        for (const QString &child : childrenIds)
-            links.append(linkFor(child));
-        text += links.join(QStringLiteral(", "));
-    }
-    text += QStringLiteral("</p>");
-
-    text += QStringLiteral("<p><b>Зависи от:</b> ");
-    if (req.dependencies.isEmpty())
-        text += QStringLiteral("—");
-    else {
-        QStringList links;
-        for (const QString &dep : req.dependencies)
-            links.append(linkFor(dep));
-        text += links.join(QStringLiteral(", "));
-    }
-    text += QStringLiteral("</p>");
 
     QStringList reverseIds;
     for (const Requirement &other : m_requirements) {
         if (other.dependencies.contains(req.id))
             reverseIds.append(other.id);
     }
-    text += QStringLiteral("<p><b>Зависими от:</b> ");
-    if (reverseIds.isEmpty())
-        text += QStringLiteral("—");
-    else {
-        QStringList links;
-        for (const QString &other : reverseIds)
-            links.append(linkFor(other));
-        text += links.join(QStringLiteral(", "));
-    }
-    text += QStringLiteral("</p>");
 
-    text += QStringLiteral("<h3>Описание</h3>");
-    text += QStringLiteral("<p>%1</p>").arg(req.description.toHtmlEscaped().replace(QStringLiteral("\n"),
-                                                                                    QStringLiteral("<br/>")));
-
-    m_preview->setHtml(text);
+    RequirementPreview::render(m_preview, req, childIds, reverseIds);
 }
 
 void RequirementsWidget::navigateToId(const QString &id, bool addToHistory)
 {
-    const QModelIndex index = m_model->indexForId(id);
+    // indexForId() speaks source-model indexes; the view shows the sorted
+    // proxy, so every index crosses that boundary once.
+    const QModelIndex index = m_sortProxy->mapFromSource(m_model->indexForId(id));
     if (!index.isValid()) {
         if (!m_searchQuery.isEmpty()) {
             m_searchQuery.clear();
             m_searchEdit->clear();
             applyViewFilters();
-            const QModelIndex retryIndex = m_model->indexForId(id);
+            const QModelIndex retryIndex =
+                m_sortProxy->mapFromSource(m_model->indexForId(id));
             if (retryIndex.isValid()) {
                 m_treeView->expandAll();
                 m_treeView->scrollTo(retryIndex);
@@ -818,10 +842,10 @@ void RequirementsWidget::refreshActionState()
     const bool archived = valid && m_requirements.at(m_currentIndex).section
                                         == QStringLiteral("archive");
 
-    m_editButton->setEnabled(valid);
-    m_depsButton->setEnabled(valid);
-    m_doneButton->setEnabled(active);
-    m_reopenButton->setEnabled(archived);
+    m_editAction->setEnabled(valid);
+    m_depsAction->setEnabled(valid);
+    m_doneAction->setEnabled(active);
+    m_reopenAction->setEnabled(archived);
     updateNavButtons();
 }
 
@@ -860,8 +884,176 @@ void RequirementsWidget::onNavForward()
 
 void RequirementsWidget::updateNavButtons()
 {
-    m_backButton->setEnabled(m_navHistoryPos > 0);
-    m_forwardButton->setEnabled(m_navHistoryPos < m_navHistory.size() - 1);
+    m_backAction->setEnabled(m_navHistoryPos > 0);
+    m_forwardAction->setEnabled(m_navHistoryPos < m_navHistory.size() - 1);
+}
+
+QWidget *RequirementsWidget::createIdeasPanel()
+{
+    m_ideasSearchEdit = new QLineEdit(this);
+    m_ideasSearchEdit->setObjectName(QStringLiteral("ideasSearch"));
+    m_ideasSearchEdit->setClearButtonEnabled(true);
+    m_ideasSearchEdit->setPlaceholderText(tr("Search ideas by ID or title…"));
+
+    m_promoteButton = new QPushButton(tr("Създай изискване от тази идея"), this);
+    m_promoteButton->setObjectName(QStringLiteral("promoteIdeaButton"));
+    m_promoteButton->setEnabled(false);
+
+    QHBoxLayout *controlsLayout = new QHBoxLayout;
+    controlsLayout->addWidget(new QLabel(tr("Search:"), this));
+    controlsLayout->addWidget(m_ideasSearchEdit, 1);
+    controlsLayout->addWidget(m_promoteButton);
+
+    m_ideasView = new QTableView(this);
+    m_ideasView->setObjectName(QStringLiteral("ideasTable"));
+    m_ideasView->setModel(m_ideaProxy);
+    // Same proxy approach as the requirements tree: sorting lives in the view,
+    // the model stays in register order (REQ-SW-PL-095).
+    m_ideasView->setSortingEnabled(true);
+    m_ideasView->sortByColumn(IdeaTableModel::IdColumn, Qt::AscendingOrder);
+    m_ideasView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_ideasView->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_ideasView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_ideasView->setAlternatingRowColors(true);
+    m_ideasView->verticalHeader()->setVisible(false);
+    m_ideasView->horizontalHeader()->setSectionResizeMode(IdeaTableModel::TitleColumn,
+                                                         QHeaderView::Stretch);
+
+    m_ideaPreview = new QTextBrowser(this);
+    m_ideaPreview->setObjectName(QStringLiteral("ideaPreview"));
+    m_ideaPreview->setReadOnly(true);
+    m_ideaPreview->setOpenLinks(false);
+
+    QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
+    splitter->addWidget(m_ideasView);
+    splitter->addWidget(m_ideaPreview);
+    splitter->setStretchFactor(0, 3);
+    splitter->setStretchFactor(1, 2);
+    splitter->setChildrenCollapsible(false);
+
+    QWidget *panel = new QWidget(this);
+    panel->setObjectName(QStringLiteral("ideasPanel"));
+    QVBoxLayout *panelLayout = new QVBoxLayout(panel);
+    panelLayout->addLayout(controlsLayout);
+    panelLayout->addWidget(splitter, 1);
+    panel->setLayout(panelLayout);
+
+    connect(m_ideasView->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, &RequirementsWidget::onIdeaSelectionChanged);
+    connect(m_ideasSearchEdit, &QLineEdit::textChanged,
+            this, &RequirementsWidget::onIdeaSearchChanged);
+    connect(m_promoteButton, &QPushButton::clicked,
+            this, &RequirementsWidget::onPromoteIdea);
+    return panel;
+}
+
+void RequirementsWidget::refreshIdeasTab()
+{
+    m_ideas = IdeaReader::readFromRoots(m_roots);
+    m_currentIdeaRow = -1;
+    m_ideaModel->setIdeas(m_ideas);
+    m_ideaPreview->clear();
+    m_promoteButton->setEnabled(false);
+
+    if (m_ideasTabIndex < 0)
+        return;
+    // No idea files → no tab at all (not an empty tab).
+    m_tabs->setTabVisible(m_ideasTabIndex, !m_ideas.isEmpty());
+    if (m_ideas.isEmpty() && m_tabs->currentIndex() == m_ideasTabIndex)
+        m_tabs->setCurrentIndex(0);
+}
+
+void RequirementsWidget::showIdeaPreview(const Idea &idea)
+{
+    // Reuse the requirement renderer (no second Markdown engine): the fields
+    // the requirement header would show are filled from the idea where they
+    // exist, and the body is the idea's own .md.
+    Requirement asRequirement;
+    asRequirement.id = idea.id;
+    asRequirement.title = idea.title;
+    asRequirement.status = idea.status;
+    asRequirement.priority = QStringLiteral("—");
+    asRequirement.assignee = QStringLiteral("—");
+    asRequirement.date = idea.added;
+    asRequirement.repo = QStringLiteral("idea");
+    asRequirement.filePath = idea.path;
+    asRequirement.rawContent = idea.rawContent;
+    RequirementPreview::render(m_ideaPreview, asRequirement, {}, {});
+}
+
+void RequirementsWidget::onIdeaSelectionChanged()
+{
+    const Idea *idea = m_ideaModel->ideaAt(m_ideaProxy->mapToSource(m_ideasView->currentIndex()));
+    if (!idea) {
+        m_currentIdeaRow = -1;
+        m_ideaPreview->clear();
+        m_promoteButton->setEnabled(false);
+        return;
+    }
+
+    m_currentIdeaRow = -1;
+    for (int i = 0; i < m_ideas.size(); ++i) {
+        if (m_ideas.at(i).path == idea->path) {
+            m_currentIdeaRow = i;
+            break;
+        }
+    }
+    showIdeaPreview(*idea);
+    m_promoteButton->setEnabled(m_currentIdeaRow >= 0);
+}
+
+void RequirementsWidget::onIdeaSearchChanged(const QString &text)
+{
+    m_ideaProxy->setQuery(text);
+    if (!m_ideasView->currentIndex().isValid()) {
+        m_currentIdeaRow = -1;
+        m_ideaPreview->clear();
+        m_promoteButton->setEnabled(false);
+    }
+}
+
+QString RequirementsWidget::rootForIdea(const Idea &idea) const
+{
+    // A promoted requirement belongs to the repo the idea lives in.
+    QString best;
+    const QString separator = QDir::separator();
+    for (const QString &root : m_roots) {
+        if (idea.path.startsWith(root + separator) && root.size() > best.size())
+            best = root;
+    }
+    return best.isEmpty() ? m_baseDir : best;
+}
+
+void RequirementsWidget::onPromoteIdea()
+{
+    if (m_currentIdeaRow < 0 || m_currentIdeaRow >= m_ideas.size())
+        return;
+
+    const Idea idea = m_ideas.at(m_currentIdeaRow);
+    NewRequirementDialog dialog(rootForIdea(idea), this);
+    dialog.setPrefill(idea.title,
+                      tr("Изведено от идея %1: %2").arg(idea.id, idea.path),
+                      idea.id);
+
+    // Cancel (or closing the dialog) writes nothing — neither the requirement
+    // nor the promotion line in the idea.
+    if (dialog.exec() != QDialog::Accepted || dialog.createdId().isEmpty())
+        return;
+
+    if (!IdeaReader::appendPromotionLine(idea.path, dialog.createdId())) {
+        qCWarning(lcFramework) << "RequirementsManager: cannot record promotion in"
+                               << idea.path;
+    }
+
+    const QString createdPath = dialog.createdFilePath();
+    reload();
+    for (const Requirement &req : m_requirements) {
+        if (req.filePath == createdPath) {
+            m_tabs->setCurrentIndex(0);
+            navigateToId(req.id);
+            break;
+        }
+    }
 }
 
 } // namespace Daqster

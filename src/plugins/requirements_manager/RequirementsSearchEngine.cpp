@@ -81,7 +81,9 @@ QString RequirementsSearchEngine::normalizedText(const Requirement &req)
           << req.code
           << req.tests
           << req.parentId
+          << req.parentIds
           << req.dependencies
+          << req.childIds
           << req.status
           << req.priority
           << req.assignee

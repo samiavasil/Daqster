@@ -3,6 +3,7 @@
 #include "LayoutDesignerPanel.h"
 #include "SceneProblemsPanel.h"
 #include "NodeProblems.h"
+#include "IdeAutoStart.h"
 #include "StatusBarController.h"
 #include "PluginMenuController.h"
 #include "QPluginManager.h"
@@ -177,11 +178,24 @@ bool NodeEditorIdeObject::Initialize()
         closeScene();
     });
 
+    // ── Пусни сцената (REQ-SW-PL-082) ───────────────────────────────────────
+    // Opening a scene starts nothing, so the IDE needs one explicit action for
+    // "run what this scene means to run" — its entry points, with `autoStart`
+    // as the override. Ctrl+R, and on the scene toolbar next to Save/Load.
+    m_runSceneAction = fileMenu->addAction(tr("Пусни сцената"));
+    m_runSceneAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+R")));
+    m_runSceneAction->setToolTip(
+        tr("Стартира входните точки на сцената (autoStart е override)"));
+    connect(m_runSceneAction, &QAction::triggered, this, [this]() {
+        runScene();
+    });
+
     QToolBar* sceneToolBar = m_Win->addToolBar(tr("Scene"));
     sceneToolBar->setObjectName(QStringLiteral("sceneToolBar"));
     sceneToolBar->setMovable(false);
     sceneToolBar->addAction(saveAction);
     sceneToolBar->addAction(loadAction);
+    sceneToolBar->addAction(m_runSceneAction);
     sceneToolBar->addAction(m_closeSceneAction);
 
     // ── Layout Designer (REQ-SW-PL-059): F6 visual layout editor ───────────
@@ -290,6 +304,13 @@ bool NodeEditorIdeObject::Initialize()
             startVideoPlayback();
         }
     }
+
+    // Dev driver (DAQSTER_RUN_SCENE=1, REQ-SW-PL-082): the environment's
+    // equivalent of pressing „Пусни сцената". Loading a scene starts nothing —
+    // that is the point of the change — so a headless UI run needs one explicit
+    // trigger to reach the same place the user reaches with Ctrl+R.
+    if (qEnvironmentVariableIsSet("DAQSTER_RUN_SCENE"))
+        runScene();
 
     connect(m_Widget, &NodeEditorWidget::nodeDoubleClicked,
             this, &NodeEditorIdeObject::nodeDoubleClicked);
@@ -632,6 +653,7 @@ bool NodeEditorIdeObject::closeCurrentScene(bool confirmDiscard)
 
     // 4. Forget everything that described the old scene.
     m_autoStartNodes.clear();
+    m_startedByIde.clear();
     m_workspaces.clear();
     m_hasLayoutV2 = false;
     m_layoutSectionV2 = FlowUi::LayoutSection{};
@@ -660,6 +682,45 @@ bool NodeEditorIdeObject::closeCurrentScene(bool confirmDiscard)
 void NodeEditorIdeObject::closeScene()
 {
     closeCurrentScene(/*confirmDiscard=*/true);
+}
+
+void NodeEditorIdeObject::runScene()
+{
+    if (!m_Widget || !m_Widget->graphModel()) {
+        qCWarning(lcNodeEditor) << "runScene: no graph model";
+        return;
+    }
+    if (m_Widget->graphModel()->allNodeIds().empty()) {
+        qCInfo(lcNodeEditor) << "runScene: сцената е празна — няма какво да се стартира";
+        return;
+    }
+
+    // One rule for all three hosts (REQ-SW-PL-082): the entry points of the
+    // graph, `autoStart` as the override. The IDE only adds its skip rules and
+    // its double-start guard (`IdeAutoStart`).
+    const Daqster::SceneStartPlan plan =
+        Daqster::plannedStarts(*m_Widget->graphModel(), m_autoStartNodes);
+    const QVector<IdeAutoStart::Outcome> outcomes =
+        IdeAutoStart::startPlannedNodes(*m_Widget->graphModel(), plan,
+                                        m_sceneOpenProblems, &m_startedByIde);
+
+    int startedCount = 0;
+    int alreadyRunning = 0;
+    for (const IdeAutoStart::Outcome& outcome : outcomes) {
+        if (outcome.action == IdeAutoStart::Outcome::Action::Started)
+            ++startedCount;
+        else if (outcome.action == IdeAutoStart::Outcome::Action::AlreadyRunning)
+            ++alreadyRunning;
+    }
+    if (outcomes.isEmpty()) {
+        qCInfo(lcNodeEditor) << "runScene: нищо за стартиране (няма входни точки)";
+    } else {
+        qCInfo(lcNodeEditor) << "runScene: стартирани" << startedCount
+                             << "от" << outcomes.size() << "планирани"
+                             << "(вече работещи:" << alreadyRunning << ")";
+    }
+    if (m_statusBar)
+        m_statusBar->refresh();
 }
 
 void NodeEditorIdeObject::togglePresentationMode()
@@ -979,6 +1040,12 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
         m_hasLayoutV2 = true;
         if (m_designer != nullptr)
             m_designer->setLayoutSection(layoutV2);
+        // REQ-SW-PL-082: the schema-v2 section carries the same per-node
+        // `autoStart` flags as v1; the IDE reads them from one place whatever
+        // the section version (RuntimeShell does exactly this).
+        m_autoStartNodes.clear();
+        for (auto it = layoutV2.nodes.constBegin(); it != layoutV2.nodes.constEnd(); ++it)
+            m_autoStartNodes.insert(it.key(), it.value().autoStart);
         qCInfo(lcNodeEditor) << "loadSceneFromFile: ui version 2 section loaded ("
                              << layoutV2.workspaces.size() << "workspaces)";
     } else {
@@ -992,6 +1059,30 @@ bool NodeEditorIdeObject::loadSceneFromFile(const QString& fileName)
     // file path travels with the scene so a plugin can find the files next to
     // it (`project.json`, relative assets).
     applySceneProblems(Daqster::checkSceneOpening(sceneJson, fileName).problems);
+
+    // REQ-SW-PL-082: opening a scene starts **nothing** here. What the scene
+    // would start is structural (its entry points) with `autoStart` as an
+    // override — the same answer HeadlessEngine and RuntimeShell act on — but
+    // the IDE is an editor: starting a pipeline is an explicit action, not a
+    // side effect of „Load Scene…". `plannedStarts()` is computed once so the
+    // log can say what „Пусни сцената" (Ctrl+R) would run.
+    m_startedByIde.clear();
+    const Daqster::SceneStartPlan plan =
+        Daqster::plannedStarts(*m_Widget->graphModel(), m_autoStartNodes);
+    for (const Daqster::SceneStart& suppressed : plan.suppressed) {
+        qCInfo(lcNodeEditor).noquote()
+            << QStringLiteral("IDE: няма да стартирам '%1' (autoStart:false)")
+                   .arg(suppressed.caption);
+    }
+    QStringList wouldStart;
+    for (const Daqster::SceneStart& start : plan.starts)
+        wouldStart << start.caption;
+    if (!wouldStart.isEmpty()) {
+        qCInfo(lcNodeEditor).noquote()
+            << QStringLiteral("loadSceneFromFile: нищо не е стартирано — "
+                              "'Пусни сцената' (Ctrl+R) ще стартира %1")
+                   .arg(wouldStart.join(QStringLiteral(", ")));
+    }
 
     const int loadedNodeCount = static_cast<int>(m_Widget->graphModel()->allNodeIds().size());
     const int loadedConnCount = static_cast<int>(

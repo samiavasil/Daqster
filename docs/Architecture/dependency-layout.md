@@ -1,8 +1,8 @@
 # Layout на зависимостите — един корен, видовете са подпапки (as-built)
 
 Родител: [Архитектура](./README.md) · REQ-SW-PL-091 · произвежда се от
-REQ-SW-PL-089 (`DevelopmentProcess/requirements/active/plugins/REQ-SW-PL-089-delivery-infrastructure.md`
-в частното repo `DaqsterAiStudio`)
+REQ-SW-PL-089; частното repo с разширенията документира собствените си
+изисквания.
 
 ## Дървото
 
