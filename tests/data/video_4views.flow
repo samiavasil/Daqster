@@ -29,7 +29,7 @@
         {
             "id": 0,
             "internal-data": {
-                "filePath": "/tmp/test_640x480.mp4",
+                "filePath": "${DAQSTER_VIDEO_FILE:-bars_h265_1080p25_x3.mp4}",
                 "model-name": "VideoFileSource"
             },
             "label": "VideoFileSource",

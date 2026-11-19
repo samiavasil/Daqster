@@ -11,7 +11,7 @@
       "id": 1,
       "internal-data": {
         "model-name": "FileRecord",
-        "filePath": "/tmp/test_out.dat"
+        "filePath": ""
       }
     }
   ],
