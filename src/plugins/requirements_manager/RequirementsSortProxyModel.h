@@ -16,6 +16,10 @@ namespace Daqster {
  * Column choice follows the view: whatever column the user clicks in
  * QTreeView sorts the requirements, while the section rows keep their source
  * order.
+ *
+ * The "Възраст" column is compared numerically through
+ * RequirementsModel::AgeDaysRole, not by its display text ("12 дни" < "9 дни"
+ * alphabetically) — see REQ-SW-PL-100.
  */
 class RequirementsSortProxyModel : public QSortFilterProxyModel
 {

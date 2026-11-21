@@ -1,5 +1,7 @@
 #include "RequirementPreview.h"
 
+#include "RequirementDates.h"
+
 #include <QTextBlock>
 #include <QTextBrowser>
 #include <QTextCursor>
@@ -57,15 +59,24 @@ QString linkList(const QStringList &ids)
 
 QString headerHtml(const Requirement &req,
                    const QStringList &childIds,
-                   const QStringList &reverseIds)
+                   const QStringList &reverseIds,
+                   const QDate &today)
 {
+    const QDate referenceDay = today.isValid() ? today : QDate::currentDate();
+
     QString text;
     text += QStringLiteral("<h2>%1: %2</h2>")
                 .arg(req.id.toHtmlEscaped(), req.title.toHtmlEscaped());
+    // "Създадено: 2026-11-21 · преди 12 дни" sits next to the status line: the
+    // date is only useful with its age, otherwise the reader does the
+    // arithmetic (REQ-SW-PL-100).
     text += QStringLiteral("<p><b>Status:</b> %1 &nbsp; <b>Priority:</b> %2 &nbsp; "
-                           "<b>Assignee:</b> %3 &nbsp; <b>Date:</b> %4</p>")
+                           "<b>Assignee:</b> %3 &nbsp; <b>Създадено:</b> %4</p>")
                 .arg(req.status.toHtmlEscaped(), req.priority.toHtmlEscaped(),
-                     req.assignee.toHtmlEscaped(), req.date.toHtmlEscaped());
+                     req.assignee.toHtmlEscaped(),
+                     RequirementDates::createdLabel(req.date, referenceDay)
+                         .toHtmlEscaped());
+
 
     // Repo badge (REQ-SW-PL-012): which requirements tree this requirement
     // comes from in the merged view.
@@ -104,13 +115,14 @@ QString markdownSource(const Requirement &req)
 void render(QTextBrowser *view,
             const Requirement &req,
             const QStringList &childIds,
-            const QStringList &reverseIds)
+            const QStringList &reverseIds,
+            const QDate &today)
 {
     if (!view)
         return;
 
     QTextDocument *document = view->document();
-    document->setHtml(headerHtml(req, childIds, reverseIds));
+    document->setHtml(headerHtml(req, childIds, reverseIds, today));
 
     // Append the file's own Markdown after the header: the whole .md becomes
     // visible (headings, lists, tables, traceability) instead of only the

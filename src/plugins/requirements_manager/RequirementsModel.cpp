@@ -2,6 +2,9 @@
 
 #include <QSet>
 
+#include "RequirementDates.h"
+#include "RequirementsValidator.h"
+
 namespace Daqster {
 
 namespace {
@@ -45,6 +48,22 @@ void RequirementsModel::setViewMode(ViewMode mode)
 RequirementsModel::ViewMode RequirementsModel::viewMode() const
 {
     return m_viewMode;
+}
+
+void RequirementsModel::setToday(const QDate &today)
+{
+    if (!today.isValid() || today == m_today)
+        return;
+    // The age column and the overdue highlight are both derived from the day:
+    // the whole tree changes at midnight, not a single cell.
+    beginResetModel();
+    m_today = today;
+    endResetModel();
+}
+
+QColor RequirementsModel::staleDraftColour()
+{
+    return QColor(0xC0, 0x7A, 0x00);
 }
 
 void RequirementsModel::rebuildHierarchy()
@@ -287,6 +306,20 @@ QVariant RequirementsModel::data(const QModelIndex &index, int role) const
         return QVariant::fromValue(*req);
     if (role == SectionRole)
         return req->section;
+    if (role == AgeDaysRole)
+        return RequirementDates::ageInDays(req->date, m_today);
+
+    if (role == Qt::ForegroundRole) {
+        // A proposal nobody looked at for two weeks: the status colour
+        // mechanism, not a second one (REQ-SW-PL-100).
+        const bool draft = RequirementsValidator::normalizedStatus(req->status)
+                           == QStringLiteral("DRAFT");
+        if (draft && RequirementDates::isOverdue(
+                         RequirementDates::ageInDays(req->date, m_today))) {
+            return QColor(staleDraftColour());
+        }
+        return QVariant();
+    }
 
     if (role != Qt::DisplayRole && role != Qt::ToolTipRole)
         return QVariant();
@@ -298,6 +331,11 @@ QVariant RequirementsModel::data(const QModelIndex &index, int role) const
     case PriorityColumn:  return req->priority;
     case AssigneeColumn:  return req->assignee;
     case RepoColumn:      return req->repo;
+    case CreatedColumn:   return req->date.trimmed().isEmpty()
+                                 ? QStringLiteral("—")
+                                 : req->date;
+    case AgeColumn:       return RequirementDates::ageLabel(
+                                 RequirementDates::ageInDays(req->date, m_today));
     default:              return QVariant();
     }
 }
@@ -315,6 +353,8 @@ QVariant RequirementsModel::headerData(int section, Qt::Orientation orientation,
     case PriorityColumn: return QStringLiteral("Priority");
     case AssigneeColumn: return QStringLiteral("Assignee");
     case RepoColumn:     return QStringLiteral("Repo");
+    case CreatedColumn:  return QStringLiteral("Създадено");
+    case AgeColumn:      return QStringLiteral("Възраст");
     default:             return QVariant();
     }
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QDate>
 #include <QString>
 #include <QStringList>
 #include "RequirementsParser.h"
@@ -30,11 +31,15 @@ namespace RequirementPreview {
  * @param req The requirement (parsed fields + raw Markdown).
  * @param childIds IDs of requirements whose parentId is @p req (Деца).
  * @param reverseIds IDs of requirements that depend on @p req (Зависими от).
+ * @param today Reference day for the age shown next to the creation date
+ *        ("Създадено: 2026-11-21 · преди 12 дни"); invalid means the current
+ *        day, which is what the widget passes (REQ-SW-PL-100).
  * @return HTML fragment; links use the `req:<ID>` scheme the widget handles.
  */
 QString headerHtml(const Requirement &req,
                    const QStringList &childIds,
-                   const QStringList &reverseIds);
+                   const QStringList &reverseIds,
+                   const QDate &today = QDate());
 
 /**
  * @brief Renders the header plus the whole raw Markdown into @p view.
@@ -48,11 +53,13 @@ QString headerHtml(const Requirement &req,
  * @param req The requirement to render.
  * @param childIds Forwarded to headerHtml().
  * @param reverseIds Forwarded to headerHtml().
+ * @param today Reference day for the creation age (invalid = today).
  */
 void render(QTextBrowser *view,
             const Requirement &req,
             const QStringList &childIds,
-            const QStringList &reverseIds);
+            const QStringList &reverseIds,
+            const QDate &today = QDate());
 
 /**
  * @brief The Markdown source to render for @p req.

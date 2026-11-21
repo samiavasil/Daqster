@@ -32,6 +32,8 @@ set(PLUGIN_SOURCES
     RequirementsWidget.h
     RequirementPreview.cpp
     RequirementPreview.h
+    RequirementDates.cpp
+    RequirementDates.h
     ValidationReport.cpp
     ValidationReport.h
     RequirementsValidator.cpp

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QAbstractItemModel>
+#include <QColor>
+#include <QDate>
 #include <QVector>
 #include "RequirementsParser.h"
 
@@ -14,10 +16,19 @@ namespace Daqster {
  *   - Hierarchy: root "active"/"archive", requirements nested by their
  *                "Родител:" parent-child relationship.
  *
- * Columns: ID, Title, Status, Priority, Assignee.
+ * Columns: ID, Title, Status, Priority, Assignee, Repo, Създадено, Възраст.
  *
  * All data comes from the structured Requirement records produced by
  * RequirementsParser — the model never re-parses raw Markdown.
+ *
+ * @par Dates and age (REQ-SW-PL-100)
+ * `Създадено` is the `- **Дата:**` field verbatim; `Възраст` is the whole-day
+ * age rendered as "N дни" ("—" when the date is missing or invalid). The age
+ * is also exposed numerically through AgeDaysRole, because "-1 последно" and
+ * "12 дни" must sort numerically — the display text cannot. A DRAFT older than
+ * RequirementDates::kStaleDraftDays is painted in the warning colour through
+ * Qt::ForegroundRole: the same per-row-role mechanism the status colours use,
+ * so the tree needs no delegate.
  */
 class RequirementsModel : public QAbstractItemModel
 {
@@ -31,12 +42,15 @@ public:
         PriorityColumn,
         AssigneeColumn,
         RepoColumn,
+        CreatedColumn,  //!< "Създадено" — the - **Дата:** field (REQ-SW-PL-100)
+        AgeColumn,      //!< "Възраст" — whole days since that date
         ColumnCount
     };
 
     enum Role {
         RequirementRole = Qt::UserRole + 1,
-        SectionRole
+        SectionRole,
+        AgeDaysRole  //!< int: whole days since "Дата", -1 when unknown
     };
 
     enum class ViewMode {
@@ -50,6 +64,24 @@ public:
 
     void setViewMode(ViewMode mode);
     ViewMode viewMode() const;
+
+    /**
+     * @brief Sets the reference day the "Възраст" column is computed from.
+     *
+     * Defaults to QDate::currentDate(); a test (or another caller wanting a
+     * frozen clock) overrides it so "90 дни" is reproducible.
+     *
+     * @param today Reference day; an invalid date is ignored.
+     */
+    void setToday(const QDate &today);
+
+    /**
+     * @brief Returns the warning colour of an overdue DRAFT row.
+     *
+     * Same value the validation report paints warnings with (#C07A00), so the
+     * tree and the report agree on what "warning" looks like.
+     */
+    static QColor staleDraftColour();
 
     const Requirement *requirementAt(const QModelIndex &index) const;
 
@@ -83,6 +115,7 @@ private:
     QVector<Requirement> m_requirements;
     QStringList m_sections; //!< ordered distinct sections ("active", "archive")
     ViewMode m_viewMode = ViewMode::Sections;
+    QDate m_today = QDate::currentDate(); //!< reference day for the age column
 
     // Hierarchy mode caches
     QVector<int> m_hierarchyParent;        //!< per req index; -1 = top-level

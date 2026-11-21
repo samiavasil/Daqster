@@ -25,6 +25,8 @@
 #include "RequirementsModel.h"
 #include "RequirementsValidator.h"
 #include "ValidationReport.h"
+#include "RequirementPreview.h"
+#include "RequirementDates.h"
 
 using namespace Daqster;
 
@@ -45,7 +47,8 @@ QString writeRequirement(const QString &dirPath, const QString &fileName,
 
 // A requirement whose .md carries a section the parser does NOT model
 // ("## Бележки"): it can only reach the preview through a real Markdown render.
-QString requirementMarkdown(const QString &id, const QString &status)
+QString requirementMarkdown(const QString &id, const QString &status,
+                            const QString &date = QStringLiteral("2026-11-16"))
 {
     return QStringLiteral(
                "# %1: Fixture requirement\n"
@@ -53,7 +56,7 @@ QString requirementMarkdown(const QString &id, const QString &status)
                "- **Статус:** %2\n"
                "- **Приоритет:** High\n"
                "- **Отговорник (роля):** Implementation\n"
-               "- **Дата:** 2026-11-16\n"
+               "- **Дата:** %3\n"
                "- **Родител:** —\n"
                "- **Зависи от:** —\n"
                "\n"
@@ -72,7 +75,7 @@ QString requirementMarkdown(const QString &id, const QString &status)
                "## Проследимост\n"
                "\n"
                "- **Коммити:** abc123\n")
-        .arg(id, status);
+        .arg(id, status, date);
 }
 
 // Builds a temp requirements tree and returns its root (empty on failure).
@@ -147,6 +150,9 @@ private slots:
     void detailsSplitterSeparatesPreviewAndCheckboxes();
     void acceptActionEnabledOnlyForDraft();
     void acceptDraftRewritesFileAndCounter();
+    void previewHeaderShowsCreatedAndAge();
+    void overdueDraftIsPaintedInWarningColour();
+    void draftCounterTooltipShowsOldestWait();
 };
 
 void TestWidgets::actionBarFitsNarrowWindow()
@@ -604,3 +610,95 @@ void TestWidgets::acceptDraftRewritesFileAndCounter()
 QTEST_MAIN(TestWidgets)
 
 #include "test_widgets.moc"
+void TestWidgets::previewHeaderShowsCreatedAndAge()
+{
+    // REQ-SW-PL-100: the details header pairs the creation date with its age,
+    // so a reader never does the arithmetic. The reference day is a parameter,
+    // which is what makes "12 дни" assertable.
+    Requirement req;
+    req.id = QStringLiteral("REQ-SW-PL-900");
+    req.title = QStringLiteral("Fixture");
+    req.status = QStringLiteral("ACTIVE");
+    req.priority = QStringLiteral("High");
+    req.assignee = QStringLiteral("Implementation");
+    req.date = QStringLiteral("2026-11-09");
+
+    const QString html =
+        RequirementPreview::headerHtml(req, {}, {}, QDate(2026, 11, 21));
+    QVERIFY2(html.contains(QStringLiteral("Създадено:")), qPrintable(html));
+    QVERIFY2(html.contains(QStringLiteral("2026-11-09 · преди 12 дни")),
+             qPrintable(html));
+    // Status still leads the same line — the date sits next to it, not under it.
+    QVERIFY(html.indexOf(QStringLiteral("Status:"))
+            < html.indexOf(QStringLiteral("Създадено:")));
+
+    // A requirement without a date says so instead of rendering "преди -1 дни".
+    req.date.clear();
+    const QString bare =
+        RequirementPreview::headerHtml(req, {}, {}, QDate(2026, 11, 21));
+    QVERIFY2(bare.contains(QStringLiteral("Създадено:</b> —")), qPrintable(bare));
+}
+
+void TestWidgets::overdueDraftIsPaintedInWarningColour()
+{
+    // A DRAFT nobody approved for longer than two weeks is painted in the
+    // warning colour; an old ACTIVE requirement is not.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+    const QString activeDir =
+        QDir(root).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    writeRequirement(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-903-fixture.md"),
+                     requirementMarkdown(QStringLiteral("REQ-SW-PL-903"),
+                                         QStringLiteral("DRAFT"),
+                                         QStringLiteral("2020-01-01")));
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    const QModelIndex stale = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-903"));
+    const QModelIndex active = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-900"));
+    QVERIFY(stale.isValid());
+    QVERIFY(active.isValid());
+
+    const QVariant colour = stale.data(Qt::ForegroundRole);
+    QVERIFY2(colour.isValid(), "the overdue DRAFT row must be coloured");
+    QCOMPARE(colour.value<QColor>(), RequirementsModel::staleDraftColour());
+    QVERIFY2(!active.data(Qt::ForegroundRole).isValid(),
+             "an old ACTIVE requirement is not waiting for approval");
+}
+
+void TestWidgets::draftCounterTooltipShowsOldestWait()
+{
+    // The counter is a reading, not a number to think about: its tooltip says
+    // which draft waited longest and for how many days.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+    const QString activeDir =
+        QDir(root).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    writeRequirement(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-904-fixture.md"),
+                     requirementMarkdown(QStringLiteral("REQ-SW-PL-904"),
+                                         QStringLiteral("DRAFT"),
+                                         QStringLiteral("2026-10-01")));
+    writeRequirement(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-905-fixture.md"),
+                     requirementMarkdown(QStringLiteral("REQ-SW-PL-905"),
+                                         QStringLiteral("DRAFT"),
+                                         QDate::currentDate().toString(Qt::ISODate)));
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат одобрение: 2"));
+
+    const QString expectedDays = QString::number(
+        RequirementDates::ageInDays(QStringLiteral("2026-10-01"), QDate::currentDate()));
+    QVERIFY2(counter->toolTip().contains(QStringLiteral("REQ-SW-PL-904")),
+             qPrintable(counter->toolTip()));
+    QVERIFY2(counter->toolTip().contains(expectedDays),
+             qPrintable(counter->toolTip()));
+}

@@ -43,4 +43,6 @@ private slots:
     void dependencyOnImplemented_silent();
     void dependencyOnArchivedUnknownStatus_warning();
     void childDangling_error();
+    void dateNotIso_warning();
+    void dateMissing_warningStays();
 };

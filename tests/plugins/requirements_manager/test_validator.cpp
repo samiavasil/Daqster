@@ -797,3 +797,43 @@ void TestValidator::childDangling_error()
     QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-999")),
              qPrintable(issues.at(0).message));
 }
+
+void TestValidator::dateNotIso_warning()
+{
+    // REQ-SW-PL-100: "Дата:" is a date, not free text. A sloppy value is a
+    // Warning that names it — the file stays readable, but not invisible.
+    QVector<Requirement> reqs;
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                      QStringLiteral("active"), QString());
+    req.date = QStringLiteral("21.11.2026");
+    reqs.append(req);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Warning);
+    QCOMPARE(issues.at(0).field, QStringLiteral("date"));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("21.11.2026")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("YYYY-MM-DD")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::dateMissing_warningStays()
+{
+    // An empty date keeps its own, older message: "missing" and "not a date"
+    // are two different repairs, so they stay two different issues.
+    QVector<Requirement> reqs;
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                      QStringLiteral("active"), QString());
+    req.date = QString();
+    reqs.append(req);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).field, QStringLiteral("date"));
+    QCOMPARE(issues.at(0).message, QStringLiteral("creation date is missing"));
+}

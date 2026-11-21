@@ -1,5 +1,7 @@
 #include "RequirementsValidator.h"
 
+#include "RequirementDates.h"
+
 #include <QHash>
 #include <QFileInfo>
 #include <QRegularExpression>
@@ -163,10 +165,19 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
             issues.append({req.id, QStringLiteral("priority"),
                            QStringLiteral("priority is missing"),
                            Severity::Warning});
-        if (req.date.trimmed().isEmpty())
+        if (req.date.trimmed().isEmpty()) {
             issues.append({req.id, QStringLiteral("date"),
                            QStringLiteral("creation date is missing"),
                            Severity::Warning});
+        } else if (!RequirementDates::isValidIsoDate(req.date)) {
+            // REQ-SW-PL-100: the field is a date, not free text. A Warning (not
+            // an Error) so a legacy file with a sloppy value stays valid — it
+            // is only invisible, and being invisible is what let the field rot.
+            issues.append({req.id, QStringLiteral("date"),
+                           QStringLiteral("датата '%1' не е YYYY-MM-DD")
+                               .arg(req.date.trimmed()),
+                           Severity::Warning});
+        }
         if (req.description.trimmed().isEmpty())
             issues.append({req.id, QStringLiteral("description"),
                            QStringLiteral("description is empty"),

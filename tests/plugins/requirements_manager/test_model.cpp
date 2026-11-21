@@ -326,3 +326,123 @@ void TestModel::requirementRole_data()
 
 // No QTEST_GUILESS_MAIN here: the three test classes share one binary whose
 // main lives in test_main.cpp.
+
+namespace {
+
+// One requirement with a known creation date, for the date/age columns
+// (REQ-SW-PL-100).
+Requirement datedRequirement(const QString &id, const QString &date,
+                             const QString &status = QStringLiteral("ACTIVE"))
+{
+    Requirement req;
+    req.id = id;
+    req.title = id;
+    req.status = status;
+    req.priority = QStringLiteral("Medium");
+    req.section = QStringLiteral("active");
+    req.repo = QStringLiteral("public");
+    req.date = date;
+    return req;
+}
+
+} // namespace
+
+void TestModel::dateColumns_createdAndAge()
+{
+    const QDate today(2026, 11, 21);
+    RequirementsModel model;
+    model.setToday(today);
+    model.setRequirements({datedRequirement(QStringLiteral("REQ-SW-PL-901"),
+                                            QStringLiteral("2026-11-09"))});
+
+    const QModelIndex idx = model.indexForId(QStringLiteral("REQ-SW-PL-901"));
+    QVERIFY(idx.isValid());
+
+    // The date is shown verbatim, the age in whole days.
+    QCOMPARE(idx.sibling(idx.row(), RequirementsModel::CreatedColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("2026-11-09"));
+    QCOMPARE(idx.sibling(idx.row(), RequirementsModel::AgeColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("12 дни"));
+
+    // Headers exist for both new columns (the view asks by column).
+    QCOMPARE(model.headerData(RequirementsModel::CreatedColumn, Qt::Horizontal)
+                 .toString(),
+             QStringLiteral("Създадено"));
+    QCOMPARE(model.headerData(RequirementsModel::AgeColumn, Qt::Horizontal)
+                 .toString(),
+             QStringLiteral("Възраст"));
+}
+
+void TestModel::dateColumns_missingDateIsDash()
+{
+    RequirementsModel model;
+    model.setToday(QDate(2026, 11, 21));
+    model.setRequirements({datedRequirement(QStringLiteral("REQ-SW-PL-902"),
+                                            QStringLiteral("не е дата"))});
+
+    const QModelIndex idx = model.indexForId(QStringLiteral("REQ-SW-PL-902"));
+    QVERIFY(idx.isValid());
+    // An unparsable date has no age: the column says so instead of inventing 0.
+    QCOMPARE(idx.sibling(idx.row(), RequirementsModel::AgeColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("—"));
+}
+
+void TestModel::ageDaysRole_isNumeric()
+{
+    RequirementsModel model;
+    model.setToday(QDate(2026, 11, 21));
+    model.setRequirements({datedRequirement(QStringLiteral("REQ-SW-PL-903"),
+                                            QStringLiteral("2026-08-23")),
+                           datedRequirement(QStringLiteral("REQ-SW-PL-904"),
+                                            QString())});
+
+    const QModelIndex known = model.indexForId(QStringLiteral("REQ-SW-PL-903"));
+    const QModelIndex unknown = model.indexForId(QStringLiteral("REQ-SW-PL-904"));
+    QVERIFY(known.isValid());
+    QVERIFY(unknown.isValid());
+
+    // The display text cannot sort ("90 дни" < "9 дни" alphabetically); the
+    // role carries the number, and -1 marks "unknown".
+    QCOMPARE(known.data(RequirementsModel::AgeDaysRole).toInt(), 90);
+    QCOMPARE(unknown.data(RequirementsModel::AgeDaysRole).toInt(), -1);
+}
+
+void TestModel::overdueDraft_isPaintedInWarningColour()
+{
+    RequirementsModel model;
+    model.setToday(QDate(2026, 11, 21));
+    // 15 days old: one day past the two-week threshold.
+    model.setRequirements({datedRequirement(QStringLiteral("REQ-SW-PL-905"),
+                                            QStringLiteral("2026-11-06"),
+                                            QStringLiteral("DRAFT"))});
+
+    const QModelIndex idx = model.indexForId(QStringLiteral("REQ-SW-PL-905"));
+    QVERIFY(idx.isValid());
+    const QVariant colour = idx.data(Qt::ForegroundRole);
+    QVERIFY2(colour.isValid(), "an overdue DRAFT must carry a foreground colour");
+    QCOMPARE(colour.value<QColor>(), RequirementsModel::staleDraftColour());
+}
+
+void TestModel::freshDraft_isNotPainted()
+{
+    RequirementsModel model;
+    model.setToday(QDate(2026, 11, 21));
+    // Exactly 14 days: the threshold is "older than", so this one is normal —
+    // and an old ACTIVE requirement is never highlighted either.
+    model.setRequirements({datedRequirement(QStringLiteral("REQ-SW-PL-906"),
+                                            QStringLiteral("2026-11-07"),
+                                            QStringLiteral("DRAFT")),
+                           datedRequirement(QStringLiteral("REQ-SW-PL-907"),
+                                            QStringLiteral("2026-01-01"),
+                                            QStringLiteral("ACTIVE"))});
+
+    const QModelIndex fourteen = model.indexForId(QStringLiteral("REQ-SW-PL-906"));
+    const QModelIndex active = model.indexForId(QStringLiteral("REQ-SW-PL-907"));
+    QVERIFY(fourteen.isValid());
+    QVERIFY(active.isValid());
+    QVERIFY(!fourteen.data(Qt::ForegroundRole).isValid());
+    QVERIFY(!active.data(Qt::ForegroundRole).isValid());
+}

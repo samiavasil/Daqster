@@ -12,6 +12,7 @@
 #include "ValidationDialog.h"
 #include "HelpDialog.h"
 #include "RequirementPreview.h"
+#include "RequirementDates.h"
 #include "LogCategories.h"
 
 #include <QTreeView>
@@ -406,15 +407,37 @@ void RequirementsWidget::reload()
             .arg(m_requirements.size()));
 
     // Recomputed on every reload (REQ-SW-PL-099): a draft is visible without
-    // opening a single file.
+    // opening a single file. Since REQ-SW-PL-100 it also says how long the
+    // oldest one has waited, so an overdue proposal cannot hide behind a count.
     int drafts = 0;
+    int oldestDays = -1;
+    QString oldestId;
+    const QDate today = QDate::currentDate();
     for (const Requirement &req : m_requirements) {
         if (RequirementsValidator::normalizedStatus(req.status)
-            == QStringLiteral("DRAFT")) {
-            ++drafts;
+            != QStringLiteral("DRAFT")) {
+            continue;
+        }
+        ++drafts;
+        const int days = RequirementDates::ageInDays(req.date, today);
+        // A missing date is "unknown" (-1) and must not win the comparison; it
+        // is still reported when it is the only draft (oldestId stays empty
+        // until the first draft is seen).
+        if (oldestId.isEmpty() || days > oldestDays) {
+            oldestDays = days;
+            oldestId = req.id;
         }
     }
     m_draftCountLabel->setText(tr("чакат одобрение: %1").arg(drafts));
+    if (drafts == 0) {
+        m_draftCountLabel->setToolTip(tr("Няма чернови, чакащи одобрение."));
+    } else if (oldestDays >= 0) {
+        m_draftCountLabel->setToolTip(
+            tr("Най-старата чака от %1 дни: %2").arg(oldestDays).arg(oldestId));
+    } else {
+        m_draftCountLabel->setToolTip(
+            tr("Най-старата е %1 — датата липсва или е невалидна").arg(oldestId));
+    }
     m_graphWidget->setRequirements(m_filtered, m_validationIssues);
     updateValidationStatus();
     refreshActionState();
