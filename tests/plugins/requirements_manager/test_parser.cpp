@@ -998,9 +998,15 @@ void TestParser::approveDraft_rewritesStatusAndApproval()
     const QString activeDir =
         QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
     const QString before =
-        requirementContent(QStringLiteral("REQ-SW-PL-096"),
-                           QStringLiteral("Draft"), QStringLiteral("DRAFT"),
-                           QStringLiteral("—"), QStringLiteral("—"));
+        QString(requirementContent(QStringLiteral("REQ-SW-PL-096"),
+                                   QStringLiteral("Draft"), QStringLiteral("DRAFT"),
+                                   QStringLiteral("—"), QStringLiteral("—")))
+            // The banner a draft really carries (REQ-SW-PL-099): approval must
+            // drop it, or the ACTIVE file still says it waits for approval.
+            .replace(QStringLiteral("- **Зависи от:** —\n\n"),
+                     QStringLiteral("- **Зависи от:** —\n\n"
+                                    "> **Чернова — чака одобрение в мениджъра; не се "
+                                    "имплементира, докато не стане `ACTIVE`.**\n\n"));
     const QString path = writeFixture(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-096-draft.md"),
                                       before);
     QVERIFY(!path.isEmpty());
@@ -1014,13 +1020,19 @@ void TestParser::approveDraft_rewritesStatusAndApproval()
     const QString after = QString::fromUtf8(file.readAll());
     file.close();
 
+    // Byte-exact: the banner line and the blank line it would leave behind are
+    // gone, the two lines of the approval replace the status, nothing else moves.
     const QString expected =
         QString(before)
+            .remove(QStringLiteral("> **Чернова — чака одобрение в мениджъра; не се "
+                                   "имплементира, докато не стане `ACTIVE`.**\n\n"))
             .replace(QStringLiteral("- **Статус:** DRAFT"),
                      QStringLiteral("- **Статус:** ACTIVE\n"
                                     "- **Одобрено:** 2026-11-21, потребител"));
     QCOMPARE(after, expected);
     QVERIFY(after.contains(QStringLiteral("- **Одобрено:** 2026-11-21, потребител")));
+    QVERIFY2(!after.contains(QStringLiteral("Чернова")),
+             "an accepted file must not claim it is still a draft");
 
     // The parser reads the new status, so the tree shows ACTIVE at once.
     const QVector<Requirement> parsed = RequirementsParser::parseDirectory(temp.path());

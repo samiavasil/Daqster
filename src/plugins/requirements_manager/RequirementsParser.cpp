@@ -636,6 +636,21 @@ bool RequirementsParser::approveDraft(const QString &filePath, const QString &da
     else
         lines.insert(statusLine + 1, approvalLine);
 
+    // The draft banner (" > **Чернова — чака одобрение…**") states the file's
+    // status, so an approved file must not keep it: ACTIVE plus "waits for
+    // approval" contradicts itself. Only that line goes; the blank line it
+    // leaves behind is dropped as well so no doubled empty line appears.
+    for (int i = 0; i < lines.size(); ++i) {
+        if (!lines.at(i).trimmed().startsWith(QStringLiteral("> **Чернова")))
+            continue;
+        lines.removeAt(i);
+        if (i > 0 && i < lines.size() && lines.at(i - 1).trimmed().isEmpty()
+            && lines.at(i).trimmed().isEmpty()) {
+            lines.removeAt(i);
+        }
+        break;
+    }
+
     QSaveFile out(filePath);
     if (!out.open(QIODevice::WriteOnly))
         return failWith(QStringLiteral("файлът не може да се запише: %1").arg(filePath));
