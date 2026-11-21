@@ -2,6 +2,7 @@
 
 #include <QString>
 #include <QVector>
+#include <optional>
 #include "RequirementsParser.h"
 
 namespace Daqster {
@@ -74,12 +75,55 @@ public:
      * @brief The single status vocabulary shared with the traceability CLI.
      *
      * Mirrors `VOCAB` in `scripts/validate-traceability.sh` (private repo):
-     * ACTIVE, IMPLEMENTED, DONE, CANCELLED, BACKLOG. IMPLEMENTED means "the code
-     * is on a branch, nothing in develop yet" — a real state, not a typo.
+     * DRAFT, ACTIVE, IMPLEMENTED, DONE, CANCELLED, BACKLOG. IMPLEMENTED means
+     * "the code is on a branch, nothing in develop yet" — a real state, not a
+     * typo.
      *
      * @return The allowed status tokens, in the CLI's order.
      */
     static QStringList statusVocabulary();
+
+    /**
+     * @brief Severity of a cited code path that does not resolve, by status.
+     *
+     * A path in "Код:" / "Тестове:" / "Документация:" is a claim that the file
+     * exists — but only an implemented requirement makes that claim. An
+     * accepted requirement may cite a file it is about to add (REQ-SW-PL-101/102
+     * cite the guard scripts they themselves propose), so resolving it would
+     * report a plan as a defect.
+     *
+     * This mirrors the rule in `scripts/validate-traceability.sh` (§6, REQ-SW-PL-103):
+     * IMPLEMENTED/DONE -> Error, ACTIVE/BACKLOG -> Warning, DRAFT -> nothing
+     * (a draft is a proposal; its files may not exist at all).
+     *
+     * @param rawStatus The "- **Статус:**" value, verbatim.
+     * @return The severity, or std::nullopt when the status does not grade
+     *         paths at all (DRAFT, or an unreadable status).
+     */
+    static std::optional<Severity> pathSeverityForStatus(const QString &rawStatus);
+
+    /**
+     * @brief Checks the code paths a requirement cites in its traceability fields.
+     *
+     * The cited paths are the backticked tokens of "Код:", "Тестове:" and
+     * "Документация:" that start with a repository top-level directory, with
+     * the same filters the CLI applies (no prose, no globs, no `..`, line
+     * ranges stripped, `{a,b}` expanded). Each unresolved token is graded by
+     * pathSeverityForStatus().
+     *
+     * @par Why this is not part of validate()
+     * The manager is the authority for fields; repository-wide path resolution
+     * is the traceability CLI's job (see the class documentation). This entry
+     * point exists so the rule is shared code with a test rather than a
+     * second, silent opinion inside the report.
+     *
+     * @param requirements Parsed requirements.
+     * @param repoRoots Repository roots to resolve against. Empty means "derive
+     *        them from each requirement's file path plus its sibling repos".
+     * @return Issues with field "code", sorted errors first.
+     */
+    static QVector<Issue> validateCitedPaths(const QVector<Requirement> &requirements,
+                                             const QStringList &repoRoots = QStringList());
 
     /**
      * @brief Normalizes a "- **Статус:**" value to a bare vocabulary token.

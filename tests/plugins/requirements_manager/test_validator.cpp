@@ -837,3 +837,90 @@ void TestValidator::dateMissing_warningStays()
     QCOMPARE(issues.at(0).field, QStringLiteral("date"));
     QCOMPARE(issues.at(0).message, QStringLiteral("creation date is missing"));
 }
+
+// ── Cited code paths (REQ-SW-PL-103) ────────────────────────────────────────
+// A path in "Код:" is a claim that the file exists — but only an implemented
+// requirement makes that claim. An accepted one may cite a file it is about to
+// add; a draft may cite a file nobody has planned yet.
+void TestValidator::citedPath_activeMissingPath_warning()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-101"),
+                                      QStringLiteral("active"), QString());
+    req.status = QStringLiteral("ACTIVE");
+    req.filePath = dir.filePath(QStringLiteral("DevelopmentProcess/requirements/active/x.md"));
+    req.code = QStringLiteral("`scripts/check-req-history.sh` (още го няма)");
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateCitedPaths({req}, {dir.path()});
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Warning);
+    QCOMPARE(issues.at(0).field, QStringLiteral("code"));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("check-req-history.sh")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("още не е имплементиран")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::citedPath_implementedMissingPath_error()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-101"),
+                                      QStringLiteral("active"), QString());
+    req.status = QStringLiteral("IMPLEMENTED");
+    req.filePath = dir.filePath(QStringLiteral("DevelopmentProcess/requirements/active/x.md"));
+    req.code = QStringLiteral("`scripts/check-req-history.sh`");
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateCitedPaths({req}, {dir.path()});
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("не съществува")),
+             qPrintable(issues.at(0).message));
+
+    // DONE is the same claim as IMPLEMENTED: the work landed in develop.
+    req.status = QStringLiteral("DONE");
+    const QVector<RequirementsValidator::Issue> done =
+        RequirementsValidator::validateCitedPaths({req}, {dir.path()});
+    QCOMPARE(done.size(), 1);
+    QCOMPARE(done.at(0).severity, RequirementsValidator::Severity::Error);
+}
+
+void TestValidator::citedPath_draftAndExisting_silent()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QVERIFY(QDir(dir.path()).mkpath(QStringLiteral("scripts")));
+    QFile stamp(dir.filePath(QStringLiteral("scripts/check-req-history.sh")));
+    QVERIFY(stamp.open(QIODevice::WriteOnly));
+    stamp.close();
+
+    Requirement draft = makeRequirement(QStringLiteral("REQ-SW-PL-101"),
+                                        QStringLiteral("active"), QString());
+    draft.status = QStringLiteral("DRAFT");
+    draft.filePath = dir.filePath(QStringLiteral("DevelopmentProcess/requirements/active/x.md"));
+    draft.code = QStringLiteral("`scripts/does-not-exist.sh`");
+
+    Requirement active = makeRequirement(QStringLiteral("REQ-SW-PL-102"),
+                                         QStringLiteral("active"), QString());
+    active.status = QStringLiteral("ACTIVE");
+    active.filePath = dir.filePath(QStringLiteral("DevelopmentProcess/requirements/active/y.md"));
+    active.code = QStringLiteral("`scripts/check-req-history.sh`");
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateCitedPaths({draft, active}, {dir.path()});
+
+    QCOMPARE(issues.size(), 0);
+
+    // The severity rule itself is one function, so it cannot drift between
+    // callers: ACTIVE warns, IMPLEMENTED/DONE error, DRAFT grades nothing.
+    QCOMPARE(RequirementsValidator::pathSeverityForStatus(QString::fromLatin1("ACTIVE")).value(),
+             RequirementsValidator::Severity::Warning);
+    QCOMPARE(RequirementsValidator::pathSeverityForStatus(QString::fromLatin1("IMPLEMENTED")).value(),
+             RequirementsValidator::Severity::Error);
+    QVERIFY(!RequirementsValidator::pathSeverityForStatus(QString::fromLatin1("DRAFT")).has_value());
+}

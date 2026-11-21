@@ -3,6 +3,7 @@
 #include "RequirementDates.h"
 
 #include <QHash>
+#include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QSet>
@@ -93,6 +94,171 @@ void collectCycles(const QVector<Requirement> &requirements,
 }
 
 } // namespace
+
+// ── Споменатите кодови пътища (REQ-SW-PL-103) ───────────────────────────────
+namespace {
+
+// The three traceability fields that carry paths. "Код:" is the code itself;
+// "Тестове:"/"Документация:" are citations of the same kind — a stale path in
+// any of them misleads the reader the same way.
+QStringList citedPathFields(const Requirement &req)
+{
+    return {req.code, req.tests, req.docs};
+}
+
+// Repository top-level directories a cited path may start with. A token such as
+// "DecisionNode.*" or "0/N" is prose or a number, not a path, and treating it as
+// one buries the real findings under noise.
+bool looksLikeRepoToplevel(const QString &path)
+{
+    static const QStringList prefixes = {
+        QStringLiteral("src/"),     QStringLiteral("tests/"),
+        QStringLiteral("cmake/"),   QStringLiteral("scripts/"),
+        QStringLiteral("docs/"),    QStringLiteral("tools/"),
+        QStringLiteral("DevelopmentProcess/"), QStringLiteral("external_libs/"),
+        QStringLiteral(".github/"), QStringLiteral("plugins/")};
+    for (const QString &prefix : prefixes) {
+        if (path.startsWith(prefix))
+            return true;
+    }
+    return false;
+}
+
+// {a,b} -> a, b (cartesian product over every brace group), the same expansion
+// the CLI does: `{h,cpp}` and `{core,gui}` are how the requirement texts
+// actually cite several files in one token.
+QStringList expandBraces(const QString &token)
+{
+    static const QRegularExpression braceRe(QStringLiteral("\\{([^{}]*)\\}"));
+    const QRegularExpressionMatch match = braceRe.match(token);
+    if (!match.hasMatch())
+        return {token};
+    QStringList out;
+    const QString head = token.left(match.capturedStart());
+    const QString tail = token.mid(match.capturedEnd());
+    for (const QString &alt : match.captured(1).split(QLatin1Char(',')))
+        for (const QString &rest : expandBraces(tail))
+            out.append(head + alt + rest);
+    return out;
+}
+
+QStringList pathTokensOf(const QString &text)
+{
+    static const QRegularExpression spanRe(QStringLiteral("`([^`\\n]+)`"));
+    static const QRegularExpression stripTailRe(QStringLiteral("[:#].*$"));
+    static const QString forbidden = QStringLiteral(" *<>|\"'()$;&");
+    QStringList out;
+    auto it = spanRe.globalMatch(text);
+    while (it.hasNext()) {
+        QString span = it.next().captured(1);
+        if (!looksLikeRepoToplevel(span))
+            continue;
+        bool bad = false;
+        for (const QChar c : forbidden) {
+            if (span.contains(c)) { bad = true; break; }
+        }
+        if (bad || span.contains(QStringLiteral("..")))
+            continue;
+        span.remove(stripTailRe);   // foo.cpp:36-38 / CMakeLists.txt#anchor
+        for (const QString &p : expandBraces(span)) {
+            const QString trimmed = p.trimmed();
+            if (!trimmed.isEmpty())
+                out.append(trimmed);
+        }
+    }
+    return out;
+}
+
+// <root>/DevelopmentProcess/requirements/... -> <root>. The file path is the
+// only anchor a parsed requirement carries, and the layout is fixed.
+QString repoRootOf(const Requirement &req)
+{
+    static const QString marker = QStringLiteral("/DevelopmentProcess/");
+    const QString path = QDir::fromNativeSeparators(req.filePath);
+    const int at = path.indexOf(marker);
+    return at > 0 ? path.left(at) : QString();
+}
+
+// Repository roots to resolve against: the requirement's own repo plus its
+// sibling repos that also carry a requirements tree. Public requirements are
+// read from the private tree's copies while their code lives in `../daqster`,
+// so the sibling is part of the resolution — the same classes the CLI resolves
+// (the develop tree and the private tree).
+QStringList candidateRoots(const Requirement &req, const QStringList &explicitRoots)
+{
+    if (!explicitRoots.isEmpty())
+        return explicitRoots;
+    const QString root = repoRootOf(req);
+    if (root.isEmpty())
+        return {};
+    QStringList roots{root};
+    const QDir parent = QFileInfo(root).dir();
+    const QFileInfoList siblings = parent.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo &sibling : siblings) {
+        if (sibling.absoluteFilePath() == root)
+            continue;
+        if (QDir(sibling.absoluteFilePath()).exists(QStringLiteral("DevelopmentProcess/requirements")))
+            roots.append(sibling.absoluteFilePath());
+    }
+    return roots;
+}
+
+bool pathResolves(const QString &path, const QStringList &roots)
+{
+    for (const QString &root : roots) {
+        if (QFileInfo::exists(QDir(root).filePath(path)))
+            return true;
+    }
+    return false;
+}
+
+} // namespace
+
+std::optional<RequirementsValidator::Severity>
+RequirementsValidator::pathSeverityForStatus(const QString &rawStatus)
+{
+    const QString token = normalizedStatus(rawStatus);
+    if (token == QStringLiteral("IMPLEMENTED") || token == QStringLiteral("DONE"))
+        return Severity::Error;
+    if (token == QStringLiteral("ACTIVE") || token == QStringLiteral("BACKLOG"))
+        return Severity::Warning;
+    // DRAFT is a proposal: its files need not exist yet, and CANCELLED work was
+    // never written. Neither is graded.
+    return std::nullopt;
+}
+
+QVector<RequirementsValidator::Issue>
+RequirementsValidator::validateCitedPaths(const QVector<Requirement> &requirements,
+                                          const QStringList &repoRoots)
+{
+    QVector<Issue> issues;
+    for (const Requirement &req : requirements) {
+        const auto severity = pathSeverityForStatus(req.status);
+        if (!severity)
+            continue;
+        const QStringList roots = candidateRoots(req, repoRoots);
+        if (roots.isEmpty())
+            continue;   // no file behind the record — nothing to resolve against
+        for (const QString &field : citedPathFields(req)) {
+            for (const QString &path : pathTokensOf(field)) {
+                if (pathResolves(path, roots))
+                    continue;
+                const QString message = *severity == Severity::Error
+                    ? QStringLiteral("цитираният код '%1' не съществува").arg(path)
+                    : QStringLiteral("цитираният код '%1' още не е имплементиран (%2)")
+                          .arg(path, normalizedStatus(req.status));
+                issues.append({req.id, QStringLiteral("code"), message, *severity});
+            }
+        }
+    }
+    std::stable_sort(issues.begin(), issues.end(),
+                     [](const Issue &a, const Issue &b) {
+                         if (a.severity != b.severity)
+                             return a.severity == Severity::Error;
+                         return a.id < b.id;
+                     });
+    return issues;
+}
 
 QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
     const QVector<Requirement> &requirements)
