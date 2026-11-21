@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QRegularExpression>
+#include <QSaveFile>
 #include <QSet>
 #include <QTextStream>
 #include <QFile>
@@ -560,6 +561,88 @@ void RequirementsParser::setDependenciesLine(Requirement &req,
     }
     req.rawContent = updated.join(QStringLiteral("\n"));
     req.dependencies = valueParts;
+}
+
+bool RequirementsParser::approveDraft(const QString &filePath, const QString &date,
+                                      QString *errorOut)
+{
+    const auto failWith = [errorOut](const QString &reason) {
+        if (errorOut)
+            *errorOut = reason;
+        return false;
+    };
+
+    if (date.trimmed().isEmpty())
+        return failWith(QStringLiteral("датата на одобрение е празна"));
+
+    QFile file(filePath);
+    // Binary mode on purpose: the promise is that every byte except the status
+    // line survives, and a text-mode round-trip would rewrite CRLF on Windows.
+    if (!file.open(QIODevice::ReadOnly))
+        return failWith(QStringLiteral("файлът не може да се прочете: %1").arg(filePath));
+    const QString content = QString::fromUtf8(file.readAll());
+    file.close();
+
+    // Split/join on '\n' is byte-exact: every line keeps its own "\r" (if the
+    // file is CRLF) and the trailing newline survives as an empty last item.
+    QStringList lines = content.split(QLatin1Char('\n'));
+    const QString eolSuffix =
+        lines.first().endsWith(QLatin1Char('\r')) ? QStringLiteral("\r") : QString();
+
+    const int statusLine = [&lines]() {
+        for (int i = 0; i < lines.size(); ++i) {
+            const QString trimmed = lines.at(i).trimmed();
+            if (trimmed.startsWith(QStringLiteral("- **Статус:**")))
+                return i;
+            // The metadata block ends at the first heading: a "Статус" word in
+            // the body must never be read as the requirement's status.
+            if (trimmed.startsWith(QStringLiteral("## ")))
+                break;
+        }
+        return -1;
+    }();
+    if (statusLine < 0)
+        return failWith(QStringLiteral("няма ред \"- **Статус:**\" в %1").arg(filePath));
+
+    const QString statusValue = [](QString line) {
+        // The colon sits INSIDE the bold markers (`- **Статус:** DRAFT`), so the
+        // value is what follows the first colon once emphasis is dropped.
+        line.remove(0, line.indexOf(QLatin1Char(':')) + 1);
+        line.remove(QLatin1Char('*')).remove(QLatin1Char('`'));
+        return line.simplified();
+    }(lines.at(statusLine));
+    const QString token = statusValue.section(QLatin1Char(' '), 0, 0);
+    // Not a draft: nothing to approve, and nothing to rewrite. A second accept
+    // therefore cannot re-date an already accepted requirement.
+    if (token != QStringLiteral("DRAFT"))
+        return true;
+
+    lines[statusLine] = QStringLiteral("- **Статус:** ACTIVE") + eolSuffix;
+
+    const QString approvalLine =
+        QStringLiteral("- **Одобрено:** %1, потребител").arg(date.trimmed()) + eolSuffix;
+    int approvalLineIndex = -1;
+    for (int i = 0; i < lines.size(); ++i) {
+        const QString trimmed = lines.at(i).trimmed();
+        if (trimmed.startsWith(QStringLiteral("- **Одобрено:**"))) {
+            approvalLineIndex = i;
+            break;
+        }
+        if (trimmed.startsWith(QStringLiteral("## ")))
+            break;
+    }
+    if (approvalLineIndex >= 0)
+        lines[approvalLineIndex] = approvalLine;
+    else
+        lines.insert(statusLine + 1, approvalLine);
+
+    QSaveFile out(filePath);
+    if (!out.open(QIODevice::WriteOnly))
+        return failWith(QStringLiteral("файлът не може да се запише: %1").arg(filePath));
+    out.write(lines.join(QLatin1Char('\n')).toUtf8());
+    if (!out.commit())
+        return failWith(QStringLiteral("записът не завърши: %1").arg(filePath));
+    return true;
 }
 
 QString RequirementsParser::generateNextId(const QString &baseDir, const QString &prefix)

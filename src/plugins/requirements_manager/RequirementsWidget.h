@@ -73,6 +73,20 @@ public:
     QString baseDirectory() const;
 
     /**
+     * @brief Approves the DRAFT requirement @p id and rewrites its file.
+     *
+     * The transition itself, without the confirmation dialog (that belongs to
+     * the action, see onAcceptDraft()): the file becomes ACTIVE with
+     * `- **Одобрено:** <date>, потребител` under the status line, and the tree
+     * is reloaded. Exposed so the widget glue is driveable from a test.
+     *
+     * @param id Requirement ID (bare, e.g. "REQ-SW-PL-096").
+     * @param date ISO date of the approval (YYYY-MM-DD).
+     * @return true when the file is ACTIVE afterwards.
+     */
+    bool acceptDraft(const QString &id, const QString &date);
+
+    /**
      * @brief Returns the requirements whose repo matches @p repo
      *        (case-insensitive). An empty/blank @p repo (or "All") returns
      *        the full set. Static so it is directly unit-testable
@@ -91,6 +105,7 @@ private slots:
     void onNewRequirement();
     void onMarkDoneAndArchive();
     void onReopen();
+    void onAcceptDraft();
     void onEditDependencies();
     void onValidate();
     void onShowHelp();
@@ -141,6 +156,7 @@ private:
     QLabel *m_fileLabel;
     QLabel *m_validationLabel;
     QLabel *m_rootStatusLabel;
+    QLabel *m_draftCountLabel; //!< "чакат одобрение: N" (REQ-SW-PL-099)
     QToolBar *m_actionBar;
     QAction *m_editAction;
     QAction *m_saveAction;
@@ -149,6 +165,7 @@ private:
     QAction *m_newAction;
     QAction *m_doneAction;
     QAction *m_reopenAction;
+    QAction *m_acceptAction;
     QAction *m_depsAction;
     QAction *m_validateAction;
     QAction *m_helpAction;

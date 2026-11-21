@@ -3,6 +3,7 @@
 #include <QTreeView>
 #include <QToolBar>
 #include <QAction>
+#include <QLabel>
 #include <QPushButton>
 #include <QTextBrowser>
 #include <QTableView>
@@ -88,6 +89,44 @@ QString makeRequirementsRoot(QTemporaryDir &dir)
     return dir.path();
 }
 
+// Same tree plus one DRAFT (REQ-SW-PL-099): the file carries the DRAFT- prefix
+// the private repo uses, and its status line is the only difference.
+QString makeDraftRequirementsRoot(QTemporaryDir &dir, QString *draftPath = nullptr)
+{
+    const QString root = makeRequirementsRoot(dir);
+    const QString activeDir =
+        QDir(root).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString path =
+        writeRequirement(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-902-fixture.md"),
+                         requirementMarkdown(QStringLiteral("REQ-SW-PL-902"),
+                                             QStringLiteral("DRAFT")));
+    if (draftPath)
+        *draftPath = path;
+    return root;
+}
+
+// Requirement row in the (proxy-sorted) tree by bare ID.
+QModelIndex viewIndexForId(QAbstractItemModel *model, const QString &id)
+{
+    for (int section = 0; section < model->rowCount(); ++section) {
+        const QModelIndex sectionIndex = model->index(section, 0);
+        for (int row = 0; row < model->rowCount(sectionIndex); ++row) {
+            const QModelIndex candidate = model->index(row, 0, sectionIndex);
+            if (candidate.data(Qt::DisplayRole).toString() == id)
+                return candidate;
+        }
+    }
+    return QModelIndex();
+}
+
+QString readAll(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return QString();
+    return QString::fromUtf8(file.readAll());
+}
+
 } // namespace
 
 // GUI tests for the Requirements Manager widgets (REQ-SW-PL-001). QTEST_MAIN
@@ -106,6 +145,8 @@ private slots:
     void matrixTableSortsInView();
     void requirementsTreeSortsInView();
     void detailsSplitterSeparatesPreviewAndCheckboxes();
+    void acceptActionEnabledOnlyForDraft();
+    void acceptDraftRewritesFileAndCounter();
 };
 
 void TestWidgets::actionBarFitsNarrowWindow()
@@ -478,6 +519,86 @@ void TestWidgets::detailsSplitterSeparatesPreviewAndCheckboxes()
     QVERIFY(!preview->isVisible());
     QCOMPARE(details->count(), 2);
     QCOMPARE(details->widget(0), top);
+}
+
+void TestWidgets::acceptActionEnabledOnlyForDraft()
+{
+    // REQ-SW-PL-099: the approval action exists for exactly one transition.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeDraftRequirementsRoot(dir);
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    QAction *accept = widget.findChild<QAction *>(QStringLiteral("acceptDraftAction"));
+    QVERIFY(accept);
+
+    const QModelIndex draft = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-902"));
+    const QModelIndex active = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-900"));
+    QVERIFY(draft.isValid());
+    QVERIFY(active.isValid());
+
+    tree->setCurrentIndex(active);
+    QCoreApplication::processEvents();
+    QVERIFY2(!accept->isEnabled(), "ACTIVE is not a draft: nothing to accept");
+
+    tree->setCurrentIndex(draft);
+    QCoreApplication::processEvents();
+    QVERIFY(accept->isEnabled());
+
+    // Sorting still works with the new status: DRAFT sorts after ACTIVE in the
+    // status column, and the section row stays where it is.
+    tree->sortByColumn(RequirementsModel::StatusColumn, Qt::AscendingOrder);
+    QAbstractItemModel *model = tree->model();
+    QCOMPARE(model->index(0, 0).data(Qt::DisplayRole).toString(), QStringLiteral("active"));
+    const QModelIndex section = model->index(0, 0);
+    QCOMPARE(model->rowCount(section), 3);
+    QCOMPARE(model->index(model->rowCount(section) - 1, 0, section)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("REQ-SW-PL-902"));
+}
+
+void TestWidgets::acceptDraftRewritesFileAndCounter()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString draftPath;
+    const QString root = makeDraftRequirementsRoot(dir, &draftPath);
+    QVERIFY(!draftPath.isEmpty());
+    const QString before = readAll(draftPath);
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат одобрение: 1"));
+
+    // The transition itself, without the modal confirmation that belongs to
+    // the action's click handler.
+    QVERIFY(widget.acceptDraft(QStringLiteral("REQ-SW-PL-902"),
+                               QStringLiteral("2026-11-21")));
+
+    const QString after = readAll(draftPath);
+    const QString expected =
+        QString(before).replace(QStringLiteral("- **Статус:** DRAFT"),
+                                QStringLiteral("- **Статус:** ACTIVE\n"
+                                               "- **Одобрено:** 2026-11-21, потребител"));
+    QCOMPARE(after, expected);
+
+    // The tree was refreshed: the counter says nothing is waiting, and the
+    // status column shows the accepted state.
+    QCOMPARE(counter->text(), QStringLiteral("чакат одобрение: 0"));
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    const QModelIndex row = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-902"));
+    QVERIFY(row.isValid());
+    QCOMPARE(row.sibling(row.row(), RequirementsModel::StatusColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("ACTIVE"));
 }
 
 QTEST_MAIN(TestWidgets)

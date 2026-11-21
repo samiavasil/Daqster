@@ -988,5 +988,142 @@ void TestParser::writeRequirement_roundTrip()
     QVERIFY(reparsed.first().rawContent.contains(QStringLiteral("- **Зависи от:** —")));
 }
 
+void TestParser::approveDraft_rewritesStatusAndApproval()
+{
+    // REQ-SW-PL-099: the Manager's „Приеми“ is the only path DRAFT -> ACTIVE.
+    // It rewrites exactly two lines and leaves every other byte of the file as
+    // it was (the same promise the idea promotion makes).
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString before =
+        requirementContent(QStringLiteral("REQ-SW-PL-096"),
+                           QStringLiteral("Draft"), QStringLiteral("DRAFT"),
+                           QStringLiteral("—"), QStringLiteral("—"));
+    const QString path = writeFixture(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-096-draft.md"),
+                                      before);
+    QVERIFY(!path.isEmpty());
+
+    QString error;
+    QVERIFY2(RequirementsParser::approveDraft(path, QStringLiteral("2026-11-21"), &error),
+             qPrintable(error));
+
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const QString after = QString::fromUtf8(file.readAll());
+    file.close();
+
+    const QString expected =
+        QString(before)
+            .replace(QStringLiteral("- **Статус:** DRAFT"),
+                     QStringLiteral("- **Статус:** ACTIVE\n"
+                                    "- **Одобрено:** 2026-11-21, потребител"));
+    QCOMPARE(after, expected);
+    QVERIFY(after.contains(QStringLiteral("- **Одобрено:** 2026-11-21, потребител")));
+
+    // The parser reads the new status, so the tree shows ACTIVE at once.
+    const QVector<Requirement> parsed = RequirementsParser::parseDirectory(temp.path());
+    QCOMPARE(parsed.size(), 1);
+    QCOMPARE(parsed.first().status, QStringLiteral("ACTIVE"));
+}
+
+void TestParser::approveDraft_secondAcceptIsNoOp()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString path = writeFixture(
+        activeDir, QStringLiteral("DRAFT-REQ-SW-PL-097-draft.md"),
+        requirementContent(QStringLiteral("REQ-SW-PL-097"), QStringLiteral("Draft"),
+                           QStringLiteral("DRAFT"), QStringLiteral("—"),
+                           QStringLiteral("—")));
+    QVERIFY(!path.isEmpty());
+    QVERIFY(RequirementsParser::approveDraft(path, QStringLiteral("2026-11-21")));
+
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const QString first = QString::fromUtf8(file.readAll());
+    file.close();
+
+    // Already ACTIVE: a second accept must not re-date it, nor write at all.
+    QVERIFY(RequirementsParser::approveDraft(path, QStringLiteral("2026-12-01")));
+
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const QString second = QString::fromUtf8(file.readAll());
+    file.close();
+    QCOMPARE(second, first);
+    QVERIFY(second.contains(QStringLiteral("2026-11-21")));
+    QVERIFY(!second.contains(QStringLiteral("2026-12-01")));
+}
+
+void TestParser::approveDraft_nonDraftNoOp()
+{
+    // An ACTIVE requirement is not a draft: the call succeeds and writes
+    // nothing, so the file keeps its bytes exactly.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString before =
+        requirementContent(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("Active"),
+                           QStringLiteral("ACTIVE"), QStringLiteral("—"),
+                           QStringLiteral("—"));
+    const QString path = writeFixture(activeDir, QStringLiteral("REQ-SW-PL-001.md"), before);
+    QVERIFY(!path.isEmpty());
+
+    QVERIFY(RequirementsParser::approveDraft(path, QStringLiteral("2026-11-21")));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    QCOMPARE(QString::fromUtf8(file.readAll()), before);
+}
+
+void TestParser::approveDraft_missingStatus_error()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString path = writeFixture(
+        temp.path(), QStringLiteral("DRAFT-REQ-SW-PL-098-draft.md"),
+        QStringLiteral("# REQ-SW-PL-098: Няма статус\n\n## Накратко\n\nТяло.\n"));
+    QVERIFY(!path.isEmpty());
+
+    QString error;
+    QVERIFY(!RequirementsParser::approveDraft(path, QStringLiteral("2026-11-21"), &error));
+    QVERIFY2(!error.isEmpty(), "a failed approval must say why");
+    QVERIFY(error.contains(QStringLiteral("Статус")));
+}
+
+void TestParser::approveDraft_keepsCrlfBytes()
+{
+    // A CRLF file stays CRLF: the inserted line carries the same ending and no
+    // other byte changes. The fixture is written in binary mode — the point is
+    // the bytes on disk, not a text-mode round-trip.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString before =
+        QStringLiteral("# REQ-SW-PL-099: CRLF\r\n"
+                       "\r\n"
+                       "- **Статус:** DRAFT\r\n"
+                       "- **Приоритет:** Low\r\n");
+    const QString path = QDir(temp.path()).filePath(
+        QStringLiteral("DRAFT-REQ-SW-PL-099-draft.md"));
+    {
+        QFile fixture(path);
+        QVERIFY(fixture.open(QIODevice::WriteOnly));
+        fixture.write(before.toUtf8());
+    }
+
+    QVERIFY(RequirementsParser::approveDraft(path, QStringLiteral("2026-11-21")));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QString after = QString::fromUtf8(file.readAll());
+    const QString expected =
+        QString(before).replace(QStringLiteral("- **Статус:** DRAFT\r\n"),
+                                QStringLiteral("- **Статус:** ACTIVE\r\n"
+                                               "- **Одобрено:** 2026-11-21, потребител\r\n"));
+    QCOMPARE(after, expected);
+}
+
 // No QTEST_GUILESS_MAIN here: the three test classes share one binary whose
 // main lives in test_main.cpp.

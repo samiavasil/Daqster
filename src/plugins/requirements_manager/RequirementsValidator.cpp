@@ -243,10 +243,22 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
         // The zone check is what catches "ACTIVE while sitting in archive/" and
         // "DONE still in active/" — the latter is the one real defect the two
         // validators now report identically (REQ-SW-PL-079).
+        //
+        // DRAFT (REQ-SW-PL-099) is a proposal awaiting the owner's approval: it
+        // is legal only in active/, because that is where it is approved. A
+        // DRAFT under archive/ is a contradiction of the same shape as
+        // DONE-in-active/, and it says so in its own words rather than falling
+        // through to the generic archive message.
         const QString zone = req.section.trimmed().toLower();
         const bool archived = archivedStatuses().contains(token);
         const bool either = eitherZoneStatuses().contains(token);
-        if (zone == QStringLiteral("archive") && !archived && !either) {
+        if (zone == QStringLiteral("archive") && token == QStringLiteral("DRAFT")) {
+            issues.append({req.id, QStringLiteral("status"),
+                           QStringLiteral("статус '%1' в archive/ — черновата се "
+                                          "одобрява в active/, не се архивира")
+                               .arg(token),
+                           Severity::Error});
+        } else if (zone == QStringLiteral("archive") && !archived && !either) {
             issues.append({req.id, QStringLiteral("status"),
                            QStringLiteral("статус '%1' в archive/ (очаква се %2 или %3)")
                                .arg(token,
@@ -527,9 +539,12 @@ QStringList RequirementsValidator::statusVocabulary()
     // Order and membership mirror `readonly VOCAB` in
     // scripts/validate-traceability.sh. Changing one without the other makes
     // the two validators disagree again, which is the defect this fixes.
-    return {QStringLiteral("ACTIVE"), QStringLiteral("IMPLEMENTED"),
-            QStringLiteral("DONE"), QStringLiteral("CANCELLED"),
-            QStringLiteral("BACKLOG")};
+    // DRAFT leads the list because it is where a requirement starts: an agent
+    // writes it, the owner accepts it, and only then may it be implemented
+    // (REQ-SW-PL-099).
+    return {QStringLiteral("DRAFT"), QStringLiteral("ACTIVE"),
+            QStringLiteral("IMPLEMENTED"), QStringLiteral("DONE"),
+            QStringLiteral("CANCELLED"), QStringLiteral("BACKLOG")};
 }
 
 QString RequirementsValidator::normalizedStatus(const QString &rawStatus)

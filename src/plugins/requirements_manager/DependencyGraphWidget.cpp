@@ -257,7 +257,8 @@ QColor DependencyGraphScene::borderColorForStatus(const QString &status)
 
 QVector<QPair<QString, QColor>> DependencyGraphScene::statusStyles()
 {
-    return { qMakePair(QStringLiteral("ACTIVE"), QColor(0x2E7D32)),      // green 800
+    return { qMakePair(QStringLiteral("DRAFT"), QColor(0x6A1B9A)),       // purple 800
+             qMakePair(QStringLiteral("ACTIVE"), QColor(0x2E7D32)),      // green 800
              qMakePair(QStringLiteral("IMPLEMENTED"), QColor(0x1565C0)), // blue 800
              qMakePair(QStringLiteral("DONE"), QColor(0x757575)),        // gray 600
              qMakePair(QStringLiteral("CANCELLED"), QColor(0xC62828)),   // red 800

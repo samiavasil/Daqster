@@ -34,4 +34,9 @@ private slots:
     void moveToArchive_nestedSubdir();
     void moveRejectsWrongSection();
     void writeRequirement_roundTrip();
+    void approveDraft_rewritesStatusAndApproval();
+    void approveDraft_secondAcceptIsNoOp();
+    void approveDraft_nonDraftNoOp();
+    void approveDraft_missingStatus_error();
+    void approveDraft_keepsCrlfBytes();
 };

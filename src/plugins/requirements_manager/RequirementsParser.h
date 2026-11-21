@@ -261,6 +261,27 @@ public:
     static void setDependenciesLine(Requirement &req, const QStringList &dependencies);
 
     /**
+     * @brief Approves a DRAFT requirement file (REQ-SW-PL-099).
+     *
+     * Rewrites `- **Статус:** DRAFT` into `- **Статус:** ACTIVE` and puts
+     * `- **Одобрено:** <date>, потребител` on the line directly after it
+     * (replacing an existing approval line rather than adding a second one).
+     * Every other byte of the file is left as it is; the write goes through
+     * QSaveFile, so a failure leaves the original in place.
+     *
+     * A file whose status is not DRAFT is not a draft any more: the call is a
+     * successful no-op and writes nothing, so a second accept cannot turn
+     * ACTIVE into ACTIVE with a new date.
+     *
+     * @param filePath Path to the requirement .md file.
+     * @param date ISO date of the approval (YYYY-MM-DD).
+     * @param errorOut Optional human-readable reason when the call returns false.
+     * @return true when the file is now ACTIVE (rewritten, or already not DRAFT).
+     */
+    static bool approveDraft(const QString &filePath, const QString &date,
+                             QString *errorOut = nullptr);
+
+    /**
      * @brief Scans all parsed requirements in active/ and archive/ under baseDir
      *        for the given prefix and returns the next free ID as "REQ-<P>-<NNN>"
      *        (zero-padded to 3 digits). E.g. generateNextId(dir, "SW-PL") -> "REQ-SW-PL-016".

@@ -36,6 +36,7 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QColor>
+#include <QDate>
 #include <QDir>
 #include <QKeySequence>
 #include <QHeaderView>
@@ -106,6 +107,10 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_newAction->setShortcut(QKeySequence::New);
     m_doneAction = new QAction(tr("Mark Done & Archive"), this);
     m_reopenAction = new QAction(tr("Reopen"), this);
+    m_acceptAction = new QAction(tr("Приеми"), this);
+    m_acceptAction->setObjectName(QStringLiteral("acceptDraftAction"));
+    m_acceptAction->setToolTip(
+        tr("Одобрява избраната чернова (DRAFT → ACTIVE) — само човек го прави"));
     m_depsAction = new QAction(tr("Edit deps…"), this);
     m_validateAction = new QAction(tr("Validate"), this);
     m_validateAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+V")));
@@ -122,11 +127,18 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_cancelAction->setEnabled(false);
     m_doneAction->setEnabled(false);
     m_reopenAction->setEnabled(false);
+    m_acceptAction->setEnabled(false);
     m_depsAction->setEnabled(false);
     m_editAction->setEnabled(false);
 
     m_criteriaList = new QListWidget(this);
     m_criteriaList->setVisible(false);
+
+    // Owner-facing counter (REQ-SW-PL-099): what is waiting for approval,
+    // recomputed on every reload so it never needs the files to be opened.
+    m_draftCountLabel = new QLabel(this);
+    m_draftCountLabel->setObjectName(QStringLiteral("draftCountLabel"));
+    m_draftCountLabel->setText(tr("чакат одобрение: 0"));
 
     QHBoxLayout *treeControlsLayout = new QHBoxLayout;
     treeControlsLayout->addWidget(new QLabel(tr("View:"), this));
@@ -141,6 +153,10 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     QVBoxLayout *treeLayout = new QVBoxLayout;
     treeLayout->addLayout(treeControlsLayout);
     treeLayout->addWidget(m_treeView);
+    // The counter sits under the tree, not in the filter row: it is a reading,
+    // not a control, and the filter row is what decides the panel's minimum
+    // width (REQ-SW-PL-001 keeps the window narrow).
+    treeLayout->addWidget(m_draftCountLabel, 0, Qt::AlignRight);
 
     QWidget *treePanel = new QWidget(this);
     treePanel->setLayout(treeLayout);
@@ -168,6 +184,7 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_actionBar->addAction(m_cancelAction);
     m_actionBar->addSeparator();
     m_actionBar->addAction(m_depsAction);
+    m_actionBar->addAction(m_acceptAction);
     m_actionBar->addAction(m_doneAction);
     m_actionBar->addAction(m_reopenAction);
     m_actionBar->addSeparator();
@@ -254,6 +271,7 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     connect(m_forwardAction, &QAction::triggered, this, &RequirementsWidget::onNavForward);
     connect(m_doneAction, &QAction::triggered, this, &RequirementsWidget::onMarkDoneAndArchive);
     connect(m_reopenAction, &QAction::triggered, this, &RequirementsWidget::onReopen);
+    connect(m_acceptAction, &QAction::triggered, this, &RequirementsWidget::onAcceptDraft);
     connect(m_depsAction, &QAction::triggered, this, &RequirementsWidget::onEditDependencies);
     connect(m_validateAction, &QAction::triggered, this, &RequirementsWidget::onValidate);
     connect(m_helpAction, &QAction::triggered, this, &RequirementsWidget::onShowHelp);
@@ -386,6 +404,17 @@ void RequirementsWidget::reload()
         tr("Roots loaded: %1  |  Requirements: %2")
             .arg(m_roots.size())
             .arg(m_requirements.size()));
+
+    // Recomputed on every reload (REQ-SW-PL-099): a draft is visible without
+    // opening a single file.
+    int drafts = 0;
+    for (const Requirement &req : m_requirements) {
+        if (RequirementsValidator::normalizedStatus(req.status)
+            == QStringLiteral("DRAFT")) {
+            ++drafts;
+        }
+    }
+    m_draftCountLabel->setText(tr("чакат одобрение: %1").arg(drafts));
     m_graphWidget->setRequirements(m_filtered, m_validationIssues);
     updateValidationStatus();
     refreshActionState();
@@ -581,6 +610,55 @@ void RequirementsWidget::onReopen()
         return;
     }
     reload();
+}
+
+void RequirementsWidget::onAcceptDraft()
+{
+    if (m_currentIndex < 0)
+        return;
+    const Requirement &req = m_requirements.at(m_currentIndex);
+
+    // The confirmation is the whole point of the action: an approval is what
+    // allows implementation, so it is asked for explicitly and never silent.
+    const QMessageBox::StandardButton answer = QMessageBox::question(
+        this, tr("Приеми изискването?"),
+        tr("Това одобрение позволява имплементация. Сигурен ли си?\n\n%1")
+            .arg(req.id),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes)
+        return;
+
+    acceptDraft(req.id, QDate::currentDate().toString(Qt::ISODate));
+}
+
+bool RequirementsWidget::acceptDraft(const QString &id, const QString &date)
+{
+    const Requirement *target = nullptr;
+    for (const Requirement &req : m_requirements) {
+        if (req.id == id) {
+            target = &req;
+            break;
+        }
+    }
+    if (!target) {
+        qCWarning(lcFramework) << "RequirementsManager: няма изискване" << id;
+        return false;
+    }
+
+    QString error;
+    if (!RequirementsParser::approveDraft(target->filePath, date, &error)) {
+        QMessageBox::warning(this, tr("Requirements"),
+                             tr("Файлът не можа да се презапише:\n%1").arg(error));
+        qCWarning(lcFramework) << "RequirementsManager: одобрението се провали за"
+                               << id << error;
+        return false;
+    }
+
+    qCInfo(lcFramework) << "RequirementsManager: одобрено изискване" << id
+                        << "(DRAFT → ACTIVE," << date + QLatin1Char(')');
+    reload();
+    navigateToId(id);
+    return true;
 }
 
 void RequirementsWidget::onEditDependencies()
@@ -841,11 +919,17 @@ void RequirementsWidget::refreshActionState()
                                         == QStringLiteral("active");
     const bool archived = valid && m_requirements.at(m_currentIndex).section
                                         == QStringLiteral("archive");
+    const bool draft = valid
+        && RequirementsValidator::normalizedStatus(
+               m_requirements.at(m_currentIndex).status) == QStringLiteral("DRAFT");
 
     m_editAction->setEnabled(valid);
     m_depsAction->setEnabled(valid);
     m_doneAction->setEnabled(active);
     m_reopenAction->setEnabled(archived);
+    // Accepting is the owner's act and exists for exactly one transition:
+    // DRAFT -> ACTIVE inside active/ (REQ-SW-PL-099).
+    m_acceptAction->setEnabled(draft && active);
     updateNavButtons();
 }
 

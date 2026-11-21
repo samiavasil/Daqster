@@ -409,7 +409,7 @@ void TestValidator::scope_onlyRequirementsTreeIsValidated()
 void TestValidator::statusVocabulary_hasOneEntryPoint()
 {
     QCOMPARE(RequirementsValidator::statusVocabulary().join(QLatin1Char(' ')),
-             QStringLiteral("ACTIVE IMPLEMENTED DONE CANCELLED BACKLOG"));
+             QStringLiteral("DRAFT ACTIVE IMPLEMENTED DONE CANCELLED BACKLOG"));
 }
 
 void TestValidator::statusVocabulary_invalidStatus_error()
@@ -472,6 +472,31 @@ void TestValidator::statusZone_activeInArchive_error()
     QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
     QCOMPARE(issues.at(0).field, QStringLiteral("status"));
     QVERIFY2(issues.at(0).message.contains(QStringLiteral("в archive/")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::statusVocabulary_draftOnlyInActive()
+{
+    // DRAFT is the state an agent writes and the owner accepts in the Manager
+    // (REQ-SW-PL-099). It is a legal status, and it is legal only in active/:
+    // the approval happens there, so a draft in archive/ is a contradiction.
+    QVector<Requirement> active;
+    active.append(makeRequirement(QStringLiteral("REQ-SW-PL-096"),
+                                  QStringLiteral("active"), QString(), {},
+                                  QStringLiteral("DRAFT")));
+    QCOMPARE(RequirementsValidator::validate(active).size(), 0);
+
+    QVector<Requirement> archived;
+    archived.append(makeRequirement(QStringLiteral("REQ-SW-PL-097"),
+                                    QStringLiteral("archive"), QString(), {},
+                                    QStringLiteral("DRAFT")));
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(archived);
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QCOMPARE(issues.at(0).field, QStringLiteral("status"));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("DRAFT"))
+                 && issues.at(0).message.contains(QStringLiteral("в archive/")),
              qPrintable(issues.at(0).message));
 }
 

@@ -29,6 +29,7 @@ private slots:
     void statusVocabulary_invalidStatus_error();
     void statusVocabulary_doneNaKlonaMapsToImplemented();
     void statusZone_activeInArchive_error();
+    void statusVocabulary_draftOnlyInActive();
     void statusZone_doneInActive_error();
     void statusZone_implementedInArchive_noIssue();
     void doneWithOpenCriterion_error();
