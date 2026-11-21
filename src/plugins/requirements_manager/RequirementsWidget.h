@@ -80,11 +80,17 @@ public:
      * `- **Одобрено:** <date>, потребител` under the status line, and the tree
      * is reloaded. Exposed so the widget glue is driveable from a test.
      *
-     * @param id Requirement ID (bare, e.g. "REQ-SW-PL-096").
+     * @p id is taken **by value** on purpose: the call ends in reload(), which
+     * reassigns m_requirements and frees the elements, so an id that aliased
+     * one of them (the action path passes `m_requirements.at(i).id`) would
+     * dangle inside navigateToId(). By value the copy is made at the call
+     * site, before the reload can invalidate anything.
+     *
+     * @param id Requirement ID (bare, e.g. "REQ-SW-PL-096"), by value.
      * @param date ISO date of the approval (YYYY-MM-DD).
      * @return true when the file is ACTIVE afterwards.
      */
-    bool acceptDraft(const QString &id, const QString &date);
+    bool acceptDraft(QString id, const QString &date);
 
     /**
      * @brief Returns the requirements whose repo matches @p repo

@@ -473,6 +473,18 @@ void RequirementsWidget::onSelectionChanged()
         }
     }
 
+    // The row came from the model, which holds the FILTERED subset: if the
+    // full set does not carry that path, there is no index to use and
+    // m_requirements.at(-1) would be out of bounds.
+    if (m_currentIndex < 0) {
+        m_preview->clear();
+        m_editor->clear();
+        m_fileLabel->clear();
+        m_criteriaList->clear();
+        refreshActionState();
+        return;
+    }
+
     if (m_editor->isVisible()) {
         m_editor->setPlainText(m_requirements.at(m_currentIndex).rawContent);
     }
@@ -651,25 +663,31 @@ void RequirementsWidget::onAcceptDraft()
     if (answer != QMessageBox::Yes)
         return;
 
-    acceptDraft(req.id, QDate::currentDate().toString(Qt::ISODate));
+    // By value on purpose: `req` aliases m_requirements, which acceptDraft()
+    // reloads. The copy is taken here, before anything is invalidated.
+    const QString id = req.id;
+    acceptDraft(id, QDate::currentDate().toString(Qt::ISODate));
 }
 
-bool RequirementsWidget::acceptDraft(const QString &id, const QString &date)
+bool RequirementsWidget::acceptDraft(QString id, const QString &date)
 {
-    const Requirement *target = nullptr;
+    // `id` is a copy (see the header): reload() below reallocates
+    // m_requirements, so neither a reference to an element nor a pointer into
+    // it may survive the call. The path is copied out for the same reason.
+    QString filePath;
     for (const Requirement &req : m_requirements) {
         if (req.id == id) {
-            target = &req;
+            filePath = req.filePath;
             break;
         }
     }
-    if (!target) {
+    if (filePath.isEmpty()) {
         qCWarning(lcFramework) << "RequirementsManager: няма изискване" << id;
         return false;
     }
 
     QString error;
-    if (!RequirementsParser::approveDraft(target->filePath, date, &error)) {
+    if (!RequirementsParser::approveDraft(filePath, date, &error)) {
         QMessageBox::warning(this, tr("Requirements"),
                              tr("Файлът не можа да се презапише:\n%1").arg(error));
         qCWarning(lcFramework) << "RequirementsManager: одобрението се провали за"
@@ -680,6 +698,7 @@ bool RequirementsWidget::acceptDraft(const QString &id, const QString &date)
     qCInfo(lcFramework) << "RequirementsManager: одобрено изискване" << id
                         << "(DRAFT → ACTIVE," << date + QLatin1Char(')');
     reload();
+    // `id` is a local copy, so it survives the reload above.
     navigateToId(id);
     return true;
 }
@@ -876,6 +895,10 @@ void RequirementsWidget::updatePreviewText(const Requirement &req)
 
 void RequirementsWidget::navigateToId(const QString &id, bool addToHistory)
 {
+    // An empty (or blank) id is not a requirement: stay quiet instead of
+    // raising a "not found" message that names nothing.
+    if (id.trimmed().isEmpty())
+        return;
     // indexForId() speaks source-model indexes; the view shows the sorted
     // proxy, so every index crosses that boundary once.
     const QModelIndex index = m_sortProxy->mapFromSource(m_model->indexForId(id));

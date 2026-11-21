@@ -260,6 +260,24 @@ void TestModel::indexForId_behaviour()
     }
 }
 
+void TestModel::indexForId_rejectsBlankId()
+{
+    // A malformed header parses to an empty id; a blank lookup must not match
+    // it (REQ-SW-PL-099). Without the guard the first such requirement wins and
+    // navigateToId() would select a row nobody asked for.
+    QVector<Requirement> reqs = makeFixture();
+    reqs.append(makeRequirement(QString(), QStringLiteral("active"), QString()));
+    RequirementsModel model;
+    model.setRequirements(reqs);
+
+    QVERIFY(!model.indexForId(QString()).isValid());
+    QVERIFY(!model.indexForId(QStringLiteral("   ")).isValid());
+    QVERIFY(!model.indexForId(QStringLiteral("\t")).isValid());
+
+    // The real requirements are still reachable: the guard rejects only blanks.
+    QVERIFY(model.indexForId(QStringLiteral("REQ-SW-PL-040")).isValid());
+}
+
 void TestModel::danglingParent_isTopLevel()
 {
     RequirementsModel model;

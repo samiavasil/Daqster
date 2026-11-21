@@ -15,6 +15,7 @@ private slots:
     void hierarchy_shape();
     void hierarchy_nesting();
     void indexForId_behaviour();
+    void indexForId_rejectsBlankId();
     void danglingParent_isTopLevel();
     void cycle_safe();
     void requirementRole_data();

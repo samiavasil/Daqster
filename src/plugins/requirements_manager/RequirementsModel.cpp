@@ -361,6 +361,12 @@ QVariant RequirementsModel::headerData(int section, Qt::Orientation orientation,
 
 QModelIndex RequirementsModel::indexForId(const QString &id) const
 {
+    // A blank id names nothing: a requirement whose id parsed empty (a
+    // malformed header) would otherwise match it and the caller would land on
+    // a row that is not the one it asked for (REQ-SW-PL-099).
+    if (id.trimmed().isEmpty())
+        return QModelIndex();
+
     const int targetIdx = indexOfId(id);
     if (targetIdx < 0)
         return QModelIndex();

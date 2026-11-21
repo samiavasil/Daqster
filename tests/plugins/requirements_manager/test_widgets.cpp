@@ -17,6 +17,11 @@
 #include <QSplitter>
 #include <QListWidget>
 #include <QPlainTextEdit>
+#include <QMessageBox>
+#include <QTimer>
+#include <QAbstractButton>
+#include <QFileInfo>
+#include <type_traits>
 
 #include "RequirementsWidget.h"
 #include "ValidationDialog.h"
@@ -132,6 +137,15 @@ QString readAll(const QString &path)
 
 } // namespace
 
+// The by-value contract, expressed in the type system (REQ-SW-PL-099): the
+// approval reloads m_requirements, so an id that aliases one of its elements
+// must not be able to reach the reload. With `const QString &` this assert
+// fails to compile — the defect cannot be reintroduced silently.
+static_assert(std::is_same<decltype(&RequirementsWidget::acceptDraft),
+                           bool (RequirementsWidget::*)(QString, const QString &)>::value,
+              "acceptDraft must take the requirement id by value: it reloads the "
+              "vector the action's id aliases");
+
 // GUI tests for the Requirements Manager widgets (REQ-SW-PL-001). QTEST_MAIN
 // provides a QApplication; the binary runs under the offscreen platform plugin
 // (QT_QPA_PLATFORM=offscreen, set by the CTest ENVIRONMENT property).
@@ -150,6 +164,7 @@ private slots:
     void detailsSplitterSeparatesPreviewAndCheckboxes();
     void acceptActionEnabledOnlyForDraft();
     void acceptDraftRewritesFileAndCounter();
+    void acceptActionApprovesDraftInPlace();
     void previewHeaderShowsCreatedAndAge();
     void overdueDraftIsPaintedInWarningColour();
     void draftCounterTooltipShowsOldestWait();
@@ -605,6 +620,87 @@ void TestWidgets::acceptDraftRewritesFileAndCounter()
     QCOMPARE(row.sibling(row.row(), RequirementsModel::StatusColumn)
                  .data(Qt::DisplayRole).toString(),
              QStringLiteral("ACTIVE"));
+}
+
+void TestWidgets::acceptActionApprovesDraftInPlace()
+{
+    // The regression test for the accepted-draft crash (REQ-SW-PL-099): the
+    // existing test above passes a *temporary* id, so it never aliases
+    // m_requirements and the dangling reference stayed invisible. This one
+    // drives the action, i.e. the path where the id really does alias
+    // `m_requirements.at(m_currentIndex).id` while acceptDraft() reloads the
+    // vector. On the buggy build this aborted with qBadAlloc inside
+    // navigateToId() -> QString::arg().
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString draftPath;
+    const QString root = makeDraftRequirementsRoot(dir, &draftPath);
+    QVERIFY(!draftPath.isEmpty());
+
+    // Give the fixture the draft banner a real draft carries, so the stale-text
+    // rule is exercised through the click as well.
+    const QString withBanner =
+        QString(readAll(draftPath))
+            .replace(QStringLiteral("- **Зависи от:** —\n\n"),
+                     QStringLiteral("- **Зависи от:** —\n\n"
+                                    "> **Чернова — чака одобрение в мениджъра; не се "
+                                    "имплементира, докато не стане `ACTIVE`.**\n\n"));
+    QVERIFY(withBanner.contains(QStringLiteral("Чернова")));
+    QVERIFY(!writeRequirement(
+                 QFileInfo(draftPath).absolutePath(), QFileInfo(draftPath).fileName(),
+                 withBanner)
+                 .isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    QAction *accept = widget.findChild<QAction *>(QStringLiteral("acceptDraftAction"));
+    QVERIFY(accept);
+
+    const QModelIndex draft = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-902"));
+    QVERIFY(draft.isValid());
+    tree->setCurrentIndex(draft);
+    QCoreApplication::processEvents();
+    QVERIFY2(accept->isEnabled(), "a DRAFT inside active/ is acceptable");
+
+    // The click asks for confirmation; answer „Да“ as soon as the box is up.
+    QTimer answer;
+    answer.setInterval(10);
+    QObject::connect(&answer, &QTimer::timeout, [&answer]() {
+        QMessageBox *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+        if (!box)
+            return;
+        if (QAbstractButton *yes = box->button(QMessageBox::Yes)) {
+            answer.stop();
+            yes->click();
+        }
+    });
+    answer.start();
+    accept->trigger();
+    answer.stop();
+    QCoreApplication::processEvents();
+
+    // The file moved DRAFT -> ACTIVE and lost the banner: no crash on the way.
+    const QString after = readAll(draftPath);
+    QVERIFY2(after.contains(QStringLiteral("- **Статус:** ACTIVE")), qPrintable(after));
+    QVERIFY(after.contains(QStringLiteral("- **Одобрено:**")));
+    QVERIFY2(!after.contains(QStringLiteral("Чернова")), qPrintable(after));
+
+    // The reloaded tree resolves the same id, and navigation landed on it.
+    const QModelIndex accepted =
+        viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-902"));
+    QVERIFY(accepted.isValid());
+    QCOMPARE(accepted.sibling(accepted.row(), RequirementsModel::StatusColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("ACTIVE"));
+    QCOMPARE(tree->currentIndex().data(Qt::DisplayRole).toString(),
+             QStringLiteral("REQ-SW-PL-902"));
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат одобрение: 0"));
+    QVERIFY2(!accept->isEnabled(), "the accepted requirement is no longer a draft");
 }
 
 QTEST_MAIN(TestWidgets)
