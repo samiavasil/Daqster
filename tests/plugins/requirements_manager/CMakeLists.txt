@@ -190,6 +190,8 @@ set(WIDGET_TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/ValidationDialog.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/HelpDialog.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/HelpDialog.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DraftNoteDialog.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DraftNoteDialog.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/NewRequirementDialog.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/NewRequirementDialog.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/TraceabilityMatrixWidget.cpp

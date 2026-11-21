@@ -21,6 +21,7 @@ class QSplitter;
 class QComboBox;
 class QTabWidget;
 class QUrl;
+class QFileSystemWatcher;
 
 namespace Daqster {
 
@@ -93,6 +94,65 @@ public:
     bool acceptDraft(QString id, const QString &date);
 
     /**
+     * @brief „За корекция“: records a review round; status stays DRAFT
+     *        (REQ-SW-PL-102 AC1).
+     *
+     * The transition only — the dialog with the non-empty note lives in
+     * onRequestChanges(), so the file glue is driveable from a test. The file
+     * is resolved BY THE ID IN ITS H1 (AC7), not by a cached path: a renamed
+     * file still answers, and a missing one is reported with
+     * missingFileMessage() instead of a bare read error.
+     *
+     * @param id Requirement ID (by value — reload() reallocates the vector).
+     * @param note What is missing (required).
+     * @param date ISO date of the verdict.
+     * @return true when the row was written.
+     */
+    bool requestChanges(QString id, const QString &note, const QString &date);
+
+    /**
+     * @brief „Откажи“: CANCELLED + review row + history row, moved to archive/.
+     * @param id Requirement ID (by value).
+     * @param reason Why it is refused (required).
+     * @param date ISO date of the verdict.
+     * @return true when the file is cancelled and archived.
+     */
+    bool rejectDraft(QString id, const QString &reason, const QString &date);
+
+    /**
+     * @brief „Промени договора“: back to DRAFT, history row, revision + 1
+     *        (REQ-SW-PL-101 AC4).
+     * @param id Requirement ID (by value).
+     * @param reason What is being changed (required).
+     * @param date ISO date of the change.
+     * @return true when the file is DRAFT again.
+     */
+    bool changeContract(QString id, const QString &reason, const QString &date);
+
+    /**
+     * @brief The message a review action shows when the file cannot be found.
+     *
+     * A file renamed or moved by git/hand keeps its H1 and its meaning, while a
+     * cached path stops existing (REQ-SW-PL-102 AC7). Exposed so the test can
+     * assert the sentence instead of a modal box's implementation.
+     *
+     * @param id The requirement ID that could not be resolved.
+     * @return The full sentence, naming the requirement and the remedy.
+     */
+    static QString missingFileMessage(const QString &id);
+
+    /**
+     * @brief Resolves @p id to the file whose H1 carries it, on disk now.
+     *
+     * A fresh walk of every loaded root (REQ-SW-PL-102 AC7): the identity of a
+     * requirement is its H1, the path is not.
+     *
+     * @param id Requirement ID (case-insensitive).
+     * @return Absolute path, empty when no file carries that ID.
+     */
+    QString resolveRequirementFile(const QString &id) const;
+
+    /**
      * @brief Returns the requirements whose repo matches @p repo
      *        (case-insensitive). An empty/blank @p repo (or "All") returns
      *        the full set. Static so it is directly unit-testable
@@ -112,6 +172,10 @@ private slots:
     void onMarkDoneAndArchive();
     void onReopen();
     void onAcceptDraft();
+    void onRequestChanges();
+    void onRejectDraft();
+    void onChangeContract();
+    void onWatchedPathChanged();
     void onEditDependencies();
     void onValidate();
     void onShowHelp();
@@ -137,6 +201,11 @@ private:
     void applyViewFilters();
     void updateNavButtons();
     void pushNavHistory(const QString &id);
+    //!< Watches every requirements directory so an external change (git pull,
+    //!< rename) refreshes the list (REQ-SW-PL-102 AC7).
+    void rebuildWatchedPaths();
+    //!< Reports a requirement whose file no longer exists by its H1 (AC7).
+    void missingFile(const QString &id);
     //!< Builds the read-only "Идеи" tab (REQ-SW-PL-095).
     QWidget *createIdeasPanel();
     //!< Re-reads the idea register and hides the tab when it is empty.
@@ -172,6 +241,9 @@ private:
     QAction *m_doneAction;
     QAction *m_reopenAction;
     QAction *m_acceptAction;
+    QAction *m_requestChangesAction; //!< „За корекция“ (REQ-SW-PL-102)
+    QAction *m_rejectAction;         //!< „Откажи“
+    QAction *m_contractAction;       //!< „Промени договора“ (REQ-SW-PL-101)
     QAction *m_depsAction;
     QAction *m_validateAction;
     QAction *m_helpAction;
@@ -201,6 +273,8 @@ private:
     QVector<Requirement> m_filtered;     //!< subset feeding model/graph/matrix
     QVector<RequirementsValidator::Issue> m_validationIssues;
     int m_currentIndex; //!< index into m_requirements; -1 when none selected
+    QFileSystemWatcher *m_watcher = nullptr; //!< requirements dirs (AC7)
+    QTimer *m_watchTimer = nullptr;          //!< debounce for the watcher
     QAction *m_backAction = nullptr;
     QAction *m_forwardAction = nullptr;
     QVector<QString> m_navHistory;

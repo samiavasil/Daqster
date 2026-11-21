@@ -56,6 +56,8 @@ set(PLUGIN_SOURCES
     ValidationDialog.h
     HelpDialog.cpp
     HelpDialog.h
+    DraftNoteDialog.cpp
+    DraftNoteDialog.h
     MatrixExporter.cpp
     MatrixExporter.h
     TraceabilityMatrixModel.cpp

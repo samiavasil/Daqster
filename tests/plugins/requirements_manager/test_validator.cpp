@@ -924,3 +924,38 @@ void TestValidator::citedPath_draftAndExisting_silent()
              RequirementsValidator::Severity::Error);
     QVERIFY(!RequirementsValidator::pathSeverityForStatus(QString::fromLatin1("DRAFT")).has_value());
 }
+
+void TestValidator::createdField_isTheCreationDate()
+{
+    // REQ-SW-PL-101 AC2: "Създадено:" is the field, "Дата:" the legacy alias.
+    // Neither present is "missing"; a sloppy value in the new field is the same
+    // "не е YYYY-MM-DD" warning the old one gets.
+    QVector<Requirement> reqs;
+    Requirement neither = makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                          QStringLiteral("active"), QString());
+    neither.date.clear();
+    neither.created.clear();
+    reqs.append(neither);
+
+    Requirement fromCreated = makeRequirement(QStringLiteral("REQ-SW-PL-002"),
+                                              QStringLiteral("active"), QString());
+    fromCreated.date = QStringLiteral("не е дата");
+    fromCreated.created = QStringLiteral("2026-11-21");
+    reqs.append(fromCreated);
+
+    Requirement sloppyCreated = makeRequirement(QStringLiteral("REQ-SW-PL-003"),
+                                                QStringLiteral("active"), QString());
+    sloppyCreated.date.clear();
+    sloppyCreated.created = QStringLiteral("21.11.2026");
+    reqs.append(sloppyCreated);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 2);
+    QCOMPARE(issues.at(0).id, QStringLiteral("REQ-SW-PL-001"));
+    QCOMPARE(issues.at(0).message, QStringLiteral("creation date is missing"));
+    QCOMPARE(issues.at(1).id, QStringLiteral("REQ-SW-PL-003"));
+    QVERIFY2(issues.at(1).message.contains(QStringLiteral("21.11.2026")),
+             qPrintable(issues.at(1).message));
+}

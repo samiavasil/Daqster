@@ -50,7 +50,11 @@ public:
     enum Role {
         RequirementRole = Qt::UserRole + 1,
         SectionRole,
-        AgeDaysRole  //!< int: whole days since "Дата", -1 when unknown
+        AgeDaysRole,   //!< int: whole days since "Създадено"/"Дата", -1 when unknown
+        DraftVerdictRole //!< QString: the last verdict of the draft review table
+                         //!< ("за корекция", "откажи") — empty when no verdict was
+                         //!< recorded (REQ-SW-PL-102 AC4). Computed once, in
+                         //!< setRequirements(), so the counter never parses in paint.
     };
 
     enum class ViewMode {
@@ -113,6 +117,7 @@ private:
     int siblingRow(int reqIndex, int parentReqIndexOrMinusOne) const;
 
     QVector<Requirement> m_requirements;
+    QVector<QString> m_draftVerdicts; //!< parallel to m_requirements (DraftVerdictRole)
     QStringList m_sections; //!< ordered distinct sections ("active", "archive")
     ViewMode m_viewMode = ViewMode::Sections;
     QDate m_today = QDate::currentDate(); //!< reference day for the age column

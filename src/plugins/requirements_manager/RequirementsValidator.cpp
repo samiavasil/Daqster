@@ -331,17 +331,21 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
             issues.append({req.id, QStringLiteral("priority"),
                            QStringLiteral("priority is missing"),
                            Severity::Warning});
-        if (req.date.trimmed().isEmpty()) {
+        // REQ-SW-PL-101: "Създадено:" is the field, "Дата:" the legacy alias, so
+        // one accessor answers both and the two warnings stay distinct
+        // (REQ-SW-PL-100): "missing" and "not a date" are different repairs.
+        const QString created = createdDate(req);
+        if (created.trimmed().isEmpty()) {
             issues.append({req.id, QStringLiteral("date"),
                            QStringLiteral("creation date is missing"),
                            Severity::Warning});
-        } else if (!RequirementDates::isValidIsoDate(req.date)) {
+        } else if (!RequirementDates::isValidIsoDate(created)) {
             // REQ-SW-PL-100: the field is a date, not free text. A Warning (not
             // an Error) so a legacy file with a sloppy value stays valid — it
             // is only invisible, and being invisible is what let the field rot.
             issues.append({req.id, QStringLiteral("date"),
                            QStringLiteral("датата '%1' не е YYYY-MM-DD")
-                               .arg(req.date.trimmed()),
+                               .arg(created.trimmed()),
                            Severity::Warning});
         }
         if (req.description.trimmed().isEmpty())

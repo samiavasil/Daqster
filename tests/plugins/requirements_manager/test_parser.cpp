@@ -113,6 +113,22 @@ QString requirementContent(const QString &id, const QString &title,
         .arg(id, title, status, parentId, deps);
 }
 
+// The history block the parser appends when a status changes (REQ-SW-PL-101):
+// the section does not exist yet, so it is created at the end of the file.
+QString historyBlock(const QString &date, const QString &change, const QString &who,
+                     const QString &why, const QString &eol = QString())
+{
+    const QString block =
+        QStringLiteral("\n## История\n\n"
+                       "| дата | промяна | кой | защо |\n"
+                       "|---|---|---|---|\n"
+                       "| %1 | %2 | %3 | %4 |\n")
+            .arg(date, change, who, why);
+    if (eol.isEmpty())
+        return block;
+    return QString(block).replace(QStringLiteral("\n"), eol);
+}
+
 const Requirement *findRequirement(const QVector<Requirement> &requirements,
                                    const QString &id)
 {
@@ -1021,14 +1037,20 @@ void TestParser::approveDraft_rewritesStatusAndApproval()
     file.close();
 
     // Byte-exact: the banner line and the blank line it would leave behind are
-    // gone, the two lines of the approval replace the status, nothing else moves.
+    // gone, the two approval lines replace the status, and the history row the
+    // status change demands (REQ-SW-PL-101) is the only addition at the end.
     const QString expected =
         QString(before)
             .remove(QStringLiteral("> **Чернова — чака одобрение в мениджъра; не се "
                                    "имплементира, докато не стане `ACTIVE`.**\n\n"))
             .replace(QStringLiteral("- **Статус:** DRAFT"),
                      QStringLiteral("- **Статус:** ACTIVE\n"
-                                    "- **Одобрено:** 2026-11-21, потребител"));
+                                    "- **Одобрено:** 2026-11-21, потребител\n"
+                                    "- **Ревизия:** 1"))
+        + historyBlock(QStringLiteral("2026-11-21"),
+                       QStringLiteral("одобрено (DRAFT → ACTIVE)"),
+                       QStringLiteral("потребител"),
+                       QStringLiteral("присъда на потребителя"));
     QCOMPARE(after, expected);
     QVERIFY(after.contains(QStringLiteral("- **Одобрено:** 2026-11-21, потребител")));
     QVERIFY2(!after.contains(QStringLiteral("Чернова")),
@@ -1038,6 +1060,8 @@ void TestParser::approveDraft_rewritesStatusAndApproval()
     const QVector<Requirement> parsed = RequirementsParser::parseDirectory(temp.path());
     QCOMPARE(parsed.size(), 1);
     QCOMPARE(parsed.first().status, QStringLiteral("ACTIVE"));
+    // …and the revision that grew with the row is visible in the manager.
+    QCOMPARE(parsed.first().revision, 1);
 }
 
 void TestParser::approveDraft_secondAcceptIsNoOp()
@@ -1106,8 +1130,7 @@ void TestParser::approveDraft_missingStatus_error()
     QVERIFY(error.contains(QStringLiteral("Статус")));
 }
 
-void TestParser::approveDraft_keepsCrlfBytes()
-{
+void TestParser::approveDraft_keepsCrlfBytes(){
     // A CRLF file stays CRLF: the inserted line carries the same ending and no
     // other byte changes. The fixture is written in binary mode — the point is
     // the bytes on disk, not a text-mode round-trip.
@@ -1131,10 +1154,319 @@ void TestParser::approveDraft_keepsCrlfBytes()
     QVERIFY(file.open(QIODevice::ReadOnly));
     const QString after = QString::fromUtf8(file.readAll());
     const QString expected =
-        QString(before).replace(QStringLiteral("- **Статус:** DRAFT\r\n"),
-                                QStringLiteral("- **Статус:** ACTIVE\r\n"
-                                               "- **Одобрено:** 2026-11-21, потребител\r\n"));
+        QString(before)
+            .replace(QStringLiteral("- **Статус:** DRAFT\r\n"),
+                     QStringLiteral("- **Статус:** ACTIVE\r\n"
+                                    "- **Одобрено:** 2026-11-21, потребител\r\n"
+                                    "- **Ревизия:** 1\r\n"))
+        + historyBlock(QStringLiteral("2026-11-21"),
+                       QStringLiteral("одобрено (DRAFT → ACTIVE)"),
+                       QStringLiteral("потребител"),
+                       QStringLiteral("присъда на потребителя"),
+                       QStringLiteral("\r\n"));
     QCOMPARE(after, expected);
+}
+
+// ── REQ-SW-PL-101: created date, revision, contract change ─────────────────
+void TestParser::parseDirectory_createdAndRevision()
+{
+    // A file written with the new template carries "Създадено:" and "Ревизия:".
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString path = writeFixture(
+        activeDir, QStringLiteral("REQ-SW-PL-901.md"),
+        QStringLiteral("# REQ-SW-PL-901: Нов шаблон\n"
+                       "\n"
+                       "- **Статус:** ACTIVE\n"
+                       "- **Създадено:** 2026-11-21\n"
+                       "- **Ревизия:** 3\n"
+                       "- **Дата:** 2026-01-02\n"
+                       "\n"
+                       "## Накратко\n\nТяло.\n"));
+    QVERIFY(!path.isEmpty());
+
+    const QVector<Requirement> parsed = RequirementsParser::parseDirectory(temp.path());
+    QCOMPARE(parsed.size(), 1);
+    QCOMPARE(parsed.first().revision, 3);
+    // "Създадено:" wins over the legacy field when both are present.
+    QCOMPARE(parsed.first().created, QStringLiteral("2026-11-21"));
+    QCOMPARE(createdDate(parsed.first()), QStringLiteral("2026-11-21"));
+}
+
+void TestParser::parseDirectory_legacyDateIsCreationAlias()
+{
+    // AC2/AC3: the 135 files written before "Създадено:" keep their bytes and
+    // still answer "when was this created" — the alias lives in the parser.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    QVERIFY(!writeFixture(activeDir, QStringLiteral("REQ-SW-PL-902.md"),
+                          requirementContent(QStringLiteral("REQ-SW-PL-902"),
+                                             QStringLiteral("Стар файл"),
+                                             QStringLiteral("ACTIVE"),
+                                             QStringLiteral("—"), QStringLiteral("—")))
+                 .isEmpty());
+
+    const QVector<Requirement> parsed = RequirementsParser::parseDirectory(temp.path());
+    QCOMPARE(parsed.size(), 1);
+    QCOMPARE(parsed.first().date, QStringLiteral("2026-07-01"));
+    QCOMPARE(parsed.first().created, QStringLiteral("2026-07-01"));
+    QCOMPARE(parsed.first().revision, 0); // no field: not a zero revision, an absent one
+
+    // A record built by hand (a test fixture, a caller) behaves the same.
+    Requirement bare;
+    bare.date = QStringLiteral("2026-10-03");
+    QCOMPARE(createdDate(bare), QStringLiteral("2026-10-03"));
+    bare.created = QStringLiteral("2026-10-01");
+    QCOMPARE(createdDate(bare), QStringLiteral("2026-10-01"));
+}
+
+void TestParser::requestChangesDraft_appendsOneRowOnly()
+{
+    // REQ-SW-PL-102 AC1: status stays DRAFT, ONE row appears, nothing else.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString before =
+        requirementContent(QStringLiteral("REQ-SW-PL-903"), QStringLiteral("Чернова"),
+                           QStringLiteral("DRAFT"), QStringLiteral("—"),
+                           QStringLiteral("—"));
+    const QString path = writeFixture(activeDir, QStringLiteral("REQ-SW-PL-903.md"), before);
+    QVERIFY(!path.isEmpty());
+
+    QString error;
+    QVERIFY2(RequirementsParser::requestChangesDraft(
+                 path, QStringLiteral("липсва AC за Qt5"), QStringLiteral("2026-11-21"),
+                 &error),
+             qPrintable(error));
+
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const QString after = QString::fromUtf8(file.readAll());
+    file.close();
+
+    const QString expected =
+        QString(before)
+        + QStringLiteral("\n## Ревю на черновата\n\n"
+                         "| кръг | дата | присъда | бележка |\n"
+                         "|---|---|---|---|\n"
+                         "| 1 | 2026-11-21 | за корекция | липсва AC за Qt5 |\n");
+    QCOMPARE(after, expected);
+    QVERIFY(after.contains(QStringLiteral("- **Статус:** DRAFT")));
+    QCOMPARE(RequirementsParser::lastDraftVerdict(after),
+             RequirementsParser::changesRequestedVerdict());
+    QCOMPARE(RequirementsParser::draftReviewRounds(after), 1);
+
+    // A second round is numbered 2 and lands under the same table.
+    QVERIFY(RequirementsParser::requestChangesDraft(
+        path, QStringLiteral("още липсва"), QStringLiteral("2026-11-22")));
+    QFile again(path);
+    QVERIFY(again.open(QIODevice::ReadOnly | QIODevice::Text));
+    const QString twice = QString::fromUtf8(again.readAll());
+    again.close();
+    QVERIFY2(twice.contains(QStringLiteral("| 2 | 2026-11-22 | за корекция | още липсва |")),
+             qPrintable(twice));
+    QCOMPARE(RequirementsParser::draftReviewRounds(twice), 2);
+    QCOMPARE(twice.count(QStringLiteral("## Ревю на черновата")), 1);
+}
+
+void TestParser::requestChangesDraft_rejectsEmptyNoteAndNonDraft()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString draft =
+        writeFixture(activeDir, QStringLiteral("REQ-SW-PL-904.md"),
+                     requirementContent(QStringLiteral("REQ-SW-PL-904"),
+                                        QStringLiteral("Чернова"), QStringLiteral("DRAFT"),
+                                        QStringLiteral("—"), QStringLiteral("—")));
+    QVERIFY(!draft.isEmpty());
+
+    QString error;
+    QVERIFY(!RequirementsParser::requestChangesDraft(draft, QStringLiteral("   "),
+                                                     QStringLiteral("2026-11-21"), &error));
+    QVERIFY2(error.contains(QStringLiteral("бележката е празна")), qPrintable(error));
+
+    // An ACTIVE file is not a draft: the call succeeds and writes nothing.
+    const QString active =
+        writeFixture(activeDir, QStringLiteral("REQ-SW-PL-905.md"),
+                     requirementContent(QStringLiteral("REQ-SW-PL-905"),
+                                        QStringLiteral("Активно"), QStringLiteral("ACTIVE"),
+                                        QStringLiteral("—"), QStringLiteral("—")));
+    QFile file(active);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const QString before = QString::fromUtf8(file.readAll());
+    file.close();
+    QVERIFY(RequirementsParser::requestChangesDraft(active, QStringLiteral("бележка"),
+                                                    QStringLiteral("2026-11-21")));
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    QCOMPARE(QString::fromUtf8(file.readAll()), before);
+}
+
+void TestParser::rejectDraft_cancelsAndArchives()
+{
+    // REQ-SW-PL-102 AC2: CANCELLED + review row + history row, file in archive/.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString path = writeFixture(
+        activeDir, QStringLiteral("REQ-SW-PL-906.md"),
+        requirementContent(QStringLiteral("REQ-SW-PL-906"), QStringLiteral("Отказ"),
+                           QStringLiteral("DRAFT"), QStringLiteral("—"),
+                           QStringLiteral("—")));
+    QVERIFY(!path.isEmpty());
+
+    QString error;
+    QVERIFY2(RequirementsParser::rejectDraft(
+                 path, QStringLiteral("дубликат на REQ-SW-PL-099"),
+                 QStringLiteral("2026-11-21"), &error),
+             qPrintable(error));
+
+    QVERIFY2(!QFile::exists(path), "a CANCELLED file must not stay in active/");
+    const QString archived = QDir(temp.path()).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/archive/REQ-SW-PL-906.md"));
+    QVERIFY(QFile::exists(archived));
+
+    QFile file(archived);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const QString after = QString::fromUtf8(file.readAll());
+    file.close();
+    QVERIFY(after.contains(QStringLiteral("- **Статус:** CANCELLED")));
+    QVERIFY(after.contains(QStringLiteral("| 1 | 2026-11-21 | откажи | дубликат на "
+                                          "REQ-SW-PL-099 |")));
+    QVERIFY2(after.contains(QStringLiteral("| 2026-11-21 | CANCELLED")),
+             "the status changed, so the history says why");
+
+    // Empty reason is no verdict; and an existing file in archive/ is never
+    // overwritten ("нищо не се трие").
+    QTemporaryDir second;
+    QVERIFY(second.isValid());
+    const QString activeDir2 =
+        QDir(second.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString secondPath =
+        writeFixture(activeDir2, QStringLiteral("REQ-SW-PL-907.md"),
+                     requirementContent(QStringLiteral("REQ-SW-PL-907"),
+                                        QStringLiteral("Отказ"), QStringLiteral("DRAFT"),
+                                        QStringLiteral("—"), QStringLiteral("—")));
+    QVERIFY(!secondPath.isEmpty());
+    QVERIFY(!RequirementsParser::rejectDraft(secondPath, QStringLiteral(" "),
+                                             QStringLiteral("2026-11-21"), &error));
+
+    const QString archiveDir2 =
+        QDir(second.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/archive"));
+    QVERIFY(!writeFixture(archiveDir2, QStringLiteral("REQ-SW-PL-907.md"),
+                          QStringLiteral("вече е тук\n")).isEmpty());
+    error.clear();
+    QVERIFY(!RequirementsParser::rejectDraft(secondPath, QStringLiteral("не става"),
+                                             QStringLiteral("2026-11-21"), &error));
+    QVERIFY2(error.contains(QStringLiteral("вече има файл")), qPrintable(error));
+
+    QFile kept(QDir(archiveDir2).filePath(QStringLiteral("REQ-SW-PL-907.md")));
+    QVERIFY(kept.open(QIODevice::ReadOnly | QIODevice::Text));
+    QCOMPARE(QString::fromUtf8(kept.readAll()), QStringLiteral("вече е тук\n"));
+}
+
+void TestParser::startContractChange_backToDraftWithHistory()
+{
+    // REQ-SW-PL-101 AC4: a contract change flips to DRAFT and leaves a row and
+    // a revision bump behind; a draft has no contract to change.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString path = writeFixture(
+        activeDir, QStringLiteral("REQ-SW-PL-908.md"),
+        requirementContent(QStringLiteral("REQ-SW-PL-908"), QStringLiteral("Договор"),
+                           QStringLiteral("ACTIVE"), QStringLiteral("—"),
+                           QStringLiteral("—")));
+    QVERIFY(!path.isEmpty());
+
+    QString error;
+    QVERIFY2(RequirementsParser::startContractChange(
+                 path, QStringLiteral("добавя се AC7"), QStringLiteral("потребител"),
+                 QStringLiteral("2026-11-22"), &error),
+             qPrintable(error));
+
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    const QString after = QString::fromUtf8(file.readAll());
+    file.close();
+    QVERIFY(after.contains(QStringLiteral("- **Статус:** DRAFT")));
+    QVERIFY(after.contains(QStringLiteral("- **Ревизия:** 1")));
+    QVERIFY(after.contains(QStringLiteral("промяна в договора")));
+    QVERIFY(after.contains(QStringLiteral("добавя се AC7")));
+
+    // Now it is a draft: a second "change the contract" is a no-op.
+    QFile same(path);
+    QVERIFY(same.open(QIODevice::ReadOnly | QIODevice::Text));
+    const QString first = QString::fromUtf8(same.readAll());
+    same.close();
+    QVERIFY(RequirementsParser::startContractChange(
+        path, QStringLiteral("пак"), QStringLiteral("потребител"),
+        QStringLiteral("2026-11-23")));
+    QVERIFY(same.open(QIODevice::ReadOnly | QIODevice::Text));
+    QCOMPARE(QString::fromUtf8(same.readAll()), first);
+}
+
+void TestParser::appendHistoryRow_bumpsRevision()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    QVERIFY(!writeFixture(activeDir, QStringLiteral("REQ-SW-PL-909.md"),
+                          requirementContent(QStringLiteral("REQ-SW-PL-909"),
+                                             QStringLiteral("История"),
+                                             QStringLiteral("ACTIVE"),
+                                             QStringLiteral("—"), QStringLiteral("—")))
+                 .isEmpty());
+
+    QVector<Requirement> parsed = RequirementsParser::parseDirectory(temp.path());
+    QCOMPARE(parsed.size(), 1);
+    Requirement req = parsed.first();
+    RequirementsParser::appendHistoryRow(req, QStringLiteral("2026-11-22"),
+                                         QStringLiteral("редакция"), QStringLiteral("Ivan"),
+                                         QStringLiteral("правопис"));
+    QCOMPARE(req.revision, 1);
+    RequirementsParser::appendHistoryRow(req, QStringLiteral("2026-11-23"),
+                                         QStringLiteral("редакция"), QStringLiteral("Ivan"),
+                                         QStringLiteral("пак правопис"));
+    QCOMPARE(req.revision, 2);
+    QVERIFY(req.rawContent.contains(QStringLiteral("| 2026-11-23 | редакция | Ivan | пак правопис |")));
+    QCOMPARE(req.rawContent.count(QStringLiteral("## История")), 1);
+}
+
+void TestParser::findFileById_survivesRename()
+{
+    // REQ-SW-PL-102 AC7: the H1 is the identity, the path is not.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString original =
+        writeFixture(activeDir, QStringLiteral("REQ-SW-PL-910.md"),
+                     requirementContent(QStringLiteral("REQ-SW-PL-910"),
+                                        QStringLiteral("Преименувано"),
+                                        QStringLiteral("DRAFT"), QStringLiteral("—"),
+                                        QStringLiteral("—")));
+    QVERIFY(!original.isEmpty());
+
+    const QVector<RequirementRoot> roots{RequirementRoot{temp.path()}};
+    QCOMPARE(RequirementsParser::findFileById(roots, QStringLiteral("REQ-SW-PL-910")),
+             original);
+
+    const QString renamed =
+        QDir(activeDir).filePath(QStringLiteral("REQ-SW-PL-910-drugo-ime.md"));
+    QVERIFY(QFile::rename(original, renamed));
+    QCOMPARE(RequirementsParser::findFileById(roots, QStringLiteral("REQ-SW-PL-910")),
+             renamed);
+    QVERIFY(RequirementsParser::findFileById(roots, QStringLiteral("REQ-SW-PL-999")).isEmpty());
 }
 
 // No QTEST_GUILESS_MAIN here: the three test classes share one binary whose

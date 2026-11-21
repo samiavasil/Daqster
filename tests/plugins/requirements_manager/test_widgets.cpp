@@ -17,6 +17,7 @@
 #include <QSplitter>
 #include <QListWidget>
 #include <QPlainTextEdit>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QTimer>
 #include <QAbstractButton>
@@ -32,6 +33,7 @@
 #include "ValidationReport.h"
 #include "RequirementPreview.h"
 #include "RequirementDates.h"
+#include "DraftNoteDialog.h"
 
 using namespace Daqster;
 
@@ -135,6 +137,46 @@ QString readAll(const QString &path)
     return QString::fromUtf8(file.readAll());
 }
 
+/**
+ * @brief Answers the next modal box and records its text.
+ *
+ * The verdict actions confirm in a QMessageBox, which runs its own event loop;
+ * a timer inside that loop is the only way a test can read the sentence and
+ * dismiss the box without a human (the same trick the „Приеми“ test uses).
+ */
+class ModalAnswer : public QObject
+{
+public:
+    explicit ModalAnswer(QString *textOut = nullptr, bool preferYes = true)
+    {
+        m_timer.setInterval(10);
+        connect(&m_timer, &QTimer::timeout, this, [this, textOut, preferYes]() {
+            QMessageBox *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+            if (!box)
+                return;
+            if (textOut)
+                *textOut = box->text();
+            m_timer.stop();
+            if (preferYes) {
+                if (QAbstractButton *yes = box->button(QMessageBox::Yes))
+                    yes->click();
+                else if (QAbstractButton *ok = box->button(QMessageBox::Ok))
+                    ok->click();
+                else
+                    box->accept();
+            } else {
+                box->accept();
+            }
+        });
+    }
+    void start() { m_timer.start(); }
+    void stop() { m_timer.stop(); }
+
+private:
+    QTimer m_timer;
+};
+
+
 } // namespace
 
 // The by-value contract, expressed in the type system (REQ-SW-PL-099): the
@@ -168,6 +210,14 @@ private slots:
     void previewHeaderShowsCreatedAndAge();
     void overdueDraftIsPaintedInWarningColour();
     void draftCounterTooltipShowsOldestWait();
+    void verdictActionsEnabledOnlyForDraft();
+    void noteDialogRefusesEmptyNote();
+    void requestChangesWritesRowAndSplitsCounter();
+    void previewRendersDraftReviewTable();
+    void renameBehindBackReportsMissingFile();
+    void rejectDraftCancelsAndArchives();
+    void changeContractReturnsToDraft();
+    void watcherRefreshesOnExternalChange();
 };
 
 void TestWidgets::actionBarFitsNarrowWindow()
@@ -596,7 +646,7 @@ void TestWidgets::acceptDraftRewritesFileAndCounter()
 
     QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
     QVERIFY(counter);
-    QCOMPARE(counter->text(), QStringLiteral("чакат одобрение: 1"));
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 1 · за корекция: 0"));
 
     // The transition itself, without the modal confirmation that belongs to
     // the action's click handler.
@@ -604,15 +654,23 @@ void TestWidgets::acceptDraftRewritesFileAndCounter()
                                QStringLiteral("2026-11-21")));
 
     const QString after = readAll(draftPath);
+    // The status, the approval line, the revision bump and the history row the
+    // status change demands (REQ-SW-PL-101) — nothing else changes.
     const QString expected =
         QString(before).replace(QStringLiteral("- **Статус:** DRAFT"),
                                 QStringLiteral("- **Статус:** ACTIVE\n"
-                                               "- **Одобрено:** 2026-11-21, потребител"));
+                                               "- **Одобрено:** 2026-11-21, потребител\n"
+                                               "- **Ревизия:** 1"))
+        + QStringLiteral("\n## История\n\n"
+                         "| дата | промяна | кой | защо |\n"
+                         "|---|---|---|---|\n"
+                         "| 2026-11-21 | одобрено (DRAFT → ACTIVE) | потребител | "
+                         "присъда на потребителя |\n");
     QCOMPARE(after, expected);
 
     // The tree was refreshed: the counter says nothing is waiting, and the
     // status column shows the accepted state.
-    QCOMPARE(counter->text(), QStringLiteral("чакат одобрение: 0"));
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 0 · за корекция: 0"));
     QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
     QVERIFY(tree);
     const QModelIndex row = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-902"));
@@ -699,7 +757,7 @@ void TestWidgets::acceptActionApprovesDraftInPlace()
              QStringLiteral("REQ-SW-PL-902"));
     QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
     QVERIFY(counter);
-    QCOMPARE(counter->text(), QStringLiteral("чакат одобрение: 0"));
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 0 · за корекция: 0"));
     QVERIFY2(!accept->isEnabled(), "the accepted requirement is no longer a draft");
 }
 
@@ -789,7 +847,7 @@ void TestWidgets::draftCounterTooltipShowsOldestWait()
 
     QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
     QVERIFY(counter);
-    QCOMPARE(counter->text(), QStringLiteral("чакат одобрение: 2"));
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 2 · за корекция: 0"));
 
     const QString expectedDays = QString::number(
         RequirementDates::ageInDays(QStringLiteral("2026-10-01"), QDate::currentDate()));
@@ -797,4 +855,275 @@ void TestWidgets::draftCounterTooltipShowsOldestWait()
              qPrintable(counter->toolTip()));
     QVERIFY2(counter->toolTip().contains(expectedDays),
              qPrintable(counter->toolTip()));
+}
+
+// ── REQ-SW-PL-102: the verdicts of a draft ─────────────────────────────────
+void TestWidgets::verdictActionsEnabledOnlyForDraft()
+{
+    // All three verdicts judge the same object: a DRAFT inside active/.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeDraftRequirementsRoot(dir);
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    QAction *accept = widget.findChild<QAction *>(QStringLiteral("acceptDraftAction"));
+    QAction *changes = widget.findChild<QAction *>(QStringLiteral("requestChangesAction"));
+    QAction *reject = widget.findChild<QAction *>(QStringLiteral("rejectDraftAction"));
+    QAction *contract = widget.findChild<QAction *>(QStringLiteral("changeContractAction"));
+    QVERIFY(accept);
+    QVERIFY(changes);
+    QVERIFY(reject);
+    QVERIFY(contract);
+
+    const QModelIndex active = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-900"));
+    const QModelIndex draft = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-902"));
+    QVERIFY(active.isValid());
+    QVERIFY(draft.isValid());
+
+    tree->setCurrentIndex(active);
+    QCoreApplication::processEvents();
+    QVERIFY2(!changes->isEnabled(), "an ACTIVE requirement has no draft to judge");
+    QVERIFY(!reject->isEnabled());
+    QVERIFY2(contract->isEnabled(), "an ACTIVE requirement is the one that HAS a contract");
+    QVERIFY(contract->text() == QStringLiteral("Промени договора"));
+
+    tree->setCurrentIndex(draft);
+    QCoreApplication::processEvents();
+    QVERIFY(changes->isEnabled());
+    QVERIFY(reject->isEnabled());
+    QVERIFY2(!contract->isEnabled(), "a draft's contract was never accepted");
+}
+
+void TestWidgets::noteDialogRefusesEmptyNote()
+{
+    // AC1: „празна бележка не се приема“ — the confirm button is the rule.
+    DraftNoteDialog dialog(QStringLiteral("За корекция"), QStringLiteral("Какво липсва"),
+                           QStringLiteral("Запиши"));
+    QVERIFY(dialog.confirmButton());
+    QVERIFY(dialog.noteEdit());
+    QVERIFY2(!dialog.confirmButton()->isEnabled(), "empty note must not be confirmable");
+
+    dialog.noteEdit()->setText(QStringLiteral("   "));
+    QVERIFY2(!dialog.confirmButton()->isEnabled(), "spaces are not a note");
+
+    dialog.noteEdit()->setText(QStringLiteral("липсва AC за Qt5"));
+    QVERIFY(dialog.confirmButton()->isEnabled());
+    QCOMPARE(dialog.note(), QStringLiteral("липсва AC за Qt5"));
+
+    dialog.noteEdit()->clear();
+    QVERIFY(!dialog.confirmButton()->isEnabled());
+}
+
+void TestWidgets::requestChangesWritesRowAndSplitsCounter()
+{
+    // AC1 + AC4: one row appears, the status stays DRAFT, and the counter moves
+    // one draft from "чакат теб" to "за корекция" without changing the total.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString draftPath;
+    const QString root = makeDraftRequirementsRoot(dir, &draftPath);
+    const QString activeDir =
+        QDir(root).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    QVERIFY(!writeRequirement(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-920-fixture.md"),
+                              requirementMarkdown(QStringLiteral("REQ-SW-PL-920"),
+                                                  QStringLiteral("DRAFT")))
+                 .isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 2 · за корекция: 0"));
+
+    const QString before = readAll(draftPath);
+    QVERIFY(widget.requestChanges(QStringLiteral("REQ-SW-PL-902"),
+                                  QStringLiteral("липсва AC за Qt5"),
+                                  QStringLiteral("2026-11-21")));
+
+    const QString after = readAll(draftPath);
+    QVERIFY2(after.startsWith(before.trimmed()), "the file must only gain the row");
+    QVERIFY2(after.contains(QStringLiteral("| 1 | 2026-11-21 | за корекция | "
+                                           "липсва AC за Qt5 |")),
+             qPrintable(after));
+    QVERIFY(after.contains(QStringLiteral("- **Статус:** DRAFT")));
+
+    // Two drafts before, two after: only the bucket changed.
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 1 · за корекция: 1"));
+}
+
+void TestWidgets::previewRendersDraftReviewTable()
+{
+    // AC3: the table is in the .md, so the existing renderer shows it.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString draftPath;
+    const QString root = makeDraftRequirementsRoot(dir, &draftPath);
+    const QString withTable =
+        QString(readAll(draftPath))
+        + QStringLiteral("\n## Ревю на черновата\n\n"
+                         "| кръг | дата | присъда | бележка |\n"
+                         "|---|---|---|---|\n"
+                         "| 1 | 2026-11-21 | за корекция | липсва AC за Qt5 |\n");
+    QVERIFY(!writeRequirement(QFileInfo(draftPath).absolutePath(),
+                              QFileInfo(draftPath).fileName(), withTable)
+                 .isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    const QModelIndex draft = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-902"));
+    QVERIFY(draft.isValid());
+    tree->setCurrentIndex(draft);
+    QCoreApplication::processEvents();
+
+    QTextBrowser *preview =
+        widget.findChild<QTextBrowser *>(QStringLiteral("requirementPreview"));
+    QVERIFY(preview);
+    const QString plain = preview->document()->toPlainText();
+    QVERIFY2(plain.contains(QStringLiteral("Ревю на черновата")), qPrintable(plain));
+    QVERIFY2(plain.contains(QStringLiteral("за корекция")), qPrintable(plain));
+    QVERIFY2(plain.contains(QStringLiteral("липсва AC за Qt5")), qPrintable(plain));
+}
+
+void TestWidgets::renameBehindBackReportsMissingFile()
+{
+    // AC7 has two halves. A file renamed INSIDE the tree keeps its H1, so the
+    // action finds it by the ID and works — that is the whole point of not
+    // using the cached path. A file that leaves the parser's scope (renamed to
+    // a non-.md name, deleted, moved out) cannot be resolved, and then the
+    // sentence says what happened instead of a bare read error.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString draftPath;
+    const QString root = makeDraftRequirementsRoot(dir, &draftPath);
+    QVERIFY(!draftPath.isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    const QString renamed = QDir(QFileInfo(draftPath).absolutePath())
+                                .filePath(QStringLiteral("DRAFT-REQ-SW-PL-902-drugo.md"));
+    QVERIFY(QFile::rename(draftPath, renamed));
+
+    QVERIFY2(widget.requestChanges(QStringLiteral("REQ-SW-PL-902"),
+                                   QStringLiteral("бележка"),
+                                   QStringLiteral("2026-11-21")),
+             "a rename inside the tree must not stop the verdict");
+    QVERIFY2(readAll(renamed).contains(QStringLiteral("| 1 | 2026-11-21 | за корекция | "
+                                                      "бележка |")),
+             "the row lands in the file whose H1 carries the id");
+
+    // Now the file leaves the requirements tree entirely: unresolvable.
+    const QString outside = QDir(dir.path()).filePath(QStringLiteral("outside.md.bak"));
+    QVERIFY(QFile::rename(renamed, outside));
+
+    QString message;
+    ModalAnswer answer(&message);
+    answer.start();
+    const bool ok = widget.requestChanges(QStringLiteral("REQ-SW-PL-902"),
+                                          QStringLiteral("бележка"),
+                                          QStringLiteral("2026-11-21"));
+    answer.stop();
+
+    QVERIFY2(!ok, "no file, no verdict");
+    QVERIFY2(message.contains(QStringLiteral("файлът е преименуван или преместен — презареди")),
+             qPrintable(message));
+    QVERIFY2(message.contains(QStringLiteral("REQ-SW-PL-902")), qPrintable(message));
+    // Nothing was written: the moved file is untouched.
+    QCOMPARE(readAll(outside).count(QStringLiteral("за корекция")), 1);
+}
+
+void TestWidgets::rejectDraftCancelsAndArchives()
+{
+    // AC2: CANCELLED, a row with the reason, and the file leaves active/.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString draftPath;
+    const QString root = makeDraftRequirementsRoot(dir, &draftPath);
+    QVERIFY(!draftPath.isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    ModalAnswer answer(nullptr, true); // the confirmation box: „Да“
+    answer.start();
+    const bool ok = widget.rejectDraft(QStringLiteral("REQ-SW-PL-902"),
+                                       QStringLiteral("дубликат"),
+                                       QStringLiteral("2026-11-21"));
+    answer.stop();
+
+    QVERIFY2(ok, "the refusal must go through");
+    QVERIFY2(!QFile::exists(draftPath), "CANCELLED must not stay in active/");
+    const QString archived = QDir(root).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/archive/DRAFT-REQ-SW-PL-902-fixture.md"));
+    QVERIFY2(QFile::exists(archived), qPrintable(archived));
+    const QString text = readAll(archived);
+    QVERIFY(text.contains(QStringLiteral("- **Статус:** CANCELLED")));
+    QVERIFY(text.contains(QStringLiteral("| 1 | 2026-11-21 | откажи | дубликат |")));
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 0 · за корекция: 0"));
+}
+
+void TestWidgets::changeContractReturnsToDraft()
+{
+    // REQ-SW-PL-101 AC4: „Промени договора“ asks for a reason, flips to DRAFT
+    // and leaves the row + revision in the file.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+    const QString path = QDir(root).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/active/REQ-SW-PL-900-fixture.md"));
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QVERIFY(widget.changeContract(QStringLiteral("REQ-SW-PL-900"),
+                                  QStringLiteral("добавя се AC7"),
+                                  QStringLiteral("2026-11-22")));
+    const QString text = readAll(path);
+    QVERIFY2(text.contains(QStringLiteral("- **Статус:** DRAFT")), qPrintable(text));
+    QVERIFY(text.contains(QStringLiteral("- **Ревизия:** 1")));
+    QVERIFY(text.contains(QStringLiteral("| 2026-11-22 | промяна в договора")));
+    QVERIFY(text.contains(QStringLiteral("добавя се AC7")));
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 1 · за корекция: 0"));
+}
+
+void TestWidgets::watcherRefreshesOnExternalChange()
+{
+    // AC7: the folder is watched, so a change made outside the manager (a git
+    // pull, a rename) reaches the list without a restart.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    widget.show();
+    QCoreApplication::processEvents();
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 0 · за корекция: 0"));
+
+    const QString activeDir =
+        QDir(root).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    QVERIFY(!writeRequirement(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-930-fixture.md"),
+                              requirementMarkdown(QStringLiteral("REQ-SW-PL-930"),
+                                                  QStringLiteral("DRAFT")))
+                 .isEmpty());
+
+    // The debounce is 300 ms; the assertion polls instead of sleeping.
+    QTRY_COMPARE_WITH_TIMEOUT(counter->text(),
+                              QStringLiteral("чакат теб: 1 · за корекция: 0"), 5000);
 }

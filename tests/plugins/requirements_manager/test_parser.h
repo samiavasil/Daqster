@@ -39,4 +39,12 @@ private slots:
     void approveDraft_nonDraftNoOp();
     void approveDraft_missingStatus_error();
     void approveDraft_keepsCrlfBytes();
+    void parseDirectory_createdAndRevision();
+    void parseDirectory_legacyDateIsCreationAlias();
+    void requestChangesDraft_appendsOneRowOnly();
+    void requestChangesDraft_rejectsEmptyNoteAndNonDraft();
+    void rejectDraft_cancelsAndArchives();
+    void startContractChange_backToDraftWithHistory();
+    void appendHistoryRow_bumpsRevision();
+    void findFileById_survivesRename();
 };

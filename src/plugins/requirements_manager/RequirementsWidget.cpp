@@ -13,6 +13,7 @@
 #include "HelpDialog.h"
 #include "RequirementPreview.h"
 #include "RequirementDates.h"
+#include "DraftNoteDialog.h"
 #include "LogCategories.h"
 
 #include <QTreeView>
@@ -39,6 +40,8 @@
 #include <QColor>
 #include <QDate>
 #include <QDir>
+#include <QDirIterator>
+#include <QFileSystemWatcher>
 #include <QKeySequence>
 #include <QHeaderView>
 
@@ -112,6 +115,22 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_acceptAction->setObjectName(QStringLiteral("acceptDraftAction"));
     m_acceptAction->setToolTip(
         tr("Одобрява избраната чернова (DRAFT → ACTIVE) — само човек го прави"));
+    // The other two verdicts of a draft (REQ-SW-PL-102). They exist only for a
+    // DRAFT, exactly like „Приеми“: a verdict needs something to judge.
+    m_requestChangesAction = new QAction(tr("За корекция"), this);
+    m_requestChangesAction->setObjectName(QStringLiteral("requestChangesAction"));
+    m_requestChangesAction->setToolTip(
+        tr("Записва кръг „за корекция“ с бележка — статусът остава DRAFT"));
+    m_rejectAction = new QAction(tr("Откажи"), this);
+    m_rejectAction->setObjectName(QStringLiteral("rejectDraftAction"));
+    m_rejectAction->setToolTip(
+        tr("Отказва черновата: CANCELLED, ред с причината и преместване в archive/"));
+    // A contract change (REQ-SW-PL-101): an accepted requirement goes back to
+    // DRAFT and needs a fresh approval.
+    m_contractAction = new QAction(tr("Промени договора"), this);
+    m_contractAction->setObjectName(QStringLiteral("changeContractAction"));
+    m_contractAction->setToolTip(
+        tr("Връща изискването на DRAFT с ред в Историята — иска ново одобрение"));
     m_depsAction = new QAction(tr("Edit deps…"), this);
     m_validateAction = new QAction(tr("Validate"), this);
     m_validateAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+V")));
@@ -129,6 +148,9 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_doneAction->setEnabled(false);
     m_reopenAction->setEnabled(false);
     m_acceptAction->setEnabled(false);
+    m_requestChangesAction->setEnabled(false);
+    m_rejectAction->setEnabled(false);
+    m_contractAction->setEnabled(false);
     m_depsAction->setEnabled(false);
     m_editAction->setEnabled(false);
 
@@ -139,7 +161,7 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     // recomputed on every reload so it never needs the files to be opened.
     m_draftCountLabel = new QLabel(this);
     m_draftCountLabel->setObjectName(QStringLiteral("draftCountLabel"));
-    m_draftCountLabel->setText(tr("чакат одобрение: 0"));
+    m_draftCountLabel->setText(tr("чакат теб: 0 · за корекция: 0"));
 
     QHBoxLayout *treeControlsLayout = new QHBoxLayout;
     treeControlsLayout->addWidget(new QLabel(tr("View:"), this));
@@ -186,6 +208,9 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_actionBar->addSeparator();
     m_actionBar->addAction(m_depsAction);
     m_actionBar->addAction(m_acceptAction);
+    m_actionBar->addAction(m_requestChangesAction);
+    m_actionBar->addAction(m_rejectAction);
+    m_actionBar->addAction(m_contractAction);
     m_actionBar->addAction(m_doneAction);
     m_actionBar->addAction(m_reopenAction);
     m_actionBar->addSeparator();
@@ -273,6 +298,10 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     connect(m_doneAction, &QAction::triggered, this, &RequirementsWidget::onMarkDoneAndArchive);
     connect(m_reopenAction, &QAction::triggered, this, &RequirementsWidget::onReopen);
     connect(m_acceptAction, &QAction::triggered, this, &RequirementsWidget::onAcceptDraft);
+    connect(m_requestChangesAction, &QAction::triggered,
+            this, &RequirementsWidget::onRequestChanges);
+    connect(m_rejectAction, &QAction::triggered, this, &RequirementsWidget::onRejectDraft);
+    connect(m_contractAction, &QAction::triggered, this, &RequirementsWidget::onChangeContract);
     connect(m_depsAction, &QAction::triggered, this, &RequirementsWidget::onEditDependencies);
     connect(m_validateAction, &QAction::triggered, this, &RequirementsWidget::onValidate);
     connect(m_helpAction, &QAction::triggered, this, &RequirementsWidget::onShowHelp);
@@ -293,6 +322,18 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
         const int index = item->data(Qt::UserRole).toInt();
         onCriterionToggled(index, item->checkState() == Qt::Checked);
     });
+
+    // External changes (git pull, a rename, a file created by hand) must reach
+    // the list without a restart (REQ-SW-PL-102 AC7). Only DIRECTORIES are
+    // watched: a content write — ours included — does not change the set, and
+    // watching files would reload the tree twice for every status rewrite.
+    m_watcher = new QFileSystemWatcher(this);
+    m_watchTimer = new QTimer(this);
+    m_watchTimer->setSingleShot(true);
+    m_watchTimer->setInterval(300);
+    connect(m_watcher, &QFileSystemWatcher::directoryChanged,
+            this, &RequirementsWidget::onWatchedPathChanged);
+    connect(m_watchTimer, &QTimer::timeout, this, [this]() { reload(); });
 }
 
 RequirementsWidget::~RequirementsWidget() = default;
@@ -385,6 +426,11 @@ void RequirementsWidget::refreshRepoFilterCombo()
 
 void RequirementsWidget::reload()
 {
+    // A reload caused by the watcher must not arm the debounce again: the
+    // timer's own tick is not a change that needs another reload.
+    if (m_watchTimer)
+        m_watchTimer->stop();
+
     QVector<RequirementRoot> roots;
     for (const QString &root : m_roots)
         roots.append(RequirementRoot{root});
@@ -409,17 +455,30 @@ void RequirementsWidget::reload()
     // Recomputed on every reload (REQ-SW-PL-099): a draft is visible without
     // opening a single file. Since REQ-SW-PL-100 it also says how long the
     // oldest one has waited, so an overdue proposal cannot hide behind a count.
+    //
+    // REQ-SW-PL-102 AC4 splits the number in two: a draft nobody has judged
+    // yet ("чакат теб") is a different thing from one that was read and sent
+    // back ("за корекция"). The review verdict comes from the model, computed
+    // once per load — the counter never parses Markdown.
+    int waiting = 0;
+    int changesRequested = 0;
     int drafts = 0;
     int oldestDays = -1;
     QString oldestId;
     const QDate today = QDate::currentDate();
-    for (const Requirement &req : m_requirements) {
+    for (int i = 0; i < m_requirements.size(); ++i) {
+        const Requirement &req = m_requirements.at(i);
         if (RequirementsValidator::normalizedStatus(req.status)
             != QStringLiteral("DRAFT")) {
             continue;
         }
         ++drafts;
-        const int days = RequirementDates::ageInDays(req.date, today);
+        const QString verdict = RequirementsParser::lastDraftVerdict(req.rawContent);
+        if (verdict == RequirementsParser::changesRequestedVerdict())
+            ++changesRequested;
+        else if (verdict.isEmpty())
+            ++waiting;
+        const int days = RequirementDates::ageInDays(createdDate(req), today);
         // A missing date is "unknown" (-1) and must not win the comparison; it
         // is still reported when it is the only draft (oldestId stays empty
         // until the first draft is seen).
@@ -428,20 +487,66 @@ void RequirementsWidget::reload()
             oldestId = req.id;
         }
     }
-    m_draftCountLabel->setText(tr("чакат одобрение: %1").arg(drafts));
+    m_draftCountLabel->setText(tr("чакат теб: %1 · за корекция: %2")
+                                   .arg(waiting)
+                                   .arg(changesRequested));
     if (drafts == 0) {
         m_draftCountLabel->setToolTip(tr("Няма чернови, чакащи одобрение."));
     } else if (oldestDays >= 0) {
         m_draftCountLabel->setToolTip(
-            tr("Най-старата чака от %1 дни: %2").arg(oldestDays).arg(oldestId));
+            tr("Чернови: %1. Най-старата чака от %2 дни: %3")
+                .arg(drafts)
+                .arg(oldestDays)
+                .arg(oldestId));
     } else {
         m_draftCountLabel->setToolTip(
-            tr("Най-старата е %1 — датата липсва или е невалидна").arg(oldestId));
+            tr("Чернови: %1. Най-старата е %2 — датата липсва или е невалидна")
+                .arg(drafts)
+                .arg(oldestId));
     }
     m_graphWidget->setRequirements(m_filtered, m_validationIssues);
     updateValidationStatus();
     refreshActionState();
     refreshIdeasTab();
+    // The set of directories may have changed (a new subdirectory, a root
+    // added): the watcher is rebuilt from what is on disk right now.
+    rebuildWatchedPaths();
+}
+
+void RequirementsWidget::rebuildWatchedPaths()
+{
+    if (!m_watcher)
+        return;
+
+    QStringList wanted;
+    for (const QString &root : m_roots) {
+        const QString tree =
+            QDir(root).filePath(QString::fromUtf8(kRequirementsSubdir));
+        const QString walkRoot = QDir(tree).exists() ? tree : root;
+        wanted.append(QDir::toNativeSeparators(QDir(walkRoot).absolutePath()));
+        // QFileSystemWatcher is not recursive: every level is its own entry.
+        QDirIterator it(walkRoot, QDir::Dirs | QDir::NoDotAndDotDot,
+                        QDirIterator::Subdirectories);
+        while (it.hasNext())
+            wanted.append(QDir::toNativeSeparators(it.next()));
+    }
+    wanted.removeDuplicates();
+
+    for (const QString &dir : m_watcher->directories()) {
+        if (!wanted.contains(dir))
+            m_watcher->removePath(dir);
+    }
+    for (const QString &dir : wanted) {
+        if (!m_watcher->directories().contains(dir) && QDir(dir).exists())
+            m_watcher->addPath(dir);
+    }
+}
+
+void RequirementsWidget::onWatchedPathChanged()
+{
+    // One reload per burst: git pull rewrites a folder, not a file.
+    if (m_watchTimer && !m_watchTimer->isActive())
+        m_watchTimer->start();
 }
 
 const Requirement *RequirementsWidget::requirementAtViewIndex(const QModelIndex &viewIndex) const
@@ -611,6 +716,12 @@ void RequirementsWidget::onMarkDoneAndArchive()
     }
 
     RequirementsParser::setStatusLine(req, QStringLiteral("DONE"));
+    // The status changed, so the file must say why in the same edit: the whole
+    // point of the history guard (REQ-SW-PL-101).
+    RequirementsParser::appendHistoryRow(req, QDate::currentDate().toString(Qt::ISODate),
+                                         QStringLiteral("DONE — приключено и архивирано"),
+                                         QStringLiteral("потребител"),
+                                         QStringLiteral("всички зависимости са готови"));
     if (!RequirementsParser::writeRequirement(req)) {
         QMessageBox::warning(this, tr("Requirements"),
                              tr("Failed to write requirement file:\n%1").arg(req.filePath));
@@ -634,6 +745,10 @@ void RequirementsWidget::onReopen()
         return;
 
     RequirementsParser::setStatusLine(req, QStringLiteral("ACTIVE"));
+    RequirementsParser::appendHistoryRow(req, QDate::currentDate().toString(Qt::ISODate),
+                                         QStringLiteral("ACTIVE — върнато от архива"),
+                                         QStringLiteral("потребител"),
+                                         QStringLiteral("работата по него продължава"));
     if (!RequirementsParser::writeRequirement(req)) {
         QMessageBox::warning(this, tr("Requirements"),
                              tr("Failed to write requirement file:\n%1").arg(req.filePath));
@@ -673,16 +788,11 @@ bool RequirementsWidget::acceptDraft(QString id, const QString &date)
 {
     // `id` is a copy (see the header): reload() below reallocates
     // m_requirements, so neither a reference to an element nor a pointer into
-    // it may survive the call. The path is copied out for the same reason.
-    QString filePath;
-    for (const Requirement &req : m_requirements) {
-        if (req.id == id) {
-            filePath = req.filePath;
-            break;
-        }
-    }
+    // it may survive the call.
+    const QString filePath = resolveRequirementFile(id);
     if (filePath.isEmpty()) {
         qCWarning(lcFramework) << "RequirementsManager: няма изискване" << id;
+        missingFile(id);
         return false;
     }
 
@@ -701,6 +811,160 @@ bool RequirementsWidget::acceptDraft(QString id, const QString &date)
     // `id` is a local copy, so it survives the reload above.
     navigateToId(id);
     return true;
+}
+
+QString RequirementsWidget::missingFileMessage(const QString &id)
+{
+    // REQ-SW-PL-102 AC7: "no such file" is a dead end; the sentence names the
+    // requirement, both possible causes and the one action that helps.
+    return tr("Изискването %1 не е намерено по ID-то в заглавието на файла — "
+              "файлът е преименуван или преместен — презареди.")
+        .arg(id);
+}
+
+QString RequirementsWidget::resolveRequirementFile(const QString &id) const
+{
+    QVector<RequirementRoot> roots;
+    for (const QString &root : m_roots)
+        roots.append(RequirementRoot{root});
+    // A fresh walk of the tree on disk, never `req.filePath` from the cached
+    // vector: the H1 is the identity, the path is not (REQ-SW-PL-102 AC7).
+    return RequirementsParser::findFileById(roots, id);
+}
+
+void RequirementsWidget::onRequestChanges()
+{
+    if (m_currentIndex < 0)
+        return;
+    const QString id = m_requirements.at(m_currentIndex).id;
+
+    DraftNoteDialog dialog(
+        tr("За корекция — %1").arg(id),
+        tr("Какво липсва, за да стане готово? Бележката остава в изискването "
+           "като ред „за корекция“."),
+        tr("Запиши присъдата"), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    requestChanges(id, dialog.note(), QDate::currentDate().toString(Qt::ISODate));
+}
+
+bool RequirementsWidget::requestChanges(QString id, const QString &note,
+                                        const QString &date)
+{
+    const QString filePath = resolveRequirementFile(id);
+    if (filePath.isEmpty()) {
+        missingFile(id);
+        return false;
+    }
+
+    QString error;
+    if (!RequirementsParser::requestChangesDraft(filePath, note, date, &error)) {
+        QMessageBox::warning(this, tr("Requirements"),
+                             tr("Присъдата не можа да се запише:\n%1").arg(error));
+        qCWarning(lcFramework) << "RequirementsManager: „за корекция“ се провали за"
+                               << id << error;
+        return false;
+    }
+    qCInfo(lcFramework) << "RequirementsManager: присъда „за корекция“ за" << id;
+    reload();
+    navigateToId(id);
+    return true;
+}
+
+void RequirementsWidget::onRejectDraft()
+{
+    if (m_currentIndex < 0)
+        return;
+    const QString id = m_requirements.at(m_currentIndex).id;
+
+    DraftNoteDialog dialog(
+        tr("Откажи — %1").arg(id),
+        tr("Защо се отказва? Причината остава в изискването и файлът се мести "
+           "в archive/."),
+        tr("Откажи черновата"), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    rejectDraft(id, dialog.note(), QDate::currentDate().toString(Qt::ISODate));
+}
+
+bool RequirementsWidget::rejectDraft(QString id, const QString &reason,
+                                     const QString &date)
+{
+    const QString filePath = resolveRequirementFile(id);
+    if (filePath.isEmpty()) {
+        missingFile(id);
+        return false;
+    }
+    // A refusal is final for this file: it is the one action the person may
+    // want to think twice about.
+    const QMessageBox::StandardButton answer = QMessageBox::question(
+        this, tr("Откажи черновата?"),
+        tr("Отказът мести файла в archive/ и статусът става CANCELLED.\n\n%1")
+            .arg(id),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes)
+        return false;
+
+    QString error;
+    if (!RequirementsParser::rejectDraft(filePath, reason, date, &error)) {
+        QMessageBox::warning(this, tr("Requirements"),
+                             tr("Отказът не можа да се запише:\n%1").arg(error));
+        qCWarning(lcFramework) << "RequirementsManager: отказът се провали за"
+                               << id << error;
+        return false;
+    }
+    qCInfo(lcFramework) << "RequirementsManager: отказано изискване" << id;
+    reload();
+    navigateToId(id);
+    return true;
+}
+
+void RequirementsWidget::onChangeContract()
+{
+    if (m_currentIndex < 0)
+        return;
+    const QString id = m_requirements.at(m_currentIndex).id;
+
+    DraftNoteDialog dialog(
+        tr("Промени договора — %1").arg(id),
+        tr("Какво се добавя, маха или променя? Изискването се връща на DRAFT и "
+           "иска ново одобрение; причината остава в Историята."),
+        tr("Върни на DRAFT"), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    changeContract(id, dialog.note(), QDate::currentDate().toString(Qt::ISODate));
+}
+
+bool RequirementsWidget::changeContract(QString id, const QString &reason,
+                                        const QString &date)
+{
+    const QString filePath = resolveRequirementFile(id);
+    if (filePath.isEmpty()) {
+        missingFile(id);
+        return false;
+    }
+
+    QString error;
+    if (!RequirementsParser::startContractChange(filePath, reason,
+                                                 tr("потребител"), date, &error)) {
+        QMessageBox::warning(this, tr("Requirements"),
+                             tr("Промяната не можа да се запише:\n%1").arg(error));
+        qCWarning(lcFramework) << "RequirementsManager: промяна в договора се провали за"
+                               << id << error;
+        return false;
+    }
+    qCInfo(lcFramework) << "RequirementsManager: договорът на" << id
+                        << "е променен — обратно на DRAFT";
+    reload();
+    navigateToId(id);
+    return true;
+}
+
+void RequirementsWidget::missingFile(const QString &id)
+{
+    const QString message = missingFileMessage(id);
+    qCWarning(lcFramework) << "RequirementsManager:" << message;
+    QMessageBox::warning(this, tr("Requirements"), message);
 }
 
 void RequirementsWidget::onEditDependencies()
@@ -974,8 +1238,19 @@ void RequirementsWidget::refreshActionState()
     m_doneAction->setEnabled(active);
     m_reopenAction->setEnabled(archived);
     // Accepting is the owner's act and exists for exactly one transition:
-    // DRAFT -> ACTIVE inside active/ (REQ-SW-PL-099).
+    // DRAFT -> ACTIVE inside active/ (REQ-SW-PL-099). The other two verdicts
+    // (REQ-SW-PL-102) judge the same object, so they share the condition.
     m_acceptAction->setEnabled(draft && active);
+    m_requestChangesAction->setEnabled(draft && active);
+    m_rejectAction->setEnabled(draft && active);
+    // A contract change needs a contract: an accepted requirement, ACTIVE or
+    // IMPLEMENTED (REQ-SW-PL-101 AC4) — never a draft, never a cancelled one.
+    const QString token = valid
+        ? RequirementsValidator::normalizedStatus(m_requirements.at(m_currentIndex).status)
+        : QString();
+    m_contractAction->setEnabled(active
+                                 && (token == QStringLiteral("ACTIVE")
+                                     || token == QStringLiteral("IMPLEMENTED")));
     updateNavButtons();
 }
 

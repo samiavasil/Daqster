@@ -24,4 +24,5 @@ private slots:
     void ageDaysRole_isNumeric();
     void overdueDraft_isPaintedInWarningColour();
     void freshDraft_isNotPainted();
+    void draftVerdictRole_fromReviewTable();
 };

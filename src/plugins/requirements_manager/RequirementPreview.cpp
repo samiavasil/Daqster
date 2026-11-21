@@ -70,11 +70,15 @@ QString headerHtml(const Requirement &req,
     // "Създадено: 2026-11-21 · преди 12 дни" sits next to the status line: the
     // date is only useful with its age, otherwise the reader does the
     // arithmetic (REQ-SW-PL-100).
-    text += QStringLiteral("<p><b>Status:</b> %1 &nbsp; <b>Priority:</b> %2 &nbsp; "
-                           "<b>Assignee:</b> %3 &nbsp; <b>Създадено:</b> %4</p>")
-                .arg(req.status.toHtmlEscaped(), req.priority.toHtmlEscaped(),
+    text += QStringLiteral("<p><b>Status:</b> %1 &nbsp; <b>Ревизия:</b> %2 &nbsp; "
+                           "<b>Priority:</b> %3 &nbsp; "
+                           "<b>Assignee:</b> %4 &nbsp; <b>Създадено:</b> %5</p>")
+                .arg(req.status.toHtmlEscaped(),
+                     req.revision > 0 ? QString::number(req.revision)
+                                      : QStringLiteral("—"),
+                     req.priority.toHtmlEscaped(),
                      req.assignee.toHtmlEscaped(),
-                     RequirementDates::createdLabel(req.date, referenceDay)
+                     RequirementDates::createdLabel(createdDate(req), referenceDay)
                          .toHtmlEscaped());
 
 

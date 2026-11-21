@@ -120,6 +120,14 @@ struct Requirement
                                    //!< prefix in parseDirectories; empty when parsed via
                                    //!< parseDirectory alone, keeping single-root callers
                                    //!< compile- and behavior-compatible)
+    int revision = 0;              //!< "- **Ревизия:** N" (REQ-SW-PL-101);
+                                   //!< 0 when the field is absent
+    QString created;               //!< "- **Създадено:**" — the immutable creation
+                                   //!< date (REQ-SW-PL-101). A file written before
+                                   //!< that field existed carries it in "- **Дата:**",
+                                   //!< which stays a VALID field: the parser aliases
+                                   //!< it here instead of migrating 135 files. Use
+                                   //!< createdDate() rather than reading either field.
     QString rawContent;            //!< original file content (for round-trip edit)
     QString templateVersion;       //!< template generation the file was written
                                    //!< with, by its description heading:
@@ -168,6 +176,20 @@ struct PhaseStatus
  * @return PhaseStatus with per-phase "recorded" flags.
  */
 PhaseStatus phaseStatus(const Requirement& req);
+
+/**
+ * @brief The requirement's creation date (REQ-SW-PL-101).
+ *
+ * `- **Създадено:**` when present, the legacy `- **Дата:**` otherwise. One
+ * accessor for the whole tree, so the model, the preview, the validator and
+ * the waiting counter cannot disagree about which field is "created". A
+ * record built by hand (a test fixture) that only fills `date` is handled the
+ * same way as a file written before the field existed.
+ *
+ * @param req The parsed requirement.
+ * @return ISO date, or an empty string when neither field is present.
+ */
+QString createdDate(const Requirement& req);
 
 /**
  * @brief One requirements tree root (a repo root containing
@@ -280,6 +302,140 @@ public:
      */
     static bool approveDraft(const QString &filePath, const QString &date,
                              QString *errorOut = nullptr);
+
+    /**
+     * @brief The heading and column row of the draft review table
+     *        (REQ-SW-PL-102).
+     *
+     * One spelling for the file, the model, the widget and
+     * `scripts/check-req-approval.sh`: the script greps the same heading, so
+     * a rename here without the script is a defect, not a style choice.
+     */
+    static QString draftReviewHeading();
+
+    /** @brief The verdict tokens the table carries (lower-case, Bulgarian). */
+    static QString changesRequestedVerdict();
+    static QString rejectVerdict();
+
+    /**
+     * @brief Number of review rounds recorded in @p content (REQ-SW-PL-102).
+     *
+     * Counts the DATA rows of the `## Ревю на черновата` table: the header row
+     * and the `|---|` separator do not count. 0 means "nobody has judged this
+     * draft yet" — which is what the widget's "чакат теб" counter means.
+     *
+     * @param content Raw file content (or any text carrying the table).
+     * @return Row count, 0 when the section or the table is absent.
+     */
+    static int draftReviewRounds(const QString &content);
+
+    /**
+     * @brief The verdict of the LAST row of the review table.
+     *
+     * @param content Raw file content.
+     * @return `за корекция`, `откажи`, or an empty string when no verdict was
+     *         recorded at all.
+     */
+    static QString lastDraftVerdict(const QString &content);
+
+    /**
+     * @brief "За корекция": records a review round, status stays DRAFT.
+     *
+     * Appends ONE row to `## Ревю на черновата` (`| N | date | за корекция |
+     * note |`) and writes nothing else — the status line is not touched, which
+     * is what the acceptance criterion checks with `git diff`.
+     *
+     * A file whose status is not DRAFT is a successful no-op (the same model
+     * approveDraft() follows): the action only exists for a draft.
+     *
+     * @param filePath Path to the requirement .md file.
+     * @param note What is missing; empty means "no review happened" and fails.
+     * @param date ISO date of the verdict (YYYY-MM-DD).
+     * @param errorOut Optional human-readable reason on failure.
+     * @return true when the verdict was recorded (or the file was not a draft).
+     */
+    static bool requestChangesDraft(const QString &filePath, const QString &note,
+                                    const QString &date, QString *errorOut = nullptr);
+
+    /**
+     * @brief "Откажи": the draft is cancelled, moved to archive/.
+     *
+     * Writes `- **Статус:** CANCELLED`, the review row and a history row (the
+     * status changed, so `scripts/check-req-history.sh` demands one), then
+     * moves the file from active/ to archive/ with a STRICT rename: an
+     * existing file of the same name is an error, never an overwrite —
+     * "нищо не се трие" (REQ-SW-PL-102).
+     *
+     * A non-DRAFT file is a successful no-op.
+     *
+     * @param filePath Path to the requirement .md file in active/.
+     * @param reason Why it is refused; empty fails.
+     * @param date ISO date of the verdict.
+     * @param errorOut Optional human-readable reason on failure.
+     * @return true when the file is CANCELLED and archived.
+     */
+    static bool rejectDraft(const QString &filePath, const QString &reason,
+                            const QString &date, QString *errorOut = nullptr);
+
+    /**
+     * @brief "Промени договора" (REQ-SW-PL-101): a contract change goes back to
+     *        DRAFT and needs a fresh approval.
+     *
+     * Rewrites `- **Статус:**` to `DRAFT`, appends a history row naming the
+     * change and the reason, and bumps `- **Ревизия:**`. Only an ACTIVE or
+     * IMPLEMENTED requirement has a contract to change; anything else is a
+     * successful no-op.
+     *
+     * @param filePath Path to the requirement .md file.
+     * @param reason What is being added/removed/changed; empty fails.
+     * @param who Who asked for the change (written into the row).
+     * @param date ISO date of the change.
+     * @param errorOut Optional human-readable reason on failure.
+     * @return true when the file is DRAFT again (or was not ACTIVE/IMPLEMENTED).
+     */
+    static bool startContractChange(const QString &filePath, const QString &reason,
+                                   const QString &who, const QString &date,
+                                   QString *errorOut = nullptr);
+
+    /**
+     * @brief Appends a history row to @p req and bumps its revision in place
+     *        (REQ-SW-PL-101).
+     *
+     * The row is `| date | change | who | why |` under `## История`, which is
+     * created at the end of the file when absent. The revision becomes
+     * `max(revision, historyRows)`, so a hand-written file without the field
+     * starts counting from the rows it already carries.
+     *
+     * @param req Requirement whose rawContent is edited (and revision updated).
+     * @param date ISO date of the change.
+     * @param change What changed (one short clause).
+     * @param who Who changed it.
+     * @param why Why (the reason a reader needs a month later).
+     */
+    static void appendHistoryRow(Requirement &req, const QString &date,
+                                 const QString &change, const QString &who,
+                                 const QString &why);
+
+    /**
+     * @brief The revision number written in @p content ("- **Ревизия:** N").
+     * @return N, or 0 when the field is absent.
+     */
+    static int revisionInContent(const QString &content);
+
+    /**
+     * @brief Resolves the file on disk by the ID in its H1 (REQ-SW-PL-102 AC7).
+     *
+     * The review actions must never act on a cached path: a file renamed or
+     * moved by git/hand keeps its H1 and its meaning, while a cached path
+     * points at nothing. This re-walks the tree and answers with the file whose
+     * parsed ID matches — or an empty string, which the caller reports as
+     * "преименуван или преместен".
+     *
+     * @param roots Requirement tree roots to walk.
+     * @param id Requirement ID to find (case-insensitive).
+     * @return Absolute path, empty when no file carries that H1.
+     */
+    static QString findFileById(const QVector<RequirementRoot> &roots, const QString &id);
 
     /**
      * @brief Scans all parsed requirements in active/ and archive/ under baseDir

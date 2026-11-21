@@ -464,3 +464,33 @@ void TestModel::freshDraft_isNotPainted()
     QVERIFY(!fourteen.data(Qt::ForegroundRole).isValid());
     QVERIFY(!active.data(Qt::ForegroundRole).isValid());
 }
+
+void TestModel::draftVerdictRole_fromReviewTable()
+{
+    // REQ-SW-PL-102 AC4: the verdict is read once, in setRequirements(), and
+    // exposed as a role — the counter never parses Markdown while painting.
+    Requirement judged = datedRequirement(QStringLiteral("REQ-SW-PL-908"),
+                                          QStringLiteral("2026-11-20"),
+                                          QStringLiteral("DRAFT"));
+    judged.rawContent = QStringLiteral(
+        "## Ревю на черновата\n\n"
+        "| кръг | дата | присъда | бележка |\n"
+        "|---|---|---|---|\n"
+        "| 1 | 2026-11-20 | за корекция | липсва AC |\n");
+    Requirement fresh = datedRequirement(QStringLiteral("REQ-SW-PL-909"),
+                                         QStringLiteral("2026-11-20"),
+                                         QStringLiteral("DRAFT"));
+    fresh.rawContent = QStringLiteral("## Накратко\n\nоще никой не я е чел\n");
+
+    RequirementsModel model;
+    model.setRequirements({judged, fresh});
+
+    const QModelIndex first = model.indexForId(QStringLiteral("REQ-SW-PL-908"));
+    const QModelIndex second = model.indexForId(QStringLiteral("REQ-SW-PL-909"));
+    QVERIFY(first.isValid());
+    QVERIFY(second.isValid());
+    QCOMPARE(first.data(RequirementsModel::DraftVerdictRole).toString(),
+             QStringLiteral("за корекция"));
+    QVERIFY2(second.data(RequirementsModel::DraftVerdictRole).toString().isEmpty(),
+             "a draft nobody judged has no verdict");
+}

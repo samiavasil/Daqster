@@ -24,6 +24,14 @@ void RequirementsModel::setRequirements(const QVector<Requirement> &requirements
     beginResetModel();
     m_requirements = requirements;
 
+    // The draft verdict is read from the review table ONCE per load
+    // (REQ-SW-PL-102): the counter and any future column ask the model, and a
+    // paint must never parse Markdown.
+    m_draftVerdicts.clear();
+    m_draftVerdicts.reserve(m_requirements.size());
+    for (const Requirement &req : m_requirements)
+        m_draftVerdicts.append(RequirementsParser::lastDraftVerdict(req.rawContent));
+
     QStringList sections;
     for (const Requirement &req : m_requirements) {
         if (!sections.contains(req.section))
@@ -307,7 +315,12 @@ QVariant RequirementsModel::data(const QModelIndex &index, int role) const
     if (role == SectionRole)
         return req->section;
     if (role == AgeDaysRole)
-        return RequirementDates::ageInDays(req->date, m_today);
+        return RequirementDates::ageInDays(createdDate(*req), m_today);
+    if (role == DraftVerdictRole) {
+        const int reqIndex = internalId - RequirementInternalBase;
+        return reqIndex >= 0 && reqIndex < m_draftVerdicts.size()
+                   ? QVariant(m_draftVerdicts.at(reqIndex)) : QVariant(QString());
+    }
 
     if (role == Qt::ForegroundRole) {
         // A proposal nobody looked at for two weeks: the status colour
@@ -315,7 +328,7 @@ QVariant RequirementsModel::data(const QModelIndex &index, int role) const
         const bool draft = RequirementsValidator::normalizedStatus(req->status)
                            == QStringLiteral("DRAFT");
         if (draft && RequirementDates::isOverdue(
-                         RequirementDates::ageInDays(req->date, m_today))) {
+                         RequirementDates::ageInDays(createdDate(*req), m_today))) {
             return QColor(staleDraftColour());
         }
         return QVariant();
@@ -331,11 +344,11 @@ QVariant RequirementsModel::data(const QModelIndex &index, int role) const
     case PriorityColumn:  return req->priority;
     case AssigneeColumn:  return req->assignee;
     case RepoColumn:      return req->repo;
-    case CreatedColumn:   return req->date.trimmed().isEmpty()
+    case CreatedColumn:   return createdDate(*req).trimmed().isEmpty()
                                  ? QStringLiteral("—")
-                                 : req->date;
+                                 : createdDate(*req);
     case AgeColumn:       return RequirementDates::ageLabel(
-                                 RequirementDates::ageInDays(req->date, m_today));
+                                 RequirementDates::ageInDays(createdDate(*req), m_today));
     default:              return QVariant();
     }
 }

@@ -45,6 +45,7 @@ private slots:
     void childDangling_error();
     void dateNotIso_warning();
     void dateMissing_warningStays();
+    void createdField_isTheCreationDate();
     void citedPath_activeMissingPath_warning();
     void citedPath_implementedMissingPath_error();
     void citedPath_draftAndExisting_silent();
