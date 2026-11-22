@@ -4,6 +4,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include "IdeaReader.h"
 #include "RequirementsParser.h"
 
 namespace Daqster {
@@ -11,18 +12,26 @@ namespace Daqster {
 /**
  * @brief Layout node for the interactive dependency graph.
  *
- * One GraphNode is produced per parsed requirement. @c pos is filled in by
- * DependencyGraphData::build() from the layered layout.
+ * One GraphNode is produced per parsed requirement, plus one per promoted idea
+ * (REQ-SW-PL-098) when the caller supplied the idea register. @c pos is filled
+ * in by DependencyGraphData::build() from the layered layout.
  */
 struct GraphNode
 {
-    int reqIndex = -1; //!< index into the source QVector<Requirement>
-    QString id;        //!< e.g. "REQ-SW-PL-001"
+    enum Kind {
+        Requirement, //!< a requirement (solid node, status colour)
+        Idea         //!< a promoted idea (dashed node, no status — REQ-SW-PL-098)
+    };
+
+    int reqIndex = -1; //!< index into the source QVector<Requirement>; -1 for ideas
+    int ideaIndex = -1; //!< index into the source QVector<Idea>; -1 for requirements
+    Kind kind = Requirement;
+    QString id;        //!< e.g. "REQ-SW-PL-001" or "IDEA-002"
     QString repo;      //!< "public" | "private" | "other" (REQ-SW-PL-012)
     QString title;
-    QString status;    //!< ACTIVE | DONE | CANCELLED
-    QString priority;  //!< High | Medium | Low
-    QString section;   //!< "active" | "archive"
+    QString status;    //!< ACTIVE | DONE | CANCELLED (empty for an idea)
+    QString priority;  //!< High | Medium | Low (empty for an idea)
+    QString section;   //!< "active" | "archive" (empty for an idea)
     QPointF pos;       //!< computed scene position of the node
     qreal width = 120.0; //!< visual width in px (same formula as the widget)
 };
@@ -30,19 +39,22 @@ struct GraphNode
 /**
  * @brief Directed edge between two graph nodes.
  *
- * kind == Parent:     "Родител:" relationship (rendered dashed)
- * kind == Dependency: "Зависи от:" relationship (rendered solid)
+ * kind == Parent:        "Родител:" relationship (rendered dashed)
+ * kind == Dependency:    "Зависи от:" relationship (rendered solid)
+ * kind == IdeaPromotion: idea -> the requirement it became (own dashed style,
+ *                        REQ-SW-PL-098), so the two dashed families differ
  *
  * @c danglingId is always empty for stored edges — unresolvable references are
  * recorded on DependencyGraphData::danglingIds() instead of becoming edges.
  */
 struct GraphEdge
 {
-    int from = -1; //!< source graph node index (child / dependent requirement)
-    int to = -1;   //!< target graph node index (parent / dependency requirement)
+    int from = -1; //!< source graph node index (child / dependent / idea)
+    int to = -1;   //!< target graph node index (parent / dependency / requirement)
     enum Kind {
         Parent,
-        Dependency
+        Dependency,
+        IdeaPromotion
     } kind = Dependency;
     QString danglingId; //!< always empty for stored edges
 };
@@ -72,6 +84,22 @@ class DependencyGraphData
 {
 public:
     static DependencyGraphData build(const QVector<Requirement> &requirements);
+
+    /**
+     * @brief Builds the graph and adds the promoted ideas as dashed nodes.
+     *
+     * Only ideas whose header names a requirement that exists in @p requirements
+     * become nodes: an idea that was never promoted has nothing to connect to,
+     * and an unpromoted idea is a normal state, not a broken one (the missing
+     * requirement is reported by RequirementsValidator::validateIdeaLinks()).
+     * Each such idea gets one IdeaPromotion edge to its requirement, and sits in
+     * the requirement's layer so the picture reads "idea -> requirement".
+     *
+     * @param requirements Parsed requirements (solid nodes).
+     * @param ideas The idea register (dashed nodes; empty keeps the old graph).
+     */
+    static DependencyGraphData build(const QVector<Requirement> &requirements,
+                                     const QVector<Idea> &ideas);
 
     const QVector<GraphNode> &nodes() const { return m_nodes; }
     const QVector<GraphEdge> &edges() const { return m_edges; }

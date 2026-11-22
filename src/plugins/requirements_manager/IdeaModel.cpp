@@ -1,5 +1,11 @@
 #include "IdeaModel.h"
 
+#include "RequirementsValidator.h"
+
+#include <QBrush>
+#include <QColor>
+#include <QFont>
+
 namespace Daqster {
 
 IdeaTableModel::IdeaTableModel(QObject *parent)
@@ -12,6 +18,29 @@ void IdeaTableModel::setIdeas(const QVector<Idea> &ideas)
     beginResetModel();
     m_ideas = ideas;
     endResetModel();
+}
+
+void IdeaTableModel::setRequirements(const QVector<Requirement> &requirements)
+{
+    QHash<QString, QString> statuses;
+    for (const Requirement &req : requirements) {
+        const QString bare = RequirementsValidator::normalizedStatus(req.status);
+        statuses.insert(req.id.trimmed().toUpper(),
+                        bare.isEmpty() ? req.status.trimmed() : bare);
+    }
+    if (statuses == m_statusById)
+        return;
+    m_statusById = statuses;
+    // Only the "Изискване" column changes: no reset, the selection survives.
+    if (!m_ideas.isEmpty())
+        emit dataChanged(index(0, RequirementColumn),
+                         index(m_ideas.size() - 1, RequirementColumn));
+}
+
+QString IdeaTableModel::promotedRequirementAt(const QModelIndex &index) const
+{
+    const Idea *idea = ideaAt(index);
+    return idea ? idea->promotedId.trimmed() : QString();
 }
 
 const QVector<Idea> &IdeaTableModel::ideas() const
@@ -45,8 +74,26 @@ QVariant IdeaTableModel::data(const QModelIndex &index, int role) const
     if (role == IdeaRole)
         return QVariant::fromValue(*idea);
 
-    if (role == Qt::ToolTipRole)
+    if (role == RequirementRole)
+        return idea->promotedId.trimmed();
+
+    // The promotion cell is a link: underlined and blue only when it leads
+    // somewhere, so an empty cell cannot look clickable (REQ-SW-PL-098).
+    const bool hasPromotion = index.column() == RequirementColumn
+                              && !idea->promotedId.trimmed().isEmpty();
+    if (role == Qt::ForegroundRole && hasPromotion)
+        return QBrush(QColor(0x1565C0)); // blue 800, same tone as the IDE
+    if (role == Qt::FontRole && hasPromotion) {
+        QFont font;
+        font.setUnderline(true);
+        return font;
+    }
+
+    if (role == Qt::ToolTipRole) {
+        if (index.column() == RequirementColumn && hasPromotion)
+            return tr("Отваря %1").arg(idea->promotedId.trimmed());
         return idea->path;
+    }
 
     if (role == Qt::TextAlignmentRole && index.column() == AttachmentsColumn)
         return QVariant(int(Qt::AlignRight | Qt::AlignVCenter));
@@ -67,6 +114,14 @@ QVariant IdeaTableModel::data(const QModelIndex &index, int role) const
         return idea->nextReview;
     case AttachmentsColumn:
         return idea->attachmentCount;
+    case RequirementColumn: {
+        const QString promoted = idea->promotedId.trimmed();
+        if (promoted.isEmpty())
+            return QString();
+        const QString status = m_statusById.value(promoted.toUpper());
+        return status.isEmpty() ? promoted
+                                : QStringLiteral("%1 · %2").arg(promoted, status);
+    }
     default:
         return QVariant();
     }
@@ -93,6 +148,8 @@ QVariant IdeaTableModel::headerData(int section, Qt::Orientation orientation, in
         return tr("Следващ преглед");
     case AttachmentsColumn:
         return tr("Приложения");
+    case RequirementColumn:
+        return tr("Изискване");
     default:
         return QVariant();
     }

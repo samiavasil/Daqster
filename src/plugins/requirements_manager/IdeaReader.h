@@ -28,6 +28,8 @@ struct Idea
     QString status;             //!< e.g. "в развитие"; empty when absent
     QString added;              //!< ISO date from "Добавена:"; empty when absent
     QString nextReview;         //!< ISO date from "Следващ преглед:"; empty when absent
+    QString promotedId;         //!< REQ the idea became ("Промотирана:" / "Изискване:");
+                                //!< empty when the idea is not promoted (REQ-SW-PL-098)
     QString path;               //!< absolute path of the idea .md
     QString rawContent;         //!< the whole file, for the read-only preview
     int attachmentCount = 0;    //!< files under `<ideas>/<id>/attachments/`
@@ -48,6 +50,10 @@ struct IdeaHeaderKeys
     QString added = QStringLiteral("Добавена");
     QString nextReview = QStringLiteral("Следващ преглед");
     QString promoted = QStringLiteral("Промотирана");
+    //!< The same link under the register's other name: IDEA-002 carries
+    //!< `> Изискване: REQ-AI-028` (REQ-SW-PL-098). One link, one home — both
+    //!< keys feed Idea::promotedId and nothing reads the requirement's file.
+    QString requirement = QStringLiteral("Изискване");
 };
 
 /**

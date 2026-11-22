@@ -180,6 +180,13 @@ struct Requirement
     QStringList missingDevelopPaths; //!< cited paths absent from `develop`
     QString codeBranch;             //!< branch that carries them instead
     bool doneCandidate = false;     //!< IMPLEMENTED + the four preconditions
+
+    // ── Произход (REQ-SW-PL-098): ИЗЧИСЛЕНО поле ──────────────────────────
+    // The idea this requirement grew out of. Not a line of the .md file: the
+    // link has ONE home — the idea's own first line ("Промотирана:" /
+    // "Изискване:") — so the widget fills this once per load from the idea
+    // register and nothing writes it back (REQ-SW-PL-098 → Технически детайли).
+    QString originIdeaId;           //!< "IDEA-002", or empty when no idea names it
 };
 
 /**

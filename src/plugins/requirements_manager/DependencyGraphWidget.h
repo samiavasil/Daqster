@@ -56,6 +56,16 @@ public:
     void setRequirements(const QVector<Requirement> &requirements,
                          const QVector<RequirementsValidator::Issue> &issues);
 
+    /**
+     * @brief Rebuilds the scene and adds the promoted ideas (REQ-SW-PL-098).
+     *
+     * Ideas appear as dashed nodes joined to their requirement by an
+     * IdeaPromotion edge; the solid nodes stay requirements only.
+     */
+    void setRequirements(const QVector<Requirement> &requirements,
+                         const QVector<RequirementsValidator::Issue> &issues,
+                         const QVector<Idea> &ideas);
+
     int nodeCount() const { return m_nodeItems.size(); }
     int edgeCount() const { return m_edgeItems.size(); }
     int danglingCount() const { return m_data.danglingCount(); }
@@ -161,6 +171,8 @@ public:
     QString title() const { return m_title; }
     QString status() const { return m_status; }
     QString priority() const { return m_priority; }
+    GraphNode::Kind kind() const { return m_kind; }
+    bool isIdea() const { return m_kind == GraphNode::Idea; }
 
     /** @brief Resolved outgoing dependency + parent reference count. */
     int dependencyCount() const { return m_dependencyCount; }
@@ -213,6 +225,7 @@ private:
     QString m_title;
     QString m_status;
     QString m_priority;
+    GraphNode::Kind m_kind = GraphNode::Requirement;
     QRectF m_rect;
     QPointF m_pressScenePos;
     int m_dependencyCount = 0;
@@ -331,6 +344,14 @@ public:
      */
     void setRequirements(const QVector<Requirement> &requirements,
                          const QVector<RequirementsValidator::Issue> &issues);
+
+    /**
+     * @brief Rebuilds the graph with the promoted ideas as dashed nodes
+     *        (REQ-SW-PL-098). Same as above plus the idea register.
+     */
+    void setRequirements(const QVector<Requirement> &requirements,
+                         const QVector<RequirementsValidator::Issue> &issues,
+                         const QVector<Idea> &ideas);
 
     DependencyGraphScene *graphScene() const { return m_scene; }
     DependencyGraphView *graphView() const { return m_view; }

@@ -1314,3 +1314,100 @@ void TestValidator::revisionWithoutNumber_legacySilent()
         QVERIFY2(issue.field != QStringLiteral("revision"), qPrintable(issue.message));
     }
 }
+
+// ── Връзка идея ↔ изискване (REQ-SW-PL-098) ────────────────────────────────
+namespace {
+
+Idea makeIdea(const QString &id, const QString &status, const QString &promoted)
+{
+    Idea idea;
+    idea.id = id;
+    idea.title = id;
+    idea.status = status;
+    idea.promotedId = promoted;
+    idea.path = QStringLiteral("/tmp/%1.md").arg(id);
+    return idea;
+}
+
+//!< A requirement whose body cites @p citedIds ("Изведено от IDEA-…").
+Requirement requirementCiting(const QString &id, const QStringList &citedIds)
+{
+    Requirement req = makeRequirement(id, QStringLiteral("active"), QString());
+    req.status = QStringLiteral("ACTIVE");
+    QString body = QStringLiteral("# %1: Fixture\n\n## Защо\n\n").arg(id);
+    for (const QString &cited : citedIds)
+        body += QStringLiteral("- изведено от %1\n").arg(cited);
+    req.rawContent = body;
+    return req;
+}
+
+} // namespace
+
+void TestValidator::ideaLink_citedIdeaWithoutRecord_error()
+{
+    // AC1: the requirement names the idea, the idea does not record the
+    // promotion — the issue must name BOTH, so a reader does not have to guess
+    // which of the two files to open.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-920"),
+                                              {QStringLiteral("IDEA-003")});
+    const Idea idea = makeIdea(QStringLiteral("IDEA-003"), QStringLiteral("нова"),
+                              QString());
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateIdeaLinks({req}, {idea});
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).field, QStringLiteral("idea-link"));
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("IDEA-003")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-920")),
+             qPrintable(issues.at(0).message));
+
+    // The same citation with the promotion recorded is silent, and an idea that
+    // nobody cites is not asked to record anything.
+    const Idea promoted = makeIdea(QStringLiteral("IDEA-003"),
+                                   QStringLiteral("промотирана"),
+                                   QStringLiteral("REQ-SW-PL-920"));
+    QCOMPARE(RequirementsValidator::validateIdeaLinks({req}, {promoted}).size(), 0);
+}
+
+void TestValidator::ideaLink_promotionToMissingRequirement_error()
+{
+    // AC2: "Изискване: REQ-X" names a file that does not exist. The message
+    // carries the missing identifier — that is the repair.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-921"), {});
+    const Idea idea = makeIdea(QStringLiteral("IDEA-004"), QStringLiteral("промотирана"),
+                              QStringLiteral("REQ-SW-PL-999"));
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateIdeaLinks({req}, {idea});
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).field, QStringLiteral("idea-link"));
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-999")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("IDEA-004")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::ideaLink_promotedPairAndUnpromotedIdea_silent()
+{
+    // AC3: an idea without a requirement is the NORMAL state — neither an error
+    // nor a warning. A correct pair produces nothing in either direction, and
+    // the struck-through correction is not a citation.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-922"),
+                                              {QStringLiteral("IDEA-002")});
+    Requirement struck = req;
+    struck.id = QStringLiteral("REQ-SW-PL-923");
+    struck.rawContent += QStringLiteral("\n~~изведено от IDEA-005~~\n");
+
+    QVector<Idea> ideas;
+    ideas.append(makeIdea(QStringLiteral("IDEA-002"), QStringLiteral("промотирана"),
+                          QStringLiteral("REQ-SW-PL-922")));
+    ideas.append(makeIdea(QStringLiteral("IDEA-005"), QStringLiteral("нова"), QString()));
+    ideas.append(makeIdea(QStringLiteral("IDEA-006"), QStringLiteral("паркирана"), QString()));
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateIdeaLinks({req, struck}, ideas);
+    QCOMPARE(issues.size(), 0);
+}

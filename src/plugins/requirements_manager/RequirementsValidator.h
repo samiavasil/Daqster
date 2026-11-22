@@ -3,6 +3,7 @@
 #include <QString>
 #include <QVector>
 #include <optional>
+#include "IdeaReader.h"
 #include "RequirementsParser.h"
 
 namespace Daqster {
@@ -162,6 +163,57 @@ public:
      *         the value carries no readable status.
      */
     static QString normalizedStatus(const QString &rawStatus);
+
+    /**
+     * @brief Idea statuses that mean "the promotion is recorded" (REQ-SW-PL-098).
+     *
+     * Mirrors `RECORDED` in `scripts/check-idea-promotion.sh` (private repo):
+     * an idea in one of these states may be cited by a requirement, because the
+     * record of the promotion is in its first line. Any other status means the
+     * citation is not recorded yet.
+     *
+     * @return The status tokens, in the CLI's order.
+     */
+    static QStringList ideaPromotionStatuses();
+
+    /**
+     * @brief Idea IDs @p req cites anywhere in its file.
+     *
+     * The same reader the promotion guard uses: `IDEA-NNN` with a word boundary
+     * before it, struck-through spans (`~~…~~`) dropped because a correction is
+     * not a citation, duplicates collapsed in citation order.
+     *
+     * @param req Parsed requirement (its rawContent is read).
+     * @return Idea IDs, upper case.
+     */
+    static QStringList citedIdeaIds(const Requirement &req);
+
+    /**
+     * @brief The three promotion rules of `scripts/check-idea-promotion.sh`.
+     *
+     * One link, one home: the idea's first line names the requirement
+     * ("Промотирана:" / "Изискване:"), never the other way round. The rules:
+     *  - a requirement citing `IDEA-NNN` that has no idea file → Error naming
+     *    the requirement and the missing idea;
+     *  - a requirement citing an idea whose status is not in
+     *    ideaPromotionStatuses() → Error naming BOTH ("промоцията липсва");
+     *  - an idea whose promotion names a requirement that does not exist →
+     *    Error naming the missing ID;
+     *  - an idea with no requirement → nothing. Not being promoted is the
+     *    normal state of an idea, not a defect.
+     *
+     * @par Why this is not part of validate()
+     * Same reason as validateCitedPaths(): validate() must stay equal to what
+     * RequirementsParser walked (REQ-SW-PL-008). Ideas are a different tree, so
+     * the caller passes them in — one rule, one answer, beside the status
+     * vocabulary.
+     *
+     * @param requirements Parsed requirements.
+     * @param ideas The idea register (IdeaReader).
+     * @return Issues with field "idea-link", errors first, then by ID.
+     */
+    static QVector<Issue> validateIdeaLinks(const QVector<Requirement> &requirements,
+                                            const QVector<Idea> &ideas);
 };
 
 } // namespace Daqster

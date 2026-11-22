@@ -22,6 +22,7 @@ class QComboBox;
 class QTabWidget;
 class QUrl;
 class QFileSystemWatcher;
+class QModelIndex;
 
 namespace Daqster {
 
@@ -216,6 +217,8 @@ private slots:
     void onNavForward();
     void onIdeaSelectionChanged();
     void onIdeaSearchChanged(const QString &text);
+    //!< Click on the "Изискване" cell opens that requirement (REQ-SW-PL-098).
+    void onIdeaTableClicked(const QModelIndex &index);
     void onPromoteIdea();
 
 private:
@@ -244,6 +247,9 @@ private:
     void showIdeaPreview(const Idea &idea);
     //!< Repo root an idea belongs to (for the promoted requirement's file).
     QString rootForIdea(const Idea &idea) const;
+    //!< Fills Requirement::originIdeaId from the idea register once per load
+    //!< (REQ-SW-PL-098): one link, read from the idea's own header.
+    void linkIdeaOrigins();
     //!< Requirement behind a *view* index (the tree is sorted by a proxy).
     const Requirement *requirementAtViewIndex(const QModelIndex &viewIndex) const;
 

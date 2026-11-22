@@ -168,5 +168,85 @@ void TestGraph::layeredLayoutInvariant()
     }
 }
 
+void TestGraph::ideaNodeAndPromotionEdge()
+{
+    // REQ-SW-PL-098 AC6: an idea is a dashed node joined to its requirement, and
+    // the solid nodes stay requirements only — one idea node and one
+    // IdeaPromotion edge, sitting in the requirement's layer.
+    QVector<Requirement> reqs;
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("active"),
+                                QString()));
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"), QStringLiteral("active"),
+                                QStringLiteral("REQ-SW-PL-001")));
+
+    Idea idea;
+    idea.id = QStringLiteral("IDEA-002");
+    idea.title = QStringLiteral("Alpha");
+    idea.status = QStringLiteral("промотирана");
+    idea.promotedId = QStringLiteral("REQ-SW-PL-002");
+
+    const DependencyGraphData plain = DependencyGraphData::build(reqs, {});
+    const DependencyGraphData data = DependencyGraphData::build(reqs, {idea});
+
+    QCOMPARE(plain.nodes().size(), reqs.size()); // no ideas → the old graph
+    QCOMPARE(data.nodes().size(), reqs.size() + 1);
+    int ideaNodes = 0;
+    int requirementNodes = 0;
+    int ideaIndex = -1;
+    for (int i = 0; i < data.nodes().size(); ++i) {
+        const GraphNode &node = data.nodes().at(i);
+        if (node.kind == GraphNode::Idea) {
+            ++ideaNodes;
+            ideaIndex = i;
+            QCOMPARE(node.id, QStringLiteral("IDEA-002"));
+            QCOMPARE(node.reqIndex, -1); // not a requirement index
+        } else {
+            ++requirementNodes;
+        }
+    }
+    QCOMPARE(ideaNodes, 1);
+    QCOMPARE(requirementNodes, reqs.size());
+
+    int promotionEdges = 0;
+    for (const GraphEdge &edge : data.edges()) {
+        if (edge.kind != GraphEdge::IdeaPromotion)
+            continue;
+        ++promotionEdges;
+        QCOMPARE(edge.from, ideaIndex);
+        QCOMPARE(data.nodes().at(edge.to).id, QStringLiteral("REQ-SW-PL-002"));
+    }
+    QCOMPARE(promotionEdges, 1);
+
+    // The idea sits in its requirement's layer, so the picture reads
+    // "idea -> requirement" left to right instead of two unrelated columns.
+    QCOMPARE(data.nodes().at(ideaIndex).pos.x(), data.positionFor(1).x());
+}
+
+void TestGraph::unpromotedIdeaAbsentFromGraph()
+{
+    // An idea without a requirement has nothing to connect to: it is not a
+    // graph node, and the idea->requirement lookup does not become a dangling
+    // reference (that finding belongs to the validator, not the picture).
+    QVector<Requirement> reqs;
+    reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("active"),
+                                QString()));
+
+    Idea unpromoted;
+    unpromoted.id = QStringLiteral("IDEA-004");
+    unpromoted.title = QStringLiteral("Mu");
+    unpromoted.status = QStringLiteral("нова");
+
+    Idea broken;
+    broken.id = QStringLiteral("IDEA-006");
+    broken.title = QStringLiteral("Zeta");
+    broken.status = QStringLiteral("промотирана");
+    broken.promotedId = QStringLiteral("REQ-SW-PL-999"); // no such requirement
+
+    const DependencyGraphData data = DependencyGraphData::build(reqs, {unpromoted, broken});
+    QCOMPARE(data.nodes().size(), 1);
+    QCOMPARE(data.edges().size(), 0);
+    QCOMPARE(data.danglingCount(), 0);
+}
+
 // No QTEST_GUILESS_MAIN here: all test classes share one binary whose main
 // lives in test_main.cpp.

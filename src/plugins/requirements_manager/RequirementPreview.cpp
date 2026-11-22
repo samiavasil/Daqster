@@ -122,7 +122,14 @@ QString headerHtml(const Requirement &req,
                      phase.implementation ? QStringLiteral("✓") : QStringLiteral("✗"),
                      phase.testing ? QStringLiteral("✓") : QStringLiteral("✗"));
 
-    // Relationship axes: Родител / Деца / Зависи от / Зависими от
+    // Relationship axes: Произход / Родител / Деца / Зависи от / Зависими от
+    // "Произход" is the idea this requirement grew out of (REQ-SW-PL-098). The
+    // link has one home — the idea's own file — so this row is a read of the
+    // register, never a second copy.
+    text += QStringLiteral("<p><b>Произход:</b> %1</p>")
+                .arg(req.originIdeaId.trimmed().isEmpty()
+                         ? QStringLiteral("—")
+                         : req.originIdeaId.trimmed().toHtmlEscaped());
     text += QStringLiteral("<p><b>Родител:</b> %1</p>")
                 .arg(req.parentId.trimmed().isEmpty() ? QStringLiteral("—")
                                                       : linkFor(req.parentId));

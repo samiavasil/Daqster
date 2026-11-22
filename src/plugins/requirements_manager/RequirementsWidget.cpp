@@ -21,6 +21,7 @@
 #include <QTableView>
 #include <QTextBrowser>
 #include <QPlainTextEdit>
+#include <QHash>
 #include <QLabel>
 #include <QLineEdit>
 #include <QTimer>
@@ -454,6 +455,12 @@ void RequirementsWidget::reload()
     for (Requirement &req : m_requirements)
         DoneGate::evaluate(req, roots);
 
+    // Идеите се четат веднъж на зареждане (REQ-SW-PL-098): колоната
+    // „Изискване“, редът „Произход“ и пунктираните възли в графа са три
+    // изгледа на ЕДНА връзка, затова се пълнят от един прочит.
+    refreshIdeasTab();
+    linkIdeaOrigins();
+
     // The reference day moves with the wall clock, the model does not: it is
     // built once, so without this line the age column and the overdue colour
     // stay on the day the manager was started while the counter's tooltip
@@ -473,6 +480,9 @@ void RequirementsWidget::reload()
     m_treeView->expandAll();
 
     m_validationIssues = RequirementsValidator::validate(m_requirements);
+    // The promotion rules (REQ-SW-PL-098) are the SAME three the private guard
+    // enforces; they are part of the report so nobody has to run a script.
+    m_validationIssues += RequirementsValidator::validateIdeaLinks(m_requirements, m_ideas);
     m_rootStatusLabel->setText(
         tr("Roots loaded: %1  |  Requirements: %2")
             .arg(m_roots.size())
@@ -544,9 +554,8 @@ void RequirementsWidget::reload()
             ? tr("Няма изискване с всички AC, приемащо ревю и код в develop.")
             : tr("Чакат само твоята присъда: %1").arg(candidates.join(QStringLiteral(", "))));
 
-    m_graphWidget->setRequirements(m_filtered, m_validationIssues);
+    m_graphWidget->setRequirements(m_filtered, m_validationIssues, m_ideas);
     updateValidationStatus();    refreshActionState();
-    refreshIdeasTab();
     // The set of directories may have changed (a new subdirectory, a root
     // added): the watcher is rebuilt from what is on disk right now.
     rebuildWatchedPaths();
@@ -1446,6 +1455,8 @@ QWidget *RequirementsWidget::createIdeasPanel()
 
     connect(m_ideasView->selectionModel(), &QItemSelectionModel::selectionChanged,
             this, &RequirementsWidget::onIdeaSelectionChanged);
+    connect(m_ideasView, &QTableView::clicked,
+            this, &RequirementsWidget::onIdeaTableClicked);
     connect(m_ideasSearchEdit, &QLineEdit::textChanged,
             this, &RequirementsWidget::onIdeaSearchChanged);
     connect(m_promoteButton, &QPushButton::clicked,
@@ -1458,6 +1469,9 @@ void RequirementsWidget::refreshIdeasTab()
     m_ideas = IdeaReader::readFromRoots(m_roots);
     m_currentIdeaRow = -1;
     m_ideaModel->setIdeas(m_ideas);
+    // The "Изискване" column shows `REQ · статус`; the statuses come from the
+    // set already parsed for this load, never from a second parse (REQ-SW-PL-098).
+    m_ideaModel->setRequirements(m_requirements);
     m_ideaPreview->clear();
     m_promoteButton->setEnabled(false);
 
@@ -1516,6 +1530,37 @@ void RequirementsWidget::onIdeaSearchChanged(const QString &text)
         m_ideaPreview->clear();
         m_promoteButton->setEnabled(false);
     }
+}
+
+void RequirementsWidget::onIdeaTableClicked(const QModelIndex &index)
+{
+    // Only the "Изискване" cell navigates; the rest of the row keeps selecting
+    // the idea (REQ-SW-PL-098). An empty cell means "not promoted yet", so it
+    // does nothing instead of reporting a broken link.
+    if (!index.isValid() || index.column() != IdeaTableModel::RequirementColumn)
+        return;
+    const QString id =
+        m_ideaModel->promotedRequirementAt(m_ideaProxy->mapToSource(index));
+    if (id.trimmed().isEmpty())
+        return;
+    m_tabs->setCurrentIndex(0);
+    navigateToId(id);
+}
+
+void RequirementsWidget::linkIdeaOrigins()
+{
+    // reqId (upper case) -> IDEA id. The link has one home: the idea's own
+    // header, so a requirement never carries a second "from_idea" line
+    // (REQ-SW-PL-098 → Технически детайли). Two ideas naming the same
+    // requirement resolve in register order, deterministically.
+    QHash<QString, QString> originByRequirement;
+    for (const Idea &idea : m_ideas) {
+        const QString promoted = idea.promotedId.trimmed().toUpper();
+        if (!promoted.isEmpty() && !originByRequirement.contains(promoted))
+            originByRequirement.insert(promoted, idea.id);
+    }
+    for (Requirement &req : m_requirements)
+        req.originIdeaId = originByRequirement.value(req.id.trimmed().toUpper());
 }
 
 QString RequirementsWidget::rootForIdea(const Idea &idea) const

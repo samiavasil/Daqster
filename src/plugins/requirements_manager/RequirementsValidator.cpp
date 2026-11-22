@@ -266,6 +266,122 @@ RequirementsValidator::validateCitedPaths(const QVector<Requirement> &requiremen
     return issues;
 }
 
+// ── Връзка идея ↔ изискване (REQ-SW-PL-098) ──────────────────────────────
+
+namespace {
+
+//!< One "idea-link" finding; every rule reports through here, so the field name
+//!< and the severity cannot drift between the three of them.
+RequirementsValidator::Issue ideaLinkIssue(const QString &id, const QString &message,
+                                           const QString &filePath)
+{
+    return {id, QStringLiteral("idea-link"), message,
+            RequirementsValidator::Severity::Error, filePath};
+}
+
+//!< Direction 1: a requirement citing an idea must find a recorded promotion.
+QVector<RequirementsValidator::Issue>
+citationIssues(const QVector<Requirement> &requirements,
+               const QHash<QString, const Idea *> &ideaById)
+{
+    const QStringList recorded = RequirementsValidator::ideaPromotionStatuses();
+    QVector<RequirementsValidator::Issue> issues;
+    for (const Requirement &req : requirements) {
+        for (const QString &cited : RequirementsValidator::citedIdeaIds(req)) {
+            const Idea *idea = ideaById.value(cited, nullptr);
+            if (!idea) {
+                issues.append(ideaLinkIssue(
+                    req.id,
+                    QStringLiteral("изискването цитира %1, но няма такъв файл в "
+                                   "plans/ideas/").arg(cited),
+                    req.filePath));
+                continue;
+            }
+            const QString status = idea->status.trimmed();
+            if (recorded.contains(status.toLower()))
+                continue;
+            issues.append(ideaLinkIssue(
+                req.id,
+                QStringLiteral("изискването цитира идея %1 („%2“), а тя не носи запис за "
+                               "промоция — %3")
+                    .arg(cited,
+                         status.isEmpty() ? QStringLiteral("без статус") : status, req.id),
+                req.filePath));
+        }
+    }
+    return issues;
+}
+
+//!< Direction 2: "промотирана" must name a requirement that exists.
+QVector<RequirementsValidator::Issue>
+promotionIssues(const QVector<Idea> &ideas, const QSet<QString> &requirementIds)
+{
+    QVector<RequirementsValidator::Issue> issues;
+    for (const Idea &idea : ideas) {
+        const QString promoted = idea.promotedId.trimmed();
+        if (promoted.isEmpty() || requirementIds.contains(promoted.toUpper()))
+            continue;   // an idea without a requirement is the normal state
+        issues.append(ideaLinkIssue(
+            promoted,
+            QStringLiteral("идея %1 е отбелязана като промотирана в %2, но такова "
+                           "изискване няма").arg(idea.id, promoted),
+            idea.path));
+    }
+    return issues;
+}
+
+} // namespace
+
+QStringList RequirementsValidator::ideaPromotionStatuses()
+{
+    // Mirrors RECORDED in scripts/check-idea-promotion.sh. A second list would
+    // be a second answer to "is the promotion recorded?".
+    return {QStringLiteral("промотирана"), QStringLiteral("реализирана"),
+            QStringLiteral("слята"), QStringLiteral("завършен"),
+            QStringLiteral("исторически")};
+}
+
+QStringList RequirementsValidator::citedIdeaIds(const Requirement &req)
+{
+    static const QRegularExpression struckRe(QStringLiteral("~~[^~]*~~"));
+    static const QRegularExpression ideaRe(QStringLiteral("\\b(IDEA-[0-9]+)"));
+    QString text = req.rawContent;
+    text.remove(struckRe);
+
+    QStringList ids;
+    QRegularExpressionMatchIterator it = ideaRe.globalMatch(text);
+    while (it.hasNext()) {
+        const QString id = it.next().captured(1).toUpper();
+        if (!ids.contains(id))
+            ids.append(id);
+    }
+    return ids;
+}
+
+QVector<RequirementsValidator::Issue>
+RequirementsValidator::validateIdeaLinks(const QVector<Requirement> &requirements,
+                                         const QVector<Idea> &ideas)
+{
+    QHash<QString, const Idea *> ideaById;   // upper-case IDEA-NNN -> idea
+    for (const Idea &idea : ideas)
+        ideaById.insert(idea.id.trimmed().toUpper(), &idea);
+
+    QSet<QString> requirementIds;            // upper-case REQ-*
+    for (const Requirement &req : requirements)
+        requirementIds.insert(req.id.trimmed().toUpper());
+
+    QVector<Issue> issues = citationIssues(requirements, ideaById);
+    issues += promotionIssues(ideas, requirementIds);
+
+    std::stable_sort(issues.begin(), issues.end(),
+                     [](const Issue &a, const Issue &b) {
+                         if (a.severity != b.severity)
+                             return a.severity == Severity::Error;
+                         return a.id < b.id;
+                     });
+    return issues;
+}
+
 QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
     const QVector<Requirement> &requirements)
 {

@@ -6,6 +6,12 @@ namespace Daqster {
 
 DependencyGraphData DependencyGraphData::build(const QVector<Requirement> &requirements)
 {
+    return build(requirements, QVector<Idea>());
+}
+
+DependencyGraphData DependencyGraphData::build(const QVector<Requirement> &requirements,
+                                               const QVector<Idea> &ideas)
+{
     DependencyGraphData data;
     data.m_requirements = requirements;
 
@@ -140,25 +146,80 @@ DependencyGraphData DependencyGraphData::build(const QVector<Requirement> &requi
         ++nextLayer;
     }
 
+    // ── Идеите като пунктирани възли (REQ-SW-PL-098) ──────────────────────
+    // Only a promoted idea whose requirement exists becomes a node: an idea that
+    // was never promoted has nothing to connect to, and a promotion naming a
+    // missing requirement is a validator finding (idea-link), not a second graph
+    // warning. The requirement's absence is therefore skipped SILENTLY here.
+    for (int i = 0; i < ideas.size(); ++i) {
+        const Idea &idea = ideas.at(i);
+        const QString promoted = idea.promotedId.trimmed();
+        if (promoted.isEmpty())
+            continue;
+        int reqIdx = -1;
+        for (int j = 0; j < n; ++j) {
+            if (QString::compare(requirements.at(j).id, promoted, Qt::CaseInsensitive) == 0) {
+                reqIdx = j;
+                break;
+            }
+        }
+        if (reqIdx < 0)
+            continue;
+
+        GraphNode node;
+        node.reqIndex = -1;
+        node.ideaIndex = i;
+        node.kind = GraphNode::Idea;
+        node.id = idea.id;
+        node.title = idea.title;
+        node.width = qMax(120.0, 36.0 + idea.title.size() * 6.5);
+        data.m_nodes.append(node);
+
+        GraphEdge edge;
+        edge.from = data.m_nodes.size() - 1;
+        edge.to = reqIdx;
+        edge.kind = GraphEdge::IdeaPromotion;
+        data.m_edges.append(edge);
+    }
+
     // Sugiyama phases 2 & 3 (layout): barycenter crossing minimization (all
-    // edges — Parent AND Dependency — take part in the ordering) and
-    // coordinate assignment with size-aware horizontal spacing and vertically
+    // edges — Parent, Dependency AND IdeaPromotion — take part in the ordering)
+    // and coordinate assignment with size-aware horizontal spacing and vertically
     // centred layers. Phase 1 (Kahn + residual layer, above) is untouched, so
     // layerFor() values are identical to the pre-Sugiyama layout.
+    //
+    // Idea nodes join the layout: each one sits in the layer of the requirement
+    // it points at, so the graph reads "idea -> requirement" left to right
+    // (REQ-SW-PL-098). m_layer keeps requirement indexes only, because
+    // layerFor() is a requirement lookup.
+    const int total = data.m_nodes.size();
+    QVector<int> layers = data.m_layer;
+    layers.reserve(total);
+    for (int i = n; i < total; ++i) {
+        int layer = 0;
+        for (const GraphEdge &edge : data.m_edges) {
+            if (edge.kind != GraphEdge::IdeaPromotion || edge.from != i)
+                continue;
+            if (edge.to >= 0 && edge.to < data.m_layer.size())
+                layer = data.m_layer.at(edge.to);
+        }
+        layers.append(layer);
+    }
+
     QStringList ids;
     for (const GraphNode &node : data.m_nodes)
         ids.append(node.id);
 
     const QVector<QVector<int>> orderedLayers =
-        DependencyGraphLayout::orderLayers(n, data.m_edges, data.m_layer, ids);
+        DependencyGraphLayout::orderLayers(total, data.m_edges, layers, ids);
 
-    QVector<qreal> nodeWidths(n, 0.0);
-    for (int i = 0; i < n; ++i)
+    QVector<qreal> nodeWidths(total, 0.0);
+    for (int i = 0; i < total; ++i)
         nodeWidths[i] = data.m_nodes.at(i).width;
 
-    QVector<QPointF> positions(n);
+    QVector<QPointF> positions(total);
     DependencyGraphLayout::assignCoordinates(orderedLayers, nodeWidths, ids, &positions);
-    for (int i = 0; i < n; ++i)
+    for (int i = 0; i < total; ++i)
         data.m_nodes[i].pos = positions.at(i);
 
     return data;

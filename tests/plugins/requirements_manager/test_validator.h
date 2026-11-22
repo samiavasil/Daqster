@@ -59,4 +59,8 @@ private slots:
     // REQ-SW-PL-106: ревизия, по-голяма от одобрената.
     void revisionAboveApproved_error();
     void revisionWithoutNumber_legacySilent();
+    // REQ-SW-PL-098: връзката идея ↔ изискване, в двете посоки.
+    void ideaLink_citedIdeaWithoutRecord_error();
+    void ideaLink_promotionToMissingRequirement_error();
+    void ideaLink_promotedPairAndUnpromotedIdea_silent();
 };
