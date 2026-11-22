@@ -4,7 +4,8 @@
 #   ./scripts/install-hooks.sh            # core.hooksPath=scripts/hooks
 #   ./scripts/install-hooks.sh --strict   # + hooks.plantumlStrict=true
 #
-# Hooks: pre-commit (PlantUML рендер) и pre-push (master приема само от
+# Hooks: pre-commit (PlantUML рендер + политиката на комита), commit-msg
+# (съобщението: REQ при код — REQ-SW-PL-108) и pre-push (master приема само от
 # develop/release/* — виж scripts/hooks/pre-push).
 set -euo pipefail
 
