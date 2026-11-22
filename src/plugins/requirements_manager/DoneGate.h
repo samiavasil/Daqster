@@ -111,6 +111,13 @@ public:
      * @param verdict The token lastReviewVerdict() returned.
      */
     static bool isAcceptingVerdict(const QString &verdict);
+
+private:
+    //!< The blocks missingPreconditions() concatenates, one per precondition.
+    static QStringList criteriaGaps(const Requirement &req);
+    static QString reviewGapFor(const Requirement &req);
+    static QString codeGapFor(const Requirement &req);
+    static QString zoneGapFor(const Requirement &req);
 };
 
 } // namespace Daqster

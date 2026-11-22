@@ -179,41 +179,67 @@ QString DoneGate::findReviewRecord(const QVector<RequirementRoot> &repoRoots,
 QStringList DoneGate::missingPreconditions(const Requirement &req)
 {
     QStringList missing;
-    if (req.criteriaDone.isEmpty()) {
-        missing.append(QStringLiteral("няма нито един AC — договорът липсва"));
-    } else {
-        for (int i = 0; i < req.criteriaDone.size(); ++i) {
-            if (!req.criteriaDone.at(i))
-                missing.append(QStringLiteral("AC%1 не е отметнат: %2")
-                                   .arg(QString::number(i + 1),
-                                        req.acceptanceCriteria.value(i).left(70)));
-        }
-    }
+    missing.append(criteriaGaps(req));
+    const QString reviewGap = reviewGapFor(req);
+    if (!reviewGap.isEmpty())
+        missing.append(reviewGap);
+    const QString codeGap = codeGapFor(req);
+    if (!codeGap.isEmpty())
+        missing.append(codeGap);
+    const QString zoneGap = zoneGapFor(req);
+    if (!zoneGap.isEmpty())
+        missing.append(zoneGap);
+    return missing;
+}
 
+QStringList DoneGate::criteriaGaps(const Requirement &req)
+{
+    if (req.criteriaDone.isEmpty())
+        return {QStringLiteral("няма нито един AC — договорът липсва")};
+    QStringList gaps;
+    for (int i = 0; i < req.criteriaDone.size(); ++i) {
+        if (req.criteriaDone.at(i))
+            continue;
+        gaps.append(QStringLiteral("AC%1 не е отметнат: %2")
+                        .arg(QString::number(i + 1),
+                             req.acceptanceCriteria.value(i).left(70)));
+    }
+    return gaps;
+}
+
+QString DoneGate::reviewGapFor(const Requirement &req)
+{
     if (req.reviewRecord.isEmpty()) {
-        missing.append(QStringLiteral("няма ревю запис в plans/reviews/, който да назовава %1")
-                           .arg(req.id));
-    } else if (!isAcceptingVerdict(req.reviewVerdict)) {
-        const QString verdict = req.reviewVerdict.isEmpty()
-                                    ? QStringLiteral("няма ред за кръг")
-                                    : req.reviewVerdict;
-        missing.append(QStringLiteral("последната присъда в %1 е „%2“ — не е приемане")
-                           .arg(QFileInfo(req.reviewRecord).fileName(), verdict));
+        return QStringLiteral("няма ревю запис в plans/reviews/, който да назовава %1")
+            .arg(req.id);
     }
+    if (isAcceptingVerdict(req.reviewVerdict))
+        return QString();
+    const QString verdict = req.reviewVerdict.isEmpty()
+                                ? QStringLiteral("няма ред за кръг")
+                                : req.reviewVerdict;
+    return QStringLiteral("последната присъда в %1 е „%2“ — не е приемане")
+        .arg(QFileInfo(req.reviewRecord).fileName(), verdict);
+}
 
-    if (!req.codeInDevelop) {
-        const QString paths = req.missingDevelopPaths.join(QStringLiteral(", "));
-        missing.append(req.codeBranch.isEmpty()
-                           ? QStringLiteral("кодът още не е в `develop`: %1").arg(paths)
-                           : QStringLiteral("кодът още не е в `develop` (на клона `%1` е): %2")
-                                 .arg(req.codeBranch, paths));
-    }
+QString DoneGate::codeGapFor(const Requirement &req)
+{
+    if (req.codeInDevelop)
+        return QString();
+    const QString paths = req.missingDevelopPaths.join(QStringLiteral(", "));
+    if (req.codeBranch.isEmpty())
+        return QStringLiteral("кодът още не е в `develop`: %1").arg(paths);
+    return QStringLiteral("кодът още не е в `develop` (на клона `%1` е): %2")
+        .arg(req.codeBranch, paths);
+}
 
+QString DoneGate::zoneGapFor(const Requirement &req)
+{
     if (RequirementsValidator::normalizedStatus(req.status) == QStringLiteral("DONE")
         && req.section != QStringLiteral("archive")) {
-        missing.append(QStringLiteral("статус DONE, но файлът не е в archive/"));
+        return QStringLiteral("статус DONE, но файлът не е в archive/");
     }
-    return missing;
+    return QString();
 }
 
 bool DoneGate::isDoneCandidate(const Requirement &req)

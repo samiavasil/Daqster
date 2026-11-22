@@ -818,6 +818,12 @@ bool RequirementsWidget::markDone(QString id, const QString &date)
             break;
         }
     }
+    if (req.id.isEmpty()) {
+        // The file resolved on disk but is not among the parsed records: the
+        // contract is not readable, so nothing may be written from it.
+        missingFile(id);
+        return false;
+    }
     DoneGate::evaluate(req, roots, true);
 
     QString error;
