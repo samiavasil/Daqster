@@ -7,6 +7,10 @@
 # Hooks: pre-commit (PlantUML рендер + политиката на комита), commit-msg
 # (съобщението: REQ при код — REQ-SW-PL-108) и pre-push (master приема само от
 # develop/release/* — виж scripts/hooks/pre-push).
+#
+# Публичното repo ползва `scripts/hooks/`, а частното (DaqsterAiStudio) —
+# `.githooks/`; двете папки не са разминаване, а различни домове на същите две
+# политики (`check-commit-policy.sh` е един и същ файл и в двете).
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -40,4 +44,5 @@ else
 fi
 
 echo "Hooks: pre-push пази master — пуска се само за refs/heads/master, другите ref-ове минават."
+echo "Hooks: публичното ползва scripts/hooks/, частното — .githooks/; същата политика, различен дом."
 echo "Hooks: за да прескочиш еднократно — git commit --no-verify / git push --no-verify."
