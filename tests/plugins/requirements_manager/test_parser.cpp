@@ -27,6 +27,15 @@ QString writeFixture(const QString &dirPath, const QString &fileName,
     return filePath;
 }
 
+// Bytes of a file, for "nothing was rewritten" assertions.
+QString readAllText(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return QString();
+    return QString::fromUtf8(file.readAll());
+}
+
 // Full template with metadata, criteria and traceability.
 QString fullMetadataContent()
 {
@@ -865,9 +874,33 @@ void TestParser::moveToActive_movesFile()
     QCOMPARE(after.first().section, QStringLiteral("active"));
 }
 
-void TestParser::moveToArchive_nestedSubdir()
+void TestParser::moveToArchive_neverOverwrites()
 {
-    // Archiving a requirement that lives below active/<subdir>/ must preserve
+    // REQ-SW-PL-107 AC4: the move is strict. An archive file of the same name is
+    // an error and its bytes stay untouched — "нищо не се трие".
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString baseDir = temp.path();
+    const QString activeDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString archiveDir = QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/archive"));
+
+    const QString activePath = writeFixture(
+        activeDir, QStringLiteral("REQ-SW-PL-001.md"),
+        requirementContent(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("One"),
+                           QStringLiteral("ACTIVE"), QStringLiteral("—"), QStringLiteral("—")));
+    const QString archivedPath = writeFixture(
+        archiveDir, QStringLiteral("REQ-SW-PL-001.md"),
+        requirementContent(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("One"),
+                           QStringLiteral("DONE"), QStringLiteral("—"), QStringLiteral("—")));
+    const QString archivedBefore = readAllText(archivedPath);
+
+    QVERIFY2(!RequirementsParser::moveToArchive(activePath),
+             "an existing archive file must refuse the move");
+    QVERIFY2(QFile::exists(activePath), "the active file stays where it was");
+    QCOMPARE(readAllText(archivedPath), archivedBefore);   // not overwritten
+}
+
+void TestParser::moveToArchive_nestedSubdir(){    // Archiving a requirement that lives below active/<subdir>/ must preserve
     // the subdirectory: active/framework/ -> archive/framework/. The section
     // follows the move in both directions.
     QTemporaryDir temp;

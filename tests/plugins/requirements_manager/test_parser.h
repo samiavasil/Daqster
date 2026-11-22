@@ -31,6 +31,7 @@ private slots:
     void generateNextId_typedIsolation();
     void moveToArchive_movesFile();
     void moveToActive_movesFile();
+    void moveToArchive_neverOverwrites();
     void moveToArchive_nestedSubdir();
     void moveRejectsWrongSection();
     void writeRequirement_roundTrip();
