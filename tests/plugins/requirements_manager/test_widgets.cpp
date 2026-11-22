@@ -221,6 +221,8 @@ private slots:
     void changeContractReturnsToDraft();
     void watcherRefreshesOnExternalChange();
     void todayFollowsReload();
+    void newRequirementFileCarriesHistoryAndRevision();
+    void previewShowsRevisionAndHistory();
 };
 
 void TestWidgets::actionBarFitsNarrowWindow()
@@ -812,6 +814,85 @@ void TestWidgets::todayFollowsReload()
              QStringLiteral("20 дни"));
     QCOMPARE(row.data(Qt::ForegroundRole).value<QColor>(),
              RequirementsModel::staleDraftColour());
+}
+
+void TestWidgets::newRequirementFileCarriesHistoryAndRevision()
+{
+    // REQ-SW-PL-101 AC1, first half: a requirement created through the dialog
+    // is born with the history table and `Ревизия: 1` — "why does this exist"
+    // and "how many times was it changed" are answerable from the file alone.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+
+    NewRequirementDialog dialog(root);
+    dialog.setPrefill(QStringLiteral("Ново изискване за историята"),
+                      QStringLiteral("Описание."));
+    auto *buttons = dialog.findChild<QDialogButtonBox *>();
+    QVERIFY(buttons);
+    QPushButton *save = buttons->button(QDialogButtonBox::Save);
+    QVERIFY(save);
+    save->click();
+
+    const QString path = dialog.createdFilePath();
+    QVERIFY2(!path.isEmpty(), "the dialog must have written the file");
+    const QString text = readAll(path);
+    QVERIFY2(text.contains(QStringLiteral("## История")), qPrintable(text));
+    QVERIFY2(text.contains(QStringLiteral("| дата | промяна | кой | защо |")),
+             qPrintable(text));
+    QVERIFY2(text.contains(QStringLiteral("- **Ревизия:** 1")), qPrintable(text));
+    QVERIFY2(text.contains(QStringLiteral("- **Създадено:**")), qPrintable(text));
+    // The creation row is already there: the first change of the file is its
+    // own birth, not an empty table a reader has to interpret.
+    QVERIFY2(text.contains(QStringLiteral("| създадено |")), qPrintable(text));
+
+    // The parser agrees: revision 1, creation date filled in.
+    const QVector<Requirement> parsed = RequirementsParser::parseDirectory(root);
+    bool found = false;
+    for (const Requirement &req : parsed) {
+        if (req.filePath != path)
+            continue;
+        found = true;
+        QCOMPARE(req.revision, 1);
+        QVERIFY(req.created == QDate::currentDate().toString(Qt::ISODate));
+    }
+    QVERIFY2(found, "the created file must be parsed back");
+}
+
+void TestWidgets::previewShowsRevisionAndHistory()
+{
+    // REQ-SW-PL-101 AC1, second half: the preview renders both — `Ревизия` in
+    // the header next to the status and the `## История` table from the file.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+
+    NewRequirementDialog dialog(root);
+    dialog.setPrefill(QStringLiteral("Изискване за прегледа"),
+                      QStringLiteral("Описание."));
+    auto *buttons = dialog.findChild<QDialogButtonBox *>();
+    QVERIFY(buttons);
+    QPushButton *save = buttons->button(QDialogButtonBox::Save);
+    QVERIFY(save);
+    save->click();
+
+    const QString path = dialog.createdFilePath();
+    QVERIFY(!path.isEmpty());
+    const QVector<Requirement> parsed = RequirementsParser::parseDirectory(root);
+    Requirement created;
+    for (const Requirement &req : parsed) {
+        if (req.filePath == path)
+            created = req;
+    }
+    QVERIFY2(!created.id.isEmpty(), "the created requirement must be parsed");
+
+    QTextBrowser browser;
+    RequirementPreview::render(&browser, created, {}, {});
+    const QString plain = browser.document()->toPlainText();
+    QVERIFY2(plain.contains(QStringLiteral("Ревизия:")), qPrintable(plain));
+    QVERIFY2(plain.contains(QStringLiteral("1")), qPrintable(plain));
+    QVERIFY2(plain.contains(QStringLiteral("История")), qPrintable(plain));
+    QVERIFY2(plain.contains(QStringLiteral("създадено")), qPrintable(plain));
 }
 
 QTEST_MAIN(TestWidgets)

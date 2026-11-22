@@ -1,7 +1,9 @@
 #include <QtTest>
 #include <QTemporaryDir>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
+#include <QHash>
 #include <QTextStream>
 
 #include "RequirementsParser.h"
@@ -1467,6 +1469,67 @@ void TestParser::findFileById_survivesRename()
     QCOMPARE(RequirementsParser::findFileById(roots, QStringLiteral("REQ-SW-PL-910")),
              renamed);
     QVERIFY(RequirementsParser::findFileById(roots, QStringLiteral("REQ-SW-PL-999")).isEmpty());
+}
+
+void TestParser::createdAliasDoesNotRewriteTheRealTree()
+{
+    // REQ-SW-PL-101 AC3: `Създадено:` falls back to `Дата:` as an ALIAS in the
+    // parser, never as a migration. Reading the whole real requirement set must
+    // leave every file byte-identical — otherwise merely opening the manager
+    // would rewrite the 135 legacy files.
+    const QStringList roots = RequirementsParser::discoverRepoRoots();
+    if (roots.isEmpty())
+        QSKIP("no requirement tree next to the test binary");
+
+    QHash<QString, QByteArray> before;
+    QVector<RequirementRoot> rootList;
+    for (const QString &root : roots) {
+        rootList.append(RequirementRoot{root});
+        const QString tree =
+            QDir(root).filePath(QString::fromUtf8("DevelopmentProcess/requirements"));
+        QDirIterator it(tree, QStringList() << QStringLiteral("*.md"),
+                        QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            const QString path = it.next();
+            QFile file(path);
+            if (!file.open(QIODevice::ReadOnly))
+                continue;
+            before.insert(path, file.readAll());
+        }
+    }
+    if (before.size() < 10)
+        QSKIP("the requirement tree is too small to be the real one");
+
+    const QVector<Requirement> parsed = RequirementsParser::parseDirectories(rootList);
+    QVERIFY2(parsed.size() >= 10, "the real tree must parse to a real requirement set");
+
+    // The alias is visible: a legacy file with only `Дата:` gets the same value
+    // in `created` — no file is touched to achieve that.
+    int legacyChecked = 0;
+    for (const Requirement &req : parsed) {
+        if (req.rawContent.contains(QStringLiteral("- **Създадено:**")))
+            continue;
+        if (!req.rawContent.contains(QStringLiteral("- **Дата:**")))
+            continue;
+        if (req.date.isEmpty())
+            continue;
+        if (req.created == req.date)
+            ++legacyChecked;
+    }
+    QVERIFY2(legacyChecked > 0,
+             "a legacy `Дата:`-only file must read its creation date through the alias");
+
+    int rewritten = 0;
+    for (auto it = before.constBegin(); it != before.constEnd(); ++it) {
+        QFile file(it.key());
+        if (!file.open(QIODevice::ReadOnly)) {
+            ++rewritten;
+            continue;
+        }
+        if (file.readAll() != it.value())
+            ++rewritten;
+    }
+    QCOMPARE(rewritten, 0);
 }
 
 // No QTEST_GUILESS_MAIN here: the three test classes share one binary whose

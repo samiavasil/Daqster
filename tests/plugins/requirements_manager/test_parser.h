@@ -47,4 +47,5 @@ private slots:
     void startContractChange_backToDraftWithHistory();
     void appendHistoryRow_bumpsRevision();
     void findFileById_survivesRename();
+    void createdAliasDoesNotRewriteTheRealTree();
 };
