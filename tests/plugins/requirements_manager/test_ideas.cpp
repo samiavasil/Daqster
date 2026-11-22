@@ -1,6 +1,7 @@
 #include <QtTest>
 #include <QTemporaryDir>
 #include <QApplication>
+#include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -179,6 +180,7 @@ private slots:
     void readerParsesHeaderShapesAndSkipsMalformed();
     void readerCountsAttachments();
     void readerParsesBothPromotionKeys();
+    void readerKeepsBothKeysApart();
     void ideasTabHiddenWithoutIdeas();
     void ideasTabShowsRowsAndSorts();
     void ideasSearchFilters();
@@ -186,6 +188,7 @@ private slots:
     void promotionColumnClickOpensRequirement();
     void requirementPreviewShowsIdeaOrigin();
     void graphDrawsIdeaAsDashedNode();
+    void graphKeepsIdeaWhenFilterChanges();
     void managerReportIncludesIdeaLinkError();
     void promotionWritesRequirementAndPromotionLine();
     void promotionCancelWritesNothing();
@@ -387,6 +390,33 @@ void TestIdeas::readerParsesBothPromotionKeys()
     }
 }
 
+void TestIdeas::readerKeepsBothKeysApart()
+{
+    // Review R1-3 (REQ-SW-PL-098): "Промотирана:" and "Изискване:" are two
+    // spellings of one link, but a file can carry both — and then one of them is
+    // stale. promotedId stays "first key wins" (the tab shows one value); the
+    // two fields are what lets the validator report the disagreement instead of
+    // dropping the loser in silence.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir.filePath(QStringLiteral("repo")));
+    writeFile(QDir(ideasDirFor(root)).filePath(QStringLiteral("IDEA-008-both.md")),
+              QStringLiteral("# IDEA-008 — Both keys\n"
+                             "\n"
+                             "> Статус: промотирана · Добавена: 2026-10-08\n"
+                             "> Промотирана: REQ-SW-PL-900\n"
+                             "> Изискване: REQ-SW-PL-902\n"
+                             "\n"
+                             "## Защо\n\nТяло.\n"));
+
+    const QVector<Idea> ideas = IdeaReader::readFromRoots({root});
+    QCOMPARE(ideas.size(), 1);
+    const Idea &idea = ideas.first();
+    QCOMPARE(idea.promotedId, QStringLiteral("REQ-SW-PL-900")); // first in the file
+    QCOMPARE(idea.promotedKeyId, QStringLiteral("REQ-SW-PL-900"));
+    QCOMPARE(idea.requirementKeyId, QStringLiteral("REQ-SW-PL-902"));
+}
+
 void TestIdeas::promotionColumnShowsRequirementAndStatus()
 {
     // AC4: `REQ · статус` for a promoted idea, empty for the rest. The empty
@@ -562,6 +592,64 @@ void TestIdeas::graphDrawsIdeaAsDashedNode()
         QCOMPARE(edge->toNode()->requirementId(), QStringLiteral("REQ-SW-PL-900"));
     }
     QCOMPARE(promotionEdges, 1);
+}
+
+void TestIdeas::graphKeepsIdeaWhenFilterChanges()
+{
+    // Review R1-1 (REQ-SW-PL-098): re-applying the view filters used to hand the
+    // graph an EMPTY idea vector, so every dashed idea node and its promotion
+    // edge disappeared on the first filter or search — while the ideas tab still
+    // listed them. The graph claimed "no ideas", which is a lie the reader has no
+    // reason to doubt.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir.filePath(QStringLiteral("repo")));
+    writeIdeasTree(root);
+    writePromotedIdea(root, QStringLiteral("REQ-SW-PL-900"));
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    DependencyGraphWidget *graph = widget.findChild<DependencyGraphWidget *>();
+    QVERIFY(graph);
+    DependencyGraphScene *scene = graph->graphScene();
+    QVERIFY(scene);
+
+    const auto ideaNodeCount = [scene]() {
+        int count = 0;
+        for (DependencyGraphNodeItem *item : scene->nodeItems()) {
+            if (item->isIdea())
+                ++count;
+        }
+        return count;
+    };
+    QCOMPARE(ideaNodeCount(), 1);   // baseline: the promoted idea is drawn
+
+    // 1. A search that keeps the requirement: the idea stays, because it is the
+    //    requirement's origin, not a search hit of its own.
+    QLineEdit *search = widget.findChild<QLineEdit *>(QStringLiteral("requirementsSearch"));
+    QVERIFY(search);
+    search->setText(QStringLiteral("REQ-SW-PL-900"));
+    QCoreApplication::processEvents();
+    QCOMPARE(ideaNodeCount(), 1);
+
+    // 2. The repo filter takes the other branch of applyViewFilters() (a
+    //    discovered-root entry filters by file-path prefix) and must keep it too.
+    search->clear();
+    QCoreApplication::processEvents();
+    QComboBox *repoFilter =
+        widget.findChild<QComboBox *>(QStringLiteral("requirementsRepoFilter"));
+    QVERIFY(repoFilter);
+    const int rootEntry = repoFilter->findData(QFileInfo(root).canonicalFilePath());
+    QVERIFY(rootEntry >= 0);
+    repoFilter->setCurrentIndex(rootEntry);
+    QCoreApplication::processEvents();
+    QCOMPARE(ideaNodeCount(), 1);
+
+    // Both filters together are the same code path once more.
+    search->setText(QStringLiteral("900"));
+    QCoreApplication::processEvents();
+    QCOMPARE(ideaNodeCount(), 1);
 }
 
 void TestIdeas::promotionWritesRequirementAndPromotionLine()

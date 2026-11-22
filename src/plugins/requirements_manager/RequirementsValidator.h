@@ -189,10 +189,12 @@ public:
     static QStringList citedIdeaIds(const Requirement &req);
 
     /**
-     * @brief The three promotion rules of `scripts/check-idea-promotion.sh`.
+     * @brief The three rules of `scripts/check-idea-promotion.sh`, plus one that
+     * needs both values of the link.
      *
      * One link, one home: the idea's first line names the requirement
-     * ("Промотирана:" / "Изискване:"), never the other way round. The rules:
+     * ("Промотирана:" / "Изискване:"), never the other way round. The three
+     * rules the script also applies:
      *  - a requirement citing `IDEA-NNN` that has no idea file → Error naming
      *    the requirement and the missing idea;
      *  - a requirement citing an idea whose status is not in
@@ -201,6 +203,11 @@ public:
      *    Error naming the missing ID;
      *  - an idea with no requirement → nothing. Not being promoted is the
      *    normal state of an idea, not a defect.
+     *
+     * The fourth rule is only possible here, because IdeaReader keeps BOTH keys
+     * apart (`promotedKeyId` / `requirementKeyId`) and the script's grep sees
+     * one value at a time: an idea carrying both keys with two different
+     * requirements is an Error naming the pair (REQ-SW-PL-098 review R1-3).
      *
      * @par Why this is not part of validate()
      * Same reason as validateCitedPaths(): validate() must stay equal to what

@@ -65,4 +65,5 @@ private slots:
     void ideaLink_citedIdeaWithoutRecord_error();
     void ideaLink_promotionToMissingRequirement_error();
     void ideaLink_promotedPairAndUnpromotedIdea_silent();
+    void ideaLink_conflictingPromotionKeys_error();
 };

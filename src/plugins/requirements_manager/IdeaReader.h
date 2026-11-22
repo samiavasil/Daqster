@@ -29,7 +29,14 @@ struct Idea
     QString added;              //!< ISO date from "Добавена:"; empty when absent
     QString nextReview;         //!< ISO date from "Следващ преглед:"; empty when absent
     QString promotedId;         //!< REQ the idea became ("Промотирана:" / "Изискване:");
-                                //!< empty when the idea is not promoted (REQ-SW-PL-098)
+                                //!< the FIRST of the two keys in the file; empty when the
+                                //!< idea is not promoted (REQ-SW-PL-098)
+    //!< The two keys are kept apart as well, because they can disagree: taking
+    //!< only the first would silently lose the other, so
+    //!< RequirementsValidator::validateIdeaLinks() turns the conflict into an
+    //!< Error instead of a winner (REQ-SW-PL-098 review R1-3).
+    QString promotedKeyId;      //!< value of "Промотирана:"; empty when absent
+    QString requirementKeyId;   //!< value of "Изискване:"; empty when absent
     QString path;               //!< absolute path of the idea .md
     QString rawContent;         //!< the whole file, for the read-only preview
     int attachmentCount = 0;    //!< files under `<ideas>/<id>/attachments/`

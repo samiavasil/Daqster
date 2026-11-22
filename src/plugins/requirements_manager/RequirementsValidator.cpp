@@ -318,6 +318,18 @@ promotionIssues(const QVector<Idea> &ideas, const QSet<QString> &requirementIds)
 {
     QVector<RequirementsValidator::Issue> issues;
     for (const Idea &idea : ideas) {
+        // Two keys, two different requirements: the reader keeps the first and
+        // would drop the second in silence, which is exactly the "renamed or
+        // moved" drift the field exists to catch (REQ-SW-PL-098 review R1-3).
+        if (!idea.promotedKeyId.isEmpty() && !idea.requirementKeyId.isEmpty()
+            && idea.promotedKeyId.compare(idea.requirementKeyId, Qt::CaseInsensitive) != 0) {
+            issues.append(ideaLinkIssue(
+                idea.id,
+                QStringLiteral("идея %1 носи две различни връзки — „Промотирана: %2“ и "
+                               "„Изискване: %3“ — едната е остаряла")
+                    .arg(idea.id, idea.promotedKeyId, idea.requirementKeyId),
+                idea.path));
+        }
         const QString promoted = idea.promotedId.trimmed();
         if (promoted.isEmpty() || requirementIds.contains(promoted.toUpper()))
             continue;   // an idea without a requirement is the normal state

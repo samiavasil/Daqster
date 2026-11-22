@@ -1493,3 +1493,29 @@ void TestValidator::ideaLink_promotedPairAndUnpromotedIdea_silent()
         RequirementsValidator::validateIdeaLinks({req, struck}, ideas);
     QCOMPARE(issues.size(), 0);
 }
+
+void TestValidator::ideaLink_conflictingPromotionKeys_error()
+{
+    // Review R1-3 (REQ-SW-PL-098): the two spellings of one link disagree. The
+    // reader keeps the first and would drop the second in silence, so the drift
+    // ("the requirement was renamed") had no witness at all.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-924"), {});
+    Idea idea = makeIdea(QStringLiteral("IDEA-009"), QStringLiteral("промотирана"),
+                         QStringLiteral("REQ-SW-PL-924"));
+    idea.promotedKeyId = QStringLiteral("REQ-SW-PL-924");
+    idea.requirementKeyId = QStringLiteral("REQ-SW-PL-925");
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateIdeaLinks({req}, {idea});
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).field, QStringLiteral("idea-link"));
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-924")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-925")),
+             qPrintable(issues.at(0).message));
+
+    // The same link spelled twice is not a finding: only a disagreement is.
+    idea.requirementKeyId = QStringLiteral("REQ-SW-PL-924");
+    QCOMPARE(RequirementsValidator::validateIdeaLinks({req}, {idea}).size(), 0);
+}

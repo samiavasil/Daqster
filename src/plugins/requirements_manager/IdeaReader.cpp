@@ -101,10 +101,20 @@ void readHeaderFields(const QStringList &lines, const IdeaHeaderKeys &keys, Idea
             else if (key.compare(keys.nextReview, Qt::CaseInsensitive) == 0
                      && out.nextReview.isEmpty())
                 out.nextReview = value;
-            else if ((key.compare(keys.promoted, Qt::CaseInsensitive) == 0
-                      || key.compare(keys.requirement, Qt::CaseInsensitive) == 0)
-                     && out.promotedId.isEmpty())
-                out.promotedId = requirementIdIn(value);
+            else if (key.compare(keys.promoted, Qt::CaseInsensitive) == 0
+                     || key.compare(keys.requirement, Qt::CaseInsensitive) == 0) {
+                const QString id = requirementIdIn(value);
+                if (key.compare(keys.promoted, Qt::CaseInsensitive) == 0
+                    && out.promotedKeyId.isEmpty())
+                    out.promotedKeyId = id;
+                if (key.compare(keys.requirement, Qt::CaseInsensitive) == 0
+                    && out.requirementKeyId.isEmpty())
+                    out.requirementKeyId = id;
+                // "One link" is still whichever key the file names first; the
+                // validator reports a disagreement instead of hiding it.
+                if (out.promotedId.isEmpty())
+                    out.promotedId = id;
+            }
         }
     }
 }

@@ -62,11 +62,13 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_viewModeCombo->addItem(tr("By Hierarchy"));
 
     m_repoFilterCombo = new QComboBox(this);
+    m_repoFilterCombo->setObjectName(QStringLiteral("requirementsRepoFilter"));
     m_repoFilterCombo->addItem(tr("All repos"), QString());
     m_repoFilterCombo->addItem(QStringLiteral("public"), QStringLiteral("public"));
     m_repoFilterCombo->addItem(QStringLiteral("private"), QStringLiteral("private"));
 
     m_searchEdit = new QLineEdit(this);
+    m_searchEdit->setObjectName(QStringLiteral("requirementsSearch"));
     m_searchEdit->setClearButtonEnabled(true);
     m_searchEdit->setPlaceholderText(tr("Search requirements…"));
     m_matchLabel = new QLabel(this);
@@ -1191,7 +1193,11 @@ void RequirementsWidget::applyViewFilters()
     m_filtered = RequirementsSearchEngine::filter(repoFiltered, m_searchQuery);
     m_model->setRequirements(m_filtered);
     m_matrixWidget->setRequirements(m_filtered);
-    m_graphWidget->setRequirements(m_filtered, m_validationIssues);
+    // REQ-SW-PL-098: the ideas travel WITH the filtered set. The two-argument
+    // overload substitutes an empty vector, so a filter or a search made every
+    // dashed idea node (and the "idea → requirement" edge) disappear until the
+    // next reload — the graph said "no ideas" while the tab showed them.
+    m_graphWidget->setRequirements(m_filtered, m_validationIssues, m_ideas);
 
     // Clear any stale selection: m_currentIndex indexes into the FULL set and
     // could point at a row filtered out of the current view.
