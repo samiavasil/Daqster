@@ -169,9 +169,10 @@ struct Requirement
     // ── Порта към DONE (REQ-SW-PL-107): ИЗЧИСЛЕНИ полета ──────────────────
     // None of these is a line in the .md file and none of them is a status: the
     // file keeps exactly the fields it had. allCriteriaDone comes from the
-    // parse; the review and develop facts are filled once per load by
-    // DoneGate::evaluate(); doneCandidate is the single decision over them, so
-    // the tree badge and the action cannot disagree.
+    // parse; the review fact is filled by DoneGate::evaluateLocal() and the
+    // develop fact by DoneGate::applyCodeAnswer() from the asynchronous
+    // DoneGateCheck; doneCandidate is the single decision over them, so the tree
+    // badge and the action cannot disagree.
     bool allCriteriaDone = false;   //!< every AC is `[x]` (and there is at least one)
     QString reviewRecord;           //!< path of the review record naming this ID
     QString reviewVerdict;          //!< its last `## Кръгове` verdict
@@ -182,6 +183,8 @@ struct Requirement
     QString codeCheckError;         //!< why the `develop` check could not run at
                                     //!< all (no repo, no branch, no git); empty
                                     //!< when it ran — a refusal, never a pass
+    bool codeCheckPending = false;  //!< the asynchronous check has not answered
+                                    //!< yet; pending is a refusal, never a pass
     bool doneCandidate = false;     //!< IMPLEMENTED + the four preconditions
 
     // ── Произход (REQ-SW-PL-098): ИЗЧИСЛЕНО поле ──────────────────────────

@@ -32,6 +32,7 @@ class IdeaTableModel;
 class IdeaFilterProxyModel;
 class DependencyGraphWidget;
 class TraceabilityMatrixWidget;
+class DoneGateCheck;
 
 /**
  * @brief Requirements Viewer/Editor widget.
@@ -134,15 +135,27 @@ public:
      * @brief What still blocks `DONE` for @p id, one line per precondition
      *        (REQ-SW-PL-107 AC1).
      *
-     * Re-evaluates the requirement against the loaded roots (review record,
-     * `develop`, criteria) and returns DoneGate::missingPreconditions(). Empty
-     * means the action would go through; the action shows this exact list, so
-     * the message and the test cannot drift apart.
+     * The file half (criteria, review record) is re-read from disk now; the
+     * `develop` half is the answer of the asynchronous check that runs on every
+     * reload (`DoneGateCheck`) — asking git here would block the thread the
+     * dialog is painted on, which the public guard forbids. Returns
+     * DoneGate::missingPreconditions(). Empty means the action would go through;
+     * the action shows this exact list, so the message and the test cannot drift
+     * apart.
      *
      * @param id Requirement ID (by value — the call may reload the tree).
      * @return Missing preconditions, empty when nothing is missing.
      */
     QStringList doneGateMessage(QString id) const;
+
+    /**
+     * @brief True while the `develop` check of the last reload is still running.
+     *
+     * The check is a child process read through its signals, so the tree is
+     * usable throughout; the „Затвори“ action stays disabled and a gate message
+     * would say the check is in flight rather than pretend the code is missing.
+     */
+    bool isDoneGatePending() const;
 
     /**
      * @brief „Mark Done & Archive“ without the dialog (REQ-SW-PL-107).
@@ -192,6 +205,7 @@ public:
 
 private slots:
     void onSelectionChanged();
+    void onDoneGateAnswers();
     void onEditToggled(bool edit);
     void onSave();
     void onCancel();
@@ -223,6 +237,14 @@ private slots:
 
 private:
     void reload();
+    //!< Keeps the „кандидати за DONE“ counter in step with the requirements.
+    void updateDoneCandidateCounter();
+    //!< Starts the asynchronous `develop` check for the loaded tree (REQ-SW-PL-107).
+    void startDoneGateCheck(const QVector<RequirementRoot> &roots);
+    //!< The candidate's record with the file half re-read and the cached git half.
+    Requirement evaluateCandidate(const Requirement &candidate) const;
+    //!< The loaded roots in the shape the parser and DoneGate expect.
+    QVector<RequirementRoot> repoRoots() const;
     void showPreview();
     void updatePreviewText(const Requirement &req);
     void navigateToId(const QString &id, bool addToHistory = true);
@@ -269,6 +291,7 @@ private:
     QLabel *m_rootStatusLabel;
     QLabel *m_draftCountLabel; //!< "чакат одобрение: N" (REQ-SW-PL-099)
     QLabel *m_doneCandidateLabel; //!< "кандидати за DONE: N" (REQ-SW-PL-107)
+    DoneGateCheck *m_doneCheck;   //!< the asynchronous `develop` check (REQ-SW-PL-107)
     QToolBar *m_actionBar;
     QAction *m_editAction;
     QAction *m_saveAction;

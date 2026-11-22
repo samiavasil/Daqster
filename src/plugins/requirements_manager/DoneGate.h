@@ -15,6 +15,15 @@ namespace Daqster {
  * once: an unchecked acceptance criterion, no review record (or a record whose
  * last verdict does not accept), and code that is not in `develop` yet.
  *
+ * @par Two halves, because one of them is a process
+ * The rule is one list, but it is filled in two steps. The file half
+ * (`evaluateLocal()`) reads the criteria and the review record — files, no
+ * process. The `git` half is a process, and a wait inside the plugin is
+ * forbidden (`check_no_event_loops.cmake`: a nested loop re-enters the graph),
+ * so `DoneGateCheck` asks git asynchronously and `applyCodeAnswer()` records the
+ * answer. A cited path therefore starts out **pending**, and pending refuses:
+ * it never reads as "the code is in develop".
+ *
  * @par One decision, two callers
  * `missingPreconditions()` is the whole rule; `isDoneCandidate()` is "the list
  * is empty and the status is IMPLEMENTED". The widget's action asks the first
@@ -25,9 +34,9 @@ namespace Daqster {
  * @par Computed, never recorded
  * The fields it fills (`allCriteriaDone`, `reviewRecord`, `reviewVerdict`,
  * `acceptingReview`, `codeInDevelop`, `missingDevelopPaths`, `codeBranch`,
- * `codeCheckError`, `doneCandidate`) are members of Requirement but no line of
- * the .md file, no status and no new field on disk: `git status` does not change
- * by looking.
+ * `codeCheckError`, `codeCheckPending`, `doneCandidate`) are members of
+ * Requirement but no line of the .md file, no status and no new field on disk:
+ * `git status` does not change by looking.
  *
  * @par A check that cannot run is a refusal
  * A cited path is looked for in EVERY loaded repo's `develop` (the private repo
@@ -37,9 +46,9 @@ namespace Daqster {
  * names the reason: "cannot check" never answers like "checked, all there".
  *
  * @par Cost
- * The tree calls evaluate() once per requirement per reload and git answers
- * once per requirement, not per path (`git cat-file --batch-check` reads every
- * cited path in one process). No git call happens while painting.
+ * The tree evaluates the file half once per requirement per reload; git is
+ * asked once per REPO for the whole tree (`git cat-file --batch-check` reads
+ * every cited path in one process), and never while painting.
  *
  * @par One vocabulary
  * The verdicts are the four of `plans/reviews/README.md`
@@ -51,22 +60,64 @@ class DoneGate
 {
 public:
     /**
-     * @brief Fills the computed DONE-gate fields of @p req.
+     * @brief The answer of the asynchronous `develop` check for ONE requirement.
      *
-     * @p req.rawContent is what the review lookup and the path extraction read;
-     * @p req.filePath and @p req.section decide whether it is archived.
+     * `paths` is what the answer is about: an answer to a different path list is
+     * not applied (`applyCodeAnswer()`), because the file changed between the
+     * question and the answer.
+     */
+    struct CodeAnswer
+    {
+        QStringList paths;          //!< the cited paths this answer was computed for
+        bool answered = false;      //!< false = the check has not finished yet
+        bool inDevelop = false;     //!< every cited path resolves in some `develop`
+        QStringList missingPaths;   //!< asked and not found in any `develop`
+        QString branch;             //!< the branch that carries them instead
+        QString error;              //!< why the check could not run at all
+    };
+
+    /**
+     * @brief Fills the file half of the DONE gate (no process, no git).
      *
-     * git is asked only when the answer can matter — the status is IMPLEMENTED —
-     * unless @p forceCodeCheck is set, which the action does because it must
-     * name a missing path for an ACTIVE requirement too.
+     * Sets `allCriteriaDone`, the review record and its verdict, the zone flag —
+     * and leaves the code half **pending** when the requirement cites a path.
+     * Run once per requirement per reload, before `DoneGateCheck::start()`.
      *
      * @param req Requirement to evaluate (fields updated in place).
      * @param repoRoots Loaded requirement roots; each is a candidate repo for
-     *        `plans/reviews/` and for a `develop` branch.
-     * @param forceCodeCheck Ask git about the cited paths regardless of status.
+     *        `plans/reviews/`.
      */
-    static void evaluate(Requirement &req, const QVector<RequirementRoot> &repoRoots,
-                         bool forceCodeCheck = false);
+    static void evaluateLocal(Requirement &req, const QVector<RequirementRoot> &repoRoots);
+
+    /**
+     * @brief Records the `git` answer of `DoneGateCheck` in @p req.
+     *
+     * An unanswered or stale answer leaves the code half pending; it never
+     * passes. A requirement that cites nothing is resolved by having nothing to
+     * verify.
+     *
+     * @param req Requirement whose local half was already evaluated.
+     * @param answer The answer for this requirement (matched by path list).
+     */
+    static void applyCodeAnswer(Requirement &req, const CodeAnswer &answer);
+
+    /**
+     * @brief The answer a previously checked requirement carries, for a re-read.
+     *
+     * The action re-reads the file half from disk (a review record may be new)
+     * and applies this to it: the `git` half is not asked again, because asking
+     * it on the caller's thread is the defect this split removes.
+     *
+     * @param req An evaluated requirement.
+     */
+    static CodeAnswer codeAnswerOf(const Requirement &req);
+
+    /**
+     * @brief The code paths the requirement cites (delegates to the validator).
+     *
+     * @param req Any requirement; `rawContent` is what is read.
+     */
+    static QStringList citedPaths(const Requirement &req);
 
     /**
      * @brief One line per missing precondition; empty when nothing is missing.
@@ -75,8 +126,8 @@ public:
      * `няма ревю запис`, `последната присъда е „ВЪРНАТО“`,
      * `кодът още не е в develop (на клона X е): <път>`, `DONE извън archive/`.
      * When the develop check could not run at all the line is
-     * `не мога да проверя дали кодът е в develop: <причина>` — a refusal, not a
-     * pass.
+     * `не мога да проверя дали кодът е в develop: <причина>`, and while it is
+     * still running the line says so — a refusal, not a pass.
      *
      * @param req An evaluated requirement.
      * @return The list, in a stable order (criteria, review, code, zone).

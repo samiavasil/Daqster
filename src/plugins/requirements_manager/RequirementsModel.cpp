@@ -44,6 +44,35 @@ void RequirementsModel::setRequirements(const QVector<Requirement> &requirements
     endResetModel();
 }
 
+void RequirementsModel::setDoneCandidates(const QStringList &candidateIds)
+{
+    QSet<QString> ids;
+    for (const QString &id : candidateIds)
+        ids.insert(id);
+
+    bool changed = false;
+    for (Requirement &req : m_requirements) {
+        const bool candidate = ids.contains(req.id);
+        if (req.doneCandidate != candidate) {
+            req.doneCandidate = candidate;
+            changed = true;
+        }
+    }
+    if (changed)
+        emitRowsChanged();
+}
+
+void RequirementsModel::emitRowsChanged(const QModelIndex &parent)
+{
+    const int rows = rowCount(parent);
+    for (int row = 0; row < rows; ++row) {
+        const QModelIndex first = index(row, IdColumn, parent);
+        const QModelIndex last = index(row, ColumnCount - 1, parent);
+        emit dataChanged(first, last);
+        emitRowsChanged(first);
+    }
+}
+
 void RequirementsModel::setViewMode(ViewMode mode)
 {
     if (m_viewMode == mode)

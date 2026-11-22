@@ -9,6 +9,7 @@
 #include "DependencyGraphWidget.h"
 #include "TraceabilityMatrixWidget.h"
 #include "DoneGate.h"
+#include "DoneGateCheck.h"
 #include "NewRequirementDialog.h"
 #include "ValidationDialog.h"
 #include "HelpDialog.h"
@@ -56,6 +57,13 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_model = new RequirementsModel(this);
     m_sortProxy = new RequirementsSortProxyModel(this);
     m_sortProxy->setSourceModel(m_model);
+
+    // The `develop` check is a child process read through its signals: it never
+    // holds the thread the tree is painted on (REQ-SW-PL-107, and the public
+    // guard that forbids a wait inside a plugin).
+    m_doneCheck = new DoneGateCheck(this);
+    connect(m_doneCheck, &DoneGateCheck::finished,
+            this, &RequirementsWidget::onDoneGateAnswers);
 
     m_viewModeCombo = new QComboBox(this);
     m_viewModeCombo->addItem(tr("By Section"));
@@ -451,11 +459,15 @@ void RequirementsWidget::reload()
         roots.append(RequirementRoot{root});
     m_requirements = RequirementsParser::parseDirectories(roots);
 
-    // The DONE gate (REQ-SW-PL-107) is answered ONCE per load: review record,
-    // `develop`, the criteria. The tree badge, the counter and the action all
-    // read these fields afterwards, so painting never runs git.
+    // The DONE gate (REQ-SW-PL-107) has TWO halves. The file half — the review
+    // record and the criteria — is answered here, once per load, because it is
+    // just files. The `develop` half is a `git` process: asking it here would
+    // block the thread the tree is painted on (forbidden by
+    // check_no_event_loops.cmake), so it starts asynchronously and the rows are
+    // patched in place when it answers (onDoneGateAnswers()).
     for (Requirement &req : m_requirements)
-        DoneGate::evaluate(req, roots);
+        DoneGate::evaluateLocal(req, roots);
+    startDoneGateCheck(roots);
 
     // Идеите се четат веднъж на зареждане (REQ-SW-PL-098): колоната
     // „Изискване“, редът „Произход“ и пунктираните възли в графа са три
@@ -545,6 +557,17 @@ void RequirementsWidget::reload()
     // The queue of the owner's verdict (REQ-SW-PL-107 AC3): computed, never
     // recorded. The list of IDs travels in the tooltip so the number is not a
     // mystery; nothing is written anywhere by looking.
+    updateDoneCandidateCounter();
+
+    m_graphWidget->setRequirements(m_filtered, m_validationIssues, m_ideas);
+    updateValidationStatus();    refreshActionState();
+    // The set of directories may have changed (a new subdirectory, a root
+    // added): the watcher is rebuilt from what is on disk right now.
+    rebuildWatchedPaths();
+}
+
+void RequirementsWidget::updateDoneCandidateCounter()
+{
     QStringList candidates;
     for (const Requirement &req : m_requirements) {
         if (req.doneCandidate)
@@ -555,12 +578,49 @@ void RequirementsWidget::reload()
         candidates.isEmpty()
             ? tr("Няма изискване с всички AC, приемащо ревю и код в develop.")
             : tr("Чакат само твоята присъда: %1").arg(candidates.join(QStringLiteral(", "))));
+}
 
-    m_graphWidget->setRequirements(m_filtered, m_validationIssues, m_ideas);
-    updateValidationStatus();    refreshActionState();
-    // The set of directories may have changed (a new subdirectory, a root
-    // added): the watcher is rebuilt from what is on disk right now.
-    rebuildWatchedPaths();
+QVector<RequirementRoot> RequirementsWidget::repoRoots() const
+{
+    QVector<RequirementRoot> roots;
+    roots.reserve(m_roots.size());
+    for (const QString &root : m_roots)
+        roots.append(RequirementRoot{root});
+    return roots;
+}
+
+void RequirementsWidget::startDoneGateCheck(const QVector<RequirementRoot> &roots)
+{
+    // A reload during a check cancels it: the answers would be about records
+    // that no longer exist in m_requirements.
+    m_doneCheck->start(roots, m_requirements);
+}
+
+void RequirementsWidget::onDoneGateAnswers()
+{
+    const auto &answers = m_doneCheck->answers();
+    for (Requirement &req : m_requirements) {
+        const auto it = answers.constFind(req.filePath);
+        if (it != answers.constEnd())
+            DoneGate::applyCodeAnswer(req, *it);
+    }
+
+    // Patch the badge in place instead of rebuilding the tree: the answer
+    // arrives after the user may already be reading, and a reset would drop the
+    // selection, the expansion and the scroll position.
+    QStringList candidates;
+    for (const Requirement &req : m_requirements) {
+        if (req.doneCandidate)
+            candidates.append(req.id);
+    }
+    m_model->setDoneCandidates(candidates);
+    updateDoneCandidateCounter();
+    refreshActionState();
+}
+
+bool RequirementsWidget::isDoneGatePending() const
+{
+    return m_doneCheck && m_doneCheck->isRunning();
 }
 
 void RequirementsWidget::rebuildWatchedPaths()
@@ -763,18 +823,14 @@ QStringList RequirementsWidget::doneGateMessage(QString id) const
     if (filePath.isEmpty())
         return {missingFileMessage(id)};
 
-    QVector<RequirementRoot> roots;
-    for (const QString &root : m_roots)
-        roots.append(RequirementRoot{root});
-
     QStringList missing;
     for (const Requirement &candidate : m_requirements) {
         if (candidate.filePath != filePath)
             continue;
-        Requirement req = candidate;
-        // Force the git answer even for a status that is not IMPLEMENTED yet:
-        // the action must name the missing path, not assume it.
-        DoneGate::evaluate(req, roots, true);
+        // The action names the missing path even for a status that is not
+        // IMPLEMENTED yet: the check ran for every cited path of the tree, so
+        // the answer is already here and no git call happens on this thread.
+        const Requirement req = evaluateCandidate(candidate);
         missing = DoneGate::missingPreconditions(req);
         break;
     }
@@ -782,6 +838,18 @@ QStringList RequirementsWidget::doneGateMessage(QString id) const
     // message: a requirement does not close before what it depends on.
     missing.append(dependencyBlockers(filePath));
     return missing;
+}
+
+Requirement RequirementsWidget::evaluateCandidate(const Requirement &candidate) const
+{
+    Requirement req = candidate;
+    // The file half is re-read from disk (a review record may have been written
+    // since the load); the git half is the answer of the last asynchronous
+    // check. applyCodeAnswer() ignores an answer about other paths, so a file
+    // that changed its citations stays pending rather than passing.
+    DoneGate::evaluateLocal(req, repoRoots());
+    DoneGate::applyCodeAnswer(req, DoneGate::codeAnswerOf(candidate));
+    return req;
 }
 
 QStringList RequirementsWidget::dependencyBlockers(const QString &filePath) const
@@ -819,13 +887,10 @@ bool RequirementsWidget::markDone(QString id, const QString &date)
     if (!doneGateMessage(id).isEmpty())
         return false;   // the gate said what is missing; nothing is written
 
-    QVector<RequirementRoot> roots;
-    for (const QString &root : m_roots)
-        roots.append(RequirementRoot{root});
     Requirement req;
     for (const Requirement &candidate : m_requirements) {
         if (candidate.filePath == filePath) {
-            req = candidate;
+            req = evaluateCandidate(candidate);
             break;
         }
     }
@@ -835,7 +900,6 @@ bool RequirementsWidget::markDone(QString id, const QString &date)
         missingFile(id);
         return false;
     }
-    DoneGate::evaluate(req, roots, true);
 
     QString error;
     if (!RequirementsParser::markDone(filePath, req.reviewRecord, date, &error)) {
@@ -1351,7 +1415,10 @@ void RequirementsWidget::refreshActionState()
 
     m_editAction->setEnabled(valid);
     m_depsAction->setEnabled(valid);
-    m_doneAction->setEnabled(active);
+    // „Затвори“ waits for the develop answer: a disabled action is honest about
+    // the check still running, where a click would report "the code is not in
+    // develop" before git was asked.
+    m_doneAction->setEnabled(active && !isDoneGatePending());
     m_reopenAction->setEnabled(archived);
     // Accepting is the owner's act and exists for exactly one transition:
     // DRAFT -> ACTIVE inside active/ (REQ-SW-PL-099). The other two verdicts

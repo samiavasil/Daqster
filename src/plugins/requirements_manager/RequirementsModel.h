@@ -56,9 +56,10 @@ public:
                          //!< recorded (REQ-SW-PL-102 AC4). Computed once, in
                          //!< setRequirements(), so the counter never parses in paint.
         DoneCandidateRole //!< bool: IMPLEMENTED with every DONE precondition met
-                          //!< (REQ-SW-PL-107). Computed once per load by
-                          //!< DoneGate::evaluate() — the row badge and the counter
-                          //!< only read it, so paint never asks git anything.
+                          //!< (REQ-SW-PL-107). Filled by DoneGate::evaluateLocal()
+                          //!< plus the asynchronous develop answer
+                          //!< (setDoneCandidates()) — the row badge and the
+                          //!< counter only read it, so paint never asks git.
     };
 
     enum class ViewMode {
@@ -69,6 +70,20 @@ public:
     explicit RequirementsModel(QObject *parent = nullptr);
 
     void setRequirements(const QVector<Requirement> &requirements);
+
+    /**
+     * @brief Re-marks the „кандидат за DONE“ rows without rebuilding the tree.
+     *
+     * The develop fact is answered by git ASYNCHRONOUSLY, after the tree is
+     * already on screen (REQ-SW-PL-107; a wait in the plugin is forbidden, see
+     * check_no_event_loops.cmake). A model reset would drop the selection, the
+     * expansion and the scroll position of a tree nobody asked to reload, so
+     * only the badge/colour roles are refreshed in place.
+     *
+     * @param candidateIds IDs whose four preconditions hold; every other row
+     *        stops being a candidate.
+     */
+    void setDoneCandidates(const QStringList &candidateIds);
 
     void setViewMode(ViewMode mode);
     ViewMode viewMode() const;
@@ -128,6 +143,8 @@ private:
     int resolveHierarchyParent(int reqIndex) const;
     //!< row of a requirement within its siblings under the given parent node
     int siblingRow(int reqIndex, int parentReqIndexOrMinusOne) const;
+    //!< emits dataChanged for every requirement row under @p parent
+    void emitRowsChanged(const QModelIndex &parent = QModelIndex());
 
     QVector<Requirement> m_requirements;
     QVector<QString> m_draftVerdicts; //!< parallel to m_requirements (DraftVerdictRole)

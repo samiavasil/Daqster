@@ -7,6 +7,7 @@
 #include "RequirementsValidator.h"
 #include "RequirementsParser.h"
 #include "DoneGate.h"
+#include "DoneGateCheck.h"
 #include "test_validator.h"
 
 using namespace Daqster;
@@ -1080,6 +1081,26 @@ Requirement parsedFixture(const QString &root, const QString &id)
     return Requirement();
 }
 
+// The DONE gate answers in two steps (REQ-SW-PL-107): the file half is
+// synchronous, the `develop` half arrives from a child process — a wait inside
+// the plugin is forbidden (check_no_event_loops.cmake). The test waits on its
+// own event loop, exactly the way the widget does.
+bool evaluateDoneGate(Requirement &req, const QVector<RequirementRoot> &roots)
+{
+    DoneGate::evaluateLocal(req, roots);
+    DoneGateCheck check;
+    QSignalSpy done(&check, &DoneGateCheck::finished);
+    check.start(roots, {req});
+    if (done.isEmpty() && !done.wait(15000))
+        return false;
+    const auto &answers = check.answers();
+    const auto it = answers.constFind(req.filePath);
+    if (it == answers.constEnd())
+        return false;
+    DoneGate::applyCodeAnswer(req, *it);
+    return true;
+}
+
 constexpr char kReqPath[] =
     "DevelopmentProcess/requirements/active/REQ-SW-PL-107-fixture.md";
 constexpr char kReviewPath[] = "DevelopmentProcess/plans/reviews/PR-1-REQ-SW-PL-107.md";
@@ -1108,7 +1129,8 @@ void TestValidator::doneGate_candidateWhenAllFourHold()
     QVERIFY(!req.id.isEmpty());
     QVERIFY(req.allCriteriaDone);   // parsed, not a line in the file
 
-    DoneGate::evaluate(req, {RequirementRoot{root}});
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
     QVERIFY(req.acceptingReview);
     QCOMPARE(req.reviewVerdict, QStringLiteral("ПРИЕТО"));
     QVERIFY(req.codeInDevelop);
@@ -1137,7 +1159,8 @@ void TestValidator::doneGate_notCandidateWhenCriterionOpen()
              "git fixture");
 
     Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
-    DoneGate::evaluate(req, {RequirementRoot{root}});
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
 
     QVERIFY(!req.allCriteriaDone);
     QVERIFY(!req.doneCandidate);
@@ -1162,7 +1185,8 @@ void TestValidator::doneGate_notCandidateWhenNoReviewRecord()
              "git fixture");
 
     Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
-    DoneGate::evaluate(req, {RequirementRoot{root}});
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
 
     QVERIFY(req.reviewRecord.isEmpty());
     QVERIFY(!req.acceptingReview);
@@ -1192,7 +1216,8 @@ void TestValidator::doneGate_notCandidateWhenVerdictReturned()
              "git fixture");
 
     Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
-    DoneGate::evaluate(req, {RequirementRoot{root}});
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
 
     QVERIFY(!req.reviewRecord.isEmpty());
     QVERIFY(!req.acceptingReview);
@@ -1222,7 +1247,8 @@ void TestValidator::doneGate_notCandidateWhenCodeOnlyOnBranch()
              "git fixture");
 
     Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
-    DoneGate::evaluate(req, {RequirementRoot{root}});
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
 
     QVERIFY2(!req.codeInDevelop, "the path is only on feat/x");
     QCOMPARE(req.missingDevelopPaths, QStringList{QStringLiteral("plugins/later.h")});
@@ -1259,7 +1285,8 @@ void TestValidator::doneGate_refusesWhenNoDevelopBranch()
     QVERIFY(!req.id.isEmpty());
     QVERIFY(req.allCriteriaDone);
 
-    DoneGate::evaluate(req, {RequirementRoot{root}});
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
 
     QVERIFY(req.acceptingReview);   // everything else holds: only the check is impossible
     QVERIFY2(!req.codeInDevelop, "no develop: the check cannot pass, so it refuses");
@@ -1305,7 +1332,8 @@ void TestValidator::doneGate_publicPathResolvedByPublicDevelop()
              "public fixture");
 
     Requirement req = parsedFixture(privateRoot, QStringLiteral("REQ-SW-PL-107"));
-    DoneGate::evaluate(req, {RequirementRoot{privateRoot}, RequirementRoot{publicRoot}});
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{privateRoot}, RequirementRoot{publicRoot}}),
+             "the develop check must answer");
 
     QVERIFY2(req.codeInDevelop, "the public repo's develop carries the path");
     QVERIFY(req.codeCheckError.isEmpty());
@@ -1333,7 +1361,8 @@ void TestValidator::doneGate_doneOutsideArchiveReported()
 
     Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
     QCOMPARE(req.section, QStringLiteral("active"));
-    DoneGate::evaluate(req, {RequirementRoot{root}});
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
 
     QVERIFY(!req.doneCandidate);   // only IMPLEMENTED is a candidate
     const QStringList missing = DoneGate::missingPreconditions(req);

@@ -134,6 +134,19 @@ QModelIndex viewIndexForId(QAbstractItemModel *model, const QString &id)
     return QModelIndex();
 }
 
+/**
+ * @brief Waits until the widget's asynchronous `develop` check has answered.
+ *
+ * The answer arrives from a child process, and a wait inside the plugin is
+ * forbidden (check_no_event_loops.cmake), so the WAIT lives in the test: the
+ * widget's own event loop is pumped until it is no longer pending. Nothing is
+ * removed from the assertions — the gate is read only after it answered.
+ */
+bool waitForDoneGate(RequirementsWidget &widget)
+{
+    return QTest::qWaitFor([&widget] { return !widget.isDoneGatePending(); }, 15000);
+}
+
 QString readAll(const QString &path)
 {
     QFile file(path);
@@ -1456,6 +1469,7 @@ void TestWidgets::doneGateRefusesAndNamesEverythingMissing()
 
     RequirementsWidget widget;
     widget.openDirectory(root);
+    QVERIFY2(waitForDoneGate(widget), "the develop check must answer");
 
     const QStringList missing = widget.doneGateMessage(QStringLiteral("REQ-SW-PL-907"));
     QVERIFY2(missing.size() >= 3, qPrintable(missing.join(QStringLiteral(" | "))));
@@ -1484,6 +1498,7 @@ void TestWidgets::doneGateRefusesReturnedVerdict()
 
     RequirementsWidget widget;
     widget.openDirectory(root);
+    QVERIFY2(waitForDoneGate(widget), "the develop check must answer");
 
     const QStringList missing = widget.doneGateMessage(QStringLiteral("REQ-SW-PL-907"));
     QCOMPARE(missing.size(), 1);
@@ -1507,6 +1522,7 @@ void TestWidgets::doneCandidateCounterAndBadge()
 
     RequirementsWidget widget;
     widget.openDirectory(root);
+    QVERIFY2(waitForDoneGate(widget), "the develop check must answer");
 
     QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("doneCandidateCountLabel"));
     QVERIFY(counter);
@@ -1563,6 +1579,7 @@ void TestWidgets::markDoneArchivesWithOneHistoryRow()
 
     RequirementsWidget widget;
     widget.openDirectory(root);
+    QVERIFY2(waitForDoneGate(widget), "the develop check must answer");
     QVERIFY2(widget.markDone(QStringLiteral("REQ-SW-PL-907"),
                              QStringLiteral("2026-11-22")),
              "every precondition holds");
@@ -1577,6 +1594,9 @@ void TestWidgets::markDoneArchivesWithOneHistoryRow()
     QVERIFY(text.contains(QStringLiteral("- **Ревизия:** 4")));
 
     // The counter re-reads the tree: the requirement is no longer a candidate.
+    // The reload after the archive asks git again, so the test waits for that
+    // answer before reading the counter.
+    QVERIFY2(waitForDoneGate(widget), "the develop check must answer");
     QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("doneCandidateCountLabel"));
     QVERIFY(counter);
     QCOMPARE(counter->text(), QStringLiteral("кандидати за DONE: 0"));

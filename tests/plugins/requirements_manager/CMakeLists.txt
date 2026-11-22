@@ -52,6 +52,7 @@ set(TEST_SOURCES
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DoneGate.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DoneGateCheck.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsSortProxyModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsValidator.cpp
@@ -214,6 +215,7 @@ set(WIDGET_TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/IdeaModel.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DoneGate.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DoneGateCheck.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsValidator.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementDates.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementDates.h
