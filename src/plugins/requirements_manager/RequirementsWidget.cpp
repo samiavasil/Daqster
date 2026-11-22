@@ -436,6 +436,14 @@ void RequirementsWidget::reload()
         roots.append(RequirementRoot{root});
     m_requirements = RequirementsParser::parseDirectories(roots);
 
+    // The reference day moves with the wall clock, the model does not: it is
+    // built once, so without this line the age column and the overdue colour
+    // stay on the day the manager was started while the counter's tooltip
+    // computes with today (REQ-SW-PL-100). Reload is the single place that
+    // knows "the world changed".
+    if (m_model)
+        m_model->setToday(QDate::currentDate());
+
     refreshRepoFilterCombo();
     onRepoFilterChanged(m_repoFilterCombo->currentIndex());
 

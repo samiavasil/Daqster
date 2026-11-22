@@ -34,6 +34,8 @@
 #include "RequirementPreview.h"
 #include "RequirementDates.h"
 #include "DraftNoteDialog.h"
+#include "NewRequirementDialog.h"
+#include "RequirementsParser.h"
 
 using namespace Daqster;
 
@@ -218,6 +220,7 @@ private slots:
     void rejectDraftCancelsAndArchives();
     void changeContractReturnsToDraft();
     void watcherRefreshesOnExternalChange();
+    void todayFollowsReload();
 };
 
 void TestWidgets::actionBarFitsNarrowWindow()
@@ -759,6 +762,56 @@ void TestWidgets::acceptActionApprovesDraftInPlace()
     QVERIFY(counter);
     QCOMPARE(counter->text(), QStringLiteral("чакат теб: 0 · за корекция: 0"));
     QVERIFY2(!accept->isEnabled(), "the accepted requirement is no longer a draft");
+}
+
+void TestWidgets::todayFollowsReload()
+{
+    // REQ-SW-PL-100: the model's reference day is captured at construction, so
+    // a manager left open across midnight froze „Възраст“ and the overdue
+    // colour while the counter's tooltip kept counting with today. reload() is
+    // the single place that knows the world changed, so it re-reads the clock.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+    const QString activeDir =
+        QDir(root).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QDate today = QDate::currentDate();
+    const QString created = today.addDays(-20).toString(Qt::ISODate);
+    QVERIFY(!writeRequirement(activeDir,
+                              QStringLiteral("DRAFT-REQ-SW-PL-906-fixture.md"),
+                              requirementMarkdown(QStringLiteral("REQ-SW-PL-906"),
+                                                  QStringLiteral("DRAFT"), created))
+                 .isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    auto *proxy = qobject_cast<QSortFilterProxyModel *>(tree->model());
+    QVERIFY(proxy);
+    auto *model = qobject_cast<RequirementsModel *>(proxy->sourceModel());
+    QVERIFY2(model, "the tree must be fed by RequirementsModel through the sort proxy");
+
+    // Pretend the manager has been running for ten days: the reference day is
+    // stale, the file is untouched, so the row is ten days old — not overdue.
+    model->setToday(today.addDays(-10));
+    QModelIndex row = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-906"));
+    QVERIFY(row.isValid());
+    QCOMPARE(row.sibling(row.row(), RequirementsModel::AgeColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("10 дни"));
+    QVERIFY2(!row.data(Qt::ForegroundRole).isValid(),
+             "ten days is not over the fourteen-day threshold");
+
+    // The reload (watcher tick, refresh, reopen) must take the wall clock back.
+    widget.openDirectory(root);
+    row = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-906"));
+    QVERIFY(row.isValid());
+    QCOMPARE(row.sibling(row.row(), RequirementsModel::AgeColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("20 дни"));
+    QCOMPARE(row.data(Qt::ForegroundRole).value<QColor>(),
+             RequirementsModel::staleDraftColour());
 }
 
 QTEST_MAIN(TestWidgets)
