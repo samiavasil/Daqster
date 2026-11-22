@@ -1258,3 +1258,59 @@ void TestValidator::doneGate_doneOutsideArchiveReported()
     QCOMPARE(missing.size(), 1);
     QVERIFY2(missing.first().contains(QStringLiteral("archive")), qPrintable(missing.first()));
 }
+
+void TestValidator::revisionAboveApproved_error()
+{
+    // REQ-SW-PL-106: "одобрено" is a NUMBER, so a file that grew past it is a
+    // fact the manager can report with both numbers — the same sentence
+    // `scripts/check-req-revision.sh` prints.
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-910"),
+                                      QStringLiteral("active"), QString());
+    req.revision = 3;
+    req.approvedRevision = 2;
+
+    const QVector<RequirementsValidator::Issue> issues = RequirementsValidator::validate({req});
+    int hits = 0;
+    for (const RequirementsValidator::Issue &issue : issues) {
+        if (issue.field != QStringLiteral("revision"))
+            continue;
+        ++hits;
+        QCOMPARE(issue.severity, RequirementsValidator::Severity::Error);
+        QVERIFY2(issue.message.contains(QStringLiteral("3")), qPrintable(issue.message));
+        QVERIFY2(issue.message.contains(QStringLiteral("2")), qPrintable(issue.message));
+    }
+    QCOMPARE(hits, 1);
+
+    // A DRAFT with the same numbers is not an implementation: its status is the
+    // gate, and "revision 3, approved 2" is exactly what a contract change
+    // looks like. Nothing extra is reported.
+    Requirement draft = makeRequirement(QStringLiteral("REQ-SW-PL-911"),
+                                       QStringLiteral("active"), QString(),
+                                       QStringList(), QStringLiteral("DRAFT"));
+    draft.revision = 3;
+    draft.approvedRevision = 2;
+    for (const RequirementsValidator::Issue &issue : RequirementsValidator::validate({draft})) {
+        QVERIFY2(issue.field != QStringLiteral("revision"), qPrintable(issue.message));
+    }
+}
+
+void TestValidator::revisionWithoutNumber_legacySilent()
+{
+    // 143 files carry "Одобрено: <дата>, потребител" with no number. The parser
+    // normalises that to the file's own revision, and a file with no approval
+    // line at all keeps -1 — neither may turn red for a format that did not
+    // exist when they were written (REQ-SW-PL-106, „Нищо не се пренаписва назад“).
+    Requirement normalised = makeRequirement(QStringLiteral("REQ-SW-PL-912"),
+                                             QStringLiteral("active"), QString());
+    normalised.revision = 4;
+    normalised.approvedRevision = 4; // what the parser writes for a legacy line
+    Requirement noLine = makeRequirement(QStringLiteral("REQ-SW-PL-913"),
+                                        QStringLiteral("active"), QString());
+    noLine.revision = 4;
+    noLine.approvedRevision = -1;
+
+    for (const RequirementsValidator::Issue &issue
+         : RequirementsValidator::validate({normalised, noLine})) {
+        QVERIFY2(issue.field != QStringLiteral("revision"), qPrintable(issue.message));
+    }
+}

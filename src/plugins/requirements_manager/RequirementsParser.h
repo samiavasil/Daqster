@@ -122,6 +122,21 @@ struct Requirement
                                    //!< compile- and behavior-compatible)
     int revision = 0;              //!< "- **Ревизия:** N" (REQ-SW-PL-101);
                                    //!< 0 when the field is absent
+    // ── Ревизия, одобрение и базова линия (REQ-SW-PL-106) ─────────────────
+    // The approval is pinned to a NUMBER, not to "approved at some point":
+    // "Одобрено: 2026-11-22, потребител (ревизия 2)" says WHICH contract the
+    // human accepted. A line without the number is LEGACY (143 files predate
+    // the format) and is read as "approved up to the current revision" —
+    // normalised in the parser, so no file has to be rewritten.
+    int approvedRevision = -1;     //!< N from "(ревизия N)"; -1 = no approval
+                                   //!< line; normalised to `revision` when the
+                                   //!< line carries no number (legacy)
+    QString approvedDate;          //!< date part of "- **Одобрено:**"
+    QString approvedBy;            //!< who part ("потребител"); empty when absent
+    QString baselineDate;          //!< "- **Базова линия:**" date — the first
+                                   //!< commit that carried code for this REQ
+    QString baselineRef;           //!< branch/ref on the baseline line
+    int baselineRevision = -1;     //!< N from "(ревизия N)" on that line
     QString created;               //!< "- **Създадено:**" — the immutable creation
                                    //!< date (REQ-SW-PL-101). A file written before
                                    //!< that field existed carries it in "- **Дата:**",
@@ -301,8 +316,12 @@ public:
      * @brief Approves a DRAFT requirement file (REQ-SW-PL-099).
      *
      * Rewrites `- **Статус:** DRAFT` into `- **Статус:** ACTIVE` and puts
-     * `- **Одобрено:** <date>, потребител` on the line directly after it
-     * (replacing an existing approval line rather than adding a second one).
+     * `- **Одобрено:** <date>, потребител (ревизия N)` on the line directly
+     * after it (replacing an existing approval line rather than adding a second
+     * one). N is the revision the file carries after the history row this call
+     * appends, i.e. the file the human accepted (REQ-SW-PL-106) — reading it
+     * back must not leave `Ревизия > одобрена`, which would block the very
+     * requirement just approved.
      * Every other byte of the file is left as it is; the write goes through
      * QSaveFile, so a failure leaves the original in place.
      *
@@ -400,6 +419,11 @@ public:
      * change and the reason, and bumps `- **Ревизия:**`. Only an ACTIVE or
      * IMPLEMENTED requirement has a contract to change; anything else is a
      * successful no-op.
+     *
+     * The approval line is SEALED, not deleted (REQ-SW-PL-106): an
+     * `- **Одобрено:**` without a number gets `(ревизия N)` for the revision
+     * that was accepted, so the file reads "revision N accepted, N+1 is the
+     * change nobody judged" instead of pretending nothing was approved.
      *
      * @param filePath Path to the requirement .md file.
      * @param reason What is being added/removed/changed; empty fails.

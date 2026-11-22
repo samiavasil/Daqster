@@ -18,6 +18,12 @@ namespace Daqster {
  * with a non-canonical template generation (v0/v1 — a Warning; a file with no
  * description heading at all is an Error).
  *
+ * @par Revision vs approval (REQ-SW-PL-106)
+ * ACTIVE and IMPLEMENTED requirements whose `Ревизия` grew past the number the
+ * `Одобрено:` line names are an Error, with both numbers in the message. An
+ * approval line without a number is legacy ("approved up to the current
+ * revision") and is silent.
+ *
  * @par Dependency grading (REQ-SW-PL-008)
  * A "Зависи от:" reference is graded by its target's state, not by whether the
  * target is archived: DONE and IMPLEMENTED are silent (normal end states),

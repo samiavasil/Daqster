@@ -461,6 +461,26 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
         }
     }
 
+    // --- Revision vs approval (REQ-SW-PL-106) ----------------------------
+    // The approval is pinned to a number, so "the file grew past what the human
+    // accepted" is a fact, not a guess. It blocks exactly the statuses that mean
+    // "work in progress" — ACTIVE and IMPLEMENTED; DRAFT is blocked by its own
+    // status and the archived end states have nothing left to implement. A file
+    // with no approval line (approvedRevision < 0) is legacy and silent.
+    for (const Requirement &req : requirements) {
+        const QString token = normalizedStatus(req.status);
+        if (token != QStringLiteral("ACTIVE") && token != QStringLiteral("IMPLEMENTED"))
+            continue;
+        if (req.approvedRevision < 0 || req.revision <= req.approvedRevision)
+            continue;
+        issues.append({req.id, QStringLiteral("revision"),
+                       QStringLiteral("ревизия %1 не е одобрена (одобрена е ревизия %2) "
+                                      "— имплементацията е блокирана")
+                           .arg(QString::number(req.revision),
+                                QString::number(req.approvedRevision)),
+                       Severity::Error});
+    }
+
     // --- Acceptance criteria vs DONE (CLI §4 parity) ----------------------
     // A DONE requirement asserts the work landed, so it may not carry an
     // unaddressed criterion. An unchecked criterion annotated with ⛔ (proven

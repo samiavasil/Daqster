@@ -335,6 +335,7 @@ private slots:
     void acceptDraftRewritesFileAndCounter();
     void acceptActionApprovesDraftInPlace();
     void previewHeaderShowsCreatedAndAge();
+    void previewShowsApprovedRevisionAndBaseline();
     void overdueDraftIsPaintedInWarningColour();
     void draftCounterTooltipShowsOldestWait();
     void verdictActionsEnabledOnlyForDraft();
@@ -794,7 +795,8 @@ void TestWidgets::acceptDraftRewritesFileAndCounter()
     const QString expected =
         QString(before).replace(QStringLiteral("- **Статус:** DRAFT"),
                                 QStringLiteral("- **Статус:** ACTIVE\n"
-                                               "- **Одобрено:** 2026-11-21, потребител\n"
+                                               "- **Одобрено:** 2026-11-21, потребител "
+                                               "(ревизия 1)\n"
                                                "- **Ревизия:** 1"))
         + QStringLiteral("\n## История\n\n"
                          "| дата | промяна | кой | защо |\n"
@@ -1055,6 +1057,43 @@ void TestWidgets::previewHeaderShowsCreatedAndAge()
     const QString bare =
         RequirementPreview::headerHtml(req, {}, {}, QDate(2026, 11, 21));
     QVERIFY2(bare.contains(QStringLiteral("Създадено:</b> —")), qPrintable(bare));
+}
+
+void TestWidgets::previewShowsApprovedRevisionAndBaseline()
+{
+    // REQ-SW-PL-106 AC1/AC2 in the reader's face: "ревизия 2" approved, the file
+    // on 3 — both numbers and the warning; and the baseline line that says since
+    // when code exists. Without the numbers "Одобрено: 2026-11-22" cannot answer
+    // what was approved.
+    Requirement req;
+    req.id = QStringLiteral("REQ-SW-PL-910");
+    req.title = QStringLiteral("Fixture");
+    req.status = QStringLiteral("ACTIVE");
+    req.priority = QStringLiteral("High");
+    req.assignee = QStringLiteral("Implementation");
+    req.date = QStringLiteral("2026-11-20");
+    req.revision = 3;
+    req.approvedRevision = 2;
+    req.approvedDate = QStringLiteral("2026-11-22");
+
+    const QString html = RequirementPreview::headerHtml(req, {}, {}, QDate(2026, 11, 23));
+    QVERIFY2(html.contains(QStringLiteral("Одобрено:</b> 2026-11-22, ревизия 2")),
+             qPrintable(html));
+    QVERIFY2(html.contains(QStringLiteral("не е одобрена")), qPrintable(html));
+    QVERIFY2(html.contains(QStringLiteral("одобрена е ревизия 2")), qPrintable(html));
+    QVERIFY2(html.contains(QStringLiteral("Базова линия:</b> —")), qPrintable(html));
+
+    // Approved at the current revision: no warning, and the baseline is shown
+    // with the branch it started on.
+    req.revision = 2;
+    req.baselineDate = QStringLiteral("2026-11-24");
+    req.baselineRef = QStringLiteral("feat/REQ-SW-PL-910-x");
+    req.baselineRevision = 2;
+    const QString calm = RequirementPreview::headerHtml(req, {}, {}, QDate(2026, 11, 25));
+    QVERIFY2(!calm.contains(QStringLiteral("не е одобрена")), qPrintable(calm));
+    QVERIFY2(calm.contains(QStringLiteral("Базова линия:</b> 2026-11-24, "
+                                          "feat/REQ-SW-PL-910-x (ревизия 2)")),
+             qPrintable(calm));
 }
 
 void TestWidgets::overdueDraftIsPaintedInWarningColour()

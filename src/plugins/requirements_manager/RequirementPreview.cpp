@@ -82,6 +82,33 @@ QString headerHtml(const Requirement &req,
                          .toHtmlEscaped());
 
 
+    // Approval and baseline (REQ-SW-PL-106): WHICH contract the human accepted
+    // and since when code exists. The two numbers sit next to each other so
+    // "revision 3 > approved 2" is visible instead of inferred.
+    QString approval = QStringLiteral("—");
+    if (req.approvedRevision >= 0) {
+        approval = QStringLiteral("ревизия %1").arg(req.approvedRevision);
+        if (!req.approvedDate.trimmed().isEmpty())
+            approval = QStringLiteral("%1, %2").arg(req.approvedDate.trimmed(),
+                                                    approval);
+    }
+    text += QStringLiteral("<p><b>Одобрено:</b> %1</p>").arg(approval.toHtmlEscaped());
+    if (req.approvedRevision >= 0 && req.revision > req.approvedRevision) {
+        text += QStringLiteral("<p><b>Ревизия %1 не е одобрена</b> — одобрена е "
+                               "ревизия %2; имплементацията е блокирана</p>")
+                    .arg(QString::number(req.revision),
+                         QString::number(req.approvedRevision));
+    }
+    QString baseline = QStringLiteral("—");
+    if (!req.baselineDate.trimmed().isEmpty() || !req.baselineRef.trimmed().isEmpty()) {
+        baseline = req.baselineDate.trimmed();
+        if (!req.baselineRef.trimmed().isEmpty())
+            baseline += QStringLiteral(", ") + req.baselineRef.trimmed();
+        if (req.baselineRevision >= 0)
+            baseline += QStringLiteral(" (ревизия %1)").arg(req.baselineRevision);
+    }
+    text += QStringLiteral("<p><b>Базова линия:</b> %1</p>").arg(baseline.toHtmlEscaped());
+
     // Repo badge (REQ-SW-PL-012): which requirements tree this requirement
     // comes from in the merged view.
     text += QStringLiteral("<p><b>Repo:</b> %1</p>")

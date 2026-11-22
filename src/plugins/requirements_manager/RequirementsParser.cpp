@@ -29,6 +29,40 @@ bool numberStrIsDigits(const QString &s)
     return true;
 }
 
+// The revision N written anywhere in a header value — "(ревизия 2)",
+// ", ревизия 2" or "ревизия: 2" (REQ-SW-PL-106). -1 when no number is written,
+// which is the legacy state the parser normalises instead of rejecting.
+int revisionNumberIn(const QString &value)
+{
+    static const QRegularExpression re(
+        QStringLiteral("ревизия\\s*:?\\s*([0-9]+)"));
+    const QRegularExpressionMatch match = re.match(value);
+    return match.hasMatch() ? match.captured(1).toInt() : -1;
+}
+
+// The ISO date a header value starts with ("2026-11-22, потребител" → the date).
+QString isoDateIn(const QString &value)
+{
+    static const QRegularExpression re(QStringLiteral("\\b([0-9]{4}-[0-9]{2}-[0-9]{2})\\b"));
+    const QRegularExpressionMatch match = re.match(value);
+    return match.hasMatch() ? match.captured(1) : QString();
+}
+
+// The who/ref part of a header value: everything after the date, with the
+// revision suffix removed so "Одобрено: 2026-11-22, потребител (ревизия 2)"
+// yields "потребител" and "Базова линия: 2026-11-22, feat/x (ревизия 2)"
+// yields "feat/x".
+QString textAfterDate(const QString &value)
+{
+    static const QRegularExpression revisionSuffix(
+        QStringLiteral("\\(?\\s*,?\\s*ревизия\\s*:?\\s*[0-9]+\\s*\\)?"));
+    QString rest = value;
+    rest.remove(isoDateIn(value));
+    rest.remove(revisionSuffix);
+    rest.remove(QRegularExpression(QStringLiteral("^[\\s,]+|[\\s,]+$")));
+    return rest.simplified();
+}
+
 // A requirement reference inside a "Родител:" / "Зависи от:" / "Деца:" value:
 // REQ-<PREFIX>-<NNN> (private scheme) or REQ-SW-<TYPE>-<NNN> (typed public one).
 // The ID is what a reference IS; the text around it is prose.
@@ -480,6 +514,69 @@ QString contentWithRevision(const QString &content, int revision, const QString 
     return lines.join(QLatin1Char('\n'));
 }
 
+// Writes/replaces the approval line so it names the revision it accepted
+// (REQ-SW-PL-106): "- **Одобрено:** <date>, потребител (ревизия N)". The line is
+// inserted directly after the status line when the file carries none, which is
+// the same place contentWithRevision() anchors "Ревизия:" to.
+QString contentWithApproval(const QString &content, const QString &date,
+                            int revision, const QString &eol)
+{
+    const QString line = revision > 0
+        ? QStringLiteral("- **Одобрено:** %1, потребител (ревизия %2)")
+              .arg(date.trimmed()).arg(revision)
+        : QStringLiteral("- **Одобрено:** %1, потребител").arg(date.trimmed());
+
+    QStringList lines = content.split(QLatin1Char('\n'));
+    int statusLine = -1;
+    for (int i = 0; i < lines.size(); ++i) {
+        const QString trimmed = lines.at(i).trimmed();
+        if (trimmed.startsWith(QStringLiteral("## ")))
+            break;
+        if (trimmed.startsWith(QStringLiteral("- **Одобрено:**"))) {
+            lines[i] = line + eol;
+            return lines.join(QLatin1Char('\n'));
+        }
+        if (trimmed.startsWith(QStringLiteral("- **Статус:**")) && statusLine < 0)
+            statusLine = i;
+    }
+    if (statusLine < 0)
+        return content;
+    lines.insert(statusLine + 1, line + eol);
+    return lines.join(QLatin1Char('\n'));
+}
+
+// Seals an approval line that carries no revision number: "Промени договора"
+// must not erase what the human accepted, it must PIN it (REQ-SW-PL-106). After
+// the sealing, DRAFT plus "approved revision 2" is a true statement, not the
+// contradiction the old delete-the-line behaviour produced.
+QString contentWithSealedApproval(const QString &content, int approvedRevision,
+                                  const QString &eol)
+{
+    if (approvedRevision <= 0)
+        return content;
+    QStringList lines = content.split(QLatin1Char('\n'));
+    for (int i = 0; i < lines.size(); ++i) {
+        const QString trimmed = lines.at(i).trimmed();
+        if (trimmed.startsWith(QStringLiteral("## ")))
+            break;
+        if (!trimmed.startsWith(QStringLiteral("- **Одобрено:**")))
+            continue;
+        QString value = trimmed;
+        value.remove(0, value.indexOf(QLatin1Char(':')) + 1);
+        value.remove(QLatin1Char('*')).remove(QLatin1Char('`'));
+        if (revisionNumberIn(value) >= 0)
+            return content; // already pinned to an earlier revision
+        const int colon = lines.at(i).indexOf(QLatin1Char(':'));
+        Q_UNUSED(colon);
+        lines[i] = QStringLiteral("- **Одобрено:** %1 (ревизия %2)")
+                       .arg(value.simplified())
+                       .arg(approvedRevision)
+                   + eol;
+        return lines.join(QLatin1Char('\n'));
+    }
+    return content;
+}
+
 // Builds the whole "one history row + revision bump" edit on a content string.
 QString contentWithHistoryRow(const QString &content, const QString &date,
                               const QString &change, const QString &who,
@@ -872,23 +969,6 @@ bool RequirementsParser::approveDraft(const QString &filePath, const QString &da
 
     lines[statusLine] = QStringLiteral("- **Статус:** ACTIVE") + eolSuffix;
 
-    const QString approvalLine =
-        QStringLiteral("- **Одобрено:** %1, потребител").arg(date.trimmed()) + eolSuffix;
-    int approvalLineIndex = -1;
-    for (int i = 0; i < lines.size(); ++i) {
-        const QString trimmed = lines.at(i).trimmed();
-        if (trimmed.startsWith(QStringLiteral("- **Одобрено:**"))) {
-            approvalLineIndex = i;
-            break;
-        }
-        if (trimmed.startsWith(QStringLiteral("## ")))
-            break;
-    }
-    if (approvalLineIndex >= 0)
-        lines[approvalLineIndex] = approvalLine;
-    else
-        lines.insert(statusLine + 1, approvalLine);
-
     // The draft banner (" > **Чернова — чака одобрение…**") states the file's
     // status, so an approved file must not keep it: ACTIVE plus "waits for
     // approval" contradicts itself. Only that line goes; the blank line it
@@ -916,6 +996,12 @@ bool RequirementsParser::approveDraft(const QString &filePath, const QString &da
                                     QStringLiteral("одобрено (DRAFT → ACTIVE)"),
                                     QStringLiteral("потребител"),
                                     QStringLiteral("присъда на потребителя"));
+    // REQ-SW-PL-106: the approval line names the revision it accepted — the
+    // number AFTER the row's bump, because that is the file the human accepted.
+    // Reading it back must not leave "revision 2 > approved 1", which would
+    // block the very requirement the human just approved.
+    updated = contentWithApproval(updated, date, revisionInContent(updated),
+                                  eolSuffix);
     out.write(updated.toUtf8());
     if (!out.commit())
         return failWith(QStringLiteral("записът не завърши: %1").arg(filePath));
@@ -1072,6 +1158,12 @@ bool RequirementsParser::startContractChange(const QString &filePath, const QStr
     const QString eol = lines.first().endsWith(QLatin1Char('\r'))
                             ? QStringLiteral("\r") : QString();
     QString updated = contentWithStatus(content, QStringLiteral("DRAFT"), eol);
+    // REQ-SW-PL-106: the approval is PINNED to the revision it accepted instead
+    // of being left to look like "approved for whatever comes now". After the
+    // history row below bumps the revision, DRAFT + "одобрено … (ревизия N)"
+    // states the truth: revision N was accepted, N+1 is the change nobody has
+    // judged yet.
+    updated = contentWithSealedApproval(updated, revisionInContent(content), eol);
     updated = contentWithHistoryRow(updated, date,
                                     QStringLiteral("промяна в договора — обратно в DRAFT"),
                                     who.trimmed().isEmpty() ? QStringLiteral("потребител")
@@ -1283,6 +1375,7 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
     bool inDescription = false;
     bool inCriteria = false;
     bool inTraceability = false;
+    bool approvalLineSeen = false;
     QStringList descriptionLines;
     QStringList traceabilityLines;
 
@@ -1333,6 +1426,23 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
                 out.created = value;
             else if (key == QStringLiteral("Ревизия"))
                 out.revision = value.toInt();
+            else if (key == QStringLiteral("Одобрено")) {
+                // REQ-SW-PL-106: the approval names the revision it accepted.
+                // A line without the number is legacy and normalised to the
+                // file's own revision after the header was walked (the field
+                // may stand before "Ревизия"), so 143 files stay unblocked.
+                approvalLineSeen = true;
+                out.approvedDate = isoDateIn(value);
+                out.approvedBy = textAfterDate(value);
+                out.approvedRevision = revisionNumberIn(value);
+            }
+            else if (key == QStringLiteral("Базова линия")) {
+                // The first commit with code: date, branch and the revision the
+                // code started from (REQ-SW-PL-106).
+                out.baselineDate = isoDateIn(value);
+                out.baselineRef = textAfterDate(value);
+                out.baselineRevision = revisionNumberIn(value);
+            }
             else if (key == QStringLiteral("Родител")) {
                 // A parent list is possible ("REQ-AI-011, REQ-AI-012"); the tree
                 // is single-parent, so parentId is the first requirement ID —
@@ -1398,6 +1508,12 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
     // created".
     if (out.created.trimmed().isEmpty())
         out.created = out.date;
+    // REQ-SW-PL-106, the legacy rule: an approval line without "(ревизия N)"
+    // means "approved up to whatever the file says now" — that is exactly what
+    // the 143 files written before the format carry, and none of them may turn
+    // red for it. A file with no approval line at all keeps -1 ("not recorded").
+    if (approvalLineSeen && out.approvedRevision < 0)
+        out.approvedRevision = out.revision;
     // A parsed file always has a generation: "unknown" is the honest answer for
     // one that follows no template at all, and it stays an Error downstream.
     if (out.templateVersion.isEmpty())

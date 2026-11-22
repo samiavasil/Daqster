@@ -46,6 +46,9 @@ private slots:
     void requestChangesDraft_rejectsEmptyNoteAndNonDraft();
     void rejectDraft_cancelsAndArchives();
     void startContractChange_backToDraftWithHistory();
+    void startContractChange_sealsApproval();
+    void approveDraft_namesTheApprovedRevision();
+    void parseDirectory_approvedRevisionAndBaseline();
     void appendHistoryRow_bumpsRevision();
     void findFileById_survivesRename();
     void createdAliasDoesNotRewriteTheRealTree();
