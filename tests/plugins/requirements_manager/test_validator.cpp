@@ -2,9 +2,11 @@
 #include <QDir>
 #include <QFile>
 #include <QTemporaryDir>
+#include <QProcess>
 
 #include "RequirementsValidator.h"
 #include "RequirementsParser.h"
+#include "DoneGate.h"
 #include "test_validator.h"
 
 using namespace Daqster;
@@ -31,10 +33,73 @@ Requirement makeRequirement(const QString &id, const QString &section,
     return req;
 }
 
+bool writeFileAt(const QString &root, const QString &relative, const QString &content)
+{
+    const QString path = QDir(root).filePath(relative);
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+        return false;
+    file.write(content.toUtf8());
+    return true;
+}
+
+bool runGit(const QString &root, const QStringList &arguments)
+{
+    QProcess git;
+    git.setWorkingDirectory(root);
+    git.start(QStringLiteral("git"), arguments);
+    if (!git.waitForStarted(5000) || !git.waitForFinished(20000))
+        return false;
+    return git.exitStatus() == QProcess::NormalExit && git.exitCode() == 0;
+}
+
+// A requirement that can be a DONE candidate, except for the one thing a test
+// changes: the AC state, the review record, or where the code lives.
+QString doneReadyMarkdown(const QString &id, const QString &status,
+                          const QString &checked, const QString &codePath)
+{
+    return QStringLiteral(
+               "# %1: Fixture\n"
+               "\n"
+               "- **Статус:** %2\n"
+               "- **Приоритет:** High\n"
+               "- **Отговорник (роля):** Implementation\n"
+               "- **Дата:** 2026-11-22\n"
+               "- **Родител:** —\n"
+               "- **Зависи от:** —\n"
+               "- **Ревизия:** 2\n"
+               "\n"
+               "## Накратко\n"
+               "\n"
+               "Фикстура.\n"
+               "\n"
+               "## Как ще разберем, че работи\n"
+               "\n"
+               "- [%3] AC1 — първи критерий\n"
+               "\n"
+               "## Проследимост\n"
+               "\n"
+               "- **Код:** `%4`\n")
+        .arg(id, status, checked, codePath);
+}
+
+QString reviewMarkdown(const QString &id, const QString &verdict)
+{
+    return QStringLiteral(
+               "# Ревю: feat/x @ abc123 (план: —, AC: 1, %1)\n"
+               "\n"
+               "## Кръгове\n"
+               "\n"
+               "| итерация | A | отворени | затворени | присъда |\n"
+               "|----------|---|----------|-----------|---------|\n"
+               "| R1 | 0 | — | — | %2 |\n")
+        .arg(id, verdict);
+}
+
 } // namespace
 
-void TestValidator::cleanFixture_noIssues()
-{
+void TestValidator::cleanFixture_noIssues(){
     QVector<Requirement> reqs;
     reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("active"), QString()));
     reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"), QStringLiteral("active"), QStringLiteral("REQ-SW-PL-001")));
@@ -958,4 +1023,238 @@ void TestValidator::createdField_isTheCreationDate()
     QCOMPARE(issues.at(1).id, QStringLiteral("REQ-SW-PL-003"));
     QVERIFY2(issues.at(1).message.contains(QStringLiteral("21.11.2026")),
              qPrintable(issues.at(1).message));
+}
+
+// ── Порта към DONE (REQ-SW-PL-107) ──────────────────────────────────────────
+
+namespace {
+
+// A temp repository whose `develop` carries @p onDevelop, then a work branch
+// that carries @p onBranch (and nothing else new). Everything a gate test needs
+// to tell "in develop" from "only on my branch" — with the real git.
+bool makeRepo(const QString &root, const QVector<QPair<QString, QString>> &onDevelop,
+              const QVector<QPair<QString, QString>> &onBranch)
+{
+    if (!runGit(root, {QStringLiteral("init"), QStringLiteral("-q")}))
+        return false;
+    runGit(root, {QStringLiteral("config"), QStringLiteral("user.email"),
+                  QStringLiteral("test@example.com")});
+    runGit(root, {QStringLiteral("config"), QStringLiteral("user.name"),
+                  QStringLiteral("Test")});
+    if (!writeFileAt(root, QStringLiteral("README.md"), QStringLiteral("# fixture\n")))
+        return false;
+    for (const auto &entry : onDevelop)
+        if (!writeFileAt(root, entry.first, entry.second))
+            return false;
+    if (!runGit(root, {QStringLiteral("add"), QStringLiteral("-A")}))
+        return false;
+    if (!runGit(root, {QStringLiteral("commit"), QStringLiteral("-q"),
+                       QStringLiteral("-m"), QStringLiteral("base")}))
+        return false;
+    if (!runGit(root, {QStringLiteral("branch"), QStringLiteral("-M"),
+                       QStringLiteral("develop")}))
+        return false;
+    if (onBranch.isEmpty())
+        return true;
+    if (!runGit(root, {QStringLiteral("checkout"), QStringLiteral("-q"),
+                       QStringLiteral("-b"), QStringLiteral("feat/x")}))
+        return false;
+    for (const auto &entry : onBranch)
+        if (!writeFileAt(root, entry.first, entry.second))
+            return false;
+    return runGit(root, {QStringLiteral("add"), QStringLiteral("-A")})
+           && runGit(root, {QStringLiteral("commit"), QStringLiteral("-q"),
+                            QStringLiteral("-m"), QStringLiteral("work")});
+}
+
+// The parsed fixture requirement of a temp repo (empty when parse failed).
+Requirement parsedFixture(const QString &root, const QString &id)
+{
+    const QVector<Requirement> parsed = RequirementsParser::parseDirectory(root);
+    for (const Requirement &req : parsed)
+        if (req.id == id)
+            return req;
+    return Requirement();
+}
+
+constexpr char kReqPath[] =
+    "DevelopmentProcess/requirements/active/REQ-SW-PL-107-fixture.md";
+constexpr char kReviewPath[] = "DevelopmentProcess/plans/reviews/PR-1-REQ-SW-PL-107.md";
+
+} // namespace
+
+void TestValidator::doneGate_candidateWhenAllFourHold()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ПРИЕТО"))}},
+                      {}),
+             "git fixture");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    QVERIFY(!req.id.isEmpty());
+    QVERIFY(req.allCriteriaDone);   // parsed, not a line in the file
+
+    DoneGate::evaluate(req, {RequirementRoot{root}});
+    QVERIFY(req.acceptingReview);
+    QCOMPARE(req.reviewVerdict, QStringLiteral("ПРИЕТО"));
+    QVERIFY(req.codeInDevelop);
+    QVERIFY(req.missingDevelopPaths.isEmpty());
+    QVERIFY(req.doneCandidate);
+    QVERIFY(DoneGate::isDoneCandidate(req));
+    QVERIFY(DoneGate::missingPreconditions(req).isEmpty());
+}
+
+void TestValidator::doneGate_notCandidateWhenCriterionOpen()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral(" "),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ПРИЕТО"))}},
+                      {}),
+             "git fixture");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    DoneGate::evaluate(req, {RequirementRoot{root}});
+
+    QVERIFY(!req.allCriteriaDone);
+    QVERIFY(!req.doneCandidate);
+    const QStringList missing = DoneGate::missingPreconditions(req);
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().contains(QStringLiteral("AC1")), qPrintable(missing.first()));
+}
+
+void TestValidator::doneGate_notCandidateWhenNoReviewRecord()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")}},
+                      {}),
+             "git fixture");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    DoneGate::evaluate(req, {RequirementRoot{root}});
+
+    QVERIFY(req.reviewRecord.isEmpty());
+    QVERIFY(!req.acceptingReview);
+    QVERIFY(!req.doneCandidate);
+    const QStringList missing = DoneGate::missingPreconditions(req);
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().contains(QStringLiteral("ревю запис")), qPrintable(missing.first()));
+}
+
+void TestValidator::doneGate_notCandidateWhenVerdictReturned()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    // A record that exists and is not accepting: "exists a file" is not a review.
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ВЪРНАТО"))}},
+                      {}),
+             "git fixture");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    DoneGate::evaluate(req, {RequirementRoot{root}});
+
+    QVERIFY(!req.reviewRecord.isEmpty());
+    QVERIFY(!req.acceptingReview);
+    QCOMPARE(req.reviewVerdict, QStringLiteral("ВЪРНАТО"));
+    QVERIFY(!req.doneCandidate);
+    const QStringList missing = DoneGate::missingPreconditions(req);
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().contains(QStringLiteral("не е приемане")),
+             qPrintable(missing.first()));
+}
+
+void TestValidator::doneGate_notCandidateWhenCodeOnlyOnBranch()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ПРИЕТО"))}},
+                      {{QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")}}),
+             "git fixture");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    DoneGate::evaluate(req, {RequirementRoot{root}});
+
+    QVERIFY2(!req.codeInDevelop, "the path is only on feat/x");
+    QCOMPARE(req.missingDevelopPaths, QStringList{QStringLiteral("plugins/later.h")});
+    QCOMPARE(req.codeBranch, QStringLiteral("feat/x"));
+    QVERIFY(!req.doneCandidate);
+    const QStringList missing = DoneGate::missingPreconditions(req);
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().contains(QStringLiteral("още не е в")) && missing.first().contains(QStringLiteral("feat/x")),
+             qPrintable(missing.first()));
+}
+
+void TestValidator::doneGate_doneOutsideArchiveReported()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("DONE"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ПРИЕТО"))}},
+                      {}),
+             "git fixture");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    QCOMPARE(req.section, QStringLiteral("active"));
+    DoneGate::evaluate(req, {RequirementRoot{root}});
+
+    QVERIFY(!req.doneCandidate);   // only IMPLEMENTED is a candidate
+    const QStringList missing = DoneGate::missingPreconditions(req);
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().contains(QStringLiteral("archive")), qPrintable(missing.first()));
 }

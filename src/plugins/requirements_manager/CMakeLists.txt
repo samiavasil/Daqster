@@ -24,6 +24,8 @@ set(PLUGIN_SOURCES
     RequirementsManagerObject.h
     RequirementsParser.cpp
     RequirementsParser.h
+    DoneGate.cpp
+    DoneGate.h
     RequirementsModel.cpp
     RequirementsModel.h
     RequirementsSortProxyModel.cpp

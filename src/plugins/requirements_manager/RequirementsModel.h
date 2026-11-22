@@ -51,10 +51,14 @@ public:
         RequirementRole = Qt::UserRole + 1,
         SectionRole,
         AgeDaysRole,   //!< int: whole days since "Създадено"/"Дата", -1 when unknown
-        DraftVerdictRole //!< QString: the last verdict of the draft review table
+        DraftVerdictRole, //!< QString: the last verdict of the draft review table
                          //!< ("за корекция", "откажи") — empty when no verdict was
                          //!< recorded (REQ-SW-PL-102 AC4). Computed once, in
                          //!< setRequirements(), so the counter never parses in paint.
+        DoneCandidateRole //!< bool: IMPLEMENTED with every DONE precondition met
+                          //!< (REQ-SW-PL-107). Computed once per load by
+                          //!< DoneGate::evaluate() — the row badge and the counter
+                          //!< only read it, so paint never asks git anything.
     };
 
     enum class ViewMode {
@@ -86,6 +90,15 @@ public:
      * tree and the report agree on what "warning" looks like.
      */
     static QColor staleDraftColour();
+
+    /**
+     * @brief Returns the colour of a „кандидат за DONE“ row (REQ-SW-PL-107).
+     *
+     * A candidate is not a status: it is `IMPLEMENTED` with every precondition
+     * met, waiting for the owner. The marker is the ID's `✓` plus this colour,
+     * so the same row the action would accept is the one that looks ready.
+     */
+    static QColor doneCandidateColour();
 
     const Requirement *requirementAt(const QModelIndex &index) const;
 

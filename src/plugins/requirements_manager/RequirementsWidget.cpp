@@ -8,6 +8,7 @@
 #include "IdeaReader.h"
 #include "DependencyGraphWidget.h"
 #include "TraceabilityMatrixWidget.h"
+#include "DoneGate.h"
 #include "NewRequirementDialog.h"
 #include "ValidationDialog.h"
 #include "HelpDialog.h"
@@ -163,6 +164,13 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     m_draftCountLabel->setObjectName(QStringLiteral("draftCountLabel"));
     m_draftCountLabel->setText(tr("чакат теб: 0 · за корекция: 0"));
 
+    // The other half of the owner's queue (REQ-SW-PL-107): what is ready and
+    // waiting only for the verdict. Computed from the same load as the draft
+    // counter, next to it, because both answer "what waits for me".
+    m_doneCandidateLabel = new QLabel(this);
+    m_doneCandidateLabel->setObjectName(QStringLiteral("doneCandidateCountLabel"));
+    m_doneCandidateLabel->setText(tr("кандидати за DONE: 0"));
+
     QHBoxLayout *treeControlsLayout = new QHBoxLayout;
     treeControlsLayout->addWidget(new QLabel(tr("View:"), this));
     treeControlsLayout->addWidget(m_viewModeCombo);
@@ -179,7 +187,11 @@ RequirementsWidget::RequirementsWidget(QWidget *parent)
     // The counter sits under the tree, not in the filter row: it is a reading,
     // not a control, and the filter row is what decides the panel's minimum
     // width (REQ-SW-PL-001 keeps the window narrow).
-    treeLayout->addWidget(m_draftCountLabel, 0, Qt::AlignRight);
+    QHBoxLayout *countersLayout = new QHBoxLayout;
+    countersLayout->addStretch();
+    countersLayout->addWidget(m_draftCountLabel);
+    countersLayout->addWidget(m_doneCandidateLabel);
+    treeLayout->addLayout(countersLayout);
 
     QWidget *treePanel = new QWidget(this);
     treePanel->setLayout(treeLayout);
@@ -436,6 +448,12 @@ void RequirementsWidget::reload()
         roots.append(RequirementRoot{root});
     m_requirements = RequirementsParser::parseDirectories(roots);
 
+    // The DONE gate (REQ-SW-PL-107) is answered ONCE per load: review record,
+    // `develop`, the criteria. The tree badge, the counter and the action all
+    // read these fields afterwards, so painting never runs git.
+    for (Requirement &req : m_requirements)
+        DoneGate::evaluate(req, roots);
+
     // The reference day moves with the wall clock, the model does not: it is
     // built once, so without this line the age column and the overdue colour
     // stay on the day the manager was started while the counter's tooltip
@@ -512,9 +530,22 @@ void RequirementsWidget::reload()
                 .arg(drafts)
                 .arg(oldestId));
     }
+    // The queue of the owner's verdict (REQ-SW-PL-107 AC3): computed, never
+    // recorded. The list of IDs travels in the tooltip so the number is not a
+    // mystery; nothing is written anywhere by looking.
+    QStringList candidates;
+    for (const Requirement &req : m_requirements) {
+        if (req.doneCandidate)
+            candidates.append(req.id);
+    }
+    m_doneCandidateLabel->setText(tr("кандидати за DONE: %1").arg(candidates.size()));
+    m_doneCandidateLabel->setToolTip(
+        candidates.isEmpty()
+            ? tr("Няма изискване с всички AC, приемащо ревю и код в develop.")
+            : tr("Чакат само твоята присъда: %1").arg(candidates.join(QStringLiteral(", "))));
+
     m_graphWidget->setRequirements(m_filtered, m_validationIssues);
-    updateValidationStatus();
-    refreshActionState();
+    updateValidationStatus();    refreshActionState();
     refreshIdeasTab();
     // The set of directories may have changed (a new subdirectory, a root
     // added): the watcher is rebuilt from what is on disk right now.
@@ -694,53 +725,109 @@ void RequirementsWidget::onMarkDoneAndArchive()
     if (m_currentIndex < 0)
         return;
 
-    Requirement &req = m_requirements[m_currentIndex];
+    const Requirement &req = m_requirements.at(m_currentIndex);
     if (req.section != QStringLiteral("active"))
         return;
 
-    QStringList unfinished;
-    for (const QString &dep : req.dependencies) {
-        const Requirement *target = nullptr;
-        for (const Requirement &candidate : m_requirements) {
-            if (candidate.id == dep) {
-                target = &candidate;
-                break;
-            }
-        }
-        if (!target) {
-            unfinished.append(QStringLiteral("%1 (missing)").arg(dep));
-        } else if (target->status != QStringLiteral("DONE")) {
-            unfinished.append(QStringLiteral("%1 (%2)").arg(dep, target->status));
-        }
-    }
-
-    if (!unfinished.isEmpty()) {
+    // ONE message with everything missing (REQ-SW-PL-107 AC1): the owner sees
+    // the whole list and nothing is written while it is not empty.
+    const QString id = req.id;
+    const QStringList missing = doneGateMessage(id);
+    if (!missing.isEmpty()) {
         QMessageBox::warning(
-            this, tr("Cannot Archive"),
-            tr("Requirement %1 has unfinished dependencies:\n%2\n\n"
-               "Finish or resolve them before archiving.")
-                .arg(req.id, unfinished.join(QStringLiteral("\n"))));
+            this, tr("Не може да се затвори"),
+            tr("Изискването %1 не е готово за DONE:\n\n%2\n\n"
+               "Нищо не е променено.")
+                .arg(id, missing.join(QStringLiteral("\n"))));
         return;
     }
+    markDone(id, QDate::currentDate().toString(Qt::ISODate));
+}
 
-    RequirementsParser::setStatusLine(req, QStringLiteral("DONE"));
-    // The status changed, so the file must say why in the same edit: the whole
-    // point of the history guard (REQ-SW-PL-101).
-    RequirementsParser::appendHistoryRow(req, QDate::currentDate().toString(Qt::ISODate),
-                                         QStringLiteral("DONE — приключено и архивирано"),
-                                         QStringLiteral("потребител"),
-                                         QStringLiteral("всички зависимости са готови"));
-    if (!RequirementsParser::writeRequirement(req)) {
-        QMessageBox::warning(this, tr("Requirements"),
-                             tr("Failed to write requirement file:\n%1").arg(req.filePath));
-        return;
+QStringList RequirementsWidget::doneGateMessage(QString id) const
+{
+    // Resolved by H1, not by a cached path (the REQ-SW-PL-102 AC7 rule): a
+    // renamed file still answers, and a missing one is reported, not guessed.
+    const QString filePath = resolveRequirementFile(id);
+    if (filePath.isEmpty())
+        return {missingFileMessage(id)};
+
+    QVector<RequirementRoot> roots;
+    for (const QString &root : m_roots)
+        roots.append(RequirementRoot{root});
+
+    QStringList missing;
+    for (const Requirement &candidate : m_requirements) {
+        if (candidate.filePath != filePath)
+            continue;
+        Requirement req = candidate;
+        // Force the git answer even for a status that is not IMPLEMENTED yet:
+        // the action must name the missing path, not assume it.
+        DoneGate::evaluate(req, roots, true);
+        missing = DoneGate::missingPreconditions(req);
+        break;
     }
-    if (!RequirementsParser::moveToArchive(req.filePath)) {
+    // The pre-existing rule, kept in the same list so the owner still sees ONE
+    // message: a requirement does not close before what it depends on.
+    missing.append(dependencyBlockers(filePath));
+    return missing;
+}
+
+QStringList RequirementsWidget::dependencyBlockers(const QString &filePath) const
+{
+    QStringList unfinished;
+    for (const Requirement &req : m_requirements) {
+        if (req.filePath != filePath)
+            continue;
+        for (const QString &dep : req.dependencies) {
+            const Requirement *target = nullptr;
+            for (const Requirement &candidate : m_requirements) {
+                if (candidate.id == dep) {
+                    target = &candidate;
+                    break;
+                }
+            }
+            if (!target)
+                unfinished.append(QStringLiteral("зависимостта %1 липсва").arg(dep));
+            else if (target->status != QStringLiteral("DONE"))
+                unfinished.append(QStringLiteral("зависимостта %1 не е DONE (%2)")
+                                      .arg(dep, target->status));
+        }
+        break;
+    }
+    return unfinished;
+}
+
+bool RequirementsWidget::markDone(QString id, const QString &date)
+{
+    const QString filePath = resolveRequirementFile(id);
+    if (filePath.isEmpty()) {
+        missingFile(id);
+        return false;
+    }
+    if (!doneGateMessage(id).isEmpty())
+        return false;   // the gate said what is missing; nothing is written
+
+    QVector<RequirementRoot> roots;
+    for (const QString &root : m_roots)
+        roots.append(RequirementRoot{root});
+    Requirement req;
+    for (const Requirement &candidate : m_requirements) {
+        if (candidate.filePath == filePath) {
+            req = candidate;
+            break;
+        }
+    }
+    DoneGate::evaluate(req, roots, true);
+
+    QString error;
+    if (!RequirementsParser::markDone(filePath, req.reviewRecord, date, &error)) {
         QMessageBox::warning(this, tr("Requirements"),
-                             tr("Failed to move file to archive:\n%1").arg(req.filePath));
-        return;
+                             tr("Файлът не може да бъде затворен:\n%1").arg(error));
+        return false;
     }
     reload();
+    return true;
 }
 
 void RequirementsWidget::onReopen()

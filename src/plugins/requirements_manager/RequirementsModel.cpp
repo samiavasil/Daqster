@@ -74,6 +74,11 @@ QColor RequirementsModel::staleDraftColour()
     return QColor(0xC0, 0x7A, 0x00);
 }
 
+QColor RequirementsModel::doneCandidateColour()
+{
+    return QColor(0x1E, 0x7B, 0x34);
+}
+
 void RequirementsModel::rebuildHierarchy()
 {
     const int n = m_requirements.size();
@@ -321,8 +326,14 @@ QVariant RequirementsModel::data(const QModelIndex &index, int role) const
         return reqIndex >= 0 && reqIndex < m_draftVerdicts.size()
                    ? QVariant(m_draftVerdicts.at(reqIndex)) : QVariant(QString());
     }
+    if (role == DoneCandidateRole)
+        return req->doneCandidate;
 
     if (role == Qt::ForegroundRole) {
+        // A candidate is waiting for the owner's verdict: the status colour
+        // mechanism, not a second one (REQ-SW-PL-107 AC3).
+        if (req->doneCandidate)
+            return QColor(doneCandidateColour());
         // A proposal nobody looked at for two weeks: the status colour
         // mechanism, not a second one (REQ-SW-PL-100).
         const bool draft = RequirementsValidator::normalizedStatus(req->status)
@@ -338,7 +349,11 @@ QVariant RequirementsModel::data(const QModelIndex &index, int role) const
         return QVariant();
 
     switch (index.column()) {
-    case IdColumn:        return req->id;
+    case IdColumn:
+        // The badge is the ID plus a tick: visible in the tree, in the model
+        // data and in a screenshot, without a new column, a new status or a new
+        // field in the file (REQ-SW-PL-107 AC3).
+        return req->doneCandidate ? req->id + QStringLiteral(" ✓") : req->id;
     case TitleColumn:     return req->title;
     case StatusColumn:    return req->status;
     case PriorityColumn:  return req->priority;

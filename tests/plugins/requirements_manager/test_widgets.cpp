@@ -22,6 +22,9 @@
 #include <QTimer>
 #include <QAbstractButton>
 #include <QFileInfo>
+#include <QProcess>
+#include <QTreeView>
+#include <QSortFilterProxyModel>
 #include <type_traits>
 
 #include "RequirementsWidget.h"
@@ -179,6 +182,128 @@ private:
 };
 
 
+
+// ── Порта към DONE (REQ-SW-PL-107): fixtures ────────────────────────────────
+
+// A temp repository with a `develop` branch (what "the code landed" means).
+bool gitForTest(const QString &root, const QStringList &args)
+{
+    QProcess git;
+    git.setWorkingDirectory(root);
+    git.start(QStringLiteral("git"), args);
+    if (!git.waitForStarted(5000) || !git.waitForFinished(20000))
+        return false;
+    return git.exitStatus() == QProcess::NormalExit && git.exitCode() == 0;
+}
+
+bool writeFileForTest(const QString &root, const QString &relative, const QString &content)
+{
+    const QString path = QDir(root).filePath(relative);
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+        return false;
+    file.write(content.toUtf8());
+    return true;
+}
+
+// IMPLEMENTED requirement with a checked AC (or @p checked) and the cited code.
+QString doneCandidateMarkdown(const QString &id, const QString &checked)
+{
+    return QStringLiteral(
+               "# %1: Fixture\n"
+               "\n"
+               "- **Статус:** IMPLEMENTED\n"
+               "- **Приоритет:** High\n"
+               "- **Отговорник (роля):** Implementation\n"
+               "- **Дата:** 2026-11-22\n"
+               "- **Родител:** —\n"
+               "- **Зависи от:** —\n"
+               "- **Ревизия:** 3\n"
+               "\n"
+               "## Накратко\n"
+               "\n"
+               "Фикстура.\n"
+               "\n"
+               "## Как ще разберем, че работи\n"
+               "\n"
+               "- [%2] AC1 — критерий\n"
+               "\n"
+               "## Проследимост\n"
+               "\n"
+               "- **Код:** `plugins/done_code.h`\n")
+        .arg(id, checked);
+}
+
+QString acceptingReviewMarkdown(const QString &id, const QString &verdict)
+{
+    return QStringLiteral(
+               "# Ревю: feat/done @ abc123 (план: —, AC: 1, %1)\n"
+               "\n"
+               "## Кръгове\n"
+               "\n"
+               "| итерация | A | отворени | затворени | присъда |\n"
+               "|----------|---|----------|-----------|---------|\n"
+               "| R1 | 0 | — | — | %2 |\n")
+        .arg(id, verdict);
+}
+
+/**
+ * @brief The four-part fixture: requirement, review record, code in develop.
+ *
+ * @param checked `x` (all AC done) or ` ` (one open).
+ * @param verdict the review verdict, empty means "no record at all".
+ * @param codeInDevelop false keeps the cited path only on the work branch.
+ * @param requirementPath receives the .md path.
+ * @return the repo root (empty on failure).
+ */
+QString makeDoneRoot(QTemporaryDir &dir, const QString &checked,
+                     const QString &verdict, bool codeInDevelop,
+                     QString *requirementPath = nullptr)
+{
+    const QString root = dir.path();
+    const QString reqPath = QString::fromUtf8(
+        "DevelopmentProcess/requirements/active/REQ-SW-PL-907-fixture.md");
+    if (!gitForTest(root, {QStringLiteral("init"), QStringLiteral("-q")}))
+        return QString();
+    gitForTest(root, {QStringLiteral("config"), QStringLiteral("user.email"),
+                      QStringLiteral("t@example.com")});
+    gitForTest(root, {QStringLiteral("config"), QStringLiteral("user.name"),
+                      QStringLiteral("T")});
+    if (!writeFileForTest(root, reqPath,
+                          doneCandidateMarkdown(QStringLiteral("REQ-SW-PL-907"), checked)))
+        return QString();
+    if (!verdict.isEmpty()
+        && !writeFileForTest(root, QStringLiteral("DevelopmentProcess/plans/reviews/"
+                                                  "PR-1-REQ-SW-PL-907.md"),
+                             acceptingReviewMarkdown(QStringLiteral("REQ-SW-PL-907"), verdict)))
+        return QString();
+    if (codeInDevelop && !writeFileForTest(root, QStringLiteral("plugins/done_code.h"),
+                                          QStringLiteral("// code\n")))
+        return QString();
+    if (!gitForTest(root, {QStringLiteral("add"), QStringLiteral("-A")})
+        || !gitForTest(root, {QStringLiteral("commit"), QStringLiteral("-q"),
+                              QStringLiteral("-m"), QStringLiteral("base")})
+        || !gitForTest(root, {QStringLiteral("branch"), QStringLiteral("-M"),
+                              QStringLiteral("develop")}))
+        return QString();
+    if (!codeInDevelop) {
+        if (!gitForTest(root, {QStringLiteral("checkout"), QStringLiteral("-q"),
+                               QStringLiteral("-b"), QStringLiteral("feat/done")}))
+            return QString();
+        if (!writeFileForTest(root, QStringLiteral("plugins/done_code.h"),
+                              QStringLiteral("// code\n"))
+            || !gitForTest(root, {QStringLiteral("add"), QStringLiteral("-A")})
+            || !gitForTest(root, {QStringLiteral("commit"), QStringLiteral("-q"),
+                                  QStringLiteral("-m"), QStringLiteral("work")}))
+            return QString();
+    }
+    if (requirementPath)
+        *requirementPath = QDir(root).filePath(reqPath);
+    return root;
+}
+
+
 } // namespace
 
 // The by-value contract, expressed in the type system (REQ-SW-PL-099): the
@@ -223,6 +348,11 @@ private slots:
     void todayFollowsReload();
     void newRequirementFileCarriesHistoryAndRevision();
     void previewShowsRevisionAndHistory();
+    // REQ-SW-PL-107: the DONE gate, its badge and its counter.
+    void doneGateRefusesAndNamesEverythingMissing();
+    void doneGateRefusesReturnedVerdict();
+    void doneCandidateCounterAndBadge();
+    void markDoneArchivesWithOneHistoryRow();
 };
 
 void TestWidgets::actionBarFitsNarrowWindow()
@@ -1260,4 +1390,119 @@ void TestWidgets::watcherRefreshesOnExternalChange()
     // The debounce is 300 ms; the assertion polls instead of sleeping.
     QTRY_COMPARE_WITH_TIMEOUT(counter->text(),
                               QStringLiteral("чакат теб: 1 · за корекция: 0"), 5000);
+}
+
+// ── Порта към DONE (REQ-SW-PL-107) ──────────────────────────────────────────
+
+void TestWidgets::doneGateRefusesAndNamesEverythingMissing()
+{
+    // AC1: ONE message names the open AC, the missing review and the branch the
+    // code is on — and nothing is written.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString path;
+    const QString root = makeDoneRoot(dir, QStringLiteral(" "), QString(), false, &path);
+    QVERIFY(!root.isEmpty());
+    const QString before = readAll(path);
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    const QStringList missing = widget.doneGateMessage(QStringLiteral("REQ-SW-PL-907"));
+    QVERIFY2(missing.size() >= 3, qPrintable(missing.join(QStringLiteral(" | "))));
+    QVERIFY2(missing.filter(QStringLiteral("AC1")).size() == 1, qPrintable(missing.join(" | ")));
+    QVERIFY2(missing.filter(QStringLiteral("ревю запис")).size() == 1,
+             qPrintable(missing.join(QStringLiteral(" | "))));
+    QVERIFY2(missing.filter(QStringLiteral("develop")).size() == 1,
+             qPrintable(missing.join(QStringLiteral(" | "))));
+
+    QVERIFY2(!widget.markDone(QStringLiteral("REQ-SW-PL-907"),
+                              QStringLiteral("2026-11-22")),
+             "the action must refuse");
+    QCOMPARE(readAll(path), before);   // byte for byte: nothing was written
+}
+
+void TestWidgets::doneGateRefusesReturnedVerdict()
+{
+    // AC1: a review record whose last verdict is ВЪРНАТО is not an acceptance.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString path;
+    const QString root = makeDoneRoot(dir, QStringLiteral("x"),
+                                      QStringLiteral("ВЪРНАТО"), true, &path);
+    QVERIFY(!root.isEmpty());
+    const QString before = readAll(path);
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    const QStringList missing = widget.doneGateMessage(QStringLiteral("REQ-SW-PL-907"));
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().contains(QStringLiteral("ВЪРНАТО")),
+             qPrintable(missing.first()));
+    QVERIFY(!widget.markDone(QStringLiteral("REQ-SW-PL-907"),
+                             QStringLiteral("2026-11-22")));
+    QCOMPARE(readAll(path), before);
+}
+
+void TestWidgets::doneCandidateCounterAndBadge()
+{
+    // AC3: computed, never recorded — the row carries ✓ and the counter counts
+    // it; a requirement without an accepting review is not counted.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString path;
+    const QString root = makeDoneRoot(dir, QStringLiteral("x"),
+                                      QStringLiteral("ПРИЕТО"), true, &path);
+    QVERIFY(!root.isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("doneCandidateCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("кандидати за DONE: 1"));
+    QVERIFY2(counter->toolTip().contains(QStringLiteral("REQ-SW-PL-907")),
+             qPrintable(counter->toolTip()));
+
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    const QModelIndex row = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-907 ✓"));
+    QVERIFY2(row.isValid(), "the candidate row must carry the badge");
+    QVERIFY(row.data(RequirementsModel::DoneCandidateRole).toBool());
+
+    const QString before = readAll(path);
+    QCOMPARE(readAll(path), before);   // looking changed nothing on disk
+}
+
+void TestWidgets::markDoneArchivesWithOneHistoryRow()
+{
+    // AC4: DONE, exactly one history row with the review file, revision + 1, and
+    // a strict move to archive/.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString path;
+    const QString root = makeDoneRoot(dir, QStringLiteral("x"),
+                                      QStringLiteral("ПРИЕТО"), true, &path);
+    QVERIFY(!root.isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    QVERIFY2(widget.markDone(QStringLiteral("REQ-SW-PL-907"),
+                             QStringLiteral("2026-11-22")),
+             "every precondition holds");
+
+    QVERIFY2(!QFile::exists(path), "DONE does not stay in active/");
+    const QString archived = QDir(root).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/archive/REQ-SW-PL-907-fixture.md"));
+    QVERIFY2(QFile::exists(archived), qPrintable(archived));
+    const QString text = readAll(archived);
+    QVERIFY(text.contains(QStringLiteral("- **Статус:** DONE")));
+    QCOMPARE(text.count(QStringLiteral("| 2026-11-22 | DONE | потребител | ревю PR-1-REQ-SW-PL-907.md |")), 1);
+    QVERIFY(text.contains(QStringLiteral("- **Ревизия:** 4")));
+
+    // The counter re-reads the tree: the requirement is no longer a candidate.
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("doneCandidateCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("кандидати за DONE: 0"));
 }

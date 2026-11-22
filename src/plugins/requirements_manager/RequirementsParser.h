@@ -150,6 +150,21 @@ struct Requirement
      * resolved requirement's repo.
      */
     QHash<QString, QString> dependencyHints;
+
+    // ── Порта към DONE (REQ-SW-PL-107): ИЗЧИСЛЕНИ полета ──────────────────
+    // None of these is a line in the .md file and none of them is a status: the
+    // file keeps exactly the fields it had. allCriteriaDone comes from the
+    // parse; the review and develop facts are filled once per load by
+    // DoneGate::evaluate(); doneCandidate is the single decision over them, so
+    // the tree badge and the action cannot disagree.
+    bool allCriteriaDone = false;   //!< every AC is `[x]` (and there is at least one)
+    QString reviewRecord;           //!< path of the review record naming this ID
+    QString reviewVerdict;          //!< its last `## Кръгове` verdict
+    bool acceptingReview = false;   //!< record exists and its verdict accepts
+    bool codeInDevelop = false;     //!< every cited path resolves in `develop`
+    QStringList missingDevelopPaths; //!< cited paths absent from `develop`
+    QString codeBranch;             //!< branch that carries them instead
+    bool doneCandidate = false;     //!< IMPLEMENTED + the four preconditions
 };
 
 /**
@@ -423,6 +438,30 @@ public:
     static int revisionInContent(const QString &content);
 
     /**
+     * @brief „Mark Done & Archive“: the owner's `DONE` verdict (REQ-SW-PL-107).
+     *
+     * Writes `- **Статус:** DONE`, EXACTLY one history row
+     * (`| <date> | DONE | потребител | ревю <файл> |`), bumps `- **Ревизия:**`,
+     * and moves the file to archive/ with a STRICT rename — an existing file of
+     * the same name is an error, never an overwrite.
+     *
+     * The preconditions (every AC checked, an accepting review record, the code
+     * in `develop`) are checked by DoneGate before this is called: the
+     * transition itself does not own them, so one function is the authority
+     * (see DoneGate::missingPreconditions()).
+     *
+     * A file that is already DONE is a successful no-op.
+     *
+     * @param filePath Path to the requirement .md file in active/.
+     * @param reviewFile The review record that accepts it (for the history row).
+     * @param date ISO date of the verdict.
+     * @param errorOut Optional human-readable reason on failure.
+     * @return true when the file is DONE and archived.
+     */
+    static bool markDone(const QString &filePath, const QString &reviewFile,
+                         const QString &date, QString *errorOut = nullptr);
+
+    /**
      * @brief Resolves the file on disk by the ID in its H1 (REQ-SW-PL-102 AC7).
      *
      * The review actions must never act on a cached path: a file renamed or
@@ -446,6 +485,12 @@ public:
 
     /**
      * @brief Moves a requirement .md file from <...>/active/ to <...>/archive/.
+     *
+     * STRICT on purpose (REQ-SW-PL-107 AC4): an archive file of the same name
+     * is an error, never an overwrite — "нищо не се трие", the same behaviour
+     * „Откажи“ already has. A requirement that once reached archive/ keeps its
+     * bytes.
+     *
      * @return true on success, false if the file was not in the active directory
      *         or the rename failed. The target directory is created if needed.
      */

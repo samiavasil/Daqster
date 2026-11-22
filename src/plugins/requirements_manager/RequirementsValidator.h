@@ -126,6 +126,24 @@ public:
                                              const QStringList &repoRoots = QStringList());
 
     /**
+     * @brief Every repository path a requirement cites, as the CLI reads it.
+     *
+     * Backticked tokens of the WHOLE file that start with a repository
+     * top-level directory, with the filters `scripts/validate-traceability.sh`
+     * §6 applies: struck-through spans are corrections, not citations; prose
+     * (` *<>|"'()$;&`) and `..` are not paths; a line range or an anchor
+     * (`foo.cpp:36-38`, `CMakeLists.txt#anchor`) is stripped; `{a,b}` expands.
+     *
+     * One rule, two readers (REQ-SW-PL-107): the DONE gate asks whether they
+     * resolve in `develop`, the CLI asks where they resolve. A third list of
+     * "what counts as a path" would be a second opinion, not a second check.
+     *
+     * @param req Parsed requirement (its rawContent is read).
+     * @return Paths in citation order, may contain duplicates.
+     */
+    static QStringList citedCodePaths(const Requirement &req);
+
+    /**
      * @brief Normalizes a "- **Статус:**" value to a bare vocabulary token.
      *
      * Handles the two conventions the CLI handles: a status carrying a written

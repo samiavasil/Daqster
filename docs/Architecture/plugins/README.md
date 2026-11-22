@@ -34,6 +34,12 @@
 Плъгинът `requirements_manager` (`src/plugins/requirements_manager/`) е Markdown-based
 requirements viewer/editor. Изгледите са организирани в `QTabWidget`:
 
+- **Порта към DONE (REQ-SW-PL-107):** „Mark Done & Archive“ отказва с **едно**
+  съобщение, което изрежда всичко липсващо (неотметнат AC, липсващ/неприемащ ревю
+  запис, код извън `develop` — с клона, на който е), а `IMPLEMENTED` изискване с
+  четирите условия носи `✓` в дървото и се брои в „кандидати за DONE: N“;
+  решението е едно (`DoneGate`), изчислено при зареждане, не записано във файла.
+
 - **Requirements** — дърво + детайли (предишен Phase 1&2 UI).
 - **Dependency Graph** — интерактивна визуализация на зависимостите:
 

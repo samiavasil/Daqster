@@ -130,6 +130,34 @@ public:
     bool changeContract(QString id, const QString &reason, const QString &date);
 
     /**
+     * @brief What still blocks `DONE` for @p id, one line per precondition
+     *        (REQ-SW-PL-107 AC1).
+     *
+     * Re-evaluates the requirement against the loaded roots (review record,
+     * `develop`, criteria) and returns DoneGate::missingPreconditions(). Empty
+     * means the action would go through; the action shows this exact list, so
+     * the message and the test cannot drift apart.
+     *
+     * @param id Requirement ID (by value — the call may reload the tree).
+     * @return Missing preconditions, empty when nothing is missing.
+     */
+    QStringList doneGateMessage(QString id) const;
+
+    /**
+     * @brief „Mark Done & Archive“ without the dialog (REQ-SW-PL-107).
+     *
+     * The transition only: refuses (returns false, writes nothing) while
+     * doneGateMessage() is non-empty; otherwise writes DONE, one history row,
+     * the revision bump and moves the file to archive/ strictly. Exposed so the
+     * refusal and the archive are driveable from a test.
+     *
+     * @param id Requirement ID (by value).
+     * @param date ISO date of the verdict.
+     * @return true when the file is DONE and in archive/ afterwards.
+     */
+    bool markDone(QString id, const QString &date);
+
+    /**
      * @brief The message a review action shows when the file cannot be found.
      *
      * A file renamed or moved by git/hand keeps its H1 and its meaning, while a
@@ -206,6 +234,8 @@ private:
     void rebuildWatchedPaths();
     //!< Reports a requirement whose file no longer exists by its H1 (AC7).
     void missingFile(const QString &id);
+    //!< Unfinished "Зависи от:" targets for the file (kept in the gate's list).
+    QStringList dependencyBlockers(const QString &filePath) const;
     //!< Builds the read-only "Идеи" tab (REQ-SW-PL-095).
     QWidget *createIdeasPanel();
     //!< Re-reads the idea register and hides the tab when it is empty.
@@ -232,6 +262,7 @@ private:
     QLabel *m_validationLabel;
     QLabel *m_rootStatusLabel;
     QLabel *m_draftCountLabel; //!< "чакат одобрение: N" (REQ-SW-PL-099)
+    QLabel *m_doneCandidateLabel; //!< "кандидати за DONE: N" (REQ-SW-PL-107)
     QToolBar *m_actionBar;
     QAction *m_editAction;
     QAction *m_saveAction;

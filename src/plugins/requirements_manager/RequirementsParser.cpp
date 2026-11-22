@@ -1080,6 +1080,46 @@ bool RequirementsParser::startContractChange(const QString &filePath, const QStr
     return writeContentBytes(filePath, updated, errorOut);
 }
 
+bool RequirementsParser::markDone(const QString &filePath, const QString &reviewFile,
+                                  const QString &date, QString *errorOut)
+{
+    const auto failWith = [errorOut](const QString &reason) {
+        if (errorOut)
+            *errorOut = reason;
+        return false;
+    };
+
+    if (date.trimmed().isEmpty())
+        return failWith(QStringLiteral("датата на присъдата е празна"));
+
+    QString content;
+    if (!readContentBytes(filePath, &content, errorOut))
+        return false;
+    // Already DONE: a successful no-op, the same contract the draft actions
+    // follow. The gate above this call reports a DONE file left in active/.
+    if (statusTokenInContent(content) == QStringLiteral("DONE"))
+        return true;
+
+    const QStringList lines = content.split(QLatin1Char('\n'));
+    const QString eol = lines.first().endsWith(QLatin1Char('\r'))
+                            ? QStringLiteral("\r") : QString();
+    // EXACTLY one row, plus the revision bump that row implies (AC4): the diff
+    // is the status line, one history row and the revision — nothing else.
+    const QString reviewName = QFileInfo(reviewFile).fileName();
+    QString updated = contentWithStatus(content, QStringLiteral("DONE"), eol);
+    updated = contentWithHistoryRow(updated, date,
+                                    QStringLiteral("DONE"),
+                                    QStringLiteral("потребител"),
+                                    QStringLiteral("ревю %1").arg(reviewName));
+
+    if (!writeContentBytes(filePath, updated, errorOut))
+        return false;
+    if (!moveToArchive(filePath))
+        return failWith(QStringLiteral("файлът не може да се премести в archive/: %1")
+                            .arg(filePath));
+    return true;
+}
+
 void RequirementsParser::appendHistoryRow(Requirement &req, const QString &date,
                                           const QString &change, const QString &who,
                                           const QString &why)
@@ -1088,8 +1128,7 @@ void RequirementsParser::appendHistoryRow(Requirement &req, const QString &date,
     req.revision = revisionInContent(req.rawContent);
 }
 
-int RequirementsParser::revisionInContent(const QString &content)
-{
+int RequirementsParser::revisionInContent(const QString &content){
     const QStringList lines = content.split(QLatin1Char('\n'));
     for (const QString &line : lines) {
         const QString trimmed = line.trimmed();
@@ -1183,7 +1222,8 @@ bool RequirementsParser::moveToArchive(const QString &filePath)
     const QString target = QDir(archiveDir).filePath(info.fileName());
     if (target == filePath)
         return false;
-    if (QFile::exists(target) && !QFile::remove(target))
+    // Strict (REQ-SW-PL-107 AC4): never remove the file that is already there.
+    if (QFile::exists(target))
         return false;
     return QFile::rename(filePath, target);
 }
@@ -1346,6 +1386,12 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
 
     out.description = descriptionLines.join(QStringLiteral("\n")).trimmed();
     out.traceability = traceabilityLines.join(QStringLiteral("\n")).trimmed();
+    // "All criteria done" is computed, never a line in the file (REQ-SW-PL-107).
+    // No criterion at all is not "all done": an empty list would otherwise pass
+    // with `!contains(false)` and a requirement without a contract could become
+    // a DONE candidate.
+    out.allCriteriaDone = !out.criteriaDone.isEmpty()
+                          && !out.criteriaDone.contains(false);
     // REQ-SW-PL-101: "Създадено:" is the field, "Дата:" the legacy alias. The
     // alias lives HERE, in the parser, not in a migration: the 135 files that
     // predate the field keep their bytes and still answer "when was this

@@ -49,4 +49,11 @@ private slots:
     void citedPath_activeMissingPath_warning();
     void citedPath_implementedMissingPath_error();
     void citedPath_draftAndExisting_silent();
+    // REQ-SW-PL-107: the DONE gate's one decision.
+    void doneGate_candidateWhenAllFourHold();
+    void doneGate_notCandidateWhenCriterionOpen();
+    void doneGate_notCandidateWhenNoReviewRecord();
+    void doneGate_notCandidateWhenVerdictReturned();
+    void doneGate_notCandidateWhenCodeOnlyOnBranch();
+    void doneGate_doneOutsideArchiveReported();
 };

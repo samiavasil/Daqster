@@ -214,9 +214,16 @@ bool pathResolves(const QString &path, const QStringList &roots)
 
 } // namespace
 
-std::optional<RequirementsValidator::Severity>
-RequirementsValidator::pathSeverityForStatus(const QString &rawStatus)
+QStringList RequirementsValidator::citedCodePaths(const Requirement &req)
 {
+    static const QRegularExpression struckRe(QStringLiteral("~~[^~]*~~"));
+    QString text = req.rawContent;
+    text.remove(struckRe);
+    return pathTokensOf(text);
+}
+
+std::optional<RequirementsValidator::Severity>
+RequirementsValidator::pathSeverityForStatus(const QString &rawStatus){
     const QString token = normalizedStatus(rawStatus);
     if (token == QStringLiteral("IMPLEMENTED") || token == QStringLiteral("DONE"))
         return Severity::Error;
@@ -229,8 +236,7 @@ RequirementsValidator::pathSeverityForStatus(const QString &rawStatus)
 
 QVector<RequirementsValidator::Issue>
 RequirementsValidator::validateCitedPaths(const QVector<Requirement> &requirements,
-                                          const QStringList &repoRoots)
-{
+                                          const QStringList &repoRoots){
     QVector<Issue> issues;
     for (const Requirement &req : requirements) {
         const auto severity = pathSeverityForStatus(req.status);
