@@ -1206,9 +1206,14 @@ bool RequirementsParser::markDone(const QString &filePath, const QString &review
 
     if (!writeContentBytes(filePath, updated, errorOut))
         return false;
-    if (!moveToArchive(filePath))
+    if (!moveToArchive(filePath)) {
+        // Roll back: a DONE file left behind in active/ is a lie the gate can
+        // only report, never fix (R1-5). The write and the move are ONE change.
+        QString ignored;
+        writeContentBytes(filePath, content, &ignored);
         return failWith(QStringLiteral("файлът не може да се премести в archive/: %1")
                             .arg(filePath));
+    }
     return true;
 }
 

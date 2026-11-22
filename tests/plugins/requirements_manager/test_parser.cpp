@@ -900,6 +900,43 @@ void TestParser::moveToArchive_neverOverwrites()
     QCOMPARE(readAllText(archivedPath), archivedBefore);   // not overwritten
 }
 
+void TestParser::markDone_rollsBackWhenArchiveTargetExists()
+{
+    // R1-5: the status write and the move are ONE change. When the move fails
+    // (an archive file of the same name is there — moveToArchive never
+    // overwrites), the DONE line must not survive in active/.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString baseDir = temp.path();
+    const QString activeDir =
+        QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString archiveDir =
+        QDir(baseDir).filePath(QStringLiteral("DevelopmentProcess/requirements/archive"));
+
+    const QString activePath = writeFixture(
+        activeDir, QStringLiteral("REQ-SW-PL-001.md"),
+        requirementContent(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("One"),
+                           QStringLiteral("IMPLEMENTED"), QStringLiteral("—"),
+                           QStringLiteral("—")));
+    const QString archivedPath = writeFixture(
+        archiveDir, QStringLiteral("REQ-SW-PL-001.md"),
+        requirementContent(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("One"),
+                           QStringLiteral("DONE"), QStringLiteral("—"),
+                           QStringLiteral("—")));
+    const QString activeBefore = readAllText(activePath);
+    const QString archivedBefore = readAllText(archivedPath);
+
+    QString error;
+    QVERIFY2(!RequirementsParser::markDone(
+                 activePath, QStringLiteral("plans/reviews/PR-1-REQ-SW-PL-001.md"),
+                 QStringLiteral("2026-11-22"), &error),
+             "the move cannot happen, so the verdict cannot be recorded");
+    QVERIFY2(error.contains(QStringLiteral("archive")), qPrintable(error));
+
+    QCOMPARE(readAllText(activePath), activeBefore);   // byte for byte: no DONE left behind
+    QCOMPARE(readAllText(archivedPath), archivedBefore);
+}
+
 void TestParser::moveToArchive_nestedSubdir(){    // Archiving a requirement that lives below active/<subdir>/ must preserve
     // the subdirectory: active/framework/ -> archive/framework/. The section
     // follows the move in both directions.

@@ -32,6 +32,7 @@ private slots:
     void moveToArchive_movesFile();
     void moveToActive_movesFile();
     void moveToArchive_neverOverwrites();
+    void markDone_rollsBackWhenArchiveTargetExists();
     void moveToArchive_nestedSubdir();
     void moveRejectsWrongSection();
     void writeRequirement_roundTrip();
