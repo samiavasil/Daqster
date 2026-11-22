@@ -47,6 +47,21 @@ bool hasDevelop(const QString &root)
                   nullptr);
 }
 
+// The three answers a repo can give about `develop`: it has the branch, it is a
+// repo without it, or it is not a repo at all. Collapsing the last two into
+// "no" is what let a missing repo read as "the code is in develop".
+enum class Develop { Present, Branchless, RepoMissing };
+
+Develop developState(const QString &root)
+{
+    if (hasDevelop(root))
+        return Develop::Present;
+    const bool isRepo = runGit(root, {QStringLiteral("rev-parse"),
+                                      QStringLiteral("--git-dir")},
+                               nullptr);
+    return isRepo ? Develop::Branchless : Develop::RepoMissing;
+}
+
 // Every path of @p paths that `develop` does not carry, in one process:
 // --batch-check reads "<rev>:<path>" lines and answers "<id> missing" for the
 // absent ones, so the price is per requirement, not per path.
@@ -98,20 +113,69 @@ QString worktreeRootWith(const QVector<RequirementRoot> &roots, const QString &p
     return QString();
 }
 
-// Accumulates the paths this repo's develop does not carry and, for the first
-// one, the branch the working tree is on — that is the sentence the owner needs.
-void absorbMissing(const QString &root, const QStringList &missing, Requirement &req)
+// The paths of @p paths that NO loaded repo's develop carries. One batch per
+// repo, and a path an earlier repo solved is not asked about again: the price
+// is per requirement, not per path. A repo without `develop` is not asked at
+// all — its silence would read as "missing", which is a different fact.
+// @p answered tells the caller whether any repo could answer at all.
+QStringList pathsMissingEverywhere(const QVector<RequirementRoot> &roots,
+                                   QStringList paths, bool *answered)
 {
-    for (const QString &path : missing) {
-        if (!req.missingDevelopPaths.contains(path))
-            req.missingDevelopPaths.append(path);
+    *answered = false;
+    for (const RequirementRoot &root : roots) {
+        if (paths.isEmpty() || !hasDevelop(root.repoRoot))
+            continue;
+        *answered = true;
+        paths = pathsMissingFromDevelop(root.repoRoot, paths);
     }
-    if (req.codeBranch.isEmpty()) {
-        const QString carrier = worktreeRootWith({RequirementRoot{root}}, missing.value(0));
-        if (!carrier.isEmpty())
-            req.codeBranch = currentBranch(carrier);
+    return paths;
+}
+
+// Why the develop check could not run — the sentence the owner reads instead of
+// a silent pass. Never says "in develop" when there is no develop to ask.
+QString whyNoDevelop(const QVector<RequirementRoot> &roots)
+{
+    if (roots.isEmpty())
+        return QStringLiteral("няма заредено репо");
+    QStringList reasons;
+    for (const RequirementRoot &root : roots) {
+        switch (developState(root.repoRoot)) {
+        case Develop::Present:
+            continue;
+        case Develop::Branchless:
+            reasons.append(QStringLiteral("няма клон `develop` в %1").arg(root.repoRoot));
+            break;
+        case Develop::RepoMissing:
+            reasons.append(QStringLiteral("%1 не е git репо").arg(root.repoRoot));
+            break;
+        }
     }
-    req.codeInDevelop = req.missingDevelopPaths.isEmpty();
+    return reasons.join(QStringLiteral("; "));
+}
+
+// Fills the three code fields of @p req from the cited @p paths.
+//
+// "Cannot check" and "checked, all there" must never answer the same: a repo
+// without `develop` (or no repo at all) is a REFUSAL carrying the reason, not a
+// pass (REQ-SW-PL-107 AC2).
+void verifyCode(Requirement &req, const QVector<RequirementRoot> &roots,
+                const QStringList &paths)
+{
+    bool answered = false;
+    const QStringList missing = pathsMissingEverywhere(roots, paths, &answered);
+    if (!answered) {
+        req.codeInDevelop = false;
+        req.codeCheckError = whyNoDevelop(roots);
+        return;
+    }
+    if (missing.isEmpty()) {
+        req.codeInDevelop = true;
+        return;
+    }
+    const QString carrier = worktreeRootWith(roots, missing.first());
+    req.missingDevelopPaths = missing;
+    req.codeBranch = carrier.isEmpty() ? QString() : currentBranch(carrier);
+    req.codeInDevelop = false;
 }
 
 } // namespace
@@ -226,6 +290,11 @@ QString DoneGate::codeGapFor(const Requirement &req)
 {
     if (req.codeInDevelop)
         return QString();
+    // A check that could not run says so: it is a refusal with a reason, never
+    // the silence that reads as "everything resolves".
+    if (!req.codeCheckError.isEmpty())
+        return QStringLiteral("не мога да проверя дали кодът е в develop: %1")
+            .arg(req.codeCheckError);
     const QString paths = req.missingDevelopPaths.join(QStringLiteral(", "));
     if (req.codeBranch.isEmpty())
         return QStringLiteral("кодът още не е в `develop`: %1").arg(paths);
@@ -268,17 +337,12 @@ void DoneGate::evaluate(Requirement &req, const QVector<RequirementRoot> &repoRo
                              == QStringLiteral("IMPLEMENTED");
     req.missingDevelopPaths.clear();
     req.codeBranch.clear();
-    req.codeInDevelop = true;
+    req.codeCheckError.clear();
+    req.codeInDevelop = true;   // nothing cited: nothing to verify, and nothing claimed
     if (forceCodeCheck || implemented) {
         const QStringList paths = RequirementsValidator::citedCodePaths(req);
-        for (const RequirementRoot &root : repoRoots) {
-            if (paths.isEmpty() || !hasDevelop(root.repoRoot))
-                continue;   // no develop branch: nothing to be "not in" yet
-            const QStringList missing = pathsMissingFromDevelop(root.repoRoot, paths);
-            if (missing.isEmpty())
-                break;      // every path resolves in this repo's develop
-            absorbMissing(root.repoRoot, missing, req);
-        }
+        if (!paths.isEmpty())
+            verifyCode(req, repoRoots, paths);
     }
     req.doneCandidate = isDoneCandidate(req);
 }

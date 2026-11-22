@@ -179,6 +179,9 @@ struct Requirement
     bool codeInDevelop = false;     //!< every cited path resolves in `develop`
     QStringList missingDevelopPaths; //!< cited paths absent from `develop`
     QString codeBranch;             //!< branch that carries them instead
+    QString codeCheckError;         //!< why the `develop` check could not run at
+                                    //!< all (no repo, no branch, no git); empty
+                                    //!< when it ran — a refusal, never a pass
     bool doneCandidate = false;     //!< IMPLEMENTED + the four preconditions
 
     // ── Произход (REQ-SW-PL-098): ИЗЧИСЛЕНО поле ──────────────────────────

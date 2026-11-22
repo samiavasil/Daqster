@@ -1032,8 +1032,11 @@ namespace {
 // A temp repository whose `develop` carries @p onDevelop, then a work branch
 // that carries @p onBranch (and nothing else new). Everything a gate test needs
 // to tell "in develop" from "only on my branch" — with the real git.
+// @p baseBranch names the integration branch this fixture has: `develop` unless
+// a test needs a repo that has no such branch at all.
 bool makeRepo(const QString &root, const QVector<QPair<QString, QString>> &onDevelop,
-              const QVector<QPair<QString, QString>> &onBranch)
+              const QVector<QPair<QString, QString>> &onBranch,
+              const QString &baseBranch = QStringLiteral("develop"))
 {
     if (!runGit(root, {QStringLiteral("init"), QStringLiteral("-q")}))
         return false;
@@ -1052,7 +1055,7 @@ bool makeRepo(const QString &root, const QVector<QPair<QString, QString>> &onDev
                        QStringLiteral("-m"), QStringLiteral("base")}))
         return false;
     if (!runGit(root, {QStringLiteral("branch"), QStringLiteral("-M"),
-                       QStringLiteral("develop")}))
+                       baseBranch}))
         return false;
     if (onBranch.isEmpty())
         return true;
@@ -1229,6 +1232,85 @@ void TestValidator::doneGate_notCandidateWhenCodeOnlyOnBranch()
     QCOMPARE(missing.size(), 1);
     QVERIFY2(missing.first().contains(QStringLiteral("още не е в")) && missing.first().contains(QStringLiteral("feat/x")),
              qPrintable(missing.first()));
+}
+
+void TestValidator::doneGate_refusesWhenNoDevelopBranch()
+{
+    // R1-1: a repo WITHOUT `develop` used to leave codeInDevelop == true — DONE
+    // was granted without a single check. "Cannot check" is a refusal now, and
+    // it says why.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ПРИЕТО"))}},
+                      {}, QStringLiteral("main")),
+             "git fixture without develop");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    QVERIFY(!req.id.isEmpty());
+    QVERIFY(req.allCriteriaDone);
+
+    DoneGate::evaluate(req, {RequirementRoot{root}});
+
+    QVERIFY(req.acceptingReview);   // everything else holds: only the check is impossible
+    QVERIFY2(!req.codeInDevelop, "no develop: the check cannot pass, so it refuses");
+    QVERIFY2(req.codeCheckError.contains(QStringLiteral("develop")),
+             qPrintable(req.codeCheckError));
+    QVERIFY(req.missingDevelopPaths.isEmpty());   // nothing was found missing: nothing was asked
+    QVERIFY(!req.doneCandidate);
+    const QStringList missing = DoneGate::missingPreconditions(req);
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().startsWith(
+                 QStringLiteral("не мога да проверя дали кодът е в develop: ")),
+             qPrintable(missing.first()));
+    QVERIFY2(missing.first().contains(root), qPrintable(missing.first()));
+}
+
+void TestValidator::doneGate_publicPathResolvedByPublicDevelop()
+{
+    // R1-2: the tree spans two repos. A public path (`src/...`) does not exist in
+    // the private repo's develop, and that is not a debt: any loaded repo's
+    // develop carrying the path is an answer.
+    QTemporaryDir privateDir;
+    QTemporaryDir publicDir;
+    QVERIFY(privateDir.isValid());
+    QVERIFY(publicDir.isValid());
+    const QString privateRoot = privateDir.path();
+    const QString publicRoot = publicDir.path();
+    QVERIFY2(makeRepo(privateRoot,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("src/frame_work/base/"
+                                                         "PluginDiscovery.cpp"))},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ПРИЕТО"))}},
+                      {}),
+             "private fixture");
+    QVERIFY2(makeRepo(publicRoot,
+                      {{QStringLiteral("src/frame_work/base/PluginDiscovery.cpp"),
+                        QStringLiteral("// public\n")}},
+                      {}),
+             "public fixture");
+
+    Requirement req = parsedFixture(privateRoot, QStringLiteral("REQ-SW-PL-107"));
+    DoneGate::evaluate(req, {RequirementRoot{privateRoot}, RequirementRoot{publicRoot}});
+
+    QVERIFY2(req.codeInDevelop, "the public repo's develop carries the path");
+    QVERIFY(req.codeCheckError.isEmpty());
+    QVERIFY(req.missingDevelopPaths.isEmpty());
+    QVERIFY(req.doneCandidate);
 }
 
 void TestValidator::doneGate_doneOutsideArchiveReported()

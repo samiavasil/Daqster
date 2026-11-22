@@ -55,6 +55,8 @@ private slots:
     void doneGate_notCandidateWhenNoReviewRecord();
     void doneGate_notCandidateWhenVerdictReturned();
     void doneGate_notCandidateWhenCodeOnlyOnBranch();
+    void doneGate_refusesWhenNoDevelopBranch();
+    void doneGate_publicPathResolvedByPublicDevelop();
     void doneGate_doneOutsideArchiveReported();
     // REQ-SW-PL-106: ревизия, по-голяма от одобрената.
     void revisionAboveApproved_error();

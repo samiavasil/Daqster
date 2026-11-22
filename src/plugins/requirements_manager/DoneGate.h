@@ -25,8 +25,16 @@ namespace Daqster {
  * @par Computed, never recorded
  * The fields it fills (`allCriteriaDone`, `reviewRecord`, `reviewVerdict`,
  * `acceptingReview`, `codeInDevelop`, `missingDevelopPaths`, `codeBranch`,
- * `doneCandidate`) are members of Requirement but no line of the .md file, no
- * status and no new field on disk: `git status` does not change by looking.
+ * `codeCheckError`, `doneCandidate`) are members of Requirement but no line of
+ * the .md file, no status and no new field on disk: `git status` does not change
+ * by looking.
+ *
+ * @par A check that cannot run is a refusal
+ * A cited path is looked for in EVERY loaded repo's `develop` (the private repo
+ * and `../daqster` carry different halves of the tree, so one of them alone
+ * calls a public path "not in develop"). When no repo can answer — no repo, no
+ * `develop` branch, no git — `codeInDevelop` stays false and `codeCheckError`
+ * names the reason: "cannot check" never answers like "checked, all there".
  *
  * @par Cost
  * The tree calls evaluate() once per requirement per reload and git answers
@@ -66,6 +74,9 @@ public:
      * Each line names the thing and where to fix it: `AC2 не е отметнат`,
      * `няма ревю запис`, `последната присъда е „ВЪРНАТО“`,
      * `кодът още не е в develop (на клона X е): <път>`, `DONE извън archive/`.
+     * When the develop check could not run at all the line is
+     * `не мога да проверя дали кодът е в develop: <причина>` — a refusal, not a
+     * pass.
      *
      * @param req An evaluated requirement.
      * @return The list, in a stable order (criteria, review, code, zone).
