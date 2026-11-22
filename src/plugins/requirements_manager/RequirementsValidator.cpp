@@ -342,6 +342,86 @@ promotionIssues(const QVector<Idea> &ideas, const QSet<QString> &requirementIds)
     return issues;
 }
 
+//!< Direction 3 (REQ-SW-PL-098, decision A): the idea names a requirement, so
+//!< the requirement must name the idea back.
+//!<
+//!< The promotion is ONE link with TWO ends (REQ-SW-PL-095: promoting writes
+//!< `- from_idea: IDEA-NNN` into the requirement AND `> Промотирана:` into the
+//!< idea). A promotion recorded on one side only is the drift this rule catches:
+//!< the pair looks promoted from the idea's file and plain from the
+//!< requirement's, so nobody can tell whether the requirement came from the idea
+//!< at all.
+QVector<RequirementsValidator::Issue>
+promotionBackLinkIssues(const QVector<Requirement> &requirements,
+                        const QVector<Idea> &ideas)
+{
+    QHash<QString, const Requirement *> reqById;
+    for (const Requirement &req : requirements)
+        reqById.insert(req.id.trimmed().toUpper(), &req);
+
+    QVector<RequirementsValidator::Issue> issues;
+    for (const Idea &idea : ideas) {
+        const QString promoted = idea.promotedId.trimmed().toUpper();
+        if (promoted.isEmpty())
+            continue;   // an idea without a requirement is the normal state
+        const Requirement *req = reqById.value(promoted, nullptr);
+        if (!req)
+            continue;   // promotionIssues() already names the missing file
+        const QString back = RequirementsValidator::fromIdeaId(*req);
+        if (back == idea.id.trimmed().toUpper())
+            continue;
+        const QString message = back.isEmpty()
+            ? QStringLiteral("идея %1 е промотирана в %2, а %2 не носи "
+                             "„from_idea: %1“ — връзката е записана само от едната "
+                             "страна").arg(idea.id, req->id)
+            : QStringLiteral("идея %1 е промотирана в %2, а %2 сочи "
+                             "„from_idea: %3“ — двете страни не са за един и същ "
+                             "чифт").arg(idea.id, req->id, back);
+        issues.append(ideaLinkIssue(idea.id, message,
+                                    req->filePath.isEmpty() ? idea.path : req->filePath));
+    }
+    return issues;
+}
+
+//!< Direction 4 (REQ-SW-PL-098, decision A): the requirement names an idea, so
+//!< that idea must name the requirement back.
+//!<
+//!< The mirror of direction 3, and not a duplicate of it: each rule fires on a
+//!< link that exists only on ITS side. A requirement pointing at an idea that
+//!< was never promoted leaves the idea's file silent, which is exactly the
+//!< state direction 3 cannot see (there is nothing there to name it).
+//!< An idea whose status is not recorded is skipped here — citationIssues()
+//!< already reports that the promotion is missing entirely, and one defect gets
+//!< one issue.
+QVector<RequirementsValidator::Issue>
+requirementBackLinkIssues(const QVector<Requirement> &requirements,
+                          const QHash<QString, const Idea *> &ideaById)
+{
+    const QStringList recorded = RequirementsValidator::ideaPromotionStatuses();
+    QVector<RequirementsValidator::Issue> issues;
+    for (const Requirement &req : requirements) {
+        const QString from = RequirementsValidator::fromIdeaId(req);
+        if (from.isEmpty())
+            continue;   // a requirement may come from nowhere
+        const Idea *idea = ideaById.value(from, nullptr);
+        if (!idea)
+            continue;   // citationIssues() already names the missing idea file
+        if (!recorded.contains(idea->status.trimmed().toLower()))
+            continue;   // citationIssues() reports the missing promotion
+        const QString promoted = idea->promotedId.trimmed().toUpper();
+        if (promoted == req.id.trimmed().toUpper())
+            continue;
+        const QString message = promoted.isEmpty()
+            ? QStringLiteral("изискването %1 сочи „from_idea: %2“, а идеята %2 не "
+                             "е отбелязана като промотирана").arg(req.id, from)
+            : QStringLiteral("изискването %1 сочи „from_idea: %2“, а идеята %2 е "
+                             "промотирана в %3 — двете страни не са за един и същ "
+                             "чифт").arg(req.id, from, promoted);
+        issues.append(ideaLinkIssue(req.id, message, req.filePath));
+    }
+    return issues;
+}
+
 } // namespace
 
 QStringList RequirementsValidator::ideaPromotionStatuses()
@@ -370,6 +450,22 @@ QStringList RequirementsValidator::citedIdeaIds(const Requirement &req)
     return ids;
 }
 
+QString RequirementsValidator::fromIdeaId(const Requirement &req)
+{
+    // The requirement's own half of the link: "- from_idea: IDEA-002" (the line
+    // NewRequirementDialog writes). The bold form and backticks are tolerated
+    // because the same field is hand-edited in older files.
+    static const QRegularExpression struckRe(QStringLiteral("~~[^~]*~~"));
+    static const QRegularExpression fromRe(
+        QStringLiteral("from_idea[^:\\n]*:[^\\n]*?(IDEA-[0-9]+)"),
+        QRegularExpression::CaseInsensitiveOption);
+
+    QString text = req.rawContent;
+    text.remove(struckRe);
+    const QRegularExpressionMatch m = fromRe.match(text);
+    return m.hasMatch() ? m.captured(1).toUpper() : QString();
+}
+
 QVector<RequirementsValidator::Issue>
 RequirementsValidator::validateIdeaLinks(const QVector<Requirement> &requirements,
                                          const QVector<Idea> &ideas)
@@ -384,6 +480,9 @@ RequirementsValidator::validateIdeaLinks(const QVector<Requirement> &requirement
 
     QVector<Issue> issues = citationIssues(requirements, ideaById);
     issues += promotionIssues(ideas, requirementIds);
+    // The same link, read from the other end (REQ-SW-PL-098, decision A).
+    issues += promotionBackLinkIssues(requirements, ideas);
+    issues += requirementBackLinkIssues(requirements, ideaById);
 
     std::stable_sort(issues.begin(), issues.end(),
                      [](const Issue &a, const Issue &b) {

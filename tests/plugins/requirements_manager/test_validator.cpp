@@ -1440,12 +1440,16 @@ Idea makeIdea(const QString &id, const QString &status, const QString &promoted)
     return idea;
 }
 
-//!< A requirement whose body cites @p citedIds ("Изведено от IDEA-…").
-Requirement requirementCiting(const QString &id, const QStringList &citedIds)
+//!< A requirement whose body cites @p citedIds ("Изведено от IDEA-…") and,
+//!< optionally, whose header carries the other end of the link.
+Requirement requirementCiting(const QString &id, const QStringList &citedIds,
+                              const QString &fromIdea = QString())
 {
     Requirement req = makeRequirement(id, QStringLiteral("active"), QString());
     req.status = QStringLiteral("ACTIVE");
     QString body = QStringLiteral("# %1: Fixture\n\n## Защо\n\n").arg(id);
+    if (!fromIdea.isEmpty())
+        body += QStringLiteral("- from_idea: %1\n").arg(fromIdea);
     for (const QString &cited : citedIds)
         body += QStringLiteral("- изведено от %1\n").arg(cited);
     req.rawContent = body;
@@ -1460,7 +1464,8 @@ void TestValidator::ideaLink_citedIdeaWithoutRecord_error()
     // promotion — the issue must name BOTH, so a reader does not have to guess
     // which of the two files to open.
     const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-920"),
-                                              {QStringLiteral("IDEA-003")});
+                                              {QStringLiteral("IDEA-003")},
+                                              QStringLiteral("IDEA-003"));
     const Idea idea = makeIdea(QStringLiteral("IDEA-003"), QStringLiteral("нова"),
                               QString());
 
@@ -1507,9 +1512,9 @@ void TestValidator::ideaLink_promotedPairAndUnpromotedIdea_silent()
     // nor a warning. A correct pair produces nothing in either direction, and
     // the struck-through correction is not a citation.
     const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-922"),
-                                              {QStringLiteral("IDEA-002")});
-    Requirement struck = req;
-    struck.id = QStringLiteral("REQ-SW-PL-923");
+                                              {QStringLiteral("IDEA-002")},
+                                              QStringLiteral("IDEA-002"));
+    Requirement struck = requirementCiting(QStringLiteral("REQ-SW-PL-923"), {});
     struck.rawContent += QStringLiteral("\n~~изведено от IDEA-005~~\n");
 
     QVector<Idea> ideas;
@@ -1528,7 +1533,8 @@ void TestValidator::ideaLink_conflictingPromotionKeys_error()
     // Review R1-3 (REQ-SW-PL-098): the two spellings of one link disagree. The
     // reader keeps the first and would drop the second in silence, so the drift
     // ("the requirement was renamed") had no witness at all.
-    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-924"), {});
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-924"), {},
+                                              QStringLiteral("IDEA-009"));
     Idea idea = makeIdea(QStringLiteral("IDEA-009"), QStringLiteral("промотирана"),
                          QStringLiteral("REQ-SW-PL-924"));
     idea.promotedKeyId = QStringLiteral("REQ-SW-PL-924");
@@ -1547,4 +1553,106 @@ void TestValidator::ideaLink_conflictingPromotionKeys_error()
     // The same link spelled twice is not a finding: only a disagreement is.
     idea.requirementKeyId = QStringLiteral("REQ-SW-PL-924");
     QCOMPARE(RequirementsValidator::validateIdeaLinks({req}, {idea}).size(), 0);
+}
+
+// ── Една връзка, две страни (REQ-SW-PL-098, решение „А“) ─────────────────────
+
+void TestValidator::ideaLink_promotionWithoutFromIdea_error()
+{
+    // Direction A: the idea records the promotion, the requirement it names does
+    // not name it back. The pair looks promoted from one file and plain from the
+    // other, so the issue must name BOTH — the repair is in the requirement.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-926"), {});
+    const Idea idea = makeIdea(QStringLiteral("IDEA-011"), QStringLiteral("промотирана"),
+                              QStringLiteral("REQ-SW-PL-926"));
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateIdeaLinks({req}, {idea});
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).field, QStringLiteral("idea-link"));
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("IDEA-011")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-926")),
+             qPrintable(issues.at(0).message));
+
+    // The same requirement pointing at ANOTHER idea is still a broken pair, and
+    // the message names the idea the requirement believes it came from. The
+    // second idea is promoted to the same requirement on purpose: it keeps this
+    // case about the back-link and not about a missing file.
+    const Requirement elsewhere = requirementCiting(QStringLiteral("REQ-SW-PL-926"), {},
+                                                    QStringLiteral("IDEA-012"));
+    const Idea second = makeIdea(QStringLiteral("IDEA-012"), QStringLiteral("промотирана"),
+                                 QStringLiteral("REQ-SW-PL-926"));
+    const QVector<RequirementsValidator::Issue> mismatched =
+        RequirementsValidator::validateIdeaLinks({elsewhere}, {idea, second});
+    QCOMPARE(mismatched.size(), 1);
+    QVERIFY2(mismatched.at(0).message.contains(QStringLiteral("IDEA-011")),
+             qPrintable(mismatched.at(0).message));
+    QVERIFY2(mismatched.at(0).message.contains(QStringLiteral("IDEA-012")),
+             qPrintable(mismatched.at(0).message));
+}
+
+void TestValidator::ideaLink_fromIdeaWithoutPromotion_error()
+{
+    // Direction B: the requirement says where it came from, the idea says it was
+    // never promoted. Direction A cannot see this one — there is no promotion
+    // line to name the requirement back.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-927"), {},
+                                              QStringLiteral("IDEA-013"));
+    const Idea idea = makeIdea(QStringLiteral("IDEA-013"), QStringLiteral("промотирана"),
+                              QString());          // promoted, but to nothing
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateIdeaLinks({req}, {idea});
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).field, QStringLiteral("idea-link"));
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("IDEA-013")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-927")),
+             qPrintable(issues.at(0).message));
+
+    // Promoted to a THIRD requirement: the pair is crossed, and both names plus
+    // the one the idea actually names are in the message. That requirement
+    // carries the matching `from_idea:` so the crossed pair is the only finding.
+    const Idea crossed = makeIdea(QStringLiteral("IDEA-013"),
+                                  QStringLiteral("промотирана"),
+                                  QStringLiteral("REQ-SW-PL-928"));
+    const Requirement atThird = requirementCiting(QStringLiteral("REQ-SW-PL-928"), {},
+                                                  QStringLiteral("IDEA-013"));
+    const QVector<RequirementsValidator::Issue> crossedIssues =
+        RequirementsValidator::validateIdeaLinks({req, atThird}, {crossed});
+    QCOMPARE(crossedIssues.size(), 1);
+    QVERIFY2(crossedIssues.at(0).message.contains(QStringLiteral("REQ-SW-PL-928")),
+             qPrintable(crossedIssues.at(0).message));
+}
+
+void TestValidator::ideaLink_cleanPairInBothDirections_silent()
+{
+    // The state the register should be in: both ends name each other. Silence in
+    // both directions — this is the guard against the new rules crying wolf.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-929"),
+                                              {QStringLiteral("IDEA-014")},
+                                              QStringLiteral("IDEA-014"));
+    const Idea idea = makeIdea(QStringLiteral("IDEA-014"), QStringLiteral("промотирана"),
+                              QStringLiteral("REQ-SW-PL-929"));
+    QCOMPARE(RequirementsValidator::validateIdeaLinks({req}, {idea}).size(), 0);
+
+    // A requirement from nowhere and an idea nobody promoted stay silent too:
+    // neither half of the link is a defect.
+    const Requirement nowhere = requirementCiting(QStringLiteral("REQ-SW-PL-930"), {});
+    const Idea unpromoted = makeIdea(QStringLiteral("IDEA-015"),
+                                     QStringLiteral("в развитие"), QString());
+    QCOMPARE(RequirementsValidator::validateIdeaLinks({nowhere}, {unpromoted}).size(), 0);
+
+    // fromIdeaId() reads the header line the same way for every spelling the
+    // dialog and a human produce.
+    QCOMPARE(RequirementsValidator::fromIdeaId(req), QStringLiteral("IDEA-014"));
+    Requirement bold = nowhere;
+    bold.rawContent = QStringLiteral("- **from_idea:** `idea-015`\n");
+    QCOMPARE(RequirementsValidator::fromIdeaId(bold), QStringLiteral("IDEA-015"));
+    Requirement none = nowhere;
+    none.rawContent = QStringLiteral("- from_idea: —\n");
+    QCOMPARE(RequirementsValidator::fromIdeaId(none), QString());
 }

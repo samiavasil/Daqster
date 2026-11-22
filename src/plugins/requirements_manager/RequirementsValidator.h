@@ -189,6 +189,20 @@ public:
     static QStringList citedIdeaIds(const Requirement &req);
 
     /**
+     * @brief The requirement's own end of the idea link: its `from_idea:` value.
+     *
+     * NewRequirementDialog writes the promotion as `- from_idea: IDEA-NNN` into
+     * the requirement, and `> Промотирана:` into the idea (REQ-SW-PL-095). This
+     * accessor reads the requirement's half so the validator can compare the two
+     * ends instead of trusting either one; struck-through spans and the bold or
+     * backticked spellings are handled the same way citedIdeaIds() handles them.
+     *
+     * @param req Parsed requirement (its rawContent is read).
+     * @return `IDEA-NNN` in upper case, or an empty string when absent.
+     */
+    static QString fromIdeaId(const Requirement &req);
+
+    /**
      * @brief The three rules of `scripts/check-idea-promotion.sh`, plus one that
      * needs both values of the link.
      *
@@ -208,6 +222,17 @@ public:
      * apart (`promotedKeyId` / `requirementKeyId`) and the script's grep sees
      * one value at a time: an idea carrying both keys with two different
      * requirements is an Error naming the pair (REQ-SW-PL-098 review R1-3).
+     *
+     * @par The link is checked in both directions (REQ-SW-PL-098, decision A)
+     * A promotion is ONE link with TWO ends, so each end is asked whether it
+     * names the other; a name that exists on one side only is an Error naming
+     * both files:
+     *  - the idea is promoted to `REQ-X`, but `REQ-X` carries no
+     *    `from_idea:` naming THIS idea (or names a different one) → Error;
+     *  - `REQ-X.from_idea` is `IDEA-Y`, but `IDEA-Y` does not name `REQ-X`
+     *    back → Error.
+     * Neither end present → nothing: an idea without a requirement is the
+     * normal state, and so is a requirement that came from nowhere.
      *
      * @par Why this is not part of validate()
      * Same reason as validateCitedPaths(): validate() must stay equal to what

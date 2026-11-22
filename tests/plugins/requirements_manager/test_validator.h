@@ -66,4 +66,8 @@ private slots:
     void ideaLink_promotionToMissingRequirement_error();
     void ideaLink_promotedPairAndUnpromotedIdea_silent();
     void ideaLink_conflictingPromotionKeys_error();
+    // REQ-SW-PL-098, решение „А“: една връзка, две страни.
+    void ideaLink_promotionWithoutFromIdea_error();
+    void ideaLink_fromIdeaWithoutPromotion_error();
+    void ideaLink_cleanPairInBothDirections_silent();
 };
