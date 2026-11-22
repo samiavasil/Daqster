@@ -142,6 +142,16 @@ QString readAll(const QString &path)
     return QString::fromUtf8(file.readAll());
 }
 
+// The file exactly as it sits on disk: no text mode, no translation — the
+// "looking changed nothing" assertions compare these byte for byte.
+QByteArray readBytes(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return QByteArray();
+    return file.readAll();
+}
+
 /**
  * @brief Answers the next modal box and records its text.
  *
@@ -1510,8 +1520,34 @@ void TestWidgets::doneCandidateCounterAndBadge()
     QVERIFY2(row.isValid(), "the candidate row must carry the badge");
     QVERIFY(row.data(RequirementsModel::DoneCandidateRole).toBool());
 
-    const QString before = readAll(path);
-    QCOMPARE(readAll(path), before);   // looking changed nothing on disk
+    // AC3: looking does not write — and a snapshot compared with itself proves
+    // nothing, so a REAL action runs between the two reads: the candidate row is
+    // clicked (selection fills the preview, the criteria list and the editor —
+    // every read path the widget has for that file), then another row and back.
+    widget.resize(900, 600);
+    widget.show();
+    const QByteArray before = readBytes(path);
+    QVERIFY2(!before.isEmpty(), qPrintable(path));
+    const QRect cell = tree->visualRect(row);
+    QVERIFY2(cell.isValid() && !cell.isEmpty(), "the candidate row must be visible to be clicked");
+    QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::NoModifier, cell.center());
+    QCOMPARE(tree->currentIndex(), row);
+    tree->setCurrentIndex(QModelIndex());
+    tree->setCurrentIndex(row);
+    QCOMPARE(readBytes(path), before);   // byte for byte: the file did not move
+
+    // …and the snapshot itself has teeth: one appended byte is visible to it,
+    // which is what makes the comparison above a check and not a tautology.
+    QFile probe(path);
+    QVERIFY(probe.open(QIODevice::Append));
+    probe.write("\n");
+    probe.close();
+    QVERIFY2(readBytes(path) != before, "the snapshot must see a write");
+    QFile restore(path);
+    QVERIFY(restore.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    QCOMPARE(restore.write(before), qint64(before.size()));
+    restore.close();
+    QCOMPARE(readBytes(path), before);
 }
 
 void TestWidgets::markDoneArchivesWithOneHistoryRow()
