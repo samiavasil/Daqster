@@ -110,11 +110,88 @@ requirements viewer/editor. Изгледите са организирани в 
   **TestGraphLayout (6 теста, Sugiyama фази 2 & 3**: `layersPreserved`,
   `crossingsReduced`, `deterministic`, `alignedAndCentered`,
   `cycleResidualLayerStable`, `parentEdgesDoNotBreakLayering`) в shared binary
-  `requirements_manager_tests` (49/49 PASS на Qt5/Qt6);
+  `requirements_manager_tests`;
   `tests/plugins/requirements_manager/test_graph_widget.{h,cpp}` — GUI binary
   `requirements_manager_gui_tests` (2 регресионни слота: `edgeFollowsNodeMove`,
-  `fitsViewportAfterResize`; 4/4 green с init/cleanup, offscreen) —
-  общо 68/68 PASS на Qt5/Qt6 (requirements_manager suite).
+  `fitsViewportAfterResize`, offscreen).
+  **Актуален брой (към 2026-11-22):** `ctest -N` в `build_qt6/` дава **6** теста за
+  плъгина — `requirements_manager_tests`, `…_matrix_tests`, `…_exporter_tests`,
+  `…_gui_tests`, `…_widget_tests`, `…_ideas_tests`; по `-functions` те са **108**
+  тестови функции (43+6+5+10+30+14), и шестте минават на Qt5 и Qt6
+  (`ctest -R requirement` → 6/6 PASS).
+
+#### Работен плот: чернови, дати и колони (REQ-SW-PL-099 — REQ-SW-PL-107)
+
+- **Табовете са четири:** `Requirements` (дърво + преглед/редактор в един панел),
+  `Dependency Graph`, `Traceability` и `Идеи`; последният се показва само когато
+  `IdeaReader` е намерил поне една идея (`QTabWidget::setTabVisible`), не като празен таб.
+- **Колони и сортиране:** `RequirementsModel` дава осем колони — `ID`, `Title`,
+  `Status`, `Priority`, `Assignee`, `Repo`, `Създадено`, `Възраст`. Сортирането
+  живее в `RequirementsSortProxyModel` (`QTreeView::setSortingEnabled(true)`,
+  начално по `ID` възходящо): разделите `active`/`archive` остават в реда на модела,
+  а вътре в тях редовете се подреждат по щракнатата колона (низходящо обръща само
+  редовете, не разделите). `Възраст` се сравнява **числово** през `AgeDaysRole` —
+  иначе „12 дни“ сортира преди „9 дни“; неизвестна възраст (-1) се групира в края.
+- **Дати и възраст:** `RequirementDates` приема само истинска ISO дата
+  (`isValidIsoDate()`: `YYYY-MM-DD` + `QDate::fromString`, значи `2026-02-30` не
+  минава). `Създадено` е полето `- **Създадено:**` (алиас `- **Дата:**`), `Възраст`
+  е цели дни („—“ при липсваща/невалидна дата), прегледът показва
+  „2026-11-21 · преди 12 дни“. Чернова, по-стара от `kStaleDraftDays = 14`, се
+  оцветява в warning цвят `#C07A00` (`RequirementsModel::staleDraftColour()` през
+  `Qt::ForegroundRole`, без delegate). Невалидната дата е Warning във валидатора
+  (`датата '…' не е YYYY-MM-DD`), не Error — стар файл с лоша дата остава четим.
+- **`Ревизия` и `Базова линия`:** `- **Ревизия:** N` расте с всеки ред в `## История`
+  и се показва в заглавката на прегледа заедно с `- **Одобрено:**` („ревизия N“ щом
+  има номер) и `- **Базова линия:** <дата>, <клон> (ревизия N)`; когато
+  `Ревизия > одобрена`, заглавката казва изрично „ревизия N не е одобрена —
+  имплементацията е блокирана“.
+- **Прегледът е целият файл, не извадка:** `RequirementPreview::render()` строи HTML
+  заглавка от парснатите полета (статус, ревизия, приоритет, отговорник, създадено +
+  възраст, Одобрено, Базова линия, Repo, Фази, Произход/Родител/Деца/Зависи
+  от/Зависими от) и след нея вмъква **цялата** Markdown на файла през
+  `QTextDocument::setMarkdown` (Qt 5.14+; на Qt5 блок по блок, за да не се губят
+  форматите).
+- **Статуси и цвят:** речникът е `DRAFT ACTIVE IMPLEMENTED DONE CANCELLED BACKLOG`
+  (`RequirementsValidator::statusVocabulary()`, същият като `VOCAB` в
+  `validate-traceability.sh`). Графът оцветява рамката по статус от една таблица —
+  `DependencyGraphScene::statusStyles()`: `DRAFT` `#6A1B9A`, `ACTIVE` `#2E7D32`,
+  `IMPLEMENTED` `#1565C0`, `DONE` `#757575`, `CANCELLED` `#C62828`, `BACKLOG`
+  `#EF6C00`, непознат статус `#546E7A`. `DRAFT` в `archive/` е валидаторска грешка
+  (чернова в архива е противоречие).
+- **Присъдите по чернова** (`refreshActionState()` ги включва само за `DRAFT` в
+  `active/`; всички работят по **ID**, не по запазен път — `resolveRequirementFile()`
+  прави нов обход на дървото, защото идентичността е H1, не пътят):
+  - **„Приеми“** → `RequirementsParser::approveDraft()`: `DRAFT → ACTIVE`, редът
+    `> **Чернова…**` се маха, добавя се ред в `## История` и — **само тук** — ред
+    `- **Одобрено:** <дата>, потребител (ревизия N)`, където N е ревизията след
+    bump-а. Пита се потвърждение (одобрението разрешава имплементация); върху
+    не-чернова е успешен no-op, така че повторно приемане не предатира файла.
+  - **„За корекция“** → `requestChangesDraft()`: добавя
+    `| кръг | дата | за корекция | бележка |` в `## Ревю на черновата`; статусът
+    **остава `DRAFT`**, бележката е задължителна.
+  - **„Откажи“** → `rejectDraft()`: `CANCELLED`, ред в ревюто, ред в `## История` и
+    преместване в `archive/` (с второ потвърждение — единственото необратимо).
+  - **„Промени договора“** → `startContractChange()` (`ACTIVE`/`IMPLEMENTED`):
+    връща `DRAFT`, закача одобрението за приетата ревизия
+    (`contentWithSealedApproval`) и пише причината в `## История`.
+- **Броячи на собственика** (под дървото, преизчисляват се при всяко зареждане,
+  никъде не се записват): `чакат теб: N · за корекция: M` — N са чернови без присъда,
+  M са с последна присъда „за корекция“ (`RequirementsParser::lastDraftVerdict`), а
+  tooltip-ът казва от колко дни чака най-старата и коя е; `кандидати за DONE: N` —
+  IMPLEMENTED изисквания, на които портата за DONE не липсва нищо, с ID-тата в
+  tooltip-а. Редът на кандидата носи `✓` до ID-то и зеления `#1E7B34`.
+- **Животът на файловете:** `QFileSystemWatcher` по **директории** (не е рекурсивен —
+  всяко ниво е отделен запис, `rebuildWatchedPaths()`) с debounce 300 ms, защото
+  `git pull` пренаписва папка, не файл: външна промяна влиза в дървото без рестарт.
+- **Валидационният отчет се копира:** `ValidationDialog` има „Копирай“ (Ctrl+C →
+  Markdown bullets от `ValidationReport::issuesAsMarkdown`) и „Копирай като справка“
+  (`asStatusReport` — с дата и брой); ред с ID навигира до изискването.
+- **Пазачите четат същото** (частното repo, ниво 0): `check-req-history` (смяна на
+  статус без ред в `## История`), `check-req-approval` (изискване с последна присъда
+  „за корекция“ не се цитира от клон/комит/код), `check-req-revision` (`Ревизия` >
+  одобрената), `check-req-done` (предпоставките на `DONE` по цялото дърво, с воден
+  дълг), `check-idea-promotion` (идея без запис за промоция) и `preflight-req`
+  (един ред преди работа: статус · ревизия · одобрена · присъда · AC).
 
 #### Multi-Repository Requirements View (REQ-SW-PL-012 — merged view)
 
@@ -242,13 +319,13 @@ builds + unit тестове + headless smoke test) по RDD-PROCESS.md. Инд�
 
 | Инструмент | Какво е authority | Какво проверява |
 |---|---|---|
-| CLI `DevelopmentProcess/scripts/validate-traceability.sh` | **проследимост** | матрица, коммити/хешове, кодови пътища, cross-reference-и (иска git и двете repo-та) |
-| GUI `RequirementsValidator` (`requirements_manager`) | **полета на изискването** | `id`, `status`, зона (active/archive), acceptance criteria, `Родител:`/`Зависи от:`/`Деца:` |
+| CLI `scripts/validate-traceability.sh` | **проследимост** | матрица, коммити/хешове, кодови пътища, cross-reference-и (иска git и двете repo-та) |
+| GUI `RequirementsValidator` (`requirements_manager`) | **полета на изискването** | `id`, `status` (речникът с `DRAFT`), зона (active/archive), acceptance criteria, `Родител:`/`Зависи от:`/`Деца:`, ISO дата на `Създадено:`, връзката идея ↔ изискване |
 
 - **Един обхват:** и двата четат само `DevelopmentProcess/requirements/`
   (`active/` + `archive/`), никога целия repo root — драфт в `plans/` не става
   „изискване“, което CLI-ят не познава.
-- **Един речник:** `ACTIVE IMPLEMENTED DONE CANCELLED BACKLOG`; `DONE НА КЛОНА` =
+- **Един речник:** `DRAFT ACTIVE IMPLEMENTED DONE CANCELLED BACKLOG`; `DONE НА КЛОНА` =
   `IMPLEMENTED`. Дефиниран е на две места (`VOCAB` в скрипта,
   `RequirementsValidator::statusVocabulary()`) и се променя в един комит.
 - **Общите правила дават един и същ резултат:** зона (`ACTIVE` в `archive/`,
