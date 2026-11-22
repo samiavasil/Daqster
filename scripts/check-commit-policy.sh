@@ -6,9 +6,9 @@
 #
 # Отказва, когато:
 #   (а) staged diff-ът пипа код, а в съобщението няма цитиран `REQ-…`;
-#   (б) цитирано изискване е DRAFT, ревизията му не е одобрена или последната му
-#       присъда е „за корекция“ (чете се от `scripts/req-state.sh` — същият
-#       четец, който ползва `scripts/preflight-req.sh`);
+#   (б) цитирано изискване не е ACTIVE/IMPLEMENTED/DONE (DRAFT, CANCELLED,
+#       BACKLOG), ревизията му не е одобрена или последната му присъда е
+#       „за корекция“ (чете се от `scripts/req-state.sh`, както `preflight-req.sh`);
 #   (в) staged diff-ът пипа споделен път, а `.test-evidence/1-<HEAD short>.txt`
 #       липсва или няма `scope full`.
 # `docs:`/`chore:` комит, който не пипа код, минава без REQ.
@@ -104,11 +104,20 @@ for id in $IDS; do
     verdict="$(req_verdict "$file")"
     show="$file"
     for cand in "${CANDIDATE_ROOTS[@]}"; do show="${show#"$cand"/}"; done
-    if [ "$status" != "ACTIVE" ]; then
-        echo "✖ $id е ${status:-без статус} ($show) — не се цитира от код" >&2
-        [ "$status" = "DRAFT" ] && echo "  черновата чака присъда на човека" >&2
-        exit 1
-    fi
+    # AC2 казва „отказва се DRAFT“, не „иска се ACTIVE“: поправка на вече прието
+    # изискване (IMPLEMENTED, DONE) е законна работа и се цитира. Отказват се само
+    # състоянията, в които договорът не е в сила — чернова, отказано, backlog.
+    case "$status" in
+        ACTIVE|IMPLEMENTED|DONE) ;;
+        DRAFT)
+            echo "✖ $id е DRAFT ($show) — не се цитира от код" >&2
+            echo "  черновата чака присъда на човека" >&2
+            exit 1 ;;
+        *)
+            echo "✖ $id е ${status:-без статус} ($show) — не се цитира от код" >&2
+            echo "  цитира се само ACTIVE, IMPLEMENTED или DONE" >&2
+            exit 1 ;;
+    esac
     if [ -n "$revision" ] && [ -n "$approved" ] && [ "$revision" != "$approved" ]; then
         echo "✖ $id: ревизия $revision не е одобрена (одобрена: $approved)" >&2
         exit 1

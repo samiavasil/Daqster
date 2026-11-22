@@ -3,7 +3,8 @@
 #
 # Git подава пътя до файла със съобщението като $1. Едно и също правило с
 # частното repo: комит, който пипа код, цитира `REQ-…`, а цитираното изискване
-# е за имплементация. Логиката е в scripts/check-commit-policy.sh.
+# е в сила (ACTIVE, IMPLEMENTED или DONE). Логиката е в
+# scripts/check-commit-policy.sh.
 set -uo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
