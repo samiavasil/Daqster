@@ -1831,6 +1831,93 @@ void TestParser::contract_technicalDetails_keepRevision()
     QCOMPARE(RequirementsParser::contractHash(req.rawContent), contractBefore);
 }
 
+void TestParser::contract_scopeField_isPartOfContract()
+{
+    // REQ-SW-PL-109 AC1: `- **Обхват:**` says what the requirement covers, i.e.
+    // what "done" means, so RDD-PROCESS.md puts it IN the contract. A changed
+    // scope is a different contract; a changed priority is not.
+    const QString fixture = QStringLiteral(
+        "# REQ-SW-PL-924: Обхват\n"
+        "\n"
+        "- **Статус:** ACTIVE\n"
+        "- **Приоритет:** High\n"
+        "- **Обхват:** публичен repo, `src/plugins/x/`\n"
+        "\n"
+        "## Как ще разберем, че работи\n"
+        "\n"
+        "- [ ] един критерий\n");
+    const QString base = RequirementsParser::contractHash(fixture);
+    QVERIFY2(!base.isEmpty(), "the fixture carries a contract");
+
+    QString scope = fixture;
+    scope.replace(QStringLiteral("`src/plugins/x/`"),
+                  QStringLiteral("`src/plugins/y/`"));
+    QVERIFY2(RequirementsParser::contractHash(scope) != base,
+             "a changed Обхват is a different contract");
+
+    QString priority = fixture;
+    priority.replace(QStringLiteral("- **Приоритет:** High"),
+                     QStringLiteral("- **Приоритет:** Low"));
+    QCOMPARE(RequirementsParser::contractHash(priority), base);
+
+    // A continuation line belongs to the field it continues: the scope is often
+    // wrapped over two lines, and the second line is still the scope.
+    QString continued = fixture;
+    continued.replace(
+        QStringLiteral("- **Обхват:** публичен repo, `src/plugins/x/`\n"),
+        QStringLiteral("- **Обхват:** публичен repo, `src/plugins/x/`\n"
+                       "  и частният `core/`\n"));
+    QVERIFY2(RequirementsParser::contractHash(continued) != base,
+             "the continuation line of Обхват is part of the contract too");
+}
+
+void TestParser::contract_scopeChange_bumpsRevision()
+{
+    // B1 of the review of REQ-SW-PL-109: `Обхват` is part of the contract, so a
+    // change ONLY there is a declared contract change — N+1 in the same write,
+    // and the seal keeps naming the scope that was accepted.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    QString fixture = requirementContent(QStringLiteral("REQ-SW-PL-925"),
+                                         QStringLiteral("Обхват"),
+                                         QStringLiteral("ACTIVE"),
+                                         QStringLiteral("—"), QStringLiteral("—"));
+    fixture.replace(QStringLiteral("- **Приоритет:** Low\n"),
+                    QStringLiteral("- **Ревизия:** 2\n- **Приоритет:** Low\n"
+                                   "- **Обхват:** публичен repo, `src/plugins/x/`\n"));
+    const QString seal = RequirementsParser::contractHash(fixture);
+    fixture.replace(QStringLiteral("- **Приоритет:** Low\n"),
+                    QStringLiteral("- **Одобрено:** 2026-11-20, потребител "
+                                   "(ревизия 2, договор %1)\n- **Приоритет:** Low\n")
+                        .arg(seal));
+    const QString path = writeFixture(activeDir, QStringLiteral("REQ-SW-PL-925.md"), fixture);
+    QVERIFY(!path.isEmpty());
+
+    QString error;
+    QVERIFY2(RequirementsParser::startContractChange(
+                 path, QStringLiteral("обхватът се стеснява"), QStringLiteral("потребител"),
+                 QStringLiteral("2026-11-23"), &error),
+             qPrintable(error));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QString edited = QString::fromUtf8(file.readAll());
+    file.close();
+    edited.replace(QStringLiteral("`src/plugins/x/`"), QStringLiteral("`src/plugins/y/`"));
+    {
+        QFile out(path);
+        QVERIFY(out.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        out.write(edited.toUtf8());
+    }
+
+    const Requirement after = RequirementsParser::parseDirectory(temp.path()).first();
+    QCOMPARE(after.revision, 3);                  // N+1, in the same action
+    QCOMPARE(after.approvedContractHash, seal);   // the accepted scope did not move
+    QVERIFY2(RequirementsParser::contractHash(after.rawContent) != seal,
+             "the new scope is a different contract");
+}
+
 void TestParser::contract_hashIsPinned()
 {
     // The shell gate (scripts/check-req-revision.sh, private repo) recomputes
@@ -1854,7 +1941,7 @@ void TestParser::contract_hashIsPinned()
         "| дата | промяна | кой | защо |\n"
         "|---|---|---|---|\n"
         "| 2026-11-23 | създадено | Ivan | фикстура |\n");
-    QCOMPARE(RequirementsParser::contractHash(fixture), QStringLiteral("e7ebe43e"));
+    QCOMPARE(RequirementsParser::contractHash(fixture), QStringLiteral("e92d6265"));
     // A ticked AC is the same contract as an unticked one; a changed word is not.
     QString ticked = fixture;
     ticked.replace(QStringLiteral("- [x] първи критерий"),
@@ -1866,6 +1953,26 @@ void TestParser::contract_hashIsPinned()
                    QStringLiteral("първият критерий"));
     QVERIFY(RequirementsParser::contractHash(worded)
             != RequirementsParser::contractHash(fixture));
+
+    // `Обхват` (REQ-SW-PL-109 AC1, B1): the scope and its continuation line are
+    // in the contract, and the awk gate prints the SAME text — so the same
+    // fixture must give the same 8 hex in both trees (pinned a second time in
+    // tests/scripts/test-req-revision.sh).
+    const QString scoped = QStringLiteral(
+        "# REQ-SW-PL-931: Обхват\n"
+        "\n"
+        "- **Статус:** ACTIVE\n"
+        "- **Обхват:** публичен repo, `src/plugins/x/`\n"
+        "  и частният `core/`\n"
+        "\n"
+        "## Как ще разберем, че работи\n"
+        "\n"
+        "- [ ] един критерий\n");
+    QCOMPARE(RequirementsParser::contractHash(scoped), QStringLiteral("f31407fa"));
+    QString scopeOnOneLine = scoped;
+    scopeOnOneLine.replace(QStringLiteral("\n  и частният `core/`"), QString());
+    QVERIFY2(RequirementsParser::contractHash(scopeOnOneLine) != QStringLiteral("f31407fa"),
+             "the continuation line of Обхват is part of the contract");
 }
 
 void TestParser::findFileById_survivesRename()

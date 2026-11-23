@@ -72,6 +72,9 @@ QString rtrimmed(QString line)
 // The one definition of "the contract" (REQ-SW-PL-109 AC1). One record per
 // line, prefixed by the section it belongs to, so a difference can name the
 // section; the shell gate prints the same records with the same prefixes.
+// `- **Обхват:**` is in it: the scope says what "done" means, so a change there
+// is a contract change (`S|`), exactly like `Зависи от` (`D|`) and `Родител` (`P|`).
+// Blank lines are never records: a reflow of the file is not a contract change.
 QString contractTextOf(const QString &content)
 {
     const QStringList lines = content.split(QLatin1Char('\n'));
@@ -97,6 +100,12 @@ QString contractTextOf(const QString &content)
             continue;
         }
         if (inAc) {
+            // A blank line is formatting, not a criterion: awk sees no line at
+            // all where a file ends, and appending `## История` must not turn the
+            // blank line in front of it into a contract record (REQ-SW-PL-109
+            // AC2: a history row is bookkeeping).
+            if (trimmed.isEmpty())
+                continue;
             QString out = line;
             if (trimmed.startsWith(QStringLiteral("- [x]"))
                 || trimmed.startsWith(QStringLiteral("- [X]"))) {
@@ -114,6 +123,11 @@ QString contractTextOf(const QString &content)
         }
         if (trimmed.startsWith(QStringLiteral("- **Родител:**"))) {
             metadataPrefix = QStringLiteral("P|");
+            records << metadataPrefix + line;
+            continue;
+        }
+        if (trimmed.startsWith(QStringLiteral("- **Обхват:**"))) {
+            metadataPrefix = QStringLiteral("S|");
             records << metadataPrefix + line;
             continue;
         }

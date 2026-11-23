@@ -479,10 +479,11 @@ public:
      *
      * The contract is a LIST OF SECTIONS, not "everything before История":
      * the H1 title, the acceptance-criteria section (checkbox normalised, so
-     * `[x]` is not a contract change), `- **Зависи от:**` and `- **Родител:**`
-     * with their continuation lines. Everything else — status, approval,
-     * revision, baseline, dates, priority, assignee, ticks, history, draft
-     * review, technical details, notes — is bookkeeping.
+     * `[x]` is not a contract change), `- **Зависи от:**`, `- **Родител:**` and
+     * `- **Обхват:**` with their continuation lines; blank lines are formatting,
+     * not records. Everything else — status, approval, revision, baseline,
+     * dates, priority, assignee, ticks, history, draft review, technical
+     * details, notes — is bookkeeping.
      *
      * `scripts/check-req-revision.sh` extracts the same text with awk; one
      * fixture hash is pinned in both trees so the two cannot drift apart.
@@ -509,9 +510,10 @@ public:
      * @brief „Mark Done & Archive“: the owner's `DONE` verdict (REQ-SW-PL-107).
      *
      * Writes `- **Статус:** DONE`, EXACTLY one history row
-     * (`| <date> | DONE | потребител | ревю <файл> |`), bumps `- **Ревизия:**`,
-     * and moves the file to archive/ with a STRICT rename — an existing file of
-     * the same name is an error, never an overwrite.
+     * (`| <date> | DONE | потребител | ревю <файл> |`), leaves `- **Ревизия:**`
+     * alone — a status is not a contract (REQ-SW-PL-109) — and moves the file to
+     * archive/ with a STRICT rename — an existing file of the same name is an
+     * error, never an overwrite.
      *
      * The preconditions (every AC checked, an accepting review record, the code
      * in `develop`) are checked by DoneGate before this is called: the

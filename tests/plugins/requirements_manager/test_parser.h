@@ -56,6 +56,8 @@ private slots:
     void contract_draftAndReapprove_keepRevision();
     void contract_acWord_bumpsRevision();
     void contract_technicalDetails_keepRevision();
+    void contract_scopeField_isPartOfContract();
+    void contract_scopeChange_bumpsRevision();
     void contract_hashIsPinned();
     void findFileById_survivesRename();
     void createdAliasDoesNotRewriteTheRealTree();
