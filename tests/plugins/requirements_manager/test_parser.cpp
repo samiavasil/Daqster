@@ -1111,6 +1111,10 @@ void TestParser::approveDraft_rewritesStatusAndApproval()
     // Byte-exact: the banner line and the blank line it would leave behind are
     // gone, the two approval lines replace the status, and the history row the
     // status change demands (REQ-SW-PL-101) is the only addition at the end.
+    // The approval seals the CONTRACT too (REQ-SW-PL-109): the revision stays 1
+    // because a status change and a history row are bookkeeping, not a contract.
+    const QString contract = RequirementsParser::contractHash(before);
+    QVERIFY2(!contract.isEmpty(), "the fixture carries a title and one AC");
     const QString expected =
         QString(before)
             .remove(QStringLiteral("> **Чернова — чака одобрение в мениджъра; не се "
@@ -1118,14 +1122,17 @@ void TestParser::approveDraft_rewritesStatusAndApproval()
             .replace(QStringLiteral("- **Статус:** DRAFT"),
                      QStringLiteral("- **Статус:** ACTIVE\n"
                                     "- **Одобрено:** 2026-11-21, потребител "
-                                    "(ревизия 1)\n"
-                                    "- **Ревизия:** 1"))
+                                    "(ревизия 1, договор %1)\n"
+                                    "- **Ревизия:** 1")
+                         .arg(contract))
         + historyBlock(QStringLiteral("2026-11-21"),
                        QStringLiteral("одобрено (DRAFT → ACTIVE)"),
                        QStringLiteral("потребител"),
                        QStringLiteral("присъда на потребителя"));
     QCOMPARE(after, expected);
-    QVERIFY(after.contains(QStringLiteral("- **Одобрено:** 2026-11-21, потребител (ревизия 1)")));
+    QVERIFY(after.contains(QStringLiteral("- **Одобрено:** 2026-11-21, потребител "
+                                          "(ревизия 1, договор %1)")
+                               .arg(contract)));
     QVERIFY2(!after.contains(QStringLiteral("Чернова")),
              "an accepted file must not claim it is still a draft");
 
@@ -1226,13 +1233,16 @@ void TestParser::approveDraft_keepsCrlfBytes(){
     QFile file(path);
     QVERIFY(file.open(QIODevice::ReadOnly));
     const QString after = QString::fromUtf8(file.readAll());
+    const QString contract = RequirementsParser::contractHash(before);
+    QVERIFY2(!contract.isEmpty(), "the fixture carries a title");
     const QString expected =
         QString(before)
             .replace(QStringLiteral("- **Статус:** DRAFT\r\n"),
                      QStringLiteral("- **Статус:** ACTIVE\r\n"
                                     "- **Одобрено:** 2026-11-21, потребител "
-                                    "(ревизия 1)\r\n"
-                                    "- **Ревизия:** 1\r\n"))
+                                    "(ревизия 1, договор %1)\r\n"
+                                    "- **Ревизия:** 1\r\n")
+                         .arg(contract))
         + historyBlock(QStringLiteral("2026-11-21"),
                        QStringLiteral("одобрено (DRAFT → ACTIVE)"),
                        QStringLiteral("потребител"),
@@ -1580,8 +1590,11 @@ void TestParser::startContractChange_sealsApproval()
     const QString after = QString::fromUtf8(file.readAll());
     file.close();
     QVERIFY2(after.contains(QStringLiteral("- **Статус:** DRAFT")), qPrintable(after));
+    // REQ-SW-PL-109: the seal carries the contract as well, so "approved" says
+    // WHICH text the human accepted, not only which number.
     QVERIFY2(after.contains(QStringLiteral("- **Одобрено:** 2026-11-21, потребител "
-                                           "(ревизия 2)")),
+                                           "(ревизия 2, договор %1)")
+                                .arg(RequirementsParser::contractHash(content))),
              qPrintable(after));
     QVERIFY(after.contains(QStringLiteral("- **Ревизия:** 3")));
 
@@ -1618,21 +1631,25 @@ void TestParser::approveDraft_namesTheApprovedRevision()
     QCOMPARE(req->status, QStringLiteral("ACTIVE"));
     QCOMPARE(req->revision, 1);
     QCOMPARE(req->approvedRevision, req->revision);
-    QVERIFY(req->rawContent.contains(QStringLiteral("(ревизия 1)")));
+    QVERIFY(req->rawContent.contains(QStringLiteral("(ревизия 1, договор ")));
+    QCOMPARE(req->approvedContractHash, RequirementsParser::contractHash(req->rawContent));
 }
 
-void TestParser::appendHistoryRow_bumpsRevision()
+void TestParser::appendHistoryRow_keepsRevision()
 {
+    // REQ-SW-PL-109 AC2: a history row is bookkeeping — the number counts the
+    // CONTRACT, so two rows leave it exactly where it was.
     QTemporaryDir temp;
     QVERIFY(temp.isValid());
     const QString activeDir =
         QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
-    QVERIFY(!writeFixture(activeDir, QStringLiteral("REQ-SW-PL-909.md"),
-                          requirementContent(QStringLiteral("REQ-SW-PL-909"),
-                                             QStringLiteral("История"),
-                                             QStringLiteral("ACTIVE"),
-                                             QStringLiteral("—"), QStringLiteral("—")))
-                 .isEmpty());
+    QString fixture = requirementContent(QStringLiteral("REQ-SW-PL-909"),
+                                         QStringLiteral("История"),
+                                         QStringLiteral("ACTIVE"),
+                                         QStringLiteral("—"), QStringLiteral("—"));
+    fixture.replace(QStringLiteral("- **Приоритет:** Low\n"),
+                    QStringLiteral("- **Ревизия:** 2\n- **Приоритет:** Low\n"));
+    QVERIFY(!writeFixture(activeDir, QStringLiteral("REQ-SW-PL-909.md"), fixture).isEmpty());
 
     QVector<Requirement> parsed = RequirementsParser::parseDirectory(temp.path());
     QCOMPARE(parsed.size(), 1);
@@ -1640,13 +1657,322 @@ void TestParser::appendHistoryRow_bumpsRevision()
     RequirementsParser::appendHistoryRow(req, QStringLiteral("2026-11-22"),
                                          QStringLiteral("редакция"), QStringLiteral("Ivan"),
                                          QStringLiteral("правопис"));
-    QCOMPARE(req.revision, 1);
+    QCOMPARE(req.revision, 2);
     RequirementsParser::appendHistoryRow(req, QStringLiteral("2026-11-23"),
                                          QStringLiteral("редакция"), QStringLiteral("Ivan"),
                                          QStringLiteral("пак правопис"));
     QCOMPARE(req.revision, 2);
     QVERIFY(req.rawContent.contains(QStringLiteral("| 2026-11-23 | редакция | Ivan | пак правопис |")));
     QCOMPARE(req.rawContent.count(QStringLiteral("## История")), 1);
+}
+
+void TestParser::contract_statusRowAndTick_keepRevision()
+{
+    // REQ-SW-PL-109 AC5(а) + AC2: status + history row + ticked AC. The number
+    // stays and the contract hash stays — the gate sees the same input.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    QString fixture = requirementContent(QStringLiteral("REQ-SW-PL-920"),
+                                         QStringLiteral("Отметки"),
+                                         QStringLiteral("ACTIVE"),
+                                         QStringLiteral("—"), QStringLiteral("—"));
+    fixture.replace(QStringLiteral("- **Приоритет:** Low\n"),
+                    QStringLiteral("- **Ревизия:** 2\n- **Приоритет:** Low\n"));
+    QVERIFY(!writeFixture(activeDir, QStringLiteral("REQ-SW-PL-920.md"), fixture).isEmpty());
+
+    Requirement req = RequirementsParser::parseDirectory(temp.path()).first();
+    const QString contractBefore = RequirementsParser::contractHash(req.rawContent);
+    QVERIFY2(!contractBefore.isEmpty(), "title + one AC is a contract");
+
+    req.rawContent.replace(QStringLiteral("- [ ] 1. Критерий."),
+                           QStringLiteral("- [x] 1. Критерий."));
+    RequirementsParser::setStatusLine(req, QStringLiteral("IMPLEMENTED"));
+    RequirementsParser::appendHistoryRow(req, QStringLiteral("2026-11-23"),
+                                         QStringLiteral("IMPLEMENTED"),
+                                         QStringLiteral("Ivan"),
+                                         QStringLiteral("готово"));
+
+    QCOMPARE(RequirementsParser::revisionInContent(req.rawContent), 2);
+    QCOMPARE(RequirementsParser::contractHash(req.rawContent), contractBefore);
+}
+
+void TestParser::contract_draftAndReapprove_keepRevision()
+{
+    // REQ-SW-PL-109 AC5(б): ACTIVE → DRAFT → ACTIVE with the contract untouched
+    // leaves the number and the seal alone, so the gate stays green.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    QString fixture = requirementContent(QStringLiteral("REQ-SW-PL-921"),
+                                         QStringLiteral("Обратно"),
+                                         QStringLiteral("ACTIVE"),
+                                         QStringLiteral("—"), QStringLiteral("—"));
+    fixture.replace(QStringLiteral("- **Приоритет:** Low\n"),
+                    QStringLiteral("- **Ревизия:** 2\n- **Приоритет:** Low\n"));
+    // The seal is the fixture's own contract, so the fixture is "approved".
+    const QString seal = RequirementsParser::contractHash(fixture);
+    fixture.replace(QStringLiteral("- **Приоритет:** Low\n"),
+                    QStringLiteral("- **Одобрено:** 2026-11-20, потребител "
+                                   "(ревизия 2, договор %1)\n- **Приоритет:** Low\n")
+                        .arg(seal));
+    const QString path = writeFixture(activeDir, QStringLiteral("REQ-SW-PL-921.md"), fixture);
+    QVERIFY(!path.isEmpty());
+    const QString sealedBefore =
+        RequirementsParser::parseDirectory(temp.path()).first().approvedContractHash;
+    QVERIFY2(!sealedBefore.isEmpty(), "the fixture is sealed");
+
+    // The human flips it back to DRAFT by hand (the editor path) — a status, not
+    // a contract — and accepts it again.
+    {
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        QString text = QString::fromUtf8(file.readAll());
+        file.close();
+        text.replace(QStringLiteral("- **Статус:** ACTIVE"),
+                     QStringLiteral("- **Статус:** DRAFT"));
+        QFile out(path);
+        QVERIFY(out.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        out.write(text.toUtf8());
+    }
+    QString error;
+    QVERIFY2(RequirementsParser::approveDraft(path, QStringLiteral("2026-11-23"), &error),
+             qPrintable(error));
+
+    const Requirement after = RequirementsParser::parseDirectory(temp.path()).first();
+    QCOMPARE(after.status, QStringLiteral("ACTIVE"));
+    QCOMPARE(after.revision, 2);
+    QCOMPARE(after.approvedRevision, 2);
+    QCOMPARE(after.approvedContractHash, sealedBefore);
+    QCOMPARE(RequirementsParser::contractHash(after.rawContent), sealedBefore);
+}
+
+void TestParser::contract_acWord_bumpsRevision()
+{
+    // REQ-SW-PL-109 AC5(в): ONE word in an AC is a contract change — the number
+    // becomes N+1 in the same write and the seal still names the old contract,
+    // which is exactly what makes the gate ask for a new approval.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    QString fixture = requirementContent(QStringLiteral("REQ-SW-PL-922"),
+                                         QStringLiteral("Дума"),
+                                         QStringLiteral("ACTIVE"),
+                                         QStringLiteral("—"), QStringLiteral("—"));
+    fixture.replace(QStringLiteral("- **Приоритет:** Low\n"),
+                    QStringLiteral("- **Ревизия:** 2\n- **Приоритет:** Low\n"));
+    const QString seal = RequirementsParser::contractHash(fixture);
+    fixture.replace(QStringLiteral("- **Приоритет:** Low\n"),
+                    QStringLiteral("- **Одобрено:** 2026-11-20, потребител "
+                                   "(ревизия 2, договор %1)\n- **Приоритет:** Low\n")
+                        .arg(seal));
+    const QString path = writeFixture(activeDir, QStringLiteral("REQ-SW-PL-922.md"), fixture);
+    QVERIFY(!path.isEmpty());
+
+    const Requirement before = RequirementsParser::parseDirectory(temp.path()).first();
+    const QString accepted = before.approvedContractHash;
+    QVERIFY(!accepted.isEmpty());
+
+    QString error;
+    QVERIFY2(RequirementsParser::startContractChange(
+                 path, QStringLiteral("една дума в AC1"), QStringLiteral("потребител"),
+                 QStringLiteral("2026-11-23"), &error),
+             qPrintable(error));
+    // …and the human makes the change the action announced.
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QString edited = QString::fromUtf8(file.readAll());
+    file.close();
+    edited.replace(QStringLiteral("- [ ] 1. Критерий."),
+                   QStringLiteral("- [ ] 1. Критерият."));
+    {
+        QFile out(path);
+        QVERIFY(out.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        out.write(edited.toUtf8());
+    }
+
+    const Requirement after = RequirementsParser::parseDirectory(temp.path()).first();
+    QCOMPARE(after.revision, 3);                 // N+1
+    QCOMPARE(after.approvedRevision, 2);         // the seal did not move
+    QCOMPARE(after.approvedContractHash, accepted);
+    QVERIFY2(RequirementsParser::contractHash(after.rawContent) != accepted,
+             "the changed AC is a different contract");
+}
+
+void TestParser::contract_technicalDetails_keepRevision()
+{
+    // REQ-SW-PL-109 AC5(г): a paragraph under "Технически детайли" is not a
+    // contract — neither the number nor the hash moves.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    QString fixture = requirementContent(QStringLiteral("REQ-SW-PL-923"),
+                                         QStringLiteral("Детайли"),
+                                         QStringLiteral("ACTIVE"),
+                                         QStringLiteral("—"), QStringLiteral("—"));
+    fixture.replace(QStringLiteral("- **Приоритет:** Low\n"),
+                    QStringLiteral("- **Ревизия:** 2\n- **Приоритет:** Low\n"));
+    fixture += QStringLiteral("\n## Технически детайли\n\n- първи ред\n");
+    QVERIFY(!writeFixture(activeDir, QStringLiteral("REQ-SW-PL-923.md"), fixture).isEmpty());
+
+    Requirement req = RequirementsParser::parseDirectory(temp.path()).first();
+    const QString contractBefore = RequirementsParser::contractHash(req.rawContent);
+    req.rawContent += QStringLiteral("- втори ред, цял абзац\n");
+    RequirementsParser::appendHistoryRow(req, QStringLiteral("2026-11-23"),
+                                         QStringLiteral("бележка"),
+                                         QStringLiteral("Ivan"),
+                                         QStringLiteral("уточнение"));
+
+    QCOMPARE(RequirementsParser::revisionInContent(req.rawContent), 2);
+    QCOMPARE(RequirementsParser::contractHash(req.rawContent), contractBefore);
+}
+
+void TestParser::contract_scopeField_isPartOfContract()
+{
+    // REQ-SW-PL-109 AC1: `- **Обхват:**` says what the requirement covers, i.e.
+    // what "done" means, so RDD-PROCESS.md puts it IN the contract. A changed
+    // scope is a different contract; a changed priority is not.
+    const QString fixture = QStringLiteral(
+        "# REQ-SW-PL-924: Обхват\n"
+        "\n"
+        "- **Статус:** ACTIVE\n"
+        "- **Приоритет:** High\n"
+        "- **Обхват:** публичен repo, `src/plugins/x/`\n"
+        "\n"
+        "## Как ще разберем, че работи\n"
+        "\n"
+        "- [ ] един критерий\n");
+    const QString base = RequirementsParser::contractHash(fixture);
+    QVERIFY2(!base.isEmpty(), "the fixture carries a contract");
+
+    QString scope = fixture;
+    scope.replace(QStringLiteral("`src/plugins/x/`"),
+                  QStringLiteral("`src/plugins/y/`"));
+    QVERIFY2(RequirementsParser::contractHash(scope) != base,
+             "a changed Обхват is a different contract");
+
+    QString priority = fixture;
+    priority.replace(QStringLiteral("- **Приоритет:** High"),
+                     QStringLiteral("- **Приоритет:** Low"));
+    QCOMPARE(RequirementsParser::contractHash(priority), base);
+
+    // A continuation line belongs to the field it continues: the scope is often
+    // wrapped over two lines, and the second line is still the scope.
+    QString continued = fixture;
+    continued.replace(
+        QStringLiteral("- **Обхват:** публичен repo, `src/plugins/x/`\n"),
+        QStringLiteral("- **Обхват:** публичен repo, `src/plugins/x/`\n"
+                       "  и частният `core/`\n"));
+    QVERIFY2(RequirementsParser::contractHash(continued) != base,
+             "the continuation line of Обхват is part of the contract too");
+}
+
+void TestParser::contract_scopeChange_bumpsRevision()
+{
+    // B1 of the review of REQ-SW-PL-109: `Обхват` is part of the contract, so a
+    // change ONLY there is a declared contract change — N+1 in the same write,
+    // and the seal keeps naming the scope that was accepted.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString activeDir =
+        QDir(temp.path()).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    QString fixture = requirementContent(QStringLiteral("REQ-SW-PL-925"),
+                                         QStringLiteral("Обхват"),
+                                         QStringLiteral("ACTIVE"),
+                                         QStringLiteral("—"), QStringLiteral("—"));
+    fixture.replace(QStringLiteral("- **Приоритет:** Low\n"),
+                    QStringLiteral("- **Ревизия:** 2\n- **Приоритет:** Low\n"
+                                   "- **Обхват:** публичен repo, `src/plugins/x/`\n"));
+    const QString seal = RequirementsParser::contractHash(fixture);
+    fixture.replace(QStringLiteral("- **Приоритет:** Low\n"),
+                    QStringLiteral("- **Одобрено:** 2026-11-20, потребител "
+                                   "(ревизия 2, договор %1)\n- **Приоритет:** Low\n")
+                        .arg(seal));
+    const QString path = writeFixture(activeDir, QStringLiteral("REQ-SW-PL-925.md"), fixture);
+    QVERIFY(!path.isEmpty());
+
+    QString error;
+    QVERIFY2(RequirementsParser::startContractChange(
+                 path, QStringLiteral("обхватът се стеснява"), QStringLiteral("потребител"),
+                 QStringLiteral("2026-11-23"), &error),
+             qPrintable(error));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    QString edited = QString::fromUtf8(file.readAll());
+    file.close();
+    edited.replace(QStringLiteral("`src/plugins/x/`"), QStringLiteral("`src/plugins/y/`"));
+    {
+        QFile out(path);
+        QVERIFY(out.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        out.write(edited.toUtf8());
+    }
+
+    const Requirement after = RequirementsParser::parseDirectory(temp.path()).first();
+    QCOMPARE(after.revision, 3);                  // N+1, in the same action
+    QCOMPARE(after.approvedContractHash, seal);   // the accepted scope did not move
+    QVERIFY2(RequirementsParser::contractHash(after.rawContent) != seal,
+             "the new scope is a different contract");
+}
+
+void TestParser::contract_hashIsPinned()
+{
+    // The shell gate (scripts/check-req-revision.sh, private repo) recomputes
+    // this hash with awk + sha256sum. tests/scripts/test-req-revision.sh pins
+    // the SAME fixture and the SAME constant, so the two implementations cannot
+    // drift apart without one of the two tests going red (REQ-SW-PL-109 AC1).
+    const QString fixture = QStringLiteral(
+        "# REQ-SW-PL-930: Печат\n"
+        "\n"
+        "- **Статус:** ACTIVE\n"
+        "- **Родител:** REQ-SW-PL-001\n"
+        "- **Зависи от:** REQ-SW-PL-002\n"
+        "\n"
+        "## Как ще разберем, че работи\n"
+        "\n"
+        "- [x] първи критерий\n"
+        "- [ ] втори критерий\n"
+        "\n"
+        "## История\n"
+        "\n"
+        "| дата | промяна | кой | защо |\n"
+        "|---|---|---|---|\n"
+        "| 2026-11-23 | създадено | Ivan | фикстура |\n");
+    QCOMPARE(RequirementsParser::contractHash(fixture), QStringLiteral("e92d6265"));
+    // A ticked AC is the same contract as an unticked one; a changed word is not.
+    QString ticked = fixture;
+    ticked.replace(QStringLiteral("- [x] първи критерий"),
+                   QStringLiteral("- [ ] първи критерий"));
+    QCOMPARE(RequirementsParser::contractHash(ticked),
+             RequirementsParser::contractHash(fixture));
+    QString worded = fixture;
+    worded.replace(QStringLiteral("първи критерий"),
+                   QStringLiteral("първият критерий"));
+    QVERIFY(RequirementsParser::contractHash(worded)
+            != RequirementsParser::contractHash(fixture));
+
+    // `Обхват` (REQ-SW-PL-109 AC1, B1): the scope and its continuation line are
+    // in the contract, and the awk gate prints the SAME text — so the same
+    // fixture must give the same 8 hex in both trees (pinned a second time in
+    // tests/scripts/test-req-revision.sh).
+    const QString scoped = QStringLiteral(
+        "# REQ-SW-PL-931: Обхват\n"
+        "\n"
+        "- **Статус:** ACTIVE\n"
+        "- **Обхват:** публичен repo, `src/plugins/x/`\n"
+        "  и частният `core/`\n"
+        "\n"
+        "## Как ще разберем, че работи\n"
+        "\n"
+        "- [ ] един критерий\n");
+    QCOMPARE(RequirementsParser::contractHash(scoped), QStringLiteral("f31407fa"));
+    QString scopeOnOneLine = scoped;
+    scopeOnOneLine.replace(QStringLiteral("\n  и частният `core/`"), QString());
+    QVERIFY2(RequirementsParser::contractHash(scopeOnOneLine) != QStringLiteral("f31407fa"),
+             "the continuation line of Обхват is part of the contract");
 }
 
 void TestParser::findFileById_survivesRename()

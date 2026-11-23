@@ -688,24 +688,40 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
         }
     }
 
-    // --- Revision vs approval (REQ-SW-PL-106) ----------------------------
-    // The approval is pinned to a number, so "the file grew past what the human
-    // accepted" is a fact, not a guess. It blocks exactly the statuses that mean
-    // "work in progress" — ACTIVE and IMPLEMENTED; DRAFT is blocked by its own
-    // status and the archived end states have nothing left to implement. A file
-    // with no approval line (approvedRevision < 0) is legacy and silent.
+    // --- Contract vs approval (REQ-SW-PL-109) ----------------------------
+    // The gate judges the CONTRACT, not the number. A file whose revision grew
+    // while the contract stayed identical — a status change, a history row, a
+    // ticked AC — is not blocked: the number counts the contract now, so the
+    // only blocking fact is "this is not the text the human accepted". A file
+    // with no contract hash (143 legacy files) keeps the number as its only
+    // evidence and gets a NOTE, never an error (AC4: no migration).
     for (const Requirement &req : requirements) {
         const QString token = normalizedStatus(req.status);
         if (token != QStringLiteral("ACTIVE") && token != QStringLiteral("IMPLEMENTED"))
             continue;
-        if (req.approvedRevision < 0 || req.revision <= req.approvedRevision)
+        if (req.approvedRevision < 0)
             continue;
-        issues.append({req.id, QStringLiteral("revision"),
-                       QStringLiteral("ревизия %1 не е одобрена (одобрена е ревизия %2) "
-                                      "— имплементацията е блокирана")
-                           .arg(QString::number(req.revision),
-                                QString::number(req.approvedRevision)),
-                       Severity::Error});
+        if (!req.approvedContractHash.isEmpty()) {
+            const QString current = RequirementsParser::contractHash(req.rawContent);
+            if (current.isEmpty() || current == req.approvedContractHash)
+                continue;
+            issues.append({req.id, QStringLiteral("revision"),
+                           QStringLiteral("договорът се различава от одобрения "
+                                          "(одобрен %1, файлът е на %2) — нужно е ново "
+                                          "одобрение")
+                               .arg(req.approvedContractHash, current),
+                           Severity::Error});
+            continue;
+        }
+        if (req.revision > req.approvedRevision) {
+            issues.append({req.id, QStringLiteral("revision"),
+                           QStringLiteral("ревизия %1 е по-висока от одобрената %2, но "
+                                          "договорът няма печат (legacy) — отбелязва се, "
+                                          "не блокира")
+                               .arg(QString::number(req.revision),
+                                    QString::number(req.approvedRevision)),
+                           Severity::Warning});
+        }
     }
 
     // --- Acceptance criteria vs DONE (CLI §4 parity) ----------------------

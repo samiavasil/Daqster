@@ -1,6 +1,7 @@
 #include "RequirementsParser.h"
 
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QRegularExpression>
 #include <QSaveFile>
@@ -40,6 +41,106 @@ int revisionNumberIn(const QString &value)
     return match.hasMatch() ? match.captured(1).toInt() : -1;
 }
 
+// The sealed contract hash written on the approval line — "договор <sha8>"
+// (REQ-SW-PL-109). Empty when the line carries none, which is the legacy state:
+// the number is then the only evidence and the gate only notes it.
+QString contractHashIn(const QString &value)
+{
+    static const QRegularExpression re(
+        QStringLiteral("договор\\s*:?\\s*([0-9a-fA-F]{8})"));
+    const QRegularExpressionMatch match = re.match(value);
+    return match.hasMatch() ? match.captured(1).toLower() : QString();
+}
+
+// Defined below, next to the parse loop that uses it: the contract needs the
+// SAME set of headings the parser calls "acceptance criteria", otherwise a file
+// written with the v1 heading would have no AC in its contract at all.
+bool isCriteriaHeading(const QString &heading);
+
+// Trailing blanks and a CR belong to the file's formatting, not to its text:
+// the manager and the awk in check-req-revision.sh both drop them, so a reflow
+// of a line does not read as a contract change.
+QString rtrimmed(QString line)
+{
+    while (!line.isEmpty()
+           && (line.endsWith(QLatin1Char(' ')) || line.endsWith(QLatin1Char('\t'))
+               || line.endsWith(QLatin1Char('\r'))))
+        line.chop(1);
+    return line;
+}
+
+// The one definition of "the contract" (REQ-SW-PL-109 AC1). One record per
+// line, prefixed by the section it belongs to, so a difference can name the
+// section; the shell gate prints the same records with the same prefixes.
+// `- **Обхват:**` is in it: the scope says what "done" means, so a change there
+// is a contract change (`S|`), exactly like `Зависи от` (`D|`) and `Родител` (`P|`).
+// Blank lines are never records: a reflow of the file is not a contract change.
+QString contractTextOf(const QString &content)
+{
+    const QStringList lines = content.split(QLatin1Char('\n'));
+    QStringList records;
+    bool titleTaken = false;
+    bool inAc = false;
+    QString metadataPrefix; // "D|" inside "Зависи от:", "P|" inside "Родител:"
+
+    for (const QString &raw : lines) {
+        const QString line = rtrimmed(raw);
+        const QString trimmed = line.trimmed();
+
+        if (trimmed.startsWith(QStringLiteral("## "))) {
+            inAc = isCriteriaHeading(trimmed.mid(3).trimmed());
+            metadataPrefix.clear();
+            continue;
+        }
+        if (!inAc && line.startsWith(QLatin1Char('#'))) {
+            if (!titleTaken) {
+                records << QStringLiteral("T|") + line;
+                titleTaken = true;
+            }
+            continue;
+        }
+        if (inAc) {
+            // A blank line is formatting, not a criterion: awk sees no line at
+            // all where a file ends, and appending `## История` must not turn the
+            // blank line in front of it into a contract record (REQ-SW-PL-109
+            // AC2: a history row is bookkeeping).
+            if (trimmed.isEmpty())
+                continue;
+            QString out = line;
+            if (trimmed.startsWith(QStringLiteral("- [x]"))
+                || trimmed.startsWith(QStringLiteral("- [X]"))) {
+                const int at = out.indexOf(QLatin1Char('['));
+                if (at >= 0)
+                    out.replace(at + 1, 1, QStringLiteral(" "));
+            }
+            records << QStringLiteral("A|") + out;
+            continue;
+        }
+        if (trimmed.startsWith(QStringLiteral("- **Зависи от:**"))) {
+            metadataPrefix = QStringLiteral("D|");
+            records << metadataPrefix + line;
+            continue;
+        }
+        if (trimmed.startsWith(QStringLiteral("- **Родител:**"))) {
+            metadataPrefix = QStringLiteral("P|");
+            records << metadataPrefix + line;
+            continue;
+        }
+        if (trimmed.startsWith(QStringLiteral("- **Обхват:**"))) {
+            metadataPrefix = QStringLiteral("S|");
+            records << metadataPrefix + line;
+            continue;
+        }
+        if (!metadataPrefix.isEmpty() && !trimmed.isEmpty()
+            && line.startsWith(QLatin1Char(' '))) {
+            records << metadataPrefix + line;
+            continue;
+        }
+        metadataPrefix.clear();
+    }
+    return records.join(QLatin1Char('\n'));
+}
+
 // The ISO date a header value starts with ("2026-11-22, потребител" → the date).
 QString isoDateIn(const QString &value)
 {
@@ -56,10 +157,17 @@ QString textAfterDate(const QString &value)
 {
     static const QRegularExpression revisionSuffix(
         QStringLiteral("\\(?\\s*,?\\s*ревизия\\s*:?\\s*[0-9]+\\s*\\)?"));
+    // REQ-SW-PL-109: the approval also seals the contract ("(ревизия 2, договор
+    // ab12cd34)"), and that seal is not part of "who approved".
+    static const QRegularExpression contractSeal(
+        QStringLiteral("[,;]?\\s*договор\\s*:?\\s*[0-9a-fA-F]{8}"));
     QString rest = value;
     rest.remove(isoDateIn(value));
     rest.remove(revisionSuffix);
+    rest.remove(contractSeal);
     rest.remove(QRegularExpression(QStringLiteral("^[\\s,]+|[\\s,]+$")));
+    rest.remove(QRegularExpression(QStringLiteral("\\(\\s*\\)")));
+    rest.remove(QRegularExpression(QStringLiteral("[\\s,]+$")));
     return rest.simplified();
 }
 
@@ -514,16 +622,21 @@ QString contentWithRevision(const QString &content, int revision, const QString 
     return lines.join(QLatin1Char('\n'));
 }
 
-// Writes/replaces the approval line so it names the revision it accepted
-// (REQ-SW-PL-106): "- **Одобрено:** <date>, потребител (ревизия N)". The line is
-// inserted directly after the status line when the file carries none, which is
-// the same place contentWithRevision() anchors "Ревизия:" to.
+// Writes/replaces the approval line so it names the revision AND the contract it
+// accepted (REQ-SW-PL-106, REQ-SW-PL-109): "- **Одобрено:** <date>, потребител
+// (ревизия N, договор <sha8>)". The line is inserted directly after the status
+// line when the file carries none, which is the same place
+// contentWithRevision() anchors "Ревизия:" to.
 QString contentWithApproval(const QString &content, const QString &date,
-                            int revision, const QString &eol)
+                            int revision, const QString &contractHash8,
+                            const QString &eol)
 {
     const QString line = revision > 0
-        ? QStringLiteral("- **Одобрено:** %1, потребител (ревизия %2)")
-              .arg(date.trimmed()).arg(revision)
+        ? (contractHash8.isEmpty()
+               ? QStringLiteral("- **Одобрено:** %1, потребител (ревизия %2)")
+                     .arg(date.trimmed()).arg(revision)
+               : QStringLiteral("- **Одобрено:** %1, потребител (ревизия %2, договор %3)")
+                     .arg(date.trimmed()).arg(revision).arg(contractHash8))
         : QStringLiteral("- **Одобрено:** %1, потребител").arg(date.trimmed());
 
     QStringList lines = content.split(QLatin1Char('\n'));
@@ -545,12 +658,12 @@ QString contentWithApproval(const QString &content, const QString &date,
     return lines.join(QLatin1Char('\n'));
 }
 
-// Seals an approval line that carries no revision number: "Промени договора"
-// must not erase what the human accepted, it must PIN it (REQ-SW-PL-106). After
-// the sealing, DRAFT plus "approved revision 2" is a true statement, not the
-// contradiction the old delete-the-line behaviour produced.
+// Seals an approval line: the revision it accepted AND the contract it accepted
+// ("(ревизия N, договор <sha8>)", REQ-SW-PL-109). "Промени договора" must not
+// erase what the human accepted, it must PIN it — and pinning the number alone
+// stopped saying WHAT was accepted the moment the number stopped counting rows.
 QString contentWithSealedApproval(const QString &content, int approvedRevision,
-                                  const QString &eol)
+                                  const QString &contractHash8, const QString &eol)
 {
     if (approvedRevision <= 0)
         return content;
@@ -564,20 +677,34 @@ QString contentWithSealedApproval(const QString &content, int approvedRevision,
         QString value = trimmed;
         value.remove(0, value.indexOf(QLatin1Char(':')) + 1);
         value.remove(QLatin1Char('*')).remove(QLatin1Char('`'));
-        if (revisionNumberIn(value) >= 0)
-            return content; // already pinned to an earlier revision
-        const int colon = lines.at(i).indexOf(QLatin1Char(':'));
-        Q_UNUSED(colon);
-        lines[i] = QStringLiteral("- **Одобрено:** %1 (ревизия %2)")
-                       .arg(value.simplified())
-                       .arg(approvedRevision)
+        const int written = revisionNumberIn(value);
+        const bool hasHash = !contractHashIn(value).isEmpty();
+        if (written > 0 && (hasHash || contractHash8.isEmpty()))
+            return content; // already pinned to what it pinned
+        // Keep the date and who, drop the previous pin, write one pin.
+        QString who = value;
+        who.remove(QRegularExpression(
+            QStringLiteral("\\(?\\s*ревизия\\s*:?\\s*[0-9]+\\)?")));
+        who.remove(QRegularExpression(
+            QStringLiteral("[,;]?\\s*договор\\s*:?\\s*[0-9a-fA-F]{8}")));
+        who = who.simplified();
+        const int revision = written > 0 ? written : approvedRevision;
+        lines[i] = (contractHash8.isEmpty()
+                        ? QStringLiteral("- **Одобрено:** %1 (ревизия %2)")
+                              .arg(who).arg(revision)
+                        : QStringLiteral("- **Одобрено:** %1 (ревизия %2, договор %3)")
+                              .arg(who).arg(revision).arg(contractHash8))
                    + eol;
         return lines.join(QLatin1Char('\n'));
     }
     return content;
 }
 
-// Builds the whole "one history row + revision bump" edit on a content string.
+// Builds the "one history row" edit on a content string. It does NOT touch the
+// revision (REQ-SW-PL-109 AC2): the number counts the CONTRACT, so a row about
+// a status change, an approval or a baseline is bookkeeping. A file that never
+// carried the field gets "Ревизия: 1" — the first contract — so the field is
+// not missing afterwards.
 QString contentWithHistoryRow(const QString &content, const QString &date,
                               const QString &change, const QString &who,
                               const QString &why)
@@ -592,10 +719,17 @@ QString contentWithHistoryRow(const QString &content, const QString &date,
         content, QStringLiteral("## История"),
         QStringLiteral("| дата | промяна | кой | защо |"),
         QStringLiteral("|---|---|---|---|"), row, eol);
-    const int rows = tableDataRows(withRow, QStringLiteral("## История")).size();
+    if (RequirementsParser::revisionInContent(content) > 0)
+        return withRow;
+    return contentWithRevision(withRow, 1, eol);
+}
+
+// The ONLY edit that moves the number (REQ-SW-PL-109 AC3): the declared
+// contract change, in the same write as the change itself.
+QString contentWithContractBump(const QString &content, const QString &eol)
+{
     const int current = RequirementsParser::revisionInContent(content);
-    const int next = qMax(current + (current > 0 ? 1 : 0), rows);
-    return contentWithRevision(withRow, next > 0 ? next : 1, eol);
+    return contentWithRevision(content, current + 1, eol);
 }
 
 // A rename that never overwrites: "нищо не се трие" (REQ-SW-PL-102).
@@ -1001,6 +1135,7 @@ bool RequirementsParser::approveDraft(const QString &filePath, const QString &da
     // Reading it back must not leave "revision 2 > approved 1", which would
     // block the very requirement the human just approved.
     updated = contentWithApproval(updated, date, revisionInContent(updated),
+                                  RequirementsParser::contractHash(updated),
                                   eolSuffix);
     out.write(updated.toUtf8());
     if (!out.commit())
@@ -1158,12 +1293,16 @@ bool RequirementsParser::startContractChange(const QString &filePath, const QStr
     const QString eol = lines.first().endsWith(QLatin1Char('\r'))
                             ? QStringLiteral("\r") : QString();
     QString updated = contentWithStatus(content, QStringLiteral("DRAFT"), eol);
-    // REQ-SW-PL-106: the approval is PINNED to the revision it accepted instead
-    // of being left to look like "approved for whatever comes now". After the
-    // history row below bumps the revision, DRAFT + "одобрено … (ревизия N)"
-    // states the truth: revision N was accepted, N+1 is the change nobody has
-    // judged yet.
-    updated = contentWithSealedApproval(updated, revisionInContent(content), eol);
+    // REQ-SW-PL-106/109: the approval is PINNED to what it accepted — the
+    // revision AND the contract, both taken from the file BEFORE the change.
+    // After the bump below, DRAFT + "одобрено … (ревизия N, договор <sha8>)"
+    // states the truth: contract <sha8> at revision N was accepted, N+1 is the
+    // change nobody has judged yet.
+    updated = contentWithSealedApproval(updated, revisionInContent(content),
+                                        RequirementsParser::contractHash(content), eol);
+    // REQ-SW-PL-109 AC3: a declared contract change is the one edit that moves
+    // the number, in the same write as the change itself.
+    updated = contentWithContractBump(updated, eol);
     updated = contentWithHistoryRow(updated, date,
                                     QStringLiteral("промяна в договора — обратно в DRAFT"),
                                     who.trimmed().isEmpty() ? QStringLiteral("потребител")
@@ -1195,8 +1334,8 @@ bool RequirementsParser::markDone(const QString &filePath, const QString &review
     const QStringList lines = content.split(QLatin1Char('\n'));
     const QString eol = lines.first().endsWith(QLatin1Char('\r'))
                             ? QStringLiteral("\r") : QString();
-    // EXACTLY one row, plus the revision bump that row implies (AC4): the diff
-    // is the status line, one history row and the revision — nothing else.
+    // EXACTLY one row (AC4): the diff is the status line and one history row —
+    // the revision does NOT move, a status is not a contract (REQ-SW-PL-109).
     const QString reviewName = QFileInfo(reviewFile).fileName();
     QString updated = contentWithStatus(content, QStringLiteral("DONE"), eol);
     updated = contentWithHistoryRow(updated, date,
@@ -1223,6 +1362,22 @@ void RequirementsParser::appendHistoryRow(Requirement &req, const QString &date,
 {
     req.rawContent = contentWithHistoryRow(req.rawContent, date, change, who, why);
     req.revision = revisionInContent(req.rawContent);
+}
+
+QString RequirementsParser::contractText(const QString &content)
+{
+    return contractTextOf(content);
+}
+
+QString RequirementsParser::contractHash(const QString &content)
+{
+    const QString text = contractTextOf(content);
+    if (text.isEmpty())
+        return QString();
+    return QString::fromLatin1(
+               QCryptographicHash::hash(text.toUtf8(), QCryptographicHash::Sha256)
+                   .toHex())
+        .left(8);
 }
 
 int RequirementsParser::revisionInContent(const QString &content){
@@ -1440,6 +1595,9 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
                 out.approvedDate = isoDateIn(value);
                 out.approvedBy = textAfterDate(value);
                 out.approvedRevision = revisionNumberIn(value);
+                // REQ-SW-PL-109: the accepted CONTRACT, when the line carries
+                // the seal. Empty = legacy file: the gate only notes it.
+                out.approvedContractHash = contractHashIn(value);
             }
             else if (key == QStringLiteral("Базова линия")) {
                 // The first commit with code: date, branch and the revision the
