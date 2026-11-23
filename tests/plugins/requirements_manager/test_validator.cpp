@@ -1372,23 +1372,48 @@ void TestValidator::doneGate_doneOutsideArchiveReported()
 
 void TestValidator::revisionAboveApproved_error()
 {
-    // REQ-SW-PL-106: "одобрено" is a NUMBER, so a file that grew past it is a
-    // fact the manager can report with both numbers — the same sentence
-    // `scripts/check-req-revision.sh` prints.
-    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-910"),
-                                      QStringLiteral("active"), QString());
-    req.revision = 3;
-    req.approvedRevision = 2;
+    // REQ-SW-PL-109 AC4: the gate judges the CONTRACT, not the number. A legacy
+    // file (no contract seal) whose number grew past the approved one is a NOTE:
+    // the number is its only evidence, 143 files carry it, and nothing is
+    // migrated backwards.
+    Requirement legacy = makeRequirement(QStringLiteral("REQ-SW-PL-910"),
+                                         QStringLiteral("active"), QString());
+    legacy.revision = 3;
+    legacy.approvedRevision = 2;
 
-    const QVector<RequirementsValidator::Issue> issues = RequirementsValidator::validate({req});
     int hits = 0;
-    for (const RequirementsValidator::Issue &issue : issues) {
+    for (const RequirementsValidator::Issue &issue : RequirementsValidator::validate({legacy})) {
+        if (issue.field != QStringLiteral("revision"))
+            continue;
+        ++hits;
+        QCOMPARE(issue.severity, RequirementsValidator::Severity::Warning);
+        QVERIFY2(issue.message.contains(QStringLiteral("3")), qPrintable(issue.message));
+        QVERIFY2(issue.message.contains(QStringLiteral("2")), qPrintable(issue.message));
+    }
+    QCOMPARE(hits, 1);
+
+    // A sealed contract that no longer matches what the human accepted IS the
+    // block, and the message names the two hashes instead of two numbers.
+    Requirement sealed = makeRequirement(QStringLiteral("REQ-SW-PL-914"),
+                                         QStringLiteral("active"), QString());
+    sealed.revision = 2;
+    sealed.approvedRevision = 2;
+    sealed.rawContent = QStringLiteral("# REQ-SW-PL-914: Печат\n\n"
+                                       "- **Статус:** ACTIVE\n"
+                                       "- **Ревизия:** 2\n\n"
+                                       "## Как ще разберем, че работи\n\n"
+                                       "- [ ] един критерий\n");
+    sealed.approvedContractHash = QStringLiteral("deadbeef");
+    const QString current = RequirementsParser::contractHash(sealed.rawContent);
+    QVERIFY(!current.isEmpty());
+    hits = 0;
+    for (const RequirementsValidator::Issue &issue : RequirementsValidator::validate({sealed})) {
         if (issue.field != QStringLiteral("revision"))
             continue;
         ++hits;
         QCOMPARE(issue.severity, RequirementsValidator::Severity::Error);
-        QVERIFY2(issue.message.contains(QStringLiteral("3")), qPrintable(issue.message));
-        QVERIFY2(issue.message.contains(QStringLiteral("2")), qPrintable(issue.message));
+        QVERIFY2(issue.message.contains(QStringLiteral("deadbeef")), qPrintable(issue.message));
+        QVERIFY2(issue.message.contains(current), qPrintable(issue.message));
     }
     QCOMPARE(hits, 1);
 

@@ -813,14 +813,16 @@ void TestWidgets::acceptDraftRewritesFileAndCounter()
                                QStringLiteral("2026-11-21")));
 
     const QString after = readAll(draftPath);
-    // The status, the approval line, the revision bump and the history row the
-    // status change demands (REQ-SW-PL-101) — nothing else changes.
+    // The status, the approval line (with the sealed contract), the revision and
+    // the history row the status change demands (REQ-SW-PL-101) — nothing else
+    // changes. The number stays 1: a status is not a contract (REQ-SW-PL-109).
     const QString expected =
         QString(before).replace(QStringLiteral("- **Статус:** DRAFT"),
                                 QStringLiteral("- **Статус:** ACTIVE\n"
                                                "- **Одобрено:** 2026-11-21, потребител "
-                                               "(ревизия 1)\n"
-                                               "- **Ревизия:** 1"))
+                                               "(ревизия 1, договор %1)\n"
+                                               "- **Ревизия:** 1")
+                                   .arg(RequirementsParser::contractHash(before)))
         + QStringLiteral("\n## История\n\n"
                          "| дата | промяна | кой | защо |\n"
                          "|---|---|---|---|\n"
@@ -1568,8 +1570,9 @@ void TestWidgets::doneCandidateCounterAndBadge()
 
 void TestWidgets::markDoneArchivesWithOneHistoryRow()
 {
-    // AC4: DONE, exactly one history row with the review file, revision + 1, and
-    // a strict move to archive/.
+    // AC4: DONE, exactly one history row with the review file, a strict move to
+    // archive/ — and the revision does NOT move: DONE is a status, not a
+    // contract (REQ-SW-PL-109 AC2).
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     QString path;
@@ -1591,7 +1594,7 @@ void TestWidgets::markDoneArchivesWithOneHistoryRow()
     const QString text = readAll(archived);
     QVERIFY(text.contains(QStringLiteral("- **Статус:** DONE")));
     QCOMPARE(text.count(QStringLiteral("| 2026-11-22 | DONE | потребител | ревю PR-1-REQ-SW-PL-907.md |")), 1);
-    QVERIFY(text.contains(QStringLiteral("- **Ревизия:** 4")));
+    QVERIFY(text.contains(QStringLiteral("- **Ревизия:** 3")));
 
     // The counter re-reads the tree: the requirement is no longer a candidate.
     // The reload after the archive asks git again, so the test waits for that

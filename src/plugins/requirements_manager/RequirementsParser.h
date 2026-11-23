@@ -131,6 +131,11 @@ struct Requirement
     int approvedRevision = -1;     //!< N from "(ревизия N)"; -1 = no approval
                                    //!< line; normalised to `revision` when the
                                    //!< line carries no number (legacy)
+    // The CONTRACT the human accepted, as contractHash() writes it on the
+    // approval line ("… (ревизия N, договор <sha8>)"). Empty = legacy file
+    // written before the seal existed: the number is the only evidence there
+    // and an inflated one is a NOTE, never a block (REQ-SW-PL-109 AC4).
+    QString approvedContractHash;
     QString approvedDate;          //!< date part of "- **Одобрено:**"
     QString approvedBy;            //!< who part ("потребител"); empty when absent
     QString baselineDate;          //!< "- **Базова линия:**" date — the first
@@ -450,15 +455,16 @@ public:
                                    QString *errorOut = nullptr);
 
     /**
-     * @brief Appends a history row to @p req and bumps its revision in place
-     *        (REQ-SW-PL-101).
+     * @brief Appends a history row to @p req — and leaves the revision alone
+     *        (REQ-SW-PL-109).
      *
      * The row is `| date | change | who | why |` under `## История`, which is
-     * created at the end of the file when absent. The revision becomes
-     * `max(revision, historyRows)`, so a hand-written file without the field
-     * starts counting from the rows it already carries.
+     * created at the end of the file when absent. The revision counts the
+     * CONTRACT (see contractHash()), so bookkeeping — a status change, an
+     * approval, a baseline, a ticked AC, a history row — never moves it. A file
+     * that never carried a number gets `Ревизия: 1` so the field exists.
      *
-     * @param req Requirement whose rawContent is edited (and revision updated).
+     * @param req Requirement whose rawContent is edited (revision unchanged).
      * @param date ISO date of the change.
      * @param change What changed (one short clause).
      * @param who Who changed it.
@@ -467,6 +473,31 @@ public:
     static void appendHistoryRow(Requirement &req, const QString &date,
                                  const QString &change, const QString &who,
                                  const QString &why);
+
+    /**
+     * @brief The contract of @p content, as text (REQ-SW-PL-109 AC1).
+     *
+     * The contract is a LIST OF SECTIONS, not "everything before История":
+     * the H1 title, the acceptance-criteria section (checkbox normalised, so
+     * `[x]` is not a contract change), `- **Зависи от:**` and `- **Родител:**`
+     * with their continuation lines. Everything else — status, approval,
+     * revision, baseline, dates, priority, assignee, ticks, history, draft
+     * review, technical details, notes — is bookkeeping.
+     *
+     * `scripts/check-req-revision.sh` extracts the same text with awk; one
+     * fixture hash is pinned in both trees so the two cannot drift apart.
+     */
+    static QString contractText(const QString &content);
+
+    /**
+     * @brief The first 8 hex of sha256(contractText()), or empty when the
+     *        content carries no contract at all.
+     *
+     * Written into `- **Одобрено:** … (ревизия N, договор <hash>)` when the
+     * human accepts, so the gate can ask "is this still the accepted contract?"
+     * instead of "is the number bigger?".
+     */
+    static QString contractHash(const QString &content);
 
     /**
      * @brief The revision number written in @p content ("- **Ревизия:** N").

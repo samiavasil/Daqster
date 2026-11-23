@@ -50,7 +50,13 @@ private slots:
     void startContractChange_sealsApproval();
     void approveDraft_namesTheApprovedRevision();
     void parseDirectory_approvedRevisionAndBaseline();
-    void appendHistoryRow_bumpsRevision();
+    void appendHistoryRow_keepsRevision();
+    // REQ-SW-PL-109 AC5: the four cases — number and seal, not numbers alone.
+    void contract_statusRowAndTick_keepRevision();
+    void contract_draftAndReapprove_keepRevision();
+    void contract_acWord_bumpsRevision();
+    void contract_technicalDetails_keepRevision();
+    void contract_hashIsPinned();
     void findFileById_survivesRename();
     void createdAliasDoesNotRewriteTheRealTree();
 };
