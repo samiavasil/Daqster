@@ -1,5 +1,7 @@
 #include "RequirementPreview.h"
 
+#include "RequirementDates.h"
+
 #include <QTextBlock>
 #include <QTextBrowser>
 #include <QTextCursor>
@@ -57,15 +59,55 @@ QString linkList(const QStringList &ids)
 
 QString headerHtml(const Requirement &req,
                    const QStringList &childIds,
-                   const QStringList &reverseIds)
+                   const QStringList &reverseIds,
+                   const QDate &today)
 {
+    const QDate referenceDay = today.isValid() ? today : QDate::currentDate();
+
     QString text;
     text += QStringLiteral("<h2>%1: %2</h2>")
                 .arg(req.id.toHtmlEscaped(), req.title.toHtmlEscaped());
-    text += QStringLiteral("<p><b>Status:</b> %1 &nbsp; <b>Priority:</b> %2 &nbsp; "
-                           "<b>Assignee:</b> %3 &nbsp; <b>Date:</b> %4</p>")
-                .arg(req.status.toHtmlEscaped(), req.priority.toHtmlEscaped(),
-                     req.assignee.toHtmlEscaped(), req.date.toHtmlEscaped());
+    // "Създадено: 2026-11-21 · преди 12 дни" sits next to the status line: the
+    // date is only useful with its age, otherwise the reader does the
+    // arithmetic (REQ-SW-PL-100).
+    text += QStringLiteral("<p><b>Status:</b> %1 &nbsp; <b>Ревизия:</b> %2 &nbsp; "
+                           "<b>Priority:</b> %3 &nbsp; "
+                           "<b>Assignee:</b> %4 &nbsp; <b>Създадено:</b> %5</p>")
+                .arg(req.status.toHtmlEscaped(),
+                     req.revision > 0 ? QString::number(req.revision)
+                                      : QStringLiteral("—"),
+                     req.priority.toHtmlEscaped(),
+                     req.assignee.toHtmlEscaped(),
+                     RequirementDates::createdLabel(createdDate(req), referenceDay)
+                         .toHtmlEscaped());
+
+
+    // Approval and baseline (REQ-SW-PL-106): WHICH contract the human accepted
+    // and since when code exists. The two numbers sit next to each other so
+    // "revision 3 > approved 2" is visible instead of inferred.
+    QString approval = QStringLiteral("—");
+    if (req.approvedRevision >= 0) {
+        approval = QStringLiteral("ревизия %1").arg(req.approvedRevision);
+        if (!req.approvedDate.trimmed().isEmpty())
+            approval = QStringLiteral("%1, %2").arg(req.approvedDate.trimmed(),
+                                                    approval);
+    }
+    text += QStringLiteral("<p><b>Одобрено:</b> %1</p>").arg(approval.toHtmlEscaped());
+    if (req.approvedRevision >= 0 && req.revision > req.approvedRevision) {
+        text += QStringLiteral("<p><b>Ревизия %1 не е одобрена</b> — одобрена е "
+                               "ревизия %2; имплементацията е блокирана</p>")
+                    .arg(QString::number(req.revision),
+                         QString::number(req.approvedRevision));
+    }
+    QString baseline = QStringLiteral("—");
+    if (!req.baselineDate.trimmed().isEmpty() || !req.baselineRef.trimmed().isEmpty()) {
+        baseline = req.baselineDate.trimmed();
+        if (!req.baselineRef.trimmed().isEmpty())
+            baseline += QStringLiteral(", ") + req.baselineRef.trimmed();
+        if (req.baselineRevision >= 0)
+            baseline += QStringLiteral(" (ревизия %1)").arg(req.baselineRevision);
+    }
+    text += QStringLiteral("<p><b>Базова линия:</b> %1</p>").arg(baseline.toHtmlEscaped());
 
     // Repo badge (REQ-SW-PL-012): which requirements tree this requirement
     // comes from in the merged view.
@@ -80,7 +122,14 @@ QString headerHtml(const Requirement &req,
                      phase.implementation ? QStringLiteral("✓") : QStringLiteral("✗"),
                      phase.testing ? QStringLiteral("✓") : QStringLiteral("✗"));
 
-    // Relationship axes: Родител / Деца / Зависи от / Зависими от
+    // Relationship axes: Произход / Родител / Деца / Зависи от / Зависими от
+    // "Произход" is the idea this requirement grew out of (REQ-SW-PL-098). The
+    // link has one home — the idea's own file — so this row is a read of the
+    // register, never a second copy.
+    text += QStringLiteral("<p><b>Произход:</b> %1</p>")
+                .arg(req.originIdeaId.trimmed().isEmpty()
+                         ? QStringLiteral("—")
+                         : req.originIdeaId.trimmed().toHtmlEscaped());
     text += QStringLiteral("<p><b>Родител:</b> %1</p>")
                 .arg(req.parentId.trimmed().isEmpty() ? QStringLiteral("—")
                                                       : linkFor(req.parentId));
@@ -104,13 +153,14 @@ QString markdownSource(const Requirement &req)
 void render(QTextBrowser *view,
             const Requirement &req,
             const QStringList &childIds,
-            const QStringList &reverseIds)
+            const QStringList &reverseIds,
+            const QDate &today)
 {
     if (!view)
         return;
 
     QTextDocument *document = view->document();
-    document->setHtml(headerHtml(req, childIds, reverseIds));
+    document->setHtml(headerHtml(req, childIds, reverseIds, today));
 
     // Append the file's own Markdown after the header: the whole .md becomes
     // visible (headings, lists, tables, traceability) instead of only the

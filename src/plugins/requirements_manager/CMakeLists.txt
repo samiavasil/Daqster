@@ -24,6 +24,10 @@ set(PLUGIN_SOURCES
     RequirementsManagerObject.h
     RequirementsParser.cpp
     RequirementsParser.h
+    DoneGate.cpp
+    DoneGate.h
+    DoneGateCheck.cpp
+    DoneGateCheck.h
     RequirementsModel.cpp
     RequirementsModel.h
     RequirementsSortProxyModel.cpp
@@ -32,6 +36,8 @@ set(PLUGIN_SOURCES
     RequirementsWidget.h
     RequirementPreview.cpp
     RequirementPreview.h
+    RequirementDates.cpp
+    RequirementDates.h
     ValidationReport.cpp
     ValidationReport.h
     RequirementsValidator.cpp
@@ -54,6 +60,8 @@ set(PLUGIN_SOURCES
     ValidationDialog.h
     HelpDialog.cpp
     HelpDialog.h
+    DraftNoteDialog.cpp
+    DraftNoteDialog.h
     MatrixExporter.cpp
     MatrixExporter.h
     TraceabilityMatrixModel.cpp
@@ -72,6 +80,9 @@ create_plugin(RequirementsManager
         FrameworkGui
     INCLUDE_DIRECTORIES
         ${CMAKE_CURRENT_SOURCE_DIR}
+        # Threading/ProcessOwner.h — the DONE gate's `git` child is owned, not
+        # hand-rolled (REQ-SW-PL-050, check_no_bare_threads.cmake).
+        ${DAQSTER_SOURCE_DIR}/src/plugins/common
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/include
         ${DAQSTER_SOURCE_DIR}/src/frame_work/base/src/logging
 )

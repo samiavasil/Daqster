@@ -1,6 +1,9 @@
 #include "RequirementsValidator.h"
 
+#include "RequirementDates.h"
+
 #include <QHash>
+#include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QSet>
@@ -92,6 +95,404 @@ void collectCycles(const QVector<Requirement> &requirements,
 
 } // namespace
 
+// ── Споменатите кодови пътища (REQ-SW-PL-103) ───────────────────────────────
+namespace {
+
+// The three traceability fields that carry paths. "Код:" is the code itself;
+// "Тестове:"/"Документация:" are citations of the same kind — a stale path in
+// any of them misleads the reader the same way.
+QStringList citedPathFields(const Requirement &req)
+{
+    return {req.code, req.tests, req.docs};
+}
+
+// Repository top-level directories a cited path may start with. A token such as
+// "DecisionNode.*" or "0/N" is prose or a number, not a path, and treating it as
+// one buries the real findings under noise.
+bool looksLikeRepoToplevel(const QString &path)
+{
+    static const QStringList prefixes = {
+        QStringLiteral("src/"),     QStringLiteral("tests/"),
+        QStringLiteral("cmake/"),   QStringLiteral("scripts/"),
+        QStringLiteral("docs/"),    QStringLiteral("tools/"),
+        QStringLiteral("DevelopmentProcess/"), QStringLiteral("external_libs/"),
+        QStringLiteral(".github/"), QStringLiteral("plugins/")};
+    for (const QString &prefix : prefixes) {
+        if (path.startsWith(prefix))
+            return true;
+    }
+    return false;
+}
+
+// {a,b} -> a, b (cartesian product over every brace group), the same expansion
+// the CLI does: `{h,cpp}` and `{core,gui}` are how the requirement texts
+// actually cite several files in one token.
+QStringList expandBraces(const QString &token)
+{
+    static const QRegularExpression braceRe(QStringLiteral("\\{([^{}]*)\\}"));
+    const QRegularExpressionMatch match = braceRe.match(token);
+    if (!match.hasMatch())
+        return {token};
+    QStringList out;
+    const QString head = token.left(match.capturedStart());
+    const QString tail = token.mid(match.capturedEnd());
+    for (const QString &alt : match.captured(1).split(QLatin1Char(',')))
+        for (const QString &rest : expandBraces(tail))
+            out.append(head + alt + rest);
+    return out;
+}
+
+QStringList pathTokensOf(const QString &text)
+{
+    static const QRegularExpression spanRe(QStringLiteral("`([^`\\n]+)`"));
+    static const QRegularExpression stripTailRe(QStringLiteral("[:#].*$"));
+    static const QString forbidden = QStringLiteral(" *<>|\"'()$;&");
+    QStringList out;
+    auto it = spanRe.globalMatch(text);
+    while (it.hasNext()) {
+        QString span = it.next().captured(1);
+        if (!looksLikeRepoToplevel(span))
+            continue;
+        bool bad = false;
+        for (const QChar c : forbidden) {
+            if (span.contains(c)) { bad = true; break; }
+        }
+        if (bad || span.contains(QStringLiteral("..")))
+            continue;
+        span.remove(stripTailRe);   // foo.cpp:36-38 / CMakeLists.txt#anchor
+        for (const QString &p : expandBraces(span)) {
+            const QString trimmed = p.trimmed();
+            if (!trimmed.isEmpty())
+                out.append(trimmed);
+        }
+    }
+    return out;
+}
+
+// <root>/DevelopmentProcess/requirements/... -> <root>. The file path is the
+// only anchor a parsed requirement carries, and the layout is fixed.
+QString repoRootOf(const Requirement &req)
+{
+    static const QString marker = QStringLiteral("/DevelopmentProcess/");
+    const QString path = QDir::fromNativeSeparators(req.filePath);
+    const int at = path.indexOf(marker);
+    return at > 0 ? path.left(at) : QString();
+}
+
+// Repository roots to resolve against: the requirement's own repo plus its
+// sibling repos that also carry a requirements tree. Public requirements are
+// read from the private tree's copies while their code lives in `../daqster`,
+// so the sibling is part of the resolution — the same classes the CLI resolves
+// (the develop tree and the private tree).
+QStringList candidateRoots(const Requirement &req, const QStringList &explicitRoots)
+{
+    if (!explicitRoots.isEmpty())
+        return explicitRoots;
+    const QString root = repoRootOf(req);
+    if (root.isEmpty())
+        return {};
+    QStringList roots{root};
+    const QDir parent = QFileInfo(root).dir();
+    const QFileInfoList siblings = parent.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo &sibling : siblings) {
+        if (sibling.absoluteFilePath() == root)
+            continue;
+        if (QDir(sibling.absoluteFilePath()).exists(QStringLiteral("DevelopmentProcess/requirements")))
+            roots.append(sibling.absoluteFilePath());
+    }
+    return roots;
+}
+
+bool pathResolves(const QString &path, const QStringList &roots)
+{
+    for (const QString &root : roots) {
+        if (QFileInfo::exists(QDir(root).filePath(path)))
+            return true;
+    }
+    return false;
+}
+
+} // namespace
+
+QStringList RequirementsValidator::citedCodePaths(const Requirement &req)
+{
+    static const QRegularExpression struckRe(QStringLiteral("~~[^~]*~~"));
+    QString text = req.rawContent;
+    text.remove(struckRe);
+    return pathTokensOf(text);
+}
+
+std::optional<RequirementsValidator::Severity>
+RequirementsValidator::pathSeverityForStatus(const QString &rawStatus){
+    const QString token = normalizedStatus(rawStatus);
+    if (token == QStringLiteral("IMPLEMENTED") || token == QStringLiteral("DONE"))
+        return Severity::Error;
+    if (token == QStringLiteral("ACTIVE") || token == QStringLiteral("BACKLOG"))
+        return Severity::Warning;
+    // DRAFT is a proposal: its files need not exist yet, and CANCELLED work was
+    // never written. Neither is graded.
+    return std::nullopt;
+}
+
+QVector<RequirementsValidator::Issue>
+RequirementsValidator::validateCitedPaths(const QVector<Requirement> &requirements,
+                                          const QStringList &repoRoots){
+    QVector<Issue> issues;
+    for (const Requirement &req : requirements) {
+        const auto severity = pathSeverityForStatus(req.status);
+        if (!severity)
+            continue;
+        const QStringList roots = candidateRoots(req, repoRoots);
+        if (roots.isEmpty())
+            continue;   // no file behind the record — nothing to resolve against
+        for (const QString &field : citedPathFields(req)) {
+            for (const QString &path : pathTokensOf(field)) {
+                if (pathResolves(path, roots))
+                    continue;
+                const QString message = *severity == Severity::Error
+                    ? QStringLiteral("цитираният код '%1' не съществува").arg(path)
+                    : QStringLiteral("цитираният код '%1' още не е имплементиран (%2)")
+                          .arg(path, normalizedStatus(req.status));
+                issues.append({req.id, QStringLiteral("code"), message, *severity});
+            }
+        }
+    }
+    std::stable_sort(issues.begin(), issues.end(),
+                     [](const Issue &a, const Issue &b) {
+                         if (a.severity != b.severity)
+                             return a.severity == Severity::Error;
+                         return a.id < b.id;
+                     });
+    return issues;
+}
+
+// ── Връзка идея ↔ изискване (REQ-SW-PL-098) ──────────────────────────────
+
+namespace {
+
+//!< One "idea-link" finding; every rule reports through here, so the field name
+//!< and the severity cannot drift between the three of them.
+RequirementsValidator::Issue ideaLinkIssue(const QString &id, const QString &message,
+                                           const QString &filePath)
+{
+    return {id, QStringLiteral("idea-link"), message,
+            RequirementsValidator::Severity::Error, filePath};
+}
+
+//!< Direction 1: a requirement citing an idea must find a recorded promotion.
+QVector<RequirementsValidator::Issue>
+citationIssues(const QVector<Requirement> &requirements,
+               const QHash<QString, const Idea *> &ideaById)
+{
+    const QStringList recorded = RequirementsValidator::ideaPromotionStatuses();
+    QVector<RequirementsValidator::Issue> issues;
+    for (const Requirement &req : requirements) {
+        for (const QString &cited : RequirementsValidator::citedIdeaIds(req)) {
+            const Idea *idea = ideaById.value(cited, nullptr);
+            if (!idea) {
+                issues.append(ideaLinkIssue(
+                    req.id,
+                    QStringLiteral("изискването цитира %1, но няма такъв файл в "
+                                   "plans/ideas/").arg(cited),
+                    req.filePath));
+                continue;
+            }
+            const QString status = idea->status.trimmed();
+            if (recorded.contains(status.toLower()))
+                continue;
+            issues.append(ideaLinkIssue(
+                req.id,
+                QStringLiteral("изискването цитира идея %1 („%2“), а тя не носи запис за "
+                               "промоция — %3")
+                    .arg(cited,
+                         status.isEmpty() ? QStringLiteral("без статус") : status, req.id),
+                req.filePath));
+        }
+    }
+    return issues;
+}
+
+//!< Direction 2: "промотирана" must name a requirement that exists.
+QVector<RequirementsValidator::Issue>
+promotionIssues(const QVector<Idea> &ideas, const QSet<QString> &requirementIds)
+{
+    QVector<RequirementsValidator::Issue> issues;
+    for (const Idea &idea : ideas) {
+        // Two keys, two different requirements: the reader keeps the first and
+        // would drop the second in silence, which is exactly the "renamed or
+        // moved" drift the field exists to catch (REQ-SW-PL-098 review R1-3).
+        if (!idea.promotedKeyId.isEmpty() && !idea.requirementKeyId.isEmpty()
+            && idea.promotedKeyId.compare(idea.requirementKeyId, Qt::CaseInsensitive) != 0) {
+            issues.append(ideaLinkIssue(
+                idea.id,
+                QStringLiteral("идея %1 носи две различни връзки — „Промотирана: %2“ и "
+                               "„Изискване: %3“ — едната е остаряла")
+                    .arg(idea.id, idea.promotedKeyId, idea.requirementKeyId),
+                idea.path));
+        }
+        const QString promoted = idea.promotedId.trimmed();
+        if (promoted.isEmpty() || requirementIds.contains(promoted.toUpper()))
+            continue;   // an idea without a requirement is the normal state
+        issues.append(ideaLinkIssue(
+            promoted,
+            QStringLiteral("идея %1 е отбелязана като промотирана в %2, но такова "
+                           "изискване няма").arg(idea.id, promoted),
+            idea.path));
+    }
+    return issues;
+}
+
+//!< Direction 3 (REQ-SW-PL-098, decision A): the idea names a requirement, so
+//!< the requirement must name the idea back.
+//!<
+//!< The promotion is ONE link with TWO ends (REQ-SW-PL-095: promoting writes
+//!< `- from_idea: IDEA-NNN` into the requirement AND `> Промотирана:` into the
+//!< idea). A promotion recorded on one side only is the drift this rule catches:
+//!< the pair looks promoted from the idea's file and plain from the
+//!< requirement's, so nobody can tell whether the requirement came from the idea
+//!< at all.
+QVector<RequirementsValidator::Issue>
+promotionBackLinkIssues(const QVector<Requirement> &requirements,
+                        const QVector<Idea> &ideas)
+{
+    QHash<QString, const Requirement *> reqById;
+    for (const Requirement &req : requirements)
+        reqById.insert(req.id.trimmed().toUpper(), &req);
+
+    QVector<RequirementsValidator::Issue> issues;
+    for (const Idea &idea : ideas) {
+        const QString promoted = idea.promotedId.trimmed().toUpper();
+        if (promoted.isEmpty())
+            continue;   // an idea without a requirement is the normal state
+        const Requirement *req = reqById.value(promoted, nullptr);
+        if (!req)
+            continue;   // promotionIssues() already names the missing file
+        const QString back = RequirementsValidator::fromIdeaId(*req);
+        if (back == idea.id.trimmed().toUpper())
+            continue;
+        const QString message = back.isEmpty()
+            ? QStringLiteral("идея %1 е промотирана в %2, а %2 не носи "
+                             "„from_idea: %1“ — връзката е записана само от едната "
+                             "страна").arg(idea.id, req->id)
+            : QStringLiteral("идея %1 е промотирана в %2, а %2 сочи "
+                             "„from_idea: %3“ — двете страни не са за един и същ "
+                             "чифт").arg(idea.id, req->id, back);
+        issues.append(ideaLinkIssue(idea.id, message,
+                                    req->filePath.isEmpty() ? idea.path : req->filePath));
+    }
+    return issues;
+}
+
+//!< Direction 4 (REQ-SW-PL-098, decision A): the requirement names an idea, so
+//!< that idea must name the requirement back.
+//!<
+//!< The mirror of direction 3, and not a duplicate of it: each rule fires on a
+//!< link that exists only on ITS side. A requirement pointing at an idea that
+//!< was never promoted leaves the idea's file silent, which is exactly the
+//!< state direction 3 cannot see (there is nothing there to name it).
+//!< An idea whose status is not recorded is skipped here — citationIssues()
+//!< already reports that the promotion is missing entirely, and one defect gets
+//!< one issue.
+QVector<RequirementsValidator::Issue>
+requirementBackLinkIssues(const QVector<Requirement> &requirements,
+                          const QHash<QString, const Idea *> &ideaById)
+{
+    const QStringList recorded = RequirementsValidator::ideaPromotionStatuses();
+    QVector<RequirementsValidator::Issue> issues;
+    for (const Requirement &req : requirements) {
+        const QString from = RequirementsValidator::fromIdeaId(req);
+        if (from.isEmpty())
+            continue;   // a requirement may come from nowhere
+        const Idea *idea = ideaById.value(from, nullptr);
+        if (!idea)
+            continue;   // citationIssues() already names the missing idea file
+        if (!recorded.contains(idea->status.trimmed().toLower()))
+            continue;   // citationIssues() reports the missing promotion
+        const QString promoted = idea->promotedId.trimmed().toUpper();
+        if (promoted == req.id.trimmed().toUpper())
+            continue;
+        const QString message = promoted.isEmpty()
+            ? QStringLiteral("изискването %1 сочи „from_idea: %2“, а идеята %2 не "
+                             "е отбелязана като промотирана").arg(req.id, from)
+            : QStringLiteral("изискването %1 сочи „from_idea: %2“, а идеята %2 е "
+                             "промотирана в %3 — двете страни не са за един и същ "
+                             "чифт").arg(req.id, from, promoted);
+        issues.append(ideaLinkIssue(req.id, message, req.filePath));
+    }
+    return issues;
+}
+
+} // namespace
+
+QStringList RequirementsValidator::ideaPromotionStatuses()
+{
+    // Mirrors RECORDED in scripts/check-idea-promotion.sh. A second list would
+    // be a second answer to "is the promotion recorded?".
+    return {QStringLiteral("промотирана"), QStringLiteral("реализирана"),
+            QStringLiteral("слята"), QStringLiteral("завършен"),
+            QStringLiteral("исторически")};
+}
+
+QStringList RequirementsValidator::citedIdeaIds(const Requirement &req)
+{
+    static const QRegularExpression struckRe(QStringLiteral("~~[^~]*~~"));
+    static const QRegularExpression ideaRe(QStringLiteral("\\b(IDEA-[0-9]+)"));
+    QString text = req.rawContent;
+    text.remove(struckRe);
+
+    QStringList ids;
+    QRegularExpressionMatchIterator it = ideaRe.globalMatch(text);
+    while (it.hasNext()) {
+        const QString id = it.next().captured(1).toUpper();
+        if (!ids.contains(id))
+            ids.append(id);
+    }
+    return ids;
+}
+
+QString RequirementsValidator::fromIdeaId(const Requirement &req)
+{
+    // The requirement's own half of the link: "- from_idea: IDEA-002" (the line
+    // NewRequirementDialog writes). The bold form and backticks are tolerated
+    // because the same field is hand-edited in older files.
+    static const QRegularExpression struckRe(QStringLiteral("~~[^~]*~~"));
+    static const QRegularExpression fromRe(
+        QStringLiteral("from_idea[^:\\n]*:[^\\n]*?(IDEA-[0-9]+)"),
+        QRegularExpression::CaseInsensitiveOption);
+
+    QString text = req.rawContent;
+    text.remove(struckRe);
+    const QRegularExpressionMatch m = fromRe.match(text);
+    return m.hasMatch() ? m.captured(1).toUpper() : QString();
+}
+
+QVector<RequirementsValidator::Issue>
+RequirementsValidator::validateIdeaLinks(const QVector<Requirement> &requirements,
+                                         const QVector<Idea> &ideas)
+{
+    QHash<QString, const Idea *> ideaById;   // upper-case IDEA-NNN -> idea
+    for (const Idea &idea : ideas)
+        ideaById.insert(idea.id.trimmed().toUpper(), &idea);
+
+    QSet<QString> requirementIds;            // upper-case REQ-*
+    for (const Requirement &req : requirements)
+        requirementIds.insert(req.id.trimmed().toUpper());
+
+    QVector<Issue> issues = citationIssues(requirements, ideaById);
+    issues += promotionIssues(ideas, requirementIds);
+    // The same link, read from the other end (REQ-SW-PL-098, decision A).
+    issues += promotionBackLinkIssues(requirements, ideas);
+    issues += requirementBackLinkIssues(requirements, ideaById);
+
+    std::stable_sort(issues.begin(), issues.end(),
+                     [](const Issue &a, const Issue &b) {
+                         if (a.severity != b.severity)
+                             return a.severity == Severity::Error;
+                         return a.id < b.id;
+                     });
+    return issues;
+}
+
 QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
     const QVector<Requirement> &requirements)
 {
@@ -163,10 +564,23 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
             issues.append({req.id, QStringLiteral("priority"),
                            QStringLiteral("priority is missing"),
                            Severity::Warning});
-        if (req.date.trimmed().isEmpty())
+        // REQ-SW-PL-101: "Създадено:" is the field, "Дата:" the legacy alias, so
+        // one accessor answers both and the two warnings stay distinct
+        // (REQ-SW-PL-100): "missing" and "not a date" are different repairs.
+        const QString created = createdDate(req);
+        if (created.trimmed().isEmpty()) {
             issues.append({req.id, QStringLiteral("date"),
                            QStringLiteral("creation date is missing"),
                            Severity::Warning});
+        } else if (!RequirementDates::isValidIsoDate(created)) {
+            // REQ-SW-PL-100: the field is a date, not free text. A Warning (not
+            // an Error) so a legacy file with a sloppy value stays valid — it
+            // is only invisible, and being invisible is what let the field rot.
+            issues.append({req.id, QStringLiteral("date"),
+                           QStringLiteral("датата '%1' не е YYYY-MM-DD")
+                               .arg(created.trimmed()),
+                           Severity::Warning});
+        }
         if (req.description.trimmed().isEmpty())
             issues.append({req.id, QStringLiteral("description"),
                            QStringLiteral("description is empty"),
@@ -243,10 +657,22 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
         // The zone check is what catches "ACTIVE while sitting in archive/" and
         // "DONE still in active/" — the latter is the one real defect the two
         // validators now report identically (REQ-SW-PL-079).
+        //
+        // DRAFT (REQ-SW-PL-099) is a proposal awaiting the owner's approval: it
+        // is legal only in active/, because that is where it is approved. A
+        // DRAFT under archive/ is a contradiction of the same shape as
+        // DONE-in-active/, and it says so in its own words rather than falling
+        // through to the generic archive message.
         const QString zone = req.section.trimmed().toLower();
         const bool archived = archivedStatuses().contains(token);
         const bool either = eitherZoneStatuses().contains(token);
-        if (zone == QStringLiteral("archive") && !archived && !either) {
+        if (zone == QStringLiteral("archive") && token == QStringLiteral("DRAFT")) {
+            issues.append({req.id, QStringLiteral("status"),
+                           QStringLiteral("статус '%1' в archive/ — черновата се "
+                                          "одобрява в active/, не се архивира")
+                               .arg(token),
+                           Severity::Error});
+        } else if (zone == QStringLiteral("archive") && !archived && !either) {
             issues.append({req.id, QStringLiteral("status"),
                            QStringLiteral("статус '%1' в archive/ (очаква се %2 или %3)")
                                .arg(token,
@@ -260,6 +686,26 @@ QVector<RequirementsValidator::Issue> RequirementsValidator::validate(
                                .arg(token, eitherZoneStatuses().join(QStringLiteral(", "))),
                            Severity::Error});
         }
+    }
+
+    // --- Revision vs approval (REQ-SW-PL-106) ----------------------------
+    // The approval is pinned to a number, so "the file grew past what the human
+    // accepted" is a fact, not a guess. It blocks exactly the statuses that mean
+    // "work in progress" — ACTIVE and IMPLEMENTED; DRAFT is blocked by its own
+    // status and the archived end states have nothing left to implement. A file
+    // with no approval line (approvedRevision < 0) is legacy and silent.
+    for (const Requirement &req : requirements) {
+        const QString token = normalizedStatus(req.status);
+        if (token != QStringLiteral("ACTIVE") && token != QStringLiteral("IMPLEMENTED"))
+            continue;
+        if (req.approvedRevision < 0 || req.revision <= req.approvedRevision)
+            continue;
+        issues.append({req.id, QStringLiteral("revision"),
+                       QStringLiteral("ревизия %1 не е одобрена (одобрена е ревизия %2) "
+                                      "— имплементацията е блокирана")
+                           .arg(QString::number(req.revision),
+                                QString::number(req.approvedRevision)),
+                       Severity::Error});
     }
 
     // --- Acceptance criteria vs DONE (CLI §4 parity) ----------------------
@@ -527,9 +973,12 @@ QStringList RequirementsValidator::statusVocabulary()
     // Order and membership mirror `readonly VOCAB` in
     // scripts/validate-traceability.sh. Changing one without the other makes
     // the two validators disagree again, which is the defect this fixes.
-    return {QStringLiteral("ACTIVE"), QStringLiteral("IMPLEMENTED"),
-            QStringLiteral("DONE"), QStringLiteral("CANCELLED"),
-            QStringLiteral("BACKLOG")};
+    // DRAFT leads the list because it is where a requirement starts: an agent
+    // writes it, the owner accepts it, and only then may it be implemented
+    // (REQ-SW-PL-099).
+    return {QStringLiteral("DRAFT"), QStringLiteral("ACTIVE"),
+            QStringLiteral("IMPLEMENTED"), QStringLiteral("DONE"),
+            QStringLiteral("CANCELLED"), QStringLiteral("BACKLOG")};
 }
 
 QString RequirementsValidator::normalizedStatus(const QString &rawStatus)

@@ -14,4 +14,7 @@ private slots:
     void danglingRecordedNotRendered();
     void cycleInputTerminates();
     void layeredLayoutInvariant();
+    // REQ-SW-PL-098: идеята е пунктиран възел до изискването си.
+    void ideaNodeAndPromotionEdge();
+    void unpromotedIdeaAbsentFromGraph();
 };

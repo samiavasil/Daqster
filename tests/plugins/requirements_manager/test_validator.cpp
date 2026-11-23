@@ -2,9 +2,12 @@
 #include <QDir>
 #include <QFile>
 #include <QTemporaryDir>
+#include <QProcess>
 
 #include "RequirementsValidator.h"
 #include "RequirementsParser.h"
+#include "DoneGate.h"
+#include "DoneGateCheck.h"
 #include "test_validator.h"
 
 using namespace Daqster;
@@ -31,10 +34,73 @@ Requirement makeRequirement(const QString &id, const QString &section,
     return req;
 }
 
+bool writeFileAt(const QString &root, const QString &relative, const QString &content)
+{
+    const QString path = QDir(root).filePath(relative);
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+        return false;
+    file.write(content.toUtf8());
+    return true;
+}
+
+bool runGit(const QString &root, const QStringList &arguments)
+{
+    QProcess git;
+    git.setWorkingDirectory(root);
+    git.start(QStringLiteral("git"), arguments);
+    if (!git.waitForStarted(5000) || !git.waitForFinished(20000))
+        return false;
+    return git.exitStatus() == QProcess::NormalExit && git.exitCode() == 0;
+}
+
+// A requirement that can be a DONE candidate, except for the one thing a test
+// changes: the AC state, the review record, or where the code lives.
+QString doneReadyMarkdown(const QString &id, const QString &status,
+                          const QString &checked, const QString &codePath)
+{
+    return QStringLiteral(
+               "# %1: Fixture\n"
+               "\n"
+               "- **Статус:** %2\n"
+               "- **Приоритет:** High\n"
+               "- **Отговорник (роля):** Implementation\n"
+               "- **Дата:** 2026-11-22\n"
+               "- **Родител:** —\n"
+               "- **Зависи от:** —\n"
+               "- **Ревизия:** 2\n"
+               "\n"
+               "## Накратко\n"
+               "\n"
+               "Фикстура.\n"
+               "\n"
+               "## Как ще разберем, че работи\n"
+               "\n"
+               "- [%3] AC1 — първи критерий\n"
+               "\n"
+               "## Проследимост\n"
+               "\n"
+               "- **Код:** `%4`\n")
+        .arg(id, status, checked, codePath);
+}
+
+QString reviewMarkdown(const QString &id, const QString &verdict)
+{
+    return QStringLiteral(
+               "# Ревю: feat/x @ abc123 (план: —, AC: 1, %1)\n"
+               "\n"
+               "## Кръгове\n"
+               "\n"
+               "| итерация | A | отворени | затворени | присъда |\n"
+               "|----------|---|----------|-----------|---------|\n"
+               "| R1 | 0 | — | — | %2 |\n")
+        .arg(id, verdict);
+}
+
 } // namespace
 
-void TestValidator::cleanFixture_noIssues()
-{
+void TestValidator::cleanFixture_noIssues(){
     QVector<Requirement> reqs;
     reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("active"), QString()));
     reqs.append(makeRequirement(QStringLiteral("REQ-SW-PL-002"), QStringLiteral("active"), QStringLiteral("REQ-SW-PL-001")));
@@ -409,7 +475,7 @@ void TestValidator::scope_onlyRequirementsTreeIsValidated()
 void TestValidator::statusVocabulary_hasOneEntryPoint()
 {
     QCOMPARE(RequirementsValidator::statusVocabulary().join(QLatin1Char(' ')),
-             QStringLiteral("ACTIVE IMPLEMENTED DONE CANCELLED BACKLOG"));
+             QStringLiteral("DRAFT ACTIVE IMPLEMENTED DONE CANCELLED BACKLOG"));
 }
 
 void TestValidator::statusVocabulary_invalidStatus_error()
@@ -472,6 +538,31 @@ void TestValidator::statusZone_activeInArchive_error()
     QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
     QCOMPARE(issues.at(0).field, QStringLiteral("status"));
     QVERIFY2(issues.at(0).message.contains(QStringLiteral("в archive/")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::statusVocabulary_draftOnlyInActive()
+{
+    // DRAFT is the state an agent writes and the owner accepts in the Manager
+    // (REQ-SW-PL-099). It is a legal status, and it is legal only in active/:
+    // the approval happens there, so a draft in archive/ is a contradiction.
+    QVector<Requirement> active;
+    active.append(makeRequirement(QStringLiteral("REQ-SW-PL-096"),
+                                  QStringLiteral("active"), QString(), {},
+                                  QStringLiteral("DRAFT")));
+    QCOMPARE(RequirementsValidator::validate(active).size(), 0);
+
+    QVector<Requirement> archived;
+    archived.append(makeRequirement(QStringLiteral("REQ-SW-PL-097"),
+                                    QStringLiteral("archive"), QString(), {},
+                                    QStringLiteral("DRAFT")));
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(archived);
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QCOMPARE(issues.at(0).field, QStringLiteral("status"));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("DRAFT"))
+                 && issues.at(0).message.contains(QStringLiteral("в archive/")),
              qPrintable(issues.at(0).message));
 }
 
@@ -771,4 +862,797 @@ void TestValidator::childDangling_error()
     QCOMPARE(issues.at(0).field, QStringLiteral("childIds"));
     QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-999")),
              qPrintable(issues.at(0).message));
+}
+
+void TestValidator::dateNotIso_warning()
+{
+    // REQ-SW-PL-100: "Дата:" is a date, not free text. A sloppy value is a
+    // Warning that names it — the file stays readable, but not invisible.
+    QVector<Requirement> reqs;
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                      QStringLiteral("active"), QString());
+    req.date = QStringLiteral("21.11.2026");
+    reqs.append(req);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Warning);
+    QCOMPARE(issues.at(0).field, QStringLiteral("date"));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("21.11.2026")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("YYYY-MM-DD")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::dateMissing_warningStays()
+{
+    // An empty date keeps its own, older message: "missing" and "not a date"
+    // are two different repairs, so they stay two different issues.
+    QVector<Requirement> reqs;
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                      QStringLiteral("active"), QString());
+    req.date = QString();
+    reqs.append(req);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).field, QStringLiteral("date"));
+    QCOMPARE(issues.at(0).message, QStringLiteral("creation date is missing"));
+}
+
+// ── Cited code paths (REQ-SW-PL-103) ────────────────────────────────────────
+// A path in "Код:" is a claim that the file exists — but only an implemented
+// requirement makes that claim. An accepted one may cite a file it is about to
+// add; a draft may cite a file nobody has planned yet.
+void TestValidator::citedPath_activeMissingPath_warning()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-101"),
+                                      QStringLiteral("active"), QString());
+    req.status = QStringLiteral("ACTIVE");
+    req.filePath = dir.filePath(QStringLiteral("DevelopmentProcess/requirements/active/x.md"));
+    req.code = QStringLiteral("`scripts/check-req-history.sh` (още го няма)");
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateCitedPaths({req}, {dir.path()});
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Warning);
+    QCOMPARE(issues.at(0).field, QStringLiteral("code"));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("check-req-history.sh")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("още не е имплементиран")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::citedPath_implementedMissingPath_error()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-101"),
+                                      QStringLiteral("active"), QString());
+    req.status = QStringLiteral("IMPLEMENTED");
+    req.filePath = dir.filePath(QStringLiteral("DevelopmentProcess/requirements/active/x.md"));
+    req.code = QStringLiteral("`scripts/check-req-history.sh`");
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateCitedPaths({req}, {dir.path()});
+
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("не съществува")),
+             qPrintable(issues.at(0).message));
+
+    // DONE is the same claim as IMPLEMENTED: the work landed in develop.
+    req.status = QStringLiteral("DONE");
+    const QVector<RequirementsValidator::Issue> done =
+        RequirementsValidator::validateCitedPaths({req}, {dir.path()});
+    QCOMPARE(done.size(), 1);
+    QCOMPARE(done.at(0).severity, RequirementsValidator::Severity::Error);
+}
+
+void TestValidator::citedPath_draftAndExisting_silent()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QVERIFY(QDir(dir.path()).mkpath(QStringLiteral("scripts")));
+    QFile stamp(dir.filePath(QStringLiteral("scripts/check-req-history.sh")));
+    QVERIFY(stamp.open(QIODevice::WriteOnly));
+    stamp.close();
+
+    Requirement draft = makeRequirement(QStringLiteral("REQ-SW-PL-101"),
+                                        QStringLiteral("active"), QString());
+    draft.status = QStringLiteral("DRAFT");
+    draft.filePath = dir.filePath(QStringLiteral("DevelopmentProcess/requirements/active/x.md"));
+    draft.code = QStringLiteral("`scripts/does-not-exist.sh`");
+
+    Requirement active = makeRequirement(QStringLiteral("REQ-SW-PL-102"),
+                                         QStringLiteral("active"), QString());
+    active.status = QStringLiteral("ACTIVE");
+    active.filePath = dir.filePath(QStringLiteral("DevelopmentProcess/requirements/active/y.md"));
+    active.code = QStringLiteral("`scripts/check-req-history.sh`");
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateCitedPaths({draft, active}, {dir.path()});
+
+    QCOMPARE(issues.size(), 0);
+
+    // The severity rule itself is one function, so it cannot drift between
+    // callers: ACTIVE warns, IMPLEMENTED/DONE error, DRAFT grades nothing.
+    QCOMPARE(RequirementsValidator::pathSeverityForStatus(QString::fromLatin1("ACTIVE")).value(),
+             RequirementsValidator::Severity::Warning);
+    QCOMPARE(RequirementsValidator::pathSeverityForStatus(QString::fromLatin1("IMPLEMENTED")).value(),
+             RequirementsValidator::Severity::Error);
+    QVERIFY(!RequirementsValidator::pathSeverityForStatus(QString::fromLatin1("DRAFT")).has_value());
+}
+
+void TestValidator::createdField_isTheCreationDate()
+{
+    // REQ-SW-PL-101 AC2: "Създадено:" is the field, "Дата:" the legacy alias.
+    // Neither present is "missing"; a sloppy value in the new field is the same
+    // "не е YYYY-MM-DD" warning the old one gets.
+    QVector<Requirement> reqs;
+    Requirement neither = makeRequirement(QStringLiteral("REQ-SW-PL-001"),
+                                          QStringLiteral("active"), QString());
+    neither.date.clear();
+    neither.created.clear();
+    reqs.append(neither);
+
+    Requirement fromCreated = makeRequirement(QStringLiteral("REQ-SW-PL-002"),
+                                              QStringLiteral("active"), QString());
+    fromCreated.date = QStringLiteral("не е дата");
+    fromCreated.created = QStringLiteral("2026-11-21");
+    reqs.append(fromCreated);
+
+    Requirement sloppyCreated = makeRequirement(QStringLiteral("REQ-SW-PL-003"),
+                                                QStringLiteral("active"), QString());
+    sloppyCreated.date.clear();
+    sloppyCreated.created = QStringLiteral("21.11.2026");
+    reqs.append(sloppyCreated);
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validate(reqs);
+
+    QCOMPARE(issues.size(), 2);
+    QCOMPARE(issues.at(0).id, QStringLiteral("REQ-SW-PL-001"));
+    QCOMPARE(issues.at(0).message, QStringLiteral("creation date is missing"));
+    QCOMPARE(issues.at(1).id, QStringLiteral("REQ-SW-PL-003"));
+    QVERIFY2(issues.at(1).message.contains(QStringLiteral("21.11.2026")),
+             qPrintable(issues.at(1).message));
+}
+
+// ── Порта към DONE (REQ-SW-PL-107) ──────────────────────────────────────────
+
+namespace {
+
+// A temp repository whose `develop` carries @p onDevelop, then a work branch
+// that carries @p onBranch (and nothing else new). Everything a gate test needs
+// to tell "in develop" from "only on my branch" — with the real git.
+// @p baseBranch names the integration branch this fixture has: `develop` unless
+// a test needs a repo that has no such branch at all.
+bool makeRepo(const QString &root, const QVector<QPair<QString, QString>> &onDevelop,
+              const QVector<QPair<QString, QString>> &onBranch,
+              const QString &baseBranch = QStringLiteral("develop"))
+{
+    if (!runGit(root, {QStringLiteral("init"), QStringLiteral("-q")}))
+        return false;
+    runGit(root, {QStringLiteral("config"), QStringLiteral("user.email"),
+                  QStringLiteral("test@example.com")});
+    runGit(root, {QStringLiteral("config"), QStringLiteral("user.name"),
+                  QStringLiteral("Test")});
+    if (!writeFileAt(root, QStringLiteral("README.md"), QStringLiteral("# fixture\n")))
+        return false;
+    for (const auto &entry : onDevelop)
+        if (!writeFileAt(root, entry.first, entry.second))
+            return false;
+    if (!runGit(root, {QStringLiteral("add"), QStringLiteral("-A")}))
+        return false;
+    if (!runGit(root, {QStringLiteral("commit"), QStringLiteral("-q"),
+                       QStringLiteral("-m"), QStringLiteral("base")}))
+        return false;
+    if (!runGit(root, {QStringLiteral("branch"), QStringLiteral("-M"),
+                       baseBranch}))
+        return false;
+    if (onBranch.isEmpty())
+        return true;
+    if (!runGit(root, {QStringLiteral("checkout"), QStringLiteral("-q"),
+                       QStringLiteral("-b"), QStringLiteral("feat/x")}))
+        return false;
+    for (const auto &entry : onBranch)
+        if (!writeFileAt(root, entry.first, entry.second))
+            return false;
+    return runGit(root, {QStringLiteral("add"), QStringLiteral("-A")})
+           && runGit(root, {QStringLiteral("commit"), QStringLiteral("-q"),
+                            QStringLiteral("-m"), QStringLiteral("work")});
+}
+
+// The parsed fixture requirement of a temp repo (empty when parse failed).
+Requirement parsedFixture(const QString &root, const QString &id)
+{
+    const QVector<Requirement> parsed = RequirementsParser::parseDirectory(root);
+    for (const Requirement &req : parsed)
+        if (req.id == id)
+            return req;
+    return Requirement();
+}
+
+// The DONE gate answers in two steps (REQ-SW-PL-107): the file half is
+// synchronous, the `develop` half arrives from a child process — a wait inside
+// the plugin is forbidden (check_no_event_loops.cmake). The test waits on its
+// own event loop, exactly the way the widget does.
+bool evaluateDoneGate(Requirement &req, const QVector<RequirementRoot> &roots)
+{
+    DoneGate::evaluateLocal(req, roots);
+    DoneGateCheck check;
+    QSignalSpy done(&check, &DoneGateCheck::finished);
+    check.start(roots, {req});
+    if (done.isEmpty() && !done.wait(15000))
+        return false;
+    const auto &answers = check.answers();
+    const auto it = answers.constFind(req.filePath);
+    if (it == answers.constEnd())
+        return false;
+    DoneGate::applyCodeAnswer(req, *it);
+    return true;
+}
+
+constexpr char kReqPath[] =
+    "DevelopmentProcess/requirements/active/REQ-SW-PL-107-fixture.md";
+constexpr char kReviewPath[] = "DevelopmentProcess/plans/reviews/PR-1-REQ-SW-PL-107.md";
+
+} // namespace
+
+void TestValidator::doneGate_candidateWhenAllFourHold()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ПРИЕТО"))}},
+                      {}),
+             "git fixture");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    QVERIFY(!req.id.isEmpty());
+    QVERIFY(req.allCriteriaDone);   // parsed, not a line in the file
+
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
+    QVERIFY(req.acceptingReview);
+    QCOMPARE(req.reviewVerdict, QStringLiteral("ПРИЕТО"));
+    QVERIFY(req.codeInDevelop);
+    QVERIFY(req.missingDevelopPaths.isEmpty());
+    QVERIFY(req.doneCandidate);
+    QVERIFY(DoneGate::isDoneCandidate(req));
+    QVERIFY(DoneGate::missingPreconditions(req).isEmpty());
+}
+
+void TestValidator::doneGate_notCandidateWhenCriterionOpen()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral(" "),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ПРИЕТО"))}},
+                      {}),
+             "git fixture");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
+
+    QVERIFY(!req.allCriteriaDone);
+    QVERIFY(!req.doneCandidate);
+    const QStringList missing = DoneGate::missingPreconditions(req);
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().contains(QStringLiteral("AC1")), qPrintable(missing.first()));
+}
+
+void TestValidator::doneGate_notCandidateWhenNoReviewRecord()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")}},
+                      {}),
+             "git fixture");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
+
+    QVERIFY(req.reviewRecord.isEmpty());
+    QVERIFY(!req.acceptingReview);
+    QVERIFY(!req.doneCandidate);
+    const QStringList missing = DoneGate::missingPreconditions(req);
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().contains(QStringLiteral("ревю запис")), qPrintable(missing.first()));
+}
+
+void TestValidator::doneGate_notCandidateWhenVerdictReturned()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    // A record that exists and is not accepting: "exists a file" is not a review.
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ВЪРНАТО"))}},
+                      {}),
+             "git fixture");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
+
+    QVERIFY(!req.reviewRecord.isEmpty());
+    QVERIFY(!req.acceptingReview);
+    QCOMPARE(req.reviewVerdict, QStringLiteral("ВЪРНАТО"));
+    QVERIFY(!req.doneCandidate);
+    const QStringList missing = DoneGate::missingPreconditions(req);
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().contains(QStringLiteral("не е приемане")),
+             qPrintable(missing.first()));
+}
+
+void TestValidator::doneGate_notCandidateWhenCodeOnlyOnBranch()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ПРИЕТО"))}},
+                      {{QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")}}),
+             "git fixture");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
+
+    QVERIFY2(!req.codeInDevelop, "the path is only on feat/x");
+    QCOMPARE(req.missingDevelopPaths, QStringList{QStringLiteral("plugins/later.h")});
+    QCOMPARE(req.codeBranch, QStringLiteral("feat/x"));
+    QVERIFY(!req.doneCandidate);
+    const QStringList missing = DoneGate::missingPreconditions(req);
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().contains(QStringLiteral("още не е в")) && missing.first().contains(QStringLiteral("feat/x")),
+             qPrintable(missing.first()));
+}
+
+void TestValidator::doneGate_refusesWhenNoDevelopBranch()
+{
+    // R1-1: a repo WITHOUT `develop` used to leave codeInDevelop == true — DONE
+    // was granted without a single check. "Cannot check" is a refusal now, and
+    // it says why.
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ПРИЕТО"))}},
+                      {}, QStringLiteral("main")),
+             "git fixture without develop");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    QVERIFY(!req.id.isEmpty());
+    QVERIFY(req.allCriteriaDone);
+
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
+
+    QVERIFY(req.acceptingReview);   // everything else holds: only the check is impossible
+    QVERIFY2(!req.codeInDevelop, "no develop: the check cannot pass, so it refuses");
+    QVERIFY2(req.codeCheckError.contains(QStringLiteral("develop")),
+             qPrintable(req.codeCheckError));
+    QVERIFY(req.missingDevelopPaths.isEmpty());   // nothing was found missing: nothing was asked
+    QVERIFY(!req.doneCandidate);
+    const QStringList missing = DoneGate::missingPreconditions(req);
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().startsWith(
+                 QStringLiteral("не мога да проверя дали кодът е в develop: ")),
+             qPrintable(missing.first()));
+    QVERIFY2(missing.first().contains(root), qPrintable(missing.first()));
+}
+
+void TestValidator::doneGate_publicPathResolvedByPublicDevelop()
+{
+    // R1-2: the tree spans two repos. A public path (`src/...`) does not exist in
+    // the private repo's develop, and that is not a debt: any loaded repo's
+    // develop carrying the path is an answer.
+    QTemporaryDir privateDir;
+    QTemporaryDir publicDir;
+    QVERIFY(privateDir.isValid());
+    QVERIFY(publicDir.isValid());
+    const QString privateRoot = privateDir.path();
+    const QString publicRoot = publicDir.path();
+    QVERIFY2(makeRepo(privateRoot,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("IMPLEMENTED"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("src/frame_work/base/"
+                                                         "PluginDiscovery.cpp"))},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ПРИЕТО"))}},
+                      {}),
+             "private fixture");
+    QVERIFY2(makeRepo(publicRoot,
+                      {{QStringLiteral("src/frame_work/base/PluginDiscovery.cpp"),
+                        QStringLiteral("// public\n")}},
+                      {}),
+             "public fixture");
+
+    Requirement req = parsedFixture(privateRoot, QStringLiteral("REQ-SW-PL-107"));
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{privateRoot}, RequirementRoot{publicRoot}}),
+             "the develop check must answer");
+
+    QVERIFY2(req.codeInDevelop, "the public repo's develop carries the path");
+    QVERIFY(req.codeCheckError.isEmpty());
+    QVERIFY(req.missingDevelopPaths.isEmpty());
+    QVERIFY(req.doneCandidate);
+}
+
+void TestValidator::doneGate_doneOutsideArchiveReported()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+    const QString root = temp.path();
+    QVERIFY2(makeRepo(root,
+                      {{QString::fromUtf8(kReqPath),
+                        doneReadyMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                          QStringLiteral("DONE"),
+                                          QStringLiteral("x"),
+                                          QStringLiteral("plugins/later.h"))},
+                       {QStringLiteral("plugins/later.h"), QStringLiteral("// code\n")},
+                       {QString::fromUtf8(kReviewPath),
+                        reviewMarkdown(QStringLiteral("REQ-SW-PL-107"),
+                                       QStringLiteral("ПРИЕТО"))}},
+                      {}),
+             "git fixture");
+
+    Requirement req = parsedFixture(root, QStringLiteral("REQ-SW-PL-107"));
+    QCOMPARE(req.section, QStringLiteral("active"));
+    QVERIFY2(evaluateDoneGate(req, {RequirementRoot{root}}),
+             "the develop check must answer");
+
+    QVERIFY(!req.doneCandidate);   // only IMPLEMENTED is a candidate
+    const QStringList missing = DoneGate::missingPreconditions(req);
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().contains(QStringLiteral("archive")), qPrintable(missing.first()));
+}
+
+void TestValidator::revisionAboveApproved_error()
+{
+    // REQ-SW-PL-106: "одобрено" is a NUMBER, so a file that grew past it is a
+    // fact the manager can report with both numbers — the same sentence
+    // `scripts/check-req-revision.sh` prints.
+    Requirement req = makeRequirement(QStringLiteral("REQ-SW-PL-910"),
+                                      QStringLiteral("active"), QString());
+    req.revision = 3;
+    req.approvedRevision = 2;
+
+    const QVector<RequirementsValidator::Issue> issues = RequirementsValidator::validate({req});
+    int hits = 0;
+    for (const RequirementsValidator::Issue &issue : issues) {
+        if (issue.field != QStringLiteral("revision"))
+            continue;
+        ++hits;
+        QCOMPARE(issue.severity, RequirementsValidator::Severity::Error);
+        QVERIFY2(issue.message.contains(QStringLiteral("3")), qPrintable(issue.message));
+        QVERIFY2(issue.message.contains(QStringLiteral("2")), qPrintable(issue.message));
+    }
+    QCOMPARE(hits, 1);
+
+    // A DRAFT with the same numbers is not an implementation: its status is the
+    // gate, and "revision 3, approved 2" is exactly what a contract change
+    // looks like. Nothing extra is reported.
+    Requirement draft = makeRequirement(QStringLiteral("REQ-SW-PL-911"),
+                                       QStringLiteral("active"), QString(),
+                                       QStringList(), QStringLiteral("DRAFT"));
+    draft.revision = 3;
+    draft.approvedRevision = 2;
+    for (const RequirementsValidator::Issue &issue : RequirementsValidator::validate({draft})) {
+        QVERIFY2(issue.field != QStringLiteral("revision"), qPrintable(issue.message));
+    }
+}
+
+void TestValidator::revisionWithoutNumber_legacySilent()
+{
+    // 143 files carry "Одобрено: <дата>, потребител" with no number. The parser
+    // normalises that to the file's own revision, and a file with no approval
+    // line at all keeps -1 — neither may turn red for a format that did not
+    // exist when they were written (REQ-SW-PL-106, „Нищо не се пренаписва назад“).
+    Requirement normalised = makeRequirement(QStringLiteral("REQ-SW-PL-912"),
+                                             QStringLiteral("active"), QString());
+    normalised.revision = 4;
+    normalised.approvedRevision = 4; // what the parser writes for a legacy line
+    Requirement noLine = makeRequirement(QStringLiteral("REQ-SW-PL-913"),
+                                        QStringLiteral("active"), QString());
+    noLine.revision = 4;
+    noLine.approvedRevision = -1;
+
+    for (const RequirementsValidator::Issue &issue
+         : RequirementsValidator::validate({normalised, noLine})) {
+        QVERIFY2(issue.field != QStringLiteral("revision"), qPrintable(issue.message));
+    }
+}
+
+// ── Връзка идея ↔ изискване (REQ-SW-PL-098) ────────────────────────────────
+namespace {
+
+Idea makeIdea(const QString &id, const QString &status, const QString &promoted)
+{
+    Idea idea;
+    idea.id = id;
+    idea.title = id;
+    idea.status = status;
+    idea.promotedId = promoted;
+    idea.path = QStringLiteral("/tmp/%1.md").arg(id);
+    return idea;
+}
+
+//!< A requirement whose body cites @p citedIds ("Изведено от IDEA-…") and,
+//!< optionally, whose header carries the other end of the link.
+Requirement requirementCiting(const QString &id, const QStringList &citedIds,
+                              const QString &fromIdea = QString())
+{
+    Requirement req = makeRequirement(id, QStringLiteral("active"), QString());
+    req.status = QStringLiteral("ACTIVE");
+    QString body = QStringLiteral("# %1: Fixture\n\n## Защо\n\n").arg(id);
+    if (!fromIdea.isEmpty())
+        body += QStringLiteral("- from_idea: %1\n").arg(fromIdea);
+    for (const QString &cited : citedIds)
+        body += QStringLiteral("- изведено от %1\n").arg(cited);
+    req.rawContent = body;
+    return req;
+}
+
+} // namespace
+
+void TestValidator::ideaLink_citedIdeaWithoutRecord_error()
+{
+    // AC1: the requirement names the idea, the idea does not record the
+    // promotion — the issue must name BOTH, so a reader does not have to guess
+    // which of the two files to open.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-920"),
+                                              {QStringLiteral("IDEA-003")},
+                                              QStringLiteral("IDEA-003"));
+    const Idea idea = makeIdea(QStringLiteral("IDEA-003"), QStringLiteral("нова"),
+                              QString());
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateIdeaLinks({req}, {idea});
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).field, QStringLiteral("idea-link"));
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("IDEA-003")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-920")),
+             qPrintable(issues.at(0).message));
+
+    // The same citation with the promotion recorded is silent, and an idea that
+    // nobody cites is not asked to record anything.
+    const Idea promoted = makeIdea(QStringLiteral("IDEA-003"),
+                                   QStringLiteral("промотирана"),
+                                   QStringLiteral("REQ-SW-PL-920"));
+    QCOMPARE(RequirementsValidator::validateIdeaLinks({req}, {promoted}).size(), 0);
+}
+
+void TestValidator::ideaLink_promotionToMissingRequirement_error()
+{
+    // AC2: "Изискване: REQ-X" names a file that does not exist. The message
+    // carries the missing identifier — that is the repair.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-921"), {});
+    const Idea idea = makeIdea(QStringLiteral("IDEA-004"), QStringLiteral("промотирана"),
+                              QStringLiteral("REQ-SW-PL-999"));
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateIdeaLinks({req}, {idea});
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).field, QStringLiteral("idea-link"));
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-999")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("IDEA-004")),
+             qPrintable(issues.at(0).message));
+}
+
+void TestValidator::ideaLink_promotedPairAndUnpromotedIdea_silent()
+{
+    // AC3: an idea without a requirement is the NORMAL state — neither an error
+    // nor a warning. A correct pair produces nothing in either direction, and
+    // the struck-through correction is not a citation.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-922"),
+                                              {QStringLiteral("IDEA-002")},
+                                              QStringLiteral("IDEA-002"));
+    Requirement struck = requirementCiting(QStringLiteral("REQ-SW-PL-923"), {});
+    struck.rawContent += QStringLiteral("\n~~изведено от IDEA-005~~\n");
+
+    QVector<Idea> ideas;
+    ideas.append(makeIdea(QStringLiteral("IDEA-002"), QStringLiteral("промотирана"),
+                          QStringLiteral("REQ-SW-PL-922")));
+    ideas.append(makeIdea(QStringLiteral("IDEA-005"), QStringLiteral("нова"), QString()));
+    ideas.append(makeIdea(QStringLiteral("IDEA-006"), QStringLiteral("паркирана"), QString()));
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateIdeaLinks({req, struck}, ideas);
+    QCOMPARE(issues.size(), 0);
+}
+
+void TestValidator::ideaLink_conflictingPromotionKeys_error()
+{
+    // Review R1-3 (REQ-SW-PL-098): the two spellings of one link disagree. The
+    // reader keeps the first and would drop the second in silence, so the drift
+    // ("the requirement was renamed") had no witness at all.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-924"), {},
+                                              QStringLiteral("IDEA-009"));
+    Idea idea = makeIdea(QStringLiteral("IDEA-009"), QStringLiteral("промотирана"),
+                         QStringLiteral("REQ-SW-PL-924"));
+    idea.promotedKeyId = QStringLiteral("REQ-SW-PL-924");
+    idea.requirementKeyId = QStringLiteral("REQ-SW-PL-925");
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateIdeaLinks({req}, {idea});
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).field, QStringLiteral("idea-link"));
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-924")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-925")),
+             qPrintable(issues.at(0).message));
+
+    // The same link spelled twice is not a finding: only a disagreement is.
+    idea.requirementKeyId = QStringLiteral("REQ-SW-PL-924");
+    QCOMPARE(RequirementsValidator::validateIdeaLinks({req}, {idea}).size(), 0);
+}
+
+// ── Една връзка, две страни (REQ-SW-PL-098, решение „А“) ─────────────────────
+
+void TestValidator::ideaLink_promotionWithoutFromIdea_error()
+{
+    // Direction A: the idea records the promotion, the requirement it names does
+    // not name it back. The pair looks promoted from one file and plain from the
+    // other, so the issue must name BOTH — the repair is in the requirement.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-926"), {});
+    const Idea idea = makeIdea(QStringLiteral("IDEA-011"), QStringLiteral("промотирана"),
+                              QStringLiteral("REQ-SW-PL-926"));
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateIdeaLinks({req}, {idea});
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).field, QStringLiteral("idea-link"));
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("IDEA-011")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-926")),
+             qPrintable(issues.at(0).message));
+
+    // The same requirement pointing at ANOTHER idea is still a broken pair, and
+    // the message names the idea the requirement believes it came from. The
+    // second idea is promoted to the same requirement on purpose: it keeps this
+    // case about the back-link and not about a missing file.
+    const Requirement elsewhere = requirementCiting(QStringLiteral("REQ-SW-PL-926"), {},
+                                                    QStringLiteral("IDEA-012"));
+    const Idea second = makeIdea(QStringLiteral("IDEA-012"), QStringLiteral("промотирана"),
+                                 QStringLiteral("REQ-SW-PL-926"));
+    const QVector<RequirementsValidator::Issue> mismatched =
+        RequirementsValidator::validateIdeaLinks({elsewhere}, {idea, second});
+    QCOMPARE(mismatched.size(), 1);
+    QVERIFY2(mismatched.at(0).message.contains(QStringLiteral("IDEA-011")),
+             qPrintable(mismatched.at(0).message));
+    QVERIFY2(mismatched.at(0).message.contains(QStringLiteral("IDEA-012")),
+             qPrintable(mismatched.at(0).message));
+}
+
+void TestValidator::ideaLink_fromIdeaWithoutPromotion_error()
+{
+    // Direction B: the requirement says where it came from, the idea says it was
+    // never promoted. Direction A cannot see this one — there is no promotion
+    // line to name the requirement back.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-927"), {},
+                                              QStringLiteral("IDEA-013"));
+    const Idea idea = makeIdea(QStringLiteral("IDEA-013"), QStringLiteral("промотирана"),
+                              QString());          // promoted, but to nothing
+
+    const QVector<RequirementsValidator::Issue> issues =
+        RequirementsValidator::validateIdeaLinks({req}, {idea});
+    QCOMPARE(issues.size(), 1);
+    QCOMPARE(issues.at(0).field, QStringLiteral("idea-link"));
+    QCOMPARE(issues.at(0).severity, RequirementsValidator::Severity::Error);
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("IDEA-013")),
+             qPrintable(issues.at(0).message));
+    QVERIFY2(issues.at(0).message.contains(QStringLiteral("REQ-SW-PL-927")),
+             qPrintable(issues.at(0).message));
+
+    // Promoted to a THIRD requirement: the pair is crossed, and both names plus
+    // the one the idea actually names are in the message. That requirement
+    // carries the matching `from_idea:` so the crossed pair is the only finding.
+    const Idea crossed = makeIdea(QStringLiteral("IDEA-013"),
+                                  QStringLiteral("промотирана"),
+                                  QStringLiteral("REQ-SW-PL-928"));
+    const Requirement atThird = requirementCiting(QStringLiteral("REQ-SW-PL-928"), {},
+                                                  QStringLiteral("IDEA-013"));
+    const QVector<RequirementsValidator::Issue> crossedIssues =
+        RequirementsValidator::validateIdeaLinks({req, atThird}, {crossed});
+    QCOMPARE(crossedIssues.size(), 1);
+    QVERIFY2(crossedIssues.at(0).message.contains(QStringLiteral("REQ-SW-PL-928")),
+             qPrintable(crossedIssues.at(0).message));
+}
+
+void TestValidator::ideaLink_cleanPairInBothDirections_silent()
+{
+    // The state the register should be in: both ends name each other. Silence in
+    // both directions — this is the guard against the new rules crying wolf.
+    const Requirement req = requirementCiting(QStringLiteral("REQ-SW-PL-929"),
+                                              {QStringLiteral("IDEA-014")},
+                                              QStringLiteral("IDEA-014"));
+    const Idea idea = makeIdea(QStringLiteral("IDEA-014"), QStringLiteral("промотирана"),
+                              QStringLiteral("REQ-SW-PL-929"));
+    QCOMPARE(RequirementsValidator::validateIdeaLinks({req}, {idea}).size(), 0);
+
+    // A requirement from nowhere and an idea nobody promoted stay silent too:
+    // neither half of the link is a defect.
+    const Requirement nowhere = requirementCiting(QStringLiteral("REQ-SW-PL-930"), {});
+    const Idea unpromoted = makeIdea(QStringLiteral("IDEA-015"),
+                                     QStringLiteral("в развитие"), QString());
+    QCOMPARE(RequirementsValidator::validateIdeaLinks({nowhere}, {unpromoted}).size(), 0);
+
+    // fromIdeaId() reads the header line the same way for every spelling the
+    // dialog and a human produce.
+    QCOMPARE(RequirementsValidator::fromIdeaId(req), QStringLiteral("IDEA-014"));
+    Requirement bold = nowhere;
+    bold.rawContent = QStringLiteral("- **from_idea:** `idea-015`\n");
+    QCOMPARE(RequirementsValidator::fromIdeaId(bold), QStringLiteral("IDEA-015"));
+    Requirement none = nowhere;
+    none.rawContent = QStringLiteral("- from_idea: —\n");
+    QCOMPARE(RequirementsValidator::fromIdeaId(none), QString());
 }

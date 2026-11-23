@@ -14,6 +14,8 @@ private slots:
     void treeSortsWithinSection_data();
     void treeSortsWithinSection();
     void treeSectionsKeepSourceOrder();
+    void treeAgeColumnSortsNumerically();
+    void treeSectionsKeepSourceOrderWithDateColumns();
     void matrixSortsEveryColumn_data();
     void matrixSortsEveryColumn();
     void matrixDefaultOrderKeepsSourceOrder();

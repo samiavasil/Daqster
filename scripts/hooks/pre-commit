@@ -5,6 +5,16 @@ set -e
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT" || exit 1
 
+# Политиката на комита (REQ-SW-PL-108): код без цитиран REQ и цитирано
+# изискване извън сила (DRAFT, CANCELLED, BACKLOG) се отказват тук — преди рендера, за да
+# не се губи работа. Едно и също правило с частното repo; логиката е в
+# scripts/check-commit-policy.sh. Третото правило (печат `scope full` за
+# споделен път) тук не важи: това repo не пише `.test-evidence/`, ниво 1 се
+# пуска от частното; на push го налага Gitea pre-receive.
+if [ -x scripts/check-commit-policy.sh ]; then
+  ./scripts/check-commit-policy.sh --root "$REPO_ROOT" --no-message --skip-shared-stamp || exit 1
+fi
+
 # Find staged puml files
 staged=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/diagrams/.*\.puml$' || true)
 if [ -z "$staged" ]; then

@@ -1,20 +1,24 @@
 #include <QtTest>
 #include <QTemporaryDir>
 #include <QApplication>
+#include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QTabWidget>
 #include <QTableView>
+#include <QTreeView>
 #include <QTextBrowser>
 #include <QTimer>
 
 #include "IdeaReader.h"
 #include "IdeaModel.h"
+#include "DependencyGraphWidget.h"
 #include "RequirementsWidget.h"
 #include "RequirementsParser.h"
 #include "RequirementsValidator.h"
@@ -65,7 +69,6 @@ QString ideasDirFor(const QString &root)
 {
     return QDir(root).filePath(QStringLiteral("DevelopmentProcess/plans/ideas"));
 }
-
 QString activeDirFor(const QString &root)
 {
     return QDir(root).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
@@ -176,9 +179,17 @@ class TestIdeas : public QObject
 private slots:
     void readerParsesHeaderShapesAndSkipsMalformed();
     void readerCountsAttachments();
+    void readerParsesBothPromotionKeys();
+    void readerKeepsBothKeysApart();
     void ideasTabHiddenWithoutIdeas();
     void ideasTabShowsRowsAndSorts();
     void ideasSearchFilters();
+    void promotionColumnShowsRequirementAndStatus();
+    void promotionColumnClickOpensRequirement();
+    void requirementPreviewShowsIdeaOrigin();
+    void graphDrawsIdeaAsDashedNode();
+    void graphKeepsIdeaWhenFilterChanges();
+    void managerReportIncludesIdeaLinkError();
     void promotionWritesRequirementAndPromotionLine();
     void promotionCancelWritesNothing();
     void validatorCountsUnchangedWithIdeas();
@@ -332,6 +343,315 @@ void TestIdeas::ideasSearchFilters()
     QCOMPARE(model->rowCount(), 3);
 }
 
+//!< Writes an idea promoted to @p requirementId (one more row in the fixture).
+QString writePromotedIdea(const QString &root, const QString &requirementId)
+{
+    return writeFile(
+        QDir(ideasDirFor(root)).filePath(QStringLiteral("IDEA-005-promoted.md")),
+        QStringLiteral("# IDEA-005 — Promoted\n"
+                       "\n"
+                       "> Статус: промотирана · Добавена: 2026-10-05 · "
+                       "Следващ преглед: 2027-05-05\n"
+                       "> Промотирана: %1\n"
+                       "\n"
+                       "## Защо\n"
+                       "\n"
+                       "Тяло на промотираната идея.\n")
+            .arg(requirementId));
+}
+
+void TestIdeas::readerParsesBothPromotionKeys()
+{
+    // REQ-SW-PL-098: one link, one home — the idea's header. The register uses
+    // two names for it (IDEA-002 carries "Изискване:", the REQ names
+    // "Промотирана:"), and both must feed Idea::promotedId.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir.filePath(QStringLiteral("repo")));
+    writeIdeasTree(root);
+    writePromotedIdea(root, QStringLiteral("REQ-SW-PL-900"));
+    writeFile(QDir(ideasDirFor(root)).filePath(QStringLiteral("IDEA-007-req.md")),
+              QStringLiteral("# IDEA-007 — Req key\n"
+                             "\n"
+                             "> Статус: промотирана · Добавена: 2026-10-07\n"
+                             "> Изискване: REQ-SW-PL-901 („промотирана“ 2026-11-22)\n"
+                             "\n"
+                             "## Защо\n\nТяло.\n"));
+
+    const QVector<Idea> ideas = IdeaReader::readFromRoots({root});
+    QCOMPARE(ideas.size(), 5); // IDEA-001..003 + IDEA-005 + IDEA-007
+    for (const Idea &idea : ideas) {
+        if (idea.id == QStringLiteral("IDEA-005"))
+            QCOMPARE(idea.promotedId, QStringLiteral("REQ-SW-PL-900"));
+        else if (idea.id == QStringLiteral("IDEA-007"))
+            QCOMPARE(idea.promotedId, QStringLiteral("REQ-SW-PL-901"));
+        else
+            QVERIFY2(idea.promotedId.isEmpty(), qPrintable(idea.id));
+    }
+}
+
+void TestIdeas::readerKeepsBothKeysApart()
+{
+    // Review R1-3 (REQ-SW-PL-098): "Промотирана:" and "Изискване:" are two
+    // spellings of one link, but a file can carry both — and then one of them is
+    // stale. promotedId stays "first key wins" (the tab shows one value); the
+    // two fields are what lets the validator report the disagreement instead of
+    // dropping the loser in silence.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir.filePath(QStringLiteral("repo")));
+    writeFile(QDir(ideasDirFor(root)).filePath(QStringLiteral("IDEA-008-both.md")),
+              QStringLiteral("# IDEA-008 — Both keys\n"
+                             "\n"
+                             "> Статус: промотирана · Добавена: 2026-10-08\n"
+                             "> Промотирана: REQ-SW-PL-900\n"
+                             "> Изискване: REQ-SW-PL-902\n"
+                             "\n"
+                             "## Защо\n\nТяло.\n"));
+
+    const QVector<Idea> ideas = IdeaReader::readFromRoots({root});
+    QCOMPARE(ideas.size(), 1);
+    const Idea &idea = ideas.first();
+    QCOMPARE(idea.promotedId, QStringLiteral("REQ-SW-PL-900")); // first in the file
+    QCOMPARE(idea.promotedKeyId, QStringLiteral("REQ-SW-PL-900"));
+    QCOMPARE(idea.requirementKeyId, QStringLiteral("REQ-SW-PL-902"));
+}
+
+void TestIdeas::promotionColumnShowsRequirementAndStatus()
+{
+    // AC4: `REQ · статус` for a promoted idea, empty for the rest. The empty
+    // cell means "not promoted yet", not "broken".
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir.filePath(QStringLiteral("repo")));
+    writeIdeasTree(root);
+    writePromotedIdea(root, QStringLiteral("REQ-SW-PL-900"));
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QTableView *table = widget.findChild<QTableView *>(QStringLiteral("ideasTable"));
+    QVERIFY(table);
+    QAbstractItemModel *model = table->model();
+    QCOMPARE(model->rowCount(), 4);
+
+    auto cell = [model](int row, int col, int role) {
+        return model->index(row, col).data(role).toString();
+    };
+    // Sorted by ID: IDEA-001, 002, 003, 005.
+    QCOMPARE(cell(3, IdeaTableModel::IdColumn, Qt::DisplayRole), QStringLiteral("IDEA-005"));
+    QCOMPARE(cell(3, IdeaTableModel::RequirementColumn, Qt::DisplayRole),
+             QStringLiteral("REQ-SW-PL-900 · ACTIVE"));
+    QCOMPARE(cell(3, IdeaTableModel::RequirementColumn, IdeaTableModel::RequirementRole),
+             QStringLiteral("REQ-SW-PL-900"));
+    QCOMPARE(cell(0, IdeaTableModel::RequirementColumn, Qt::DisplayRole), QString());
+    QCOMPARE(cell(0, IdeaTableModel::RequirementColumn, IdeaTableModel::RequirementRole),
+             QString());
+    // The header names the column; the promoted cell looks like a link.
+    QCOMPARE(model->headerData(IdeaTableModel::RequirementColumn, Qt::Horizontal,
+                               Qt::DisplayRole).toString(),
+             QStringLiteral("Изискване"));
+    QVERIFY(model->index(3, IdeaTableModel::RequirementColumn).data(Qt::ForegroundRole).isValid());
+    QVERIFY(!model->index(0, IdeaTableModel::RequirementColumn)
+                 .data(Qt::ForegroundRole).isValid());
+}
+
+void TestIdeas::promotionColumnClickOpensRequirement()
+{
+    // AC4: "клик отваря изискването" — a click on the cell switches to the
+    // requirements tab and selects the requirement there.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir.filePath(QStringLiteral("repo")));
+    writeIdeasTree(root);
+    writePromotedIdea(root, QStringLiteral("REQ-SW-PL-900"));
+
+    RequirementsWidget widget;
+    widget.show();
+    widget.openDirectory(root);
+
+    QTabWidget *tabs = widget.findChild<QTabWidget *>();
+    QTableView *table = widget.findChild<QTableView *>(QStringLiteral("ideasTable"));
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tabs);
+    QVERIFY(table);
+    QVERIFY(tree);
+    tabs->setCurrentIndex(tabs->indexOf(widget.findChild<QWidget *>(QStringLiteral("ideasPanel"))));
+    QCoreApplication::processEvents();
+
+    const QModelIndex cell = table->model()->index(3, IdeaTableModel::RequirementColumn);
+    table->scrollTo(cell);
+    QCoreApplication::processEvents();
+    const QRect rect = table->visualRect(cell);
+    QVERIFY(rect.isValid());
+    QTest::mouseClick(table->viewport(), Qt::LeftButton, Qt::NoModifier, rect.center());
+    QCoreApplication::processEvents();
+
+    QCOMPARE(tabs->currentIndex(), 0);
+    const QModelIndex current = tree->currentIndex();
+    QVERIFY(current.isValid());
+    QCOMPARE(current.data(Qt::DisplayRole).toString(), QStringLiteral("REQ-SW-PL-900"));
+
+    // A click on a column that is not the link changes nothing.
+    const QModelIndex idCell = table->model()->index(0, IdeaTableModel::IdColumn);
+    QTest::mouseClick(table->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      table->visualRect(idCell).center());
+    QCoreApplication::processEvents();
+    QCOMPARE(tree->currentIndex().data(Qt::DisplayRole).toString(),
+             QStringLiteral("REQ-SW-PL-900"));
+}
+
+void TestIdeas::requirementPreviewShowsIdeaOrigin()
+{
+    // AC5: the requirement's details name the idea it grew out of — read from
+    // the idea's header, never written into the requirement's file.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir.filePath(QStringLiteral("repo")));
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QTextBrowser *preview =
+        widget.findChild<QTextBrowser *>(QStringLiteral("requirementPreview"));
+    QVERIFY(tree);
+    QVERIFY(preview);
+
+    //!< The tree row of a requirement ID (the tree is sectioned).
+    auto treeRow = [tree](const QString &id) {
+        QAbstractItemModel *model = tree->model();
+        for (int section = 0; section < model->rowCount(); ++section) {
+            const QModelIndex sectionIndex = model->index(section, 0);
+            for (int row = 0; row < model->rowCount(sectionIndex); ++row) {
+                const QModelIndex candidate = model->index(row, 0, sectionIndex);
+                if (candidate.data(Qt::DisplayRole).toString() == id)
+                    return candidate;
+            }
+        }
+        return QModelIndex();
+    };
+
+    // Before the idea exists: the row is there and says "—" instead of hiding.
+    QModelIndex target = treeRow(QStringLiteral("REQ-SW-PL-900"));
+    QVERIFY(target.isValid());
+    tree->setCurrentIndex(target);
+    QCoreApplication::processEvents();
+    QVERIFY2(preview->document()->toPlainText().contains(QStringLiteral("Произход: —")),
+             qPrintable(preview->document()->toPlainText()));
+
+    writeIdeasTree(root);
+    writePromotedIdea(root, QStringLiteral("REQ-SW-PL-900"));
+    widget.openDirectory(root);
+    QCoreApplication::processEvents();
+
+    target = treeRow(QStringLiteral("REQ-SW-PL-900"));
+    QVERIFY(target.isValid());
+    tree->setCurrentIndex(target);
+    QCoreApplication::processEvents();
+
+    const QString plain = preview->document()->toPlainText();
+    QVERIFY2(plain.contains(QStringLiteral("Произход: IDEA-005")), qPrintable(plain));
+}
+
+void TestIdeas::graphDrawsIdeaAsDashedNode()
+{
+    // AC6: the idea is a separate (dashed) node joined to its requirement, and
+    // the solid nodes stay requirements only.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir.filePath(QStringLiteral("repo")));
+    writeIdeasTree(root);
+    writePromotedIdea(root, QStringLiteral("REQ-SW-PL-900"));
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    DependencyGraphWidget *graph = widget.findChild<DependencyGraphWidget *>();
+    QVERIFY(graph);
+    DependencyGraphScene *scene = graph->graphScene();
+    QVERIFY(scene);
+
+    int ideaNodes = 0;
+    int requirementNodes = 0;
+    for (DependencyGraphNodeItem *item : scene->nodeItems()) {
+        if (item->isIdea()) {
+            ++ideaNodes;
+            QCOMPARE(item->requirementId(), QStringLiteral("IDEA-005"));
+        } else {
+            ++requirementNodes;
+        }
+    }
+    QCOMPARE(ideaNodes, 1);          // only the promoted idea is drawn
+    QCOMPARE(requirementNodes, 1);   // REQ-SW-PL-900 — solid nodes are requirements
+
+    int promotionEdges = 0;
+    for (DependencyGraphEdgeItem *edge : scene->edgeItems()) {
+        if (edge->kind() != GraphEdge::IdeaPromotion)
+            continue;
+        ++promotionEdges;
+        QCOMPARE(edge->fromNode()->requirementId(), QStringLiteral("IDEA-005"));
+        QCOMPARE(edge->toNode()->requirementId(), QStringLiteral("REQ-SW-PL-900"));
+    }
+    QCOMPARE(promotionEdges, 1);
+}
+
+void TestIdeas::graphKeepsIdeaWhenFilterChanges()
+{
+    // Review R1-1 (REQ-SW-PL-098): re-applying the view filters used to hand the
+    // graph an EMPTY idea vector, so every dashed idea node and its promotion
+    // edge disappeared on the first filter or search — while the ideas tab still
+    // listed them. The graph claimed "no ideas", which is a lie the reader has no
+    // reason to doubt.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir.filePath(QStringLiteral("repo")));
+    writeIdeasTree(root);
+    writePromotedIdea(root, QStringLiteral("REQ-SW-PL-900"));
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    DependencyGraphWidget *graph = widget.findChild<DependencyGraphWidget *>();
+    QVERIFY(graph);
+    DependencyGraphScene *scene = graph->graphScene();
+    QVERIFY(scene);
+
+    const auto ideaNodeCount = [scene]() {
+        int count = 0;
+        for (DependencyGraphNodeItem *item : scene->nodeItems()) {
+            if (item->isIdea())
+                ++count;
+        }
+        return count;
+    };
+    QCOMPARE(ideaNodeCount(), 1);   // baseline: the promoted idea is drawn
+
+    // 1. A search that keeps the requirement: the idea stays, because it is the
+    //    requirement's origin, not a search hit of its own.
+    QLineEdit *search = widget.findChild<QLineEdit *>(QStringLiteral("requirementsSearch"));
+    QVERIFY(search);
+    search->setText(QStringLiteral("REQ-SW-PL-900"));
+    QCoreApplication::processEvents();
+    QCOMPARE(ideaNodeCount(), 1);
+
+    // 2. The repo filter takes the other branch of applyViewFilters() (a
+    //    discovered-root entry filters by file-path prefix) and must keep it too.
+    search->clear();
+    QCoreApplication::processEvents();
+    QComboBox *repoFilter =
+        widget.findChild<QComboBox *>(QStringLiteral("requirementsRepoFilter"));
+    QVERIFY(repoFilter);
+    const int rootEntry = repoFilter->findData(QFileInfo(root).canonicalFilePath());
+    QVERIFY(rootEntry >= 0);
+    repoFilter->setCurrentIndex(rootEntry);
+    QCoreApplication::processEvents();
+    QCOMPARE(ideaNodeCount(), 1);
+
+    // Both filters together are the same code path once more.
+    search->setText(QStringLiteral("900"));
+    QCoreApplication::processEvents();
+    QCOMPARE(ideaNodeCount(), 1);
+}
+
 void TestIdeas::promotionWritesRequirementAndPromotionLine()
 {
     QTemporaryDir dir;
@@ -420,6 +740,41 @@ void TestIdeas::promotionCancelWritesNothing()
     QCOMPARE(QDir(activeDirFor(root)).entryList({QStringLiteral("*.md")}, QDir::Files,
                                                 QDir::Name),
              activeBefore);
+}
+
+void TestIdeas::managerReportIncludesIdeaLinkError()
+{
+    // AC1–AC3 end to end: the manager's own report (the counter above the
+    // details) carries the promotion finding — nobody has to run the script.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir.filePath(QStringLiteral("repo")));
+    const QString reqPath = QDir(activeDirFor(root))
+                                .filePath(QStringLiteral("REQ-SW-PL-900-fixture.md"));
+
+    auto validationText = [](RequirementsWidget &widget) {
+        for (QLabel *label : widget.findChildren<QLabel *>()) {
+            if (label->text().contains(QStringLiteral("Validation")))
+                return label->text();
+        }
+        return QString();
+    };
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    const QString before = validationText(widget);
+    QVERIFY2(!before.contains(QStringLiteral("error")), qPrintable(before));
+
+    // The requirement now cites an idea whose status records no promotion.
+    writeFile(reqPath, requirementMarkdown(QStringLiteral("REQ-SW-PL-900"),
+                                           QStringLiteral("ACTIVE"))
+                            + QStringLiteral("\n## Произход\n\n- изведено от IDEA-003\n"));
+    writeIdeasTree(root); // IDEA-003 is "паркирана"
+    widget.openDirectory(root);
+    QCoreApplication::processEvents();
+
+    const QString after = validationText(widget);
+    QVERIFY2(after.contains(QStringLiteral("1 error")), qPrintable(after));
 }
 
 void TestIdeas::validatorCountsUnchangedWithIdeas()

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# commit-msg — политиката на комита: съобщението (REQ-SW-PL-108).
+#
+# Git подава пътя до файла със съобщението като $1. Едно и също правило с
+# частното repo: комит, който пипа код, цитира `REQ-…`, а цитираното изискване
+# е в сила (ACTIVE, IMPLEMENTED или DONE). Логиката е в
+# scripts/check-commit-policy.sh.
+set -uo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+[ -x "$REPO_ROOT/scripts/check-commit-policy.sh" ] || exit 0
+[ $# -gt 0 ] || exit 0
+exec "$REPO_ROOT/scripts/check-commit-policy.sh" --root "$REPO_ROOT" --message-file "$1"

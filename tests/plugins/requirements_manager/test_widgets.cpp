@@ -3,6 +3,7 @@
 #include <QTreeView>
 #include <QToolBar>
 #include <QAction>
+#include <QLabel>
 #include <QPushButton>
 #include <QTextBrowser>
 #include <QTableView>
@@ -16,6 +17,15 @@
 #include <QSplitter>
 #include <QListWidget>
 #include <QPlainTextEdit>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QTimer>
+#include <QAbstractButton>
+#include <QFileInfo>
+#include <QProcess>
+#include <QTreeView>
+#include <QSortFilterProxyModel>
+#include <type_traits>
 
 #include "RequirementsWidget.h"
 #include "ValidationDialog.h"
@@ -24,6 +34,11 @@
 #include "RequirementsModel.h"
 #include "RequirementsValidator.h"
 #include "ValidationReport.h"
+#include "RequirementPreview.h"
+#include "RequirementDates.h"
+#include "DraftNoteDialog.h"
+#include "NewRequirementDialog.h"
+#include "RequirementsParser.h"
 
 using namespace Daqster;
 
@@ -44,7 +59,8 @@ QString writeRequirement(const QString &dirPath, const QString &fileName,
 
 // A requirement whose .md carries a section the parser does NOT model
 // ("## Бележки"): it can only reach the preview through a real Markdown render.
-QString requirementMarkdown(const QString &id, const QString &status)
+QString requirementMarkdown(const QString &id, const QString &status,
+                            const QString &date = QStringLiteral("2026-11-16"))
 {
     return QStringLiteral(
                "# %1: Fixture requirement\n"
@@ -52,7 +68,7 @@ QString requirementMarkdown(const QString &id, const QString &status)
                "- **Статус:** %2\n"
                "- **Приоритет:** High\n"
                "- **Отговорник (роля):** Implementation\n"
-               "- **Дата:** 2026-11-16\n"
+               "- **Дата:** %3\n"
                "- **Родител:** —\n"
                "- **Зависи от:** —\n"
                "\n"
@@ -71,7 +87,7 @@ QString requirementMarkdown(const QString &id, const QString &status)
                "## Проследимост\n"
                "\n"
                "- **Коммити:** abc123\n")
-        .arg(id, status);
+        .arg(id, status, date);
 }
 
 // Builds a temp requirements tree and returns its root (empty on failure).
@@ -88,7 +104,239 @@ QString makeRequirementsRoot(QTemporaryDir &dir)
     return dir.path();
 }
 
+// Same tree plus one DRAFT (REQ-SW-PL-099): the file carries the DRAFT- prefix
+// the private repo uses, and its status line is the only difference.
+QString makeDraftRequirementsRoot(QTemporaryDir &dir, QString *draftPath = nullptr)
+{
+    const QString root = makeRequirementsRoot(dir);
+    const QString activeDir =
+        QDir(root).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QString path =
+        writeRequirement(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-902-fixture.md"),
+                         requirementMarkdown(QStringLiteral("REQ-SW-PL-902"),
+                                             QStringLiteral("DRAFT")));
+    if (draftPath)
+        *draftPath = path;
+    return root;
+}
+
+// Requirement row in the (proxy-sorted) tree by bare ID.
+QModelIndex viewIndexForId(QAbstractItemModel *model, const QString &id)
+{
+    for (int section = 0; section < model->rowCount(); ++section) {
+        const QModelIndex sectionIndex = model->index(section, 0);
+        for (int row = 0; row < model->rowCount(sectionIndex); ++row) {
+            const QModelIndex candidate = model->index(row, 0, sectionIndex);
+            if (candidate.data(Qt::DisplayRole).toString() == id)
+                return candidate;
+        }
+    }
+    return QModelIndex();
+}
+
+/**
+ * @brief Waits until the widget's asynchronous `develop` check has answered.
+ *
+ * The answer arrives from a child process, and a wait inside the plugin is
+ * forbidden (check_no_event_loops.cmake), so the WAIT lives in the test: the
+ * widget's own event loop is pumped until it is no longer pending. Nothing is
+ * removed from the assertions — the gate is read only after it answered.
+ */
+bool waitForDoneGate(RequirementsWidget &widget)
+{
+    return QTest::qWaitFor([&widget] { return !widget.isDoneGatePending(); }, 15000);
+}
+
+QString readAll(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return QString();
+    return QString::fromUtf8(file.readAll());
+}
+
+// The file exactly as it sits on disk: no text mode, no translation — the
+// "looking changed nothing" assertions compare these byte for byte.
+QByteArray readBytes(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return QByteArray();
+    return file.readAll();
+}
+
+/**
+ * @brief Answers the next modal box and records its text.
+ *
+ * The verdict actions confirm in a QMessageBox, which runs its own event loop;
+ * a timer inside that loop is the only way a test can read the sentence and
+ * dismiss the box without a human (the same trick the „Приеми“ test uses).
+ */
+class ModalAnswer : public QObject
+{
+public:
+    explicit ModalAnswer(QString *textOut = nullptr, bool preferYes = true)
+    {
+        m_timer.setInterval(10);
+        connect(&m_timer, &QTimer::timeout, this, [this, textOut, preferYes]() {
+            QMessageBox *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+            if (!box)
+                return;
+            if (textOut)
+                *textOut = box->text();
+            m_timer.stop();
+            if (preferYes) {
+                if (QAbstractButton *yes = box->button(QMessageBox::Yes))
+                    yes->click();
+                else if (QAbstractButton *ok = box->button(QMessageBox::Ok))
+                    ok->click();
+                else
+                    box->accept();
+            } else {
+                box->accept();
+            }
+        });
+    }
+    void start() { m_timer.start(); }
+    void stop() { m_timer.stop(); }
+
+private:
+    QTimer m_timer;
+};
+
+
+
+// ── Порта към DONE (REQ-SW-PL-107): fixtures ────────────────────────────────
+
+// A temp repository with a `develop` branch (what "the code landed" means).
+bool gitForTest(const QString &root, const QStringList &args)
+{
+    QProcess git;
+    git.setWorkingDirectory(root);
+    git.start(QStringLiteral("git"), args);
+    if (!git.waitForStarted(5000) || !git.waitForFinished(20000))
+        return false;
+    return git.exitStatus() == QProcess::NormalExit && git.exitCode() == 0;
+}
+
+bool writeFileForTest(const QString &root, const QString &relative, const QString &content)
+{
+    const QString path = QDir(root).filePath(relative);
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+        return false;
+    file.write(content.toUtf8());
+    return true;
+}
+
+// IMPLEMENTED requirement with a checked AC (or @p checked) and the cited code.
+QString doneCandidateMarkdown(const QString &id, const QString &checked)
+{
+    return QStringLiteral(
+               "# %1: Fixture\n"
+               "\n"
+               "- **Статус:** IMPLEMENTED\n"
+               "- **Приоритет:** High\n"
+               "- **Отговорник (роля):** Implementation\n"
+               "- **Дата:** 2026-11-22\n"
+               "- **Родител:** —\n"
+               "- **Зависи от:** —\n"
+               "- **Ревизия:** 3\n"
+               "\n"
+               "## Накратко\n"
+               "\n"
+               "Фикстура.\n"
+               "\n"
+               "## Как ще разберем, че работи\n"
+               "\n"
+               "- [%2] AC1 — критерий\n"
+               "\n"
+               "## Проследимост\n"
+               "\n"
+               "- **Код:** `plugins/done_code.h`\n")
+        .arg(id, checked);
+}
+
+QString acceptingReviewMarkdown(const QString &id, const QString &verdict)
+{
+    return QStringLiteral(
+               "# Ревю: feat/done @ abc123 (план: —, AC: 1, %1)\n"
+               "\n"
+               "## Кръгове\n"
+               "\n"
+               "| итерация | A | отворени | затворени | присъда |\n"
+               "|----------|---|----------|-----------|---------|\n"
+               "| R1 | 0 | — | — | %2 |\n")
+        .arg(id, verdict);
+}
+
+/**
+ * @brief The four-part fixture: requirement, review record, code in develop.
+ *
+ * @param checked `x` (all AC done) or ` ` (one open).
+ * @param verdict the review verdict, empty means "no record at all".
+ * @param codeInDevelop false keeps the cited path only on the work branch.
+ * @param requirementPath receives the .md path.
+ * @return the repo root (empty on failure).
+ */
+QString makeDoneRoot(QTemporaryDir &dir, const QString &checked,
+                     const QString &verdict, bool codeInDevelop,
+                     QString *requirementPath = nullptr)
+{
+    const QString root = dir.path();
+    const QString reqPath = QString::fromUtf8(
+        "DevelopmentProcess/requirements/active/REQ-SW-PL-907-fixture.md");
+    if (!gitForTest(root, {QStringLiteral("init"), QStringLiteral("-q")}))
+        return QString();
+    gitForTest(root, {QStringLiteral("config"), QStringLiteral("user.email"),
+                      QStringLiteral("t@example.com")});
+    gitForTest(root, {QStringLiteral("config"), QStringLiteral("user.name"),
+                      QStringLiteral("T")});
+    if (!writeFileForTest(root, reqPath,
+                          doneCandidateMarkdown(QStringLiteral("REQ-SW-PL-907"), checked)))
+        return QString();
+    if (!verdict.isEmpty()
+        && !writeFileForTest(root, QStringLiteral("DevelopmentProcess/plans/reviews/"
+                                                  "PR-1-REQ-SW-PL-907.md"),
+                             acceptingReviewMarkdown(QStringLiteral("REQ-SW-PL-907"), verdict)))
+        return QString();
+    if (codeInDevelop && !writeFileForTest(root, QStringLiteral("plugins/done_code.h"),
+                                          QStringLiteral("// code\n")))
+        return QString();
+    if (!gitForTest(root, {QStringLiteral("add"), QStringLiteral("-A")})
+        || !gitForTest(root, {QStringLiteral("commit"), QStringLiteral("-q"),
+                              QStringLiteral("-m"), QStringLiteral("base")})
+        || !gitForTest(root, {QStringLiteral("branch"), QStringLiteral("-M"),
+                              QStringLiteral("develop")}))
+        return QString();
+    if (!codeInDevelop) {
+        if (!gitForTest(root, {QStringLiteral("checkout"), QStringLiteral("-q"),
+                               QStringLiteral("-b"), QStringLiteral("feat/done")}))
+            return QString();
+        if (!writeFileForTest(root, QStringLiteral("plugins/done_code.h"),
+                              QStringLiteral("// code\n"))
+            || !gitForTest(root, {QStringLiteral("add"), QStringLiteral("-A")})
+            || !gitForTest(root, {QStringLiteral("commit"), QStringLiteral("-q"),
+                                  QStringLiteral("-m"), QStringLiteral("work")}))
+            return QString();
+    }
+    if (requirementPath)
+        *requirementPath = QDir(root).filePath(reqPath);
+    return root;
+}
+
+
 } // namespace
+
+// The by-value contract, expressed in the type system (REQ-SW-PL-099): the
+// approval reloads m_requirements, so an id that aliases one of its elements
+// must not be able to reach the reload. With `const QString &` this assert
+// fails to compile — the defect cannot be reintroduced silently.
+static_assert(std::is_same<decltype(&RequirementsWidget::acceptDraft),
+                           bool (RequirementsWidget::*)(QString, const QString &)>::value,
+              "acceptDraft must take the requirement id by value: it reloads the "
+              "vector the action's id aliases");
 
 // GUI tests for the Requirements Manager widgets (REQ-SW-PL-001). QTEST_MAIN
 // provides a QApplication; the binary runs under the offscreen platform plugin
@@ -106,6 +354,29 @@ private slots:
     void matrixTableSortsInView();
     void requirementsTreeSortsInView();
     void detailsSplitterSeparatesPreviewAndCheckboxes();
+    void acceptActionEnabledOnlyForDraft();
+    void acceptDraftRewritesFileAndCounter();
+    void acceptActionApprovesDraftInPlace();
+    void previewHeaderShowsCreatedAndAge();
+    void previewShowsApprovedRevisionAndBaseline();
+    void overdueDraftIsPaintedInWarningColour();
+    void draftCounterTooltipShowsOldestWait();
+    void verdictActionsEnabledOnlyForDraft();
+    void noteDialogRefusesEmptyNote();
+    void requestChangesWritesRowAndSplitsCounter();
+    void previewRendersDraftReviewTable();
+    void renameBehindBackReportsMissingFile();
+    void rejectDraftCancelsAndArchives();
+    void changeContractReturnsToDraft();
+    void watcherRefreshesOnExternalChange();
+    void todayFollowsReload();
+    void newRequirementFileCarriesHistoryAndRevision();
+    void previewShowsRevisionAndHistory();
+    // REQ-SW-PL-107: the DONE gate, its badge and its counter.
+    void doneGateRefusesAndNamesEverythingMissing();
+    void doneGateRefusesReturnedVerdict();
+    void doneCandidateCounterAndBadge();
+    void markDoneArchivesWithOneHistoryRow();
 };
 
 void TestWidgets::actionBarFitsNarrowWindow()
@@ -480,6 +751,853 @@ void TestWidgets::detailsSplitterSeparatesPreviewAndCheckboxes()
     QCOMPARE(details->widget(0), top);
 }
 
+void TestWidgets::acceptActionEnabledOnlyForDraft()
+{
+    // REQ-SW-PL-099: the approval action exists for exactly one transition.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeDraftRequirementsRoot(dir);
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    QAction *accept = widget.findChild<QAction *>(QStringLiteral("acceptDraftAction"));
+    QVERIFY(accept);
+
+    const QModelIndex draft = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-902"));
+    const QModelIndex active = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-900"));
+    QVERIFY(draft.isValid());
+    QVERIFY(active.isValid());
+
+    tree->setCurrentIndex(active);
+    QCoreApplication::processEvents();
+    QVERIFY2(!accept->isEnabled(), "ACTIVE is not a draft: nothing to accept");
+
+    tree->setCurrentIndex(draft);
+    QCoreApplication::processEvents();
+    QVERIFY(accept->isEnabled());
+
+    // Sorting still works with the new status: DRAFT sorts after ACTIVE in the
+    // status column, and the section row stays where it is.
+    tree->sortByColumn(RequirementsModel::StatusColumn, Qt::AscendingOrder);
+    QAbstractItemModel *model = tree->model();
+    QCOMPARE(model->index(0, 0).data(Qt::DisplayRole).toString(), QStringLiteral("active"));
+    const QModelIndex section = model->index(0, 0);
+    QCOMPARE(model->rowCount(section), 3);
+    QCOMPARE(model->index(model->rowCount(section) - 1, 0, section)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("REQ-SW-PL-902"));
+}
+
+void TestWidgets::acceptDraftRewritesFileAndCounter()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString draftPath;
+    const QString root = makeDraftRequirementsRoot(dir, &draftPath);
+    QVERIFY(!draftPath.isEmpty());
+    const QString before = readAll(draftPath);
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 1 · за корекция: 0"));
+
+    // The transition itself, without the modal confirmation that belongs to
+    // the action's click handler.
+    QVERIFY(widget.acceptDraft(QStringLiteral("REQ-SW-PL-902"),
+                               QStringLiteral("2026-11-21")));
+
+    const QString after = readAll(draftPath);
+    // The status, the approval line, the revision bump and the history row the
+    // status change demands (REQ-SW-PL-101) — nothing else changes.
+    const QString expected =
+        QString(before).replace(QStringLiteral("- **Статус:** DRAFT"),
+                                QStringLiteral("- **Статус:** ACTIVE\n"
+                                               "- **Одобрено:** 2026-11-21, потребител "
+                                               "(ревизия 1)\n"
+                                               "- **Ревизия:** 1"))
+        + QStringLiteral("\n## История\n\n"
+                         "| дата | промяна | кой | защо |\n"
+                         "|---|---|---|---|\n"
+                         "| 2026-11-21 | одобрено (DRAFT → ACTIVE) | потребител | "
+                         "присъда на потребителя |\n");
+    QCOMPARE(after, expected);
+
+    // The tree was refreshed: the counter says nothing is waiting, and the
+    // status column shows the accepted state.
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 0 · за корекция: 0"));
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    const QModelIndex row = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-902"));
+    QVERIFY(row.isValid());
+    QCOMPARE(row.sibling(row.row(), RequirementsModel::StatusColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("ACTIVE"));
+}
+
+void TestWidgets::acceptActionApprovesDraftInPlace()
+{
+    // The regression test for the accepted-draft crash (REQ-SW-PL-099): the
+    // existing test above passes a *temporary* id, so it never aliases
+    // m_requirements and the dangling reference stayed invisible. This one
+    // drives the action, i.e. the path where the id really does alias
+    // `m_requirements.at(m_currentIndex).id` while acceptDraft() reloads the
+    // vector. On the buggy build this aborted with qBadAlloc inside
+    // navigateToId() -> QString::arg().
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString draftPath;
+    const QString root = makeDraftRequirementsRoot(dir, &draftPath);
+    QVERIFY(!draftPath.isEmpty());
+
+    // Give the fixture the draft banner a real draft carries, so the stale-text
+    // rule is exercised through the click as well.
+    const QString withBanner =
+        QString(readAll(draftPath))
+            .replace(QStringLiteral("- **Зависи от:** —\n\n"),
+                     QStringLiteral("- **Зависи от:** —\n\n"
+                                    "> **Чернова — чака одобрение в мениджъра; не се "
+                                    "имплементира, докато не стане `ACTIVE`.**\n\n"));
+    QVERIFY(withBanner.contains(QStringLiteral("Чернова")));
+    QVERIFY(!writeRequirement(
+                 QFileInfo(draftPath).absolutePath(), QFileInfo(draftPath).fileName(),
+                 withBanner)
+                 .isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    QAction *accept = widget.findChild<QAction *>(QStringLiteral("acceptDraftAction"));
+    QVERIFY(accept);
+
+    const QModelIndex draft = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-902"));
+    QVERIFY(draft.isValid());
+    tree->setCurrentIndex(draft);
+    QCoreApplication::processEvents();
+    QVERIFY2(accept->isEnabled(), "a DRAFT inside active/ is acceptable");
+
+    // The click asks for confirmation; answer „Да“ as soon as the box is up.
+    QTimer answer;
+    answer.setInterval(10);
+    QObject::connect(&answer, &QTimer::timeout, [&answer]() {
+        QMessageBox *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+        if (!box)
+            return;
+        if (QAbstractButton *yes = box->button(QMessageBox::Yes)) {
+            answer.stop();
+            yes->click();
+        }
+    });
+    answer.start();
+    accept->trigger();
+    answer.stop();
+    QCoreApplication::processEvents();
+
+    // The file moved DRAFT -> ACTIVE and lost the banner: no crash on the way.
+    const QString after = readAll(draftPath);
+    QVERIFY2(after.contains(QStringLiteral("- **Статус:** ACTIVE")), qPrintable(after));
+    QVERIFY(after.contains(QStringLiteral("- **Одобрено:**")));
+    QVERIFY2(!after.contains(QStringLiteral("Чернова")), qPrintable(after));
+
+    // The reloaded tree resolves the same id, and navigation landed on it.
+    const QModelIndex accepted =
+        viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-902"));
+    QVERIFY(accepted.isValid());
+    QCOMPARE(accepted.sibling(accepted.row(), RequirementsModel::StatusColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("ACTIVE"));
+    QCOMPARE(tree->currentIndex().data(Qt::DisplayRole).toString(),
+             QStringLiteral("REQ-SW-PL-902"));
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 0 · за корекция: 0"));
+    QVERIFY2(!accept->isEnabled(), "the accepted requirement is no longer a draft");
+}
+
+void TestWidgets::todayFollowsReload()
+{
+    // REQ-SW-PL-100: the model's reference day is captured at construction, so
+    // a manager left open across midnight froze „Възраст“ and the overdue
+    // colour while the counter's tooltip kept counting with today. reload() is
+    // the single place that knows the world changed, so it re-reads the clock.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+    const QString activeDir =
+        QDir(root).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    const QDate today = QDate::currentDate();
+    const QString created = today.addDays(-20).toString(Qt::ISODate);
+    QVERIFY(!writeRequirement(activeDir,
+                              QStringLiteral("DRAFT-REQ-SW-PL-906-fixture.md"),
+                              requirementMarkdown(QStringLiteral("REQ-SW-PL-906"),
+                                                  QStringLiteral("DRAFT"), created))
+                 .isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    auto *proxy = qobject_cast<QSortFilterProxyModel *>(tree->model());
+    QVERIFY(proxy);
+    auto *model = qobject_cast<RequirementsModel *>(proxy->sourceModel());
+    QVERIFY2(model, "the tree must be fed by RequirementsModel through the sort proxy");
+
+    // Pretend the manager has been running for ten days: the reference day is
+    // stale, the file is untouched, so the row is ten days old — not overdue.
+    model->setToday(today.addDays(-10));
+    QModelIndex row = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-906"));
+    QVERIFY(row.isValid());
+    QCOMPARE(row.sibling(row.row(), RequirementsModel::AgeColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("10 дни"));
+    QVERIFY2(!row.data(Qt::ForegroundRole).isValid(),
+             "ten days is not over the fourteen-day threshold");
+
+    // The reload (watcher tick, refresh, reopen) must take the wall clock back.
+    widget.openDirectory(root);
+    row = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-906"));
+    QVERIFY(row.isValid());
+    QCOMPARE(row.sibling(row.row(), RequirementsModel::AgeColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("20 дни"));
+    QCOMPARE(row.data(Qt::ForegroundRole).value<QColor>(),
+             RequirementsModel::staleDraftColour());
+}
+
+void TestWidgets::newRequirementFileCarriesHistoryAndRevision()
+{
+    // REQ-SW-PL-101 AC1, first half: a requirement created through the dialog
+    // is born with the history table and `Ревизия: 1` — "why does this exist"
+    // and "how many times was it changed" are answerable from the file alone.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+
+    NewRequirementDialog dialog(root);
+    dialog.setPrefill(QStringLiteral("Ново изискване за историята"),
+                      QStringLiteral("Описание."));
+    auto *buttons = dialog.findChild<QDialogButtonBox *>();
+    QVERIFY(buttons);
+    QPushButton *save = buttons->button(QDialogButtonBox::Save);
+    QVERIFY(save);
+    save->click();
+
+    const QString path = dialog.createdFilePath();
+    QVERIFY2(!path.isEmpty(), "the dialog must have written the file");
+    const QString text = readAll(path);
+    QVERIFY2(text.contains(QStringLiteral("## История")), qPrintable(text));
+    QVERIFY2(text.contains(QStringLiteral("| дата | промяна | кой | защо |")),
+             qPrintable(text));
+    QVERIFY2(text.contains(QStringLiteral("- **Ревизия:** 1")), qPrintable(text));
+    QVERIFY2(text.contains(QStringLiteral("- **Създадено:**")), qPrintable(text));
+    // The creation row is already there: the first change of the file is its
+    // own birth, not an empty table a reader has to interpret.
+    QVERIFY2(text.contains(QStringLiteral("| създадено |")), qPrintable(text));
+
+    // The parser agrees: revision 1, creation date filled in.
+    const QVector<Requirement> parsed = RequirementsParser::parseDirectory(root);
+    bool found = false;
+    for (const Requirement &req : parsed) {
+        if (req.filePath != path)
+            continue;
+        found = true;
+        QCOMPARE(req.revision, 1);
+        QVERIFY(req.created == QDate::currentDate().toString(Qt::ISODate));
+    }
+    QVERIFY2(found, "the created file must be parsed back");
+}
+
+void TestWidgets::previewShowsRevisionAndHistory()
+{
+    // REQ-SW-PL-101 AC1, second half: the preview renders both — `Ревизия` in
+    // the header next to the status and the `## История` table from the file.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+
+    NewRequirementDialog dialog(root);
+    dialog.setPrefill(QStringLiteral("Изискване за прегледа"),
+                      QStringLiteral("Описание."));
+    auto *buttons = dialog.findChild<QDialogButtonBox *>();
+    QVERIFY(buttons);
+    QPushButton *save = buttons->button(QDialogButtonBox::Save);
+    QVERIFY(save);
+    save->click();
+
+    const QString path = dialog.createdFilePath();
+    QVERIFY(!path.isEmpty());
+    const QVector<Requirement> parsed = RequirementsParser::parseDirectory(root);
+    Requirement created;
+    for (const Requirement &req : parsed) {
+        if (req.filePath == path)
+            created = req;
+    }
+    QVERIFY2(!created.id.isEmpty(), "the created requirement must be parsed");
+
+    QTextBrowser browser;
+    RequirementPreview::render(&browser, created, {}, {});
+    const QString plain = browser.document()->toPlainText();
+    QVERIFY2(plain.contains(QStringLiteral("Ревизия:")), qPrintable(plain));
+    QVERIFY2(plain.contains(QStringLiteral("1")), qPrintable(plain));
+    QVERIFY2(plain.contains(QStringLiteral("История")), qPrintable(plain));
+    QVERIFY2(plain.contains(QStringLiteral("създадено")), qPrintable(plain));
+}
+
 QTEST_MAIN(TestWidgets)
 
 #include "test_widgets.moc"
+void TestWidgets::previewHeaderShowsCreatedAndAge()
+{
+    // REQ-SW-PL-100: the details header pairs the creation date with its age,
+    // so a reader never does the arithmetic. The reference day is a parameter,
+    // which is what makes "12 дни" assertable.
+    Requirement req;
+    req.id = QStringLiteral("REQ-SW-PL-900");
+    req.title = QStringLiteral("Fixture");
+    req.status = QStringLiteral("ACTIVE");
+    req.priority = QStringLiteral("High");
+    req.assignee = QStringLiteral("Implementation");
+    req.date = QStringLiteral("2026-11-09");
+
+    const QString html =
+        RequirementPreview::headerHtml(req, {}, {}, QDate(2026, 11, 21));
+    QVERIFY2(html.contains(QStringLiteral("Създадено:")), qPrintable(html));
+    QVERIFY2(html.contains(QStringLiteral("2026-11-09 · преди 12 дни")),
+             qPrintable(html));
+    // Status still leads the same line — the date sits next to it, not under it.
+    QVERIFY(html.indexOf(QStringLiteral("Status:"))
+            < html.indexOf(QStringLiteral("Създадено:")));
+
+    // A requirement without a date says so instead of rendering "преди -1 дни".
+    req.date.clear();
+    const QString bare =
+        RequirementPreview::headerHtml(req, {}, {}, QDate(2026, 11, 21));
+    QVERIFY2(bare.contains(QStringLiteral("Създадено:</b> —")), qPrintable(bare));
+}
+
+void TestWidgets::previewShowsApprovedRevisionAndBaseline()
+{
+    // REQ-SW-PL-106 AC1/AC2 in the reader's face: "ревизия 2" approved, the file
+    // on 3 — both numbers and the warning; and the baseline line that says since
+    // when code exists. Without the numbers "Одобрено: 2026-11-22" cannot answer
+    // what was approved.
+    Requirement req;
+    req.id = QStringLiteral("REQ-SW-PL-910");
+    req.title = QStringLiteral("Fixture");
+    req.status = QStringLiteral("ACTIVE");
+    req.priority = QStringLiteral("High");
+    req.assignee = QStringLiteral("Implementation");
+    req.date = QStringLiteral("2026-11-20");
+    req.revision = 3;
+    req.approvedRevision = 2;
+    req.approvedDate = QStringLiteral("2026-11-22");
+
+    const QString html = RequirementPreview::headerHtml(req, {}, {}, QDate(2026, 11, 23));
+    QVERIFY2(html.contains(QStringLiteral("Одобрено:</b> 2026-11-22, ревизия 2")),
+             qPrintable(html));
+    QVERIFY2(html.contains(QStringLiteral("не е одобрена")), qPrintable(html));
+    QVERIFY2(html.contains(QStringLiteral("одобрена е ревизия 2")), qPrintable(html));
+    QVERIFY2(html.contains(QStringLiteral("Базова линия:</b> —")), qPrintable(html));
+
+    // Approved at the current revision: no warning, and the baseline is shown
+    // with the branch it started on.
+    req.revision = 2;
+    req.baselineDate = QStringLiteral("2026-11-24");
+    req.baselineRef = QStringLiteral("feat/REQ-SW-PL-910-x");
+    req.baselineRevision = 2;
+    const QString calm = RequirementPreview::headerHtml(req, {}, {}, QDate(2026, 11, 25));
+    QVERIFY2(!calm.contains(QStringLiteral("не е одобрена")), qPrintable(calm));
+    QVERIFY2(calm.contains(QStringLiteral("Базова линия:</b> 2026-11-24, "
+                                          "feat/REQ-SW-PL-910-x (ревизия 2)")),
+             qPrintable(calm));
+}
+
+void TestWidgets::overdueDraftIsPaintedInWarningColour()
+{
+    // A DRAFT nobody approved for longer than two weeks is painted in the
+    // warning colour; an old ACTIVE requirement is not.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+    const QString activeDir =
+        QDir(root).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    writeRequirement(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-903-fixture.md"),
+                     requirementMarkdown(QStringLiteral("REQ-SW-PL-903"),
+                                         QStringLiteral("DRAFT"),
+                                         QStringLiteral("2020-01-01")));
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    const QModelIndex stale = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-903"));
+    const QModelIndex active = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-900"));
+    QVERIFY(stale.isValid());
+    QVERIFY(active.isValid());
+
+    const QVariant colour = stale.data(Qt::ForegroundRole);
+    QVERIFY2(colour.isValid(), "the overdue DRAFT row must be coloured");
+    QCOMPARE(colour.value<QColor>(), RequirementsModel::staleDraftColour());
+    QVERIFY2(!active.data(Qt::ForegroundRole).isValid(),
+             "an old ACTIVE requirement is not waiting for approval");
+}
+
+void TestWidgets::draftCounterTooltipShowsOldestWait()
+{
+    // The counter is a reading, not a number to think about: its tooltip says
+    // which draft waited longest and for how many days.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+    const QString activeDir =
+        QDir(root).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    writeRequirement(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-904-fixture.md"),
+                     requirementMarkdown(QStringLiteral("REQ-SW-PL-904"),
+                                         QStringLiteral("DRAFT"),
+                                         QStringLiteral("2026-10-01")));
+    writeRequirement(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-905-fixture.md"),
+                     requirementMarkdown(QStringLiteral("REQ-SW-PL-905"),
+                                         QStringLiteral("DRAFT"),
+                                         QDate::currentDate().toString(Qt::ISODate)));
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 2 · за корекция: 0"));
+
+    const QString expectedDays = QString::number(
+        RequirementDates::ageInDays(QStringLiteral("2026-10-01"), QDate::currentDate()));
+    QVERIFY2(counter->toolTip().contains(QStringLiteral("REQ-SW-PL-904")),
+             qPrintable(counter->toolTip()));
+    QVERIFY2(counter->toolTip().contains(expectedDays),
+             qPrintable(counter->toolTip()));
+}
+
+// ── REQ-SW-PL-102: the verdicts of a draft ─────────────────────────────────
+void TestWidgets::verdictActionsEnabledOnlyForDraft()
+{
+    // All three verdicts judge the same object: a DRAFT inside active/.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeDraftRequirementsRoot(dir);
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    QAction *accept = widget.findChild<QAction *>(QStringLiteral("acceptDraftAction"));
+    QAction *changes = widget.findChild<QAction *>(QStringLiteral("requestChangesAction"));
+    QAction *reject = widget.findChild<QAction *>(QStringLiteral("rejectDraftAction"));
+    QAction *contract = widget.findChild<QAction *>(QStringLiteral("changeContractAction"));
+    QVERIFY(accept);
+    QVERIFY(changes);
+    QVERIFY(reject);
+    QVERIFY(contract);
+
+    const QModelIndex active = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-900"));
+    const QModelIndex draft = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-902"));
+    QVERIFY(active.isValid());
+    QVERIFY(draft.isValid());
+
+    tree->setCurrentIndex(active);
+    QCoreApplication::processEvents();
+    QVERIFY2(!changes->isEnabled(), "an ACTIVE requirement has no draft to judge");
+    QVERIFY(!reject->isEnabled());
+    QVERIFY2(contract->isEnabled(), "an ACTIVE requirement is the one that HAS a contract");
+    QVERIFY(contract->text() == QStringLiteral("Промени договора"));
+
+    tree->setCurrentIndex(draft);
+    QCoreApplication::processEvents();
+    QVERIFY(changes->isEnabled());
+    QVERIFY(reject->isEnabled());
+    QVERIFY2(!contract->isEnabled(), "a draft's contract was never accepted");
+}
+
+void TestWidgets::noteDialogRefusesEmptyNote()
+{
+    // AC1: „празна бележка не се приема“ — the confirm button is the rule.
+    DraftNoteDialog dialog(QStringLiteral("За корекция"), QStringLiteral("Какво липсва"),
+                           QStringLiteral("Запиши"));
+    QVERIFY(dialog.confirmButton());
+    QVERIFY(dialog.noteEdit());
+    QVERIFY2(!dialog.confirmButton()->isEnabled(), "empty note must not be confirmable");
+
+    dialog.noteEdit()->setText(QStringLiteral("   "));
+    QVERIFY2(!dialog.confirmButton()->isEnabled(), "spaces are not a note");
+
+    dialog.noteEdit()->setText(QStringLiteral("липсва AC за Qt5"));
+    QVERIFY(dialog.confirmButton()->isEnabled());
+    QCOMPARE(dialog.note(), QStringLiteral("липсва AC за Qt5"));
+
+    dialog.noteEdit()->clear();
+    QVERIFY(!dialog.confirmButton()->isEnabled());
+}
+
+void TestWidgets::requestChangesWritesRowAndSplitsCounter()
+{
+    // AC1 + AC4: one row appears, the status stays DRAFT, and the counter moves
+    // one draft from "чакат теб" to "за корекция" without changing the total.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString draftPath;
+    const QString root = makeDraftRequirementsRoot(dir, &draftPath);
+    const QString activeDir =
+        QDir(root).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    QVERIFY(!writeRequirement(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-920-fixture.md"),
+                              requirementMarkdown(QStringLiteral("REQ-SW-PL-920"),
+                                                  QStringLiteral("DRAFT")))
+                 .isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 2 · за корекция: 0"));
+
+    const QString before = readAll(draftPath);
+    QVERIFY(widget.requestChanges(QStringLiteral("REQ-SW-PL-902"),
+                                  QStringLiteral("липсва AC за Qt5"),
+                                  QStringLiteral("2026-11-21")));
+
+    const QString after = readAll(draftPath);
+    QVERIFY2(after.startsWith(before.trimmed()), "the file must only gain the row");
+    QVERIFY2(after.contains(QStringLiteral("| 1 | 2026-11-21 | за корекция | "
+                                           "липсва AC за Qt5 |")),
+             qPrintable(after));
+    QVERIFY(after.contains(QStringLiteral("- **Статус:** DRAFT")));
+
+    // Two drafts before, two after: only the bucket changed.
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 1 · за корекция: 1"));
+}
+
+void TestWidgets::previewRendersDraftReviewTable()
+{
+    // AC3: the table is in the .md, so the existing renderer shows it.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString draftPath;
+    const QString root = makeDraftRequirementsRoot(dir, &draftPath);
+    const QString withTable =
+        QString(readAll(draftPath))
+        + QStringLiteral("\n## Ревю на черновата\n\n"
+                         "| кръг | дата | присъда | бележка |\n"
+                         "|---|---|---|---|\n"
+                         "| 1 | 2026-11-21 | за корекция | липсва AC за Qt5 |\n");
+    QVERIFY(!writeRequirement(QFileInfo(draftPath).absolutePath(),
+                              QFileInfo(draftPath).fileName(), withTable)
+                 .isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    const QModelIndex draft = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-902"));
+    QVERIFY(draft.isValid());
+    tree->setCurrentIndex(draft);
+    QCoreApplication::processEvents();
+
+    QTextBrowser *preview =
+        widget.findChild<QTextBrowser *>(QStringLiteral("requirementPreview"));
+    QVERIFY(preview);
+    const QString plain = preview->document()->toPlainText();
+    QVERIFY2(plain.contains(QStringLiteral("Ревю на черновата")), qPrintable(plain));
+    QVERIFY2(plain.contains(QStringLiteral("за корекция")), qPrintable(plain));
+    QVERIFY2(plain.contains(QStringLiteral("липсва AC за Qt5")), qPrintable(plain));
+}
+
+void TestWidgets::renameBehindBackReportsMissingFile()
+{
+    // AC7 has two halves. A file renamed INSIDE the tree keeps its H1, so the
+    // action finds it by the ID and works — that is the whole point of not
+    // using the cached path. A file that leaves the parser's scope (renamed to
+    // a non-.md name, deleted, moved out) cannot be resolved, and then the
+    // sentence says what happened instead of a bare read error.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString draftPath;
+    const QString root = makeDraftRequirementsRoot(dir, &draftPath);
+    QVERIFY(!draftPath.isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    const QString renamed = QDir(QFileInfo(draftPath).absolutePath())
+                                .filePath(QStringLiteral("DRAFT-REQ-SW-PL-902-drugo.md"));
+    QVERIFY(QFile::rename(draftPath, renamed));
+
+    QVERIFY2(widget.requestChanges(QStringLiteral("REQ-SW-PL-902"),
+                                   QStringLiteral("бележка"),
+                                   QStringLiteral("2026-11-21")),
+             "a rename inside the tree must not stop the verdict");
+    QVERIFY2(readAll(renamed).contains(QStringLiteral("| 1 | 2026-11-21 | за корекция | "
+                                                      "бележка |")),
+             "the row lands in the file whose H1 carries the id");
+
+    // Now the file leaves the requirements tree entirely: unresolvable.
+    const QString outside = QDir(dir.path()).filePath(QStringLiteral("outside.md.bak"));
+    QVERIFY(QFile::rename(renamed, outside));
+
+    QString message;
+    ModalAnswer answer(&message);
+    answer.start();
+    const bool ok = widget.requestChanges(QStringLiteral("REQ-SW-PL-902"),
+                                          QStringLiteral("бележка"),
+                                          QStringLiteral("2026-11-21"));
+    answer.stop();
+
+    QVERIFY2(!ok, "no file, no verdict");
+    QVERIFY2(message.contains(QStringLiteral("файлът е преименуван или преместен — презареди")),
+             qPrintable(message));
+    QVERIFY2(message.contains(QStringLiteral("REQ-SW-PL-902")), qPrintable(message));
+    // Nothing was written: the moved file is untouched.
+    QCOMPARE(readAll(outside).count(QStringLiteral("за корекция")), 1);
+}
+
+void TestWidgets::rejectDraftCancelsAndArchives()
+{
+    // AC2: CANCELLED, a row with the reason, and the file leaves active/.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString draftPath;
+    const QString root = makeDraftRequirementsRoot(dir, &draftPath);
+    QVERIFY(!draftPath.isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    ModalAnswer answer(nullptr, true); // the confirmation box: „Да“
+    answer.start();
+    const bool ok = widget.rejectDraft(QStringLiteral("REQ-SW-PL-902"),
+                                       QStringLiteral("дубликат"),
+                                       QStringLiteral("2026-11-21"));
+    answer.stop();
+
+    QVERIFY2(ok, "the refusal must go through");
+    QVERIFY2(!QFile::exists(draftPath), "CANCELLED must not stay in active/");
+    const QString archived = QDir(root).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/archive/DRAFT-REQ-SW-PL-902-fixture.md"));
+    QVERIFY2(QFile::exists(archived), qPrintable(archived));
+    const QString text = readAll(archived);
+    QVERIFY(text.contains(QStringLiteral("- **Статус:** CANCELLED")));
+    QVERIFY(text.contains(QStringLiteral("| 1 | 2026-11-21 | откажи | дубликат |")));
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 0 · за корекция: 0"));
+}
+
+void TestWidgets::changeContractReturnsToDraft()
+{
+    // REQ-SW-PL-101 AC4: „Промени договора“ asks for a reason, flips to DRAFT
+    // and leaves the row + revision in the file.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+    const QString path = QDir(root).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/active/REQ-SW-PL-900-fixture.md"));
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+
+    QVERIFY(widget.changeContract(QStringLiteral("REQ-SW-PL-900"),
+                                  QStringLiteral("добавя се AC7"),
+                                  QStringLiteral("2026-11-22")));
+    const QString text = readAll(path);
+    QVERIFY2(text.contains(QStringLiteral("- **Статус:** DRAFT")), qPrintable(text));
+    QVERIFY(text.contains(QStringLiteral("- **Ревизия:** 1")));
+    QVERIFY(text.contains(QStringLiteral("| 2026-11-22 | промяна в договора")));
+    QVERIFY(text.contains(QStringLiteral("добавя се AC7")));
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 1 · за корекция: 0"));
+}
+
+void TestWidgets::watcherRefreshesOnExternalChange()
+{
+    // AC7: the folder is watched, so a change made outside the manager (a git
+    // pull, a rename) reaches the list without a restart.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString root = makeRequirementsRoot(dir);
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    widget.show();
+    QCoreApplication::processEvents();
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("draftCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("чакат теб: 0 · за корекция: 0"));
+
+    const QString activeDir =
+        QDir(root).filePath(QStringLiteral("DevelopmentProcess/requirements/active"));
+    QVERIFY(!writeRequirement(activeDir, QStringLiteral("DRAFT-REQ-SW-PL-930-fixture.md"),
+                              requirementMarkdown(QStringLiteral("REQ-SW-PL-930"),
+                                                  QStringLiteral("DRAFT")))
+                 .isEmpty());
+
+    // The debounce is 300 ms; the assertion polls instead of sleeping.
+    QTRY_COMPARE_WITH_TIMEOUT(counter->text(),
+                              QStringLiteral("чакат теб: 1 · за корекция: 0"), 5000);
+}
+
+// ── Порта към DONE (REQ-SW-PL-107) ──────────────────────────────────────────
+
+void TestWidgets::doneGateRefusesAndNamesEverythingMissing()
+{
+    // AC1: ONE message names the open AC, the missing review and the branch the
+    // code is on — and nothing is written.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString path;
+    const QString root = makeDoneRoot(dir, QStringLiteral(" "), QString(), false, &path);
+    QVERIFY(!root.isEmpty());
+    const QString before = readAll(path);
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    QVERIFY2(waitForDoneGate(widget), "the develop check must answer");
+
+    const QStringList missing = widget.doneGateMessage(QStringLiteral("REQ-SW-PL-907"));
+    QVERIFY2(missing.size() >= 3, qPrintable(missing.join(QStringLiteral(" | "))));
+    QVERIFY2(missing.filter(QStringLiteral("AC1")).size() == 1, qPrintable(missing.join(" | ")));
+    QVERIFY2(missing.filter(QStringLiteral("ревю запис")).size() == 1,
+             qPrintable(missing.join(QStringLiteral(" | "))));
+    QVERIFY2(missing.filter(QStringLiteral("develop")).size() == 1,
+             qPrintable(missing.join(QStringLiteral(" | "))));
+
+    QVERIFY2(!widget.markDone(QStringLiteral("REQ-SW-PL-907"),
+                              QStringLiteral("2026-11-22")),
+             "the action must refuse");
+    QCOMPARE(readAll(path), before);   // byte for byte: nothing was written
+}
+
+void TestWidgets::doneGateRefusesReturnedVerdict()
+{
+    // AC1: a review record whose last verdict is ВЪРНАТО is not an acceptance.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString path;
+    const QString root = makeDoneRoot(dir, QStringLiteral("x"),
+                                      QStringLiteral("ВЪРНАТО"), true, &path);
+    QVERIFY(!root.isEmpty());
+    const QString before = readAll(path);
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    QVERIFY2(waitForDoneGate(widget), "the develop check must answer");
+
+    const QStringList missing = widget.doneGateMessage(QStringLiteral("REQ-SW-PL-907"));
+    QCOMPARE(missing.size(), 1);
+    QVERIFY2(missing.first().contains(QStringLiteral("ВЪРНАТО")),
+             qPrintable(missing.first()));
+    QVERIFY(!widget.markDone(QStringLiteral("REQ-SW-PL-907"),
+                             QStringLiteral("2026-11-22")));
+    QCOMPARE(readAll(path), before);
+}
+
+void TestWidgets::doneCandidateCounterAndBadge()
+{
+    // AC3: computed, never recorded — the row carries ✓ and the counter counts
+    // it; a requirement without an accepting review is not counted.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString path;
+    const QString root = makeDoneRoot(dir, QStringLiteral("x"),
+                                      QStringLiteral("ПРИЕТО"), true, &path);
+    QVERIFY(!root.isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    QVERIFY2(waitForDoneGate(widget), "the develop check must answer");
+
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("doneCandidateCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("кандидати за DONE: 1"));
+    QVERIFY2(counter->toolTip().contains(QStringLiteral("REQ-SW-PL-907")),
+             qPrintable(counter->toolTip()));
+
+    QTreeView *tree = widget.findChild<QTreeView *>(QStringLiteral("requirementsTree"));
+    QVERIFY(tree);
+    const QModelIndex row = viewIndexForId(tree->model(), QStringLiteral("REQ-SW-PL-907 ✓"));
+    QVERIFY2(row.isValid(), "the candidate row must carry the badge");
+    QVERIFY(row.data(RequirementsModel::DoneCandidateRole).toBool());
+
+    // AC3: looking does not write — and a snapshot compared with itself proves
+    // nothing, so a REAL action runs between the two reads: the candidate row is
+    // clicked (selection fills the preview, the criteria list and the editor —
+    // every read path the widget has for that file), then another row and back.
+    widget.resize(900, 600);
+    widget.show();
+    const QByteArray before = readBytes(path);
+    QVERIFY2(!before.isEmpty(), qPrintable(path));
+    const QRect cell = tree->visualRect(row);
+    QVERIFY2(cell.isValid() && !cell.isEmpty(), "the candidate row must be visible to be clicked");
+    QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::NoModifier, cell.center());
+    QCOMPARE(tree->currentIndex(), row);
+    tree->setCurrentIndex(QModelIndex());
+    tree->setCurrentIndex(row);
+    QCOMPARE(readBytes(path), before);   // byte for byte: the file did not move
+
+    // …and the snapshot itself has teeth: one appended byte is visible to it,
+    // which is what makes the comparison above a check and not a tautology.
+    QFile probe(path);
+    QVERIFY(probe.open(QIODevice::Append));
+    probe.write("\n");
+    probe.close();
+    QVERIFY2(readBytes(path) != before, "the snapshot must see a write");
+    QFile restore(path);
+    QVERIFY(restore.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    QCOMPARE(restore.write(before), qint64(before.size()));
+    restore.close();
+    QCOMPARE(readBytes(path), before);
+}
+
+void TestWidgets::markDoneArchivesWithOneHistoryRow()
+{
+    // AC4: DONE, exactly one history row with the review file, revision + 1, and
+    // a strict move to archive/.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QString path;
+    const QString root = makeDoneRoot(dir, QStringLiteral("x"),
+                                      QStringLiteral("ПРИЕТО"), true, &path);
+    QVERIFY(!root.isEmpty());
+
+    RequirementsWidget widget;
+    widget.openDirectory(root);
+    QVERIFY2(waitForDoneGate(widget), "the develop check must answer");
+    QVERIFY2(widget.markDone(QStringLiteral("REQ-SW-PL-907"),
+                             QStringLiteral("2026-11-22")),
+             "every precondition holds");
+
+    QVERIFY2(!QFile::exists(path), "DONE does not stay in active/");
+    const QString archived = QDir(root).filePath(
+        QStringLiteral("DevelopmentProcess/requirements/archive/REQ-SW-PL-907-fixture.md"));
+    QVERIFY2(QFile::exists(archived), qPrintable(archived));
+    const QString text = readAll(archived);
+    QVERIFY(text.contains(QStringLiteral("- **Статус:** DONE")));
+    QCOMPARE(text.count(QStringLiteral("| 2026-11-22 | DONE | потребител | ревю PR-1-REQ-SW-PL-907.md |")), 1);
+    QVERIFY(text.contains(QStringLiteral("- **Ревизия:** 4")));
+
+    // The counter re-reads the tree: the requirement is no longer a candidate.
+    // The reload after the archive asks git again, so the test waits for that
+    // answer before reading the counter.
+    QVERIFY2(waitForDoneGate(widget), "the develop check must answer");
+    QLabel *counter = widget.findChild<QLabel *>(QStringLiteral("doneCandidateCountLabel"));
+    QVERIFY(counter);
+    QCOMPARE(counter->text(), QStringLiteral("кандидати за DONE: 0"));
+}

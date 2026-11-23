@@ -357,6 +357,7 @@ void TestGraphWidget::statusColoursAreTableDriven_data()
     QTest::addColumn<QString>("status");
     QTest::addColumn<int>("rgb");
 
+    QTest::newRow("DRAFT") << "DRAFT" << int(0x6A1B9A);
     QTest::newRow("ACTIVE") << "ACTIVE" << int(0x2E7D32);
     QTest::newRow("IMPLEMENTED") << "IMPLEMENTED" << int(0x1565C0);
     QTest::newRow("DONE") << "DONE" << int(0x757575);
@@ -376,7 +377,7 @@ void TestGraphWidget::statusColoursAreTableDriven()
     for (const QPair<QString, QColor> &style : DependencyGraphScene::statusStyles())
         inTable = inTable || (style.first == status && style.second == expected);
     QVERIFY2(inTable, "the status colour must come from the one legend table");
-    QCOMPARE(DependencyGraphScene::statusStyles().size(), 5);
+    QCOMPARE(DependencyGraphScene::statusStyles().size(), 6);
 }
 
 // The tooltip carries id, title, status, dependency count and the issues the

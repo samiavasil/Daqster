@@ -122,6 +122,7 @@ The main project example is `ApplicationsManager` under `src/apps/Daqster`.
 
 - Fork the repo and create a feature branch.
 - Write tests where relevant and update documentation.
+- A UI change is accepted only together with its updated document — otherwise the document and the code drift apart.
 - Open the PR against the current integration branch used by the project.
 
 ## Debugging

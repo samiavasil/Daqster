@@ -112,6 +112,80 @@ void TestSorting::treeSectionsKeepSourceOrder()
     QCOMPARE(proxy.index(0, 0).data(Qt::DisplayRole).toString(), QStringLiteral("active"));
 }
 
+void TestSorting::treeAgeColumnSortsNumerically()
+{
+    const QDate today(2026, 11, 21);
+    QVector<Requirement> reqs;
+    for (const QPair<QString, QString> &row :
+         {qMakePair(QStringLiteral("REQ-SW-PL-002"), QStringLiteral("2026-08-23")),  // 90 дни
+          qMakePair(QStringLiteral("REQ-SW-PL-001"), QStringLiteral("2026-11-09")),  // 12 дни
+          qMakePair(QStringLiteral("REQ-SW-PL-003"), QStringLiteral("2026-11-12"))}) { // 9 дни
+        Requirement req = makeRequirement(row.first, QStringLiteral("ACTIVE"));
+        req.date = row.second;
+        reqs.append(req);
+    }
+
+    RequirementsModel model;
+    model.setToday(today);
+    model.setRequirements(reqs);
+
+    RequirementsSortProxyModel proxy;
+    proxy.setSourceModel(&model);
+    proxy.sort(RequirementsModel::AgeColumn, Qt::AscendingOrder);
+
+    // Alphabetical order would be "12 дни" < "9 дни" < "90 дни"; numeric is
+    // 9 < 12 < 90 (REQ-SW-PL-100).
+    QCOMPARE(visibleIds(proxy),
+             QStringList({QStringLiteral("REQ-SW-PL-003"),
+                          QStringLiteral("REQ-SW-PL-001"),
+                          QStringLiteral("REQ-SW-PL-002")}));
+
+    proxy.sort(RequirementsModel::AgeColumn, Qt::DescendingOrder);
+    QCOMPARE(visibleIds(proxy),
+             QStringList({QStringLiteral("REQ-SW-PL-002"),
+                          QStringLiteral("REQ-SW-PL-001"),
+                          QStringLiteral("REQ-SW-PL-003")}));
+}
+
+void TestSorting::treeSectionsKeepSourceOrderWithDateColumns()
+{
+    const QDate today(2026, 11, 21);
+    QVector<Requirement> reqs = unsortedFixture();
+    reqs[0].date = QStringLiteral("2026-11-09");
+    reqs[1].date = QStringLiteral("2026-08-23");
+    reqs[2].date = QString();                 // unknown age
+    reqs[3].date = QStringLiteral("2026-01-01"); // archived, 324 дни
+
+    RequirementsModel model;
+    model.setToday(today);
+    model.setRequirements(reqs);
+
+    RequirementsSortProxyModel proxy;
+    proxy.setSourceModel(&model);
+
+    // Both new columns sort inside a section and never move the section rows:
+    // the grouping ("active" then "archive") survives the date columns.
+    for (const int column : {int(RequirementsModel::CreatedColumn),
+                             int(RequirementsModel::AgeColumn)}) {
+        proxy.sort(column, Qt::AscendingOrder);
+        QCOMPARE(proxy.index(0, 0).data(Qt::DisplayRole).toString(),
+                 QStringLiteral("active"));
+        QCOMPARE(proxy.index(1, 0).data(Qt::DisplayRole).toString(),
+                 QStringLiteral("archive"));
+        QCOMPARE(proxy.rowCount(proxy.index(0, 0)), 3);
+        QCOMPARE(proxy.rowCount(proxy.index(1, 0)), 1);
+    }
+
+    // Ascending by age: 12 < 90, the unknown date groups at the end, and the
+    // archived requirement stays in its own section.
+    proxy.sort(RequirementsModel::AgeColumn, Qt::AscendingOrder);
+    QCOMPARE(visibleIds(proxy),
+             QStringList({QStringLiteral("REQ-SW-PL-002"),   // 12 дни
+                          QStringLiteral("REQ-SW-PL-001"),   // 90 дни
+                          QStringLiteral("REQ-SW-PL-003"),   // —
+                          QStringLiteral("REQ-SW-PL-004")})); // archive
+}
+
 void TestSorting::matrixSortsEveryColumn_data()
 {
     QTest::addColumn<int>("column");

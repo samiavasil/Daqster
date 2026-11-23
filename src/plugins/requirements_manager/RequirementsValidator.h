@@ -2,6 +2,8 @@
 
 #include <QString>
 #include <QVector>
+#include <optional>
+#include "IdeaReader.h"
 #include "RequirementsParser.h"
 
 namespace Daqster {
@@ -16,6 +18,12 @@ namespace Daqster {
  * DONE requirement with unaddressed acceptance criteria, and a file written
  * with a non-canonical template generation (v0/v1 — a Warning; a file with no
  * description heading at all is an Error).
+ *
+ * @par Revision vs approval (REQ-SW-PL-106)
+ * ACTIVE and IMPLEMENTED requirements whose `Ревизия` grew past the number the
+ * `Одобрено:` line names are an Error, with both numbers in the message. An
+ * approval line without a number is legacy ("approved up to the current
+ * revision") and is silent.
  *
  * @par Dependency grading (REQ-SW-PL-008)
  * A "Зависи от:" reference is graded by its target's state, not by whether the
@@ -74,12 +82,73 @@ public:
      * @brief The single status vocabulary shared with the traceability CLI.
      *
      * Mirrors `VOCAB` in `scripts/validate-traceability.sh` (private repo):
-     * ACTIVE, IMPLEMENTED, DONE, CANCELLED, BACKLOG. IMPLEMENTED means "the code
-     * is on a branch, nothing in develop yet" — a real state, not a typo.
+     * DRAFT, ACTIVE, IMPLEMENTED, DONE, CANCELLED, BACKLOG. IMPLEMENTED means
+     * "the code is on a branch, nothing in develop yet" — a real state, not a
+     * typo.
      *
      * @return The allowed status tokens, in the CLI's order.
      */
     static QStringList statusVocabulary();
+
+    /**
+     * @brief Severity of a cited code path that does not resolve, by status.
+     *
+     * A path in "Код:" / "Тестове:" / "Документация:" is a claim that the file
+     * exists — but only an implemented requirement makes that claim. An
+     * accepted requirement may cite a file it is about to add (REQ-SW-PL-101/102
+     * cite the guard scripts they themselves propose), so resolving it would
+     * report a plan as a defect.
+     *
+     * This mirrors the rule in `scripts/validate-traceability.sh` (§6, REQ-SW-PL-103):
+     * IMPLEMENTED/DONE -> Error, ACTIVE/BACKLOG -> Warning, DRAFT -> nothing
+     * (a draft is a proposal; its files may not exist at all).
+     *
+     * @param rawStatus The "- **Статус:**" value, verbatim.
+     * @return The severity, or std::nullopt when the status does not grade
+     *         paths at all (DRAFT, or an unreadable status).
+     */
+    static std::optional<Severity> pathSeverityForStatus(const QString &rawStatus);
+
+    /**
+     * @brief Checks the code paths a requirement cites in its traceability fields.
+     *
+     * The cited paths are the backticked tokens of "Код:", "Тестове:" and
+     * "Документация:" that start with a repository top-level directory, with
+     * the same filters the CLI applies (no prose, no globs, no `..`, line
+     * ranges stripped, `{a,b}` expanded). Each unresolved token is graded by
+     * pathSeverityForStatus().
+     *
+     * @par Why this is not part of validate()
+     * The manager is the authority for fields; repository-wide path resolution
+     * is the traceability CLI's job (see the class documentation). This entry
+     * point exists so the rule is shared code with a test rather than a
+     * second, silent opinion inside the report.
+     *
+     * @param requirements Parsed requirements.
+     * @param repoRoots Repository roots to resolve against. Empty means "derive
+     *        them from each requirement's file path plus its sibling repos".
+     * @return Issues with field "code", sorted errors first.
+     */
+    static QVector<Issue> validateCitedPaths(const QVector<Requirement> &requirements,
+                                             const QStringList &repoRoots = QStringList());
+
+    /**
+     * @brief Every repository path a requirement cites, as the CLI reads it.
+     *
+     * Backticked tokens of the WHOLE file that start with a repository
+     * top-level directory, with the filters `scripts/validate-traceability.sh`
+     * §6 applies: struck-through spans are corrections, not citations; prose
+     * (` *<>|"'()$;&`) and `..` are not paths; a line range or an anchor
+     * (`foo.cpp:36-38`, `CMakeLists.txt#anchor`) is stripped; `{a,b}` expands.
+     *
+     * One rule, two readers (REQ-SW-PL-107): the DONE gate asks whether they
+     * resolve in `develop`, the CLI asks where they resolve. A third list of
+     * "what counts as a path" would be a second opinion, not a second check.
+     *
+     * @param req Parsed requirement (its rawContent is read).
+     * @return Paths in citation order, may contain duplicates.
+     */
+    static QStringList citedCodePaths(const Requirement &req);
 
     /**
      * @brief Normalizes a "- **Статус:**" value to a bare vocabulary token.
@@ -94,6 +163,89 @@ public:
      *         the value carries no readable status.
      */
     static QString normalizedStatus(const QString &rawStatus);
+
+    /**
+     * @brief Idea statuses that mean "the promotion is recorded" (REQ-SW-PL-098).
+     *
+     * Mirrors `RECORDED` in `scripts/check-idea-promotion.sh` (private repo):
+     * an idea in one of these states may be cited by a requirement, because the
+     * record of the promotion is in its first line. Any other status means the
+     * citation is not recorded yet.
+     *
+     * @return The status tokens, in the CLI's order.
+     */
+    static QStringList ideaPromotionStatuses();
+
+    /**
+     * @brief Idea IDs @p req cites anywhere in its file.
+     *
+     * The same reader the promotion guard uses: `IDEA-NNN` with a word boundary
+     * before it, struck-through spans (`~~…~~`) dropped because a correction is
+     * not a citation, duplicates collapsed in citation order.
+     *
+     * @param req Parsed requirement (its rawContent is read).
+     * @return Idea IDs, upper case.
+     */
+    static QStringList citedIdeaIds(const Requirement &req);
+
+    /**
+     * @brief The requirement's own end of the idea link: its `from_idea:` value.
+     *
+     * NewRequirementDialog writes the promotion as `- from_idea: IDEA-NNN` into
+     * the requirement, and `> Промотирана:` into the idea (REQ-SW-PL-095). This
+     * accessor reads the requirement's half so the validator can compare the two
+     * ends instead of trusting either one; struck-through spans and the bold or
+     * backticked spellings are handled the same way citedIdeaIds() handles them.
+     *
+     * @param req Parsed requirement (its rawContent is read).
+     * @return `IDEA-NNN` in upper case, or an empty string when absent.
+     */
+    static QString fromIdeaId(const Requirement &req);
+
+    /**
+     * @brief The three rules of `scripts/check-idea-promotion.sh`, plus one that
+     * needs both values of the link.
+     *
+     * One link, one home: the idea's first line names the requirement
+     * ("Промотирана:" / "Изискване:"), never the other way round. The three
+     * rules the script also applies:
+     *  - a requirement citing `IDEA-NNN` that has no idea file → Error naming
+     *    the requirement and the missing idea;
+     *  - a requirement citing an idea whose status is not in
+     *    ideaPromotionStatuses() → Error naming BOTH ("промоцията липсва");
+     *  - an idea whose promotion names a requirement that does not exist →
+     *    Error naming the missing ID;
+     *  - an idea with no requirement → nothing. Not being promoted is the
+     *    normal state of an idea, not a defect.
+     *
+     * The fourth rule is only possible here, because IdeaReader keeps BOTH keys
+     * apart (`promotedKeyId` / `requirementKeyId`) and the script's grep sees
+     * one value at a time: an idea carrying both keys with two different
+     * requirements is an Error naming the pair (REQ-SW-PL-098 review R1-3).
+     *
+     * @par The link is checked in both directions (REQ-SW-PL-098, decision A)
+     * A promotion is ONE link with TWO ends, so each end is asked whether it
+     * names the other; a name that exists on one side only is an Error naming
+     * both files:
+     *  - the idea is promoted to `REQ-X`, but `REQ-X` carries no
+     *    `from_idea:` naming THIS idea (or names a different one) → Error;
+     *  - `REQ-X.from_idea` is `IDEA-Y`, but `IDEA-Y` does not name `REQ-X`
+     *    back → Error.
+     * Neither end present → nothing: an idea without a requirement is the
+     * normal state, and so is a requirement that came from nowhere.
+     *
+     * @par Why this is not part of validate()
+     * Same reason as validateCitedPaths(): validate() must stay equal to what
+     * RequirementsParser walked (REQ-SW-PL-008). Ideas are a different tree, so
+     * the caller passes them in — one rule, one answer, beside the status
+     * vocabulary.
+     *
+     * @param requirements Parsed requirements.
+     * @param ideas The idea register (IdeaReader).
+     * @return Issues with field "idea-link", errors first, then by ID.
+     */
+    static QVector<Issue> validateIdeaLinks(const QVector<Requirement> &requirements,
+                                            const QVector<Idea> &ideas);
 };
 
 } // namespace Daqster

@@ -67,6 +67,15 @@ QString idFrom(const QString &text)
     return match.hasMatch() ? match.captured(1).toUpper() : QString();
 }
 
+//!< The requirement ID inside a "Промотирана:"/"Изискване:" value, or empty.
+QString requirementIdIn(const QString &text)
+{
+    static const QRegularExpression reqId(
+        QStringLiteral("(REQ-[A-Za-z]+(?:-[A-Za-z]+)*-[0-9]+)"));
+    const QRegularExpressionMatch match = reqId.match(text);
+    return match.hasMatch() ? match.captured(1).toUpper() : QString();
+}
+
 //!< Splits the `>` header block into "key: value" fields.
 void readHeaderFields(const QStringList &lines, const IdeaHeaderKeys &keys, Idea &out)
 {
@@ -92,6 +101,20 @@ void readHeaderFields(const QStringList &lines, const IdeaHeaderKeys &keys, Idea
             else if (key.compare(keys.nextReview, Qt::CaseInsensitive) == 0
                      && out.nextReview.isEmpty())
                 out.nextReview = value;
+            else if (key.compare(keys.promoted, Qt::CaseInsensitive) == 0
+                     || key.compare(keys.requirement, Qt::CaseInsensitive) == 0) {
+                const QString id = requirementIdIn(value);
+                if (key.compare(keys.promoted, Qt::CaseInsensitive) == 0
+                    && out.promotedKeyId.isEmpty())
+                    out.promotedKeyId = id;
+                if (key.compare(keys.requirement, Qt::CaseInsensitive) == 0
+                    && out.requirementKeyId.isEmpty())
+                    out.requirementKeyId = id;
+                // "One link" is still whichever key the file names first; the
+                // validator reports a disagreement instead of hiding it.
+                if (out.promotedId.isEmpty())
+                    out.promotedId = id;
+            }
         }
     }
 }

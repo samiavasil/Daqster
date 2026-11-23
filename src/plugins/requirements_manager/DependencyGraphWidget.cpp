@@ -104,13 +104,20 @@ DependencyGraphScene::DependencyGraphScene(QObject *parent)
 void DependencyGraphScene::setRequirements(const QVector<Requirement> &requirements,
                                            const QVector<RequirementsValidator::Issue> &issues)
 {
+    setRequirements(requirements, issues, QVector<Idea>());
+}
+
+void DependencyGraphScene::setRequirements(const QVector<Requirement> &requirements,
+                                           const QVector<RequirementsValidator::Issue> &issues,
+                                           const QVector<Idea> &ideas)
+{
     clear();
     m_nodeItems.clear();
     m_edgeItems.clear();
     m_issuesById.clear();
     m_selected = nullptr;
 
-    m_data = DependencyGraphData::build(requirements);
+    m_data = DependencyGraphData::build(requirements, ideas);
 
     for (const RequirementsValidator::Issue &issue : issues) {
         if (issue.id.trimmed().isEmpty())
@@ -124,9 +131,16 @@ void DependencyGraphScene::setRequirements(const QVector<Requirement> &requireme
         auto *item = new DependencyGraphNodeItem(node);
         item->setPos(node.pos.x() - item->boundingRect().width() / 2.0,
                      node.pos.y() - item->boundingRect().height() / 2.0);
-        const Requirement &req = requirements.at(node.reqIndex);
-        item->setDependencyInfo(req.dependencies.size(), req.parentIds.size(),
-                                m_issuesById.value(node.id));
+        // An idea node is not a requirement: it has no status, no dependency
+        // and no parent, so the counts are zero and the issues are its own
+        // (REQ-SW-PL-098 keeps requirement facts off the dashed nodes).
+        if (node.kind == GraphNode::Idea) {
+            item->setDependencyInfo(0, 0, m_issuesById.value(node.id));
+        } else {
+            const Requirement &req = requirements.at(node.reqIndex);
+            item->setDependencyInfo(req.dependencies.size(), req.parentIds.size(),
+                                    m_issuesById.value(node.id));
+        }
         addItem(item);
         m_nodeItems.append(item);
         // Single click selects, double click navigates (user item 6).
@@ -257,7 +271,8 @@ QColor DependencyGraphScene::borderColorForStatus(const QString &status)
 
 QVector<QPair<QString, QColor>> DependencyGraphScene::statusStyles()
 {
-    return { qMakePair(QStringLiteral("ACTIVE"), QColor(0x2E7D32)),      // green 800
+    return { qMakePair(QStringLiteral("DRAFT"), QColor(0x6A1B9A)),       // purple 800
+             qMakePair(QStringLiteral("ACTIVE"), QColor(0x2E7D32)),      // green 800
              qMakePair(QStringLiteral("IMPLEMENTED"), QColor(0x1565C0)), // blue 800
              qMakePair(QStringLiteral("DONE"), QColor(0x757575)),        // gray 600
              qMakePair(QStringLiteral("CANCELLED"), QColor(0xC62828)),   // red 800
@@ -280,6 +295,7 @@ DependencyGraphNodeItem::DependencyGraphNodeItem(const GraphNode &node, QGraphic
     , m_title(node.title)
     , m_status(node.status)
     , m_priority(node.priority)
+    , m_kind(node.kind)
 {
     // Visual width is computed once in DependencyGraphData::build() so the
     // headless layout and the GUI widget always agree (height stays fixed).
@@ -304,12 +320,18 @@ void DependencyGraphNodeItem::composeTooltip()
                                            : QStringLiteral("%1 (%2)").arg(m_id, m_repo));
     if (!m_title.isEmpty())
         m_tooltipLines.append(m_title);
-    m_tooltipLines.append(QStringLiteral("Статус: %1 · Приоритет: %2")
-                              .arg(m_status.isEmpty() ? QStringLiteral("—") : m_status,
-                                   m_priority.isEmpty() ? QStringLiteral("—") : m_priority));
-    m_tooltipLines.append(QStringLiteral("Зависимости: %1 · Родители: %2")
-                              .arg(m_dependencyCount)
-                              .arg(m_parentCount));
+    if (isIdea()) {
+        // An idea has no status/priority: saying "Статус: — · Приоритет: —" would
+        // read as missing data instead of a different kind of record.
+        m_tooltipLines.append(QStringLiteral("Идея, промотирана в изискване"));
+    } else {
+        m_tooltipLines.append(QStringLiteral("Статус: %1 · Приоритет: %2")
+                                  .arg(m_status.isEmpty() ? QStringLiteral("—") : m_status,
+                                       m_priority.isEmpty() ? QStringLiteral("—") : m_priority));
+        m_tooltipLines.append(QStringLiteral("Зависимости: %1 · Родители: %2")
+                                  .arg(m_dependencyCount)
+                                  .arg(m_parentCount));
+    }
     if (m_issues.isEmpty()) {
         m_tooltipLines.append(QStringLiteral("Проблеми: няма"));
     } else {
@@ -358,8 +380,17 @@ void DependencyGraphNodeItem::setSearchState(bool match, bool current)
 
 void DependencyGraphEdgeItem::applyStyle()
 {
-    const bool dashed = (m_kind == GraphEdge::Parent);
-    QColor color = dashed ? QColor(0x90A4AE) : QColor(0x455A64);
+    // Three families, three looks (REQ-SW-PL-098 keeps "идея -> изискване"
+    // apart from "родител", which is dashed too):
+    //   Dependency     — solid, slate
+    //   Parent         — dashed, blue-gray
+    //   IdeaPromotion  — dashed, purple
+    const bool dashed = (m_kind != GraphEdge::Dependency);
+    QColor color = QColor(0x455A64);
+    if (m_kind == GraphEdge::Parent)
+        color = QColor(0x90A4AE);
+    else if (m_kind == GraphEdge::IdeaPromotion)
+        color = QColor(0x6A1B9A); // purple 800 — an idea is not a requirement
     qreal width = dashed ? 1.5 : 2.0;
     qreal opacityValue = 1.0;
 
@@ -394,7 +425,10 @@ void DependencyGraphNodeItem::paint(QPainter *painter, const QStyleOptionGraphic
     Q_UNUSED(widget);
 
     painter->setRenderHint(QPainter::Antialiasing, true);
-    const QColor border = DependencyGraphScene::borderColorForStatus(m_status);
+    // An idea is a NOTE, not a requirement: dashed border, neutral fill, no
+    // status colour (REQ-SW-PL-098 — "плътните възли остават само изисквания").
+    const QColor border = isIdea() ? QColor(0x6A1B9A)
+                                   : DependencyGraphScene::borderColorForStatus(m_status);
 
     if (m_emphasis == Emphasis::Selected) {
         QColor halo = border;
@@ -416,8 +450,12 @@ void DependencyGraphNodeItem::paint(QPainter *painter, const QStyleOptionGraphic
     else if (m_emphasis == Emphasis::Neighbour)
         penWidth = 2.8;
 
-    painter->setPen(QPen(border, penWidth));
-    painter->setBrush(QBrush(DependencyGraphScene::fillColorForPriority(m_priority)));
+    QPen nodePen(border, penWidth);
+    if (isIdea())
+        nodePen.setStyle(Qt::DashLine);
+    painter->setPen(nodePen);
+    painter->setBrush(isIdea() ? QBrush(QColor(0xFAFAFA))
+                               : QBrush(DependencyGraphScene::fillColorForPriority(m_priority)));
     painter->drawRoundedRect(m_rect, 8.0, 8.0);
 
     QFont idFont = painter->font();
@@ -661,6 +699,10 @@ QString DependencyGraphWidget::buildLegendHtml() const
                                "&nbsp;&nbsp;")
                     .arg(DependencyGraphScene::fillColorForPriority(priority).name(), priority);
     }
+    // The dashed nodes are ideas, not requirements (REQ-SW-PL-098): one legend
+    // entry so a dashed box is never read as a requirement without a status.
+    html += QStringLiteral("&nbsp;&nbsp;|&nbsp;&nbsp;"
+                           "<span style=\"color:#6A1B9A;\">&#9633; идея</span>");
     return html;
 }
 
@@ -683,8 +725,15 @@ bool DependencyGraphWidget::eventFilter(QObject *watched, QEvent *event)
 void DependencyGraphWidget::setRequirements(const QVector<Requirement> &requirements,
                                             const QVector<RequirementsValidator::Issue> &issues)
 {
+    setRequirements(requirements, issues, QVector<Idea>());
+}
+
+void DependencyGraphWidget::setRequirements(const QVector<Requirement> &requirements,
+                                            const QVector<RequirementsValidator::Issue> &issues,
+                                            const QVector<Idea> &ideas)
+{
     clearSearch();
-    m_scene->setRequirements(requirements, issues);
+    m_scene->setRequirements(requirements, issues, ideas);
 
     const int dangling = m_scene->danglingCount();
     if (dangling > 0) {

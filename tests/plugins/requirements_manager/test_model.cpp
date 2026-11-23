@@ -260,6 +260,24 @@ void TestModel::indexForId_behaviour()
     }
 }
 
+void TestModel::indexForId_rejectsBlankId()
+{
+    // A malformed header parses to an empty id; a blank lookup must not match
+    // it (REQ-SW-PL-099). Without the guard the first such requirement wins and
+    // navigateToId() would select a row nobody asked for.
+    QVector<Requirement> reqs = makeFixture();
+    reqs.append(makeRequirement(QString(), QStringLiteral("active"), QString()));
+    RequirementsModel model;
+    model.setRequirements(reqs);
+
+    QVERIFY(!model.indexForId(QString()).isValid());
+    QVERIFY(!model.indexForId(QStringLiteral("   ")).isValid());
+    QVERIFY(!model.indexForId(QStringLiteral("\t")).isValid());
+
+    // The real requirements are still reachable: the guard rejects only blanks.
+    QVERIFY(model.indexForId(QStringLiteral("REQ-SW-PL-040")).isValid());
+}
+
 void TestModel::danglingParent_isTopLevel()
 {
     RequirementsModel model;
@@ -326,3 +344,153 @@ void TestModel::requirementRole_data()
 
 // No QTEST_GUILESS_MAIN here: the three test classes share one binary whose
 // main lives in test_main.cpp.
+
+namespace {
+
+// One requirement with a known creation date, for the date/age columns
+// (REQ-SW-PL-100).
+Requirement datedRequirement(const QString &id, const QString &date,
+                             const QString &status = QStringLiteral("ACTIVE"))
+{
+    Requirement req;
+    req.id = id;
+    req.title = id;
+    req.status = status;
+    req.priority = QStringLiteral("Medium");
+    req.section = QStringLiteral("active");
+    req.repo = QStringLiteral("public");
+    req.date = date;
+    return req;
+}
+
+} // namespace
+
+void TestModel::dateColumns_createdAndAge()
+{
+    const QDate today(2026, 11, 21);
+    RequirementsModel model;
+    model.setToday(today);
+    model.setRequirements({datedRequirement(QStringLiteral("REQ-SW-PL-901"),
+                                            QStringLiteral("2026-11-09"))});
+
+    const QModelIndex idx = model.indexForId(QStringLiteral("REQ-SW-PL-901"));
+    QVERIFY(idx.isValid());
+
+    // The date is shown verbatim, the age in whole days.
+    QCOMPARE(idx.sibling(idx.row(), RequirementsModel::CreatedColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("2026-11-09"));
+    QCOMPARE(idx.sibling(idx.row(), RequirementsModel::AgeColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("12 дни"));
+
+    // Headers exist for both new columns (the view asks by column).
+    QCOMPARE(model.headerData(RequirementsModel::CreatedColumn, Qt::Horizontal)
+                 .toString(),
+             QStringLiteral("Създадено"));
+    QCOMPARE(model.headerData(RequirementsModel::AgeColumn, Qt::Horizontal)
+                 .toString(),
+             QStringLiteral("Възраст"));
+}
+
+void TestModel::dateColumns_missingDateIsDash()
+{
+    RequirementsModel model;
+    model.setToday(QDate(2026, 11, 21));
+    model.setRequirements({datedRequirement(QStringLiteral("REQ-SW-PL-902"),
+                                            QStringLiteral("не е дата"))});
+
+    const QModelIndex idx = model.indexForId(QStringLiteral("REQ-SW-PL-902"));
+    QVERIFY(idx.isValid());
+    // An unparsable date has no age: the column says so instead of inventing 0.
+    QCOMPARE(idx.sibling(idx.row(), RequirementsModel::AgeColumn)
+                 .data(Qt::DisplayRole).toString(),
+             QStringLiteral("—"));
+}
+
+void TestModel::ageDaysRole_isNumeric()
+{
+    RequirementsModel model;
+    model.setToday(QDate(2026, 11, 21));
+    model.setRequirements({datedRequirement(QStringLiteral("REQ-SW-PL-903"),
+                                            QStringLiteral("2026-08-23")),
+                           datedRequirement(QStringLiteral("REQ-SW-PL-904"),
+                                            QString())});
+
+    const QModelIndex known = model.indexForId(QStringLiteral("REQ-SW-PL-903"));
+    const QModelIndex unknown = model.indexForId(QStringLiteral("REQ-SW-PL-904"));
+    QVERIFY(known.isValid());
+    QVERIFY(unknown.isValid());
+
+    // The display text cannot sort ("90 дни" < "9 дни" alphabetically); the
+    // role carries the number, and -1 marks "unknown".
+    QCOMPARE(known.data(RequirementsModel::AgeDaysRole).toInt(), 90);
+    QCOMPARE(unknown.data(RequirementsModel::AgeDaysRole).toInt(), -1);
+}
+
+void TestModel::overdueDraft_isPaintedInWarningColour()
+{
+    RequirementsModel model;
+    model.setToday(QDate(2026, 11, 21));
+    // 15 days old: one day past the two-week threshold.
+    model.setRequirements({datedRequirement(QStringLiteral("REQ-SW-PL-905"),
+                                            QStringLiteral("2026-11-06"),
+                                            QStringLiteral("DRAFT"))});
+
+    const QModelIndex idx = model.indexForId(QStringLiteral("REQ-SW-PL-905"));
+    QVERIFY(idx.isValid());
+    const QVariant colour = idx.data(Qt::ForegroundRole);
+    QVERIFY2(colour.isValid(), "an overdue DRAFT must carry a foreground colour");
+    QCOMPARE(colour.value<QColor>(), RequirementsModel::staleDraftColour());
+}
+
+void TestModel::freshDraft_isNotPainted()
+{
+    RequirementsModel model;
+    model.setToday(QDate(2026, 11, 21));
+    // Exactly 14 days: the threshold is "older than", so this one is normal —
+    // and an old ACTIVE requirement is never highlighted either.
+    model.setRequirements({datedRequirement(QStringLiteral("REQ-SW-PL-906"),
+                                            QStringLiteral("2026-11-07"),
+                                            QStringLiteral("DRAFT")),
+                           datedRequirement(QStringLiteral("REQ-SW-PL-907"),
+                                            QStringLiteral("2026-01-01"),
+                                            QStringLiteral("ACTIVE"))});
+
+    const QModelIndex fourteen = model.indexForId(QStringLiteral("REQ-SW-PL-906"));
+    const QModelIndex active = model.indexForId(QStringLiteral("REQ-SW-PL-907"));
+    QVERIFY(fourteen.isValid());
+    QVERIFY(active.isValid());
+    QVERIFY(!fourteen.data(Qt::ForegroundRole).isValid());
+    QVERIFY(!active.data(Qt::ForegroundRole).isValid());
+}
+
+void TestModel::draftVerdictRole_fromReviewTable()
+{
+    // REQ-SW-PL-102 AC4: the verdict is read once, in setRequirements(), and
+    // exposed as a role — the counter never parses Markdown while painting.
+    Requirement judged = datedRequirement(QStringLiteral("REQ-SW-PL-908"),
+                                          QStringLiteral("2026-11-20"),
+                                          QStringLiteral("DRAFT"));
+    judged.rawContent = QStringLiteral(
+        "## Ревю на черновата\n\n"
+        "| кръг | дата | присъда | бележка |\n"
+        "|---|---|---|---|\n"
+        "| 1 | 2026-11-20 | за корекция | липсва AC |\n");
+    Requirement fresh = datedRequirement(QStringLiteral("REQ-SW-PL-909"),
+                                         QStringLiteral("2026-11-20"),
+                                         QStringLiteral("DRAFT"));
+    fresh.rawContent = QStringLiteral("## Накратко\n\nоще никой не я е чел\n");
+
+    RequirementsModel model;
+    model.setRequirements({judged, fresh});
+
+    const QModelIndex first = model.indexForId(QStringLiteral("REQ-SW-PL-908"));
+    const QModelIndex second = model.indexForId(QStringLiteral("REQ-SW-PL-909"));
+    QVERIFY(first.isValid());
+    QVERIFY(second.isValid());
+    QCOMPARE(first.data(RequirementsModel::DraftVerdictRole).toString(),
+             QStringLiteral("за корекция"));
+    QVERIFY2(second.data(RequirementsModel::DraftVerdictRole).toString().isEmpty(),
+             "a draft nobody judged has no verdict");
+}

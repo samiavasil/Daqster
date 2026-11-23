@@ -2,6 +2,9 @@
 
 #include <QSet>
 
+#include "RequirementDates.h"
+#include "RequirementsValidator.h"
+
 namespace Daqster {
 
 namespace {
@@ -21,6 +24,14 @@ void RequirementsModel::setRequirements(const QVector<Requirement> &requirements
     beginResetModel();
     m_requirements = requirements;
 
+    // The draft verdict is read from the review table ONCE per load
+    // (REQ-SW-PL-102): the counter and any future column ask the model, and a
+    // paint must never parse Markdown.
+    m_draftVerdicts.clear();
+    m_draftVerdicts.reserve(m_requirements.size());
+    for (const Requirement &req : m_requirements)
+        m_draftVerdicts.append(RequirementsParser::lastDraftVerdict(req.rawContent));
+
     QStringList sections;
     for (const Requirement &req : m_requirements) {
         if (!sections.contains(req.section))
@@ -31,6 +42,35 @@ void RequirementsModel::setRequirements(const QVector<Requirement> &requirements
 
     rebuildHierarchy();
     endResetModel();
+}
+
+void RequirementsModel::setDoneCandidates(const QStringList &candidateIds)
+{
+    QSet<QString> ids;
+    for (const QString &id : candidateIds)
+        ids.insert(id);
+
+    bool changed = false;
+    for (Requirement &req : m_requirements) {
+        const bool candidate = ids.contains(req.id);
+        if (req.doneCandidate != candidate) {
+            req.doneCandidate = candidate;
+            changed = true;
+        }
+    }
+    if (changed)
+        emitRowsChanged();
+}
+
+void RequirementsModel::emitRowsChanged(const QModelIndex &parent)
+{
+    const int rows = rowCount(parent);
+    for (int row = 0; row < rows; ++row) {
+        const QModelIndex first = index(row, IdColumn, parent);
+        const QModelIndex last = index(row, ColumnCount - 1, parent);
+        emit dataChanged(first, last);
+        emitRowsChanged(first);
+    }
 }
 
 void RequirementsModel::setViewMode(ViewMode mode)
@@ -45,6 +85,27 @@ void RequirementsModel::setViewMode(ViewMode mode)
 RequirementsModel::ViewMode RequirementsModel::viewMode() const
 {
     return m_viewMode;
+}
+
+void RequirementsModel::setToday(const QDate &today)
+{
+    if (!today.isValid() || today == m_today)
+        return;
+    // The age column and the overdue highlight are both derived from the day:
+    // the whole tree changes at midnight, not a single cell.
+    beginResetModel();
+    m_today = today;
+    endResetModel();
+}
+
+QColor RequirementsModel::staleDraftColour()
+{
+    return QColor(0xC0, 0x7A, 0x00);
+}
+
+QColor RequirementsModel::doneCandidateColour()
+{
+    return QColor(0x1E, 0x7B, 0x34);
 }
 
 void RequirementsModel::rebuildHierarchy()
@@ -287,17 +348,51 @@ QVariant RequirementsModel::data(const QModelIndex &index, int role) const
         return QVariant::fromValue(*req);
     if (role == SectionRole)
         return req->section;
+    if (role == AgeDaysRole)
+        return RequirementDates::ageInDays(createdDate(*req), m_today);
+    if (role == DraftVerdictRole) {
+        const int reqIndex = internalId - RequirementInternalBase;
+        return reqIndex >= 0 && reqIndex < m_draftVerdicts.size()
+                   ? QVariant(m_draftVerdicts.at(reqIndex)) : QVariant(QString());
+    }
+    if (role == DoneCandidateRole)
+        return req->doneCandidate;
+
+    if (role == Qt::ForegroundRole) {
+        // A candidate is waiting for the owner's verdict: the status colour
+        // mechanism, not a second one (REQ-SW-PL-107 AC3).
+        if (req->doneCandidate)
+            return QColor(doneCandidateColour());
+        // A proposal nobody looked at for two weeks: the status colour
+        // mechanism, not a second one (REQ-SW-PL-100).
+        const bool draft = RequirementsValidator::normalizedStatus(req->status)
+                           == QStringLiteral("DRAFT");
+        if (draft && RequirementDates::isOverdue(
+                         RequirementDates::ageInDays(createdDate(*req), m_today))) {
+            return QColor(staleDraftColour());
+        }
+        return QVariant();
+    }
 
     if (role != Qt::DisplayRole && role != Qt::ToolTipRole)
         return QVariant();
 
     switch (index.column()) {
-    case IdColumn:        return req->id;
+    case IdColumn:
+        // The badge is the ID plus a tick: visible in the tree, in the model
+        // data and in a screenshot, without a new column, a new status or a new
+        // field in the file (REQ-SW-PL-107 AC3).
+        return req->doneCandidate ? req->id + QStringLiteral(" ✓") : req->id;
     case TitleColumn:     return req->title;
     case StatusColumn:    return req->status;
     case PriorityColumn:  return req->priority;
     case AssigneeColumn:  return req->assignee;
     case RepoColumn:      return req->repo;
+    case CreatedColumn:   return createdDate(*req).trimmed().isEmpty()
+                                 ? QStringLiteral("—")
+                                 : createdDate(*req);
+    case AgeColumn:       return RequirementDates::ageLabel(
+                                 RequirementDates::ageInDays(createdDate(*req), m_today));
     default:              return QVariant();
     }
 }
@@ -315,12 +410,20 @@ QVariant RequirementsModel::headerData(int section, Qt::Orientation orientation,
     case PriorityColumn: return QStringLiteral("Priority");
     case AssigneeColumn: return QStringLiteral("Assignee");
     case RepoColumn:     return QStringLiteral("Repo");
+    case CreatedColumn:  return QStringLiteral("Създадено");
+    case AgeColumn:      return QStringLiteral("Възраст");
     default:             return QVariant();
     }
 }
 
 QModelIndex RequirementsModel::indexForId(const QString &id) const
 {
+    // A blank id names nothing: a requirement whose id parsed empty (a
+    // malformed header) would otherwise match it and the caller would land on
+    // a row that is not the one it asked for (REQ-SW-PL-099).
+    if (id.trimmed().isEmpty())
+        return QModelIndex();
+
     const int targetIdx = indexOfId(id);
     if (targetIdx < 0)
         return QModelIndex();

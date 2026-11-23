@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QRegularExpression>
+#include <QSaveFile>
 #include <QSet>
 #include <QTextStream>
 #include <QFile>
@@ -26,6 +27,40 @@ bool numberStrIsDigits(const QString &s)
             return false;
     }
     return true;
+}
+
+// The revision N written anywhere in a header value — "(ревизия 2)",
+// ", ревизия 2" or "ревизия: 2" (REQ-SW-PL-106). -1 when no number is written,
+// which is the legacy state the parser normalises instead of rejecting.
+int revisionNumberIn(const QString &value)
+{
+    static const QRegularExpression re(
+        QStringLiteral("ревизия\\s*:?\\s*([0-9]+)"));
+    const QRegularExpressionMatch match = re.match(value);
+    return match.hasMatch() ? match.captured(1).toInt() : -1;
+}
+
+// The ISO date a header value starts with ("2026-11-22, потребител" → the date).
+QString isoDateIn(const QString &value)
+{
+    static const QRegularExpression re(QStringLiteral("\\b([0-9]{4}-[0-9]{2}-[0-9]{2})\\b"));
+    const QRegularExpressionMatch match = re.match(value);
+    return match.hasMatch() ? match.captured(1) : QString();
+}
+
+// The who/ref part of a header value: everything after the date, with the
+// revision suffix removed so "Одобрено: 2026-11-22, потребител (ревизия 2)"
+// yields "потребител" and "Базова линия: 2026-11-22, feat/x (ревизия 2)"
+// yields "feat/x".
+QString textAfterDate(const QString &value)
+{
+    static const QRegularExpression revisionSuffix(
+        QStringLiteral("\\(?\\s*,?\\s*ревизия\\s*:?\\s*[0-9]+\\s*\\)?"));
+    QString rest = value;
+    rest.remove(isoDateIn(value));
+    rest.remove(revisionSuffix);
+    rest.remove(QRegularExpression(QStringLiteral("^[\\s,]+|[\\s,]+$")));
+    return rest.simplified();
 }
 
 // A requirement reference inside a "Родител:" / "Зависи от:" / "Деца:" value:
@@ -297,6 +332,322 @@ QString scanRootOf(const QString &baseDir)
     return base.absolutePath();
 }
 
+// Appends one row to the Markdown table under @p heading, creating the heading
+// and the header/separator pair when either is absent (REQ-SW-PL-101/102).
+//
+// One code path for the history table and the draft review table: both are
+// "a table at the end of the file", and two implementations would drift on the
+// blank-line handling that decides whether the table renders at all.
+QString appendTableRow(const QString &content, const QString &heading,
+                       const QString &header, const QString &separator,
+                       const QString &row, const QString &eol)
+{
+    const auto line = [&eol](const QString &text) { return text + eol; };
+    QStringList lines = content.split(QLatin1Char('\n'));
+    const int headingIndex = [&lines, &heading]() {
+        for (int i = 0; i < lines.size(); ++i) {
+            if (lines.at(i).trimmed() == heading)
+                return i;
+        }
+        return -1;
+    }();
+
+    if (headingIndex < 0) {
+        // The section does not exist yet: it goes at the END of the file, after
+        // the traceability block, so the metadata stays at the top.
+        while (lines.size() > 1 && lines.last().trimmed().isEmpty())
+            lines.removeLast();
+        lines.append(line(QString()));
+        lines.append(line(heading));
+        lines.append(line(QString()));
+        lines.append(line(header));
+        lines.append(line(separator));
+        lines.append(line(row));
+        // A bare empty last item: join() then ends the file with one newline
+        // (with the file's own ending), the same way every other file ends.
+        lines.append(QString());
+        return lines.join(QLatin1Char('\n'));
+    }
+
+    int lastPipe = -1;
+    for (int i = headingIndex + 1; i < lines.size(); ++i) {
+        const QString trimmed = lines.at(i).trimmed();
+        if (trimmed.isEmpty())
+            continue;
+        if (!trimmed.startsWith(QLatin1Char('|')))
+            break;
+        lastPipe = i;
+    }
+
+    if (lastPipe >= 0) {
+        lines.insert(lastPipe + 1, line(row));
+        return lines.join(QLatin1Char('\n'));
+    }
+
+    // Heading present but no table under it: add the header pair, keeping the
+    // one blank line a Markdown table needs between the heading and itself.
+    const int next = headingIndex + 1;
+    const bool blankNext = next < lines.size() && lines.at(next).trimmed().isEmpty();
+    const int insertAt = blankNext ? next + 1 : next;
+    if (!blankNext)
+        lines.insert(insertAt, line(QString()));
+    const int at = blankNext ? insertAt : insertAt + 1;
+    lines.insert(at, line(header));
+    lines.insert(at + 1, line(separator));
+    lines.insert(at + 2, line(row));
+    return lines.join(QLatin1Char('\n'));
+}
+
+// The data rows of the table under @p heading (header and separator excluded).
+QStringList tableDataRows(const QString &content, const QString &heading)
+{
+    const QStringList lines = content.split(QLatin1Char('\n'));
+    int headingIndex = -1;
+    for (int i = 0; i < lines.size(); ++i) {
+        if (lines.at(i).trimmed() == heading) {
+            headingIndex = i;
+            break;
+        }
+    }
+    if (headingIndex < 0)
+        return {};
+
+    QStringList rows;
+    bool sawSeparator = false;
+    for (int i = headingIndex + 1; i < lines.size(); ++i) {
+        const QString trimmed = lines.at(i).trimmed();
+        if (!trimmed.startsWith(QLatin1Char('|'))) {
+            if (rows.isEmpty() && trimmed.isEmpty())
+                continue;
+            if (!rows.isEmpty())
+                break;
+            continue;
+        }
+        // The `|---|` separator carries no verdict.
+        if (!sawSeparator
+            && trimmed.count(QLatin1Char('-')) >= trimmed.count(QLatin1Char('|'))) {
+            sawSeparator = true;
+            continue;
+        }
+        const QStringList cells = trimmed.split(QLatin1Char('|'));
+        // "| a | b |" splits into ["", " a ", " b ", ""]: the first cell is
+        // the header word ("кръг", "дата"), never a row.
+        const QString first = cells.value(1).trimmed();
+        if (first == QStringLiteral("кръг") || first == QStringLiteral("дата"))
+            continue;
+        rows.append(trimmed);
+    }
+    return rows;
+}
+
+// Reads the current "- **Статус:**" token of a file's content, or an empty
+// string when there is no status line.
+QString statusTokenInContent(const QString &content)
+{
+    const QStringList lines = content.split(QLatin1Char('\n'));
+    for (const QString &line : lines) {
+        const QString trimmed = line.trimmed();
+        if (trimmed.startsWith(QStringLiteral("## ")))
+            break;
+        if (!trimmed.startsWith(QStringLiteral("- **Статус:**")))
+            continue;
+        QString value = trimmed;
+        value.remove(0, value.indexOf(QLatin1Char(':')) + 1);
+        value.remove(QLatin1Char('*')).remove(QLatin1Char('`'));
+        return value.simplified().section(QLatin1Char(' '), 0, 0);
+    }
+    return QString();
+}
+
+// Rewrites the status line in @p content; returns the new content.
+QString contentWithStatus(const QString &content, const QString &status,
+                          const QString &eol)
+{
+    QStringList lines = content.split(QLatin1Char('\n'));
+    for (int i = 0; i < lines.size(); ++i) {
+        const QString trimmed = lines.at(i).trimmed();
+        if (trimmed.startsWith(QStringLiteral("## ")))
+            break;
+        if (!trimmed.startsWith(QStringLiteral("- **Статус:**")))
+            continue;
+        lines[i] = QStringLiteral("- **Статус:** %1").arg(status) + eol;
+        return lines.join(QLatin1Char('\n'));
+    }
+    return content;
+}
+
+// Rewrites "- **Ревизия:** N" to @p revision, inserting the field after the
+// status line when the file does not carry it yet.
+QString contentWithRevision(const QString &content, int revision, const QString &eol)
+{
+    QStringList lines = content.split(QLatin1Char('\n'));
+    for (int i = 0; i < lines.size(); ++i) {
+        const QString trimmed = lines.at(i).trimmed();
+        if (trimmed.startsWith(QStringLiteral("## ")))
+            break;
+        if (!trimmed.startsWith(QStringLiteral("- **Ревизия:**")))
+            continue;
+        lines[i] = QStringLiteral("- **Ревизия:** %1").arg(revision) + eol;
+        return lines.join(QLatin1Char('\n'));
+    }
+
+    // No revision field yet: it belongs next to the other header dates — after
+    // "Одобрено:" when there is one, else after the status, else before the
+    // first section.
+    int insertAt = 0;
+    bool anchored = false;
+    for (int i = 0; i < lines.size(); ++i) {
+        const QString trimmed = lines.at(i).trimmed();
+        if (trimmed.startsWith(QStringLiteral("## ")))
+            break;
+        if (trimmed.startsWith(QStringLiteral("- **Одобрено:**"))) {
+            insertAt = i + 1;
+            anchored = true;
+            break;
+        }
+        if (!anchored && trimmed.startsWith(QStringLiteral("- **Статус:**"))) {
+            insertAt = i + 1;
+            anchored = true;
+        }
+    }
+    lines.insert(insertAt, QStringLiteral("- **Ревизия:** %1").arg(revision) + eol);
+    return lines.join(QLatin1Char('\n'));
+}
+
+// Writes/replaces the approval line so it names the revision it accepted
+// (REQ-SW-PL-106): "- **Одобрено:** <date>, потребител (ревизия N)". The line is
+// inserted directly after the status line when the file carries none, which is
+// the same place contentWithRevision() anchors "Ревизия:" to.
+QString contentWithApproval(const QString &content, const QString &date,
+                            int revision, const QString &eol)
+{
+    const QString line = revision > 0
+        ? QStringLiteral("- **Одобрено:** %1, потребител (ревизия %2)")
+              .arg(date.trimmed()).arg(revision)
+        : QStringLiteral("- **Одобрено:** %1, потребител").arg(date.trimmed());
+
+    QStringList lines = content.split(QLatin1Char('\n'));
+    int statusLine = -1;
+    for (int i = 0; i < lines.size(); ++i) {
+        const QString trimmed = lines.at(i).trimmed();
+        if (trimmed.startsWith(QStringLiteral("## ")))
+            break;
+        if (trimmed.startsWith(QStringLiteral("- **Одобрено:**"))) {
+            lines[i] = line + eol;
+            return lines.join(QLatin1Char('\n'));
+        }
+        if (trimmed.startsWith(QStringLiteral("- **Статус:**")) && statusLine < 0)
+            statusLine = i;
+    }
+    if (statusLine < 0)
+        return content;
+    lines.insert(statusLine + 1, line + eol);
+    return lines.join(QLatin1Char('\n'));
+}
+
+// Seals an approval line that carries no revision number: "Промени договора"
+// must not erase what the human accepted, it must PIN it (REQ-SW-PL-106). After
+// the sealing, DRAFT plus "approved revision 2" is a true statement, not the
+// contradiction the old delete-the-line behaviour produced.
+QString contentWithSealedApproval(const QString &content, int approvedRevision,
+                                  const QString &eol)
+{
+    if (approvedRevision <= 0)
+        return content;
+    QStringList lines = content.split(QLatin1Char('\n'));
+    for (int i = 0; i < lines.size(); ++i) {
+        const QString trimmed = lines.at(i).trimmed();
+        if (trimmed.startsWith(QStringLiteral("## ")))
+            break;
+        if (!trimmed.startsWith(QStringLiteral("- **Одобрено:**")))
+            continue;
+        QString value = trimmed;
+        value.remove(0, value.indexOf(QLatin1Char(':')) + 1);
+        value.remove(QLatin1Char('*')).remove(QLatin1Char('`'));
+        if (revisionNumberIn(value) >= 0)
+            return content; // already pinned to an earlier revision
+        const int colon = lines.at(i).indexOf(QLatin1Char(':'));
+        Q_UNUSED(colon);
+        lines[i] = QStringLiteral("- **Одобрено:** %1 (ревизия %2)")
+                       .arg(value.simplified())
+                       .arg(approvedRevision)
+                   + eol;
+        return lines.join(QLatin1Char('\n'));
+    }
+    return content;
+}
+
+// Builds the whole "one history row + revision bump" edit on a content string.
+QString contentWithHistoryRow(const QString &content, const QString &date,
+                              const QString &change, const QString &who,
+                              const QString &why)
+{
+    const QStringList lines = content.split(QLatin1Char('\n'));
+    const QString eol = lines.first().endsWith(QLatin1Char('\r'))
+                            ? QStringLiteral("\r") : QString();
+    const QString row = QStringLiteral("| %1 | %2 | %3 | %4 |")
+                            .arg(date.trimmed(), change.trimmed(), who.trimmed(),
+                                 why.trimmed());
+    const QString withRow = appendTableRow(
+        content, QStringLiteral("## История"),
+        QStringLiteral("| дата | промяна | кой | защо |"),
+        QStringLiteral("|---|---|---|---|"), row, eol);
+    const int rows = tableDataRows(withRow, QStringLiteral("## История")).size();
+    const int current = RequirementsParser::revisionInContent(content);
+    const int next = qMax(current + (current > 0 ? 1 : 0), rows);
+    return contentWithRevision(withRow, next > 0 ? next : 1, eol);
+}
+
+// A rename that never overwrites: "нищо не се трие" (REQ-SW-PL-102).
+bool renameStrict(const QString &source, const QString &target, QString *errorOut)
+{
+    if (QFile::exists(target)) {
+        if (errorOut)
+            *errorOut = QStringLiteral("в архива вече има файл със същото име: %1")
+                            .arg(target);
+        return false;
+    }
+    if (!QFile::rename(source, target)) {
+        if (errorOut)
+            *errorOut = QStringLiteral("файлът не може да се премести: %1 → %2")
+                            .arg(source, target);
+        return false;
+    }
+    return true;
+}
+
+bool writeContentBytes(const QString &filePath, const QString &content,
+                       QString *errorOut)
+{
+    QSaveFile out(filePath);
+    if (!out.open(QIODevice::WriteOnly)) {
+        if (errorOut)
+            *errorOut = QStringLiteral("файлът не може да се запише: %1").arg(filePath);
+        return false;
+    }
+    out.write(content.toUtf8());
+    if (!out.commit()) {
+        if (errorOut)
+            *errorOut = QStringLiteral("записът не завърши: %1").arg(filePath);
+        return false;
+    }
+    return true;
+}
+
+// The whole file, read as UTF-8 without any line-ending translation.
+bool readContentBytes(const QString &filePath, QString *content, QString *errorOut)
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        if (errorOut)
+            *errorOut = QStringLiteral("файлът не може да се прочете: %1").arg(filePath);
+        return false;
+    }
+    *content = QString::fromUtf8(file.readAll());
+    file.close();
+    return true;
+}
+
 } // namespace
 
 namespace RequirementTemplate {
@@ -562,6 +913,348 @@ void RequirementsParser::setDependenciesLine(Requirement &req,
     req.dependencies = valueParts;
 }
 
+bool RequirementsParser::approveDraft(const QString &filePath, const QString &date,
+                                      QString *errorOut)
+{
+    const auto failWith = [errorOut](const QString &reason) {
+        if (errorOut)
+            *errorOut = reason;
+        return false;
+    };
+
+    if (date.trimmed().isEmpty())
+        return failWith(QStringLiteral("датата на одобрение е празна"));
+
+    QFile file(filePath);
+    // Binary mode on purpose: the promise is that every byte except the status
+    // line survives, and a text-mode round-trip would rewrite CRLF on Windows.
+    if (!file.open(QIODevice::ReadOnly))
+        return failWith(QStringLiteral("файлът не може да се прочете: %1").arg(filePath));
+    const QString content = QString::fromUtf8(file.readAll());
+    file.close();
+
+    // Split/join on '\n' is byte-exact: every line keeps its own "\r" (if the
+    // file is CRLF) and the trailing newline survives as an empty last item.
+    QStringList lines = content.split(QLatin1Char('\n'));
+    const QString eolSuffix =
+        lines.first().endsWith(QLatin1Char('\r')) ? QStringLiteral("\r") : QString();
+
+    const int statusLine = [&lines]() {
+        for (int i = 0; i < lines.size(); ++i) {
+            const QString trimmed = lines.at(i).trimmed();
+            if (trimmed.startsWith(QStringLiteral("- **Статус:**")))
+                return i;
+            // The metadata block ends at the first heading: a "Статус" word in
+            // the body must never be read as the requirement's status.
+            if (trimmed.startsWith(QStringLiteral("## ")))
+                break;
+        }
+        return -1;
+    }();
+    if (statusLine < 0)
+        return failWith(QStringLiteral("няма ред \"- **Статус:**\" в %1").arg(filePath));
+
+    const QString statusValue = [](QString line) {
+        // The colon sits INSIDE the bold markers (`- **Статус:** DRAFT`), so the
+        // value is what follows the first colon once emphasis is dropped.
+        line.remove(0, line.indexOf(QLatin1Char(':')) + 1);
+        line.remove(QLatin1Char('*')).remove(QLatin1Char('`'));
+        return line.simplified();
+    }(lines.at(statusLine));
+    const QString token = statusValue.section(QLatin1Char(' '), 0, 0);
+    // Not a draft: nothing to approve, and nothing to rewrite. A second accept
+    // therefore cannot re-date an already accepted requirement.
+    if (token != QStringLiteral("DRAFT"))
+        return true;
+
+    lines[statusLine] = QStringLiteral("- **Статус:** ACTIVE") + eolSuffix;
+
+    // The draft banner (" > **Чернова — чака одобрение…**") states the file's
+    // status, so an approved file must not keep it: ACTIVE plus "waits for
+    // approval" contradicts itself. Only that line goes; the blank line it
+    // leaves behind is dropped as well so no doubled empty line appears.
+    for (int i = 0; i < lines.size(); ++i) {
+        if (!lines.at(i).trimmed().startsWith(QStringLiteral("> **Чернова")))
+            continue;
+        lines.removeAt(i);
+        if (i > 0 && i < lines.size() && lines.at(i - 1).trimmed().isEmpty()
+            && lines.at(i).trimmed().isEmpty()) {
+            lines.removeAt(i);
+        }
+        break;
+    }
+
+    QSaveFile out(filePath);
+    if (!out.open(QIODevice::WriteOnly))
+        return failWith(QStringLiteral("файлът не може да се запише: %1").arg(filePath));
+    // The status changed, so the requirement records WHY as well: the history
+    // row is what `scripts/check-req-history.sh` demands of the commit that
+    // carries this approval (REQ-SW-PL-101), and writing it here is the only
+    // place that knows both values.
+    QString updated = lines.join(QLatin1Char('\n'));
+    updated = contentWithHistoryRow(updated, date.trimmed(),
+                                    QStringLiteral("одобрено (DRAFT → ACTIVE)"),
+                                    QStringLiteral("потребител"),
+                                    QStringLiteral("присъда на потребителя"));
+    // REQ-SW-PL-106: the approval line names the revision it accepted — the
+    // number AFTER the row's bump, because that is the file the human accepted.
+    // Reading it back must not leave "revision 2 > approved 1", which would
+    // block the very requirement the human just approved.
+    updated = contentWithApproval(updated, date, revisionInContent(updated),
+                                  eolSuffix);
+    out.write(updated.toUtf8());
+    if (!out.commit())
+        return failWith(QStringLiteral("записът не завърши: %1").arg(filePath));
+    return true;
+}
+
+QString RequirementsParser::draftReviewHeading()
+{
+    return QStringLiteral("## Ревю на черновата");
+}
+
+QString RequirementsParser::changesRequestedVerdict()
+{
+    return QStringLiteral("за корекция");
+}
+
+QString RequirementsParser::rejectVerdict()
+{
+    return QStringLiteral("откажи");
+}
+
+int RequirementsParser::draftReviewRounds(const QString &content)
+{
+    return tableDataRows(content, draftReviewHeading()).size();
+}
+
+QString RequirementsParser::lastDraftVerdict(const QString &content)
+{
+    const QStringList rows = tableDataRows(content, draftReviewHeading());
+    if (rows.isEmpty())
+        return QString();
+    // "| N | date | verdict | note |" → cells[3] is the verdict.
+    const QStringList cells = rows.last().split(QLatin1Char('|'));
+    return cells.value(3).trimmed();
+}
+
+bool RequirementsParser::requestChangesDraft(const QString &filePath, const QString &note,
+                                             const QString &date, QString *errorOut)
+{
+    const auto failWith = [errorOut](const QString &reason) {
+        if (errorOut)
+            *errorOut = reason;
+        return false;
+    };
+
+    if (note.trimmed().isEmpty())
+        return failWith(QStringLiteral("бележката е празна — „за корекция“ иска какво липсва"));
+    if (date.trimmed().isEmpty())
+        return failWith(QStringLiteral("датата на присъдата е празна"));
+
+    QString content;
+    if (!readContentBytes(filePath, &content, errorOut))
+        return false;
+
+    // Only a draft has a review; anything else is a successful no-op, the same
+    // contract approveDraft() follows.
+    if (statusTokenInContent(content) != QStringLiteral("DRAFT"))
+        return true;
+
+    const QStringList lines = content.split(QLatin1Char('\n'));
+    const QString eol = lines.first().endsWith(QLatin1Char('\r'))
+                            ? QStringLiteral("\r") : QString();
+    const int round = draftReviewRounds(content) + 1;
+    const QString row = QStringLiteral("| %1 | %2 | %3 | %4 |")
+                            .arg(QString::number(round), date.trimmed(),
+                                 changesRequestedVerdict(), note.trimmed());
+    // Status stays DRAFT and nothing else in the file is touched: the row is
+    // the whole record of the round (REQ-SW-PL-102 AC1).
+    const QString updated = appendTableRow(content, draftReviewHeading(),
+                                           QStringLiteral("| кръг | дата | присъда | бележка |"),
+                                           QStringLiteral("|---|---|---|---|"), row, eol);
+    return writeContentBytes(filePath, updated, errorOut);
+}
+
+bool RequirementsParser::rejectDraft(const QString &filePath, const QString &reason,
+                                     const QString &date, QString *errorOut)
+{
+    const auto failWith = [errorOut](const QString &reason) {
+        if (errorOut)
+            *errorOut = reason;
+        return false;
+    };
+
+    if (reason.trimmed().isEmpty())
+        return failWith(QStringLiteral("причината е празна — отказът иска защо"));
+
+    QString content;
+    if (!readContentBytes(filePath, &content, errorOut))
+        return false;
+    if (statusTokenInContent(content) != QStringLiteral("DRAFT"))
+        return true;
+
+    const QStringList lines = content.split(QLatin1Char('\n'));
+    const QString eol = lines.first().endsWith(QLatin1Char('\r'))
+                            ? QStringLiteral("\r") : QString();
+    const int round = draftReviewRounds(content) + 1;
+
+    QString updated = contentWithStatus(content, QStringLiteral("CANCELLED"), eol);
+    updated = appendTableRow(updated, draftReviewHeading(),
+                             QStringLiteral("| кръг | дата | присъда | бележка |"),
+                             QStringLiteral("|---|---|---|---|"),
+                             QStringLiteral("| %1 | %2 | %3 | %4 |")
+                                 .arg(QString::number(round), date.trimmed(),
+                                      rejectVerdict(), reason.trimmed()),
+                             eol);
+    // The status changed, so the history row is not optional: the whole point
+    // of the guard is that a later reader sees WHY (REQ-SW-PL-101).
+    updated = contentWithHistoryRow(updated, date,
+                                    QStringLiteral("CANCELLED — черновата е отказана"),
+                                    QStringLiteral("потребител"), reason.trimmed());
+
+    if (!writeContentBytes(filePath, updated, errorOut))
+        return false;
+
+    // Same zone rule as "Mark Done & Archive": a CANCELLED file left in active/
+    // is an error for scripts/validate-traceability.sh.
+    const QFileInfo info(filePath);
+    const QString cleanPath =
+        QDir::toNativeSeparators(QDir::cleanPath(info.absolutePath()));
+    QStringList dirParts = cleanPath.split(QDir::separator());
+    const int activeIndex = dirParts.lastIndexOf(QStringLiteral("active"));
+    if (activeIndex < 0)
+        return failWith(QStringLiteral("файлът не е в active/: %1").arg(filePath));
+    dirParts[activeIndex] = QStringLiteral("archive");
+    const QString archiveDir = dirParts.join(QDir::separator());
+    QDir().mkpath(archiveDir);
+    return renameStrict(filePath, QDir(archiveDir).filePath(info.fileName()), errorOut);
+}
+
+bool RequirementsParser::startContractChange(const QString &filePath, const QString &reason,
+                                             const QString &who, const QString &date,
+                                             QString *errorOut)
+{
+    const auto failWith = [errorOut](const QString &reason) {
+        if (errorOut)
+            *errorOut = reason;
+        return false;
+    };
+
+    if (reason.trimmed().isEmpty())
+        return failWith(QStringLiteral("причината е празна — промяната в договора иска защо"));
+
+    QString content;
+    if (!readContentBytes(filePath, &content, errorOut))
+        return false;
+
+    const QString token = statusTokenInContent(content);
+    // A contract exists only once it was accepted (REQ-SW-PL-101 → „Промени
+    // договора“ is enabled for ACTIVE/IMPLEMENTED).
+    if (token != QStringLiteral("ACTIVE") && token != QStringLiteral("IMPLEMENTED"))
+        return true;
+
+    const QStringList lines = content.split(QLatin1Char('\n'));
+    const QString eol = lines.first().endsWith(QLatin1Char('\r'))
+                            ? QStringLiteral("\r") : QString();
+    QString updated = contentWithStatus(content, QStringLiteral("DRAFT"), eol);
+    // REQ-SW-PL-106: the approval is PINNED to the revision it accepted instead
+    // of being left to look like "approved for whatever comes now". After the
+    // history row below bumps the revision, DRAFT + "одобрено … (ревизия N)"
+    // states the truth: revision N was accepted, N+1 is the change nobody has
+    // judged yet.
+    updated = contentWithSealedApproval(updated, revisionInContent(content), eol);
+    updated = contentWithHistoryRow(updated, date,
+                                    QStringLiteral("промяна в договора — обратно в DRAFT"),
+                                    who.trimmed().isEmpty() ? QStringLiteral("потребител")
+                                                            : who.trimmed(),
+                                    reason.trimmed());
+    return writeContentBytes(filePath, updated, errorOut);
+}
+
+bool RequirementsParser::markDone(const QString &filePath, const QString &reviewFile,
+                                  const QString &date, QString *errorOut)
+{
+    const auto failWith = [errorOut](const QString &reason) {
+        if (errorOut)
+            *errorOut = reason;
+        return false;
+    };
+
+    if (date.trimmed().isEmpty())
+        return failWith(QStringLiteral("датата на присъдата е празна"));
+
+    QString content;
+    if (!readContentBytes(filePath, &content, errorOut))
+        return false;
+    // Already DONE: a successful no-op, the same contract the draft actions
+    // follow. The gate above this call reports a DONE file left in active/.
+    if (statusTokenInContent(content) == QStringLiteral("DONE"))
+        return true;
+
+    const QStringList lines = content.split(QLatin1Char('\n'));
+    const QString eol = lines.first().endsWith(QLatin1Char('\r'))
+                            ? QStringLiteral("\r") : QString();
+    // EXACTLY one row, plus the revision bump that row implies (AC4): the diff
+    // is the status line, one history row and the revision — nothing else.
+    const QString reviewName = QFileInfo(reviewFile).fileName();
+    QString updated = contentWithStatus(content, QStringLiteral("DONE"), eol);
+    updated = contentWithHistoryRow(updated, date,
+                                    QStringLiteral("DONE"),
+                                    QStringLiteral("потребител"),
+                                    QStringLiteral("ревю %1").arg(reviewName));
+
+    if (!writeContentBytes(filePath, updated, errorOut))
+        return false;
+    if (!moveToArchive(filePath)) {
+        // Roll back: a DONE file left behind in active/ is a lie the gate can
+        // only report, never fix (R1-5). The write and the move are ONE change.
+        QString ignored;
+        writeContentBytes(filePath, content, &ignored);
+        return failWith(QStringLiteral("файлът не може да се премести в archive/: %1")
+                            .arg(filePath));
+    }
+    return true;
+}
+
+void RequirementsParser::appendHistoryRow(Requirement &req, const QString &date,
+                                          const QString &change, const QString &who,
+                                          const QString &why)
+{
+    req.rawContent = contentWithHistoryRow(req.rawContent, date, change, who, why);
+    req.revision = revisionInContent(req.rawContent);
+}
+
+int RequirementsParser::revisionInContent(const QString &content){
+    const QStringList lines = content.split(QLatin1Char('\n'));
+    for (const QString &line : lines) {
+        const QString trimmed = line.trimmed();
+        if (trimmed.startsWith(QStringLiteral("## ")))
+            break;
+        if (!trimmed.startsWith(QStringLiteral("- **Ревизия:**")))
+            continue;
+        QString value = trimmed;
+        value.remove(0, value.indexOf(QLatin1Char(':')) + 1);
+        value.remove(QLatin1Char('*')).remove(QLatin1Char('`'));
+        return value.simplified().toInt();
+    }
+    return 0;
+}
+
+QString RequirementsParser::findFileById(const QVector<RequirementRoot> &roots,
+                                         const QString &id)
+{
+    if (id.trimmed().isEmpty())
+        return QString();
+    // A FRESH walk, not a lookup in a cached vector: the point is that the H1
+    // is the identity and the path is not (REQ-SW-PL-102 AC7).
+    for (const Requirement &req : parseDirectories(roots)) {
+        if (QString::compare(req.id, id, Qt::CaseInsensitive) == 0)
+            return req.filePath;
+    }
+    return QString();
+}
+
 QString RequirementsParser::generateNextId(const QString &baseDir, const QString &prefix)
 {
     const QString prefixStr = QStringLiteral("REQ-%1-").arg(prefix);
@@ -626,7 +1319,8 @@ bool RequirementsParser::moveToArchive(const QString &filePath)
     const QString target = QDir(archiveDir).filePath(info.fileName());
     if (target == filePath)
         return false;
-    if (QFile::exists(target) && !QFile::remove(target))
+    // Strict (REQ-SW-PL-107 AC4): never remove the file that is already there.
+    if (QFile::exists(target))
         return false;
     return QFile::rename(filePath, target);
 }
@@ -686,6 +1380,7 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
     bool inDescription = false;
     bool inCriteria = false;
     bool inTraceability = false;
+    bool approvalLineSeen = false;
     QStringList descriptionLines;
     QStringList traceabilityLines;
 
@@ -732,6 +1427,27 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
                 out.assignee = value;
             else if (key == QStringLiteral("Дата"))
                 out.date = value;
+            else if (key == QStringLiteral("Създадено"))
+                out.created = value;
+            else if (key == QStringLiteral("Ревизия"))
+                out.revision = value.toInt();
+            else if (key == QStringLiteral("Одобрено")) {
+                // REQ-SW-PL-106: the approval names the revision it accepted.
+                // A line without the number is legacy and normalised to the
+                // file's own revision after the header was walked (the field
+                // may stand before "Ревизия"), so 143 files stay unblocked.
+                approvalLineSeen = true;
+                out.approvedDate = isoDateIn(value);
+                out.approvedBy = textAfterDate(value);
+                out.approvedRevision = revisionNumberIn(value);
+            }
+            else if (key == QStringLiteral("Базова линия")) {
+                // The first commit with code: date, branch and the revision the
+                // code started from (REQ-SW-PL-106).
+                out.baselineDate = isoDateIn(value);
+                out.baselineRef = textAfterDate(value);
+                out.baselineRevision = revisionNumberIn(value);
+            }
             else if (key == QStringLiteral("Родител")) {
                 // A parent list is possible ("REQ-AI-011, REQ-AI-012"); the tree
                 // is single-parent, so parentId is the first requirement ID —
@@ -785,6 +1501,24 @@ bool RequirementsParser::parseFile(const QFileInfo &fileInfo, const QString &sec
 
     out.description = descriptionLines.join(QStringLiteral("\n")).trimmed();
     out.traceability = traceabilityLines.join(QStringLiteral("\n")).trimmed();
+    // "All criteria done" is computed, never a line in the file (REQ-SW-PL-107).
+    // No criterion at all is not "all done": an empty list would otherwise pass
+    // with `!contains(false)` and a requirement without a contract could become
+    // a DONE candidate.
+    out.allCriteriaDone = !out.criteriaDone.isEmpty()
+                          && !out.criteriaDone.contains(false);
+    // REQ-SW-PL-101: "Създадено:" is the field, "Дата:" the legacy alias. The
+    // alias lives HERE, in the parser, not in a migration: the 135 files that
+    // predate the field keep their bytes and still answer "when was this
+    // created".
+    if (out.created.trimmed().isEmpty())
+        out.created = out.date;
+    // REQ-SW-PL-106, the legacy rule: an approval line without "(ревизия N)"
+    // means "approved up to whatever the file says now" — that is exactly what
+    // the 143 files written before the format carry, and none of them may turn
+    // red for it. A file with no approval line at all keeps -1 ("not recorded").
+    if (approvalLineSeen && out.approvedRevision < 0)
+        out.approvedRevision = out.revision;
     // A parsed file always has a generation: "unknown" is the honest answer for
     // one that follows no template at all, and it stays an Error downstream.
     if (out.templateVersion.isEmpty())
@@ -802,6 +1536,14 @@ PhaseStatus phaseStatus(const Requirement &req)
     result.testing = !req.tests.trimmed().isEmpty()
                      && req.tests.trimmed() != QStringLiteral("—");
     return result;
+}
+
+QString createdDate(const Requirement &req)
+{
+    const QString created = req.created.trimmed();
+    if (!created.isEmpty())
+        return created;
+    return req.date.trimmed();
 }
 
 } // namespace Daqster

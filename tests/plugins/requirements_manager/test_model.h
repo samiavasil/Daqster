@@ -15,7 +15,14 @@ private slots:
     void hierarchy_shape();
     void hierarchy_nesting();
     void indexForId_behaviour();
+    void indexForId_rejectsBlankId();
     void danglingParent_isTopLevel();
     void cycle_safe();
     void requirementRole_data();
+    void dateColumns_createdAndAge();
+    void dateColumns_missingDateIsDash();
+    void ageDaysRole_isNumeric();
+    void overdueDraft_isPaintedInWarningColour();
+    void freshDraft_isNotPainted();
+    void draftVerdictRole_fromReviewTable();
 };

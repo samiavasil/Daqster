@@ -38,6 +38,8 @@ set(TEST_SOURCES
     test_merge.cpp
     test_sorting.cpp
     test_report.cpp
+    test_dates.cpp
+    test_dates.h
     test_parser.h
     test_model.h
     test_validator.h
@@ -49,12 +51,15 @@ set(TEST_SOURCES
     test_report.h
     # plugin logic under test (compiled directly into the test binary):
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DoneGate.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DoneGateCheck.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsSortProxyModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsValidator.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/ValidationReport.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/TraceabilityMatrixModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsSearchEngine.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementDates.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphData.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphLayout.cpp
 )
@@ -70,6 +75,10 @@ target_include_directories(requirements_manager_tests PRIVATE
 target_link_libraries(requirements_manager_tests PRIVATE
     Qt${QT_VERSION_MAJOR}::Test
     Qt${QT_VERSION_MAJOR}::Core
+    # RequirementsModel returns the overdue-DRAFT colour through
+    # Qt::ForegroundRole (REQ-SW-PL-100), so QColor's symbols are needed even
+    # though the binary itself is headless.
+    Qt${QT_VERSION_MAJOR}::Gui
     FrameworkCore
     NodeEditorLibrary
 )
@@ -142,6 +151,7 @@ set(GUI_TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DependencyGraphLayout.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsValidator.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementDates.cpp
 )
 
 add_executable(requirements_manager_gui_tests ${GUI_TEST_SOURCES})
@@ -182,6 +192,8 @@ set(WIDGET_TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/ValidationDialog.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/HelpDialog.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/HelpDialog.h
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DraftNoteDialog.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DraftNoteDialog.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/NewRequirementDialog.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/NewRequirementDialog.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/TraceabilityMatrixWidget.cpp
@@ -202,7 +214,11 @@ set(WIDGET_TEST_SOURCES
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/IdeaModel.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/IdeaModel.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsParser.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DoneGate.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/DoneGateCheck.cpp
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementsValidator.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementDates.cpp
+    ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/RequirementDates.h
     ${DAQSTER_SOURCE_DIR}/src/plugins/requirements_manager/ValidationReport.cpp
 )
 

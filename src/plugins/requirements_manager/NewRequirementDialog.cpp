@@ -225,7 +225,12 @@ void NewRequirementDialog::buildMarkdown(QString &outContent, QString &outId,
     content += QStringLiteral("- **Статус:** %1\n").arg(m_statusCombo->currentText());
     content += QStringLiteral("- **Приоритет:** %1\n").arg(m_priorityCombo->currentText());
     content += QStringLiteral("- **Отговорник (роля):** %1\n").arg(m_assigneeCombo->currentText());
-    content += QStringLiteral("- **Дата:** %1\n").arg(QDate::currentDate().toString(Qt::ISODate));
+    // REQ-SW-PL-101: "Създадено:" is the immutable creation date; "Ревизия:"
+    // starts at 1 and grows with every history row. Both are written on
+    // creation, so a new file never looks older than the change that made it.
+    content += QStringLiteral("- **Създадено:** %1\n")
+                   .arg(QDate::currentDate().toString(Qt::ISODate));
+    content += QStringLiteral("- **Ревизия:** 1\n");
     // Promotion link back to the idea (REQ-SW-PL-095): a plain metadata line so
     // the traceability script and the parser both see it as one field.
     if (!m_fromIdea.isEmpty())
@@ -242,6 +247,16 @@ void NewRequirementDialog::buildMarkdown(QString &outContent, QString &outId,
     content += QStringLiteral("- **Код:** `src/plugins/requirements_manager/`\n");
     content += QStringLiteral("- **Документация:** `docs/Architecture/plugins/`\n");
     content += QStringLiteral("- **Тестове:** Qt5 + Qt6 builds\n");
+    // The history section goes LAST (metadata stays on top) and carries the
+    // creation row, so "why does this exist" is answerable from the file alone.
+    content += QStringLiteral("\n## История\n\n");
+    content += QStringLiteral("| дата | промяна | кой | защо |\n");
+    content += QStringLiteral("|---|---|---|---|\n");
+    content += QStringLiteral("| %1 | създадено | %2 | %3 |\n")
+                   .arg(QDate::currentDate().toString(Qt::ISODate),
+                        m_assigneeCombo->currentText(),
+                        title.isEmpty() ? QStringLiteral("ново изискване")
+                                        : title);
 
     outContent = content;
 }

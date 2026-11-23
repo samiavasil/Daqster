@@ -1,5 +1,7 @@
 #include "RequirementsSortProxyModel.h"
 
+#include "RequirementsModel.h"
+
 namespace Daqster {
 
 RequirementsSortProxyModel::RequirementsSortProxyModel(QObject *parent)
@@ -42,6 +44,27 @@ bool RequirementsSortProxyModel::lessThan(const QModelIndex &left,
         const int leftParentRow = leftParent.isValid() ? leftParent.row() : -1;
         const int rightParentRow = rightParent.isValid() ? rightParent.row() : -1;
         return leftParentRow < rightParentRow;
+    }
+
+    // The age column carries text ("12 дни"), which would sort alphabetically:
+    // "12" < "9". The model exposes the day count through AgeDaysRole for
+    // exactly this comparison, so the sort is numeric (REQ-SW-PL-100). An
+    // unknown age (-1, "—") groups at one end instead of comparing as 0.
+    if (left.column() == RequirementsModel::AgeColumn) {
+        const QVariant leftDays = left.data(RequirementsModel::AgeDaysRole);
+        const QVariant rightDays = right.data(RequirementsModel::AgeDaysRole);
+        if (leftDays.isValid() || rightDays.isValid()) {
+            const int l = leftDays.isValid() ? leftDays.toInt() : -1;
+            const int r = rightDays.isValid() ? rightDays.toInt() : -1;
+            if (l != r) {
+                if (l < 0)
+                    return false;
+                if (r < 0)
+                    return true;
+                return l < r;
+            }
+            return false;
+        }
     }
 
     const QString leftValue = left.data(Qt::DisplayRole).toString();

@@ -19,7 +19,7 @@
 | Runtime Host Headless | `src/plugins/runtime_host/headless/` | Headless runtime плъгин (`RuntimeHostHeadlessPlugin`) — `IRuntimeHost`, вдига граф без GUI |
 | Runtime Host GUI | `src/plugins/runtime_host/gui/` | GUI runtime shell (`RuntimeHostGuiPlugin`) — `IRuntimeHost`, вдига графа с прозорци/canvas |
 | [QtCoinTrader](./qt_coin_trader/README.md) | `src/plugins/qt_coin_trader/` | APPLICATION_PLUGIN за cryptocurrency trading с QML UI; демонстрира интеграция с QtRest (REST API комуникация) и QtCharts (визуализация) |
-| Requirements Manager | `src/plugins/requirements_manager/` | APPLICATION_PLUGIN за управление на изискванията (RDD) с GUI |
+| [Requirements Manager](./requirements_manager/README.md) | `src/plugins/requirements_manager/` | APPLICATION_PLUGIN за управление на изискванията (RDD) с GUI |
 
 > **Node Editor документацията** вече живее в собствена област:
 > [Architecture/node_editor](../../Architecture/node_editor/README.md).
