@@ -9,9 +9,12 @@
 #   (б) цитирано изискване не е ACTIVE/IMPLEMENTED/DONE (DRAFT, CANCELLED,
 #       BACKLOG), ревизията му не е одобрена или последната му присъда е
 #       „за корекция“ (чете се от `scripts/req-state.sh`, както `preflight-req.sh`);
+#       това се проверява САМО когато комитът пипа код (виж (а)) — иначе
+#       цитираният ID е информативен, за да е комитваемо създаването на черновата;
 #   (в) staged diff-ът пипа споделен път, а `.test-evidence/1-<HEAD short>.txt`
 #       липсва или няма `scope full`.
-# `docs:`/`chore:` комит, който не пипа код, минава без REQ.
+# `docs:`/`chore:` комит, който не пипа код, минава без REQ и без проверка на
+# статуса на цитираните ID-та (черновата се създава с docs комит преди присъдата).
 #
 # Вика се от двете куки (`scripts/install-hooks.sh` слага `core.hooksPath`):
 #   `.githooks/pre-commit`  → `--no-message`: git още НЕ е записал съобщението
@@ -85,13 +88,17 @@ if [ "$NO_MSG" -eq 0 ] && [ -n "$CODE_FILES" ] && [ -z "$IDS" ]; then
     exit 1
 fi
 
-# (б) състоянието на всяко цитирано изискване. Търси се и в съседното repo —
-# изискванията на публичния код живеят в частното (`REQ-SW-PL-*`).
+# (б) състоянието на всяко цитирано изискване, САМО за комит, който пипа код:
+# docs:/chore: комит без код само създава или описва изискване (вкл. черновата
+# преди присъда), затова там цитираният ID е информативен и не се съди по статус.
+# Търси се и в съседното repo — изискванията на публичния код живеят в частното
+# (`REQ-SW-PL-*`).
 CANDIDATE_ROOTS=("$ROOT")
 for sib in daqster DaqsterAiStudio; do
     cand="$(dirname "$ROOT")/$sib"
     [ "$cand" != "$ROOT" ] && [ -d "$cand" ] && CANDIDATE_ROOTS+=("$cand")
 done
+if [ -n "$CODE_FILES" ]; then
 for id in $IDS; do
     if ! file="$(req_find "$id" "${CANDIDATE_ROOTS[@]}")"; then
         [ "$QUIET" -eq 1 ] || echo "⚠ $id — няма файл в това repo, нито в съседното; статусът не е проверен" >&2
@@ -127,6 +134,7 @@ for id in $IDS; do
         exit 1
     fi
 done
+fi
 
 # (в) споделен път без печат `scope full` за HEAD.
 if [ "$SKIP_SHARED" -eq 0 ]; then
